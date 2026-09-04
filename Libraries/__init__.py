@@ -145,7 +145,7 @@ from Libraries.cochem_torq_training_persistence import (
     worker_init_fn,
 )
 
-# Inference Errors (Chunks 18 & 19)
+# Inference Errors (Chunks 18, 19, 20)
 from Libraries.cochem_torq_inference_errors import (
     ActiveLearningSelectionError,
     AirGapIntegrityError,
@@ -153,6 +153,7 @@ from Libraries.cochem_torq_inference_errors import (
     BaselineExecutionError,
     CalibrationSizeError,
     ClashDetectedError,
+    ConcurrencyLockError,
     ConvergenceError,
     CutoffContinuityError,
     DispersionParameterError,
@@ -160,12 +161,15 @@ from Libraries.cochem_torq_inference_errors import (
     GradientExplosionError,
     HDF5DataModuleLockError,
     HardwareDispatchError,
+    NumericalParityError,
+    OpsetUnsupportedError,
     PBCGraphError,
+    PhysicsDivergenceError,
     TorqInferenceError,
     VanishingGradientWarning,
 )
 
-# Inference Schemas (Chunks 18 & 19)
+# Inference Schemas (Chunks 18, 19, 20)
 from Libraries.cochem_torq_inference_schemas import (
     ActiveLearningOrchestratorConfig,
     C2SmoothCutoffConfig,
@@ -175,12 +179,53 @@ from Libraries.cochem_torq_inference_schemas import (
     ConformalPredictorConfig,
     DeltaMLConfig,
     DispersionD3Config,
+    FiniteDiffVerificationResult,
     GNNGradientDebuggerConfig,
     HPORunConfig,
     LBFGSOptimizationState,
     LBFGSOptimizerConfig,
+    MultiTaskPrediction,
     NeighborListResult,
+    ONNXExportSpec,
     PBCRadialGraphConfig,
+    VibrationalModes,
+)
+
+# Multi-Task Learning Head (Chunk 20)
+from Libraries.cochem_torq_multitask import (
+    HomoscedasticMultiTaskLoss,
+    MultiTaskHead,
+    huber_loss,
+)
+
+# Finite-Difference Verification (Chunk 20)
+from Libraries.cochem_torq_finite_difference import (
+    verify_finite_difference_forces,
+)
+
+# Vibrational Frequency & Hessian Analysis (Chunk 20)
+from Libraries.cochem_torq_vibrational import (
+    CODATA_2022_FREQ_FACTOR,
+    CODATA_2022_HC_EV_CM,
+    CODATA_2022_KAPPA,
+    analyze_vibrational_frequencies,
+    compute_cartesian_hessian,
+    compute_eckart_projector,
+    resolve_ciaaw_monoisotopic_mass,
+)
+
+# TorchDynamo ONNX Export (Chunk 20)
+from Libraries.cochem_torq_onnx_export import (
+    DEFAULT_DYNAMIC_AXES,
+    export_to_onnx,
+    validate_onnx_spec,
+    verify_onnx_parity,
+)
+
+# Environment & Hardware Concurrency (Chunk 20)
+from Libraries.cochem_torq_environment import (
+    dispatch_device_safely,
+    resolve_hpc_safe_scratch,
 )
 
 # Active Learning (Chunk 18)
@@ -491,5 +536,30 @@ __all__ = [
     # Spatial Neighbor List (Chunk 19)
     "TRITON_AVAILABLE",
     "build_neighbor_list",
+    # Chunk 20: TORQ Inference, Vibrational, and Export
+    "ConcurrencyLockError",
+    "NumericalParityError",
+    "OpsetUnsupportedError",
+    "PhysicsDivergenceError",
+    "FiniteDiffVerificationResult",
+    "MultiTaskPrediction",
+    "ONNXExportSpec",
+    "VibrationalModes",
+    "HomoscedasticMultiTaskLoss",
+    "MultiTaskHead",
+    "huber_loss",
+    "verify_finite_difference_forces",
+    "CODATA_2022_FREQ_FACTOR",
+    "CODATA_2022_HC_EV_CM",
+    "CODATA_2022_KAPPA",
+    "analyze_vibrational_frequencies",
+    "compute_cartesian_hessian",
+    "compute_eckart_projector",
+    "DEFAULT_DYNAMIC_AXES",
+    "export_to_onnx",
+    "validate_onnx_spec",
+    "verify_onnx_parity",
+    "dispatch_device_safely",
+    "resolve_hpc_safe_scratch",
 ]
 

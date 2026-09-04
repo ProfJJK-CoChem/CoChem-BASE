@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Literal, NamedTuple, Optional, Union
 import torch
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ActiveLearningOrchestratorConfig(BaseModel):
@@ -444,4 +444,148 @@ class LBFGSOptimizationState(BaseModel):
     final_coordinates: Optional[torch.Tensor] = (
         None  # Shape: [N, 3], Unit: Angstrom
     )
+
+
+class MultiTaskPrediction(BaseModel):
+    """Encapsulates multi-task predictions for potential energy, forces, and HOMO-LUMO gap [M]."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    energy: float = Field(
+        ..., description="Molecular potential energy in eV [M]"
+    )
+    forces: List[List[float]] = Field(
+        ...,
+        description="Atomic Cartesian forces [N, 3] in eV/Angstrom [M]",
+    )
+    homo_lumo_gap: float = Field(
+        ...,
+        gt=0.0,
+        description="Fundamental HOMO-LUMO electronic gap in eV [M]",
+    )
+    energy_log_variance: float = Field(
+        ..., description="Task log-variance s_E = log(sigma_E^2) [D]"
+    )
+    gap_log_variance: float = Field(
+        ..., description="Task log-variance s_G = log(sigma_G^2) [D]"
+    )
+
+    @field_validator("forces")
+    @classmethod
+    def validate_forces_shape(cls, v: List[List[float]]) -> List[List[float]]:
+        if not v or len(v) == 0:
+            raise ValueError("Forces tensor cannot be empty.")
+        for row in v:
+            if len(row) != 3:
+                raise ValueError(
+                    f"Each force vector must be 3D Cartesian [x, y, z], got dimension {len(row)}."
+                )
+        return v
+
+
+class FiniteDiffVerificationResult(BaseModel):
+    """Validation report certifying agreement between analytic and finite-difference forces [M]."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    max_absolute_error: float = Field(
+        ...,
+        description="Maximum absolute force component error (L_infinity) in eV/Angstrom [M]",
+    )
+    relative_frobenius_error: float = Field(
+        ..., description="Relative Frobenius norm error [M]"
+    )
+    step_size: float = Field(
+        ..., description="Displacement step size h in Angstrom [E]"
+    )
+    passed: bool = Field(
+        ...,
+        description="True if within acceptance criteria (L_inf < 1e-4 eV/A) [M]",
+    )
+    dtype: str = Field(
+        ...,
+        description="Execution tensor precision, strictly torch.float64 [M]",
+    )
+    atom_count: int = Field(
+        ...,
+        ge=1,
+        description="Number of atoms in the evaluated structure [M]",
+    )
+
+
+class VibrationalModes(BaseModel):
+    """Full normal mode report containing projected harmonic frequencies and zero-point energy [D]."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    frequencies_cm1: List[float] = Field(
+        ...,
+        description="Signed harmonic vibrational frequencies in cm^-1 (nu < 0 for imaginary modes) [D]",
+    )
+    zero_point_energy_ev: float = Field(
+        ...,
+        ge=0.0,
+        description="Harmonic Zero-Point Vibrational Energy (ZPVE) in eV [D]",
+    )
+    imaginary_mode_count: int = Field(
+        ...,
+        ge=0,
+        description="Count of transition-state imaginary normal modes (nu < 0) [D]",
+    )
+    eigenvalues: List[float] = Field(
+        ...,
+        description="Mass-weighted Hessian eigenvalues in eV/(Angstrom^2 * u) [D]",
+    )
+    projected_degrees_of_freedom: int = Field(
+        ...,
+        description="Number of projected translational and rotational degrees of freedom (5 or 6) [D]",
+    )
+    mass_weighting_standard: str = Field(
+        default="CIAAW_MONOISOTOPIC",
+        description="Governing standard for isotopic masses [M]",
+    )
+
+    @model_validator(mode="after")
+    def validate_mode_consistency(self) -> "VibrationalModes":
+        actual_imaginary = sum(1 for f in self.frequencies_cm1 if f < 0.0)
+        if self.imaginary_mode_count != actual_imaginary:
+            raise ValueError(
+                f"imaginary_mode_count mismatch: reported {self.imaginary_mode_count}, "
+                f"but frequencies_cm1 contains {actual_imaginary} negative modes."
+            )
+        if len(self.frequencies_cm1) != len(self.eigenvalues):
+            raise ValueError(
+                f"Dimension mismatch between frequencies ({len(self.frequencies_cm1)}) "
+                f"and eigenvalues ({len(self.eigenvalues)})."
+            )
+        return self
+
+
+class ONNXExportSpec(BaseModel):
+    """Configuration specification governing TorchDynamo ONNX compilation and dynamic axes [D]."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    opset_version: int = Field(
+        ..., ge=17, description="Target ONNX opset version (>= 17) [E]"
+    )
+    export_mechanism: str = Field(
+        ...,
+        description="Export engine: dynamo_export_aot_autograd or direct_analytical_force_head [D]",
+    )
+    dynamic_axes: Dict[str, Dict[int, str]] = Field(
+        ...,
+        description="Dynamic axes dictionary covering 3D tensors and edge_index [D]",
+    )
+    precision: str = Field(
+        ..., description="Model numerical precision: float32 or float64 [E]"
+    )
+
+    @field_validator("opset_version")
+    @classmethod
+    def validate_opset(cls, v: int) -> int:
+        if v < 17:
+            from Libraries.cochem_torq_inference_errors import OpsetUnsupportedError
+
+            raise OpsetUnsupportedError(
+                f"Target ONNX opset {v} is unsupported. CoChem-TORQ requires opset >= 17 for PyTorch 2.0+ Dynamo export."
+            )
+        return v
+
 

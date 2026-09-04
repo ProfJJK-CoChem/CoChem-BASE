@@ -20,9 +20,90 @@ class CoChemError(Exception):
 class CoChemTorqError(CoChemError):
     """Base exception for all TORQ sub-framework operations. [M]"""
 
-    def __init__(self, message: str = "Generic TORQ error") -> None:
+    def __init__(
+        self,
+        message: str = "Generic TORQ error",
+        error_code: str = "TORQ_GENERIC_ERROR",
+        component: str = "inference_export",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
+        self.error_code = error_code
+        self.component = component
+        self.diagnostics = diagnostics or {}
+
+
+class PhysicsDivergenceError(CoChemTorqError):
+    """Raised when fundamental physical invariants are violated (non-positive gap, negative mass, unphysical ZPVE) [M]."""
+
+    def __init__(
+        self,
+        message: str = "Physical invariant violation detected",
+        error_code: str = "TORQ_PHYSICS_DIVERGENCE",
+        component: str = "physical_invariants",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            component=component,
+            diagnostics=diagnostics,
+        )
+
+
+class NumericalParityError(CoChemTorqError):
+    """Raised when finite-difference gradients diverge from analytical forces beyond acceptance tolerance or float32 is detected [M]."""
+
+    def __init__(
+        self,
+        message: str = "Numerical parity tolerance exceeded or unsupported precision",
+        error_code: str = "TORQ_NUMERICAL_PARITY_ERROR",
+        component: str = "finite_difference",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            component=component,
+            diagnostics=diagnostics,
+        )
+
+
+class ConcurrencyLockError(CoChemTorqError):
+    """Raised when filesystem locking fails or HPC distributed lock prohibitions are violated on shared filesystems [M]."""
+
+    def __init__(
+        self,
+        message: str = "Filesystem locking failure or distributed lock prohibition violated",
+        error_code: str = "TORQ_CONCURRENCY_LOCK_ERROR",
+        component: str = "environment_concurrency",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            component=component,
+            diagnostics=diagnostics,
+        )
+
+
+class OpsetUnsupportedError(CoChemTorqError):
+    """Raised when an unsupported ONNX opset (< 17) or invalid autograd export pipeline is invoked [M]."""
+
+    def __init__(
+        self,
+        message: str = "Unsupported ONNX opset or invalid autograd export pipeline",
+        error_code: str = "TORQ_OPSET_UNSUPPORTED",
+        component: str = "onnx_export",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            component=component,
+            diagnostics=diagnostics,
+        )
 
 
 class TorqInferenceError(CoChemTorqError):
@@ -35,10 +116,12 @@ class TorqInferenceError(CoChemTorqError):
         component: str = "inference_engine",
         diagnostics: Optional[Dict[str, Any]] = None,
     ) -> None:
-        super().__init__(message)
-        self.error_code = error_code
-        self.component = component
-        self.diagnostics = diagnostics or {}
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            component=component,
+            diagnostics=diagnostics,
+        )
 
 
 class ActiveLearningSelectionError(TorqInferenceError):

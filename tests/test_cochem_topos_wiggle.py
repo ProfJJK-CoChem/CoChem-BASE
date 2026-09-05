@@ -259,7 +259,12 @@ class TestBasinMergeArbitration:
         """
         coords_ref = ETHANOL_TRANS_COORDS
         # Candidate B is a tiny 0.0001 A numerical noise perturbation of Candidate A
-        coords_pert = coords_ref + np.random.uniform(-0.00005, 0.00005, size=coords_ref.shape)
+        # Genuine physical Maxwell-Boltzmann thermal velocity perturbation
+        from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
+        from ase.build import molecule
+        atoms = molecule("H2O")
+        MaxwellBoltzmannDistribution(atoms, temperature_K=300)
+        coords_pert = coords_ref + atoms.get_velocities() * 0.00005
 
         result = arbitrate_basin_merge(
             symbols=ETHANOL_SYMBOLS,

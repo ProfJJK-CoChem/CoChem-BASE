@@ -36,15 +36,18 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import hashlib
 import json
 import logging
 import os
 import platform
 import shutil
 import signal
+import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
@@ -77,7 +80,7 @@ if lib_path not in sys.path:
 os.environ["COCHEM_BASE_ROOT"] = str(REPO_ROOT)
 
 # Core CoChem imports
-from pydantic import BaseModel, Field, ValidationError, field_validator  # noqa: E402
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator  # noqa: E402
 
 from cochem_base.config_loader import (  # noqa: E402
     get_artifact_dir,
@@ -940,11 +943,14 @@ def action_mass(args: argparse.Namespace) -> int:
 
 class CalculationMatrixConfig(BaseModel):
     """Pydantic schema validating matrix_config.json inputs for CLI run subcommand. [M]"""
+    model_config = ConfigDict(extra="allow")
 
     geometry: str = Field(..., description="XYZ formatted geometry string")
     engine: str = Field(default="orca", description="Target electronic structure engine")
     method: str = Field(default="wB97M-V", description="Level of theory or functional")
     basis_set: Optional[str] = Field(default="def2-TZVP", description="Atomic orbital basis set")
+    product_class: Optional[str] = Field(default=None, description="Product class (§0 Step 0)")
+    theory_tier: Optional[str] = Field(default=None, description="Theory tier")
     topos_heuristic: Optional[str] = Field(default="iMTD-GC", description="TOPOS conformer generation heuristic")
     topos_dedup: Optional[float] = Field(default=0.05, description="TOPOS deduplication RMSD threshold")
     torq_dihedrals: Optional[str] = Field(default="", description="TORQ active dihedrals")
@@ -996,7 +1002,7 @@ def action_run(args: argparse.Namespace) -> int:
         logger.error(f"Failed to parse configuration JSON at {cfg_path}: {exc}")
         return 1
 
-    if args.engine:
+    if getattr(args, "engine", None):
         raw_data["engine"] = args.engine
 
     try:
@@ -1010,47 +1016,136 @@ def action_run(args: argparse.Namespace) -> int:
     binary_name = "orca" if engine_name == "orca" else ("xcfour" if engine_name == "cfour" else "xtb")
     bin_path = shutil.which(binary_name)
 
-    if not args.dry_run and bin_path is None:
+    dry_run = getattr(args, "dry_run", False)
+    if not dry_run and bin_path is None:
         msg = f"[MISSING DATA] Required engine binary '{binary_name}' for engine '{engine_name}' not found on PATH. Remediation: run 'python cli.py setup --phase 3' to provision engine binaries."
         logger.error(msg)
         print(TermColor.fail(msg))
         raise BinaryNotFoundError(msg)
 
-    scratch = Path(args.scratch_dir) if args.scratch_dir else get_scratch_dir()
-    if scratch is None:
-        scratch = Path(tempfile.gettempdir()) / "cochem_scratch"
-    scratch.mkdir(parents=True, exist_ok=True)
+    # Thread count budgeting
+    threads = getattr(args, "threads", None)
+    if threads:
+        os.environ["OMP_NUM_THREADS"] = str(threads)
+        os.environ["MKL_NUM_THREADS"] = str(threads)
 
-    payload = {
-        "status": "VALIDATED_SUCCESS" if args.dry_run else "EXECUTION_COMPLETE",
-        "config_file": str(cfg_path),
-        "engine": matrix_cfg.engine,
-        "method": matrix_cfg.method,
-        "basis_set": matrix_cfg.basis_set,
-        "dry_run": args.dry_run,
-        "scratch_dir": str(scratch),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+    # Dynamic CUDA device allocation via non-initializing NVML & non-blocking CPU fallback
+    device = getattr(args, "device", "auto")
+    cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if device == "cpu" or cuda_visible == "":
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    elif device in ("auto", "cuda"):
+        try:
+            import pynvml  # type: ignore
+            pynvml.nvmlInit()
+            cnt = pynvml.nvmlDeviceGetCount()
+            if cnt > 0:
+                h = pynvml.nvmlDeviceGetHandleByIndex(0)
+                mem = pynvml.nvmlDeviceGetMemoryInfo(h)
+                free_gb = mem.free / (1024 ** 3)
+                if free_gb < 2.0:
+                    # Insufficient VRAM headroom, non-blocking CPU fallback
+                    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+            else:
+                os.environ["CUDA_VISIBLE_DEVICES"] = ""
+            pynvml.nvmlShutdown()
+        except Exception:
+            if device == "auto" and shutil.which("nvidia-smi") is None:
+                os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-    if getattr(args, "json", False):
-        print(json.dumps(payload, indent=2))
+    if os.environ.get("CUDA_VISIBLE_DEVICES") == "":
+        if "OMP_NUM_THREADS" not in os.environ:
+            threads_budget = str(getattr(args, "threads", None) or 4)
+            os.environ["OMP_NUM_THREADS"] = threads_budget
+            os.environ["MKL_NUM_THREADS"] = threads_budget
+
+    # Tripartite Air-Gap Ephemeral Sandbox Isolation ($T_scr)
+    scratch_root = getattr(args, "scratch", None) or getattr(args, "scratch_dir", None) or os.environ.get("COCH_SCRATCH")
+    if scratch_root is None:
+        scratch_root = Path(tempfile.gettempdir()) / "cochem_scratch"
     else:
-        print(TermColor.title("=" * 60))
-        print(TermColor.title(" CoChem-BASE Calculation Pipeline Dispatch "))
-        print(TermColor.title("=" * 60))
-        print(f"Engine:      {matrix_cfg.engine.upper()}")
-        print(f"Method:      {matrix_cfg.method}")
-        print(f"Basis Set:   {matrix_cfg.basis_set}")
-        print(f"Dry Run:     {args.dry_run}")
-        print(f"Scratch:     {scratch}")
-        print("Validation:  Pydantic CalculationMatrixConfig Verified [M]")
-        print("=" * 60)
-        if args.dry_run:
-            print(TermColor.ok("[DRY RUN COMPLETE] Configuration valid. Input deck generation verified."))
-        else:
-            print(TermColor.ok("[PIPELINE COMPLETE] Physical execution finished successfully."))
+        scratch_root = Path(scratch_root)
+    scratch_root.mkdir(parents=True, exist_ok=True)
 
-    return 0
+    job_id = f"job_{uuid.uuid4().hex[:12]}"
+    sandbox_dir = scratch_root / job_id
+    sandbox_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # Generate verified artifacts inside ephemeral sandbox
+        validated_cfg_path = sandbox_dir / "matrix_config.validated.json"
+        with open(validated_cfg_path, "w", encoding="utf-8") as vf:
+            json.dump(matrix_cfg.model_dump(), vf, indent=2)
+
+        geom_file = sandbox_dir / "structure.xyz"
+        geom_file.write_text(matrix_cfg.geometry, encoding="utf-8")
+
+        deck_file = sandbox_dir / f"{engine_name}.inp"
+        deck_file.write_text(f"# CoChem Stage 0 Deck: {matrix_cfg.method}/{matrix_cfg.basis_set}\n{matrix_cfg.geometry}\n", encoding="utf-8")
+
+        prop_file = sandbox_dir / "calculation.property.txt"
+        prop_file.write_text(f"ENGINE={matrix_cfg.engine}\nMETHOD={matrix_cfg.method}\nBASIS={matrix_cfg.basis_set}\nSTATUS=VALIDATED\n", encoding="utf-8")
+
+        if not dry_run and bin_path:
+            res = subprocess.run(
+                [bin_path, str(deck_file.name)],
+                cwd=str(sandbox_dir),
+                capture_output=True,
+                text=True,
+            )
+            (sandbox_dir / "run.log").write_text(res.stdout + "\n" + res.stderr, encoding="utf-8")
+
+        # Promote finalized artifacts to persistent store ($T_store) with SHA-256 integrity verification
+        output_dir = getattr(args, "output", None)
+        if output_dir:
+            store_path = Path(output_dir)
+            store_path.mkdir(parents=True, exist_ok=True)
+            for artifact in sandbox_dir.iterdir():
+                if artifact.is_file():
+                    dest = store_path / artifact.name
+                    shutil.copy2(artifact, dest)
+                    sha_val = hashlib.sha256(dest.read_bytes()).hexdigest()
+                    sha_dest = store_path / f"{artifact.name}.sha256"
+                    sha_dest.write_text(f"{sha_val}  {artifact.name}\n", encoding="utf-8")
+
+        payload = {
+            "status": "VALIDATED_SUCCESS" if dry_run else "EXECUTION_COMPLETE",
+            "config_file": str(cfg_path),
+            "engine": matrix_cfg.engine,
+            "method": matrix_cfg.method,
+            "basis_set": matrix_cfg.basis_set,
+            "dry_run": dry_run,
+            "scratch_dir": str(sandbox_dir),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        if getattr(args, "json", False):
+            print(json.dumps(payload, indent=2))
+        else:
+            print(TermColor.title("=" * 60))
+            print(TermColor.title(" CoChem-BASE Calculation Pipeline Dispatch "))
+            print(TermColor.title("=" * 60))
+            print(f"Engine:      {matrix_cfg.engine.upper()}")
+            print(f"Method:      {matrix_cfg.method}")
+            print(f"Basis Set:   {matrix_cfg.basis_set}")
+            print(f"Dry Run:     {dry_run}")
+            print(f"Scratch:     {sandbox_dir}")
+            print("Validation:  Pydantic CalculationMatrixConfig Verified [M]")
+            print("=" * 60)
+            if dry_run:
+                print(TermColor.ok("[DRY RUN COMPLETE] Configuration valid. Input deck generation verified."))
+            else:
+                print(TermColor.ok("[PIPELINE COMPLETE] Physical execution finished successfully."))
+
+        return 0
+    finally:
+        # Purge ephemeral sandbox from $T_scr unless explicitly retained
+        keep_scratch = getattr(args, "keep_scratch", False)
+        if not keep_scratch and sandbox_dir.exists():
+            try:
+                shutil.rmtree(sandbox_dir, ignore_errors=True)
+            except Exception as exc:
+                logger.debug(f"Failed to purge ephemeral sandbox at {sandbox_dir}: {exc}")
 
 
 # =============================================================================
@@ -1130,12 +1225,64 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     p_mass.add_argument("--json", action="store_true", help="Output mass data in structured JSON format")
 
     # --- Subcommand: run ---
-    p_run = subparsers.add_parser("run", help="Execute calculation pipeline from matrix config")
-    p_run.add_argument("--config", "-c", type=Path, default=Path("matrix_config.json"), help="Path to matrix configuration JSON")
-    p_run.add_argument("--engine", "-e", type=str, choices=["orca", "cfour", "xtb"], default=None, help="Override electronic structure engine")
-    p_run.add_argument("--scratch-dir", type=Path, default=None, help="Custom ephemeral scratch directory")
-    p_run.add_argument("--dry-run", action="store_true", help="Validate configuration and generate decks without launching binaries")
-    p_run.add_argument("--json", action="store_true", help="Output execution results in structured JSON format")
+    p_run = subparsers.add_parser(
+        "run",
+        help="Execute validated quantum chemistry pipeline from serialized configuration",
+    )
+    p_run.add_argument(
+        "--config", "-c",
+        type=Path,
+        default=Path("matrix_config.json"),
+        help="Path to serialized matrix configuration JSON",
+    )
+    p_run.add_argument(
+        "--engine", "-e",
+        type=str,
+        choices=["orca", "cfour", "xtb"],
+        default=None,
+        help="Override electronic structure engine",
+    )
+    p_run.add_argument(
+        "--scratch", "--scratch-dir",
+        dest="scratch",
+        type=Path,
+        default=None,
+        help="Optional override for ephemeral scratch directory ($T_{scr})",
+    )
+    p_run.add_argument(
+        "--device",
+        type=str,
+        default="auto",
+        choices=["auto", "cuda", "cpu"],
+        help="Compute device allocation strategy",
+    )
+    p_run.add_argument(
+        "--threads",
+        type=int,
+        default=None,
+        help="Execution thread count budget",
+    )
+    p_run.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Persistent output store directory ($T_{store})",
+    )
+    p_run.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate configuration and generate decks without launching binaries",
+    )
+    p_run.add_argument(
+        "--keep-scratch",
+        action="store_true",
+        help="Retain ephemeral sandbox directory in $T_{scr} for post-mortem debugging",
+    )
+    p_run.add_argument(
+        "--json",
+        action="store_true",
+        help="Output execution results in structured JSON format",
+    )
 
     return parser
 

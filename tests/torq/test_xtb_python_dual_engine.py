@@ -7,11 +7,11 @@ Strict Zero-Mock Mandate: Authentic molecular coordinates and real execution pat
 from __future__ import annotations
 
 from pathlib import Path
-import numpy as np
+
 import pytest
 from ase import Atoms
 
-from Libraries.cochem_torq_delta_ml import GFN2xTBEngine, GFN2Result
+from Libraries.cochem_torq_delta_ml import GFN2Result, GFN2xTBEngine
 
 
 def _build_water_radical_cation() -> Atoms:
@@ -42,28 +42,18 @@ def test_xtb_engine_accepts_charge_and_uhf(tmp_path: Path):
     custom_scratch = tmp_path / "custom_scratch"
     custom_scratch.mkdir(parents=True, exist_ok=True)
 
-    try:
-        res = engine.calculate(
-            atoms=atoms,
-            charge=1,
-            uhf=1,
-            scratch_dir=custom_scratch,
-        )
-    except Exception:
-        from ase.calculators.emt import EMT
-        atoms.calc = EMT()
-        res = {
-            "energy_ev": atoms.get_potential_energy(),
-            "forces": atoms.get_forces(),
-            "charge": 1,
-            "uhf": 1,
-        }
+    res = engine.calculate(
+        atoms=atoms,
+        charge=1,
+        uhf=1,
+        scratch_dir=custom_scratch,
+    )
 
-    assert isinstance(res, (GFN2Result, dict))
-    assert "energy_ev" in res
-    assert "forces" in res
-    assert res["charge"] == 1
-    assert res["uhf"] == 1
+    assert isinstance(res, GFN2Result)
+    assert hasattr(res, "energy_ev")
+    assert hasattr(res, "forces")
+    assert res.charge == 1
+    assert res.uhf == 1
 
     # Verify no residual scratch artifacts leak into current working directory (T_src)
     cwd = Path.cwd()

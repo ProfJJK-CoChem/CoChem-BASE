@@ -2,11 +2,18 @@
 Authentic HPC / Slurm Dispatch Controller and Shell Injection Defense Engine.
 Method Matrix v4: §8A, §13, and SRS Chunk 4 Suggestion #33.
 """
+import json
+import logging
 import re
 import shutil
 import subprocess
-from pathlib import Path, PurePosixPath
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Optional
+
+import filelock
+
+logger = logging.getLogger("CoChem-Slurm")
 
 
 SLURM_PARAM_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.:@/]+$")
@@ -120,7 +127,8 @@ def generate_slurm_script(
         f"module load {sanitized_engine}",
         "",
         "# Ephemeral Scratch Setup",
-        'SCRATCH_DIR="${SLURM_TMPDIR:-/tmp/cochem_${SLURM_JOB_ID}}"',
+        'SCRATCH_DIR="$SLURM_TMPDIR"',
+        'if [ -z "$SCRATCH_DIR" ]; then SCRATCH_DIR="/tmp/cochem_${SLURM_JOB_ID}"; fi',
         'mkdir -p "$SCRATCH_DIR"',
         'cd "$SCRATCH_DIR"',
         "",
@@ -130,13 +138,27 @@ def generate_slurm_script(
     if sanitized_engine == "orca":
         sbatch_lines.append(f"orca {input_deck_path} > orca.out 2>&1")
     elif sanitized_engine == "cfour":
-        sbatch_lines.append(f"xcfour > cfour.out 2>&1")
+        sbatch_lines.append("xcfour > cfour.out 2>&1")
     elif sanitized_engine == "xtb":
         sbatch_lines.append(f"xtb {input_deck_path} --opt > xtb.out 2>&1")
     else:
         sbatch_lines.append(f"{sanitized_engine} {input_deck_path}")
 
-    sbatch_lines.append("")
+    # Post-Execution Artifact Promotion to Persistent Store ($COCH_STORE_DIR) with SHA-256 verification
+    sbatch_lines.extend([
+        "",
+        "# Post-Execution Artifact Promotion to Persistent Store ($COCH_STORE_DIR)",
+        'STORE_DIR="${COCH_STORE_DIR:-$HOME/CoChem_Artifacts/Store}"',
+        'mkdir -p "$STORE_DIR"',
+        'for artifact in *.h5 *.out *.property.txt *.xyz; do',
+        '    if [ -f "$artifact" ]; then',
+        '        cp -p "$artifact" "$STORE_DIR/"',
+        '        sha256sum "$artifact" > "$STORE_DIR/${artifact}.sha256"',
+        '    fi',
+        'done',
+        "",
+    ])
+
     return "\n".join(sbatch_lines)
 
 
@@ -168,9 +190,53 @@ class SlurmSubmissionController:
     def __init__(self, default_partition: str = "standard") -> None:
         self.default_partition = default_partition
         self.last_submitted_job_id: Optional[str] = None
+        self.last_manifest: Dict[str, Any] = {}
 
     def validate_and_generate(self, **kwargs: Any) -> str:
-        return generate_slurm_script(**kwargs)
+        script = generate_slurm_script(**kwargs)
+        self.last_manifest = dict(kwargs)
+        return script
 
     def dispatch(self, script_path: Path) -> str:
-        return submit_slurm_job(script_path)
+        script_path = Path(script_path).resolve()
+        status = submit_slurm_job(script_path)
+        self.last_submitted_job_id = status if status.isdigit() else None
+
+        # Write immutable job_manifest.json in the staging directory
+        manifest_path = script_path.parent / "job_manifest.json"
+        manifest_payload = {
+            "job_name": self.last_manifest.get("job_name", script_path.stem),
+            "partition": self.last_manifest.get("partition", self.default_partition),
+            "nodes": self.last_manifest.get("nodes", 1),
+            "ntasks_per_node": self.last_manifest.get("ntasks_per_node", 16),
+            "mem": self.last_manifest.get("mem", "32GB"),
+            "walltime": self.last_manifest.get("walltime", "04:00:00"),
+            "engine": self.last_manifest.get("engine", "orca"),
+            "status": status,
+            "script_path": str(script_path),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest_payload, f, indent=2)
+        except Exception as err:
+            logger.debug(f"Failed to write job_manifest.json: {err}")
+
+        # Register in local HDF5 SWMR job tracking registry if available
+        try:
+            import h5py
+            registry_h5 = script_path.parent / "slurm_jobs.h5"
+            lock_path = str(registry_h5) + ".lock"
+            with filelock.FileLock(lock_path, timeout=5):
+                mode = "r+" if registry_h5.exists() else "w"
+                with h5py.File(registry_h5, mode, libver="latest") as h5f:
+                    h5f.swmr_mode = True
+                    job_grp = h5f.require_group("jobs")
+                    job_name = self.last_manifest.get("job_name", script_path.stem)
+                    job_sub = job_grp.require_group(job_name)
+                    job_sub.attrs["status"] = status
+                    job_sub.attrs["timestamp"] = manifest_payload["timestamp"]
+        except Exception as exc:
+            logger.debug(f"HDF5 SWMR job registry record notice: {exc}")
+
+        return status

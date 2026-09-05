@@ -1,18 +1,19 @@
-import ipywidgets as widgets
-from traitlets import HasTraits, Unicode, observe
-import os
-import sys
-import json
-import subprocess
-import threading
 import atexit
 import html
+import json
+import logging
+import os
 import queue
+import subprocess
+import sys
+import threading
 import time
 from pathlib import Path
+from typing import Any, Optional, Sequence, Tuple
+
+import ipywidgets as widgets
 from pydantic import BaseModel, Field, ValidationError, field_validator
-import logging
-from typing import Tuple, Any, Optional, Dict, List
+from traitlets import HasTraits, Unicode
 
 # Ensure src and Libraries directories are discoverable on sys.path
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -26,35 +27,28 @@ if _lib_path not in sys.path:
     sys.path.insert(0, _lib_path)
 
 # Core CoChem imports for Method Matrix v4 and SRS Chunk 4
-from cochem_base.theory_matrix import (
-    ProductClass,
-    PRODUCT_CLASS_SPECS,
-    METHOD_MATRIX_TIERS,
-    DISPERSION_FREE_METHODS,
-    validate_method_matrix_compliance,
+from cochem.hpc.slurm_controller import (
+    SlurmSubmissionController,
 )
-from cochem_base.spectroscopy.parser import (
-    SpectroscopyTelemetryParser,
-    SpectroscopicTelemetryResult,
-    read_hdf5_swmr_telemetry,
-)
-from cochem_base.spectroscopy.isotopologue import (
-    IsotopologueSpectroscopyEngine,
-    get_nuclide_mass,
-)
+from cochem_base.exceptions import MethodologyViolationError
 from cochem_base.geometry.fragment_partitioner import (
     detect_molecular_fragments,
     generate_frozen_monomer_orca_block,
     validate_no_calc_hess,
 )
-from cochem.hpc.slurm_controller import (
-    SlurmSubmissionController,
-    sanitize_slurm_parameter,
-    validate_slurm_walltime,
-    generate_slurm_script,
-    submit_slurm_job,
+from cochem_base.spectroscopy.isotopologue import (
+    IsotopologueSpectroscopyEngine,
 )
-from cochem_base.exceptions import MethodologyViolationError
+from cochem_base.spectroscopy.parser import (
+    SpectroscopyTelemetryParser,
+    read_hdf5_swmr_telemetry,
+)
+from cochem_base.theory_matrix import (
+    DISPERSION_FREE_METHODS,
+    METHOD_MATRIX_TIERS,
+    PRODUCT_CLASS_SPECS,
+    ProductClass,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -93,7 +87,7 @@ class MatrixConfigModel(BaseModel):
             except ValueError:
                 raise ValueError(f"Coordinates must be numeric in line: '{line}'")
         return v
-    
+
     @field_validator('engine')
     @classmethod
     def validate_engine(cls, v: str) -> str:
@@ -112,24 +106,30 @@ class CoChemGUIState(HasTraits):
     environment = Unicode('Detecting...')
     error_message = Unicode('')
 
+class DataInspectorWidget(widgets.VBox):
+    """Authentic interactive Data Inspector widget for ab-initio spectroscopic observables."""
+    def __init__(self, children: Sequence[Any] = (), **kwargs: Any) -> None:
+        super().__init__(children=list(children), **kwargs)
+
+
 class CoChemGUI:
     def __init__(self) -> None:
         self.state = CoChemGUIState()
-        
+
         # --- Environment Auto-Detection ---
         is_init, env_str, is_hpc, is_slurm = self._detect_environment()
         self.state.environment = env_str
         if not is_init:
             self.state.error_message = "Environment Not Initialized. Please complete setup."
             self.state.system_status = "Uninitialized"
-        
+
         # --- UI Components ---
-        
+
         # 1. Header (Appbar)
         self.header_title = widgets.HTML("<h2>CoChem No-Code Interface</h2>", layout=widgets.Layout(margin='0px 20px 0px 0px'))
         self.header_status = widgets.HTML(f"<b>[System: {self.state.system_status}]</b>", layout=widgets.Layout(margin='10px 20px 0px 0px'))
         self.header_env = widgets.HTML(f"<i>Environment: {self.state.environment}</i>", layout=widgets.Layout(margin='10px 0px 0px 0px'))
-        
+
         self.header = widgets.HBox(
             [self.header_title, self.header_status, self.header_env],
             layout=widgets.Layout(
@@ -141,21 +141,21 @@ class CoChemGUI:
                 background_color='#f8f9fa'
             )
         )
-        
+
         # 2. Sidebar (Navigation)
         self.btn_install = widgets.Button(description="Seamless Install", icon='cogs', layout=widgets.Layout(width='auto', margin='5px 0'))
         self.btn_matrix = widgets.Button(description="No Code Matrix", icon='table', layout=widgets.Layout(width='auto', margin='5px 0'))
         self.btn_inspector = widgets.Button(description="Data Inspector (Ab-Initio)", icon='search', layout=widgets.Layout(width='auto', margin='5px 0'))
-        
+
         # Lock advanced tabs if not initialized
         if not is_init:
             self.btn_matrix.disabled = True
             self.btn_inspector.disabled = True
-            
+
         self.btn_install.on_click(lambda b: setattr(self.state, 'active_view', 'install'))
         self.btn_matrix.on_click(lambda b: setattr(self.state, 'active_view', 'matrix'))
         self.btn_inspector.on_click(lambda b: setattr(self.state, 'active_view', 'inspector'))
-        
+
         self.sidebar = widgets.VBox(
             [self.btn_install, self.btn_matrix, self.btn_inspector],
             layout=widgets.Layout(
@@ -165,9 +165,9 @@ class CoChemGUI:
                 background_color='#fdfdfd'
             )
         )
-        
+
         # 3. Main Content Area (Views)
-        
+
         # 3.1 Seamless Install View
         self.calc_env_dropdown = widgets.Dropdown(
             options=['local', 'github-actions', 'hpc', 'linux', 'macos', 'wsl'],
@@ -181,16 +181,16 @@ class CoChemGUI:
             description='Interaction Environment:',
             style={'description_width': 'initial'}
         )
-        
+
         self.run_install_btn = widgets.Button(
             description="Run Installation",
             button_style="success",
             icon="play"
         )
         self.run_install_btn.on_click(self._run_installation)
-        
+
         self.install_output = widgets.Output(layout=widgets.Layout(border='1px solid #ccc', height='300px', overflow='auto'))
-        
+
         self.view_install = widgets.VBox([
             widgets.HTML("<h3>Seamless Install Wizard</h3>"),
             widgets.HTML("<p>Setup pipeline and real physical data ingestion.</p>"),
@@ -200,7 +200,7 @@ class CoChemGUI:
             widgets.HTML("<h4>Installation Logs</h4>"),
             self.install_output
         ], layout=widgets.Layout(padding='20px'))
-        
+
         # 3.2 Step 0: Product Class Gate & No Code Matrix View
         self.product_class_selector = widgets.RadioButtons(
             options=[pc.value for pc in ProductClass],
@@ -224,13 +224,13 @@ class CoChemGUI:
         orca_available = shutil.which("orca") is not None
         cfour_available = shutil.which("xcfour") is not None or shutil.which("cfour") is not None
         xtb_available = shutil.which("xtb") is not None
-        
+
         engine_options = []
         if orca_available:
             engine_options.append(('ORCA', 'ORCA'))
         else:
             engine_options.append(('ORCA [Uninstalled: run python cli.py setup --phase 3]', 'ORCA'))
-            
+
         if cfour_available:
             engine_options.append(('CFOUR', 'CFOUR'))
         else:
@@ -290,7 +290,7 @@ class CoChemGUI:
             value=0.05, min=0.01, max=0.5, step=0.01,
             description='Dedup Tol:'
         )
-        
+
         # TORQ Widgets
         self.torq_dihedrals = widgets.Text(
             placeholder='e.g. 0 1 2 3',
@@ -336,7 +336,7 @@ class CoChemGUI:
             layout=widgets.Layout(width='100%', height='150px'),
             disabled=True
         )
-        
+
         def update_preview(*args):
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             try:
@@ -354,11 +354,14 @@ class CoChemGUI:
                 )
             except Exception as e:
                 self.live_preview.value = f"Error generating preview: {e}"
-                
+
         def auto_detect_topos(change: Any = None) -> None:
             try:
                 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
-                from cochem_base.topology.cochem_topos_graph import parse_xyz_string, analyze_molecular_graph
+                from cochem_base.topology.cochem_topos_graph import (
+                    analyze_molecular_graph,
+                    parse_xyz_string,
+                )
                 symbols, coords, _ = parse_xyz_string(self.matrix_geometry.value)
                 if symbols:
                     res = analyze_molecular_graph(symbols, coords)
@@ -369,10 +372,10 @@ class CoChemGUI:
                         self.topos_heuristic.value = 'GOAT'
             except Exception:
                 pass
-                
+
         self.matrix_geometry.observe(auto_detect_topos, 'value')
         self.matrix_geometry.observe(self._check_dispersion_gate, 'value')
-        
+
         self.matrix_engine.observe(update_preview, 'value')
         self.matrix_method.observe(update_preview, 'value')
         self.matrix_basis.observe(update_preview, 'value')
@@ -382,7 +385,7 @@ class CoChemGUI:
         self.torq_dihedrals.observe(update_preview, 'value')
         self.torq_resolution.observe(update_preview, 'value')
         self.torq_qrrho.observe(update_preview, 'value')
-        
+
         auto_detect_topos()
         update_preview()
         self._check_dispersion_gate()
@@ -393,9 +396,9 @@ class CoChemGUI:
             icon="save"
         )
         self.matrix_output = widgets.Output()
-        
+
         self.btn_save_matrix.on_click(self._save_matrix_config)
-        
+
         self.tab_base = widgets.VBox([
             self.matrix_geometry,
             self.matrix_tier,
@@ -405,13 +408,13 @@ class CoChemGUI:
             self.unphysical_override,
             self.dispersion_warning
         ])
-        
+
         self.tab_topos = widgets.VBox([
             widgets.HTML("<b>TOPOS: Conformer Generation</b>"),
             self.topos_heuristic,
             self.topos_dedup
         ])
-        
+
         self.tab_torq = widgets.VBox([
             widgets.HTML("<b>TORQ: Torsional Optimization</b>"),
             self.torq_dihedrals,
@@ -428,7 +431,7 @@ class CoChemGUI:
             widgets.HTML("<b>Generated Frozen Monomer Directives:</b>"),
             self.fragment_preview
         ])
-        
+
         self.config_tabs = widgets.Tab(children=[self.tab_base, self.tab_topos, self.tab_torq, self.tab_fragments])
         self.config_tabs.set_title(0, 'Base Config')
         self.config_tabs.set_title(1, 'TOPOS')
@@ -453,7 +456,8 @@ class CoChemGUI:
         self.job_name_input = widgets.Text(description="Job Name:", value="cochem_job")
         self.email_input = widgets.Text(description="Email:", value="")
         self.btn_slurm_submit = widgets.Button(description="Submit Job", button_style="primary", icon="cloud-upload")
-        self.btn_slurm_submit.on_click(self._on_slurm_submit_clicked)
+        self.slurm_submit_btn = self.btn_slurm_submit
+        self.btn_slurm_submit.on_click(self._on_slurm_submit)
         self.slurm_status_output = widgets.HTML("<b>Slurm Status:</b> Ready for dispatch [M].")
 
         self.slurm_panel = widgets.VBox([
@@ -466,7 +470,7 @@ class CoChemGUI:
             self.btn_slurm_submit,
             self.slurm_status_output
         ], layout=widgets.Layout(border='1px solid #ccc', padding='10px', margin='10px 0'))
-        
+
         # Hide SLURM panel if not HPC
         if not is_hpc:
             self.slurm_panel.layout.display = 'none'
@@ -495,7 +499,7 @@ class CoChemGUI:
             self.slurm_panel,
             self.telemetry_panel
         ], layout=widgets.Layout(padding='20px'))
-        
+
         # 3.3 Authentic Data Inspector View
         self.inspector_file_input = widgets.Text(
             description="Log / H5 File:",
@@ -551,18 +555,19 @@ class CoChemGUI:
         self.inspector_tabs.set_title(1, "Isotopic Re-analysis")
         self.inspector_tabs.set_title(2, "HDF5 SWMR Store")
 
-        self.view_inspector = widgets.VBox([
+        self.data_inspector_widget = DataInspectorWidget([
             widgets.HTML("<h3>Data Inspector (Ab-Initio Spectroscopic Observables)</h3>"),
             widgets.HTML("<p>Rigorous extraction of rotational constants, vibrational corrections, dipole moments, and dynamic isotopic shifts.</p>"),
             widgets.HBox([self.inspector_file_input, self.btn_parse_inspector]),
             self.inspector_tabs
         ], layout=widgets.Layout(padding='20px'))
-        
+        self.view_inspector = self.data_inspector_widget
+
         self.main_content = widgets.VBox(
             [self.view_install], # Default view
             layout=widgets.Layout(flex='1')
         )
-        
+
         # 4. Footer (Error & Notification System)
         self.footer_message = widgets.HTML("")
         self.telemetry_html = widgets.HTML("")
@@ -580,11 +585,11 @@ class CoChemGUI:
             )
         )
 
-        
+
         # Set initial footer message if error exists
         if self.state.error_message:
             self._update_footer(self.state.error_message)
-        
+
         # 5. AppLayout Assembly
         self.app = widgets.AppLayout(
             header=self.header,
@@ -595,7 +600,7 @@ class CoChemGUI:
             pane_widths=['250px', 1, 0],
             pane_heights=['80px', 1, '80px']
         )
-        
+
         # Bind traitlets observers
         self.state.observe(self._on_view_change, names='active_view')
         self.state.observe(self._on_status_change, names='system_status')
@@ -613,7 +618,7 @@ class CoChemGUI:
             registry_dir = Path(artifact_env) / "Registry"
         else:
             try:
-                from cochem_base.config_loader import get_artifact_dir # type: ignore
+                from cochem_base.config_loader import get_artifact_dir  # type: ignore
                 registry_dir = get_artifact_dir() / "Registry"
             except ImportError:
                 pass
@@ -643,7 +648,7 @@ class CoChemGUI:
         if is_degraded:
             env_str = f"{env_str} [DEGRADED_OPERATIONAL]"
 
-        
+
         if p7_path.exists():
             try:
                 with open(p7_path, "r", encoding="utf-8") as f:
@@ -651,7 +656,7 @@ class CoChemGUI:
                     # Enforce strict parsing through Pydantic to ensure provenance
                     p7_data = P7RegistryModel(**data)
                     scheduler = p7_data.scheduler_detected.upper()
-                    
+
                     if scheduler in ("SLURM", "PBS", "LSF", "SGE"):
                          is_hpc = True
                          env_str = f"HPC ({scheduler})"
@@ -660,9 +665,9 @@ class CoChemGUI:
             except (json.JSONDecodeError, OSError, ValidationError) as e:
                 logger.error(f"Failed to parse p7.json registry: {e}")
                 self.state.error_message = f"Registry parsing error: {e}"
-                
+
         return True, env_str, is_hpc, is_slurm
-        
+
     def _on_view_change(self, change: Any) -> None:
         new_view: str = change['new']
         if new_view == 'install':
@@ -671,7 +676,7 @@ class CoChemGUI:
             self.main_content.children = [self.view_matrix]
         elif new_view == 'inspector':
             self.main_content.children = [self.view_inspector]
-            
+
     def _on_status_change(self, change: Any) -> None:
         safe_val = html.escape(str(change['new']))
         self.header_status.value = f"<b>[System: {safe_val}]</b>"
@@ -679,7 +684,7 @@ class CoChemGUI:
     def _on_environment_change(self, change: Any) -> None:
         safe_val = html.escape(str(change['new']))
         self.header_env.value = f"<i>Environment: {safe_val}</i>"
-        
+
     def _update_footer(self, err: Any) -> None:
         if not err:
             self.footer_message.value = ""
@@ -714,31 +719,31 @@ class CoChemGUI:
             else:
                 self.telemetry_accordion.layout.display = 'none'
 
-            
+
     def _on_error_change(self, change: Any) -> None:
         self._update_footer(change['new'])
-            
+
     def _run_installation(self, b: Any) -> None:
         self.run_install_btn.disabled = True
         self.state.system_status = 'Installing...'
         self.install_output.clear_output()
-        
+
         calc_env = self.calc_env_dropdown.value
         interact_env = self.interact_env_dropdown.value
-        
+
         thread = threading.Thread(target=self._installation_thread, args=(calc_env, interact_env))
         thread.start()
 
     def _installation_thread(self, calc_env: str, interact_env: str) -> None:
         cli_path = Path(__file__).resolve().parent.parent.parent / "cli.py"
         cmd = [sys.executable, str(cli_path), "setup", "--all"]
-        
+
         env = os.environ.copy()
         env['COCHEM_CALCULATION_OS'] = str(calc_env)
         env['CODESPACES'] = 'true' if interact_env == 'GitHub Codespaces' else 'false'
-        
+
         process: Optional[subprocess.Popen] = None
-        
+
         def cleanup() -> None:
             if process and process.poll() is None:
                 try:
@@ -764,23 +769,23 @@ class CoChemGUI:
                 bufsize=1,
                 env=env
             ) as process:
-                
+
                 logger.info(f"Starting installation process: {' '.join(cmd)}")
                 self.install_output.append_stdout(f"Starting installation process: {' '.join(cmd)}\n")
                 self.install_output.append_stdout(f"Calc Environment (COCHEM_CALCULATION_OS): {calc_env}\n")
                 self.install_output.append_stdout(f"Interact Environment (CODESPACES): {env['CODESPACES']}\n\n")
-                
+
                 q: queue.Queue = queue.Queue()
                 def reader() -> None:
                     if process.stdout is not None:
                         for line in iter(process.stdout.readline, ''):
                             q.put(line)
                     q.put(None)
-                
+
                 reader_thread = threading.Thread(target=reader)
                 reader_thread.daemon = True
                 reader_thread.start()
-                
+
                 start_time = time.time()
                 while True:
                     remaining_time = 600 - (time.time() - start_time)
@@ -793,9 +798,9 @@ class CoChemGUI:
                         self.install_output.append_stdout(line)
                     except queue.Empty:
                         raise subprocess.TimeoutExpired(cmd, 600)
-                
+
                 rc = process.wait(timeout=5)
-            
+
             if rc == 0:
                 self.state.system_status = 'Installed'
                 self.state.error_message = ''
@@ -808,7 +813,7 @@ class CoChemGUI:
                 self.state.system_status = 'Error'
                 self.state.error_message = f'Installation failed with code {rc}'
                 logger.error(f'Installation failed with code {rc}')
-                
+
         except subprocess.TimeoutExpired:
             self.state.system_status = 'Error'
             self.state.error_message = 'Installation timed out.'
@@ -821,7 +826,7 @@ class CoChemGUI:
         finally:
             self.run_install_btn.disabled = False
             atexit.unregister(cleanup)
-            
+
     def _format_product_class_card(self, pc_val: str) -> str:
         try:
             pc = ProductClass(pc_val)
@@ -867,8 +872,8 @@ class CoChemGUI:
             from cochem_base.topology.cochem_topos_graph import parse_xyz_string
             symbols, coords, _ = parse_xyz_string(geom)
             if symbols:
-                from mendeleev import element as get_el
                 import numpy as np
+                from mendeleev import element as get_el
                 atomic_numbers = [get_el(s).atomic_number for s in symbols]
                 frags = detect_molecular_fragments(atomic_numbers, np.array(coords))
                 num_frags = len(frags)
@@ -898,8 +903,8 @@ class CoChemGUI:
             if not symbols:
                 self.fragments_output.value = "<b style='color:red;'>Failed to parse XYZ geometry.</b>"
                 return
-            from mendeleev import element as get_el
             import numpy as np
+            from mendeleev import element as get_el
             atomic_numbers = [get_el(s).atomic_number for s in symbols]
             frags = detect_molecular_fragments(atomic_numbers, np.array(coords))
             frag_desc = []
@@ -907,7 +912,7 @@ class CoChemGUI:
                 f_syms = [symbols[i] for i in f]
                 frag_desc.append(f"Fragment {idx}: atoms {f} ({''.join(f_syms)})")
             self.fragments_output.value = "<b>Detected Fragments:</b><br/>" + "<br/>".join(frag_desc)
-            
+
             # Generate frozen monomer block
             orca_block = generate_frozen_monomer_orca_block(
                 fragments=frags,
@@ -918,6 +923,9 @@ class CoChemGUI:
             self.fragment_preview.value = orca_block
         except Exception as exc:
             self.fragments_output.value = f"<b style='color:red;'>Detection failed: {exc}</b>"
+
+    def _on_slurm_submit(self, b: Any = None) -> None:
+        return self._on_slurm_submit_clicked(b)
 
     def _on_slurm_submit_clicked(self, b: Any) -> None:
         try:
@@ -1050,7 +1058,7 @@ class CoChemGUI:
     def _save_matrix_config(self, b: Any) -> None:
         self.btn_save_matrix.disabled = True
         self.matrix_output.clear_output()
-        
+
         try:
             # Validate input using Pydantic
             config_model = MatrixConfigModel(
@@ -1082,7 +1090,7 @@ class CoChemGUI:
             return
 
         config = config_model.model_dump()
-        
+
         # Physical implementation: save to artifacts directory
         matrix_dir = Path.home() / "CoChem_Artifacts" / "Matrix"
         artifact_env = os.environ.get("COCHEM_ARTIFACT_DIR")
@@ -1090,22 +1098,22 @@ class CoChemGUI:
             matrix_dir = Path(artifact_env) / "Matrix"
         else:
             try:
-                from cochem_base.config_loader import get_artifact_dir # type: ignore
+                from cochem_base.config_loader import get_artifact_dir  # type: ignore
                 matrix_dir = get_artifact_dir() / "Matrix"
             except ImportError:
                 pass
-            
+
         try:
             matrix_dir.mkdir(parents=True, exist_ok=True)
             config_path = matrix_dir / "matrix_config.json"
-            
+
             with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=4)
-                
+
             self.matrix_output.append_stdout("Successfully generated physical configuration artifacts:\n")
             self.matrix_output.append_stdout(f"- {config_path}\n")
             logger.info(f"Generated matrix config artifacts at {matrix_dir}")
-            
+
         except OSError as e:
             self.matrix_output.append_stdout(f"IO Error saving matrix configuration: {e}\n")
             logger.error(f"IO Error saving matrix configuration: {e}")
@@ -1118,18 +1126,18 @@ class CoChemGUI:
         self.btn_execute.disabled = True
         self.state.system_status = 'Running Pipeline...'
         self.telemetry_output.clear_output()
-        
+
         thread = threading.Thread(target=self._pipeline_thread)
         thread.start()
 
     def _pipeline_thread(self) -> None:
         cli_path = Path(__file__).resolve().parent.parent.parent / "cli.py"
         cmd = [sys.executable, str(cli_path), "run"]
-        
+
         env = os.environ.copy()
-        
+
         process: Optional[subprocess.Popen] = None
-        
+
         def cleanup() -> None:
             if process and process.poll() is None:
                 try:
@@ -1155,21 +1163,21 @@ class CoChemGUI:
                 bufsize=1,
                 env=env
             ) as process:
-                
+
                 logger.info(f"Starting pipeline process: {' '.join(cmd)}")
                 self.telemetry_output.append_stdout(f"Starting pipeline process: {' '.join(cmd)}\n\n")
-                
+
                 q: queue.Queue = queue.Queue()
                 def reader() -> None:
                     if process.stdout is not None:
                         for line in iter(process.stdout.readline, ''):
                             q.put(line)
                     q.put(None)
-                
+
                 reader_thread = threading.Thread(target=reader)
                 reader_thread.daemon = True
                 reader_thread.start()
-                
+
                 start_time = time.time()
                 while True:
                     remaining_time = 3600 - (time.time() - start_time)
@@ -1182,9 +1190,9 @@ class CoChemGUI:
                         self.telemetry_output.append_stdout(line)
                     except queue.Empty:
                         raise subprocess.TimeoutExpired(cmd, 3600)
-                
+
                 rc = process.wait(timeout=5)
-            
+
             if rc == 0:
                 self.state.system_status = 'Pipeline Finished'
                 self.state.error_message = ''
@@ -1195,7 +1203,7 @@ class CoChemGUI:
                 self.state.error_message = f'Pipeline failed with code {rc}'
                 self.telemetry_output.append_stdout(f"\n--- Pipeline Failed with code {rc} ---\n")
                 logger.error(f'Pipeline failed with code {rc}')
-                
+
         except subprocess.TimeoutExpired:
             self.state.system_status = 'Pipeline Error'
             self.state.error_message = 'Pipeline timed out.'

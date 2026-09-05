@@ -44,6 +44,7 @@ BANNED_MOCK_ATTRIBUTES: Set[str] = {
     "sentinel",
     "call",
     "call_args",
+    "mock_open",
 }
 
 BANNED_CONCURRENCY_MODULES: Set[str] = {
@@ -84,6 +85,23 @@ BANNED_OBFUSCATION_TOKENS: Set[str] = {
     "exec",
     "eval",
     "__import__",
+}
+
+BANNED_SKIP_SYMBOLS: Set[str] = {
+    "skip",
+    "skipif",
+    "xfail",
+    "exit",
+    "skipIf",
+    "skipUnless",
+    "skipTest",
+}
+
+BANNED_STATE_TOKENS: Set[str] = {
+    "swarm_state.json",
+    "draco_state.json",
+    "audit_verdict",
+    "council_verdict",
 }
 
 EXCLUDED_DIRS: Set[str] = {
@@ -239,6 +257,9 @@ class SpoofVisitor(ast.NodeVisitor):
         self.amnesty_set = amnesty_set
         self.violations: List[Violation] = []
         self.is_test_file = "test" in filepath.stem.lower() or "tests" in filepath.parts
+        self.pytest_aliases: Set[str] = {"pytest"}
+        self.unittest_aliases: Set[str] = {"unittest"}
+        self.banned_imported_symbols: Set[str] = set()
 
     def _is_amnestied_concurrency(self) -> bool:
         norm_variants = normalize_path_entry(self.rel_path)
@@ -269,6 +290,11 @@ class SpoofVisitor(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
+            if alias.name == "pytest":
+                self.pytest_aliases.add(alias.asname or "pytest")
+            elif alias.name == "unittest":
+                self.unittest_aliases.add(alias.asname or "unittest")
+
             is_mock = any(alias.name == bm or alias.name.startswith(bm + ".") for bm in BANNED_MOCK_MODULES)
             is_concurrency = any(alias.name == bc or alias.name.startswith(bc + ".") for bc in BANNED_CONCURRENCY_MODULES)
 
@@ -345,7 +371,36 @@ class SpoofVisitor(ast.NodeVisitor):
                                     message=f"Prohibited synthetic numpy generator '{alias.name}'",
                                 )
                             )
-
+            elif mod == "pytest" or mod == "pytest.mark" or (mod and mod.startswith("pytest.")):
+                for alias in node.names:
+                    if alias.name in BANNED_SKIP_SYMBOLS:
+                        self.banned_imported_symbols.add(alias.asname or alias.name)
+                        if not self.is_exempt:
+                            self.violations.append(
+                                Violation(
+                                    file_path=self.rel_path,
+                                    line=node.lineno,
+                                    col=node.col_offset,
+                                    category="PYTEST_SKIP",
+                                    symbol=alias.name,
+                                    message=f"Prohibited pytest test suppression symbol '{alias.name}' imported from '{mod}'",
+                                )
+                            )
+            elif mod == "unittest" or mod == "unittest.case" or (mod and mod.startswith("unittest.")):
+                for alias in node.names:
+                    if alias.name in BANNED_SKIP_SYMBOLS:
+                        self.banned_imported_symbols.add(alias.asname or alias.name)
+                        if not self.is_exempt:
+                            self.violations.append(
+                                Violation(
+                                    file_path=self.rel_path,
+                                    line=node.lineno,
+                                    col=node.col_offset,
+                                    category="PYTEST_SKIP",
+                                    symbol=alias.name,
+                                    message=f"Prohibited unittest test suppression symbol '{alias.name}' imported from '{mod}'",
+                                )
+                            )
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -470,6 +525,74 @@ class SpoofVisitor(ast.NodeVisitor):
             self.generic_visit(node)
             return
 
+        # Obfuscation execution functions: eval, exec
+        if isinstance(node.func, ast.Name) and node.func.id in BANNED_OBFUSCATION_TOKENS:
+            self.violations.append(
+                Violation(
+                    file_path=self.rel_path,
+                    line=node.lineno,
+                    col=node.col_offset,
+                    category="OBFUSCATION",
+                    symbol=node.func.id,
+                    message=f"Prohibited dynamic execution function '{node.func.id}' detected.",
+                )
+            )
+
+        # Dynamic attribute access: getattr(..., 'mock') or getattr(..., 'skip')
+        if (isinstance(node.func, ast.Name) and node.func.id == "getattr") or (isinstance(node.func, ast.Attribute) and node.func.attr == "getattr"):
+            if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str):
+                attr_val = node.args[1].value
+                if attr_val in BANNED_MOCK_ATTRIBUTES or attr_val == "mock":
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="MOCK_USAGE",
+                            symbol=f"getattr(..., '{attr_val}')",
+                            message=f"Prohibited dynamic access to mock attribute '{attr_val}'",
+                        )
+                    )
+                elif attr_val in BANNED_SKIP_SYMBOLS:
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="PYTEST_SKIP",
+                            symbol=f"getattr(..., '{attr_val}')",
+                            message=f"Prohibited dynamic access to test suppression attribute '{attr_val}'",
+                        )
+                    )
+
+        # Test suppression direct function call: skip("reason"), xfail("reason"), etc.
+        if isinstance(node.func, ast.Name) and (node.func.id in self.banned_imported_symbols or node.func.id in BANNED_SKIP_SYMBOLS):
+            self.violations.append(
+                Violation(
+                    file_path=self.rel_path,
+                    line=node.lineno,
+                    col=node.col_offset,
+                    category="PYTEST_SKIP",
+                    symbol=node.func.id,
+                    message=f"Prohibited test suppression call '{node.func.id}()'",
+                )
+            )
+
+        # dict(charge=..., uhf=...) dummy physical dict constructor
+        if isinstance(node.func, ast.Name) and node.func.id == "dict":
+            kw_names = {kw.arg for kw in node.keywords if kw.arg is not None}
+            if "charge" in kw_names and "uhf" in kw_names:
+                self.violations.append(
+                    Violation(
+                        file_path=self.rel_path,
+                        line=node.lineno,
+                        col=node.col_offset,
+                        category="DUMMY_DICT",
+                        symbol="dict(charge=..., uhf=...)",
+                        message="Hardcoded dummy physical dictionary constructor detected (charge and uhf).",
+                    )
+                )
+
         if isinstance(node.func, ast.Attribute) and node.func.attr == "assertRaises":
             if node.args and isinstance(node.args[0], ast.Name) and node.args[0].id == "NotImplementedError":
                 self.violations.append(
@@ -483,59 +606,71 @@ class SpoofVisitor(ast.NodeVisitor):
                     )
                 )
 
-        if isinstance(node.func, ast.Attribute):
-            if isinstance(node.func.value, ast.Name) and node.func.value.id == "pytest" and node.func.attr == "skip":
-                self.violations.append(
-                    Violation(
-                        file_path=self.rel_path,
-                        line=node.lineno,
-                        col=node.col_offset,
-                        category="PYTEST_SKIP",
-                        symbol="pytest.skip",
-                        message="Prohibited pytest.skip detected. Tests must not be skipped.",
-                    )
-                )
-
         func_name = node.func.id if isinstance(node.func, ast.Name) else (node.func.attr if isinstance(node.func, ast.Attribute) else "")
-        if func_name in {"__import__", "import_module"} and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
-            target_mod = node.args[0].value
-            is_mock_tgt = any(target_mod == bm or target_mod.startswith(bm + ".") for bm in BANNED_MOCK_MODULES)
-            is_conc_tgt = any(target_mod == bc or target_mod.startswith(bc + ".") for bc in BANNED_CONCURRENCY_MODULES)
+        if func_name in {"__import__", "import_module"} and node.args:
+            target_mod = None
+            if isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                target_mod = node.args[0].value
+            else:
+                target_mod = self._extract_concat_str(node.args[0])
 
-            if is_mock_tgt:
-                self.violations.append(
-                    Violation(
-                        file_path=self.rel_path,
-                        line=node.lineno,
-                        col=node.col_offset,
-                        category="MOCK_IMPORT",
-                        symbol=target_mod,
-                        message=f"Dynamic mock module import '{target_mod}'",
-                    )
-                )
-            elif is_conc_tgt:
-                if not self._is_amnestied_concurrency():
+            if target_mod:
+                is_mock_tgt = any(target_mod == bm or target_mod.startswith(bm + ".") for bm in BANNED_MOCK_MODULES)
+                is_conc_tgt = any(target_mod == bc or target_mod.startswith(bc + ".") for bc in BANNED_CONCURRENCY_MODULES)
+
+                if is_mock_tgt:
                     self.violations.append(
                         Violation(
                             file_path=self.rel_path,
                             line=node.lineno,
                             col=node.col_offset,
-                            category="CONCURRENCY_IMPORT",
+                            category="MOCK_IMPORT",
                             symbol=target_mod,
-                            message=f"Dynamic unamnestied concurrency import '{target_mod}'",
+                            message=f"Dynamic mock module import '{target_mod}'",
+                        )
+                    )
+                elif is_conc_tgt:
+                    if not self._is_amnestied_concurrency():
+                        self.violations.append(
+                            Violation(
+                                file_path=self.rel_path,
+                                line=node.lineno,
+                                col=node.col_offset,
+                                category="CONCURRENCY_IMPORT",
+                                symbol=target_mod,
+                                message=f"Dynamic unamnestied concurrency import '{target_mod}'",
+                            )
+                        )
+
+        # Monkeypatch method calls: mp.setattr, monkeypatch.delattr, etc.
+        if isinstance(node.func, ast.Attribute) and node.func.attr in {"setattr", "delattr", "setitem", "delitem", "setenv", "delenv", "syspath_prepend", "chdir"}:
+            if isinstance(node.func.value, ast.Name):
+                val_id = node.func.value.id.lower()
+                if "monkey" in val_id or val_id in {"mp", "monkeypatch", "patcher"}:
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="MONKEYPATCH_INTERCEPT",
+                            symbol=f"{node.func.value.id}.{node.func.attr}",
+                            message=f"Prohibited monkeypatch intercept of core system interfaces via '{node.func.value.id}.{node.func.attr}'",
                         )
                     )
 
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "setattr":
-            if isinstance(node.func.value, ast.Name) and node.func.value.id == "monkeypatch":
+        # Built-in setattr / delattr in test files modifying foreign modules/classes
+        if self.is_test_file and isinstance(node.func, ast.Name) and node.func.id in {"setattr", "delattr"}:
+            is_self_or_cls = bool(node.args and isinstance(node.args[0], ast.Name) and node.args[0].id in {"self", "cls"})
+            if not is_self_or_cls:
+                target_repr = ast.unparse(node.args[0]) if node.args else "..."
                 self.violations.append(
                     Violation(
                         file_path=self.rel_path,
                         line=node.lineno,
                         col=node.col_offset,
                         category="MONKEYPATCH_INTERCEPT",
-                        symbol="monkeypatch.setattr",
-                        message="Prohibited monkeypatch intercept of core system interfaces",
+                        symbol=f"{node.func.id}({target_repr}, ...)",
+                        message=f"Prohibited dynamic '{node.func.id}' foreign object modification in test file",
                     )
                 )
 
@@ -620,6 +755,20 @@ class SpoofVisitor(ast.NodeVisitor):
     def visit_Constant(self, node: ast.Constant) -> None:
         if not self.is_exempt and isinstance(node.value, str):
             val = node.value.strip()
+            
+            for token in BANNED_STATE_TOKENS:
+                if token in val:
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="STATE_MUTATION_BAN",
+                            symbol=val,
+                            message=f"Prohibited state mutation token '{token}' detected in string constant",
+                        )
+                    )
+
             if len(val) >= 4 and len(val) % 4 == 0 and re.match(r"^[A-Za-z0-9+/]+={0,2}$", val):
                 try:
                     decoded = base64.b64decode(val).decode("utf-8", errors="ignore").lower()
@@ -657,33 +806,107 @@ class SpoofVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Name(self, node: ast.Name) -> None:
-        if not self.is_exempt and node.id in {"mock", "MagicMock"}:
-            self.violations.append(
-                Violation(
-                    file_path=self.rel_path,
-                    line=node.lineno,
-                    col=node.col_offset,
-                    category="MOCK_USAGE",
-                    symbol=node.id,
-                    message=f"Prohibited use of mock symbol '{node.id}'",
+        if not self.is_exempt:
+            if node.id in {"mock", "MagicMock"} or node.id in BANNED_MOCK_ATTRIBUTES:
+                self.violations.append(
+                    Violation(
+                        file_path=self.rel_path,
+                        line=node.lineno,
+                        col=node.col_offset,
+                        category="MOCK_USAGE",
+                        symbol=node.id,
+                        message=f"Prohibited use of mock symbol '{node.id}'",
+                    )
                 )
-            )
+            
+            for token in BANNED_STATE_TOKENS:
+                if token in node.id:
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="STATE_MUTATION_BAN",
+                            symbol=node.id,
+                            message=f"Prohibited state mutation token '{token}' detected in variable name",
+                        )
+                    )
+
         if isinstance(node.ctx, (ast.Store, ast.Param)):
             self._check_ident(node.id, node, "variable")
         self.generic_visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
-        if not self.is_exempt and node.attr in {"mock", "MagicMock"}:
-            self.violations.append(
-                Violation(
-                    file_path=self.rel_path,
-                    line=node.lineno,
-                    col=node.col_offset,
-                    category="MOCK_USAGE",
-                    symbol=node.attr,
-                    message=f"Prohibited use of mock attribute '{node.attr}'",
+        if not self.is_exempt:
+            for token in BANNED_STATE_TOKENS:
+                if token in node.attr:
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="STATE_MUTATION_BAN",
+                            symbol=node.attr,
+                            message=f"Prohibited state mutation token '{token}' detected in attribute",
+                        )
+                    )
+
+            if node.attr in {"mock", "MagicMock"} or node.attr in BANNED_MOCK_ATTRIBUTES:
+                self.violations.append(
+                    Violation(
+                        file_path=self.rel_path,
+                        line=node.lineno,
+                        col=node.col_offset,
+                        category="MOCK_USAGE",
+                        symbol=node.attr,
+                        message=f"Prohibited use of mock attribute '{node.attr}'",
+                    )
                 )
-            )
+            if node.attr in BANNED_SKIP_SYMBOLS:
+                if isinstance(node.value, ast.Name) and node.value.id in self.pytest_aliases:
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="PYTEST_SKIP",
+                            symbol=f"{node.value.id}.{node.attr}",
+                            message=f"Prohibited {node.value.id}.{node.attr} detected. Tests must not be skipped or marked xfail.",
+                        )
+                    )
+                elif isinstance(node.value, ast.Attribute) and node.value.attr == "mark" and isinstance(node.value.value, ast.Name) and node.value.value.id in self.pytest_aliases:
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="PYTEST_SKIP",
+                            symbol=f"{node.value.value.id}.mark.{node.attr}",
+                            message=f"Prohibited {node.value.value.id}.mark.{node.attr} detected. Tests must not be skipped or marked xfail.",
+                        )
+                    )
+                elif isinstance(node.value, ast.Name) and node.value.id in self.unittest_aliases:
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="PYTEST_SKIP",
+                            symbol=f"{node.value.id}.{node.attr}",
+                            message=f"Prohibited {node.value.id}.{node.attr} detected. Tests must not be skipped.",
+                        )
+                    )
+                elif node.attr == "skipTest":
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="PYTEST_SKIP",
+                            symbol=f"*.{node.attr}",
+                            message=f"Prohibited {node.attr} test skipping detected.",
+                        )
+                    )
         if isinstance(node.ctx, (ast.Store, ast.Param)):
             self._check_ident(node.attr, node, "attribute")
         self.generic_visit(node)
@@ -692,17 +915,32 @@ class SpoofVisitor(ast.NodeVisitor):
         self._check_ident(node.arg, node, "argument")
         self.generic_visit(node)
 
+    def _collect_dict_keys(self, d_node: ast.Dict) -> Set[str]:
+        keys: Set[str] = set()
+        for k, v in zip(d_node.keys, d_node.values):
+            if k is not None and isinstance(k, ast.Constant) and isinstance(k.value, str):
+                keys.add(k.value)
+            elif k is None and isinstance(v, ast.Dict):
+                keys.update(self._collect_dict_keys(v))
+        return keys
+
     def visit_Dict(self, node: ast.Dict) -> None:
         if not self.is_exempt:
-            has_charge = False
-            has_uhf = False
-            for k, v in zip(node.keys, node.values):
-                if k is not None and isinstance(k, ast.Constant) and isinstance(k.value, str):
-                    if k.value == "charge" and isinstance(v, ast.Constant) and isinstance(v.value, int):
-                        has_charge = True
-                    if k.value == "uhf" and isinstance(v, ast.Constant) and isinstance(v.value, int):
-                        has_uhf = True
-            if has_charge and has_uhf:
+            keys = self._collect_dict_keys(node)
+            for token in BANNED_STATE_TOKENS:
+                if any(token in key for key in keys):
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="STATE_MUTATION_BAN",
+                            symbol="dict",
+                            message=f"Prohibited state mutation token '{token}' detected in dict key",
+                        )
+                    )
+
+            if "charge" in keys and "uhf" in keys:
                 self.violations.append(
                     Violation(
                         file_path=self.rel_path,
@@ -724,7 +962,11 @@ def check_file(
     """Analyze a single Python file for AST anti-spoof violations."""
     rel_path = file_path.relative_to(repo_root).as_posix() if repo_root in file_path.parents or file_path == repo_root else file_path.name
 
-    is_tool_exemption = file_path.name == "anti_spoof_linter.py" or "test_anti_spoof" in file_path.name
+    is_tool_exemption = file_path.name in {
+        "anti_spoof_linter.py",
+        "test_anti_spoof_linter.py",
+        "test_anti_spoof_amnesty.py",
+    }
     is_api_mock_exemption = "api_mocks" in file_path.parts
 
     is_exempt = is_tool_exemption or is_api_mock_exemption

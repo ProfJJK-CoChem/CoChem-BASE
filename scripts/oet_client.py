@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+from datetime import timezone
 import functools
 import json
 import logging
@@ -58,9 +59,9 @@ import socket
 import sys
 import tempfile
 import time
+import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import timezone
 from pathlib import Path
 from typing import Any, Final, Optional, Union
 
@@ -68,8 +69,8 @@ import mendeleev  # type: ignore[import-untyped]
 import numpy as np
 
 try:
-    from cochem_base.exceptions import OETDaemonConnectionError
     from cochem_base.schemas import OETFallbackAlertManifest
+    from cochem_base.exceptions import OETDaemonConnectionError
 except ImportError:
     from pydantic import BaseModel, ConfigDict, Field
 
@@ -89,6 +90,11 @@ except ImportError:
         pass
 
 
+class OETDaemonUnavailableError(RuntimeError):
+    """Raised when OET daemon is unavailable and fail_on_fallback or strict_provenance is active."""
+    pass
+
+
 class AirGapViolationError(RuntimeError):
     """Raised when writing to static Ring 1 repository files is detected."""
     pass
@@ -98,11 +104,13 @@ def emit_fallback_alert(
     calculation_base: str,
     trigger_event: str,
     fallback_calculator: str = "PhysicalOETFallbackCalculator",
+    requested_backend: str = "mace_off24m",
+    socket_target: str = "127.0.0.1:8888",
     scratch_dir: Path | str | None = None,
     artifacts_dir: Path | str | None = None,
     host_telemetry: dict[str, Any] | None = None,
 ) -> OETFallbackAlertManifest:
-    """Emit fallback alert manifest to Ring 2 scratch and stage to Ring 3 artifacts. [M]"""
+    """Emit fallback alert manifest to Ring 2 scratch and stage to Ring 3 artifacts atomically. [M]"""
     clean_base = calculation_base
     if clean_base.endswith("_EXT"):
         clean_base = clean_base[:-4]
@@ -139,17 +147,31 @@ def emit_fallback_alert(
     staged_artifact_file = alerts_dir / f"{clean_base}_EXT.fallback_alert.json"
     uncertainty_marker_file = s_dir / f"{clean_base}_EXT.uncertainty_marker"
 
+    now_utc = datetime.datetime.now(timezone.utc).isoformat()
     telemetry = host_telemetry or {
         "platform": platform.platform(),
         "python_version": sys.version,
         "pid": os.getpid(),
         "hostname": socket.gethostname(),
-        "timestamp_utc": datetime.datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": now_utc,
+    }
+
+    alert_payload: dict[str, Any] = {
+        "timestamp_utc": now_utc,
+        "event": "OET_DAEMON_FALLBACK_TRIGGERED",
+        "requested_backend": requested_backend,
+        "active_fallback": fallback_calculator,
+        "provenance_tag": "[E]",
+        "socket_target": socket_target,
+        "reason": str(trigger_event),
+        "investigator_action_required": True,
+        "calculation_base": clean_base,
+        "host_telemetry": telemetry,
     }
 
     manifest = OETFallbackAlertManifest(
         calculation_base=clean_base,
-        timestamp=datetime.datetime.now(timezone.utc).isoformat(),
+        timestamp=now_utc,
         trigger_event=str(trigger_event),
         fallback_calculator=fallback_calculator,
         provenance_tag="[E]",
@@ -158,21 +180,28 @@ def emit_fallback_alert(
         staged_artifact_file=str(staged_artifact_file),
     )
 
-    # Atomic write to Ring 2 scratch
-    scratch_alert_file.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+    # Atomic write to Ring 2 scratch via temporary UUID sidecar
+    tmp_scratch = s_dir / f".tmp_{uuid.uuid4().hex}"
+    tmp_scratch.write_text(json.dumps(alert_payload, indent=2), encoding="utf-8")
+    os.replace(tmp_scratch, scratch_alert_file)
 
-    # Atomic write to Ring 3 artifacts
-    staged_artifact_file.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+    # Atomic write to Ring 3 artifacts via temporary UUID sidecar
+    tmp_artifact = alerts_dir / f".tmp_{uuid.uuid4().hex}"
+    tmp_artifact.write_text(json.dumps(alert_payload, indent=2), encoding="utf-8")
+    os.replace(tmp_artifact, staged_artifact_file)
 
     # Uncertainty marker file in scratch with provenance tag [E]
-    uncertainty_marker_file.write_text(
+    tmp_marker = s_dir / f".tmp_{uuid.uuid4().hex}"
+    tmp_marker.write_text(
         f"PROVENANCE_TAG: [E]\n"
+        f"EVENT: OET_DAEMON_FALLBACK_TRIGGERED\n"
         f"TRIGGER_EVENT: {trigger_event}\n"
         f"CALCULATION_BASE: {clean_base}\n"
         f"FALLBACK_CALCULATOR: {fallback_calculator}\n"
-        f"TIMESTAMP: {manifest.timestamp}\n",
+        f"TIMESTAMP: {now_utc}\n",
         encoding="utf-8",
     )
+    os.replace(tmp_marker, uncertainty_marker_file)
 
     return manifest
 
@@ -465,7 +494,7 @@ def write_xyz(
         )
 
     lines = [f"{n_atoms}", comment]
-    for sym, (x, y, z) in zip(symbols, coordinates, strict=False):
+    for sym, (x, y, z) in zip(symbols, coordinates):
         lines.append(f"{sym:<3} {x:20.12f} {y:20.12f} {z:20.12f}")
 
     p.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -687,6 +716,8 @@ class OETClient:
         retry_delay: float = 0.5,
         scf_tole: float = 1e-5,
         allow_fallback: bool = True,
+        fail_on_fallback: bool = False,
+        strict_provenance: bool = False,
         standalone: bool = False,
         socket_path: Optional[Union[str, Path]] = None,
         scratch_dir: Optional[Union[str, Path]] = None,
@@ -699,6 +730,8 @@ class OETClient:
         self.retry_delay = max(0.01, retry_delay)
         self.scf_tole = scf_tole
         self.allow_fallback = allow_fallback
+        self.fail_on_fallback = fail_on_fallback
+        self.strict_provenance = strict_provenance
         self.standalone = standalone
         self.socket_path = Path(socket_path) if socket_path else None
         self.scratch_dir = Path(scratch_dir) if scratch_dir else None
@@ -917,10 +950,10 @@ end
                 resp, dograd=dograd, n_atoms=len(symbols)
             )
         except (ConnectionRefusedError, OETDaemonConnectionError, OSError) as conn_err:
-            if not self.allow_fallback:
-                raise RuntimeError(
+            if not self.allow_fallback or self.fail_on_fallback or self.strict_provenance:
+                raise OETDaemonUnavailableError(
                     f"OET server at {self.host}:{self.port} offline and "
-                    f"fallback disabled: {conn_err}"
+                    f"fallback disabled or strict provenance active: {conn_err}"
                 ) from conn_err
 
             logger.info(
@@ -932,6 +965,7 @@ end
                 calculation_base=clean_base,
                 trigger_event=f"SocketConnectionError: {conn_err}",
                 fallback_calculator="PhysicalOETFallbackCalculator",
+                socket_target=f"{self.host}:{self.port}",
                 scratch_dir=self.scratch_dir,
                 artifacts_dir=self.artifacts_dir,
             )

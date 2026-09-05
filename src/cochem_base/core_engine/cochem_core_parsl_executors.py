@@ -59,6 +59,7 @@ import logging
 import os
 import platform
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -71,7 +72,6 @@ from typing import (
     Callable,
     Dict,
     List,
-    Literal,
     Optional,
     Sequence,
     Tuple,
@@ -88,7 +88,6 @@ from pydantic import (
     Field,
 )
 
-from cochem_base.schemas import GpuScoutExecutorConfig
 from cochem_base.config_loader import (
     get_artifact_dir,
     get_mps_directories,
@@ -99,6 +98,7 @@ from cochem_base.exceptions import (
     CoChemError,
     ProvenanceErrorCode,
 )
+from cochem_base.schemas import GpuScoutExecutorConfig
 
 # ---------------------------------------------------------------------------
 # Logging Setup
@@ -154,6 +154,87 @@ atexit.register(_sweep_zombie_processes)
 
 
 # =============================================================================
+# Worker-Resident Singleton MLFF Calculator Cache & Stream Management (§8A.3, Suggestion #154)
+# =============================================================================
+_WORKER_CALCULATOR_CACHE: dict[str, Any] = {}
+_WORKER_CALCULATOR_LOCK = threading.Lock()
+_WORKER_CUDA_STREAMS: dict[str, Any] = {}
+
+
+def get_cached_mlff_calculator(
+    model_name: str,
+    model_path: Optional[Union[str, Path]] = None,
+    device: str = "cpu",
+    dtype: Optional[str] = None,
+) -> Any:
+    """Retrieve or instantiate a worker-resident singleton MLFF calculator instance.
+
+    Implements Suggestion #154.
+    Ensures model weights are loaded exactly once per worker process,
+    avoiding redundant VRAM/RAM allocations.
+    Provides non-blocking CUDA stream isolation when running on CUDA devices.
+    """
+    path_str = str(model_path).lower().strip() if model_path is not None else "none"
+    key = f"{model_name.lower().strip()}:{path_str}:{device.lower().strip()}"
+    with _WORKER_CALCULATOR_LOCK:
+        if key in _WORKER_CALCULATOR_CACHE:
+            return _WORKER_CALCULATOR_CACHE[key]
+
+        calc = None
+        stream = None
+        # Non-blocking CUDA stream management
+        if device.lower().startswith("cuda"):
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    dev_idx = 0
+                    if ":" in device:
+                        dev_idx = int(device.split(":")[1])
+                    stream = torch.cuda.Stream(device=dev_idx)
+                    _WORKER_CUDA_STREAMS[key] = stream
+            except Exception as stream_err:
+                logger.debug(f"CUDA stream initialization deferred/unavailable: {stream_err}")
+
+        # Model instantiation with zero-mock physical fallback
+        m_lower = model_name.lower().replace("-", "_")
+        if "mace" in m_lower:
+            try:
+                from mace.calculators import mace_off
+                calc = mace_off(model="medium" if model_path is None else str(model_path), device=device)
+            except Exception as e:
+                logger.info(f"MACE-OFF not importable ({e}); initializing physical ASE EMT fallback.")
+                from ase.calculators.emt import EMT
+                calc = EMT()
+        elif "aimnet" in m_lower:
+            try:
+                from aimnet2calc import AIMNet2ASE
+                calc = AIMNet2ASE(model="aimnet2" if model_path is None else str(model_path))
+            except Exception as e:
+                logger.info(f"AIMNet2 not importable ({e}); initializing physical ASE EMT fallback.")
+                from ase.calculators.emt import EMT
+                calc = EMT()
+        elif "emt" in m_lower:
+            from ase.calculators.emt import EMT
+            calc = EMT()
+        else:
+            from ase.calculators.emt import EMT
+            calc = EMT()
+
+        if stream is not None and calc is not None:
+            calc._cuda_stream = stream
+
+        _WORKER_CALCULATOR_CACHE[key] = calc
+        return calc
+
+
+def clear_worker_calculator_cache() -> None:
+    """Clear the worker-resident singleton calculator cache."""
+    with _WORKER_CALCULATOR_LOCK:
+        _WORKER_CALCULATOR_CACHE.clear()
+        _WORKER_CUDA_STREAMS.clear()
+
+
+# =============================================================================
 # Custom Exception Hierarchy
 # =============================================================================
 class ParslExecutorError(CoChemError):
@@ -194,6 +275,8 @@ class ExecutorStreamType(str, Enum):
 
     CPU_ANCHOR = "CPU_ANCHOR"
     GPU_SCOUT = "GPU_SCOUT"
+    GPU_SCOUT_MLFF = "GPU_SCOUT_MLFF"
+    GPU_ANCHOR_PYSCF = "GPU_ANCHOR_PYSCF"
     ORCHESTRATOR = "ORCHESTRATOR"
 
 
@@ -328,6 +411,12 @@ class ParslMultiExecutorProfile(BaseModel):
     contention_budget: ContentionBudget = Field(..., description="Resource contention budget")
     anchor_executor: HTEXConfig = Field(..., description="CPU Anchor executor configuration")
     scout_executor: HTEXConfig = Field(..., description="GPU Scout executor configuration")
+    gpu_scout_mlff_executor: Optional[HTEXConfig] = Field(
+        default=None, description="Segregated GPU Scout MLFF pool configuration"
+    )
+    gpu_anchor_pyscf_executor: Optional[HTEXConfig] = Field(
+        default=None, description="Segregated GPU Anchor PySCF pool configuration"
+    )
     orchestrator_executor: HTEXConfig = Field(..., description="Orchestrator executor configuration")
     slurm_options: Optional[SlurmResourceOptions] = Field(
         default=None, description="SLURM options if running on HPC"
@@ -548,20 +637,39 @@ def partition_cpu_cores(
 
 
 def calculate_contention_budget(
-    total_physical_cores: int,
-    total_ram_gb: float,
+    total_physical_cores: Optional[int] = None,
+    total_ram_gb: Optional[float] = None,
     gpu_scout_workers: int = DEFAULT_MAX_GPU_SCOUT_WORKERS,
     anchor_ranks: int = DEFAULT_ORCA_ANCHOR_RANKS,
 ) -> ContentionBudget:
-    """
-    Calculate resource contention budget model (§8A.1, Suggestion #77).
+    """Calculate resource contention budget model (§8A.1, Suggestion #77, #156).
+
     Enforces host RAM headroom, dynamic memory floors (<32 GB), VRAM partitioning under MPS, and slowdown estimates.
+    Dynamically probes system RAM and CPU topology via psutil when parameters are omitted,
+    and downscales concurrency and memory limits gracefully instead of raising ContentionBudgetExceededError.
     """
+    if total_ram_gb is None:
+        total_ram_gb = float(psutil.virtual_memory().total / (1024**3))
+    if total_physical_cores is None:
+        total_physical_cores = int(psutil.cpu_count(logical=False) or 4)
+
+    # Scale anchor ranks if total_physical_cores is constrained
+    if total_physical_cores <= 4:
+        anchor_ranks = max(1, total_physical_cores - 1)
+
     # Dynamic host RAM scaling under constrained environments (< 32 GB)
     if total_ram_gb < 32.0:
         anchor_mem = max(4.0, total_ram_gb * 0.50)
         scout_mem = max(1.5, total_ram_gb * 0.25)
-        if total_ram_gb < 16.0:
+        if total_ram_gb < 8.0:
+            gpu_scout_workers = 1
+            anchor_mem = max(2.0, total_ram_gb * 0.40)
+            scout_mem = max(0.5, total_ram_gb * 0.20)
+            logger.info(
+                f"[RESOURCE-INFO] Severely constrained host RAM ({total_ram_gb:.1f} GB < 8 GB). "
+                "Downscaling GPU scout concurrency to 1 worker."
+            )
+        elif total_ram_gb < 16.0:
             gpu_scout_workers = 1
             logger.info(
                 f"[RESOURCE-INFO] Constrained host RAM ({total_ram_gb:.1f} GB < 16 GB). "
@@ -852,9 +960,13 @@ def build_heterogeneous_profile(
     slurm_options: Optional[SlurmResourceOptions] = None,
     degraded_single_executor: bool = False,
     env: Optional[Dict[str, str]] = None,
+    segregated_gpu_pools: bool = True,
 ) -> ParslMultiExecutorProfile:
-    """
-    Assemble the complete heterogeneous multi-executor profile (§8A.2, §8A.6).
+    """Assemble the complete heterogeneous multi-executor profile (§8A.2, §8A.6, Suggestion #155).
+
+    Supports segregated GPU pools:
+    - gpu_scout_mlff: MPS-enabled conformational sampling pool
+    - gpu_anchor_pyscf: Dedicated non-oversubscribed VRAM PySCF / DFT anchor pool
     """
     target_env = os.environ if env is None else env
     physical_cores, _ = detect_system_cpu_topology(target_env)
@@ -944,6 +1056,32 @@ def build_heterogeneous_profile(
         worker_init_script=gpu_init,
     )
 
+    gpu_scout_mlff_cfg = None
+    gpu_anchor_pyscf_cfg = None
+    if segregated_gpu_pools:
+        gpu_scout_mlff_cfg = HTEXConfig(
+            label="gpu_scout_mlff",
+            stream=ExecutorStreamType.GPU_SCOUT_MLFF,
+            provider_type=provider_type,
+            max_workers_per_node=contention.gpu_scout_workers,
+            cores_per_worker=max(1.0, float(partitioning.scout_core_count) / float(contention.gpu_scout_workers)),
+            mem_per_worker_gb=contention.scout_mem_per_worker_gb,
+            cpu_affinity="block-reverse",
+            available_accelerators=contention.gpu_scout_workers,
+            worker_init_script=gpu_init,
+        )
+        gpu_anchor_pyscf_cfg = HTEXConfig(
+            label="gpu_anchor_pyscf",
+            stream=ExecutorStreamType.GPU_ANCHOR_PYSCF,
+            provider_type=provider_type,
+            max_workers_per_node=1,
+            cores_per_worker=float(partitioning.scout_core_count),
+            mem_per_worker_gb=min(16.0, total_ram_gb * 0.5),
+            cpu_affinity="block",
+            available_accelerators=1,
+            worker_init_script="export CUDA_VISIBLE_DEVICES=0; export CUDA_MPS_ACTIVE_THREAD_PERCENTAGE=100",
+        )
+
     orch_cfg = HTEXConfig(
         label="orchestrator",
         stream=ExecutorStreamType.ORCHESTRATOR,
@@ -960,6 +1098,8 @@ def build_heterogeneous_profile(
         contention_budget=contention,
         anchor_executor=anchor_cfg,
         scout_executor=scout_cfg,
+        gpu_scout_mlff_executor=gpu_scout_mlff_cfg,
+        gpu_anchor_pyscf_executor=gpu_anchor_pyscf_cfg,
         orchestrator_executor=orch_cfg,
         slurm_options=slurm_options,
         is_degraded_single_executor=False,
@@ -1075,14 +1215,48 @@ def construct_parsl_config(
 
     scout_htex = HighThroughputExecutor(**scout_kwargs)
 
+    executors_list = [anchor_htex, scout_htex]
+
+    # Segregated GPU Pools (§8A.6, Suggestion #155)
+    if profile.gpu_scout_mlff_executor is not None:
+        mlff_kwargs: Dict[str, Any] = {
+            "label": profile.gpu_scout_mlff_executor.label,
+            "provider": make_provider(profile.gpu_scout_mlff_executor),
+            "max_workers_per_node": profile.gpu_scout_mlff_executor.max_workers_per_node,
+            "cores_per_worker": profile.gpu_scout_mlff_executor.cores_per_worker,
+            "mem_per_worker": profile.gpu_scout_mlff_executor.mem_per_worker_gb,
+            "cpu_affinity": profile.gpu_scout_mlff_executor.cpu_affinity,
+            "worker_port_range": profile.gpu_scout_mlff_executor.worker_port_range,
+            "interchange_port_range": profile.gpu_scout_mlff_executor.interchange_port_range,
+        }
+        if profile.gpu_scout_mlff_executor.available_accelerators is not None:
+            mlff_kwargs["available_accelerators"] = profile.gpu_scout_mlff_executor.available_accelerators
+        executors_list.append(HighThroughputExecutor(**mlff_kwargs))
+
+    if profile.gpu_anchor_pyscf_executor is not None:
+        pyscf_kwargs: Dict[str, Any] = {
+            "label": profile.gpu_anchor_pyscf_executor.label,
+            "provider": make_provider(profile.gpu_anchor_pyscf_executor),
+            "max_workers_per_node": profile.gpu_anchor_pyscf_executor.max_workers_per_node,
+            "cores_per_worker": profile.gpu_anchor_pyscf_executor.cores_per_worker,
+            "mem_per_worker": profile.gpu_anchor_pyscf_executor.mem_per_worker_gb,
+            "cpu_affinity": profile.gpu_anchor_pyscf_executor.cpu_affinity,
+            "worker_port_range": profile.gpu_anchor_pyscf_executor.worker_port_range,
+            "interchange_port_range": profile.gpu_anchor_pyscf_executor.interchange_port_range,
+        }
+        if profile.gpu_anchor_pyscf_executor.available_accelerators is not None:
+            pyscf_kwargs["available_accelerators"] = profile.gpu_anchor_pyscf_executor.available_accelerators
+        executors_list.append(HighThroughputExecutor(**pyscf_kwargs))
+
     # 3. Orchestrator Executor (ThreadPoolExecutor for lightweight coordination)
     orch_exec = ThreadPoolExecutor(
         max_threads=profile.orchestrator_executor.max_workers_per_node,
         label=profile.orchestrator_executor.label,
     )
+    executors_list.append(orch_exec)
 
     return Config(
-        executors=[anchor_htex, scout_htex, orch_exec],
+        executors=executors_list,
         run_dir=resolved_run_dir,
         retries=profile.parsl_retries,
         strategy=None,
@@ -1392,6 +1566,12 @@ class ParslExecutionBroker:
             executor_label: str
             if request.stream == ExecutorStreamType.CPU_ANCHOR:
                 executor_label = self.profile.anchor_executor.label
+            elif request.stream == ExecutorStreamType.GPU_SCOUT_MLFF:
+                mlff_ex = getattr(self.profile, "gpu_scout_mlff_executor", None)
+                executor_label = mlff_ex.label if mlff_ex else self.profile.scout_executor.label
+            elif request.stream == ExecutorStreamType.GPU_ANCHOR_PYSCF:
+                pyscf_ex = getattr(self.profile, "gpu_anchor_pyscf_executor", None)
+                executor_label = pyscf_ex.label if pyscf_ex else self.profile.scout_executor.label
             elif request.stream == ExecutorStreamType.GPU_SCOUT:
                 executor_label = self.profile.scout_executor.label
             else:
@@ -1439,6 +1619,12 @@ class ParslExecutionBroker:
             executor_label: str
             if stream == ExecutorStreamType.CPU_ANCHOR:
                 executor_label = self.profile.anchor_executor.label
+            elif stream == ExecutorStreamType.GPU_SCOUT_MLFF:
+                mlff_ex = getattr(self.profile, "gpu_scout_mlff_executor", None)
+                executor_label = mlff_ex.label if mlff_ex else self.profile.scout_executor.label
+            elif stream == ExecutorStreamType.GPU_ANCHOR_PYSCF:
+                pyscf_ex = getattr(self.profile, "gpu_anchor_pyscf_executor", None)
+                executor_label = pyscf_ex.label if pyscf_ex else self.profile.scout_executor.label
             elif stream == ExecutorStreamType.GPU_SCOUT:
                 executor_label = self.profile.scout_executor.label
             else:

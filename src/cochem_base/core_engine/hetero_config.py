@@ -75,6 +75,7 @@ import logging
 import math
 import os
 import platform
+import subprocess
 import sys
 import tempfile
 import threading
@@ -304,11 +305,29 @@ class HeteroParslConfig(BaseModel):
     setup_tier: SetupTier = Field(default=SetupTier.SETUP_2, description="Target execution tier")
     cpu_executor: ExecutorConfig = Field(..., description="Authoritative CPU Anchor executor config")
     gpu_executor: Optional[ExecutorConfig] = Field(default=None, description="Advisory GPU Scout executor config")
+    gpu_scout_mlff_executor: Optional[ExecutorConfig] = Field(
+        default=None, description="Segregated GPU Scout MLFF pool under MPS"
+    )
+    gpu_anchor_pyscf_executor: Optional[ExecutorConfig] = Field(
+        default=None, description="Segregated GPU Anchor PySCF pool dedicated non-oversubscribed"
+    )
     orchestrator_executor: Optional[ExecutorConfig] = Field(default=None, description="Utility / DFK executor config")
     retries: int = Field(default=2, ge=0, description="Parsl task execution retry budget (§8A.6)")
     strategy: str = Field(default="simple", description="Parsl scaling strategy")
     hardware: HardwareSpec = Field(default_factory=HardwareSpec, description="Physical hardware spec")
     env_vars: Dict[str, str] = Field(default_factory=dict, description="Exported environment variables")
+
+    @property
+    def gpu_workers(self) -> int:
+        if self.gpu_executor and self.gpu_executor.max_workers_per_node:
+            return self.gpu_executor.max_workers_per_node
+        return 0
+
+    @property
+    def gpu_worker_init(self) -> str:
+        if self.gpu_executor and self.gpu_executor.worker_init:
+            return self.gpu_executor.worker_init
+        return ""
 
 
 class MPSConfig(BaseModel):
@@ -422,21 +441,22 @@ def build_hetero_config(
     Returns:
         parsl.config.Config or HeteroParslConfig instance.
     """
-    is_win = platform.system() == "Windows"
+    current_os = platform.system()
+    is_non_linux = current_os in ("Windows", "Darwin")
+    is_win = current_os == "Windows"
 
-    # Format worker_init scripts
-    if is_win:
-        win_pipe = str(Path(tempfile.gettempdir()) / "nvidia-mps").replace("/", "\\")
-        win_log = str(Path(tempfile.gettempdir()) / "nvidia-log").replace("/", "\\")
-        cpu_init = "set OMP_NUM_THREADS=1 & set KMP_HW_SUBSET=8c:intel_core,1t"
-        gpu_init = (
-            f"set CUDA_VISIBLE_DEVICES=0 & "
-            f"set CUDA_MPS_ACTIVE_THREAD_PERCENTAGE={active_thread_pct} & "
-            f"set CUDA_MPS_PINNED_DEVICE_MEM_LIMIT={pinned_mem_limit} & "
-            f"set CUDA_MPS_PIPE_DIRECTORY={win_pipe} & "
-            f"set CUDA_MPS_LOG_DIRECTORY={win_log}"
-        )
+    if is_non_linux:
+        # Non-Linux: Bypass MPS entirely; serialize GPU workers to 1 per device
+        effective_gpu_workers = 1
+        if is_win:
+            cpu_init = "set OMP_NUM_THREADS=1"
+            gpu_init = "set CUDA_VISIBLE_DEVICES=0"
+        else:
+            cpu_init = "export OMP_NUM_THREADS=1"
+            gpu_init = "export CUDA_VISIBLE_DEVICES=0"
+        env_vars = {"CUDA_VISIBLE_DEVICES": "0"}
     else:
+        effective_gpu_workers = gpu_workers
         cpu_init = "export OMP_NUM_THREADS=1; export KMP_HW_SUBSET=8c:intel_core,1t"
         gpu_init = (
             f"export CUDA_VISIBLE_DEVICES=0; "
@@ -446,6 +466,13 @@ def build_hetero_config(
             f"export CUDA_MPS_LOG_DIRECTORY='{log_dir}'; "
             "ulimit -n 16384"
         )
+        env_vars = {
+            "CUDA_VISIBLE_DEVICES": "0",
+            "CUDA_MPS_ACTIVE_THREAD_PERCENTAGE": str(active_thread_pct),
+            "CUDA_MPS_PINNED_DEVICE_MEM_LIMIT": pinned_mem_limit,
+            "CUDA_MPS_PIPE_DIRECTORY": pipe_dir,
+            "CUDA_MPS_LOG_DIRECTORY": log_dir,
+        }
 
     cpu_exec = ExecutorConfig(
         label="cpu",
@@ -459,12 +486,34 @@ def build_hetero_config(
 
     gpu_exec = ExecutorConfig(
         label="gpu",
-        available_accelerators=gpu_workers,
-        max_workers_per_node=gpu_workers,
+        available_accelerators=effective_gpu_workers,
+        max_workers_per_node=effective_gpu_workers,
         cores_per_worker=1,
         cpu_affinity=CoreAffinityType.BLOCK_REVERSE,
         mem_per_worker_gb=mem_per_gpu_worker_gb,
         worker_init=gpu_init,
+        provider_type=ProviderBackend.LOCAL,
+    )
+
+    gpu_mlff_exec = ExecutorConfig(
+        label="gpu_scout_mlff",
+        available_accelerators=effective_gpu_workers,
+        max_workers_per_node=effective_gpu_workers,
+        cores_per_worker=1,
+        cpu_affinity=CoreAffinityType.BLOCK_REVERSE,
+        mem_per_worker_gb=mem_per_gpu_worker_gb,
+        worker_init=gpu_init,
+        provider_type=ProviderBackend.LOCAL,
+    )
+
+    gpu_pyscf_exec = ExecutorConfig(
+        label="gpu_anchor_pyscf",
+        available_accelerators=1,
+        max_workers_per_node=1,
+        cores_per_worker=cpu_cores_per_worker,
+        cpu_affinity=CoreAffinityType.BLOCK,
+        mem_per_worker_gb=16.0,
+        worker_init="set CUDA_VISIBLE_DEVICES=0" if is_win else "export CUDA_VISIBLE_DEVICES=0",
         provider_type=ProviderBackend.LOCAL,
     )
 
@@ -476,7 +525,7 @@ def build_hetero_config(
             max_workers_per_node=orchestrator_workers,
             cpu_affinity=CoreAffinityType.ALTERNATING,
             mem_per_worker_gb=4.0,
-            worker_init="export OMP_NUM_THREADS=1" if not is_win else "set OMP_NUM_THREADS=1",
+            worker_init="set OMP_NUM_THREADS=1" if is_win else "export OMP_NUM_THREADS=1",
             provider_type=ProviderBackend.LOCAL,
         )
 
@@ -484,18 +533,66 @@ def build_hetero_config(
         setup_tier=SetupTier.SETUP_2,
         cpu_executor=cpu_exec,
         gpu_executor=gpu_exec,
+        gpu_scout_mlff_executor=gpu_mlff_exec,
+        gpu_anchor_pyscf_executor=gpu_pyscf_exec,
         orchestrator_executor=orch_exec,
         retries=retries,
-        env_vars={
-            "CUDA_VISIBLE_DEVICES": "0",
-            "CUDA_MPS_ACTIVE_THREAD_PERCENTAGE": str(active_thread_pct),
-            "CUDA_MPS_PINNED_DEVICE_MEM_LIMIT": pinned_mem_limit,
-            "CUDA_MPS_PIPE_DIRECTORY": pipe_dir if not is_win else win_pipe,
-            "CUDA_MPS_LOG_DIRECTORY": log_dir if not is_win else win_log,
-        },
+        env_vars=env_vars,
     )
 
     return pydantic_cfg
+
+
+build_setup2_hetero_config = build_hetero_config
+
+
+def get_vram_free_gb() -> float:
+    """
+    Non-initializing VRAM polling via NVML C API / nvidia-smi.
+    Returns available free VRAM in gigabytes as a physical float.
+    """
+    # 1. Attempt NVML ctypes wrapper (zero initialization of CUDA runtime context)
+    try:
+        import ctypes
+
+        class _nvmlMemory_t(ctypes.Structure):
+            _fields_ = [
+                ("total", ctypes.c_ulonglong),
+                ("free", ctypes.c_ulonglong),
+                ("used", ctypes.c_ulonglong),
+            ]
+
+        if platform.system() == "Windows":
+            nvml_dll = ctypes.windll.LoadLibrary("nvml.dll")
+        else:
+            nvml_dll = ctypes.CDLL("libnvidia-ml.so.1")
+        nvml_dll.nvmlInit()
+        dev = ctypes.c_void_p()
+        if hasattr(nvml_dll, "nvmlDeviceGetHandleByIndex_v2"):
+            nvml_dll.nvmlDeviceGetHandleByIndex_v2(0, ctypes.byref(dev))
+        else:
+            nvml_dll.nvmlDeviceGetHandleByIndex(0, ctypes.byref(dev))
+        mem = _nvmlMemory_t()
+        nvml_dll.nvmlDeviceGetMemoryInfo(dev, ctypes.byref(mem))
+        free_gb = float(mem.free) / (1024.0 ** 3)
+        nvml_dll.nvmlShutdown()
+        return round(free_gb, 4)
+    except Exception:
+        pass
+
+    # 2. Fallback: query nvidia-smi CLI
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            stderr=subprocess.DEVNULL,
+            timeout=5.0,
+        ).decode().strip()
+        first_line = out.splitlines()[0].strip()
+        return round(float(first_line) / 1024.0, 4)
+    except Exception:
+        pass
+
+    return 0.0
 
 
 def build_slurm_hetero_config(

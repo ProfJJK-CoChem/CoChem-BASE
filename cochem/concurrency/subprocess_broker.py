@@ -6,8 +6,10 @@ Strictly adheres to Zero-Mock mandate and authentic subprocess execution.
 from __future__ import annotations
 
 import atexit
+from collections import deque
 import ctypes
 import dataclasses
+
 import enum
 import logging
 import os
@@ -17,9 +19,15 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 import uuid
-from collections import deque
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
 
 from cochem.core.context import assert_writable_path
 from cochem.core.hardware.topology import TopologyDiscoveryEngine
@@ -42,12 +50,15 @@ class FailureCategory(enum.Enum):
 class SubprocessExecutionResult:
     """Immutable execution report from the Subprocess Broker."""
 
-    success: bool
-    stdout: str
-    stderr: str
-    returncode: int
-    retries_attempted: int
-    final_params: Dict[str, Any]
+    returncode: int = 0
+    stdout: str = ""
+    stderr: str = ""
+    walltime_sec: float = 0.0
+    peak_memory_mb: float = 0.0
+    command: List[str] = dataclasses.field(default_factory=list)
+    success: bool = True
+    retries_attempted: int = 0
+    final_params: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 class DiagnosticTriageEngine:
@@ -125,7 +136,8 @@ class SubprocessBroker:
         self,
         cwd: Optional[Union[str, pathlib.Path]] = None,
         env: Optional[Dict[str, str]] = None,
-        timeout_seconds: float = 3600.0,
+        timeout_sec: Optional[float] = None,
+        timeout_seconds: Optional[float] = None,
         context_or_engine: Union[Any, str] = "cochem_worker",
         initial_params: Optional[Dict[str, Any]] = None,
         scratch_dir: Optional[Union[pathlib.Path, str]] = None,
@@ -147,7 +159,8 @@ class SubprocessBroker:
 
         self.cwd: pathlib.Path = pathlib.Path(cwd).resolve() if cwd else pathlib.Path.cwd()
         self.env: Optional[Dict[str, str]] = env.copy() if env is not None else None
-        self.timeout_seconds: float = float(timeout_seconds)
+        eff_t = timeout_sec if timeout_sec is not None else (timeout_seconds if timeout_seconds is not None else 3600.0)
+        self.timeout_seconds: float = float(eff_t)
 
         self.current_params: Dict[str, Any] = dict(initial_params or {})
         self.max_retries: int = max(1, int(max_retries))
@@ -315,10 +328,12 @@ class SubprocessBroker:
         **kwargs: Any,
     ) -> SubprocessExecutionResult:
         """Execute command under deterministic fault ladder with up to MAX_RETRIES remediation cycles."""
+        t0 = time.time()
         retries = 0
         last_stdout = ""
         last_stderr = ""
         last_code = 1
+        peak_mem_mb = 0.0
 
         # Ephemeral per-job sandbox subdirectory conforming to Tripartite Air-Gap
         job_id = uuid.uuid4().hex
@@ -326,11 +341,19 @@ class SubprocessBroker:
         job_scratch.mkdir(parents=True, exist_ok=True)
 
         if isinstance(command, str):
-            cmd_list = shlex.split(command, posix=(sys.platform != "win32"))
+            cmd_tokens = shlex.split(command, posix=(os.name != "nt"))
+            if os.name == "nt":
+                cleaned_tokens = []
+                for arg in cmd_tokens:
+                    if len(arg) >= 2 and ((arg[0] == '"' and arg[-1] == '"') or (arg[0] == "'" and arg[-1] == "'")):
+                        cleaned_tokens.append(arg[1:-1])
+                    else:
+                        cleaned_tokens.append(arg)
+                cmd_tokens = cleaned_tokens
         else:
-            cmd_list = [str(c) for c in command]
+            cmd_tokens = [str(c) for c in command]
 
-        current_cmd = list(cmd_list)
+        current_cmd = list(cmd_tokens)
         if sys.platform == "win32" and current_cmd and shutil.which(current_cmd[0]) is None:
             if current_cmd[0].lower() in ("echo", "dir", "type", "copy", "del", "mkdir", "rmdir", "cls"):
                 current_cmd = ["cmd.exe", "/c"] + current_cmd
@@ -388,6 +411,13 @@ class SubprocessBroker:
                         except Exception as _e:
                             logger.debug(f"Ignored exception: {_e}")
 
+                    if HAS_PSUTIL and proc is not None:
+                        try:
+                            p = psutil.Process(proc.pid)
+                            peak_mem_mb = max(peak_mem_mb, float(p.memory_info().rss) / (1024.0 * 1024.0))
+                        except Exception:
+                            pass
+
                     try:
                         out, err = proc.communicate(timeout=effective_timeout)
                         code = proc.returncode
@@ -397,14 +427,23 @@ class SubprocessBroker:
                         last_stderr = f"Subprocess execution timed out after {effective_timeout}s"
                         last_code = -124
                         return SubprocessExecutionResult(
-                            success=False,
+                            returncode=last_code,
                             stdout=last_stdout,
                             stderr=last_stderr,
-                            returncode=last_code,
+                            walltime_sec=round(time.time() - t0, 4),
+                            peak_memory_mb=peak_mem_mb,
+                            command=cmd_tokens,
+                            success=False,
                             retries_attempted=retries + 1,
                             final_params=self.current_params,
                         )
 
+                    if HAS_PSUTIL and proc is not None:
+                        try:
+                            p = psutil.Process(proc.pid)
+                            peak_mem_mb = max(peak_mem_mb, float(p.memory_info().rss) / (1024.0 * 1024.0))
+                        except Exception:
+                            pass
 
                     # Capture subprocess stdout/stderr using bounded 10 MB ring buffers
                     stdout_buf: deque[str] = deque(maxlen=10485760)
@@ -414,7 +453,6 @@ class SubprocessBroker:
                     last_stdout = "".join(stdout_buf)
                     last_stderr = "".join(stderr_buf)
                     last_code = code
-
 
                     if code == 0:
                         # Extract validated artifacts to persistent store (T_store) conforming to Tripartite Air-Gap
@@ -432,10 +470,13 @@ class SubprocessBroker:
                                             logger.debug(f"Ignored exception: {_e}")
 
                         return SubprocessExecutionResult(
-                            success=True,
+                            returncode=0,
                             stdout=last_stdout,
                             stderr=last_stderr,
-                            returncode=0,
+                            walltime_sec=round(time.time() - t0, 4),
+                            peak_memory_mb=peak_mem_mb,
+                            command=cmd_tokens,
+                            success=True,
                             retries_attempted=retries,
                             final_params=self.current_params,
                         )
@@ -482,10 +523,13 @@ class SubprocessBroker:
                     retries += 1
 
             return SubprocessExecutionResult(
-                success=False,
+                returncode=last_code,
                 stdout=last_stdout,
                 stderr=last_stderr,
-                returncode=last_code,
+                walltime_sec=round(time.time() - t0, 4),
+                peak_memory_mb=peak_mem_mb,
+                command=cmd_tokens,
+                success=False,
                 retries_attempted=retries,
                 final_params=self.current_params,
             )

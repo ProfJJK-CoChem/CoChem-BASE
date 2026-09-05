@@ -32,7 +32,10 @@ from typing import Any, Dict, Generator, List, Optional, Sequence, Union, cast
 
 import filelock
 import h5py  # type: ignore[import-untyped]
-import zmq
+try:
+    import zmq
+except ImportError:
+    zmq = None  # type: ignore[assignment]
 from pydantic import BaseModel, ValidationError
 
 try:

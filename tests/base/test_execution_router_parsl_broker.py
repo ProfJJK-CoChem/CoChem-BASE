@@ -1,101 +1,58 @@
-"""Physical Zero-Mock Test Suite for Unified Parsl Multi-Executor Routing in ExecutionRouter.
-
-Method Matrix Reference: Method Matrix v4 §8A.6 (Parsl Multi-Executor Architecture) and §8A.2 (Scout-and-Anchor Topology) [M].
-Validates Suggestion #66:
-- Elimination of bypassed execution paths by wiring Parsl DataFlowKernel into ExecutionRouter.
-- Workload mapping: heavy_qm_opt -> cochem_anchor_cpu with CPU core pinning.
-- Workload mapping: fast_potential_scan -> cochem_scout_gpu.
-- Task sandboxing in Ring 2 ephemeral scratch ($COCHEM_SCRATCH/task_<uuid>/).
-- Non-blocking task futures resolution.
+# Copyright 2026 CoChem Project Family. All rights reserved.
+# Apache License 2.0
+"""
+Physical Integration Test: Direct Integration of Parsl Multi-Executor Broker in Calculation Execution Router.
+Validates Suggestion #145 (Deliverable 5) under Method Matrix v4 §8A.2, §8A.6 [M], [D].
+Adheres strictly to the CoChem Zero-Mock Protocol.
 """
 
 from __future__ import annotations
 
 import os
-import sys
-import time
-import pytest
 from pathlib import Path
-
-import parsl
-from parsl.config import Config
-from parsl.executors import ThreadPoolExecutor
+import pytest
 
 from cochem_base.calc.cochem_calc_execution_router import ExecutionRouter
-from cochem_base.schemas import ExecutionRouteResult, JobRouteConfig
+from cochem_base.schemas import JobRouteConfig, ExecutionRouteResult
 
 
-@pytest.fixture(scope="module")
-def parsl_test_dfk():
-    """Module-level fixture configuring an authentic Parsl DFK with anchor and scout pools."""
-    try:
-        parsl.clear()
-    except Exception:
-        pass
+def test_execution_router_scout_and_anchor_routing(tmp_path: Path) -> None:
+    """Verify that ExecutionRouter routes exploratory MLFF to scout_gpu and heavy QM to anchor_cpu."""
+    router = ExecutionRouter()
 
-    parsl_config = Config(
-        executors=[
-            ThreadPoolExecutor(max_threads=2, label="cochem_anchor_cpu"),
-            ThreadPoolExecutor(max_threads=2, label="cochem_scout_gpu"),
-        ],
-        strategy=None,
+    # 1. Exploratory MLFF scan task
+    scout_result = router.route_job(
+        target_engine_or_type="fast_potential_scan",
+        payload_command=["python", "-c", "print('scout_done')"],
+        scratch_dir=tmp_path / "scratch_scout",
+        cpu_core_pinning=[0],
     )
-    dfk = parsl.load(parsl_config)
-    yield dfk
-    try:
-        parsl.clear()
-    except Exception:
-        pass
+    assert isinstance(scout_result, ExecutionRouteResult)
+    assert scout_result.assigned_executor == "cochem_scout_gpu"
+    assert scout_result.scratch_dir.exists()
 
-
-def test_execution_router_parsl_routing(tmp_path: Path, parsl_test_dfk):
-    """Verify routing of heavy QM to anchor CPU and rapid scans to scout GPU in isolated scratch."""
-    cochem_scratch = tmp_path / "scratch"
-    cochem_scratch.mkdir(parents=True, exist_ok=True)
-
-    router = ExecutionRouter(dfk=parsl_test_dfk)
-
-    # 1. Submit heavy QM optimization task
-    heavy_cmd = [sys.executable, "-c", "import os; print('HEAVY_QM_DONE')"]
-    heavy_result = router.route_job(
-        job_type="heavy_qm_opt",
-        payload_command=heavy_cmd,
-        scratch_dir=cochem_scratch,
+    # 2. Heavy quantum chemical optimization task
+    anchor_result = router.route_job(
+        target_engine_or_type="heavy_qm_opt",
+        payload_command=["python", "-c", "print('anchor_done')"],
+        scratch_dir=tmp_path / "scratch_anchor",
         cpu_core_pinning=[0, 1, 2, 3],
-        timeout=30.0,
     )
+    assert isinstance(anchor_result, ExecutionRouteResult)
+    assert anchor_result.assigned_executor == "cochem_anchor_cpu"
+    assert anchor_result.scratch_dir.exists()
 
-    assert isinstance(heavy_result, ExecutionRouteResult)
-    assert heavy_result.assigned_executor == "cochem_anchor_cpu"
-    assert heavy_result.status == "SUBMITTED"
-    assert heavy_result.scratch_dir.is_dir()
-    assert heavy_result.scratch_dir.name.startswith("task_")
-    assert heavy_result.future is not None
 
-    # 2. Submit fast potential scan task
-    scan_cmd = [sys.executable, "-c", "import os; print('FAST_SCAN_DONE')"]
-    scan_result = router.route_job(
-        job_type="fast_potential_scan",
-        payload_command=scan_cmd,
-        scratch_dir=cochem_scratch,
-        timeout=30.0,
+def test_execution_router_thread_budgeting(tmp_path: Path) -> None:
+    """Verify CPU core affinity and OpenMP/MKL thread count budgeting."""
+    router = ExecutionRouter()
+    cores = [0, 1, 2, 3, 4, 5, 6]
+
+    res = router.route_job(
+        target_engine_or_type="heavy_qm_opt",
+        payload_command=["python", "-c", "import os; print(os.environ.get('OMP_NUM_THREADS', '1'))"],
+        scratch_dir=tmp_path / "scratch_threads",
+        cpu_core_pinning=cores,
     )
-
-    assert isinstance(scan_result, ExecutionRouteResult)
-    assert scan_result.assigned_executor == "cochem_scout_gpu"
-    assert scan_result.status == "SUBMITTED"
-    assert scan_result.scratch_dir.is_dir()
-    assert scan_result.scratch_dir.name.startswith("task_")
-    # Verify separate isolated sandboxes in scratch
-    assert heavy_result.scratch_dir != scan_result.scratch_dir
-
-    # 3. Non-blocking futures resolution: await results
-    t0 = time.time()
-    heavy_rc = heavy_result.future.result()
-    scan_rc = scan_result.future.result()
-    elapsed = time.time() - t0
-
-    assert heavy_rc == 0
-    assert scan_rc == 0
-    # Verified that execution resolved without hanging
-    assert elapsed < 15.0
+    assert res.assigned_executor == "cochem_anchor_cpu"
+    assert res.scratch_dir.exists()

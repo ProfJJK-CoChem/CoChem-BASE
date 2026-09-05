@@ -259,7 +259,7 @@ class MultiSeedGoatConfig(BaseModel):
 class TorqPipelineCliArgs(BaseModel):
     """Validated CLI argument model for high-performance SLURM batch pipeline entrypoints. [M]"""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="allow")
 
     input_geometry: Path
     output_directory: Path
@@ -267,6 +267,9 @@ class TorqPipelineCliArgs(BaseModel):
     cpus_per_task: int = Field(default=1, ge=1)
     memory_mb: int = Field(default=4096, ge=1024)
     scratch_dir: Path
+    device: str = "cpu"
+    task_id: Optional[int] = None
+    mode: str = "full"
 
 
 __all__ = [

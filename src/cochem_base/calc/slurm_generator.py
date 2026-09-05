@@ -14,12 +14,12 @@ Enforces:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import math
 import os
-from pathlib import Path, PurePosixPath
-from typing import Any, Dict, List, Optional, Union
+from dataclasses import dataclass
+from pathlib import PurePosixPath
+from typing import Optional
 
 import psutil
 
@@ -47,7 +47,7 @@ class SlurmGenerator:
     """Generator for HPC SLURM submission scripts strictly adhering to Method Matrix §8A.6."""
 
     def __init__(self) -> None:
-        pass
+        self.logger = logger
 
     def get_physical_core_limit(self) -> int:
         """Determines the physical single-node core limit via SLURM environment or psutil."""
@@ -99,8 +99,11 @@ class SlurmGenerator:
         if spec.gpus_per_node is not None and spec.gpus_per_node > 0:
             header.append(f"#SBATCH --gpus-per-node={spec.gpus_per_node}")
 
-        # Thread binding & Solver execution block
+        # OpenMPI Fabric Variable Exports for Tier 6 HPC Environments (Method Matrix §8A.6 [M])
         exec_lines = [
+            'export OMPI_MCA_btl="^openib"',
+            'export OMPI_MCA_pml="ucx"',
+            'export OMPI_MCA_opal_warn_on_missing_libudev=0',
             "export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK",
             "export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK",
             f"export COCHEM_SCRATCH=\"{scratch_posix}\"",

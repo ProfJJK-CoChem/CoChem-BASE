@@ -34,7 +34,10 @@ from typing import Any, Dict, Generator, List, Optional, Tuple, Union, cast
 
 import h5py
 import numpy as np
-import zmq
+try:
+    import zmq
+except ImportError:
+    zmq = None  # type: ignore[assignment]
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Optional deep learning & chemistry imports

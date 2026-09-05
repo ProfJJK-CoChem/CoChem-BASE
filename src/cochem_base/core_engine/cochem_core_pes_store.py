@@ -50,16 +50,12 @@ Architectural Overview:
 from __future__ import annotations
 
 import argparse
-import atexit
-import copy
 import hashlib
-import hmac
 import json
 import logging
 import math
 import os
 import platform
-import shutil
 import socket
 import sys
 import threading
@@ -75,13 +71,10 @@ from typing import (
     Generator,
     Iterable,
     List,
-    Literal,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Union,
-    cast,
 )
 
 import h5py
@@ -103,18 +96,23 @@ from cochem_base.config_loader import (
     resolve_mapped_path,
 )
 from cochem_base.exceptions import (
-    CoChemError,
     HDF5LockTimeoutError,
     MethodMatrixViolationError,
     ProvenanceErrorCode,
-    QCSchemaValidationError,
-    SingularityError,
 )
+
 
 def validate_airgap_write_path(target_path: Union[str, Path]) -> Path:
     """Lazily import validate_airgap_write_path to break circular import cycle."""
-    from cochem_base.core.ipc.serializer import validate_airgap_write_path as _v
-    return _v(target_path)
+    try:
+        from cochem_base.core.ipc.serializer import validate_airgap_write_path as _v
+        return _v(target_path)
+    except Exception:
+        resolved = Path(target_path).resolve()
+        src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+        if src_dir.exists() and (src_dir == resolved or src_dir in resolved.parents):
+            raise PermissionError(f"Air-gap boundary violation: Cannot write PES data to read-only Tier 1 ($COCH_SRC): {resolved}") from None
+        return resolved
 
 def validate_spdx_license(license_str: str) -> str:
     from cochem_base.core.licensing import validate_spdx_license as _v
@@ -127,6 +125,54 @@ def get_node_local_scratch_dir() -> Path:
     p = Path(scratch).resolve()
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def configure_hdf5_locking(force_hpc: Optional[bool] = None) -> bool:
+    """
+    Configures HDF5 file locking based on environment.
+    On Tier 6 HPC environments (SLURM/PBS/LSF or Lustre/GPFS), automatically sets
+    HDF5_USE_FILE_LOCKING="FALSE" to prevent parallel filesystem lock deadlocks.
+
+    Args:
+        force_hpc: If provided, explicitly forces (True) or suppresses (False) HPC mode.
+                   If None, detects from environment variables.
+
+    Returns:
+        bool: True if HDF5_USE_FILE_LOCKING was set or configured as FALSE, False otherwise.
+    """
+    is_hpc = force_hpc
+    if is_hpc is None:
+        hpc_indicators = (
+            "SLURM_JOB_ID",
+            "SLURM_JOBID",
+            "PBS_JOBID",
+            "LSB_JOBID",
+            "COCHEM_TIER6",
+            "COCHEM_HPC",
+            "OMPI_COMM_WORLD_RANK",
+            "PMIX_RANK",
+        )
+        is_hpc = any(k in os.environ for k in hpc_indicators)
+
+    if is_hpc:
+        os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+        logger.info("HPC environment detected: HDF5_USE_FILE_LOCKING set to 'FALSE'")
+        return True
+    return False
+
+
+def create_worker_shard_path(
+    scratch_dir: Union[str, Path],
+    worker_uuid: str,
+    task_id: Union[str, int],
+) -> Path:
+    """
+    Generates an isolated per-worker shard path in scratch directory adhering to Suggestion #159:
+    shard_path = scratch_dir / f"shard_{worker_uuid}_{task_id}.h5"
+    """
+    s_dir = Path(scratch_dir).resolve()
+    s_dir.mkdir(parents=True, exist_ok=True)
+    return s_dir / f"shard_{worker_uuid}_{task_id}.h5"
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +303,6 @@ class QCSchemaProvenance(BaseModel):
         """Compute cryptographic signature or SHA-256 integrity fingerprint over canonical bytes."""
         if private_key is not None:
             return self.sign(private_key)
-        import hashlib
         c_bytes = self.canonical_bytes()
         self.fingerprint = hashlib.sha256(c_bytes).hexdigest()
         return self.fingerprint
@@ -507,18 +552,18 @@ def compute_inertia_tensor(
     r = coords_arr - com
     masses = get_atomic_masses_for_symbols(symbols, mass_numbers)
 
-    I = np.full((3, 3), 0.0, dtype=np.float64)
+    inertia_mat = np.full((3, 3), 0.0, dtype=np.float64)
     eye3 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
     for m_i, r_i in zip(masses, r, strict=False):
         r_sq = float(np.dot(r_i, r_i))
-        I += m_i * (r_sq * eye3 - np.outer(r_i, r_i))
+        inertia_mat += m_i * (r_sq * eye3 - np.outer(r_i, r_i))
 
-    evals, evecs = np.linalg.eigh(I)
+    evals, evecs = np.linalg.eigh(inertia_mat)
     idx = np.argsort(evals)
     principal_moments = evals[idx]
     principal_axes = evecs[:, idx]
 
-    return I, principal_moments, principal_axes
+    return inertia_mat, principal_moments, principal_axes
 
 
 def compute_rotational_constants(
@@ -994,6 +1039,23 @@ class PESStore:
             with self.rw_lock.write_lock():
                 yield
 
+    @contextmanager
+    def swmr_write_context(self, timeout: Optional[float] = None) -> Generator[h5py.File, None, None]:
+        """
+        SWMR-mode exclusive write context with FileLock protection as mandated by Suggestion #159.
+        """
+        effective_timeout = timeout if timeout is not None else self.lock_timeout
+        lock = FileLock(f"{self.path}.lock", timeout=effective_timeout)
+        with lock:
+            with h5py.File(self.path, "a", libver="latest") as f:
+                if not getattr(f, "swmr_mode", False):
+                    try:
+                        f.swmr_mode = True
+                    except (RuntimeError, AttributeError):
+                        pass
+                yield f
+                f.flush()
+
     # -------------------------------------------------------------------------
     # Method Registration (QCSchema v1)
     # -------------------------------------------------------------------------
@@ -1239,7 +1301,13 @@ class PESStore:
             prov_json = prov_obj.model_dump_json()
 
         with self._file_lock():
-            with h5py.File(self.path, "a") as f:
+            open_kwargs: Dict[str, Any] = {"libver": "latest"} if self.swmr_mode else {}
+            with h5py.File(self.path, "a", **open_kwargs) as f:
+                if self.swmr_mode and hasattr(f, "swmr_mode") and not f.swmr_mode:
+                    try:
+                        f.swmr_mode = True
+                    except (RuntimeError, AttributeError):
+                        pass
                 # Ensure method group exists
                 method_grp = f.require_group(f"methods/{method_id}")
 
@@ -1703,6 +1771,8 @@ class PESStore:
                 if "points" in f:
                     for mid in f["points"].keys():
                         grp = f[f"points/{mid}"]
+                        if not isinstance(grp, h5py.Group):
+                            continue
                         n_pts = len(grp["energy"]) if "energy" in grp else 0
                         report["methods"][mid] = {"n_points": n_pts}
                         # Reading full dataset forces Fletcher32 checksum validation
@@ -2010,75 +2080,99 @@ def merge_pes_shards(
     target_store_path: Union[str, Path],
     complex_name: str = "",
     symbols: Sequence[str] = (),
+    swmr_mode: bool = True,
+    timeout: float = 60.0,
 ) -> int:
     """
-    Merges multiple worker PES shards (campaign_rank_0.h5, campaign_rank_1.h5, ...)
-    into a single master PES store atomically.
+    Merges multiple worker PES shards (shard_<uuid>_<task>.h5, campaign_rank_0.h5, ...)
+    into a single master PES store atomically using FileLock.
 
     Args:
         shard_paths: List of shard file paths
         target_store_path: Destination HDF5 file path
-        complex_name: Complex name identifier
-        symbols: Elemental symbols
+        complex_name: Complex name identifier (inferred from shards if empty)
+        symbols: Elemental symbols (inferred from shards if empty)
+        swmr_mode: Whether to enable SWMR mode on target store
+        timeout: Lock timeout in seconds
 
     Returns:
         Total count of points merged into the target store.
     """
-    target = PESStore(
-        path=target_store_path,
-        complex_name=complex_name,
-        symbols=symbols,
-    )
-    total_merged = 0
+    valid_paths = [Path(s) for s in shard_paths if Path(s).exists()]
+    if not valid_paths:
+        logger.warning("No valid shard files found to merge.")
+        return 0
 
-    for s_path in shard_paths:
-        p = Path(s_path)
-        if not p.exists():
-            logger.warning(f"Shard file not found: {p}")
-            continue
-
-        shard = PESStore(path=p)
-        methods = shard.list_methods()
-
-        for mid in methods:
-            # Register method if not present
+    # Auto-infer complex_name and symbols from shards if not specified
+    if not complex_name or not symbols:
+        for s_p in valid_paths:
             try:
-                m_attrs = shard.get_method(mid)
-                target.register_method(mid, **m_attrs)
+                s_store = PESStore(path=s_p)
+                if not complex_name and s_store.complex_name:
+                    complex_name = s_store.complex_name
+                if not symbols and s_store.symbols:
+                    symbols = list(s_store.symbols)
+                if complex_name and symbols:
+                    break
             except Exception as exc:
-                logger.debug("Method registration skipped or failed during merge for '%s': %s", mid, exc)
+                logger.debug("Failed extracting metadata from shard %s: %s", s_p, exc)
 
-            try:
-                data = shard.dataset_full(mid, converged_only=True)
-                npts = len(data["energy"])
-                if npts > 0:
-                    needed_ids = target.todo(mid, data["point_id"])
-                    if needed_ids:
-                        needed_set = set(needed_ids)
-                        keep_mask = [pid in needed_set for pid in data["point_id"]]
+    target_lock = FileLock(f"{Path(target_store_path).resolve()}.lock", timeout=timeout)
+    with target_lock:
+        target = PESStore(
+            path=target_store_path,
+            complex_name=complex_name,
+            symbols=symbols,
+            swmr_mode=swmr_mode,
+        )
+        total_merged = 0
 
-                        coords_to_add = data["coordinates"][keep_mask]
-                        energies_to_add = data["energy"][keep_mask]
-                        pids_to_add = [pid for pid, ok in zip(data["point_id"], keep_mask, strict=False) if ok]
-                        grads_to_add = data.get("gradient")[keep_mask] if "gradient" in data else None
-                        conv_to_add = data["converged"][keep_mask]
-                        wall_to_add = data["wall_s"][keep_mask]
+        for p in valid_paths:
+            shard = PESStore(path=p)
+            methods = shard.list_methods()
 
-                        target.add_points(
-                            method_id=mid,
-                            coords=coords_to_add,
-                            energies=energies_to_add,
-                            point_ids=pids_to_add,
-                            gradients=grads_to_add,
-                            converged=conv_to_add,
-                            wall_s=wall_to_add,
-                        )
-                        total_merged += len(pids_to_add)
-            except KeyError:
-                continue
+            for mid in methods:
+                # Register method if not present
+                try:
+                    m_attrs = shard.get_method(mid)
+                    target.register_method(mid, **m_attrs)
+                except Exception as exc:
+                    logger.debug("Method registration skipped or failed during merge for '%s': %s", mid, exc)
 
-    logger.info(f"Successfully merged {total_merged} points across {len(shard_paths)} shards into {target_store_path}")
-    return total_merged
+                try:
+                    data = shard.dataset_full(mid, converged_only=True)
+                    npts = len(data["energy"])
+                    if npts > 0:
+                        needed_ids = target.todo(mid, data["point_id"])
+                        if needed_ids:
+                            needed_set = set(needed_ids)
+                            keep_mask = [pid in needed_set for pid in data["point_id"]]
+
+                            coords_to_add = data["coordinates"][keep_mask]
+                            energies_to_add = data["energy"][keep_mask]
+                            pids_to_add = [pid for pid, ok in zip(data["point_id"], keep_mask, strict=False) if ok]
+                            grads_to_add = data.get("gradient")[keep_mask] if "gradient" in data else None
+                            conv_to_add = data["converged"][keep_mask]
+                            wall_to_add = data["wall_s"][keep_mask]
+
+                            target.add_points(
+                                method_id=mid,
+                                coords=coords_to_add,
+                                energies=energies_to_add,
+                                point_ids=pids_to_add,
+                                gradients=grads_to_add,
+                                converged=conv_to_add,
+                                wall_s=wall_to_add,
+                            )
+                            total_merged += len(pids_to_add)
+                except KeyError:
+                    continue
+
+        logger.info(f"Successfully merged {total_merged} points across {len(valid_paths)} shards into {target_store_path}")
+        return total_merged
+
+
+merge_hdf5_shards = merge_pes_shards
 
 
 # =============================================================================

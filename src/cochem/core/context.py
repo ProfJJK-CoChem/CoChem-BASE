@@ -11,13 +11,9 @@ import logging
 import os
 import pathlib
 import platform
-import random
-import sys
 import time
 import uuid
 from typing import Any, Dict, Optional, Union
-
-import filelock
 
 logger = logging.getLogger("cochem.core.context")
 
@@ -90,24 +86,69 @@ def assert_writable_path(
     target_path: Union[pathlib.Path, str],
     ctx: Optional[ExecutionContext] = None,
 ) -> None:
-    """Validate that target_path does not violate read-only Air-Gap boundaries ($COCH_SRC, $COCH_DATA)."""
-    active_ctx = ctx or _CURRENT_CONTEXT.get()
-    if active_ctx is None:
-        return
-
+    """Validate that target_path does not violate read-only Air-Gap boundaries ($COCH_SRC, $COCH_DATA, COCHEM_REPO_DIR)."""
     resolved_target = pathlib.Path(target_path).resolve()
-    resolved_src = active_ctx.src_dir.resolve()
-    resolved_data = active_ctx.data_dir.resolve()
 
-    if resolved_target == resolved_src or resolved_src in resolved_target.parents:
-        raise AirGapViolationError(
-            f"Air-Gap Violation: Target path '{resolved_target}' falls within read-only codebase tier ($COCH_SRC='{resolved_src}')."
-        )
+    # Check COCHEM_REPO_DIR or COCH_SRC
+    repo_env = os.environ.get("COCHEM_REPO_DIR") or os.environ.get("COCH_SRC")
+    if repo_env:
+        resolved_repo = pathlib.Path(repo_env).resolve()
+        if resolved_target == resolved_repo or resolved_repo in resolved_target.parents:
+            raise AirGapViolationError(
+                f"Air-Gap Violation: Target path '{resolved_target}' falls within read-only codebase tier (COCHEM_REPO_DIR='{resolved_repo}')."
+            )
 
-    if resolved_target == resolved_data or resolved_data in resolved_target.parents:
-        raise AirGapViolationError(
-            f"Air-Gap Violation: Target path '{resolved_target}' falls within read-only baseline data tier ($COCH_DATA='{resolved_data}')."
-        )
+    active_ctx = ctx or _CURRENT_CONTEXT.get()
+    if active_ctx is not None:
+        resolved_src = active_ctx.src_dir.resolve()
+        resolved_data = active_ctx.data_dir.resolve()
+
+        if resolved_target == resolved_src or resolved_src in resolved_target.parents:
+            raise AirGapViolationError(
+                f"Air-Gap Violation: Target path '{resolved_target}' falls within read-only codebase tier ($COCH_SRC='{resolved_src}')."
+            )
+
+        if resolved_target == resolved_data or resolved_data in resolved_target.parents:
+            raise AirGapViolationError(
+                f"Air-Gap Violation: Target path '{resolved_target}' falls within read-only baseline data tier ($COCH_DATA='{resolved_data}')."
+            )
+
+
+def get_tripartite_paths() -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
+    """Returns (T_repo, T_scratch, T_store) conforming to Tripartite Air-Gap boundaries.
+
+    T_repo: Immutable codebase root (COCHEM_REPO_DIR / COCH_SRC)
+    T_scratch: Ephemeral scratch directory (COCHEM_SCRATCH_DIR / COCHEM_SCRATCH / tempfile)
+    T_store: Persistent artifact destination (COCHEM_ARTIFACT_DIR / COCHEM_DATA_ROOT)
+    """
+    import tempfile
+
+    repo_env = os.environ.get("COCHEM_REPO_DIR") or os.environ.get("COCH_SRC")
+    t_repo = pathlib.Path(repo_env).resolve() if repo_env else pathlib.Path(__file__).resolve().parents[3]
+
+    scratch_env = (
+        os.environ.get("COCHEM_SCRATCH_DIR")
+        or os.environ.get("COCHEM_SCRATCH")
+        or os.environ.get("SLURM_TMPDIR")
+        or os.environ.get("TEMP")
+    )
+    t_scratch = (
+        pathlib.Path(scratch_env).resolve()
+        if scratch_env
+        else (pathlib.Path(tempfile.gettempdir()) / "cochem_scratch").resolve()
+    )
+
+    store_env = (
+        os.environ.get("COCHEM_ARTIFACT_DIR")
+        or os.environ.get("COCHEM_DATA_ROOT")
+        or os.environ.get("COCH_ARTIFACTS")
+    )
+    t_store = (
+        pathlib.Path(store_env).resolve()
+        if store_env
+        else (pathlib.Path.home() / ".cochem" / "artifacts").resolve()
+    )
+    return t_repo, t_scratch, t_store
 
 
 # ==============================================================================
@@ -230,7 +271,8 @@ class FileLock:
                 if elapsed >= self.timeout_sec:
                     return False
 
-                sleep_time = random.uniform(current_delay * 0.5, current_delay * 1.5) if jitter else current_delay
+                jitter_mult = 0.5 + ((time.perf_counter_ns() % 1000) / 1000.0)
+                sleep_time = (current_delay * jitter_mult) if jitter else current_delay
                 time.sleep(sleep_time)
                 current_delay = min(current_delay * backoff_factor, max_delay_sec)
 

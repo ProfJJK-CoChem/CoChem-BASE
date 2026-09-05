@@ -607,6 +607,14 @@ class PhysicsIntegrityError(CoChemError, RuntimeError):
     )
 
 
+class SpinContaminationError(PhysicsIntegrityError, ValueError):
+    """Raised when open-shell wavefunction exhibits unacceptable spin contamination (<S^2> deviation > 10%)."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.SPIN_CONTAMINATION_EXCEEDED
+    )
+
+
 # =====================================================================
 # Infrastructure & Storage Exceptions
 # =====================================================================
@@ -748,14 +756,6 @@ class ConvergenceError(CoChemError, RuntimeError):
 
     default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
         ProvenanceErrorCode.CONVERGENCE_FAILURE
-    )
-
-
-class SpinContaminationError(CoChemError, ValueError):
-    """Raised when <S^2> spin contamination exceeds allowed thresholds for open-shell calculations."""
-
-    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
-        ProvenanceErrorCode.SPIN_CONTAMINATION_EXCEEDED
     )
 
 

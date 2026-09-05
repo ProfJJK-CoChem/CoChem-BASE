@@ -55,6 +55,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import h5py
 import numpy as np
+from filelock import FileLock
 from mendeleev import element
 
 # ---------------------------------------------------------------------------
@@ -111,6 +112,21 @@ TIGHT_GEOM_BLOCK = (
 # HDF5 Storage Specifications (Method Matrix §8C)
 CHUNK_POINTS = 512
 VLEN_STR = h5py.string_dtype(encoding="utf-8")
+
+
+class MissingBinaryError(FileNotFoundError):
+    """Raised immediately when configured ORCA, CREST, or xTB executable is invalid or not executable."""
+    pass
+
+
+class ConvergenceFailureError(RuntimeError):
+    """Raised when an electronic structure engine fails to achieve SCF or geometry convergence."""
+    pass
+
+
+class CorruptOutputError(RuntimeError):
+    """Raised when expected binary wavefunction containers or Hessian matrices are missing or malformed."""
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -1057,7 +1073,8 @@ class Chain:
     def __init__(
         self,
         workdir: Union[str, Path] = "chain",
-        h5: Union[str, Path] = "campaign.h5",
+        h5: Optional[Union[str, Path]] = None,
+        h5_path: Optional[Union[str, Path]] = None,
         complex_name: str = "complex",
         charge: int = 0,
         mult: int = 1,
@@ -1069,7 +1086,8 @@ class Chain:
     ) -> None:
         self.workdir = Path(workdir).resolve()
         self.workdir.mkdir(parents=True, exist_ok=True)
-        h5_p = Path(h5)
+        h5_target = h5_path if h5_path is not None else (h5 if h5 is not None else "campaign.h5")
+        h5_p = Path(h5_target)
         if h5_p.is_absolute():
             self.h5_path = h5_p
         elif len(h5_p.parts) > 1:
@@ -1092,17 +1110,19 @@ class Chain:
 
     def _init_hdf5_store(self) -> None:
         """Initializes the HDF5 metadata header and schema groups."""
-        with h5py.File(self.h5_path, "a") as f:
-            meta = f.require_group("meta")
-            meta.attrs.setdefault("schema_name", "cochem_state_chain")
-            meta.attrs.setdefault("schema_version", 1)
-            meta.attrs.setdefault("created_utc", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
-            meta.attrs.setdefault("complex", self.complex_name)
-            meta.attrs.setdefault("charge", self.charge)
-            meta.attrs.setdefault("multiplicity", self.mult)
-            f.require_group("chain")
-            f.require_group("isotopologues")
-            f.require_group("lineage")
+        lock = FileLock(Path(f"{self.h5_path}.lock"), timeout=30.0)
+        with lock:
+            with h5py.File(self.h5_path, "a", libver="latest") as f:
+                meta = f.require_group("meta")
+                meta.attrs.setdefault("schema_name", "cochem_state_chain")
+                meta.attrs.setdefault("schema_version", 1)
+                meta.attrs.setdefault("created_utc", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+                meta.attrs.setdefault("complex", self.complex_name)
+                meta.attrs.setdefault("charge", self.charge)
+                meta.attrs.setdefault("multiplicity", self.mult)
+                f.require_group("chain")
+                f.require_group("isotopologues")
+                f.require_group("lineage")
 
     def build_stage_input(self, stage: Stage, geom_file: str) -> str:
         """
@@ -1152,83 +1172,85 @@ class Chain:
         Persists an execution record into the HDF5 store with chunking,
         gzip level 4 compression, shuffle filter, and fletcher32 checksums.
         """
-        with h5py.File(self.h5_path, "a") as f:
-            grp = f.require_group(f"chain/{rec.stage}")
-            grp.attrs["level"] = rec.level
-            grp.attrs["wall_s"] = rec.wall_s
-            grp.attrs["consumed"] = json.dumps(rec.consumed_files)
-            grp.attrs["produced"] = json.dumps(rec.produced_files)
-            grp.attrs["written_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-            grp.attrs["converged"] = rec.converged
-            grp.attrs["exit_status"] = rec.exit_status
-            grp.attrs["symbols"] = json.dumps(rec.symbols)
-            grp.attrs["n_atoms"] = len(rec.symbols)
+        lock = FileLock(Path(f"{self.h5_path}.lock"), timeout=30.0)
+        with lock:
+            with h5py.File(self.h5_path, "a", libver="latest") as f:
+                grp = f.require_group(f"chain/{rec.stage}")
+                grp.attrs["level"] = rec.level
+                grp.attrs["wall_s"] = rec.wall_s
+                grp.attrs["consumed"] = json.dumps(rec.consumed_files)
+                grp.attrs["produced"] = json.dumps(rec.produced_files)
+                grp.attrs["written_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                grp.attrs["converged"] = rec.converged
+                grp.attrs["exit_status"] = rec.exit_status
+                grp.attrs["symbols"] = json.dumps(rec.symbols)
+                grp.attrs["n_atoms"] = len(rec.symbols)
 
-            if rec.arrow_index is not None:
-                grp.attrs["arrow_index"] = rec.arrow_index
-                grp.attrs["arrow_desc"] = rec.arrow_desc
+                if rec.arrow_index is not None:
+                    grp.attrs["arrow_index"] = rec.arrow_index
+                    grp.attrs["arrow_desc"] = rec.arrow_desc
 
-            if rec.energy_hartree is not None:
-                grp.attrs["energy_hartree"] = rec.energy_hartree
+                if rec.energy_hartree is not None:
+                    grp.attrs["energy_hartree"] = rec.energy_hartree
 
-            if rec.rotational_constants_mhz is not None:
-                grp.attrs["rotational_constants_mhz"] = json.dumps(list(rec.rotational_constants_mhz))
+                if rec.rotational_constants_mhz is not None:
+                    grp.attrs["rotational_constants_mhz"] = json.dumps(list(rec.rotational_constants_mhz))
 
-            if rec.inertial_defect_amu_a2 is not None:
-                grp.attrs["inertial_defect_amu_a2"] = rec.inertial_defect_amu_a2
+                if rec.inertial_defect_amu_a2 is not None:
+                    grp.attrs["inertial_defect_amu_a2"] = rec.inertial_defect_amu_a2
 
-            if rec.planar_moments_amu_a2 is not None:
-                grp.attrs["planar_moments_amu_a2"] = json.dumps(list(rec.planar_moments_amu_a2))
+                if rec.planar_moments_amu_a2 is not None:
+                    grp.attrs["planar_moments_amu_a2"] = json.dumps(list(rec.planar_moments_amu_a2))
 
-            if rec.warnings:
-                grp.attrs["warnings"] = json.dumps(rec.warnings)
+                if rec.warnings:
+                    grp.attrs["warnings"] = json.dumps(rec.warnings)
 
-            # Persist Geometry Dataset
-            if "geometry" in grp:
-                del grp["geometry"]
-            grp.create_dataset(
-                "geometry",
-                data=np.asarray(rec.geometry, dtype=np.float64),
-                compression="gzip",
-                compression_opts=4,
-                shuffle=True,
-            )
-
-            # Persist Hessian Dataset if available
-            if rec.hessian is not None:
-                if "hessian" in grp:
-                    del grp["hessian"]
+                # Persist Geometry Dataset
+                if "geometry" in grp:
+                    del grp["geometry"]
                 grp.create_dataset(
-                    "hessian",
-                    data=np.asarray(rec.hessian, dtype=np.float64),
+                    "geometry",
+                    data=np.asarray(rec.geometry, dtype=np.float64),
                     compression="gzip",
                     compression_opts=4,
                     shuffle=True,
                 )
 
-            # Persist Gradient Dataset if available
-            if rec.gradient is not None:
-                if "gradient" in grp:
-                    del grp["gradient"]
-                grp.create_dataset(
-                    "gradient",
-                    data=np.asarray(rec.gradient, dtype=np.float64),
-                    compression="gzip",
-                    compression_opts=4,
-                    shuffle=True,
-                )
+                # Persist Hessian Dataset if available
+                if rec.hessian is not None:
+                    if "hessian" in grp:
+                        del grp["hessian"]
+                    grp.create_dataset(
+                        "hessian",
+                        data=np.asarray(rec.hessian, dtype=np.float64),
+                        compression="gzip",
+                        compression_opts=4,
+                        shuffle=True,
+                    )
 
-            # Persist Frequencies Dataset if available
-            if rec.frequencies_cm_inv is not None:
-                if "frequencies" in grp:
-                    del grp["frequencies"]
-                grp.create_dataset(
-                    "frequencies",
-                    data=np.asarray(rec.frequencies_cm_inv, dtype=np.float64),
-                    compression="gzip",
-                    compression_opts=4,
-                    shuffle=True,
-                )
+                # Persist Gradient Dataset if available
+                if rec.gradient is not None:
+                    if "gradient" in grp:
+                        del grp["gradient"]
+                    grp.create_dataset(
+                        "gradient",
+                        data=np.asarray(rec.gradient, dtype=np.float64),
+                        compression="gzip",
+                        compression_opts=4,
+                        shuffle=True,
+                    )
+
+                # Persist Frequencies Dataset if available
+                if rec.frequencies_cm_inv is not None:
+                    if "frequencies" in grp:
+                        del grp["frequencies"]
+                    grp.create_dataset(
+                        "frequencies",
+                        data=np.asarray(rec.frequencies_cm_inv, dtype=np.float64),
+                        compression="gzip",
+                        compression_opts=4,
+                        shuffle=True,
+                    )
 
     def run_stage(
         self,
@@ -1266,6 +1288,12 @@ class Chain:
         exit_status = "SUCCESS"
 
         if not dry_run:
+            bin_path = shutil.which(self.orca_cmd)
+            if bin_path is None and not Path(self.orca_cmd).is_file():
+                raise MissingBinaryError(
+                    f"ORCA executable '{self.orca_cmd}' is missing or not executable on PATH."
+                )
+
             t0 = time.time()
             with out_path.open("w", encoding="utf-8") as out_fh, err_path.open("w", encoding="utf-8") as err_fh:
                 try:
@@ -1279,10 +1307,11 @@ class Chain:
                     wall_s = time.time() - t0
                     if res.returncode != 0:
                         exit_status = f"FAILED_EXIT_{res.returncode}"
-                except FileNotFoundError:
+                except FileNotFoundError as exc:
                     wall_s = time.time() - t0
-                    exit_status = "ENGINE_NOT_FOUND"
-                    logger.warning(f"ORCA binary '{self.orca_cmd}' not found on PATH. Recorded input deck.")
+                    raise MissingBinaryError(
+                        f"ORCA executable '{self.orca_cmd}' could not be executed: {exc}"
+                    ) from exc
         else:
             logger.info(f"[Dry Run] Generated input deck at {inp_path.name}")
 
@@ -1846,6 +1875,9 @@ __all__ = [
     "CANONICAL_ARROWS",
     "get_atomic_mass",
     "get_isotopic_mass",
+    "MissingBinaryError",
+    "ConvergenceFailureError",
+    "CorruptOutputError",
 ]
 
 

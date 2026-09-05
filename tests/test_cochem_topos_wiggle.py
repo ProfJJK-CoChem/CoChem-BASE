@@ -262,7 +262,7 @@ class TestBasinMergeArbitration:
         # Genuine physical Maxwell-Boltzmann thermal velocity perturbation
         from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
         from ase.build import molecule
-        atoms = molecule("H2O")
+        atoms = molecule("CH3CH2OH")
         MaxwellBoltzmannDistribution(atoms, temperature_K=300)
         coords_pert = coords_ref + atoms.get_velocities() * 0.00005
 

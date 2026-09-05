@@ -50,11 +50,11 @@ Architectural Overview:
 from __future__ import annotations
 
 import os
+
 # Mandated by Method Matrix QS-3 Step 6 line 167: enforce FP64 double precision on startup
 os.environ["JAX_ENABLE_X64"] = "True"
 
 import argparse
-import copy
 import itertools
 import json
 import logging
@@ -66,9 +66,7 @@ from enum import Enum
 from pathlib import Path
 from typing import (
     Any,
-    Callable,
     Dict,
-    Iterable,
     List,
     Optional,
     Sequence,
@@ -77,11 +75,11 @@ from typing import (
     Union,
 )
 
+import filelock
+import h5py
 import numpy as np
 import scipy.linalg
 import scipy.spatial.distance
-import filelock
-import h5py
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -347,7 +345,7 @@ class GeometryFeaturizer:
 
         # Generate permutation group G over identical nuclei with closed subgroup orbit averaging
         class_perms: List[List[Tuple[int, ...]]] = []
-        for z_val, indices in self.equiv_classes.items():
+        for _z_val, indices in self.equiv_classes.items():
             n_class = len(indices)
             n_factorial = math.factorial(n_class)
             sub_type = self.pip_config.subgroup_type
@@ -410,8 +408,8 @@ class GeometryFeaturizer:
         group_perms: List[Tuple[int, ...]] = []
         for perm_tuple in itertools.product(*class_perms):
             p_full = list(range(self.n_atoms))
-            for orig_indices, perm_indices in zip(self.equiv_classes.values(), perm_tuple):
-                for orig, target in zip(orig_indices, perm_indices):
+            for orig_indices, perm_indices in zip(self.equiv_classes.values(), perm_tuple, strict=False):
+                for orig, target in zip(orig_indices, perm_indices, strict=False):
                     p_full[orig] = target
             group_perms.append(tuple(p_full))
 
@@ -532,6 +530,10 @@ class GeometryFeaturizer:
                 feats[:, offset + s] = np.mean(vals, axis=1)
 
         return feats[0] if is_single else feats
+
+    def featurize(self, geoms: np.ndarray) -> np.ndarray:
+        """Computes PIP invariant features over identical nuclei (alias for compute_morse_features). [M]"""
+        return self.compute_morse_features(geoms)
 
     def compute_coulomb_matrix(self, geoms: np.ndarray) -> np.ndarray:
         """
@@ -873,7 +875,7 @@ class ExactKernelRidgeEstimator:
         cholesky_success = False
 
         while jitter <= max_jitter * 10.0:
-            A = K + np.diag(alpha_diag) + jitter * np.eye(K.shape[0], dtype=np.float64)
+            A = K + np.diag(alpha_diag + jitter)
             try:
                 c, low = scipy.linalg.cho_factor(A, lower=True, check_finite=False)
                 self.weights = scipy.linalg.cho_solve((c, low), y_centered, check_finite=False)
@@ -890,7 +892,7 @@ class ExactKernelRidgeEstimator:
                 "invoking regularized truncated SVD pinvh."
             )
             try:
-                A = K + np.diag(alpha_diag) + max_jitter * np.eye(K.shape[0], dtype=np.float64)
+                A = K + np.diag(alpha_diag + max_jitter)
                 inv_A = scipy.linalg.pinvh(A)
                 self.weights = np.dot(inv_A, y_centered)
             except Exception as exc:
@@ -1229,7 +1231,7 @@ class ActiveLearningEngine:
                 if pool_energies is not None:
                     uncertainties = np.abs(pool_energies - np.mean(pool_energies))
                 else:
-                    uncertainties = np.ones(n_total, dtype=np.float64)
+                    uncertainties = np.full(n_total, 1.0, dtype=np.float64)
             selected_idx = self.select_batch(
                 candidate_pool=pool_geoms,
                 uncertainties=uncertainties,
@@ -1285,7 +1287,6 @@ class ActiveLearningEngine:
 
         candidate_geoms = pool_geoms[candidate_pool_idx]
         candidate_energies = pool_energies[candidate_pool_idx]
-        candidate_ids = [point_ids[i] for i in candidate_pool_idx]
 
         # Compute invariant features for the candidate pool
         if self.featurizer is not None and candidate_geoms.ndim == 3:
@@ -1344,13 +1345,13 @@ class ActiveLearningEngine:
                 committee.fit(cur_train_geoms, cur_train_energies)
                 _, sigmas, sigmas_mev_atom = committee.predict_energy_and_uncertainty(unselected_geoms)
             else:
-                sigmas = np.ones(len(unselected_idx), dtype=np.float64)
-                sigmas_mev_atom = np.ones(len(unselected_idx), dtype=np.float64)
+                sigmas = np.full(len(unselected_idx), 1.0, dtype=np.float64)
+                sigmas_mev_atom = np.full(len(unselected_idx), 1.0, dtype=np.float64)
 
             # Sequential furthest-point repulsion batch selection within this round
             n_batch = min(effective_batch_cfg.batch_size, n_target - len(selected_cand_idx))
             cur_train_feats = cand_features[selected_cand_idx]
-            
+
             sub_selected_unsel_idx = self.select_batch(
                 candidate_pool=unselected_feats,
                 uncertainties=sigmas,
@@ -1987,10 +1988,9 @@ def generate_benchmark_intermolecular_pes_data(
     Generates authentic physical testing geometries and energies using ASE EMT.
     Avoids procedural np.random coordinates.
     """
-    from ase import Atoms
+    from ase import Atoms, units
     from ase.calculators.emt import EMT
     from ase.md.verlet import VelocityVerlet
-    from ase import units
 
     symbols = ["Cu", "Ag", "Au"]
     # Starting geometry
@@ -2089,7 +2089,7 @@ def run_demo() -> int:
 
     # 1. Generate physical Ar...HCl benchmark dataset (2,000 DFT base pool)
     symbols, geoms, e_dft, e_cc = generate_benchmark_intermolecular_pes_data(n_points=2000, random_seed=42)
-    logger.info(f"Generated physical Ar...HCl dataset: 2,000 points across R=[2.8, 6.5] A, theta=[0, pi].")
+    logger.info("Generated physical Ar...HCl dataset: 2,000 points across R=[2.8, 6.5] A, theta=[0, pi].")
 
     # Verify Mendeleev dynamic mass resolution
     ar_mass = get_dynamic_atomic_mass("Ar")
@@ -2182,7 +2182,7 @@ def run_demo() -> int:
     # 6. Save Model NPZ Archive
     demo_npz = Path("cochem_auto_pes_demo_model.npz")
     model.save_npz(demo_npz)
-    logger.info(f"[OK] Re-loading saved model for verification...")
+    logger.info("[OK] Re-loading saved model for verification...")
     reloaded_model = DeltaPESModel.load_npz(demo_npz)
     pred_test = float(reloaded_model.predict_delta(test_geom))
     pred_orig = float(model.predict_delta(test_geom))

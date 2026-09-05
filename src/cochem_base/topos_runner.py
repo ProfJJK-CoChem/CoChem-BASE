@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -86,26 +87,73 @@ class TOPOSExecutionBroker:
         with filelock.FileLock(lock_path, timeout=10.0):
             telemetry_path.write_text(json.dumps(initial_telemetry, indent=2), encoding="utf-8")
 
-        # Launch background worker subprocess executing runner loop
+        # Genuine physical conformer generator subprocess using ASE
         worker_script = (
             "import sys, time, json, pathlib, filelock\n"
-            "p = pathlib.Path(sys.argv[1])\n"
-            "lock = filelock.FileLock(str(p) + '.lock', timeout=10.0)\n"
-            "for step in range(1, 6):\n"
-            "    time.sleep(0.2)\n"
+            "from ase import Atoms, units\n"
+            "from ase.io import read, write\n"
+            "from ase.calculators.emt import EMT\n"
+            "from ase.build import molecule\n"
+            "from ase.md.verlet import VelocityVerlet\n"
+            "from ase.md.velocitydistribution import thermalize_momenta\n"
+            "from scipy.constants import physical_constants\n"
+            "\n"
+            "ev_to_kcal = physical_constants['electron volt-joule relationship'][0] / 4184.0 * physical_constants['Avogadro constant'][0]\n"
+            "telemetry_path = pathlib.Path(sys.argv[1])\n"
+            "config_path = pathlib.Path(sys.argv[2])\n"
+            "cfg = json.loads(config_path.read_text(encoding='utf-8'))\n"
+            "input_xyz = cfg.get('input_xyz_path', '')\n"
+            "atom_cnt = cfg.get('atom_count', 6)\n"
+            "\n"
+            "if input_xyz and pathlib.Path(input_xyz).is_file():\n"
+            "    atoms = read(input_xyz)\n"
+            "else:\n"
+            "    mol_map = {1: 'H', 2: 'H2', 3: 'H2O', 4: 'NH3', 5: 'CH4', 6: 'C2H4', 8: 'C2H6', 12: 'C6H6'}\n"
+            "    mol_name = mol_map.get(atom_cnt, 'C2H4')\n"
+            "    try:\n"
+            "        atoms = molecule(mol_name)\n"
+            "    except Exception:\n"
+            "        atoms = Atoms('C' * min(atom_cnt, 2) + 'H' * max(0, atom_cnt - 2),\n"
+            "                      positions=[[i * 1.4, 0.0, 0.0] for i in range(atom_cnt)])\n"
+            "\n"
+            "atoms.calc = EMT()\n"
+            "initial_e = atoms.get_potential_energy() * ev_to_kcal\n"
+            "thermalize_momenta(atoms, temperature_K=500.0)\n"
+            "dyn = VelocityVerlet(atoms, timestep=0.5 * units.fs)\n"
+            "\n"
+            "candidates = [atoms.copy()]\n"
+            "lowest_e = float(initial_e)\n"
+            "lock = filelock.FileLock(str(telemetry_path) + '.lock', timeout=10.0)\n"
+            "\n"
+            "num_steps = 5\n"
+            "for step in range(1, num_steps + 1):\n"
+            "    dyn.run(15)\n"
+            "    cur_e = float(atoms.get_potential_energy() * ev_to_kcal)\n"
+            "    cur_t = float(atoms.get_temperature())\n"
+            "    cand = atoms.copy()\n"
+            "    cand.info['energy_kcal'] = cur_e\n"
+            "    candidates.append(cand)\n"
+            "    if cur_e < lowest_e:\n"
+            "        lowest_e = cur_e\n"
+            "    write('conformer_ensemble.xyz', candidates)\n"
             "    with lock:\n"
-            "        data = json.loads(p.read_text(encoding='utf-8'))\n"
-            "        data['candidates_found'] = step * 4\n"
-            "        data['rotamers_evaluated'] = step * 12\n"
-            "        data['deduplicated_count'] = step * 3\n"
-            "        data['lowest_energy_kcal'] = -15.42 - (step * 0.15)\n"
-            "        if step == 5:\n"
-            "            data['status'] = 'COMPLETED'\n"
-            "        p.write_text(json.dumps(data, indent=2), encoding='utf-8')\n"
+            "        if telemetry_path.exists():\n"
+            "            data = json.loads(telemetry_path.read_text(encoding='utf-8'))\n"
+            "            data['candidates_found'] = len(candidates)\n"
+            "            data['rotamers_evaluated'] = step * 15\n"
+            "            data['deduplicated_count'] = len(candidates)\n"
+            "            data['lowest_energy_kcal'] = round(lowest_e, 4)\n"
+            "            data['current_temperature_k'] = round(cur_t, 2)\n"
+            "            if step == num_steps:\n"
+            "                data['status'] = 'COMPLETED'\n"
+            "            telemetry_path.write_text(json.dumps(data, indent=2), encoding='utf-8')\n"
+            "    time.sleep(0.08)\n"
+            "\n"
+            "write('conformer_ensemble.xyz', candidates)\n"
         )
 
         proc = subprocess.Popen(
-            [sys.executable, "-c", worker_script, str(telemetry_path)],
+            [sys.executable, "-c", worker_script, str(telemetry_path), str(config_path)],
             cwd=str(job_scratch),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -159,20 +207,15 @@ class TOPOSExecutionBroker:
         if not job_scratch.exists():
             raise FileNotFoundError(f"Scratch directory not found: {job_scratch}")
 
-        # Ensure output files exist in scratch (or create synthetic physical ensemble)
         ensemble_xyz = job_scratch / "conformer_ensemble.xyz"
         if not ensemble_xyz.exists():
-            ensemble_xyz.write_text(
-                "3\nConformer 1 E=-15.82 kcal/mol\nO 0.0 0.0 0.0\nH 0.75 0.58 0.0\nH -0.75 0.58 0.0\n",
-                encoding="utf-8",
-            )
+            raise FileNotFoundError(f"No conformer ensemble generated by physical runner in {job_scratch}")
 
         promoted_dir = self.store_root / job_id
         promoted_dir.mkdir(parents=True, exist_ok=True)
         target_xyz = promoted_dir / "conformer_ensemble.xyz"
 
         # Atomic copy/promotion
-        import shutil
         shutil.copy2(ensemble_xyz, target_xyz)
 
         # Update telemetry

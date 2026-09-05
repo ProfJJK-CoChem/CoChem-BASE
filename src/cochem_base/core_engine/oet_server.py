@@ -7,23 +7,19 @@ Kabsch RMSD conformer deduplication, and psutil process tree supervision.
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 import os
-import shutil
 import socket
-import sys
-import tempfile
 import threading
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Generator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import psutil
 from filelock import FileLock
 from mendeleev import element
+from pydantic import BaseModel, ConfigDict, Field
 
 try:
     from cochem_base.exceptions import GoatDaemonExecutionError
@@ -32,8 +28,6 @@ except ImportError:
     class GoatDaemonExecutionError(RuntimeError):
         """Ecosystem exception for GOAT daemon and ORCA minima hopping failures. [M]"""
         pass
-
-    from pydantic import BaseModel, Field, ConfigDict
 
     class GoatExploreDaemonConfig(BaseModel):
         """Configuration schema for GOAT-EXPLORE persistent background daemon. [M]"""
@@ -75,9 +69,7 @@ def compute_kabsch_rmsd(
 
     # Reflection correction
     d = np.linalg.det(np.dot(v, u.T))
-    e = np.eye(3)
-    if d < 0:
-        e[2, 2] = -1.0
+    e = np.diag([1.0, 1.0, -1.0 if d < 0 else 1.0])
 
     # Optimal rotation matrix R = V * E * U^T
     r = np.dot(np.dot(v, e), u.T)
@@ -113,7 +105,7 @@ def generate_orca_goat_deck(
         f"* xyz {int(charge)} {int(multiplicity)}",
     ]
 
-    for z, (x, y, z_coord) in zip(atomic_numbers, coordinates):
+    for z, (x, y, z_coord) in zip(atomic_numbers, coordinates, strict=False):
         symbol = element(int(z)).symbol
         deck_lines.append(f"  {symbol:<3} {x:14.8f} {y:14.8f} {z_coord:14.8f}")
 
@@ -159,16 +151,79 @@ def parse_ensemble_xyz(xyz_content_or_path: Union[str, Path]) -> List[Tuple[str,
         for _ in range(num_atoms):
             if idx >= total_lines:
                 break
-            parts = lines[idx].split()
-            if len(parts) >= 4:
-                symbols.append(parts[0])
-                coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
+            atom_line = lines[idx].strip().split()
+            if len(atom_line) >= 4:
+                symbols.append(atom_line[0])
+                try:
+                    coords.append([float(atom_line[1]), float(atom_line[2]), float(atom_line[3])])
+                except ValueError:
+                    coords.append([0.0, 0.0, 0.0])
             idx += 1
 
         if len(coords) == num_atoms:
             conformers.append((comment, np.array(coords, dtype=np.float64), symbols))
 
     return conformers
+
+
+def stream_ensemble_xyz(
+    xyz_path: Union[str, Path],
+) -> Generator[Tuple[str, float, np.ndarray, List[str]], None, None]:
+    """
+    Streaming line iterator for parsing large ORCA .finalensemble.xyz files without memory spikes. [M], [D]
+
+    Yields:
+        Tuple of (comment_header, energy_hartree, coordinates_array, atom_symbols)
+    """
+    p = Path(xyz_path)
+    if not p.is_file():
+        return
+
+    with open(p, "r", encoding="utf-8", errors="replace") as f:
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            line_str = line.strip()
+            if not line_str:
+                continue
+
+            try:
+                num_atoms = int(line_str)
+            except ValueError:
+                continue
+
+            comment = f.readline().strip()
+            energy_val = 0.0
+            for part in comment.split():
+                if "energy=" in part.lower():
+                    try:
+                        clean_part = part.lower().replace("energy=", "").replace("hartree", "").strip()
+                        energy_val = float(clean_part)
+                    except ValueError:
+                        pass
+                else:
+                    try:
+                        energy_val = float(part)
+                    except ValueError:
+                        pass
+
+            symbols = []
+            coords = []
+            for _ in range(num_atoms):
+                atom_line = f.readline()
+                if not atom_line:
+                    break
+                parts = atom_line.strip().split()
+                if len(parts) >= 4:
+                    symbols.append(parts[0])
+                    try:
+                        coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
+                    except ValueError:
+                        coords.append([0.0, 0.0, 0.0])
+
+            if len(coords) == num_atoms:
+                yield (comment, energy_val, np.array(coords, dtype=np.float64), symbols)
 
 
 def deduplicate_conformers(
@@ -227,7 +282,7 @@ class GoatExploreDaemon:
         try:
             self.file_lock.acquire()
         except Exception as exc:
-            raise GoatDaemonExecutionError(f"Failed to acquire oet_server.lock at {self.lock_file}: {exc}")
+            raise GoatDaemonExecutionError(f"Failed to acquire oet_server.lock at {self.lock_file}: {exc}") from exc
 
         # Bind IPC socket: support AF_UNIX where available, or TCP localhost endpoint
         if hasattr(socket, "AF_UNIX"):

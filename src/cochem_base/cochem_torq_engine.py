@@ -21,36 +21,27 @@ from __future__ import annotations
 
 import atexit
 import enum
-import hashlib
-import json
 import logging
-import math
 import os
 import platform
 import re
 import shutil
-import signal
 import subprocess
-import sys
 import tempfile
-import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Final, Generator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import h5py
-from mendeleev import element
 import numpy as np
 import psutil
+from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cochem_base.exceptions import (
-    BinaryNotFoundError,
-    HardwareTelemetryError,
+    EcosystemExecutionError,
     SpinContaminationError,
-    MissingTelemetryError,
-    ToolUnavailableError,
 )
 from cochem_base.schemas import HardwareTelemetryReport
 
@@ -239,6 +230,11 @@ class ExecutionContext(BaseModel):
         except Exception:
             pass
 
+        if os.environ.get("CUDA_VISIBLE_DEVICES") in ("", "-1"):
+            self.gpu_available = False
+            self.vram_mb = 0
+            return
+
         try:
             import pynvml
             pynvml.nvmlInit()
@@ -263,23 +259,38 @@ class ExecutionContext(BaseModel):
         vram_total = 0.0
         vram_free = 0.0
 
-        try:
-            import torch
-            if torch.cuda.is_available():
-                dev_count = torch.cuda.device_count()
-                if dev_count > 0:
-                    gpu_avail = True
-                    dev_name = torch.cuda.get_device_name(0)
-                    free_b, total_b = torch.cuda.mem_get_info(0)
-                    vram_total = float(total_b) / (1024.0 * 1024.0)
-                    vram_free = float(free_b) / (1024.0 * 1024.0)
-        except Exception:
+        if os.environ.get("CUDA_VISIBLE_DEVICES") == "":
             gpu_avail = False
             dev_count = 0
+            dev_name = "None"
+            vram_total = 0.0
+            vram_free = 0.0
+        else:
+            try:
+                import pynvml
+                pynvml.nvmlInit()
+                dev_count = pynvml.nvmlDeviceGetCount()
+                if dev_count > 0:
+                    gpu_avail = True
+                    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+                    name = pynvml.nvmlDeviceGetName(handle)
+                    dev_name = name.decode("utf-8") if isinstance(name, bytes) else str(name)
+                    mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                    vram_total = float(mem_info.total) / (1024.0 * 1024.0)
+                    vram_free = float(mem_info.free) / (1024.0 * 1024.0)
+                pynvml.nvmlShutdown()
+            except Exception:
+                gpu_avail = False
+                dev_count = 0
+                dev_name = "None"
+                vram_total = 0.0
+                vram_free = 0.0
 
         is_mps = False
         try:
-            import platform, torch
+            import platform
+
+            import torch
             if platform.system() == "Darwin" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 is_mps = True
         except Exception:
@@ -302,7 +313,25 @@ class ExecutionContext(BaseModel):
             vram_total_mb=vram_total,
             vram_free_mb=vram_free,
             selected_runtime=runtime,
+            provenance="[M]",
         )
+
+    @classmethod
+    def probe_hardware(cls) -> HardwareTelemetryReport:
+        """Non-initializing hardware probe via NVML without locking CUDA driver contexts [M]."""
+        ctx = cls()
+        return ctx.get_telemetry()
+
+    def get_dispatch_contract(self) -> Dict[str, Any]:
+        """Passes immutable execution contract down to Computational Tier workers [M]."""
+        telemetry = self.get_telemetry()
+        device = "cuda" if telemetry.gpu_available and telemetry.vram_free_mb >= 2048.0 else "cpu"
+        return {
+            "device": device,
+            "num_threads": self.num_cores,
+            "session_id": self.session_id,
+            "provenance": "[M]",
+        }
 
     def verify_air_gap_boundary(self, target_path: Path) -> None:
         """
@@ -311,7 +340,7 @@ class ExecutionContext(BaseModel):
         resolved_target = target_path.resolve()
         repo_root = get_repo_root().resolve()
         try:
-            rel = resolved_target.relative_to(repo_root)
+            _ = resolved_target.relative_to(repo_root)
             if not (resolved_target.name.startswith("scratch") or "scratch" in resolved_target.parts):
                 raise AirGapViolationError(
                     f"Tripartite Air-Gap Violation: Path '{resolved_target}' is inside static repository root '{repo_root}'."
@@ -526,10 +555,10 @@ class DispatchPayload(BaseModel):
         is_opt = (
             "opt" in self.extra_options.lower()
             or "opt" in self.method.lower()
-            or any("opt" in l.lower() for l in lines)
+            or any("opt" in line_text.lower() for line_text in lines)
         )
         lines.append(f"* xyz {self.charge} {self.multiplicity}")
-        for idx, (sym, (x, y, z)) in enumerate(zip(self.symbols, self.coordinates)):
+        for idx, (sym, (x, y, z)) in enumerate(zip(self.symbols, self.coordinates, strict=False)):
             is_ghost = (not is_opt) and (self.ghost_atom_indices is not None and idx in self.ghost_atom_indices)
             sym_tag = f"{sym}:" if is_ghost else sym
             lines.append(f"  {sym_tag:<4} {x:>14.8f} {y:>14.8f} {z:>14.8f}")
@@ -639,7 +668,7 @@ def detect_non_covalent_contacts(
     """
     coords = np.asarray(coordinates, dtype=np.float64)
     is_comp, components = detect_complex_and_monomers(symbols, coords, tolerance_multiplier)
-    
+
     if len(components) < 2:
         return False, components, []
 
@@ -723,8 +752,8 @@ def validate_spin_contamination(
         s2_val = extract_s_squared_from_orca_output(content)
         if s2_val is None:
             if is_unrestricted or multiplicity > 1:
-                raise MissingTelemetryError(
-                    "[MISSING DATA] Spin observable <S^2> could not be extracted from unrestricted calculation output."
+                raise EcosystemExecutionError(
+                    "[MISSING DATA] Unrestricted calculation did not yield <S^2> expectation value."
                 )
             s2_val = 0.0
     elif isinstance(arg2, str):
@@ -735,9 +764,9 @@ def validate_spin_contamination(
             s2_val = extract_s_squared_from_orca_output(arg2)
             if s2_val is None:
                 if is_unrestricted or multiplicity > 1:
-                    raise MissingTelemetryError(
-                        "[MISSING DATA] Spin observable <S^2> could not be extracted from unrestricted calculation output."
-                    )
+                    raise EcosystemExecutionError(
+                        "[MISSING DATA] Unrestricted calculation did not yield <S^2> expectation value."
+                    ) from None
                 s2_val = 0.0
     else:
         multiplicity = int(arg1)
@@ -748,22 +777,22 @@ def validate_spin_contamination(
 
     s_ideal = (multiplicity - 1) / 2.0
     s_ideal_prod = s_ideal * (s_ideal + 1.0)
+    allow_spin = kwargs.get("allow_spin_contamination", False)
 
     if multiplicity == 1:
         spin_dev = abs(s2_val - 0.0)
-        if s2_val > 0.10:
+        if s2_val > 0.10 and not allow_spin:
             raise SpinContaminationError(
-                f"[ERR_SPIN_CONTAMINATION] Spin contamination {s2_val:.4f} in singlet state "
-                f"exceeds tolerance (ideal=0.0000, observed={s2_val:.4f})."
+                f"[ERR_SPIN_CONTAMINATION] Electronic state spin contamination exceeds 10% limit: "
+                f"<S^2> = {s2_val:.4f}, Ideal = 0.0000 (deviation {s2_val:.1%})."
             )
         return s_ideal_prod, s2_val, spin_dev * 100.0
 
     spin_dev = abs(s2_val - s_ideal_prod) / s_ideal_prod
-    if spin_dev > 0.10:
+    if spin_dev > 0.10 and not allow_spin:
         raise SpinContaminationError(
-            f"[ERR_SPIN_CONTAMINATION] Spin contamination {spin_dev * 100.0:.2f}% exceeds the 10.0% threshold "
-            f"mandated by Method Matrix v4 §8B.3 (Measured <S^2> = {s2_val:.4f}, Ideal = {s_ideal_prod:.4f}). "
-            "Halting execution to prevent corrupted wavefunction propagation."
+            f"[ERR_SPIN_CONTAMINATION] Electronic state spin contamination exceeds 10% limit: "
+            f"<S^2> = {s2_val:.4f}, Ideal = {s_ideal_prod:.4f} (deviation {spin_dev:.1%})."
         )
 
     return s_ideal_prod, s2_val, spin_dev * 100.0
@@ -903,34 +932,28 @@ def route_method_matrix(
     tier_key = resolved_tier.upper().strip()
 
     if tier_key in ["T3-10S", "T1-10S"]:
+
         method = "GFN2-xTB"
         basis = ""
-        aux = ""
     elif tier_key in ["T3-1MIN", "T1-1MIN"]:
         method = "r2SCAN-3c"
         basis = ""
-        aux = ""
     elif tier_key in ["T3-30MIN", "T1-30MIN"]:
         method = "r2SCAN-3c"
         basis = ""
-        aux = ""
     elif tier_key in ["T3-1H", "T1-1H"]:
         method = "B3LYP-D4"
         basis = "def2-TZVP"
-        aux = "def2/J"
     elif tier_key in ["T3-3H", "T1-3H"]:
         method = "wB97M-V"
         basis = "def2-QZVPP"
-        aux = "def2/J"
         frozen_monomer = True
     elif tier_key in ["T3-12H", "T1-12H"]:
         method = "revDSD-PBEP86-D4"
         basis = "def2-TZVPP"
-        aux = "def2-TZVPP/C"
     elif tier_key in ["T4-1D", "T4-1H"]:
         method = "DLPNO-CCSD(T)"
         basis = "def2-TZVP"
-        aux = "def2-TZVPP/C"
     elif (
         tier_key in ["T3C", "T4C", "T3-C", "T4-C", "T3C-3D", "T4C-1MO", "CFOUR_VPT2", "CFOUR"]
         or tier_key.startswith("T3C")
@@ -940,20 +963,17 @@ def route_method_matrix(
         from cochem_base.environment import BinaryRegistry
         from cochem_base.exceptions import BinaryNotFoundError
         try:
-            cfour_bin = BinaryRegistry.resolve("xcfour")
+            _ = BinaryRegistry.resolve("xcfour")
         except BinaryNotFoundError:
             raise BinaryNotFoundError(
                 "[MISSING DATA] CFOUR executable (xcfour) not found. "
                 "Cannot execute coupled-cluster analytic force fields."
-            )
+            ) from None
         method = "CCSD(T)"
         basis = "ANO1" if ("T4" in tier_key or "1MO" in tier_key) else "ANO0"
-        aux = ""
     else:
         method = "wB97M-V"
         basis = "def2-TZVP"
-        aux = "def2/J"
-
 
     payload = route_cascade_rules(
         point_coords=coordinates,
@@ -980,7 +1000,6 @@ def route_method_matrix(
         payload.executor = "TorqCfourExecutor"
         payload.metadata["executor"] = "TorqCfourExecutor"
     return payload
-
 
 
 # ============================================================================
@@ -1096,7 +1115,7 @@ def opi_persistent_threading(
     trajectory: Optional[List[np.ndarray]] = None
 ) -> Generator[ORCAStepResult, None, None]:
     """
-    Interfaces with the ORCA execution engine, yielding ORCAStepResult instances 
+    Interfaces with the ORCA execution engine, yielding ORCAStepResult instances
     across optimization or PES sweep steps with dynamic wavefunction propagation.
     Handles Windows / MPI execution cleanly to prevent exit code 126.
     """
@@ -1150,7 +1169,7 @@ def opi_persistent_threading(
                 f.write(stdout)
         except Exception as e:
             logger.error(f"[OPI Thread] ORCA execution failed at step {idx}: {e}")
-            raise RuntimeError(f"ORCA execution failed at step {idx}: {e}")
+            raise RuntimeError(f"ORCA execution failed at step {idx}: {e}") from e
 
         # Parse energy, gradient, convergence
         energy, grad, converged = _parse_orca_engrad_or_output(engrad_path, stdout, len(step_coords))

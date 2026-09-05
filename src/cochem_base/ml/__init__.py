@@ -1,73 +1,81 @@
-"""CoChem Machine Learning (cochem.ml) Unified Ecosystem API.
+"""CoChem Unified Machine Learning Package (cochem_base.ml).
 
 Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely authentic ML/QM engines, strict typing, and zero stubs.
+Strict Zero-Mock Mandate v3: Consolidated shared ML primitives across the ecosystem.
 """
 
 from __future__ import annotations
 
-from cochem_base.ml import (
+from cochem_base.ml import active_learning, baselines, conformal, krr
+from cochem_base.ml.active_learning import (
     ActiveLearningBatchConfig,
     ActiveLearningConfig,
     ActiveLearningEngine,
     ActiveLearningManager,
     ActiveLearningSelectionResult,
+    sequential_repulsion_selector,
+)
+from cochem_base.ml.baselines import (
     BaselinePhysicsEngine,
+    DeltaMLDispersionConfig,
+    DispersionD3Config,
+    DispersionD3Layer,
+    EMTBaselineEngine,
+    GFN2xTBEngine,
+    LennardJonesBaselineEngine,
+    PM6Engine,
+    UnitHarmonizer,
+    compute_coordination_numbers,
+)
+from cochem_base.ml.conformal import (
     CalibrationSample,
     ConformalCalibrationConfig,
     ConformalCalibrationError,
     ConformalInterval,
     ConformalPredictor,
     ConformalPredictorConfig,
-    DeltaMLDispersionConfig,
-    DispersionD3Config,
-    DispersionD3Layer,
-    EMTBaselineEngine,
+)
+from cochem_base.ml.krr import (
     ExactKernelRidgeEstimator,
-    GFN2xTBEngine,
     KernelRidgeModel,
     KernelType,
     KrrRegularizationConfig,
-    LennardJonesBaselineEngine,
-    PM6Engine,
-    UnitHarmonizer,
-    active_learning,
-    baselines,
-    compute_coordination_numbers,
-    conformal,
-    krr,
-    sequential_repulsion_selector,
 )
 
 __all__ = [
+    # Submodules
     "active_learning",
     "baselines",
     "conformal",
     "krr",
-    "ActiveLearningBatchConfig",
-    "ActiveLearningConfig",
-    "ActiveLearningEngine",
-    "ActiveLearningManager",
-    "ActiveLearningSelectionResult",
-    "BaselinePhysicsEngine",
+    # Conformal
     "CalibrationSample",
     "ConformalCalibrationConfig",
     "ConformalCalibrationError",
     "ConformalInterval",
     "ConformalPredictor",
     "ConformalPredictorConfig",
+    # KRR
+    "ExactKernelRidgeEstimator",
+    "KernelRidgeModel",
+    "KernelType",
+    "KrrRegularizationConfig",
+    # Active Learning
+    "ActiveLearningBatchConfig",
+    "ActiveLearningConfig",
+    "ActiveLearningEngine",
+    "ActiveLearningManager",
+    "ActiveLearningSelectionResult",
+    "sequential_repulsion_selector",
+    # Baselines
+    "BaselinePhysicsEngine",
     "DeltaMLDispersionConfig",
     "DispersionD3Config",
     "DispersionD3Layer",
     "EMTBaselineEngine",
-    "ExactKernelRidgeEstimator",
     "GFN2xTBEngine",
-    "KernelRidgeModel",
-    "KernelType",
-    "KrrRegularizationConfig",
     "LennardJonesBaselineEngine",
     "PM6Engine",
     "UnitHarmonizer",
     "compute_coordination_numbers",
-    "sequential_repulsion_selector",
 ]

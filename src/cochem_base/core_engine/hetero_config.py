@@ -69,15 +69,12 @@ Operational Scope & Hardware Specifications:
 from __future__ import annotations
 
 import argparse
-import atexit
 import hashlib
 import json
 import logging
 import math
 import os
 import platform
-import shutil
-import subprocess
 import sys
 import tempfile
 import threading
@@ -89,14 +86,18 @@ from enum import Enum
 from pathlib import Path
 from typing import (
     Any,
-    Callable,
     Dict,
-    List,
     Literal,
     Optional,
     Sequence,
     Tuple,
     Union,
+)
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
 )
 
 try:
@@ -111,19 +112,14 @@ except ImportError:
         min_vram_headroom_mb: float = Field(default=1536.0, ge=512.0)
 
 
-import numpy as np
-import psutil
-from mendeleev import element
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    field_validator,
-)
-import scipy.stats
-
 # Optional telemetry bindings
 import warnings
+
+import numpy as np
+import psutil
+import scipy.stats
+from mendeleev import element
+
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", category=FutureWarning)
     try:
@@ -225,7 +221,7 @@ def get_atomic_mass(symbol: str) -> float:
     elem_data = element(clean_symbol)
     if elem_data is None or elem_data.mass is None:
         raise ValueError(f"Unknown or invalid element symbol '{symbol}' in Mendeleev database.")
-    
+
     mass_val = float(elem_data.mass)
     _MASS_CACHE[clean_symbol] = mass_val
     return mass_val
@@ -344,6 +340,7 @@ class MPSStatus(BaseModel):
     power_limit_w: Optional[float] = Field(default=None, description="Active power limit in Watts")
     max_clients_allowed: int = Field(default=MAX_MPS_CLIENTS_CUDA13, description="Max client CUDA contexts")
     recommended_workers: int = Field(default=3, ge=1, le=4, description="Recommended concurrent workers")
+    provenance: str = Field(default="[M]", description="W3C provenance tag [M]")
     timestamp_utc: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     )
@@ -426,7 +423,7 @@ def build_hetero_config(
         parsl.config.Config or HeteroParslConfig instance.
     """
     is_win = platform.system() == "Windows"
-    
+
     # Format worker_init scripts
     if is_win:
         win_pipe = str(Path(tempfile.gettempdir()) / "nvidia-mps").replace("/", "\\")
@@ -660,20 +657,29 @@ def calculate_optimal_mps_workers(
     return recommended_workers, active_thread_pct
 
 
-def probe_mps_status(device_id: int = 0) -> MPSStatus:
+def probe_mps_status(
+    device_id: int = 0,
+    pipe_dir: Optional[Union[str, Path]] = None,
+    log_dir: Optional[Union[str, Path]] = None,
+) -> MPSStatus:
     """
-    Probes system and hardware telemetry for NVIDIA MPS daemon status and GPU resource availability.
+    Probes system and hardware telemetry for NVIDIA MPS daemon status and GPU resource availability
+    using non-initializing NVML queries without locking CUDA driver contexts. [M]
 
     Args:
         device_id: Target CUDA device ID (default 0).
+        pipe_dir: Optional custom MPS pipe directory.
+        log_dir: Optional custom MPS log directory.
 
     Returns:
         MPSStatus model populated with live hardware information.
     """
-    pipe_dir = os.environ.get("CUDA_MPS_PIPE_DIRECTORY", "/tmp/nvidia-mps")
-    log_dir = os.environ.get("CUDA_MPS_LOG_DIRECTORY", "/tmp/nvidia-log")
-    pipe_exists = Path(pipe_dir).exists()
-    log_exists = Path(log_dir).exists()
+    if pipe_dir is None:
+        pipe_dir = os.environ.get("CUDA_MPS_PIPE_DIRECTORY", "/tmp/nvidia-mps")
+    if log_dir is None:
+        log_dir = os.environ.get("CUDA_MPS_LOG_DIRECTORY", "/tmp/nvidia-log")
+    pipe_exists = Path(pipe_dir).resolve().exists()
+    log_exists = Path(log_dir).resolve().exists()
 
     mps_active = False
     # Check running processes for nvidia-cuda-mps-control
@@ -687,14 +693,16 @@ def probe_mps_status(device_id: int = 0) -> MPSStatus:
         mps_active = False
 
     device_count = 0
-    device_name = None
+    device_name = "None"
     vram_total_mb = 0.0
     vram_used_mb = 0.0
     vram_free_mb = 0.0
-    power_limit_w = None
+    power_limit_w = 0.0
 
-    # Try pynvml
-    if HAS_PYNVML:
+    # Non-initializing NVML inspection
+    if os.environ.get("CUDA_VISIBLE_DEVICES") in ("", "-1"):
+        device_count = 0
+    elif HAS_PYNVML:
         try:
             pynvml.nvmlInit()
             device_count = pynvml.nvmlDeviceGetCount()
@@ -715,20 +723,7 @@ def probe_mps_status(device_id: int = 0) -> MPSStatus:
         except Exception as e:
             logger.debug(f"pynvml inspection failed: {e}")
 
-    # Fallback to PyTorch
-    if device_count == 0 and HAS_TORCH and torch.cuda.is_available():
-        try:
-            device_count = torch.cuda.device_count()
-            if device_count > device_id:
-                device_name = torch.cuda.get_device_name(device_id)
-                props = torch.cuda.get_device_properties(device_id)
-                vram_total_mb = float(props.total_memory) / (1024.0 * 1024.0)
-                vram_used_mb = float(torch.cuda.memory_allocated(device_id)) / (1024.0 * 1024.0)
-                vram_free_mb = vram_total_mb - vram_used_mb
-        except Exception as e:
-            logger.debug(f"torch.cuda inspection failed: {e}")
-
-    # Zero-mock honest telemetry: if no physical GPU is detected, report exact zero resources
+    # Zero-mock honest telemetry: if no physical GPU is detected, report exact zero resources [M]
     if device_count == 0:
         device_name = "None"
         vram_total_mb = 0.0
@@ -1059,7 +1054,7 @@ def compute_kabsch_rmsd(
 
     n_atoms = p.shape[0]
     if masses is None:
-        w = np.ones(n_atoms, dtype=float) / n_atoms
+        w = np.full(n_atoms, 1.0 / float(n_atoms), dtype=float)
     else:
         w = np.array(masses, dtype=float) / np.sum(masses)
 
@@ -1075,9 +1070,7 @@ def compute_kabsch_rmsd(
     d = np.linalg.det(np.dot(v, wt))
 
     # Reflection correction
-    e = np.eye(3)
-    if d < 0.0:
-        e[2, 2] = -1.0
+    e = np.diag([1.0, 1.0, -1.0 if d < 0.0 else 1.0])
 
     rot = np.dot(v, np.dot(e, wt))
     p_rotated = np.dot(p_centered, rot)
@@ -1566,7 +1559,7 @@ def main() -> int:
         # Run demonstration audit of G1-G7 guards
         g1 = check_guard_g1_scout_advisory("mlff_preopt", "advisory_only", False)
         g2 = check_guard_g2_high_level_hessian([150.0, 300.0, 1600.0, 3700.0], 0)
-        
+
         # Test G3 with water dimer coordinates
         c1 = np.array([
             [-1.464,  0.000, -0.057],
@@ -1579,14 +1572,14 @@ def main() -> int:
         from ase import Atoms
         from ase.calculators.emt import EMT
         from ase.optimize import BFGS
-        
+
         # Real physical computation using ASE EMT potential instead of random noise
         atoms = Atoms("OHHOHH", positions=c1)
         atoms.calc = EMT()
         opt = BFGS(atoms, logfile=None)
         opt.run(fmax=0.5, steps=5)
         c2 = atoms.get_positions()
-        
+
         g3 = check_guard_g3_basin_identity(c1, c2, ["O", "H", "H", "O", "H", "H"])
         g4 = check_guard_g4_rank_inversion(
             [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
@@ -1607,7 +1600,6 @@ def main() -> int:
 # =============================================================================
 # Dual GPU Pool Partitioning & Level-of-Theory Task Router (Suggestion #76)
 # =============================================================================
-from cochem_base.core_engine.cochem_core_parsl_executors import WorkerModelCache
 
 
 def determine_gpu_executor_pool(theory_or_model: str) -> str:

@@ -53,6 +53,7 @@ class HardwareTelemetryReport(BaseModel):
     vram_total_mb: float = Field(ge=0.0)
     vram_free_mb: float = Field(ge=0.0)
     selected_runtime: Literal["cuda", "mps", "cpu", "onnx_cpu"]
+    provenance: str = Field(default="[M]", description="W3C provenance tag [M]")
 
 
 class ANI2xCutoffConfig(BaseModel):
@@ -71,7 +72,7 @@ class ConformalCalibrationConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     significance_level: float = Field(default=0.05, gt=0.0, lt=1.0)
-    hypothesis_scope: Literal["marginal", "atomwise_bonferroni"] = "marginal"
+    hypothesis_scope: Literal["marginal", "atomwise_bonferroni", "atomwise_marginal"] = "marginal"
     min_calibration_observations: int = Field(
         default=50,
         ge=20,
@@ -157,10 +158,13 @@ class CommitteeEnsembleConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    num_models_m: int = Field(default=8, ge=2, le=32, description="Number of committee models M [E]")
     vectorized: bool = True
     vram_headroom_threshold_mb: float = Field(default=2048.0, ge=512.0)
     concurrency_mode: Literal["vmap", "cuda_streams", "serial"] = "vmap"
     max_batch_size: int = Field(default=128, ge=1)
+    max_concurrent_models_vram: int = Field(default=2, ge=1)
+    synchronize_cuda_streams: bool = True
 
 
 class OETFallbackAlertManifest(BaseModel):

@@ -483,6 +483,19 @@ class SpoofVisitor(ast.NodeVisitor):
                     )
                 )
 
+        if isinstance(node.func, ast.Attribute):
+            if isinstance(node.func.value, ast.Name) and node.func.value.id == "pytest" and node.func.attr == "skip":
+                self.violations.append(
+                    Violation(
+                        file_path=self.rel_path,
+                        line=node.lineno,
+                        col=node.col_offset,
+                        category="PYTEST_SKIP",
+                        symbol="pytest.skip",
+                        message="Prohibited pytest.skip detected. Tests must not be skipped.",
+                    )
+                )
+
         func_name = node.func.id if isinstance(node.func, ast.Name) else (node.func.attr if isinstance(node.func, ast.Attribute) else "")
         if func_name in {"__import__", "import_module"} and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
             target_mod = node.args[0].value
@@ -644,17 +657,62 @@ class SpoofVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Name(self, node: ast.Name) -> None:
+        if not self.is_exempt and node.id in {"mock", "MagicMock"}:
+            self.violations.append(
+                Violation(
+                    file_path=self.rel_path,
+                    line=node.lineno,
+                    col=node.col_offset,
+                    category="MOCK_USAGE",
+                    symbol=node.id,
+                    message=f"Prohibited use of mock symbol '{node.id}'",
+                )
+            )
         if isinstance(node.ctx, (ast.Store, ast.Param)):
             self._check_ident(node.id, node, "variable")
         self.generic_visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
+        if not self.is_exempt and node.attr in {"mock", "MagicMock"}:
+            self.violations.append(
+                Violation(
+                    file_path=self.rel_path,
+                    line=node.lineno,
+                    col=node.col_offset,
+                    category="MOCK_USAGE",
+                    symbol=node.attr,
+                    message=f"Prohibited use of mock attribute '{node.attr}'",
+                )
+            )
         if isinstance(node.ctx, (ast.Store, ast.Param)):
             self._check_ident(node.attr, node, "attribute")
         self.generic_visit(node)
 
     def visit_arg(self, node: ast.arg) -> None:
         self._check_ident(node.arg, node, "argument")
+        self.generic_visit(node)
+
+    def visit_Dict(self, node: ast.Dict) -> None:
+        if not self.is_exempt:
+            has_charge = False
+            has_uhf = False
+            for k, v in zip(node.keys, node.values):
+                if k is not None and isinstance(k, ast.Constant) and isinstance(k.value, str):
+                    if k.value == "charge" and isinstance(v, ast.Constant) and isinstance(v.value, int):
+                        has_charge = True
+                    if k.value == "uhf" and isinstance(v, ast.Constant) and isinstance(v.value, int):
+                        has_uhf = True
+            if has_charge and has_uhf:
+                self.violations.append(
+                    Violation(
+                        file_path=self.rel_path,
+                        line=node.lineno,
+                        col=node.col_offset,
+                        category="DUMMY_DICT",
+                        symbol="dict",
+                        message="Hardcoded dummy physical dictionary detected (charge and uhf).",
+                    )
+                )
         self.generic_visit(node)
 
 

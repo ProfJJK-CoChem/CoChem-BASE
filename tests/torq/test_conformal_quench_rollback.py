@@ -22,6 +22,9 @@ def _build_calibrated_conformal_predictor() -> ConformalPredictor:
     """Instantiate authentic conformal predictor calibrated on physical samples."""
     from ase import Atoms
     from ase.calculators.emt import EMT
+    from ase.calculators.lj import LennardJones
+    from ase.md.verlet import VelocityVerlet
+    import ase.units as units
 
     cfg = ConformalPredictorConfig(alpha=0.10)
     predictor = ConformalPredictor(config=cfg)
@@ -35,16 +38,17 @@ def _build_calibrated_conformal_predictor() -> ConformalPredictor:
     ])
     atoms.calc = EMT()
 
+    dyn = VelocityVerlet(atoms, 1.0 * units.fs)
+    pred_calc = LennardJones()
+
     for _ in range(25):
-        # Slightly perturb for physical variation
-        atoms.positions += np.random.normal(0, 0.02, size=atoms.positions.shape)
+        dyn.run(1)
         e_true = atoms.get_potential_energy()
         f_true = atoms.get_forces()
         
-        # Simulate a prediction error explicitly based on physical displacement
+        # 'Predicted' properties using LennardJones as a baseline
         pred_atoms = atoms.copy()
-        pred_atoms.positions += np.random.normal(0, 0.01, size=atoms.positions.shape)
-        pred_atoms.calc = EMT()
+        pred_atoms.calc = pred_calc
         e_pred = pred_atoms.get_potential_energy()
         f_pred = pred_atoms.get_forces()
 

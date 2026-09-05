@@ -591,6 +591,14 @@ class BinaryNotFoundError(EcosystemDependencyError):
     )
 
 
+class EcosystemExecutionError(CoChemError, RuntimeError):
+    """Raised when an electronic structure execution fails or returns unverified wavefunctions."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.MISSING_DATA
+    )
+
+
 class PhysicsIntegrityError(CoChemError, RuntimeError):
     """Raised when a calculation violates physical integrity, method matrix, or conservation laws."""
 
@@ -1330,6 +1338,7 @@ __all__ = [
     # Ecosystem Dependency & Physics Integrity Exceptions
     "EcosystemDependencyError",
     "BinaryNotFoundError",
+    "EcosystemExecutionError",
     "PhysicsIntegrityError",
     # Infrastructure & Storage Exceptions
     "HDF5LockTimeoutError",

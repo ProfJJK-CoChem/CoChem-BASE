@@ -1,4 +1,7 @@
-"""CoChem Ecosystem Dynamic Environment & Path Registries (Compatibility Module)."""
+"""CoChem Ecosystem Dynamic Environment & Path Registries.
+
+Compliant with Method Matrix v4, 6-Tier Environment Matrix, and Zero-Mock Mandate.
+"""
 
 from __future__ import annotations
 

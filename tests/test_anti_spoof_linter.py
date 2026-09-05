@@ -97,3 +97,95 @@ def test_amnesty_bypass(tmp_path: Path) -> None:
     # With amnesty, it passes
     v_am = check_file(conc_script, tmp_path, amnesty_set={"conc_worker.py"})
     assert len(v_am) == 0
+
+
+def test_detect_pytest_alias_skip(tmp_path: Path) -> None:
+    bad_script = tmp_path / "test_alias_skip.py"
+    bad_script.write_text(
+        "import pytest as pt\n"
+        "def test_one():\n"
+        "    pt.skip('skip reason')\n"
+        "@pt.mark.skip\n"
+        "def test_two():\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert any(v.category == "PYTEST_SKIP" and "pt.skip" in v.symbol for v in violations)
+    assert any(v.category == "PYTEST_SKIP" and "pt.mark.skip" in v.symbol for v in violations)
+
+
+def test_detect_pytest_skipif_and_xfail(tmp_path: Path) -> None:
+    bad_script = tmp_path / "test_skipif_xfail.py"
+    bad_script.write_text(
+        "import pytest\n"
+        "from pytest import skipif, xfail\n"
+        "@pytest.mark.skipif(True, reason='cond')\n"
+        "def test_one():\n"
+        "    pass\n"
+        "@pytest.mark.xfail\n"
+        "def test_two():\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert any("skipif" in v.symbol for v in violations)
+    assert any("xfail" in v.symbol for v in violations)
+
+
+def test_detect_unittest_skips(tmp_path: Path) -> None:
+    bad_script = tmp_path / "test_unittest_skips.py"
+    bad_script.write_text(
+        "import unittest\n"
+        "@unittest.skip('reason')\n"
+        "def test_one():\n"
+        "    pass\n"
+        "class TestSuite(unittest.TestCase):\n"
+        "    def test_two(self):\n"
+        "        self.skipTest('skip')\n",
+        encoding="utf-8",
+    )
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert any("unittest.skip" in v.symbol for v in violations)
+    assert any("skipTest" in v.symbol for v in violations)
+
+
+def test_detect_monkeypatch_and_setattr_bypass(tmp_path: Path) -> None:
+    bad_script = tmp_path / "test_monkeypatch_bypass.py"
+    bad_script.write_text(
+        "import os\n"
+        "def test_mp(mp):\n"
+        "    mp.setattr('os.environ', {})\n"
+        "def test_setattr_foreign():\n"
+        "    setattr(os.path, 'exists', lambda x: True)\n",
+        encoding="utf-8",
+    )
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert any("mp.setattr" in v.symbol for v in violations)
+    assert any("setattr" in v.symbol for v in violations)
+
+
+def test_detect_dummy_physical_dict_variants(tmp_path: Path) -> None:
+    bad_script = tmp_path / "dummy_dicts.py"
+    bad_script.write_text(
+        "d1 = {'charge': 0, **{'uhf': 1}}\n"
+        "d2 = dict(charge=0, uhf=1)\n",
+        encoding="utf-8",
+    )
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert len([v for v in violations if v.category == "DUMMY_DICT"]) >= 2
+
+
+def test_detect_dynamic_obfuscation_exec_eval(tmp_path: Path) -> None:
+    bad_script = tmp_path / "obfuscated.py"
+    bad_script.write_text(
+        "x = eval('1 + 1')\n"
+        "exec('y = 2')\n"
+        "getattr(sys, 'mock')\n",
+        encoding="utf-8",
+    )
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert any(v.category == "OBFUSCATION" and v.symbol == "eval" for v in violations)
+    assert any(v.category == "OBFUSCATION" and v.symbol == "exec" for v in violations)
+    assert any("mock" in v.symbol for v in violations)
+

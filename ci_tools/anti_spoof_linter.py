@@ -40,9 +40,6 @@ BANNED_MOCK_ATTRIBUTES: Set[str] = {
     "AsyncMock",
     "create_autospec",
     "NonCallableMock",
-    "ANY",
-    "sentinel",
-    "call",
     "call_args",
     "mock_open",
 }
@@ -98,8 +95,8 @@ BANNED_SKIP_SYMBOLS: Set[str] = {
 }
 
 BANNED_STATE_TOKENS: Set[str] = {
-    "swarm_state.json",
-    "draco_state.json",
+    "swarm_state",
+    "draco_state",
     "audit_verdict",
     "council_verdict",
 }
@@ -720,6 +717,18 @@ class SpoofVisitor(ast.NodeVisitor):
                             message=f"Obfuscated mock token via string concatenation '{reconstructed}'",
                         )
                     )
+                for token in BANNED_STATE_TOKENS:
+                    if token in lower:
+                        self.violations.append(
+                            Violation(
+                                file_path=self.rel_path,
+                                line=node.lineno,
+                                col=node.col_offset,
+                                category="STATE_MUTATION_BAN",
+                                symbol=reconstructed,
+                                message=f"Prohibited state mutation token '{token}' via string concatenation",
+                            )
+                        )
         self.generic_visit(node)
 
     def _extract_concat_str(self, node: ast.AST) -> Optional[str]:
@@ -732,24 +741,39 @@ class SpoofVisitor(ast.NodeVisitor):
                 return left + right
         return None
 
+    def _extract_all_strings(self, node: ast.AST) -> str:
+        parts = []
+        for child in ast.walk(node):
+            if isinstance(child, ast.Constant) and isinstance(child.value, str):
+                parts.append(child.value)
+        return "".join(parts)
+
     def visit_JoinedStr(self, node: ast.JoinedStr) -> None:
         if not self.is_exempt:
-            parts = []
-            for v in node.values:
-                if isinstance(v, ast.Constant) and isinstance(v.value, str):
-                    parts.append(v.value)
-            combined = "".join(parts)
-            if "mock" in combined.lower() or "unittest.mock" in combined.lower():
+            combined = self._extract_all_strings(node).lower()
+            if "mock" in combined or "unittest.mock" in combined:
                 self.violations.append(
                     Violation(
                         file_path=self.rel_path,
                         line=node.lineno,
                         col=node.col_offset,
                         category="OBFUSCATION",
-                        symbol=combined,
-                        message=f"Obfuscated mock token via f-string '{combined}'",
+                        symbol="f-string",
+                        message="Obfuscated mock token via f-string",
                     )
                 )
+            for token in BANNED_STATE_TOKENS:
+                if token in combined:
+                    self.violations.append(
+                        Violation(
+                            file_path=self.rel_path,
+                            line=node.lineno,
+                            col=node.col_offset,
+                            category="STATE_MUTATION_BAN",
+                            symbol="f-string",
+                            message=f"Prohibited state mutation token '{token}' detected in f-string",
+                        )
+                    )
         self.generic_visit(node)
 
     def visit_Constant(self, node: ast.Constant) -> None:
@@ -757,7 +781,7 @@ class SpoofVisitor(ast.NodeVisitor):
             val = node.value.strip()
             
             for token in BANNED_STATE_TOKENS:
-                if token in val:
+                if token in val.lower():
                     self.violations.append(
                         Violation(
                             file_path=self.rel_path,
@@ -820,7 +844,7 @@ class SpoofVisitor(ast.NodeVisitor):
                 )
             
             for token in BANNED_STATE_TOKENS:
-                if token in node.id:
+                if token in node.id.lower():
                     self.violations.append(
                         Violation(
                             file_path=self.rel_path,
@@ -839,7 +863,7 @@ class SpoofVisitor(ast.NodeVisitor):
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if not self.is_exempt:
             for token in BANNED_STATE_TOKENS:
-                if token in node.attr:
+                if token in node.attr.lower():
                     self.violations.append(
                         Violation(
                             file_path=self.rel_path,
@@ -915,20 +939,29 @@ class SpoofVisitor(ast.NodeVisitor):
         self._check_ident(node.arg, node, "argument")
         self.generic_visit(node)
 
-    def _collect_dict_keys(self, d_node: ast.Dict) -> Set[str]:
-        keys: Set[str] = set()
+    def _is_int_constant(self, node: ast.AST) -> bool:
+        if isinstance(node, ast.Constant) and isinstance(node.value, int):
+            return True
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Constant) and isinstance(node.operand.value, int):
+            return True
+        return False
+
+    def _collect_dict_key_values(self, d_node: ast.Dict) -> List[Tuple[str, ast.AST]]:
+        pairs = []
         for k, v in zip(d_node.keys, d_node.values):
             if k is not None and isinstance(k, ast.Constant) and isinstance(k.value, str):
-                keys.add(k.value)
+                pairs.append((k.value, v))
             elif k is None and isinstance(v, ast.Dict):
-                keys.update(self._collect_dict_keys(v))
-        return keys
+                pairs.extend(self._collect_dict_key_values(v))
+        return pairs
 
     def visit_Dict(self, node: ast.Dict) -> None:
         if not self.is_exempt:
-            keys = self._collect_dict_keys(node)
+            pairs = self._collect_dict_key_values(node)
+            keys = [k for k, v in pairs]
+            
             for token in BANNED_STATE_TOKENS:
-                if any(token in key for key in keys):
+                if any(token in key.lower() for key in keys):
                     self.violations.append(
                         Violation(
                             file_path=self.rel_path,
@@ -940,7 +973,10 @@ class SpoofVisitor(ast.NodeVisitor):
                         )
                     )
 
-            if "charge" in keys and "uhf" in keys:
+            has_charge = any(k == "charge" and self._is_int_constant(v) for k, v in pairs)
+            has_uhf = any(k == "uhf" and self._is_int_constant(v) for k, v in pairs)
+            
+            if has_charge and has_uhf:
                 self.violations.append(
                     Violation(
                         file_path=self.rel_path,

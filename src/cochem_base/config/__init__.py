@@ -1,4 +1,4 @@
-"""CoChem Ecosystem Configuration and Integration Grid Policy (Compatibility Module)."""
+"""CoChem Base Config Package."""
 
 from __future__ import annotations
 

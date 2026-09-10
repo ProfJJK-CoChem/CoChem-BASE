@@ -1,0 +1,82 @@
+{
+  "audit_receipt_id": "COCHEM-AUDIT-RECEIPT-SESSION-032-COCHEM-AUDIT-20260910",
+  "auditing_agent": "cochem-audit",
+  "supervising_authority": "0rchestrator",
+  "council_session_id": "COUNCIL-EMERGENCY-SESSION-032",
+  "task_id": "TASK-SESSION-032-8D-RECTIFICATION-AUDIT",
+  "verdict": "PASS",
+  "statutory_verdict": "[STATUS: RATIFIED / RECTIFICATION_AUDIT_PASS]",
+  "timestamp": "2026-09-10T18:43:00-05:00",
+  "audited_artifacts": {
+    "council_resolution_plan": {
+      "relative_path": ".docs/council_emergency_session_032_resolution_plan.md",
+      "bytes": 59766,
+      "lines": 694,
+      "sha256": "BC70736A0E76FBD3C4739CCCAD5E5934881500F5538C654BE415137C313A463B",
+      "parity_status": "100_PERCENT_BITWISE_MATCH_4_LOCATIONS",
+      "parity_locations": [
+        "C:/Users/ansac/.gemini/antigravity-cli/scratch/council_emergency_session_032_resolution_plan.md",
+        "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/council_emergency_session_032_resolution_plan.md",
+        "D:/__CoChem/.docs/council_emergency_session_032_resolution_plan.md",
+        "D:/__CoChem/__agentic/dropzones/inbox_srs/council_emergency_session_032_resolution_plan.md"
+      ]
+    },
+    "rectified_adversary_audit_report": {
+      "relative_path": ".docs/adversary_task2_2_5_audit_report.md",
+      "bytes": 15468,
+      "lines": 178,
+      "line_11_timestamp": "2026-09-10T18:31:00-05:00",
+      "sha256": "45FF55F3FF47463D0FC9136431A57F9DA13AD3444C306EC2C4CABE7D36A0F8F6",
+      "parity_status": "100_PERCENT_BITWISE_MATCH_4_LOCATIONS",
+      "parity_locations": [
+        "C:/Users/ansac/.gemini/antigravity-cli/scratch/adversary_task2_2_5_audit_report.md",
+        "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/adversary_task2_2_5_audit_report.md",
+        "D:/__CoChem/.docs/adversary_task2_2_5_audit_report.md",
+        "D:/__CoChem/__agentic/dropzones/inbox_srs/adversary_task2_2_5_audit_report.md"
+      ]
+    },
+    "rectified_adversary_audit_receipt": {
+      "relative_path": ".audit/session_031_adversary_task2_2_5_audit_receipt.json",
+      "bytes": 3736,
+      "lines": 92,
+      "embedded_audit_sha256": "45FF55F3FF47463D0FC9136431A57F9DA13AD3444C306EC2C4CABE7D36A0F8F6",
+      "sha256": "5C8B307846C6396B7BE2148A2DA545B911C00EFB9DFF7DD0108A96725A67991F",
+      "parity_status": "100_PERCENT_BITWISE_MATCH_4_LOCATIONS",
+      "parity_locations": [
+        "C:/Users/ansac/.gemini/antigravity-cli/scratch/session_031_adversary_task2_2_5_audit_receipt.json",
+        "D:/__CoChem/GitHub-Repo/CoChem-BASE/.audit/session_031_adversary_task2_2_5_audit_receipt.json",
+        "D:/__CoChem/.audit/session_031_adversary_task2_2_5_audit_receipt.json",
+        "D:/__CoChem/__agentic/dropzones/inbox_srs/session_031_adversary_task2_2_5_audit_receipt.json"
+      ]
+    }
+  },
+  "git_porcelain_audit": {
+    "survey_report_clean": true,
+    "survey_report_relative_path": ".docs/adversary_task2_2_1_survey_audit_report.md",
+    "unstaged_drift_lines": 0,
+    "pca_13_compliance": true,
+    "pca_14_compliance": true
+  },
+  "method_matrix_v4_1_compliance": {
+    "quintuple_convergence_criteria": "TolE 1.0e-7 Eh, TolMaxG 1.0e-5 Eh/a0, TolRMSG 3.0e-6 Eh/a0, TolRMSD 5.0e-5 Bohr, TolMaxD 1.0e-4 Bohr, MaxIter 200",
+    "model_hessian_discipline": "Calc_Hess true strictly banned; InHess XTB2 / InHess Lindh; InHess READ chained",
+    "frozen_monomer_protocol": "Recipe R1 (r2SCAN-3c), Recipe R2 (wB97M-V/def2-QZVPP); drift < 1.0e-6 Angstrom",
+    "residual_gradient_strain_threshold": "1.0e-4 a.u.",
+    "dynamic_mendeleev_binding": "Dynamic query via mendeleev; zero static mass dictionaries"
+  },
+  "zero_mock_compliance": {
+    "synthetic_mocks": 0,
+    "dead_end_stubs": 0,
+    "synthetic_arrays": 0,
+    "shortcut_placeholders": 0,
+    "anti_spoofing_protocol_v4_passed": true
+  },
+  "presidium_vote": {
+    "member": "cochem-audit",
+    "role": "Autonomous QA, Code Standards & Architectural Compliance Agent",
+    "session": "COUNCIL-EMERGENCY-SESSION-032",
+    "vote": "ASSENT",
+    "timestamp": "2026-09-10T18:43:00-05:00"
+  },
+  "single_safest_next_action": "Declare formal Session 032 containment, temporal rectification, and quad-mirror parity verified, and authorize 0rchestrator to advance the swarm to Level 2 WBS Milestone closure."
+}

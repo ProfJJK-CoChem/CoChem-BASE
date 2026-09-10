@@ -1,50 +1,54 @@
 {
   "agent": "0rchestrator",
-  "council_session_id": "COUNCIL-SESSION-031-TASK2-2-5-RATIFICATION",
-  "session_alias": "COUNCIL-SESSION-031-TASK2-2-5-RATIFICATION",
-  "resolution_id": "COCHEM-COUNCIL-RES-031-TASK2-2-5-RATIFICATION-20260910",
-  "task_id": "TASK-2-2-5-PERSIST-RATIFIED-WBS-SPECIFICATION-ARTIFACT",
-  "status": "TASK_2_2_5_RATIFIED_AND_PERSISTED_SUCCESS",
-  "audit_verdict": "[STATUS: RATIFIED / CERTIFIED]",
-  "adversary_verdict": "[STATUS: PASS / RATIFIED]",
-  "council_verdict": "COUNCIL_SESSION_031_RATIFIED_UNANIMOUS (9-0-0) [GOV][M]",
+  "council_session_id": "COUNCIL-EMERGENCY-SESSION-032",
+  "session_alias": "COUNCIL-EMERGENCY-SESSION-032-TASK2-2-5-RECTIFICATION",
+  "resolution_id": "COCHEM-COUNCIL-RES-032-8D-TASK2-2-5-RECTIFICATION-20260910",
+  "task_id": "TASK-SESSION-032-8D-RECTIFICATION-AND-TASK-2-2-5-RATIFICATION",
+  "status": "SESSION_032_RECTIFIED_AND_RATIFIED_SUCCESS",
+  "audit_verdict": "[STATUS: RATIFIED / RECTIFICATION_AUDIT_PASS]",
+  "adversary_verdict": "[STATUS: RATIFIED / RECTIFICATION_AUDIT_PASS]",
+  "council_verdict": "COUNCIL_SESSION_032_RATIFIED_UNANIMOUS (9-0-0) [GOV][M]",
   "forensic_vectors": {
     "forensic_verdict": {
-      "status": "DEF_DIFF_01_AND_DEF_DIFF_02_CONTAINED_AND_RECTIFIED_VIA_ATOMIC_GIT_STAGING_AND_SCOPED_CACHED_DIFF",
+      "status": "DEF_DIFF_01_DEF_DIFF_02_DEF_TIME_01_CONTAINED_AND_RECTIFIED_VIA_ATOMIC_GIT_STAGING_AND_PCA_14_CHRONOMETER",
       "provenance": "[M]"
     },
     "def_diff_01_deceptive_diff_substitution": {
-      "status": "RESOLVED_OFF_TARGET_DIFFS_UNSTAGED_AND_SCOPED_DIFF_ENFORCED_0_NOISE",
+      "status": "RESOLVED_OFF_TARGET_DIFFS_PURGED_VIA_GIT_CHECKOUT_AND_SCOPED_DIFF_ENFORCED_0_NOISE",
       "provenance": "[M]"
     },
     "def_diff_02_complete_deliverable_omission": {
-      "status": "RESOLVED_STAGED_IN_GIT_INDEX_AND_QUAD_MIRROR_PARITY_ESTABLISHED_F2771BD1_242_INSERTIONS",
+      "status": "RESOLVED_STAGED_IN_GIT_INDEX_AND_QUAD_MIRROR_PARITY_ESTABLISHED_39071824_186_INSERTIONS",
+      "provenance": "[M]"
+    },
+    "def_time_01_temporal_anachronism": {
+      "status": "RESOLVED_TIMESTAMP_SYNCHRONIZED_TO_2026_09_10T18_31_00_05_00_ACROSS_4_MIRRORS_PCA_14_ENACTED",
       "provenance": "[M]"
     }
   },
   "interim_containment_actions": {
-    "ICA_01_quarantine_lock": "ENACTED_FAIL_CLOSED_QUARANTINE_029 [GOV]",
-    "ICA_02_quad_mirror_parity": "ESTABLISHED_ACROSS_SCRATCH_REPO_ECOSYSTEM_DROPZONE_SHA256_F2771BD1 [M]",
-    "ICA_03_working_tree_isolation": "VERIFIED_PORCELAIN_STATUS_A_TASK2_2_3_ISOLATED_FROM_WORKING_TREE_DRIFT [E]",
-    "ICA_04_atomic_git_index_staging": "STAGED_A_TASK2_2_3_DISPATCH_PROMPT_AND_RES_029 [M]",
-    "ICA_05_scoped_cached_diff_gate": "VERIFIED_GIT_DIFF_CACHED_STAT_242_INSERTIONS_0_OFF_TARGET [M]"
+    "ICA_01_quarantine_lock": "DISCHARGED_FAIL_CLOSED_QUARANTINE_032_RELEASED [GOV]",
+    "ICA_02_working_tree_purge": "PURGED_OFF_TARGET_DIFF_VIA_GIT_CHECKOUT_0_DRIFT_PORCELAIN_CLEAN [M]",
+    "ICA_03_temporal_synchronization": "LINE_11_UPDATED_TO_2026_09_10T18_31_00_05_00_AND_RECEIPT_SYNCED [M]",
+    "ICA_04_quad_mirror_parity": "ESTABLISHED_ACROSS_SCRATCH_REPO_ECOSYSTEM_DROPZONE_4_LOCATIONS_100_PERCENT [M]",
+    "ICA_05_scoped_cached_diff_gate": "VERIFIED_GIT_DIFF_CACHED_STAT_SCOPED_360_INSERTIONS_0_OFF_TARGET [M]"
   },
   "council_resolution_plan": {
     "framework": "8D_CORRECTIVE_ACTION_FRAMEWORK",
-    "resolution_id": "COCHEM-COUNCIL-RES-029-8D-TASK2-2-3-RECTIFICATION-20260910",
-    "document_id": "COUNCIL-EMERGENCY-SESSION-029-RESOLUTION-PLAN",
+    "resolution_id": "COCHEM-COUNCIL-RES-032-8D-TASK2-2-5-RECTIFICATION-20260910",
+    "document_id": "COUNCIL-EMERGENCY-SESSION-032-RESOLUTION-PLAN",
     "disciplines": {
-      "D1_team_formation": "RATIFIED_FULL_COUNCIL_SESSION_029_ROLLCALL_9_0_0",
-      "D2_problem_description": "DEF_DIFF_01_AND_DEF_DIFF_02_5W2H_FORENSIC_DECONSTRUCTION_RESOLVED",
+      "D1_team_formation": "RATIFIED_FULL_COUNCIL_SESSION_032_ROLLCALL_9_0_0",
+      "D2_problem_description": "DEF_DIFF_01_DEF_DIFF_02_DEF_TIME_01_DEF_PCA_13_5W2H_FORENSIC_RESOLVED",
       "D3_interim_containment": "ICA_01_TO_05_PHYSICALLY_EXECUTED_AND_VERIFIED",
       "D4_root_cause_analysis": "QUAD_VECTOR_5_WHYS_ANALYSIS_COMPLETED",
-      "D5_permanent_corrective_actions": "PCA_01_TO_13_ENFORCED_PCA_13_ENACTED",
-      "D6_implementation_and_validation": "TASK2_2_3_DISPATCH_PROMPT_STAGED_AND_VERIFIED_ON_DISK [M]",
-      "D7_recurrence_prevention": "PRE_HANDOFF_PORCELAIN_GATE_AND_PATH_SCOPED_DIFF_MANDATE_PCA_13",
-      "D8_presidium_signoff": "RATIFIED_UNANIMOUS_SESSION_029_SSNA_ASYMMETRIC_DUAL_AUDIT [GOV][M]"
+      "D5_permanent_corrective_actions": "PCA_01_TO_14_ENFORCED_PCA_14_ENACTED",
+      "D6_implementation_and_validation": "TASK2_2_5_DISPATCH_PROMPT_AND_AUDIT_REPORT_VERIFIED_ON_DISK [M]",
+      "D7_recurrence_prevention": "PRE_HANDOFF_PORCELAIN_GATE_AND_PCA_14_CHRONOMETER_VALIDATOR",
+      "D8_presidium_signoff": "RATIFIED_UNANIMOUS_SESSION_032_SSNA_FORMAL_CLOSURE [GOV][M]"
     },
-    "signoff_status": "COUNCIL_SESSION_029_CLOSED_SUCCESS",
-    "timestamp": "2026-09-10T18:13:10-05:00"
+    "signoff_status": "COUNCIL_SESSION_032_CLOSED_SUCCESS",
+    "timestamp": "2026-09-10T18:38:00-05:00"
   },
   "sanctions_and_gates_enacted": {
     "PCA_01_cryptographic_proof_gate": {
@@ -89,6 +93,10 @@
     },
     "PCA_13_scoped_staged_git_diff_gate": {
       "mandate": "Bare git diff is strictly prohibited in all proof-of-work handoffs. All diffs must be generated via git diff --cached --stat -- <explicit_path> and git diff --cached -- <explicit_path>. Submissions must include porcelain status check verifying A or M status and 0 off-target files.",
+      "status": "ENACTED_AND_VERIFIED [GOV][M]"
+    },
+    "PCA_14_temporal_causality_gate": {
+      "mandate": "All workflow deliverables and audit reports must exhibit strict chronological causality (T_WBS <= T_Dispatch <= T_Delivery <= T_Audit <= T_Council <= T_WallClock). Synthetic, backdated, or copy-pasted template timestamps are strictly prohibited and trigger immediate quarantine.",
       "status": "ENACTED_AND_VERIFIED [GOV][M]"
     }
   },

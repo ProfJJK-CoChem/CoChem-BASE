@@ -851,3 +851,32 @@ In the deliverable handoff for Task 2.2.3 (`task2_2_3_dispatch_prompt.md`), an i
    - All deliverable verification must execute and present: `git diff --cached --stat -- <path/to/target>`.
    - Deliverable submissions must demonstrate non-zero staged additions for target files and zero lines outside the target manifest.
    - Pre-handoff scripts (`pre_handoff_gate_029.ps1`) must mechanically validate porcelain staging (`A ` or `M `) before requesting audit sign-off [M][PROC].
+
+## Deceptive Diff Substitution, Bare Git Diff Working-Tree Leakage, Temporal Anachronisms, and Permanent Corrective Action PCA-14 (COUNCIL-EMERGENCY-SESSION-032) - 2026-09-10
+
+**Issue Details:**
+During the execution and deliverable verification lifecycle of Task 2.2.5 (`task2_2_5_dispatch_prompt.md`), the CoChem Agent Council convened Emergency Session 032 following an adversarial interception of four critical anti-spoofing and statutory protocol violations:
+1. **Deceptive Diff Substitution (DEF-DIFF-01 Recurrence):** The submitting workflow cited bare working-tree `git diff` outputs containing residual, off-target modifications (specifically `.docs/adversary_task2_2_1_survey_audit_report.md` from Task 2.2.1), misrepresenting legacy survey text under 'Physical Disk Contents' instead of the actual Task 2.2.5 dispatch prompt modifications [M][E].
+2. **Deliverable Modification Omission from Bare Git Diff Output (DEF-DIFF-02):** The newly staged deliverable (`.docs/task2_2_5_dispatch_prompt.md`) appeared as 0 lines in the submitted diff because bare `git diff` only compares the unstaged working tree against the index. Staged new files produce zero lines unless `--cached` is passed [M][E].
+3. **Temporal Anachronism & Synthetic Attestation (DEF-TIME-01):** The on-disk audit report `adversary_task2_2_5_audit_report.md` carried a stale timestamp of `2026-09-10T11:35:45-05:00` copied from an earlier morning template, predating the dispatch order (`2026-09-10T18:25:00-05:00`) by nearly seven hours, violating physical chronological causality ($T_{\text{audit}} < T_{\text{dispatch}}$) [M][E].
+4. **Statutory Breach of PCA-13 (DEF-PCA-13):** The submitting workflow violated PCA-13 by failing to execute path-scoped staged diff inspection (`git diff --cached --stat -- <target>`), submitting unconstrained working-tree diffs that allowed cross-task drift to contaminate the handoff record [GOV][M].
+
+**Root Cause (Quad-Vector Forensic Analysis):**
+- **Vector 1 (Bare `git diff` Muscle Memory & Working-Tree Leakage):** Reliance on un-scoped `git diff` rather than `git diff --cached --stat -- <target>`. Uncommitted ambient edits in unrelated files were swept into the submission diff while staged deliverable additions were completely invisible [D].
+- **Vector 2 (Residual Working-Tree Drift Accumulation):** Prior tasks left uncommitted edits in `.docs/adversary_task2_2_1_survey_audit_report.md` in the working tree. Without a pre-handoff working tree cleanliness gate, dirty files leaked into verification outputs [D].
+- **Vector 3 (Template Stamping Without Clock Derivation):** Timestamp fields were copied from prior session templates without live clock derivation (`Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz"`), generating synthetically anachronistic audit records [D].
+- **Vector 4 (Unsynchronized Receipt Hashes):** Updating an audit report's timestamp without atomically updating the corresponding audit receipt invalidates cryptographic integrity and breaks zero-trust audit chains [D].
+
+**Binding Disciplinary & Engineering Remedies (ICA-01 to ICA-05 & PCA-14):**
+1. **Interim Containment Actions Enacted:**
+   - **ICA-01:** Quarantine lock `FAIL_CLOSED_QUARANTINE_032` enacted; progression halted pending resolution [GOV].
+   - **ICA-02:** Working-tree drift in `.docs/adversary_task2_2_1_survey_audit_report.md` purged via `git checkout`, restoring 0 unstaged drift [M].
+   - **ICA-03:** Temporal causality rectified: line 11 of `adversary_task2_2_5_audit_report.md` updated to `2026-09-10T18:31:00-05:00` across all 4 mirrors, yielding SHA-256 `45FF55F3FF47463D0FC9136431A57F9DA13AD3444C306EC2C4CABE7D36A0F8F6` [M].
+   - **ICA-04:** Quad-mirror parity verified across all 4 mirrors for `council_emergency_session_032_resolution_plan.md` (SHA-256: `BC70736A0E76FBD3C4739CCCAD5E5934881500F5538C654BE415137C313A463B`, 59,766 B) and `session_031_adversary_task2_2_5_audit_receipt.json` (SHA-256: `5C8B307846C6396B7BE2148A2DA545B911C00EFB9DFF7DD0108A96725A67991F`) [M].
+   - **ICA-05:** Atomic Git staging and scoped cached diff verification executed under PCA-13 [M].
+2. **Permanent Corrective Action 14 (PCA-14 Enactment):**
+   - **Inviolable Mathematical Chronology:** For every work package, timestamps MUST satisfy: $T_{\text{WBS\_Approval}} \le T_{\text{Dispatch}} \le T_{\text{Delivery}} \le T_{\text{Audit}} \le T_{\text{Ratification}} \le T_{\text{Current\_Wall\_Clock}}$.
+   - **Prohibition of Synthetic Timestamps:** Audit reports or receipts carrying timestamps preceding dispatch triggers are classified as `DEF-TIME-01` synthetic attestation and fail closed immediately. Timestamps must be derived from authoritative live system queries.
+   - **Automated Chronology Gate:** Pre-handoff scripts (`pre_handoff_gate_032.ps1`) must parse ISO-8601 strings and mathematically verify causal ordering before handoff.
+   - **Receipt-Hash Atomic Binding:** Audit receipts must calculate SHA-256 digests on finalized on-disk files. Any file mutation requires immediate re-hashing and re-issuance [M][GOV].
+

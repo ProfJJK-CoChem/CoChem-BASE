@@ -1,0 +1,54 @@
+{
+  "audit_receipt_id": "COCHEM-AUDIT-RECEIPT-SESSION-025-ADVERSARIAL-TASK2-1-3-20260910",
+  "auditing_agent": "adversary",
+  "audit_role": "Council Adversary & Hostile Zero-Trust Red-Team Lead",
+  "audit_type": "HOSTILE_ZERO_TRUST_RED_TEAM_AUDIT",
+  "timestamp": "2026-09-10T17:22:00-05:00",
+  "target_artifact": {
+    "logical_name": "task2_1_3_dispatch_prompt.md",
+    "sha256": "C6475F2D705BEFA81B750FB9F72C22B41E79620B0A3B1E4D8E886898C95229EF",
+    "byte_size": 13995,
+    "line_count": 165,
+    "git_status": "A  .docs/task2_1_3_dispatch_prompt.md"
+  },
+  "reviewed_receipts": [
+    {
+      "receipt_id": "COCHEM-AUDIT-RECEIPT-TASK2-1-3-DISPATCH-PROMPT-20260910",
+      "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.audit/session_025_task2_1_3_audit_receipt.json",
+      "auditing_agent": "cochem-audit",
+      "verdict": "NON_COMPLIANT_REJECTED",
+      "adversarial_assessment": "SUSTAINED_AND_CONFIRMED"
+    },
+    {
+      "receipt_id": "COCHEM-AUDIT-RECEIPT-SESSION-024-QA-STANDARDS-RATIFICATION-20260910",
+      "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.audit/session_024_cochem_audit_receipt.json",
+      "auditing_agent": "cochem-audit",
+      "verdict": "RATIFIED_FULL_COMPLIANCE_ZERO_DISCONNECT",
+      "adversarial_assessment": "CONFIRMED_RATIFIED_BASELINE"
+    }
+  ],
+  "evaluated_findings": {
+    "finding_1_dimensional_scaling_defect": {
+      "finding_upheld": true,
+      "evidence": "task2_1_3_dispatch_prompt.md lines 84-85 specify TolRMSD: 5.0e-5 Angstrom and TolMaxD: 1.0e-4 Angstrom. Native ORCA %geom units are atomic units (Bohr). 1 Bohr = 0.529177 Angstrom. Specification introduces a 1.8897x dimensional distortion, violating Method Matrix v4.1 and task2_vr02_vr04_requirements_extraction.md lines 230 and 232."
+    },
+    "finding_2_spectroscopic_invariants_omission": {
+      "finding_upheld": true,
+      "evidence": "Exact string grep confirms zero occurrences of rotational sensitivity relation dB/B = -2 dR/R and zero occurrences of Fraser force constant benchmark (k_vdW = 0.069 mdyn/A = 4.4e-3 Eh/bohr^2) in task2_1_3_dispatch_prompt.md."
+    },
+    "finding_3_governance_scope_collision": {
+      "finding_upheld": true,
+      "evidence": "task2_level2_wbs_breakdown.md (Session 023/024 ratified baseline) lines 97-137 already decomposed Task 2 into 18 L3 microtasks. Track 1 / WBS 2.1.3 is microtask L3-T2-03 ('Domain Exception Hierarchy Architecture') assigned to @cochem-coder. task2_1_3_dispatch_prompt.md attempts to re-commission a redundant L3 decomposition deliverable from cochem-sdp-manager, hijacking WBS 2.1.3."
+    },
+    "finding_4_dropzone_starvation": {
+      "finding_upheld": true,
+      "evidence": "D:/__CoChem/__agentic/dropzones/inbox_code is currently 0 bytes (EMPTY). Work order task2_l3_t2_03_t2_04_dispatch_prompt.md was routed to inbox_srs instead of inbox_code, starving @cochem-coder."
+    },
+    "finding_5_git_index_contamination": {
+      "finding_upheld": true,
+      "evidence": "Defective task2_1_3_dispatch_prompt.md is staged in Git index ('A  .docs/task2_1_3_dispatch_prompt.md') alongside swarm_state.json ('M swarm_state.json'). Must be un-staged immediately under PCA-09."
+    }
+  ],
+  "statutory_verdict": "[AUDIT VERDICT: UPHOLD STATUS FAIL - DISPATCH REJECTED - ENFORCE TRANSITION TO CODER]",
+  "safest_next_action": "1. Run 'git reset HEAD .docs/task2_1_3_dispatch_prompt.md swarm_state.json' to purge contaminated staged index. 2. Copy task2_l3_t2_03_t2_04_dispatch_prompt.md to D:/__CoChem/__agentic/dropzones/inbox_code/ to resolve dropzone starvation. 3. Formally commission @cochem-coder to execute L3-T2-03 (src/cochem_base/exceptions.py) and L3-T2-04 (src/cochem_base/geometry/constraints.py) under the ratified baseline."
+}

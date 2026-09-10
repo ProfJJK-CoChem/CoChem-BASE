@@ -1,0 +1,68 @@
+{
+  "audit_receipt_id": "COCHEM-AUDIT-RECEIPT-TASK2-1-3-DISPATCH-PROMPT-20260910",
+  "auditing_agent": "cochem-audit",
+  "audit_role": "Autonomous QA, Code Standards, and Architectural Compliance Auditor",
+  "audit_type": "AUTONOMOUS_QA_STANDARDS_ARCHITECTURAL_AUDIT",
+  "timestamp": "2026-09-10T17:25:00-05:00",
+  "verdict": "NON_COMPLIANT_REJECTED",
+  "statutory_verdict": "[STATUS: FAIL]",
+  "target_artifact": {
+    "logical_name": "task2_1_3_dispatch_prompt.md",
+    "canonical_scratch_path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_1_3_dispatch_prompt.md",
+    "canonical_sha256": "C6475F2D705BEFA81B750FB9F72C22B41E79620B0A3B1E4D8E886898C95229EF",
+    "byte_size": 13995,
+    "line_count": 164
+  },
+  "evaluated_invariants": {
+    "invariant_1_physical_existence_and_metrics": {
+      "status": "PASS",
+      "findings": "File physically persists across 6 storage nodes with 100.000% bitwise parity. Staged in Git index under .docs/task2_1_3_dispatch_prompt.md."
+    },
+    "invariant_2_pmbok_and_swebok_compliance": {
+      "status": "PASS",
+      "findings": "SDPM designation justified under PMBOK 7th Ed systems delivery and SWEBOK v3/v4 management/architecture."
+    },
+    "invariant_3_role_segregation_d1_01_pca_01": {
+      "status": "PASS",
+      "findings": "Role segregation between SDPM (governance/WBS) and coder (src/) articulated with single RACI accountability and verification independence."
+    },
+    "invariant_4_method_matrix_v4_1_spectroscopic_constraints": {
+      "status": "FAIL",
+      "findings": "Fatal omission of rotational sensitivity law dB/B = -2 dR/R (0 occurrences) and Fraser force constant benchmark (0 occurrences). Physical unit error in convergence block: TolRMSD and TolMaxD specified in Angstrom instead of native ORCA atomic units (Bohr)."
+    },
+    "invariant_5_mendeleev_dynamic_retrieval": {
+      "status": "PASS",
+      "findings": "Explicit directive 'from mendeleev import element' codified in lines 49 and 163."
+    },
+    "invariant_6_zero_mock_anti_spoofing_protocol_v4": {
+      "status": "PASS",
+      "findings": "Zero mocks, zero synthetic coordinate arrays, zero stubs in evaluated file. Prohibitions strictly mandated."
+    },
+    "invariant_7_tool_ingestion_and_reporting_sla": {
+      "status": "PASS",
+      "findings": "Explicit command of view_file, grep_search, list_dir, find_by_name; structured [SDPM REPORT] terminal SLA mandated."
+    },
+    "governance_finding_task_identity_and_wbs_collision": {
+      "status": "FAIL",
+      "findings": "task2_1_3_dispatch_prompt.md attempts to commission a duplicate L3 decomposition deliverable (task2_l3_implementation_tasks_decomposition.md). The 18 L3 microtasks were already decomposed and ratified in task2_level2_wbs_breakdown.md (Session 023) and task2_subsystems_architectural_specification.md (Session 024). Under the ratified WBS, WBS 2.1.3 is microtask L3-T2-03 (Domain Exception Hierarchy Architecture) assigned to @cochem-coder."
+    }
+  },
+  "fatal_defects": [
+    {
+      "defect_id": "DEF-T213-01",
+      "category": "SPECTROSCOPIC_PHYSICS_OMISSION",
+      "description": "Total omission of dB/B = -2 dR/R and Fraser force constant benchmark (k_vdW = 0.069 mdyn/A = 4.4e-3 Eh/bohr^2)."
+    },
+    {
+      "defect_id": "DEF-T213-02",
+      "category": "PHYSICAL_UNIT_DIMENSIONAL_ERROR",
+      "description": "Convergence displacement thresholds mislabeled as Angstrom instead of native Bohr, causing a 1.89x dimensional scaling distortion."
+    },
+    {
+      "defect_id": "DEF-T213-03",
+      "category": "WBS_TASK_COLLISION_AND_OBSOLESCENCE",
+      "description": "Dispatch prompt commissions redundant L3 decomposition deliverable that duplicates already-ratified WBS Breakdown and hijacks WBS 2.1.3 from @cochem-coder."
+    }
+  ],
+  "single_safest_next_action": "Quarantine and deprecate task2_1_3_dispatch_prompt.md. Enforce Council Session 024 ratification baseline and proceed with @cochem-coder executing Work Order COCHEM-WORK-ORDER-L3-T2-03-T2-04-20260910 (L3-T2-03 in src/cochem_base/exceptions.py and L3-T2-04 in src/cochem_base/geometry/constraints.py)."
+}

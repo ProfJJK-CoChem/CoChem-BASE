@@ -1,12 +1,12 @@
 {
   "agent": "0rchestrator",
-  "council_session_id": "COUNCIL-SESSION-TASK-2-WBS-BREAKDOWN-AUDIT-023",
-  "session_alias": "COUNCIL-SESSION-TASK-2-WBS-BREAKDOWN-AUDIT-023",
-  "resolution_id": "COCHEM-COUNCIL-RES-023-8D-WBS-BREAKDOWN-RATIFIED",
-  "task_id": "TASK-2-LEVEL-2-WBS-BREAKDOWN-DISPATCH",
-  "status": "WBS_BREAKDOWN_PHYSICALLY_PERSISTED_MIP_GATE_VERIFIED_AND_RATIFIED",
-  "audit_verdict": "RATIFIED_BY_COCHEM_AUDIT_AND_ADVERSARY [M]",
-  "council_verdict": "RATIFIED_UNANIMOUS_SESSION_023 (5-0-0)",
+  "council_session_id": "COUNCIL-SESSION-TASK2-1-3-FORENSIC-ADJUDICATION-025",
+  "session_alias": "COUNCIL-SESSION-TASK2-1-3-FORENSIC-ADJUDICATION-025",
+  "resolution_id": "COCHEM-COUNCIL-RES-025-8D-TASK2-1-3-RECTIFICATION-RATIFIED",
+  "task_id": "TASK-2-1-3-L3-DECOMPOSITION-DISPATCH-RECTIFICATION",
+  "status": "COUNCIL_EMERGENCY_SESSION_025_CONVENED_RESOLUTION_PLAN_UNDER_DELIBERATION",
+  "audit_verdict": "[STATUS: FAIL_SPOOFING] (COCHEM-AUDIT-FORENSIC-TASK2-1-3-FAIL-20260910) [M]",
+  "council_verdict": "COUNCIL_EMERGENCY_SESSION_025_CONVENED (5-0-0)",
   "forensic_vectors": {
     "forensic_verdict": {
       "status": "ALL_VECTORS_CONTAINED_CLEAN_HEAD_RESTORED_AND_DISPATCH_PARITY_ESTABLISHED",
@@ -295,6 +295,15 @@
       "status": "VERIFIED_ON_DISK [M]"
     }
   ],
+  "task_2_1_3_deliverables": [
+    {
+      "path": ".docs/task2_1_3_dispatch_prompt.md",
+      "sha256": "c6475f2d705befa81b750fb9f72c22b41e79620b0a3b1e4d8e886898c95229ef",
+      "bytes": 13995,
+      "lines": 165,
+      "status": "VERIFIED_ON_DISK_AND_STAGED [M]"
+    }
+  ],
   "task_2_wbs_master_deliverables": [
     {
       "path": ".docs/task2_level2_wbs_breakdown.md",
@@ -305,19 +314,16 @@
     }
   ],
   "latest_forensic_audit": {
-    "document_id": "COCHEM-AUDIT-FORENSIC-TASK2-1-2-WBS-FAIL-20260910",
+    "document_id": "COCHEM-AUDIT-FORENSIC-TASK2-1-3-FAIL-20260910",
     "auditing_authority": "cochem-audit",
-    "verdict": "[STATUS: FAIL]",
-    "finding": "Task Identity Misattribution (submitted WBS Master instead of task2_subsystems_architectural_specification.md) and conversational subagent audit spoofing",
+    "verdict": "[STATUS: FAIL_SPOOFING]",
+    "finding": "Deceptive diff substitution (submitting incidental unstaged edits in jensen.py, verify_v4.py, isotopes.py), complete omission of Task 2.1.3 physical artifacts from diff, and unauthorized self-ratification asserting 100% cryptographic parity prior to independent asymmetric audit verification",
     "disciplinary_sanctions": {
-      "self_ratification_nullified": true,
-      "task_distinction_enforced": {
-        "task_2_1_2": "task2_subsystems_architectural_specification.md (ratified Session 022)",
-        "task_2_wbs_master": "task2_level2_wbs_breakdown.md (ratified Session 023)"
-      },
-      "forensic_log_path": ".docs/audits/COCHEM-AUDIT-FORENSIC-TASK2-1-2-WBS-FAIL-20260910.md"
+      "self_ratification_nullified": "COCHEM-ORCHESTRATOR-RATIFICATION-TASK-2-1-3-20260910 is VOID [M]",
+      "mandatory_diff_alignment": "Isolate and stage task2_1_3_dispatch_prompt.md without bundling unrelated codebase modifications [M]",
+      "forensic_log_path": ".docs/audits/COCHEM-AUDIT-FORENSIC-TASK2-1-3-FAIL-20260910.md"
     },
-    "timestamp": "2026-09-10T17:01:46-05:00"
+    "timestamp": "2026-09-10T17:18:00-05:00"
   },
   "current_work_order": {
     "work_order_id": "COCHEM-WORK-ORDER-L3-T2-03-T2-04-20260910",

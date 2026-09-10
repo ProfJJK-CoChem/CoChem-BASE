@@ -1,0 +1,169 @@
+{
+  "task_id": "TASK-1.5.1-DYNAMIC-PYYKKO-COVALENT-RADII-MOLECULAR-GRAPH-CONSTRUCTION",
+  "document_id": "COCHEM-SPEC-TASK-1.5.1-WBS-DICT-V1",
+  "council_session_id": "COUNCIL-SESSION-018-RATIFICATION",
+  "resolution_id": "COCHEM-COUNCIL-RES-018-ZERO-TRUST-DISPATCH",
+  "status": "TASK_1_5_1_SUCCESS",
+  "audit_phase": "HOSTILE_RED_TEAM_ZERO_TRUST_AUDIT",
+  "audit_verdict": "PASS [M]",
+  "dual_parity_verified": true,
+  "timestamp": "2026-09-10T16:25:00-05:00",
+  "subagent_telemetry": {
+    "auditor": "cochem-audit",
+    "red_team_auditor": "adversary",
+    "caller_id": "0rchestrator",
+    "subagent_conversation_id": "cochem-council-session-018",
+    "author_audited": "@cochem-coder",
+    "empirical_benchmark": {
+      "metric": "adjacency_formulation_time_N100_atoms",
+      "threshold_us": 200.0,
+      "measured_us": 40.52,
+      "status": "PASS [M]"
+    }
+  },
+  "governing_authorities": [
+    "PMBOK Guide 7th Edition",
+    "SWEBOK v3.0",
+    "ISO/IEC/IEEE 29148:2018",
+    "Method Matrix v4.1 (§10.1–10.8, §9A.1–9A.5)",
+    "L3_Decomposition_Task_1_VR01.md:L358-L370",
+    "Anti-Spoofing Protocols v2 & v4 (Hardened)",
+    "Disciplinary Ruling D1-01",
+    "Council Session 018 Resolution (COCHEM-COUNCIL-RES-018-ZERO-TRUST-DISPATCH)"
+  ],
+  "agent_selection_and_raci": {
+    "functional_code_developer": "@cochem-coder",
+    "test_verification_agent": "cochem-tester",
+    "architectural_auditor": "cochem-audit",
+    "red_team_auditor": "adversary",
+    "presiding_governance_chair": "cochem-sdp-manager",
+    "workflow_supervisor": "0rchestrator",
+    "ruling_d1_01_enforced": true
+  },
+  "preconditions_status": {
+    "subsystem_VR01_SS1": "COMPLETE_AND_VERIFIED [M]",
+    "subsystem_VR01_SS2": "COMPLETE_AND_VERIFIED [M]",
+    "subsystem_VR01_SS3": "COMPLETE_AND_VERIFIED (WBS 1.4.1 through 1.4.5 implemented and verified in eckart_aligner.py with EckartFrameAligner operational) [M]",
+    "verdict": "ALL_PRECONDITIONS_SATISFIED [M]"
+  },
+  "deliverables_audited": [
+    {
+      "path": "src/cochem_base/topology/deduplicator.py",
+      "sha256": "0cf842f78acacff2d86ef117d46a27f845d78547164e51a1f42a924e862c1d55",
+      "bytes": 25108,
+      "lines": 608,
+      "evaluated_symbols": [
+        "get_covalent_radius",
+        "build_covalent_adjacency_matrix",
+        "build_molecular_graph",
+        "compute_weisfeiler_lehman_hash",
+        "compute_automorphism_orbit_rmsd",
+        "compute_principal_moments_of_inertia",
+        "compute_rotational_constants",
+        "ConformerDeduplicator"
+      ],
+      "status": "VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": "tests/base/test_deduplicator_topology.py",
+      "sha256": "5922cfda5f58408eabc1a7490441c09a6df133df76d22228f7f3af8f28c56436",
+      "bytes": 14989,
+      "lines": 364,
+      "status": "VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": ".scripts/prompts/1.5.1_prompt.json",
+      "sha256": "d7b27bf60426f1e7cb91e4ef999b9112cdd0e8ff5a225553452f602d4c2f5e95",
+      "bytes": 1984,
+      "lines": 16,
+      "status": "VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": ".docs/task_1_5_1_assignment_spec.md",
+      "sha256": "6a96a1ae87f031fe0bea4f40cafe64ecef91553ba16820de1553f6b616459259",
+      "bytes": 17992,
+      "lines": 197,
+      "status": "VERIFIED_ON_DISK [M]"
+    }
+  ],
+  "verification_metrics": {
+    "test_suite": "tests/base/test_deduplicator_topology.py",
+    "total_tests": 12,
+    "passed_tests": 12,
+    "failed_tests": 0,
+    "execution_time_seconds": 3.47,
+    "acceptance_criteria_verification": {
+      "ethanol": {
+        "formula": "C2H6O",
+        "nodes": 9,
+        "edges": 8,
+        "connected": true,
+        "bonds_identified": ["C1-C2", "C2-O", "O-H", "3x C1-H", "2x C2-H"],
+        "status": "PASS [M]"
+      },
+      "formamide": {
+        "formula": "CH3NO",
+        "nodes": 6,
+        "edges": 5,
+        "connected": true,
+        "bonds_identified": ["C=O", "C-N", "C-H", "N-H1", "N-H2"],
+        "status": "PASS [M]"
+      },
+      "benzene": {
+        "formula": "C6H6",
+        "nodes": 12,
+        "edges": 12,
+        "connected": true,
+        "carbon_cycle_length": 6,
+        "bonds_identified": ["6x C-C aromatic ring", "6x C-H"],
+        "status": "PASS [M]"
+      }
+    },
+    "stage_a_weisfeiler_lehman_filter": {
+      "test_pair": "ethanol_vs_dimethyl_ether",
+      "ethanol_wl_hash": "a59b346cd7beb352d5b9bae0658151d7",
+      "dimethyl_ether_wl_hash": "a3db9544d034c691cbc60faa12755e71",
+      "distinct": true,
+      "rejection_latency_ms": 0.32,
+      "threshold_ms": 0.5,
+      "status": "PASS [M]"
+    },
+    "stage_b_automorphism_orbit_rmsd": {
+      "test_system": "methyl_hydrogen_permutation",
+      "naive_cartesian_rmsd_angstrom": 1.48,
+      "min_orbit_rmsd_angstrom": 0.0,
+      "threshold_angstrom": 1e-6,
+      "status": "PASS [M]"
+    },
+    "stage_c_spectroscopic_constants": {
+      "test_system": "water_monomer_h2o",
+      "moments_order": "Ia <= Ib <= Ic",
+      "constants_order": "A >= B >= C",
+      "measured_A_GHz": 785.7,
+      "measured_B_GHz": 437.1,
+      "measured_C_GHz": 280.8,
+      "status": "PASS [M]"
+    },
+    "anti_spoof_linter_status": "PASS (0 stubs, 0 mocks, 0 synthetic generators)",
+    "mendeleev_ast_linter_status": "PASS (0 static radius or mass dictionaries across periodic table)",
+    "benchmark_us": 40.52,
+    "benchmark_threshold_us": 200.0,
+    "banned_tokens_detected": 0,
+    "unhandled_pass_or_todo": 0,
+    "static_mass_or_radius_dictionaries": 0,
+    "ruling_d1_01_code_tampering": 0,
+    "bitwise_parity": {
+      "deduplicator_py": "PARITY_VERIFIED_100_PERCENT",
+      "test_deduplicator_topology_py": "PARITY_VERIFIED_100_PERCENT",
+      "1_5_1_prompt_json": "PARITY_VERIFIED_100_PERCENT",
+      "task_1_5_1_assignment_spec_md": "PARITY_VERIFIED_100_PERCENT"
+    }
+  },
+  "audit_findings": {
+    "zero_mock_and_stubs": "VERIFIED_ZERO_DEFECTS: Zero stubs, mocks, dummy loops, synthetic arrays, or NotImplementedError in specification or implementation.",
+    "verifiable_boundaries": "VERIFIED_ZERO_DEFECTS: All mathematical thresholds have exact numerical bounds (covalent cutoff 1.15*(r_cov_i + r_cov_j), RMSD min-orbit < 1e-6 A, WL 128-bit hex digest, benchmark < 200 us) with formal [M] provenance tags.",
+    "method_matrix_compliance": "VERIFIED_ZERO_DEFECTS: Complete alignment with Method Matrix v4.1 (§10.1–10.8) for Subsystem VR01-SS4.",
+    "subsystem_preconditions": "VERIFIED_ZERO_DEFECTS: Subsystems VR01-SS1, VR01-SS2, and VR01-SS3 are completely verified on disk with EckartFrameAligner operational.",
+    "role_segregation": "VERIFIED_ZERO_DEFECTS: Disciplinary Ruling D1-01 and PCA-05 strictly obeyed; code authored under @cochem-coder interface contract."
+  }
+}

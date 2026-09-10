@@ -1,0 +1,112 @@
+{
+  "task_id": "TASK-1.4.1-MASS-WEIGHTED-COVARIANCE-MATRIX-FORMULATION",
+  "document_id": "COCHEM-SPEC-TASK-1.4.1-COVARIANCE-MATRIX-V1",
+  "council_session_id": "COUNCIL-SESSION-015-RATIFICATION",
+  "resolution_id": "COCHEM-COUNCIL-RES-015-ZERO-TRUST-DISPATCH",
+  "status": "TASK_1_4_1_SUCCESS",
+  "audit_phase": "HOSTILE_RED_TEAM_ZERO_TRUST_AUDIT",
+  "audit_verdict": "PASS [M]",
+  "dual_parity_verified": true,
+  "timestamp": "2026-09-10T13:45:00-05:00",
+  "subagent_telemetry": {
+    "auditor": "adversary",
+    "caller_id": "0rchestrator",
+    "subagent_conversation_id": "cochem-council-session-015",
+    "author_audited": "@cochem-coder",
+    "empirical_benchmark": {
+      "metric": "execution_time_N100_atoms",
+      "threshold_us": 15.0,
+      "measured_us": 8.14,
+      "status": "PASS [M]"
+    }
+  },
+  "governing_authorities": [
+    "PMBOK Guide 7th Edition",
+    "SWEBOK v3.0",
+    "ISO/IEC/IEEE 29148:2018",
+    "Method Matrix v4.1 (§10.1–10.8, §9A.1–9A.5)",
+    "Anti-Spoofing Protocols v2 & v4",
+    "Disciplinary Ruling D1-01",
+    "Council Session 015 Resolution (COCHEM-COUNCIL-RES-015-ZERO-TRUST-DISPATCH)"
+  ],
+  "agent_selection_and_raci": {
+    "functional_code_developer": "@cochem-coder",
+    "test_verification_agent": "cochem-tester",
+    "architectural_auditor": "cochem-audit",
+    "red_team_auditor": "adversary",
+    "presiding_governance_chair": "cochem-sdp-manager",
+    "workflow_supervisor": "0rchestrator",
+    "ruling_d1_01_enforced": true
+  },
+  "deliverables_audited": [
+    {
+      "path": "src/cochem_base/physics/eckart_aligner.py",
+      "sha256": "7e68f3c0b5fd6aca54d0da102d4497dc28913e7d146293aa146e6d9c7b623036",
+      "bytes": 34666,
+      "lines": 785,
+      "evaluated_symbol": "compute_mass_weighted_covariance_matrix",
+      "git_status": "STAGED_NEW_FILE (A)",
+      "status": "VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": "tests/base/test_eckart_covariance_invariants.py",
+      "sha256": "48dbf7cb88ccdda6e3cf5a698933fff38e34be21c4747f90ebd5c336d2c37420",
+      "bytes": 19678,
+      "lines": 473,
+      "git_status": "STAGED_NEW_FILE (A)",
+      "status": "VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": ".scripts/prompts/1.4.1_prompt.json",
+      "sha256": "cae40b6401e75e6aa83595899b3e7b49656f4e46c81d1caedcd73aadb2dcfd72",
+      "bytes": 1790,
+      "lines": 16,
+      "status": "VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": ".docs/task_1_4_1_assignment_spec.md",
+      "sha256": "01a0559832c55e9643e052993c312721011c8c0e8899085d5cbbfd9c787a1b9a",
+      "bytes": 24989,
+      "lines": 288,
+      "status": "VERIFIED_ON_DISK [M]"
+    }
+  ],
+  "verification_metrics": {
+    "test_suite": "tests/base/test_eckart_covariance_invariants.py",
+    "total_tests": 11,
+    "passed_tests": 11,
+    "failed_tests": 0,
+    "anti_spoof_linter_status": "PASS (0 stubs, 0 mocks, 0 synthetic generators)",
+    "mendeleev_ast_linter_status": "PASS (0 static mass dictionaries across 118 IUPAC symbols)",
+    "benchmark_us": 8.14,
+    "benchmark_threshold_us": 15.0,
+    "banned_tokens_detected": 0,
+    "unhandled_pass_or_todo": 0,
+    "static_mass_dictionaries": 0,
+    "ruling_d1_01_code_tampering": 0,
+    "bitwise_parity": {
+      "eckart_aligner_py": "PARITY_VERIFIED_100_PERCENT",
+      "test_eckart_covariance_invariants_py": "PARITY_VERIFIED_100_PERCENT",
+      "1_4_1_prompt_json": "PARITY_VERIFIED_100_PERCENT",
+      "task_1_4_1_assignment_spec_md": "PARITY_VERIFIED_100_PERCENT"
+    },
+    "analytic_gradient_verification": {
+      "property": "grad_A Tr(A^T C) == C",
+      "numerical_finite_difference_step_h": 1e-6,
+      "max_discrepancy": 8.8818e-16,
+      "threshold": 1e-9,
+      "status": "PASS [M]"
+    },
+    "gram_matrix_symmetry": {
+      "property": "||C - C^T||_F < 1e-12 for R_ref == R_target",
+      "measured_residual": 0.0,
+      "status": "PASS [M]"
+    }
+  },
+  "audit_findings": {
+    "zero_mock_and_stubs": "VERIFIED_ZERO_DEFECTS: Zero stubs, mocks, dummy loops, synthetic arrays, or NotImplementedError in specification or implementation.",
+    "verifiable_boundaries": "VERIFIED_ZERO_DEFECTS: All mathematical thresholds have exact numerical bounds (Frobenius norm ||C||_F, symmetry tolerance < 1e-12, benchmark < 15.0 us, gradient discrepancy < 1e-9) with formal [M], [D], [E] provenance tags.",
+    "method_matrix_compliance": "VERIFIED_ZERO_DEFECTS: Complete alignment with Method Matrix v4.1 (§10.1–10.8) for Subsystem VR01-SS3.",
+    "role_segregation": "VERIFIED_ZERO_DEFECTS: Disciplinary Ruling D1-01 and PCA-05 strictly obeyed; code authored under @cochem-coder interface contract."
+  }
+}

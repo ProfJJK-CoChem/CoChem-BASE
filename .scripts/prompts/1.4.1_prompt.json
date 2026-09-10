@@ -1,0 +1,15 @@
+{
+  "agent_name": "@cochem-coder",
+  "task_id": "TASK-1.4.1-MASS-WEIGHTED-COVARIANCE-MATRIX-FORMULATION",
+  "status": "APPROVED_FOR_EXECUTION",
+  "preconditions": [
+    "TASK-1.3.1-MASS-WEIGHTED-CENTER-OF-MASS-VECTOR-ACCUMULATOR (src/cochem_base/physics/eckart_aligner.py)",
+    "TASK-1.3.4-STRUCTURED-WBS-IMPLEMENTATION-LIST (.docs/task_1_3_4_assignment_spec.md)",
+    "DUAL-WORKSPACE-PARITY-VERIFICATION (D:/__CoChem/ and D:/__CoChem/GitHub-Repo/CoChem-BASE/)"
+  ],
+  "target_files": [
+    "src/cochem_base/physics/eckart_aligner.py",
+    "tests/base/test_eckart_covariance_invariants.py"
+  ],
+  "prompt": "Implement WBS 1.4.1 Mass-Weighted Covariance (Gram) Matrix Formulation in src/cochem_base/physics/eckart_aligner.py strictly adhering to L3_Decomposition_Task_1_VR01.md:L298-L306. Implement compute_mass_weighted_covariance_matrix, compute_covariance_frobenius_norm, and check_covariance_symmetry supporting unbatched (N, 3) and batched (B, N, 3) double-precision float64 geometries. Mathematical formulation: C = R_tilde_ref^T M R_tilde_target = sum_{i=1}^N m_i * r_tilde_i,ref * r_tilde_i,target^T. Resolve nuclide masses dynamically via cochem_base.physics.nuclide_resolver.disambiguate_mass() enforcing the Dynamic Mendeleev Mandate (zero static mass dictionaries). Enforce coordinate centering via translate_to_center_of_mass() or accept pre-centered coordinates. Verify matrix symmetry conditions when R_ref == R_target and numerical conditioning via Frobenius norm ||C||_F. Author comprehensive unit and adversarial test suite in tests/base/test_eckart_covariance_invariants.py verifying analytic gradient correspondence to bilinear displacement trace product, zero mocks, authentic chemical fixtures (water, water dimer), and microsecond performance (<15 µs for N=100)."
+}

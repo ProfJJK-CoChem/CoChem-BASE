@@ -1,0 +1,16 @@
+{
+  "agent_name": "@cochem-coder",
+  "task_id": "TASK-1.5.1-DYNAMIC-PYYKKO-COVALENT-RADII-MOLECULAR-GRAPH-CONSTRUCTION",
+  "status": "APPROVED_FOR_EXECUTION",
+  "preconditions": [
+    "TASK-1.4.1-MASS-WEIGHTED-COVARIANCE-MATRIX-FORMULATION (src/cochem_base/physics/eckart_aligner.py)",
+    "TASK-1.4.2-THROUGH-1.4.5-ECKART-ALIGNMENT-AND-SO3-CLOSURE (src/cochem_base/physics/eckart_aligner.py)",
+    "TASK-1.5.1-SPECIFICATION-DOCUMENT (.docs/task_1_5_1_assignment_spec.md)",
+    "DUAL-WORKSPACE-PARITY-VERIFICATION (D:/__CoChem/ and D:/__CoChem/GitHub-Repo/CoChem-BASE/)"
+  ],
+  "target_files": [
+    "src/cochem_base/topology/deduplicator.py",
+    "tests/base/test_deduplicator_topology.py"
+  ],
+  "prompt": "Implement WBS 1.5.1 Dynamic Pyykkö Covalent Radii Molecular Graph Construction in src/cochem_base/topology/deduplicator.py strictly adhering to L3_Decomposition_Task_1_VR01.md:L358-L370 and task_1_5_1_assignment_spec.md. Build covalent adjacency matrix A in {0, 1}^(N x N) via interatomic distance criteria A_ij = 1 if i != j and ||r_i - r_j||_2 <= 1.15 * (r_cov(i) + r_cov(j)), else 0. Dynamically query single-bond covalent radii r_cov from mendeleev via cochem_base.physics.nuclide_resolver.resolve_covalent_radius() strictly enforcing the Dynamic Mendeleev Mandate (zero static radius dictionaries). Instantiate a networkx.Graph containing node attributes: 'element', 'mass_number', 'atomic_number', 'mass', and 'coordinates'. Verify graph topology correctly identifies all single, double, and aromatic bonds for ethanol, formamide, and benzene without missing edges. Author comprehensive unit and adversarial test suite in tests/base/test_deduplicator_topology.py verifying mathematical invariants, acceptance criteria molecules, Weisfeiler-Lehman 128-bit isomorphism hash filtering, automorphism orbit permutation invariance via EckartFrameAligner, spectroscopic rotational constants, zero mocks, authentic chemical fixtures, and microsecond execution performance."
+}

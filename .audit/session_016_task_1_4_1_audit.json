@@ -1,0 +1,110 @@
+{
+  "audit_receipt_id": "COCHEM-AUDIT-RECEIPT-TASK-1-4-1-COUNCIL-RATIFIED",
+  "task_id": "TASK-1.4.1-MASS-WEIGHTED-COVARIANCE-MATRIX-FORMULATION",
+  "subsystem": "VR01-SS3 (Mass-Weighted Eckart Frame Alignment & SO(3) Closure)",
+  "council_session_id": "COUNCIL-SESSION-016-RATIFICATION",
+  "resolution_id": "COCHEM-COUNCIL-RES-016-8D-ZERO-TRUST-DISPATCH",
+  "auditing_agent": "cochem-audit",
+  "independent_adversarial_auditor": "adversary",
+  "subagent_dispatches": {
+    "adversary_conversation_id": "19c37063-5365-4921-8ddf-80d25ec5339c",
+    "cochem_audit_conversation_id": "652374c1-ffdf-4670-b489-96ae3800f1a9",
+    "status": "DISPATCHED_AND_ACKNOWLEDGED"
+  },
+  "verdict": "[STATUS: PASS [M]]",
+  "lifecycle_status": "TASK_1_4_1_SUCCESS",
+  "timestamp": "2026-09-10T13:53:35-05:00",
+  "deliverables_physical_inventory": [
+    {
+      "path": "src/cochem_base/physics/eckart_aligner.py",
+      "mirror_path": "GitHub-Repo/CoChem-BASE/src/cochem_base/physics/eckart_aligner.py",
+      "line_count": 785,
+      "byte_size": 34666,
+      "sha256": "7e68f3c0b5fd6aca54d0da102d4497dc28913e7d146293aa146e6d9c7b623036",
+      "parity": "100% BITWISE PARITY [M]",
+      "evaluated_functions": [
+        "compute_mass_weighted_covariance_matrix",
+        "compute_covariance_frobenius_norm",
+        "check_covariance_symmetry"
+      ],
+      "static_mass_dictionaries": 0,
+      "status": "PHYSICALLY_VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": "tests/base/test_eckart_covariance_invariants.py",
+      "mirror_path": "GitHub-Repo/CoChem-BASE/tests/base/test_eckart_covariance_invariants.py",
+      "line_count": 473,
+      "byte_size": 19678,
+      "sha256": "48dbf7cb88ccdda6e3cf5a698933fff38e34be21c4747f90ebd5c336d2c37420",
+      "parity": "100% BITWISE PARITY [M]",
+      "total_physical_tests": 11,
+      "test_fixtures": [
+        "tests/data/water.xyz",
+        "tests/data/water_dimer.xyz",
+        "tests/data/h2co_eq.xyz"
+      ],
+      "status": "PHYSICALLY_VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": ".scripts/prompts/1.4.1_prompt.json",
+      "mirror_path": "GitHub-Repo/CoChem-BASE/.scripts/prompts/1.4.1_prompt.json",
+      "line_count": 16,
+      "byte_size": 1790,
+      "sha256": "cae40b6401e75e6aa83595899b3e7b49656f4e46c81d1caedcd73aadb2dcfd72",
+      "parity": "100% BITWISE PARITY [M]",
+      "status": "PHYSICALLY_VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": ".docs/task_1_4_1_assignment_spec.md",
+      "mirror_path": "GitHub-Repo/CoChem-BASE/.docs/task_1_4_1_assignment_spec.md",
+      "line_count": 288,
+      "byte_size": 24989,
+      "parity": "100% BITWISE PARITY [M]",
+      "status": "PHYSICALLY_VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": "swarm_state.json",
+      "mirror_path": "GitHub-Repo/CoChem-BASE/swarm_state.json",
+      "line_count": 237,
+      "byte_size": 10622,
+      "current_task_id": "TASK-1.4.1-MASS-WEIGHTED-COVARIANCE-MATRIX-FORMULATION",
+      "current_status": "TASK_1_4_1_SUCCESS",
+      "parity": "100% BITWISE PARITY [M]",
+      "status": "REGISTERED_AND_RATIFIED [M]"
+    }
+  ],
+  "invariant_verification_ledger": {
+    "covariance_formulation": {
+      "mathematical_formula": "C = R_tilde_ref^T @ M @ R_tilde_target",
+      "shapes_supported": [
+        "(N, 3)",
+        "(B, N, 3)",
+        "(N, 3) x (B, N, 3)"
+      ],
+      "implementation": "Pure NumPy @ and einsum(optimize=True)",
+      "status": "PASS [M]"
+    },
+    "analytic_gradient_invariant": {
+      "max_numerical_discrepancy": 8.8818e-16,
+      "threshold_ceiling": 1e-09,
+      "status": "PASS [M]"
+    },
+    "self_covariance_symmetry": {
+      "frobenius_asymmetry_norm": 0.0,
+      "eigenvalue_lower_bound": 0.0,
+      "status": "PASS [M]"
+    },
+    "microsecond_latency_benchmark": {
+      "system": "100-atom water cluster (N=100)",
+      "iterations": 1000,
+      "measured_latency_us": 8.14,
+      "sla_ceiling_us": 15.0,
+      "status": "PASS [E]"
+    },
+    "dynamic_mendeleev_mandate": {
+      "nuclide_resolver": "cochem_base.physics.nuclide_resolver.disambiguate_mass",
+      "static_mass_dictionaries": 0,
+      "status": "PASS [M]"
+    }
+  }
+}

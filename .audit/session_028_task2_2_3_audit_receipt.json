@@ -1,0 +1,54 @@
+{
+  "audit_receipt_id": "COCHEM-AUDIT-RECEIPT-SESSION-028-TASK2-2-3-20260910",
+  "auditing_agent": "cochem-audit",
+  "supervising_authority": "0rchestrator",
+  "task_id": "TASK-2-2-3-MAP-PMBOK-SWEBOK-AND-ACCEPTANCE-CRITERIA",
+  "wbs_level": "WBS 2.2.3",
+  "verdict": "PASS",
+  "statutory_verdict": "[STATUS: PASS]",
+  "timestamp": "2026-09-10T18:05:30-05:00",
+  "target_deliverable": {
+    "relative_path": ".docs/task2_2_3_dispatch_prompt.md",
+    "bytes": 24882,
+    "lines": 242,
+    "sha256": "f2771bd105af409cfed49e088212160b83989a081270c484454b0ded506b9e9d",
+    "parity_locations": [
+      "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_2_3_dispatch_prompt.md",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_2_3_dispatch_prompt.md",
+      "D:/__CoChem/.docs/task2_2_3_dispatch_prompt.md",
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_2_3_dispatch_prompt.md",
+      "C:/Users/ansac/.gemini/antigravity-cli/brain/dbb1943c-043e-475c-9a3e-7270b5e0ce2e/task2_2_3_dispatch_prompt.md"
+    ],
+    "parity_status": "100_PERCENT_BITWISE_MATCH_5_LOCATIONS"
+  },
+  "git_index_audit": {
+    "porcelain_status": "A  .docs/task2_2_3_dispatch_prompt.md",
+    "scoped_diff_stat": ".docs/task2_2_3_dispatch_prompt.md | 242 +++++++++++++++++++++++++++++++++++++\\n 1 file changed, 242 insertions(+)",
+    "off_target_lines": 0,
+    "def_diff_01_resolved": true,
+    "def_diff_02_resolved": true,
+    "prior_task_unbundled": true
+  },
+  "compliance_audit": {
+    "rotational_sensitivity_invariants": "VERIFIED (§3.0: dB/B = -2 dR/R) [D]",
+    "quintuple_convergence_block": "VERIFIED (§4.4, §QS-1: TolE 1e-7, TolMaxG 1e-5, TolRMSG 3e-6, TolRMSD 5e-5, TolMaxD 1e-4, MaxIter 200) [M]",
+    "initial_model_hessian_discipline": "VERIFIED (§8B.3: Absolute ban on Calc_Hess true; InHess XTB2 / Lindh seeding; InHess READ / InHessName chaining) [M]",
+    "frozen_monomer_protocol": "VERIFIED (§9A: Recipe R1/R2; real-time drift < 1.0e-6 A) [M]",
+    "residual_gradient_parsing": "VERIFIED (§10.2–§10.3: ||g_res||_inf threshold 1.0e-4 a.u. for GeometricStrainWarning) [M]",
+    "dynamic_mendeleev_enforcement": "VERIFIED (from mendeleev import element, zero hardcoded tables) [M]",
+    "zero_mock_anti_spoofing": "VERIFIED (0 mocks, 0 stubs, 0 synthetic coordinate arrays) [M]",
+    "single_point_raci": "VERIFIED (cochem-sdp-manager sole designated Responsible agent) [GOV]",
+    "ruling_d1_01_enforcement": "VERIFIED (Separation of duties; coder barred from defining scope/acceptance criteria) [GOV]"
+  },
+  "audit_artifacts": {
+    "qa_report_path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/audits/COCHEM-AUDIT-TASK2-2-3-DISPATCH-PASS-20260910.md",
+    "qa_report_sha256": "0ac70cc7c5b58bd319dec71b2519c38e12cc64fde9b1f47315a39ff34e275c23"
+  },
+  "presidium_vote": {
+    "member": "cochem-audit",
+    "session": "COUNCIL-EMERGENCY-SESSION-028",
+    "vote": "ASSENT",
+    "timestamp": "2026-09-10T18:05:30-05:00"
+  },
+  "single_safest_next_action": "Authorize 0rchestrator to dispatch cochem-sdp-manager under task2_2_3_dispatch_prompt.md to author task2_2_3_pmbok_swebok_mapping_and_acceptance_criteria.md across all four canonical mirrors."
+}

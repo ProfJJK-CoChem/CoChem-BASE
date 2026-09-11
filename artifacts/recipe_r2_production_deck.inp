@@ -1,0 +1,48 @@
+# =====================================================================
+# CoChem-CORE Cryptographic Provenance Stamp: d945c9dd8e17dcf2a64e6b3b70561bfd84fac7d2d78ad8a0fcdfb31cd164127c
+# Basin ID: cochem_dimer_recipe_r2 | Engine Target: ORCA 6.1.1 | Recipe: R2 [M]
+# Molecular Weight: 62.0240 g/mol (Mendeleev Dynamic Invariant)
+# =====================================================================
+! wB97M-V def2-QZVPP def2/J RIJCOSX TightOpt TightSCF DEFGRID3
+%base "cochem_dimer_recipe_r2"
+
+%pal
+  nprocs 8
+end
+
+%maxcore 3072
+
+%scf
+  TolE 1.0e-08
+  Thresh 1.0e-11
+  MaxIter 150
+end
+
+%geom
+  InHess XTB2
+  TolE 1.0e-07
+  TolRMSG 3.0e-06
+  TolMaxG 1.0e-05
+  TolRMSD 5.0e-05
+  TolMaxD 1.0e-04
+  MaxIter 200
+  Constraints
+    # Monomer A (CO2) Internal Covalent Coordinates Frozen
+    { B 0 1 C }
+    { B 0 2 C }
+    { A 1 0 2 C }
+    # Monomer B (H2O) Internal Covalent Coordinates Frozen
+    { B 3 4 C }
+    { B 3 5 C }
+    { A 4 3 5 C }
+  end
+end
+
+* xyz 0 1
+  C            0.00000000     0.00000000     0.00000000
+  O            0.00000000     0.00000000     1.16210000
+  O            0.00000000     0.00000000    -1.16210000
+  O            2.83610000     0.00000000     0.00000000
+  H            2.83610000     0.75695033     0.58588228
+  H            2.83610000    -0.75695033     0.58588228
+*

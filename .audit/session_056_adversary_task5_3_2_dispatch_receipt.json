@@ -1,0 +1,67 @@
+{
+  "receipt_id": "COCHEM-ADVERSARY-RECEIPT-SESSION-056-TASK5-3-2-DISPATCH-RATIFIED-20260911",
+  "council_session_id": "COUNCIL-SESSION-056",
+  "task_id": "TASK-5-3-2-ORCA-RECIPE-R2-DECK-GENERATION",
+  "wbs_code": "5.3.2",
+  "deliverable_id": "COCHEM-BASE-TASK5-3-2-ORCA-RECIPE-R2-DECK-GENERATION-2026",
+  "auditing_agent": "adversary",
+  "subagent_conversation_id": "fa131628-7e24-4dd1-b321-9f7cbf85a97f",
+  "caller_recipient_id": "06cd746b-6e54-498b-b17c-c23cc1127ed8",
+  "audited_agents": [
+    "cochem-sdp-manager",
+    "0rchestrator"
+  ],
+  "designated_execution_agent": "cochem-coder",
+  "supervising_authority": "0rchestrator",
+  "timestamp": "2026-09-11T03:47:20-05:00",
+  "verdict": "PASS",
+  "statutory_verdict": "[STATUS: PASS [UNCONDITIONALLY RATIFIED]]",
+  "ratification_code": "[RATIFIED_ADVERSARY_RED_TEAM_TASK5_3_2_DISPATCH_PASSED]",
+  "dispatch_prompt_metrics": {
+    "canonical_path": "D:/__CoChem/__agentic/dropzones/inbox_srs/task5_3_2_dispatch_prompt.md",
+    "bytes": 5245,
+    "lines": 67,
+    "sha256": "5aaa67f012ca53d937c9277b991c205c259037445df32cb5ada1cea6ccd2ba03",
+    "mirrors_verified": [
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/task5_3_2_dispatch_prompt.md",
+      "C:/Users/ansac/.gemini/antigravity-cli/scratch/task5_3_2_dispatch_prompt.md",
+      "D:/__CoChem/.docs/task5_3_2_dispatch_prompt.md",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task5_3_2_dispatch_prompt.md",
+      "C:/Users/ansac/.gemini/antigravity-cli/brain/06cd746b-6e54-498b-b17c-c23cc1127ed8/task5_3_2_dispatch_prompt.md"
+    ],
+    "bitwise_parity": "100.000% PASS"
+  },
+  "audit_report_metrics": {
+    "canonical_path": "D:/__CoChem/__agentic/dropzones/inbox_srs/task5_3_2_adversarial_audit_report.md",
+    "bytes": 16607,
+    "lines": 146,
+    "sha256": "8a837f2b074754ab1786aa55a22b271cad3e28bed22a1207caa078dcff14eeda",
+    "mirrors_verified": [
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/task5_3_2_adversarial_audit_report.md",
+      "C:/Users/ansac/.gemini/antigravity-cli/scratch/task5_3_2_adversarial_audit_report.md",
+      "D:/__CoChem/.docs/task5_3_2_adversarial_audit_report.md",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task5_3_2_adversarial_audit_report.md",
+      "C:/Users/ansac/.gemini/antigravity-cli/brain/06cd746b-6e54-498b-b17c-c23cc1127ed8/task5_3_2_adversarial_audit_report.md"
+    ],
+    "bitwise_parity": "100.000% PASS"
+  },
+  "target_source_metrics": {
+    "target_file": "D:/__CoChem/GitHub-Repo/CoChem-BASE/src/cochem_base/calc/cochem_calc_input_generator.py"
+  },
+  "test_suite_metrics": {
+    "target_file": "D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/calc/test_recipe_r2_deck_generation.py"
+  },
+  "predecessor_task_metrics": {
+    "task_5_3_1_status": "RATIFIED",
+    "constraints_file": "D:/__CoChem/GitHub-Repo/CoChem-BASE/src/cochem_base/geometry/constraints.py",
+    "constraints_sha256": "2e699ce04c096d002f59a997312b0c82db78e7e6e70d104cd2fb4025cc587273",
+    "pytest_result": "2 passed in 4.74s, exit code 0"
+  },
+  "wbs_breakdown_metrics": {
+    "canonical_path": "D:/__CoChem/.docs/task5_level2_wbs_breakdown.md",
+    "bytes": 41829,
+    "lines": 515,
+    "sha256": "f868a1445589de4a9ace20bf658c79e7d4adba29a1474da1e8b46eafaa58e37a",
+    "bitwise_parity": "100.000% PASS"
+  }
+}

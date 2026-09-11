@@ -24,7 +24,7 @@ This document establishes the authoritative Level 2 (L2) and Level 3 (L3) compon
 In strict adherence to **PMBOK Guide 7th Edition (Systems View for Project Delivery & Scope Management Domain)** and **SWEBOK v3/v4 (Software Engineering Management & Software Quality)**, Level 1 Task 3 physical implementation reconciles operational project management governance with core quantum chemical invariants across **5 Canonical Technical Tracks** containing **18 Component-Level L3 Implementation Microtasks** (`L3-T3-01` to `L3-T3-18`):
 
 1. **Track 1: Requirements Architecture, Interface Contracts & Ontological Disambiguation (VR-03 & VR-05)**  
-   Formal extraction of mathematical foundations and physical requirements from `SRS_Chunk_17.md` and `test_chunk17_verification_suite.py`, ontological resolution of the taxonomy collision between Product B (Materials/Solids, PAW pseudopotentials, $\Gamma$-mesh Brillouin zone point collection) and Method Matrix Provenance Tag `[M]` (Mandatory / Methodological requirement) / Product M (Measured benchmark), formal IEEE 830/29148 interface specifications, and typed domain exception hierarchy (`GridSpecificationError`, `RedundantDispersionError`, `MissingDispersionError`, `SpinContaminationError`) (`L3-T3-01` to `L3-T3-04`).
+   Formal extraction of mathematical foundations and physical requirements from `SRS_Chunk_17.md` and `test_chunk17_verification_suite.py`, ontological resolution of the taxonomy collision between Product B (Gas-Phase Microwave Rotational Spectroscopy Pipeline, parent-anchored complex, frozen monomer protocol) and Method Matrix Provenance Tag `[M]` (Mandatory / Methodological requirement) / Product M (Periodic Solid-State Materials Pipeline, PAW pseudopotentials, $\Gamma$-mesh Brillouin zone point collection), formal IEEE 830/29148 interface specifications, and typed domain exception hierarchy (`GridSpecificationError`, `RedundantDispersionError`, `MissingDispersionError`, `SpinContaminationError`) (`L3-T3-01` to `L3-T3-04`).
 2. **Track 2: Dynamic Quadrature Lifecycle & Coupled Grid-SCF Invariant Engine (VR-03)**  
    Algorithmic management of the 3-stage dynamic quadrature tightening lifecycle (`DEFGRID1` $\to$ `DEFGRID2` $\to$ `DEFGRID3`), enforcing coupled grid-dependent SCF convergence gates (`NormalSCF` $\to$ `TightSCF` $\to$ `VeryTightSCF`), strict rejection of coarse grids for numerical frequency, harmonic Hessian, and VPT2 calculations, and dynamic stage transition gatekeeper parameterized by maximum gradient, energy change, and intermolecular Cartesian deviation (`L3-T3-05` to `L3-T3-08`).
 3. **Track 3: DFT Dispersion Sanitization & Multi-Body ATM Plane (VR-05)**  
@@ -39,16 +39,23 @@ The 18 component-level L3 microtasks encompass 100% of the engineering, mathemat
 
 ### 1.3 Ontological Disambiguation: Product B versus Provenance [M] versus Product M
 To eliminate cross-agent taxonomy confusion identified during preceding audit sessions, this WBS formalizes the ontological disambiguation matrix:
-- **Product B (Materials, Interfaces & Extended Systems) [D]:** Denotes solid-state periodic physical calculations utilizing Plane-Wave (PAW) pseudopotentials, reciprocal space k-point grids, and $\Gamma$-point evaluations for large unit cells ($V_{\text{cell}} > 2000\text{ \AA}^3$). Localized atom-centered Gaussian basis sets and canonical Coupled Cluster expansions are permanently disabled in Product B.
+- **Product B (Gas-Phase Microwave Rotational Spectroscopy Pipeline) [M]:** Denotes semi-experimental parent-anchored microwave rotational spectroscopy of gas-phase complexes. Known parent complex; freezes monomer internal geometry to fix rotational constant $A$, optimizes intermolecular distance $R$ to determine $B$ and $C$ (target accuracy: $0.03\% - 0.06\%$, search window $\pm 0.05\%$). Core physical observables are rotational constants $A, B, C$, centrifugal distortion parameters, and isotopic shifts for $^{13}\text{C}, \text{D}, ^{18}\text{O}$.
 - **Provenance Tag `[M]` (Methodological / Mandatory Invariant) [M]:** Denotes architectural rules, physical constraints, fail-closed validation gates, and Agent Council policy mandates that must be satisfied without deviation.
-- **Product M (Measured Benchmark) [D]:** Denotes empirical experimental spectroscopic constants (e.g. experimental substitution rotational constants $r_e^{\mathrm{SE}}$ from CCCBDB or microwave cavity Fourier transform spectrometers) utilized as immutable anchor points for Frozen Monomer Protocol (FMP) optimizations.
+- **Product M (Periodic Solid-State Materials Pipeline) [M]:** Denotes periodic solid-state physical calculations utilizing Plane-Wave (PAW) pseudopotentials, reciprocal space $k$-point grids (Monkhorst-Pack $\rho_k \ge 0.04\text{ \AA}^{-1}$), and $\Gamma$-point evaluations for large unit cells ($V_{\text{cell}} > 2000\text{ \AA}^3$), with target convergence bandgap $\le 0.1\text{ eV}$ and lattice parameters $\le 0.01\text{ \AA}$. Localized atom-centered Gaussian basis sets and canonical Coupled Cluster expansions are permanently disabled in Product M.
 
 ### 1.4 Level 2 Persistence Meta-WBS Integration (WBS 3.1 to WBS 3.5)
 In accordance with Agent Council governance standards, this master WBS incorporates the Level 2 Persistence Meta-WBS work packages:
 - `WBS 3.1`: Specification Ingestion & Boundary Audit (`cochem-sdp-manager`, `[GOV]`)
 - `WBS 3.2`: MECE Work Package Decomposition & Ontological Disambiguation (`cochem-sdp-manager`, `[GOV]`)
 - `WBS 3.3`: Swarm RACI Allocation & Boundary Isolation (`0rchestrator`, `[GOV]`)
-- `WBS 3.4`: Method Matrix Scientific Constraint Mapping (`researcher`, `[M]`)
+- `WBS 3.4`: Ontological Disambiguation & Systems Engineering Plane (Harmonized to 7 L3 Subtasks: 3.4.1–3.4.7 per Covenant 2) (`cochem-sdp-manager`, `[GOV]`)
+  * `WBS 3.4.1`: Level 3 Work Package Decomposition (`cochem-sdp-manager`, `[GOV]`)
+  * `WBS 3.4.2`: PMBOK Scope, Risk, Quality & Communication Standards (`cochem-sdp-manager`, `[GOV]`)
+  * `WBS 3.4.3`: Assign Swarm Agent Roles & Provenance Tags (`cochem-sdp-manager`, `[GOV]`)
+  * `WBS 3.4.4`: Formal Schema Separation & Taxonomy in theory_matrix.py (`cochem-coder`, `[PROC]` / `[M]`)
+  * `WBS 3.4.5`: User Manual & GUI Layout Harmonization (`cochem-scribe`, `[DOC]`)
+  * `WBS 3.4.6`: Split-Conformal Window & Calibration Verification (`cochem-tester`, `[PROC]` / `[M]`)
+  * `WBS 3.4.7`: Full-Repository Semantic Integrity & FAIR Audit (`cochem-audit`, `[PROC]`)
 - `WBS 3.5`: Multi-Mirror Filesystem Persistence & Asymmetric Red-Team Sign-Off (`cochem-sdp-manager`, `[PROC]`)
 
 ---
@@ -206,9 +213,9 @@ R = Responsible (Sole Agent executing) | A = Accountable (Final ownership) | C =
 - **Responsible Agent:** `cochem-sdp-manager` [GOV]
 - **Input Data Contract:** Method Matrix v4.1 (§2.2 Product Classification, §2.10 Standard State) and SRS Chunk 17 (§2.2).
 - **Technical Specification:** Construct an immutable semantic boundary resolving the historical three-way naming conflict:
-  1. *Product B (Solid-State Materials):* Periodic boundary condition workflows, Plane-Wave (PAW) pseudopotentials, reciprocal space k-point grids, and $\Gamma$-point evaluations for large unit cells ($V_{\text{cell}} > 2000\text{ \AA}^3$). Localized atom-centered Gaussian basis sets and canonical Coupled Cluster expansions are permanently disabled in Product B.
+  1. *Product B (Gas-Phase Microwave Spectroscopy):* Semi-experimental parent-anchored microwave rotational spectroscopy of gas-phase complexes ($A, B, C$ rotational constants, uncertainty $\le 0.06\%$, search window $\pm 0.05\%$). Monomer internal coordinates are frozen; intermolecular distance $R$ is optimized. Localized atom-centered Gaussian basis sets and canonical Coupled Cluster expansions are native to Product B.
   2. *Provenance Tag `[M]` (Methodological Invariant):* Architectural rules, physical constraints, fail-closed validation gates, and Agent Council policy mandates that must be satisfied without deviation.
-  3. *Product M (Measured Experimental Benchmark):* Ground-state experimental spectroscopic constants ($r_e^{\mathrm{SE}}$ from CCCBDB or microwave cavity Fourier transform spectrometers) utilized as immutable anchor points for Frozen Monomer Protocol (FMP) optimizations.
+  3. *Product M (Periodic Solid-State Materials):* Periodic boundary condition workflows, Plane-Wave (PAW) pseudopotentials, reciprocal space $k$-point grids, and $\Gamma$-point evaluations for large unit cells ($V_{\text{cell}} > 2000\text{ \AA}^3$). Localized atom-centered Gaussian basis sets and canonical Coupled Cluster expansions are permanently disabled in Product M. Target convergence bandgap $\le 0.1\text{ eV}$ and lattice parameters $\le 0.01\text{ \AA}$.
 - **Deliverable:** Incorporated into Section 1.3 of `task3_level2_wbs_breakdown.md` [GOV].
 - **Acceptance Gate:** Zero ambiguity across all swarm prompts and agent instruction decks; validated by `cochem-audit`.
 
@@ -434,7 +441,7 @@ To satisfy the CoChem Anti-Spoofing Protocol v4 and Council Invariants:
 Prior to presenting Task 3 deliverables for council sign-off, the following quality checklist must be systematically verified:
 
 - [x] **PMBOK 100% Rule Ratification:** All 18 component-level L3 implementation microtasks across Tracks 1–5 fully decomposed with zero scope omission [M].
-- [x] **Ontological Disambiguation Discharged:** Clear semantic boundaries established between Product B (Materials/Solids), Provenance Tag `[M]` (Methodological Invariant), and Product M (Measured benchmark) [M].
+- [x] **Ontological Disambiguation Discharged:** Clear semantic boundaries established between Product B (Gas-Phase Microwave Rotational Spectroscopy), Provenance Tag `[M]` (Methodological Invariant), and Product M (Periodic Solid-State Materials) [M].
 - [x] **Single-Accountable RACI Allocation:** 100% of tasks assigned to exactly one specialized council agent; zero dual or ambiguous ownership [M].
 - [x] **Method Matrix v4.1 Alignment:** Strict adherence to DEFGRID1-3 progression, Coupled Grid-SCF Invariant, VV10 vs D3/D4 sanitization, ATM 3-body dispersion, and singularity-protected spin gatekeeper [M].
 - [x] **Dynamic Mendeleev Mass Compliance:** Dynamic runtime mass queries via `from mendeleev import element` throughout all modules [M].

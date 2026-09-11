@@ -1,0 +1,15 @@
+{
+  "agent_name": "@cochem-coder",
+  "task_id": "TASK-1.3.1-MASS-WEIGHTED-CENTER-OF-MASS-VECTOR-ACCUMULATOR",
+  "status": "APPROVED_FOR_EXECUTION",
+  "preconditions": [
+    "TASK-1.2.1-REGEX-TOKENIZATION-AND-NUCLIDE-MASS-DISAMBIGUATION (src/cochem_base/physics/nuclide_resolver.py)",
+    "TASK-1.2.2-DYNAMIC-MENDELEEV-DATABASE-QUERY-BINDING",
+    "TASK-1.2.3-ZERO-STATIC-DICTIONARY-AST-LINTER-AND-SENTINEL-GUARD",
+    "TASK-1.2.4-PERIODIC-TABLE-VERIFICATION"
+  ],
+  "target_files": [
+    "src/cochem_base/physics/eckart_aligner.py"
+  ],
+  "prompt": "Implement WBS 1.3.1 Mass-Weighted Center-of-Mass Vector Accumulator in src/cochem_base/physics/eckart_aligner.py strictly adhering to L3_Decomposition_Task_1_VR01.md:L258-L271 and task_1_3_1_assignment_spec.md. Implement compute_center_of_mass, translate_to_center_of_mass, and verify_com_residual supporting (N, 3) and batched (B, N, 3) double-precision float64 geometries. Resolve nuclide masses dynamically via cochem_base.physics.nuclide_resolver.disambiguate_mass() enforcing the Dynamic Mendeleev Mandate. Enforce Numerical Invariant Gate VR-01-T01: residual norm ||sum(m_i * r_tilde_i)||_2 < 1e-12 u*Angstrom, raising COMResidualError on breach. Execute microsecond performance benchmark (< 15 µs for N=100). Governed by PCA-01 cryptographic receipts, PCA-02 strict path whitelist, and PCA-05 role segregation."
+}

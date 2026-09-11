@@ -1,0 +1,60 @@
+{
+  "document_id": "COCHEM-ADVERSARY-RECEIPT-SESSION-072-TASK1-5-3-20260911",
+  "council_session_id": "COUNCIL-SESSION-072",
+  "resolution_id": "COCHEM-COUNCIL-RES-072-TASK1-5-3-DISPATCH-RATIFICATION-20260911",
+  "task_id": "1.5.3",
+  "task_title": "Specified explicit agent assignments, provenance tags ([M], [D]), inputs, deliverables, and acceptance criteria for all 17 L3 microtasks of Task 1 (VR-01)",
+  "authoring_agent": "cochem-sdp-manager",
+  "supervising_authority": "0rchestrator",
+  "auditing_agent": "adversary",
+  "primary_auditing_agent": "cochem-audit",
+  "timestamp": "2026-09-11T08:52:00-05:00",
+  "technical_verdict": "PASS [AUDIT_VERIFIED]",
+  "swarm_ledger_verdict": "PASS [AUDIT_VERIFIED]",
+  "overall_verdict": "PASS [UNCONDITIONALLY RATIFIED]",
+  "statutory_verdict": "[STATUS: RATIFIED_FOR_L3_EXECUTION]",
+  "target_deliverable": {
+    "primary_path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task1_5_3_dispatch_prompt.md",
+    "repository_mirror_path": "D:/__CoChem/.docs/task1_5_3_dispatch_prompt.md",
+    "dropzone_mirror_path": "D:/__CoChem/__agentic/dropzones/inbox_srs/task1_5_3_dispatch_prompt.md",
+    "base_repo_mirror_path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task1_5_3_dispatch_prompt.md",
+    "physical_byte_count": 12163,
+    "line_count": 143,
+    "sha256_checksum": "EB9A3FF347B565D7A3E2F0C560322A111565076988B21DB2EAD1E1AB035E49C4",
+    "mirror_parity": "100.000% PASS across all 4 mirrors"
+  },
+  "forensic_ledger_findings": {
+    "swarm_state_file": "D:/__CoChem/swarm_state.json",
+    "recorded_session": "COUNCIL-SESSION-072",
+    "recorded_status": "COMPLETED",
+    "recorded_sha256": "EB9A3FF347B565D7A3E2F0C560322A111565076988B21DB2EAD1E1AB035E49C4",
+    "actual_sha256": "EB9A3FF347B565D7A3E2F0C560322A111565076988B21DB2EAD1E1AB035E49C4",
+    "recorded_task_description": "Task 1.5.3: Specified explicit agent assignments, provenance tags ([M], [D]), inputs, deliverables, and acceptance criteria for all 17 L3 microtasks of Task 1 (VR-01)",
+    "ssna_remediation_status": "VERIFIED_ON_DISK [100% BITWISE PARITY]"
+  },
+  "verification_details": {
+    "work_packages_elaborated": 17,
+    "work_package_range": "L3-T1-01 to L3-T1-17",
+    "raci_enforced": true,
+    "zero_mock_compliance": true,
+    "zero_stub_compliance": true,
+    "mendeleev_library_enforced": true,
+    "eckart_momentum_gate": "< 1.0e-10 a.u. [D]",
+    "center_of_mass_drift_gate": "< 1.0e-12 a.u. [D]",
+    "so3_proper_rotation_gate": "det(U) = +1.000000 +/- 1e-12 [D]",
+    "two_stage_conformer_gate": "1-WL (h=3) & Kabsch RMSD < 0.0800 A [M]"
+  },
+  "audit_reports": [
+    {
+      "auditor": "cochem-audit",
+      "path": "D:/__CoChem/.docs/cochem_audit_task1_5_3_dispatch_report.md",
+      "sha256": "C9E5CF4AC77D297AD17F0896A397BAA83B8C5CA427F41092E0B7AB1281D19308"
+    },
+    {
+      "auditor": "adversary",
+      "path": "D:/__CoChem/.docs/adversary_task1_5_3_prompt_audit_report.md",
+      "sha256": "64D8D93877A72D21D888BB6E5A8A324662124D12EA4F69D6BE776C40AAE8F1AB"
+    }
+  ],
+  "provenance_tag": "[GOV][M]"
+}

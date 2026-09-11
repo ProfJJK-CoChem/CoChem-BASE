@@ -1,11 +1,11 @@
 {
-  "audit_receipt_id": "COCHEM-ADVERSARY-RECEIPT-SESSION-046-TASK3-4-2-20260911",
+  "audit_receipt_id": "COCHEM-ADVERSARY-RECEIPT-SESSION-046-TASK3-4-2-RATIFIED-20260911",
   "council_session_id": "COUNCIL-SESSION-046",
   "auditing_agent": "adversary",
   "audit_role": "Ruthless Red-Team Meta-Auditor, CoChem Agent Council",
   "supervising_authority": "0rchestrator",
-  "audit_type": "ADVERSARIAL_RED_TEAM_PHYSICAL_DELIVERABLE_AUDIT",
-  "timestamp": "2026-09-11T01:15:00-05:00",
+  "audit_type": "ADVERSARIAL_RED_TEAM_POST_REMEDIATION_META_AUDIT",
+  "timestamp": "2026-09-11T01:26:00-05:00",
   "verdict": "PASS",
   "statutory_verdict": "[STATUS: DUAL-RATIFIED]",
   "target_work_package": "TASK-3-4-2-COUPLED-GRID-SCF-MATHEMATICAL-MAPPING",
@@ -14,55 +14,54 @@
   "authoring_agent": "researcher",
   "accountable_agent": "cochem-sdp-manager",
   "interrogated_qa_agent": "cochem-audit",
-  "interrogated_qa_report_id": "COCHEM-AUDIT-TASK3-4-2-PASS-20260911",
+  "interrogated_qa_receipt_id": "COCHEM-AUDIT-RECEIPT-SESSION-046-TASK3-4-2-RATIFIED-20260911",
+  "remediation_git_commit": "8408988",
+  "qa_ratification_git_commit": "98d6508",
   "statutory_verification_scorecard": {
-    "mandate_01_physical_existence_and_byte_parity": "PASS [All 5 mirrors verified on disk, exactly 34043 bytes, 342 lines] [M]",
-    "mandate_02_cryptographic_parity": "PASS [All 5 mirrors verified identical SHA-256: 6CED5EDFB64FFFB02CF3E9E06E0364BFDB74CF55988CD795B03A2C2E66138FAB] [M]",
-    "mandate_03_mathematical_convergence_proof": "PASS [Analytical proof bounding residual rotational deviation to Delta B / B <= 0.07% for TolMaxG = 1.0e-5 a.u. on Fraser benchmark] [M]",
-    "mandate_04_grid_scf_invariant": "PASS [DEFGRID1-3 dynamic lifecycle and Coupled Grid-SCF Invariant with TightSCF floor coupling strictly enforced] [M]",
-    "mandate_05_quintuple_block_parameterization": "PASS [Exhaustive parameterization of 6 thresholds and ban on Calc_Hess true validated] [M]",
-    "mandate_06_physical_benchmark_grounding": "PASS [CO2...H2O T-shaped dimer geometry, dynamic Mendeleev nuclide masses, and FMP break-even verified] [M]",
-    "mandate_07_zero_mock_and_ast_linter": "PASS [anti_spoof_linter.py passed with exit code 0; live pytest chunk17 passed 11 of 11 tests] [M]",
-    "mandate_08_git_staged_cleanliness_pca_13": "PASS [git diff --cached --stat confirms A .docs/task3_4_2_coupled_grid_scf_mapping.md (342 insertions, 0 noise)] [M]",
-    "mandate_09_swarm_state_synchronization": "PASS [swarm_state.json updated with execution, cochem-audit, and adversary dual ratification] [GOV][M]"
+    "def_phys_01_nuclidic_mass_12c": "PASS [Authentic Carbon-12 mass 12.0 u; Ia=44.195907, Ib=109.276709, Ic=151.156987 u*A^2; A=11434.97, B=4624.76, C=3343.41 MHz verified] [M]",
+    "def_math_01_force_constant_conversion": "PASS [0.069 mdyn/A = 6.90 N/m = 4.431904e-3 Eh/bohr^2; Delta R_max = 0.001194 A; |Delta B / B| = 0.0702% at 3.40 A and 0.0823% at 2.90 A verified] [M]",
+    "def_hash_01_table_8_persistence": "PASS [Section 8 Table 8 records invariant commitment; Quine hash drift resolved; 100% bitwise parity confirmed] [M]",
+    "def_rat_02_premature_ratification_closure": "PASS [Prior premature pass superseded by formal forensic indictment and independent multi-agent re-audit] [M]",
+    "zero_mock_ast_and_pytest": "PASS [anti_spoof_linter.py strict exit code 0; test_chunk17_verification_suite.py 11/11 passed in 16.32s] [M]",
+    "git_staged_cleanliness_pca_13": "PASS [Clean commits 8408988 and 98d6508; zero uncommitted diffs on work package artifacts] [M]"
   },
   "mirrors_verified": [
     {
       "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task3_4_2_coupled_grid_scf_mapping.md",
-      "bytes": 34043,
-      "lines": 342,
-      "sha256": "6CED5EDFB64FFFB02CF3E9E06E0364BFDB74CF55988CD795B03A2C2E66138FAB"
+      "bytes": 34646,
+      "lines": 346,
+      "sha256": "4F8C54A9B2178DF04653C57F00987A145D85A6CEDDF8B24F8333138BBAAB46A0"
     },
     {
       "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task3_4_2_coupled_grid_scf_mapping.md",
-      "bytes": 34043,
-      "lines": 342,
-      "sha256": "6CED5EDFB64FFFB02CF3E9E06E0364BFDB74CF55988CD795B03A2C2E66138FAB"
+      "bytes": 34646,
+      "lines": 346,
+      "sha256": "4F8C54A9B2178DF04653C57F00987A145D85A6CEDDF8B24F8333138BBAAB46A0"
     },
     {
       "path": "D:/__CoChem/.docs/task3_4_2_coupled_grid_scf_mapping.md",
-      "bytes": 34043,
-      "lines": 342,
-      "sha256": "6CED5EDFB64FFFB02CF3E9E06E0364BFDB74CF55988CD795B03A2C2E66138FAB"
+      "bytes": 34646,
+      "lines": 346,
+      "sha256": "4F8C54A9B2178DF04653C57F00987A145D85A6CEDDF8B24F8333138BBAAB46A0"
     },
     {
       "path": "D:/__CoChem/__agentic/dropzones/inbox_srs/task3_4_2_coupled_grid_scf_mapping.md",
-      "bytes": 34043,
-      "lines": 342,
-      "sha256": "6CED5EDFB64FFFB02CF3E9E06E0364BFDB74CF55988CD795B03A2C2E66138FAB"
+      "bytes": 34646,
+      "lines": 346,
+      "sha256": "4F8C54A9B2178DF04653C57F00987A145D85A6CEDDF8B24F8333138BBAAB46A0"
     },
     {
       "path": "C:/Users/ansac/.gemini/antigravity-cli/brain/39d42e6e-e595-4b4e-aea8-48b46da608bd/task3_4_2_coupled_grid_scf_mapping.md",
-      "bytes": 34043,
-      "lines": 342,
-      "sha256": "6CED5EDFB64FFFB02CF3E9E06E0364BFDB74CF55988CD795B03A2C2E66138FAB"
+      "bytes": 34646,
+      "lines": 346,
+      "sha256": "4F8C54A9B2178DF04653C57F00987A145D85A6CEDDF8B24F8333138BBAAB46A0"
     }
   ],
   "audit_report_reference": {
     "report_id": "COCHEM-ADVERSARY-AUDIT-SESSION-046-TASK3-4-2-RATIFICATION-20260911",
-    "sha256": "A249904FC45A55874F69368289EBA39E9F477E15B0CE7F57DE184E28FB9124E1",
-    "bytes": 6034,
-    "lines": 66
+    "sha256": "EB3AE8AC133AE8383BE2A2AF94A01CF208858D002FAE9B9AED32EA477F54CBBB",
+    "bytes": 9487,
+    "lines": 95
   },
   "dual_ratification_status": "DUALLY_RATIFIED",
   "council_resolution": "COCHEM-COUNCIL-RES-047",

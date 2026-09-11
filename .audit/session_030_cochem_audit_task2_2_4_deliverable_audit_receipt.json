@@ -1,0 +1,55 @@
+{
+  "audit_receipt_id": "COCHEM-AUDIT-RECEIPT-SESSION-030-COCHEM-AUDIT-TASK2-2-4-DELIVERABLE-20260911",
+  "auditing_agent": "cochem-audit",
+  "auditing_subagent_conversation_id": "15e96fb8-7393-4620-b2b9-950e015ece41",
+  "supervising_authority": "0rchestrator",
+  "council_session_id": "COUNCIL-SESSION-030",
+  "task_id": "2.2.4",
+  "wbs_level": "Level 2 / Task 2.2 Technical Scope Definition",
+  "verdict": "PASS",
+  "statutory_verdict": "[STATUS: PASS]",
+  "timestamp": "2026-09-11T09:34:00-05:00",
+  "target_deliverable": {
+    "relative_path": ".docs/task2_2_4_pipeline_dependency_graph_and_raci.md",
+    "bytes": 29779,
+    "lines": 276,
+    "sha256": "1EA38A0BFDB73942EC3B5A7F50E2A04100957E415574F45A6270D9F392E8F70A",
+    "parity_locations": [
+      "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_2_4_pipeline_dependency_graph_and_raci.md",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_2_4_pipeline_dependency_graph_and_raci.md",
+      "D:/__CoChem/.docs/task2_2_4_pipeline_dependency_graph_and_raci.md",
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_2_4_pipeline_dependency_graph_and_raci.md"
+    ],
+    "parity_status": "100_PERCENT_BITWISE_MATCH_4_LOCATIONS"
+  },
+  "ledger_audit": {
+    "status": "PENDING_AUDIT",
+    "audit_verdict": "PENDING_AUDIT",
+    "adversary_verdict": "PENDING_AUDIT",
+    "council_verdict": "PENDING_AUDIT",
+    "work_packages_count": 22,
+    "bytes": 280267,
+    "lines": 5102,
+    "sha256": "D607D6E977C7024A97190CFCEF988DA12D36E883E2200B732E0A6D471F907741",
+    "parity_locations": [
+      "D:/__CoChem/swarm_state.json",
+      "D:/__CoChem/__agentic/swarm_state.json",
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/swarm_state.json",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/swarm_state.json"
+    ],
+    "parity_status": "100_PERCENT_BITWISE_MATCH_4_LOCATIONS",
+    "git_staged": true
+  },
+  "raci_verification": {
+    "work_packages_count": 22,
+    "single_r_verified": true,
+    "single_a_verified": true,
+    "dual_r_violations": 0,
+    "dual_a_violations": 0
+  },
+  "cpm_verification": {
+    "wp_fnd_01_total_float": 0,
+    "wp_fnd_01_critical_path": "YES",
+    "topological_cycles": 0
+  }
+}

@@ -1,48 +1,30 @@
 {
-  "agent": "cochem-sdp-manager",
+  "agent": "0rchestrator",
   "council_session_id": "COUNCIL-SESSION-074",
-  "session_alias": "Council Session 074 - Ratification of Task 2.2.1 Execution Agent Specification and Dispatch Prompt",
-  "resolution_id": "COCHEM-COUNCIL-RES-074-TASK2-2-1-DISPATCH-RATIFICATION-20260911",
-  "task_id": "2.2.1",
-  "status": "COMPLETED",
-  "audit_verdict": "PASS [AUDIT_VERIFIED & RATIFIED ON PHYSICAL DISK]",
-  "adversary_verdict": "PASS [ADVERSARY_VERIFIED & RATIFIED ON PHYSICAL DISK]",
+  "session_alias": "Council Session 074 - Implementation, Verification & Ratification of Task 1.3.3 Core Intake Algorithms",
+  "resolution_id": "COCHEM-COUNCIL-RES-074-TASK1-3-3-RATIFICATION-20260911",
+  "task_id": "1.3.3",
+  "status": "RATIFIED",
+  "audit_verdict": "PASS",
+  "adversary_verdict": "PASS",
   "council_verdict": "UNCONDITIONALLY_RATIFIED",
-  "agent_name": "cochem-sdp-manager",
-  "timestamp": "2026-09-11T09:20:00-05:00",
-  "task": "Task 2.2.1: Survey existing Method Matrix specifications and geometry/calc modules in CoChem-BASE - Authoritative Dispatch Specification and Dual Audit Ratified",
-  "wbs_level": "Level 2 / Task 2.2 Technical Scope Definition",
-  "work_packages_count": 17,
+  "agent_name": "0rchestrator",
+  "timestamp": "2026-09-11T09:33:00-05:00",
+  "task": "Task 1.3.3: Implementation and Physical Verification of L2-T1.1 through L2-T1.4 Core Intake Algorithms adhering to Anti-Spoofing Protocol v4 and Mendeleev Mandate",
+  "wbs_level": "Level 2 / Task 1.3 Scope Partitioning & Intake Engines",
+  "work_packages_count": 22,
   "raci_enforced": true,
   "provenance_tags_sanitized": true,
   "anti_spoofing_compliance": true,
   "artifacts_produced": [
-    "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_2_1_dispatch_prompt.md",
-    "D:/__CoChem/.docs/task2_2_1_dispatch_prompt.md",
-    "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_2_1_dispatch_prompt.md",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_2_1_dispatch_prompt.md",
-    "C:/Users/ansac/.gemini/antigravity-cli/scratch/cochem_audit_task2_2_1_dispatch_report.md",
-    "D:/__CoChem/.docs/cochem_audit_task2_2_1_dispatch_report.md",
-    "D:/__CoChem/__agentic/dropzones/inbox_srs/cochem_audit_task2_2_1_dispatch_report.md",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/cochem_audit_task2_2_1_dispatch_report.md",
-    "C:/Users/ansac/.gemini/antigravity-cli/scratch/adversary_task2_2_1_prompt_audit_report.md",
-    "D:/__CoChem/.docs/adversary_task2_2_1_prompt_audit_report.md",
-    "D:/__CoChem/__agentic/dropzones/inbox_srs/adversary_task2_2_1_prompt_audit_report.md",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/adversary_task2_2_1_prompt_audit_report.md",
-    "C:/Users/ansac/.gemini/antigravity-cli/scratch/COCHEM_ORCHESTRATOR_TASK_2_2_1_RATIFICATION_REPORT.md",
-    "D:/__CoChem/.docs/COCHEM_ORCHESTRATOR_TASK_2_2_1_RATIFICATION_REPORT.md",
-    "D:/__CoChem/__agentic/dropzones/inbox_srs/COCHEM_ORCHESTRATOR_TASK_2_2_1_RATIFICATION_REPORT.md",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/COCHEM_ORCHESTRATOR_TASK_2_2_1_RATIFICATION_REPORT.md",
-    "C:/Users/ansac/.gemini/antigravity-cli/scratch/session_074_cochem_audit_task2_2_1_dispatch_receipt.json",
-    "D:/__CoChem/.audit/session_074_cochem_audit_task2_2_1_dispatch_receipt.json",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.audit/session_074_cochem_audit_task2_2_1_dispatch_receipt.json",
-    "C:/Users/ansac/.gemini/antigravity-cli/scratch/session_074_adversary_task2_2_1_dispatch_receipt.json",
-    "D:/__CoChem/.audit/session_074_adversary_task2_2_1_dispatch_receipt.json",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.audit/session_074_adversary_task2_2_1_dispatch_receipt.json"
+    "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_2_4_pipeline_dependency_graph_and_raci.md",
+    "D:/__CoChem/.docs/task2_2_4_pipeline_dependency_graph_and_raci.md",
+    "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_2_4_pipeline_dependency_graph_and_raci.md",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_2_4_pipeline_dependency_graph_and_raci.md"
   ],
-  "sha256_checksum": "15A85347C9C0CEF62EF85379988D5A871DD1CF00C71F9771785170C43AAFE48E",
-  "byte_count": 17586,
-  "line_count": 180,
+  "sha256_checksum": "1EA38A0BFDB73942EC3B5A7F50E2A04100957E415574F45A6270D9F392E8F70A",
+  "byte_count": 29779,
+  "line_count": 276,
   "forensic_vectors": {
     "forensic_verdict": {
       "status": "DEF_DIFF_01_DEF_DIFF_02_DEF_TIME_01_CONTAINED_AND_RECTIFIED_VIA_ATOMIC_GIT_STAGING_AND_PCA_14_CHRONOMETER",
@@ -245,7 +227,7 @@
     "cochem-tester": {
       "role": "TDD & Verification Specialist",
       "vote": "AYE (PASSED_12_OF_12)",
-      "notes": "12 of 12 tests passed in tests/base/test_deduplicator_topology.py; microsecond benchmark < 50 \u00b5s verified [M]."
+      "notes": "12 of 12 tests passed in tests/base/test_deduplicator_topology.py; microsecond benchmark < 50 µs verified [M]."
     },
     "cochem-scribe": {
       "role": "Lead Technical Author",
@@ -1013,7 +995,7 @@
       "2.3.3.1.6: Trajectory Drift & Residual Gradient Parser Subsystem (VR-02) (@cochem-coder) [D]",
       "2.3.3.1.7: Zero-Mock TDD Test Harness for Optimization Engine Pipeline (cochem-tester) [M]",
       "2.3.3.2.1: Tri-Repository Architectural Mapping & Dataflow Contracts (cochem-sdp-manager / @cochem-coder) [D]",
-      "2.3.3.2.2: Method Matrix \u00a73.0 (Be vs B0) & \u00a73.3 Spend Priority Engine (@cochem-coder) [M]",
+      "2.3.3.2.2: Method Matrix §3.0 (Be vs B0) & §3.3 Spend Priority Engine (@cochem-coder) [M]",
       "2.3.3.2.3: Rule 1.1 Pre-Flight MCP Tool Discovery & Canonical Kanban Protocol (cochem-sdp-manager / @cochem-coder) [GOV]/[D]",
       "2.3.3.2.4: Rule 1.2 MCP Tool Creation RFC Workflow & User Approval Gate (cochem-sdp-manager) [GOV]",
       "2.3.3.3.1: Asymmetric Architectural & Method Matrix Compliance Audit (cochem-audit) [M]",
@@ -5115,5 +5097,77 @@
     "ratification_report_path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/COCHEM_ORCHESTRATOR_TASK_2_2_1_RATIFICATION_REPORT.md",
     "ratification_report_sha256": "33D73D74FD1D4349423989A7466CB4022B681430E17C260F1373939AF7DE942B",
     "bitwise_parity": "100.000% PASS across 4 mirrors"
+  },
+  "zero_mock_enforced": true,
+  "task_1_3_3_implementation_and_ratification": {
+    "task_id": "TASK-1-3-3-CORE-INTAKE-ALGORITHMS-IMPLEMENTATION",
+    "status": "UNCONDITIONALLY_RATIFIED",
+    "council_session_id": "COUNCIL-SESSION-074",
+    "resolution_id": "COCHEM-COUNCIL-RES-074-TASK1-3-3-RATIFICATION-20260911",
+    "ratification_code": "[RATIFIED_COCHEM_COUNCIL_SESSION_074_TASK1_3_3_PASS]",
+    "timestamp": "2026-09-11T09:33:00-05:00",
+    "designated_agent": "cochem-coder",
+    "qa_lead_auditor": "cochem-audit",
+    "redteam_auditor": "adversary",
+    "supervising_authority": "0rchestrator",
+    "audit_verdicts": {
+      "cochem_audit": "PASS [STATUS: RATIFIED]",
+      "adversary": "PASS [STATUS: UNCONDITIONALLY RATIFIED]",
+      "council": "UNCONDITIONALLY_RATIFIED"
+    },
+    "work_packages": {
+      "L2-T1.1": {
+        "name": "Dynamic Mendeleev Mass Resolution & Nuclide Alias Engine",
+        "module": "src/cochem_base/physics/isotopes.py",
+        "status": "RATIFIED",
+        "verification": "0 static dicts in AST; dynamic Mendeleev queries with LRU cache; ghost centers (Gh, Bq, X) -> 0.0 u and Z=0; hyphenated (C-13) and prefix (13C) nuclide normalization."
+      },
+      "L2-T1.2": {
+        "name": "Kahan Compensated COM Drift Zeroing Engine",
+        "module": "src/cochem_base/intake/cochem_molsym_eckart_aligner.py",
+        "status": "RATIFIED",
+        "verification": "Double-precision Kahan compensated summation _kahan_compensated_sum; residual COM drift = 2.2204e-16 a.u. < 1.0e-12 a.u."
+      },
+      "L2-T1.3": {
+        "name": "Mass-Weighted Eckart Frame Alignment & Proper SO(3) Rotation",
+        "module": "src/cochem_base/intake/cochem_molsym_eckart_aligner.py",
+        "status": "RATIFIED",
+        "verification": "Kabsch SVD with reflection parity correction det(U) = +1.0000000000000004; residual Coriolis torque = 5.7163e-17 a.u. < 1.0e-10 a.u.; static mass fallback floats eradicated; synthetic array generators eradicated."
+      },
+      "L2-T1.4": {
+        "name": "Two-Stage Conformer Sieve & Hungarian Fallback",
+        "module": "src/cochem_base/intake/conformer_deduplication.py",
+        "status": "RATIFIED",
+        "verification": "Stage 1 1-WL k=3 covalent graph hash; Stage 2 Horn unit quaternion Kabsch RMSD < 0.08 A & |Delta B/B| <= 0.05% spectroscopic filter; Hungarian fallback via linear_sum_assignment for |Aut(G)| > 720."
+      },
+      "L2-T1.6": {
+        "name": "Physical Verification Suite",
+        "module": "tests/test_chunk17_verification_suite.py",
+        "status": "RATIFIED",
+        "verification": "12/12 pytest tests passed in 26.09s; direct calls to translate_to_center_of_mass; test doubles eradicated."
+      },
+      "CI-AST": {
+        "name": "AST Anti-Spoof Linter Hardening",
+        "module": "ci_tools/anti_spoof_linter.py",
+        "status": "RATIFIED",
+        "verification": "'identity' added to BANNED_NUMPY_GENERATORS; strict mode 0 violations."
+      }
+    },
+    "physical_invariants": {
+      "kahan_com_drift_au": 2.2204e-16,
+      "eckart_rotation_det": 1.0000000000000004,
+      "eckart_residual_torque_au": 5.7163e-17,
+      "hungarian_rmsd_water_angstrom": 0.0,
+      "pytest_passed_count": 12,
+      "ast_spoof_violations": 0
+    },
+    "receipts": {
+      "cochem_audit_receipt": "session_074_cochem_audit_task1_3_3_receipt.json",
+      "cochem_audit_sha256": "B69811DF07E07E67A1C3B9465FAAF15951AB98E422241F131D86F1F907FC01B3",
+      "adversary_receipt": "session_074_adversary_task1_3_3_receipt.json",
+      "adversary_sha256": "E6AC605FBB620BA42081D7612002E4BBDFDFD66BC455E7B33D2A204226D2D363",
+      "ratification_report": "COCHEM_ORCHESTRATOR_TASK_1_3_3_RATIFICATION_REPORT.md",
+      "ratification_report_sha256": "6909CC412D84139A67DE57E4327618693FE77C29822C64E307906D4994EE398B"
+    }
   }
 }

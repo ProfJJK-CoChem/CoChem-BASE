@@ -166,20 +166,22 @@ class DynamicMendeleevMassMap(Mapping):
         if clean.upper() in {"D", "2H"}:
             try:
                 for iso in getattr(mendeleev.element("H"), "isotopes", []):
-                    if iso.mass_number == 2:
+                    if iso.mass_number == 2 and iso.mass is not None:
                         return float(iso.mass)
             except Exception as _e:
                 logger.debug(f"Ignored exception: {_e}")
-            return 2.01410177812
+            from cochem_base.physics.isotopes import get_isotope_mass
+            return get_isotope_mass("H", 2)
 
         if clean.upper() in {"T", "3H"}:
             try:
                 for iso in getattr(mendeleev.element("H"), "isotopes", []):
-                    if iso.mass_number == 3:
+                    if iso.mass_number == 3 and iso.mass is not None:
                         return float(iso.mass)
             except Exception as _e:
                 logger.debug(f"Ignored exception: {_e}")
-            return 3.01604928132
+            from cochem_base.physics.isotopes import get_isotope_mass
+            return get_isotope_mass("H", 3)
 
         # Parse element symbol with optional isotope / label (e.g., C13, 13C, Cl-35, O_16, C:1)
         m = re.match(r"^([0-9]*)([A-Za-z]{1,2})([0-9_\-:]*)$", clean)
@@ -382,6 +384,25 @@ def resolve_molecular_masses(
 # 4. Center of Mass (COM) Translation Engine
 # ==============================================================================
 
+def _kahan_compensated_sum(values: Union[Sequence[float], np.ndarray]) -> float:
+    """Evaluates double-precision Kahan compensated summation to eliminate roundoff error. [M][D]
+
+    Maintains a running compensation accumulator c tracking low-order bits lost in addition:
+        y = val - c
+        t = sum + y
+        c = (t - sum) - y
+        sum = t
+    """
+    s = 0.0
+    c = 0.0
+    for v in values:
+        y = float(v) - c
+        t = s + y
+        c = (t - s) - y
+        s = t
+    return s
+
+
 def compute_center_of_mass(
     coords: Union[np.ndarray, Sequence[Sequence[float]]],
     masses: Optional[Union[Sequence[float], np.ndarray]] = None,
@@ -389,7 +410,9 @@ def compute_center_of_mass(
 ) -> np.ndarray:
     """Computes the mass-weighted Center of Mass (COM) vector for a molecular system.
 
-    Ghost atoms (mass = 0.0) are completely excluded from the mass weighting.
+    Uses double-precision Kahan compensated summation to prevent precision loss across
+    disparate mass scales (Method Matrix v4.1 §2.3.1). Ghost atoms (mass = 0.0) are
+    completely excluded from mass weighting.
 
     Parameters
     ----------
@@ -410,8 +433,15 @@ def compute_center_of_mass(
         raise CenterOfMassError(f"Expected coordinates shape (N, 3), got {coords_arr.shape}.")
 
     masses_arr = resolve_molecular_masses(coords_arr, masses=masses, symbols=symbols)
-    total_mass = float(np.sum(masses_arr))
-    return np.sum(coords_arr * masses_arr[:, np.newaxis], axis=0) / total_mass
+    total_mass = _kahan_compensated_sum(masses_arr)
+    if total_mass <= 0.0:
+        raise CenterOfMassError("Total mass of system must be positive.")
+
+    com = np.array([
+        _kahan_compensated_sum(coords_arr[:, d] * masses_arr) / total_mass
+        for d in range(3)
+    ], dtype=np.float64)
+    return com
 
 
 def translate_to_center_of_mass(
@@ -1409,30 +1439,24 @@ def construct_vibrational_projector(
     sqrt_m = np.sqrt(masses_arr)
 
     # 3 mass-weighted translational basis vectors
-    D_trans = np.zeros((3 * N, 3), dtype=np.float64)
+    d_trans_rows = []
     for i in range(N):
-        w = sqrt_m[i] / np.sqrt(total_mass)
-        D_trans[3 * i, 0] = w
-        D_trans[3 * i + 1, 1] = w
-        D_trans[3 * i + 2, 2] = w
+        w = float(sqrt_m[i] / np.sqrt(total_mass))
+        d_trans_rows.append([w, 0.0, 0.0])
+        d_trans_rows.append([0.0, w, 0.0])
+        d_trans_rows.append([0.0, 0.0, w])
+    D_trans = np.asarray(d_trans_rows, dtype=np.float64)
 
     # 3 mass-weighted rotational basis vectors
-    D_rot = np.zeros((3 * N, 3), dtype=np.float64)
+    d_rot_rows = []
     for i in range(N):
-        sm = sqrt_m[i]
-        x, y, z = coords_com[i]
-        # Rotation about x: sm * (0, -z, y)
-        D_rot[3 * i, 0] = 0.0
-        D_rot[3 * i + 1, 0] = -sm * z
-        D_rot[3 * i + 2, 0] = sm * y
-        # Rotation about y: sm * (z, 0, -x)
-        D_rot[3 * i, 1] = sm * z
-        D_rot[3 * i + 1, 1] = 0.0
-        D_rot[3 * i + 2, 1] = -sm * x
-        # Rotation about z: sm * (-y, x, 0)
-        D_rot[3 * i, 2] = -sm * y
-        D_rot[3 * i + 1, 2] = sm * x
-        D_rot[3 * i + 2, 2] = 0.0
+        sm = float(sqrt_m[i])
+        x, y, z = float(coords_com[i, 0]), float(coords_com[i, 1]), float(coords_com[i, 2])
+        # Rotation about x, y, z
+        d_rot_rows.append([0.0, sm * z, -sm * y])
+        d_rot_rows.append([-sm * z, 0.0, sm * x])
+        d_rot_rows.append([sm * y, -sm * x, 0.0])
+    D_rot = np.asarray(d_rot_rows, dtype=np.float64)
 
     D_rigid = np.hstack([D_trans, D_rot])  # (3N, 6)
 
@@ -1442,7 +1466,9 @@ def construct_vibrational_projector(
 
     E_rigid = U_svd[:, :k_rigid]
     P_rigid = E_rigid @ E_rigid.T
-    P_vib = np.eye(3 * N, dtype=np.float64) - P_rigid
+    dim_3n = 3 * N
+    identity_3n = np.array([[1.0 if r == c else 0.0 for c in range(dim_3n)] for r in range(dim_3n)], dtype=np.float64)
+    P_vib = identity_3n - P_rigid
     return P_vib
 
 

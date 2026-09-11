@@ -60,6 +60,7 @@ BANNED_NUMPY_GENERATORS: Set[str] = {
     "zeros",
     "ones",
     "eye",
+    "identity",
     "sin",
     "rand",
     "randn",

@@ -3,11 +3,11 @@
 Authoritative Materials Preflight Validation Engine for CoChem-BASE (Task L3.2.3).
 Enforces physical and crystallographic boundary invariants for Product M (Solid-State Materials):
 - Non-degenerate unit cell volume: V_cell = |a_1 . (a_2 x a_3)| > 1.0e-6 A^3 [M]
-- Reciprocal lattice vectors: b_i = 2*pi * (a_j x a_k) / V_cell [M]
+- Reciprocal lattice vectors: b_i = 2*pi * (a_j x a_k) / (a_1 . (a_2 x a_3)) [M]
 - Monkhorst-Pack reciprocal k-point linear density: rho_{k,i} = k_i / |b_i| >= 0.04 A^-1 [M]
 - Gamma-point integration ceiling: kmesh = (1, 1, 1) mandates V_cell > 2000.0 A^3 [M]
 - Vacuum separation in non-periodic dimensions (slabs / wires) >= 15.0 A [M]
-- Dynamic atomic masses and numbers retrieved exclusively via Mendeleev library [M]
+- Dynamic atomic masses and numbers retrieved via Mendeleev library [M]
 - Analytical metric tensor crystal system detection with optional spglib interface [M]
 
 Method Matrix Reference: Sections 1.2, 2.2, 3.0, and 4.4.
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime
 import math
+import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -34,14 +35,43 @@ MIN_RECIPROCAL_K_DENSITY_ANG_INV: float = 0.04  # rho_k >= 0.04 A^-1
 GAMMA_POINT_VOLUME_CEILING_ANG3: float = 2000.0  # Gamma-only mandates V > 2000 A^3
 MIN_VACUUM_SEPARATION_ANG: float = 15.0  # Vacuum padding >= 15.0 A for non-periodic dimensions
 
+_ISOTOPE_SYMBOL_MAP: Dict[str, str] = {
+    "D": "H",
+    "2H": "H",
+    "T": "H",
+    "3H": "H",
+}
 
-def compute_cell_volume(lattice_vectors: Union[np.ndarray, Sequence[Sequence[float]]]) -> float:
+
+def _resolve_element_symbol(sym_or_z: Union[str, int]) -> str:
+    """Normalizes element symbols and isotopic designations to standard chemical symbols."""
+    if isinstance(sym_or_z, (int, np.integer)):
+        return str(element(int(sym_or_z)).symbol)
+
+    cleaned = str(sym_or_z).strip()
+    upper_sym = cleaned.upper()
+    if upper_sym in _ISOTOPE_SYMBOL_MAP:
+        return _ISOTOPE_SYMBOL_MAP[upper_sym]
+
+    match = re.match(r"^(\d+)([A-Za-z]+)$", cleaned)
+    if match:
+        return match.group(2).capitalize()
+
+    return cleaned.capitalize()
+
+
+def compute_cell_volume(
+    lattice_vectors: Union[np.ndarray, Sequence[Sequence[float]]],
+    enforce_non_degenerate: bool = False,
+) -> float:
     """Calculates the scalar triple product volume of the unit cell: V_cell = |a_1 . (a_2 x a_3)|.
 
     Parameters
     ----------
     lattice_vectors : Union[np.ndarray, Sequence[Sequence[float]]]
         3x3 array where row vectors are direct lattice vectors a_1, a_2, a_3 in Angstroms.
+    enforce_non_degenerate : bool
+        If True, raises InvalidPeriodicCellError when cell volume is <= 1.0e-6 A^3.
 
     Returns
     -------
@@ -51,7 +81,8 @@ def compute_cell_volume(lattice_vectors: Union[np.ndarray, Sequence[Sequence[flo
     Raises
     ------
     InvalidPeriodicCellError
-        If lattice vectors have invalid dimensions or contain non-finite numbers (NaN/Inf).
+        If lattice vectors have invalid dimensions, contain non-finite numbers (NaN/Inf),
+        or are degenerate when enforce_non_degenerate is enabled.
     """
     arr = np.asarray(lattice_vectors, dtype=np.float64)
     if arr.shape != (3, 3):
@@ -66,7 +97,13 @@ def compute_cell_volume(lattice_vectors: Union[np.ndarray, Sequence[Sequence[flo
         )
     a1, a2, a3 = arr[0], arr[1], arr[2]
     signed_volume = float(np.dot(a1, np.cross(a2, a3)))
-    return abs(signed_volume)
+    vol = abs(signed_volume)
+    if enforce_non_degenerate and vol <= MIN_UNIT_CELL_VOLUME_ANG3:
+        raise InvalidPeriodicCellError(
+            f"Unit cell volume V_cell = {vol:.6e} A^3 is degenerate or non-positive (<= {MIN_UNIT_CELL_VOLUME_ANG3:.1e} A^3) [M].",
+            details={"volume": vol, "threshold": MIN_UNIT_CELL_VOLUME_ANG3},
+        )
+    return vol
 
 
 compute_scalar_triple_product_volume = compute_cell_volume
@@ -132,7 +169,7 @@ compute_reciprocal_lattice_vectors = compute_reciprocal_vectors
 
 def compute_kmesh_density(
     lattice_vectors: Union[np.ndarray, Sequence[Sequence[float]]],
-    kmesh: Tuple[int, int, int],
+    kmesh: Union[Tuple[int, int, int], Sequence[int]],
 ) -> np.ndarray:
     """Computes the reciprocal linear k-point density rho_{k,i} = k_i / |b_i| for each axis.
 
@@ -140,7 +177,7 @@ def compute_kmesh_density(
     ----------
     lattice_vectors : Union[np.ndarray, Sequence[Sequence[float]]]
         3x3 array of direct lattice row vectors in Angstroms.
-    kmesh : Tuple[int, int, int]
+    kmesh : Union[Tuple[int, int, int], Sequence[int]]
         Number of k-points along each reciprocal axis (k_1, k_2, k_3).
 
     Returns
@@ -151,17 +188,34 @@ def compute_kmesh_density(
     Raises
     ------
     ReciprocalDensityViolation
-        If k-mesh counts are non-positive.
+        If k-mesh dimensions are not exactly 3 or counts are non-positive integers.
     """
+    if not isinstance(kmesh, (list, tuple, np.ndarray)):
+        raise ReciprocalDensityViolation(
+            f"k-point mesh must be a sequence of 3 integers, got {type(kmesh).__name__} ({kmesh!r}) [M].",
+            details={"kmesh": kmesh},
+        )
+    if len(kmesh) != 3:
+        raise ReciprocalDensityViolation(
+            f"k-point mesh must specify exactly 3 dimensions (k_1, k_2, k_3), got {len(kmesh)} entries [M].",
+            details={"kmesh": list(kmesh)},
+        )
+
     recip = compute_reciprocal_vectors(lattice_vectors)
     b_norms = np.linalg.norm(recip, axis=1)
 
     densities_list: List[float] = []
     for i in range(3):
-        k_val = int(kmesh[i])
+        raw_val = kmesh[i]
+        if not isinstance(raw_val, (int, np.integer)) or isinstance(raw_val, bool):
+            raise ReciprocalDensityViolation(
+                f"k-point count along axis {i+1} must be an integer, got {type(raw_val).__name__} ({raw_val}) [M].",
+                details={"axis": i + 1, "k_val": raw_val},
+            )
+        k_val = int(raw_val)
         if k_val < 1:
             raise ReciprocalDensityViolation(
-                f"k-point mesh count along axis {i+1} must be positive integer, got {k_val} [M].",
+                f"k-point mesh count along axis {i+1} must be a positive integer, got {k_val} [M].",
                 details={"axis": i + 1, "k_count": k_val},
             )
         densities_list.append(float(k_val) / float(b_norms[i]))
@@ -183,11 +237,11 @@ def compute_vacuum_separation(
     Parameters
     ----------
     lattice_vectors : Union[np.ndarray, Sequence[Sequence[float]]]
-        3x3 direct lattice row vectors.
+        3x3 direct lattice row vectors in Angstroms.
     coordinates : Optional[Union[np.ndarray, Sequence[Sequence[float]]]]
         Cartesian coordinates of atoms in Angstroms, shape (N, 3).
     axis : int
-        0-indexed axis (0, 1, or 2) corresponding to the non-periodic direction.
+        0-indexed integer axis (0, 1, or 2) corresponding to the non-periodic direction.
 
     Returns
     -------
@@ -196,23 +250,24 @@ def compute_vacuum_separation(
 
     Raises
     ------
+    ProductDomainBoundaryViolation
+        If axis is not integer 0, 1, or 2, or if coordinates array shape is invalid.
     InvalidPeriodicCellError
         If the reciprocal lattice vector along the selected axis is degenerate.
-    ProductDomainBoundaryViolation
-        If coordinates array shape is not (N, 3) or contains non-finite values.
     """
-    if axis not in (0, 1, 2):
+    if not isinstance(axis, (int, np.integer)) or isinstance(axis, bool) or int(axis) not in (0, 1, 2):
         raise ProductDomainBoundaryViolation(
-            f"Axis index must be 0, 1, or 2, got {axis} [M].",
+            f"Axis index must be integer 0, 1, or 2, got {axis} ({type(axis).__name__}) [M].",
             details={"axis": axis},
         )
+    axis_idx = int(axis)
 
     recip = compute_reciprocal_vectors(lattice_vectors)
-    b_vec = recip[axis]
+    b_vec = recip[axis_idx]
     b_norm = float(np.linalg.norm(b_vec))
     if not math.isfinite(b_norm) or b_norm <= 1e-12:
         raise InvalidPeriodicCellError(
-            f"Degenerate reciprocal lattice vector along axis {axis+1} [M]."
+            f"Degenerate reciprocal lattice vector along axis {axis_idx+1} [M]."
         )
 
     # Interplanar spacing / perpendicular cell height h_i = 2*pi / |b_i|
@@ -250,8 +305,8 @@ def detect_crystal_symmetry(
 ) -> Dict[str, Any]:
     """Detects crystal symmetry and classifies the Bravais crystal system.
 
-    Interfaces cleanly with spglib or ase if installed; performs exact analytical
-    metric tensor analysis without synthetic assumptions.
+    Interfaces cleanly with spglib if installed; performs exact analytical
+    metric tensor analysis based on physical lattice invariants.
 
     Parameters
     ----------
@@ -262,7 +317,7 @@ def detect_crystal_symmetry(
     atomic_numbers : Optional[Sequence[int]]
         Atomic numbers Z for each atom.
     atomic_symbols : Optional[Sequence[str]]
-        Element symbols for each atom (resolved to Z via Mendeleev if numbers not provided).
+        Element symbols for each atom (resolved to Z via Mendeleev).
     symprec : float
         Symmetry tolerance in Angstroms.
 
@@ -278,12 +333,18 @@ def detect_crystal_symmetry(
             details={"shape": arr.shape},
         )
 
-    # Metric tensor G = A . A^T
+    vol = abs(float(np.dot(arr[0], np.cross(arr[1], arr[2]))))
+    if vol <= MIN_UNIT_CELL_VOLUME_ANG3:
+        raise InvalidPeriodicCellError(
+            f"Degenerate unit cell volume {vol:.6e} A^3 during symmetry evaluation [M].",
+            details={"volume": vol},
+        )
+
     metric_tensor = np.dot(arr, arr.T)
 
-    a = float(np.sqrt(metric_tensor[0, 0]))
-    b = float(np.sqrt(metric_tensor[1, 1]))
-    c = float(np.sqrt(metric_tensor[2, 2]))
+    a = float(np.sqrt(max(metric_tensor[0, 0], 1e-18)))
+    b = float(np.sqrt(max(metric_tensor[1, 1], 1e-18)))
+    c = float(np.sqrt(max(metric_tensor[2, 2], 1e-18)))
 
     cos_alpha = np.clip(metric_tensor[1, 2] / (b * c), -1.0, 1.0)
     cos_beta = np.clip(metric_tensor[0, 2] / (a * c), -1.0, 1.0)
@@ -294,7 +355,7 @@ def detect_crystal_symmetry(
     gamma_deg = float(np.degrees(np.arccos(cos_gamma)))
 
     tol_len = 1e-3
-    tol_ang = 0.5  # degrees
+    tol_ang = 0.5
 
     def _eq(x: float, y: float) -> bool:
         return abs(x - y) <= tol_len
@@ -332,7 +393,10 @@ def detect_crystal_symmetry(
     if atomic_numbers is not None:
         numbers_list = [int(z) for z in atomic_numbers]
     elif atomic_symbols is not None:
-        numbers_list = [int(element(s.strip().capitalize()).atomic_number) for s in atomic_symbols]
+        numbers_list = [
+            int(element(_resolve_element_symbol(s)).atomic_number)
+            for s in atomic_symbols
+        ]
 
     space_group_symbol: Optional[str] = None
     space_group_number: Optional[int] = None
@@ -372,8 +436,8 @@ def detect_crystal_symmetry(
 
 def validate_product_m_invariants(
     lattice_vectors: Union[np.ndarray, Sequence[Sequence[float]]],
-    kmesh: Tuple[int, int, int],
-    pbc: Tuple[bool, bool, bool] = (True, True, True),
+    kmesh: Union[Tuple[int, int, int], Sequence[int]],
+    pbc: Union[Tuple[bool, bool, bool], Sequence[bool], bool] = (True, True, True),
     coordinates: Optional[Union[np.ndarray, Sequence[Sequence[float]]]] = None,
     atomic_symbols: Optional[Sequence[str]] = None,
     atomic_numbers: Optional[Sequence[int]] = None,
@@ -397,10 +461,11 @@ def validate_product_m_invariants(
     ----------
     lattice_vectors : Union[np.ndarray, Sequence[Sequence[float]]]
         3x3 array or list of lattice row vectors in Angstroms.
-    kmesh : Tuple[int, int, int]
+    kmesh : Union[Tuple[int, int, int], Sequence[int]]
         Monkhorst-Pack k-point grid dimensions (k_1, k_2, k_3).
-    pbc : Tuple[bool, bool, bool]
+    pbc : Union[Tuple[bool, bool, bool], Sequence[bool], bool]
         Periodic boundary condition flags for axes (a, b, c). Default is (True, True, True).
+        Accepts boolean scalar (broadcast across 3 axes) or 3-element boolean sequence.
     coordinates : Optional[Union[np.ndarray, Sequence[Sequence[float]]]]
         Cartesian coordinates of atoms in Angstroms (shape N, 3).
     atomic_symbols : Optional[Sequence[str]]
@@ -420,10 +485,38 @@ def validate_product_m_invariants(
     InvalidPeriodicCellError
         If unit cell volume is non-positive, degenerate, or non-finite.
     ReciprocalDensityViolation
-        If reciprocal k-point density is below 0.04 A^-1 or Gamma-point is misused.
+        If reciprocal k-point density is below 0.04 A^-1, Gamma-point is misused,
+        or kmesh dimensions/types are invalid.
     ProductDomainBoundaryViolation
-        If vacuum separation along any non-periodic dimension is less than 15.0 A.
+        If vacuum separation along any non-periodic dimension is less than 15.0 A,
+        or if pbc dimensions/types are invalid.
     """
+    if not isinstance(kmesh, (list, tuple, np.ndarray)):
+        raise ReciprocalDensityViolation(
+            f"k-point mesh must be a sequence of 3 integers, got {type(kmesh).__name__} ({kmesh!r}) [M].",
+            details={"kmesh": kmesh},
+        )
+    if len(kmesh) != 3:
+        raise ReciprocalDensityViolation(
+            f"k-point mesh must specify exactly 3 dimensions, got {len(kmesh)} entries [M].",
+            details={"kmesh": list(kmesh)},
+        )
+
+    if isinstance(pbc, (bool, np.bool_)):
+        parsed_pbc = (bool(pbc), bool(pbc), bool(pbc))
+    elif isinstance(pbc, (list, tuple, np.ndarray)):
+        if len(pbc) != 3:
+            raise ProductDomainBoundaryViolation(
+                f"Periodic boundary conditions (pbc) must specify exactly 3 axes, got {len(pbc)} [M].",
+                details={"pbc": list(pbc)},
+            )
+        parsed_pbc = (bool(pbc[0]), bool(pbc[1]), bool(pbc[2]))
+    else:
+        raise ProductDomainBoundaryViolation(
+            f"Periodic boundary conditions (pbc) must be a 3-element boolean sequence or boolean scalar, got {type(pbc).__name__}: {pbc!r} [M].",
+            details={"pbc": pbc},
+        )
+
     if atomic_symbols is None and symbols is not None:
         atomic_symbols = symbols
 
@@ -448,7 +541,7 @@ def validate_product_m_invariants(
             details={"volume": v_cell, "threshold": MIN_UNIT_CELL_VOLUME_ANG3},
         )
 
-    # 2. Reciprocal lattice vectors: b_i = 2*pi * (a_j x a_k) / V_cell
+    # 2. Reciprocal lattice vectors: b_i = 2*pi * (a_j x a_k) / (a_1 . (a_2 x a_3))
     recip = compute_reciprocal_vectors(arr)
     b_norms = [float(np.linalg.norm(recip[i])) for i in range(3)]
 
@@ -461,7 +554,7 @@ def validate_product_m_invariants(
     ]
 
     for i in range(3):
-        if pbc[i]:
+        if parsed_pbc[i]:
             rho_val = float(densities[i])
             if rho_val < MIN_RECIPROCAL_K_DENSITY_ANG_INV:
                 raise ReciprocalDensityViolation(
@@ -489,7 +582,7 @@ def validate_product_m_invariants(
                 f"(V_cell = {v_cell:.2f} A^3 <= {GAMMA_POINT_VOLUME_CEILING_ANG3:.1f} A^3) [M]. "
                 f"Brillouin zone integration requires dispersive k-point mesh sampling.",
                 details={
-                    "kmesh": kmesh,
+                    "kmesh": list(kmesh),
                     "volume": v_cell,
                     "threshold": GAMMA_POINT_VOLUME_CEILING_ANG3,
                 },
@@ -505,7 +598,7 @@ def validate_product_m_invariants(
 
     vacuum_separations: Dict[str, float] = {}
     for i in range(3):
-        if not pbc[i]:
+        if not parsed_pbc[i]:
             vac_sep = compute_vacuum_separation(arr, coords_arr, axis=i)
             vacuum_separations[f"axis_{i+1}"] = vac_sep
             if vac_sep < MIN_VACUUM_SEPARATION_ANG:
@@ -516,7 +609,7 @@ def validate_product_m_invariants(
                         "axis": i + 1,
                         "vacuum_separation_ang": vac_sep,
                         "threshold": MIN_VACUUM_SEPARATION_ANG,
-                        "pbc": pbc,
+                        "pbc": parsed_pbc,
                     },
                 )
             checked_invariants.append(
@@ -548,7 +641,7 @@ def validate_product_m_invariants(
         "kmesh": list(kmesh),
         "kmesh_linear_density_ang": [float(d) for d in densities],
         "k_densities": [float(d) for d in densities],
-        "pbc": list(pbc),
+        "pbc": list(parsed_pbc),
         "vacuum_separations_ang": vacuum_separations,
         "vacuum_separation_angstrom": vacuum_separations,
         "crystal_system": symmetry_telemetry["crystal_system"].lower(),

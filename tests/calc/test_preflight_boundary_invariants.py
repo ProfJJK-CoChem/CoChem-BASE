@@ -32,9 +32,13 @@ from cochem_base.formatters.cochem_inertial_defect_validator import (
 )
 from cochem_base.calc.materials_preflight import (
     validate_product_m_invariants,
+    compute_cell_volume,
     compute_scalar_triple_product_volume,
     compute_reciprocal_lattice_vectors,
     detect_crystal_symmetry,
+    compute_kmesh_density,
+    compute_vacuum_separation,
+    _resolve_element_symbol,
 )
 
 
@@ -455,3 +459,443 @@ def test_product_m_crystal_symmetry_detection():
     ortho_lat = np.diag([4.0, 5.0, 6.0])
     sym_ortho = detect_crystal_symmetry(ortho_lat)
     assert sym_ortho["crystal_system"].lower() == "orthorhombic"
+
+
+# =============================================================================
+# 5. Product M Hardened Boundary & Numerical Stability Invariants (L3.2.3)
+# =============================================================================
+
+def test_kmesh_density_shape_validation():
+    """Verify compute_kmesh_density rejects kmesh not having exactly 3 elements."""
+    lat = np.diag([5.0, 5.0, 5.0])
+    with pytest.raises(ReciprocalDensityViolation) as exc_info:
+        compute_kmesh_density(lat, kmesh=(4, 4))  # type: ignore[arg-type]
+    assert "must specify exactly 3 dimensions" in str(exc_info.value)
+
+    with pytest.raises(ReciprocalDensityViolation) as exc_info:
+        compute_kmesh_density(lat, kmesh=[4, 4, 4, 4])  # type: ignore[arg-type]
+    assert "must specify exactly 3 dimensions" in str(exc_info.value)
+
+
+def test_kmesh_density_non_integer_type_validation():
+    """Verify compute_kmesh_density rejects float values in kmesh."""
+    lat = np.diag([5.0, 5.0, 5.0])
+    with pytest.raises(ReciprocalDensityViolation) as exc_info:
+        compute_kmesh_density(lat, kmesh=(4, 4.5, 4))  # type: ignore[arg-type]
+    assert "must be an integer" in str(exc_info.value)
+
+
+def test_kmesh_density_boolean_type_validation():
+    """Verify compute_kmesh_density rejects bool values in kmesh."""
+    lat = np.diag([5.0, 5.0, 5.0])
+    with pytest.raises(ReciprocalDensityViolation) as exc_info:
+        compute_kmesh_density(lat, kmesh=(True, 4, 4))  # type: ignore[arg-type]
+    assert "must be an integer" in str(exc_info.value)
+
+
+def test_kmesh_density_positive_integer_validation():
+    """Verify compute_kmesh_density rejects zero and negative values in kmesh."""
+    lat = np.diag([5.0, 5.0, 5.0])
+    with pytest.raises(ReciprocalDensityViolation) as exc_info:
+        compute_kmesh_density(lat, kmesh=(0, 4, 4))
+    assert "must be a positive integer" in str(exc_info.value)
+
+    with pytest.raises(ReciprocalDensityViolation) as exc_info:
+        compute_kmesh_density(lat, kmesh=(4, -2, 4))
+    assert "must be a positive integer" in str(exc_info.value)
+
+
+def test_vacuum_separation_axis_type_validation_float():
+    """Verify compute_vacuum_separation rejects float axis values."""
+    lat = np.diag([5.0, 5.0, 20.0])
+    with pytest.raises(ProductDomainBoundaryViolation) as exc_info:
+        compute_vacuum_separation(lat, coordinates=None, axis=1.0)  # type: ignore[arg-type]
+    assert "Axis index must be integer 0, 1, or 2" in str(exc_info.value)
+
+
+def test_vacuum_separation_axis_type_validation_bool():
+    """Verify compute_vacuum_separation rejects boolean axis values."""
+    lat = np.diag([5.0, 5.0, 20.0])
+    with pytest.raises(ProductDomainBoundaryViolation) as exc_info:
+        compute_vacuum_separation(lat, coordinates=None, axis=True)  # type: ignore[arg-type]
+    assert "Axis index must be integer 0, 1, or 2" in str(exc_info.value)
+
+
+def test_vacuum_separation_axis_out_of_bounds():
+    """Verify compute_vacuum_separation rejects axis < 0 or > 2."""
+    lat = np.diag([5.0, 5.0, 20.0])
+    with pytest.raises(ProductDomainBoundaryViolation) as exc_info:
+        compute_vacuum_separation(lat, coordinates=None, axis=3)
+    assert "Axis index must be integer 0, 1, or 2" in str(exc_info.value)
+
+    with pytest.raises(ProductDomainBoundaryViolation) as exc_info:
+        compute_vacuum_separation(lat, coordinates=None, axis=-1)
+    assert "Axis index must be integer 0, 1, or 2" in str(exc_info.value)
+
+
+def test_vacuum_separation_invalid_coords_shape():
+    """Verify compute_vacuum_separation rejects coordinates that do not have shape (N, 3)."""
+    lat = np.diag([5.0, 5.0, 20.0])
+    invalid_coords = np.array([[1.0, 2.0], [3.0, 4.0]])
+    with pytest.raises(ProductDomainBoundaryViolation) as exc_info:
+        compute_vacuum_separation(lat, coordinates=invalid_coords, axis=2)
+    assert "must have shape (N, 3)" in str(exc_info.value)
+
+
+def test_vacuum_separation_non_finite_coords():
+    """Verify compute_vacuum_separation rejects NaN/Inf in coordinates."""
+    lat = np.diag([5.0, 5.0, 20.0])
+    nan_coords = np.array([[1.0, 2.0, np.nan]])
+    with pytest.raises(ProductDomainBoundaryViolation) as exc_info:
+        compute_vacuum_separation(lat, coordinates=nan_coords, axis=2)
+    assert "non-finite values" in str(exc_info.value)
+
+
+def test_isotope_resolution_deuterium():
+    """Verify deuterium symbols 'D' and '2H' resolve to hydrogen."""
+    assert _resolve_element_symbol("D") == "H"
+    assert _resolve_element_symbol("2H") == "H"
+    assert _resolve_element_symbol("d") == "H"
+
+
+def test_isotope_resolution_tritium():
+    """Verify tritium symbols 'T' and '3H' resolve to hydrogen."""
+    assert _resolve_element_symbol("T") == "H"
+    assert _resolve_element_symbol("3H") == "H"
+    assert _resolve_element_symbol("t") == "H"
+
+
+def test_isotope_resolution_carbon13_and_numeric_z():
+    """Verify numbered isotopes ('13C', '18O') and numeric Z resolve accurately."""
+    assert _resolve_element_symbol("13C") == "C"
+    assert _resolve_element_symbol("18O") == "O"
+    assert _resolve_element_symbol(6) == "C"
+    assert _resolve_element_symbol(np.int64(8)) == "O"
+
+
+def test_detect_crystal_symmetry_with_isotopes():
+    """Verify detect_crystal_symmetry executes dynamically with isotopic element symbols."""
+    cubic_lat = np.diag([5.0, 5.0, 5.0])
+    coords = np.array([[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]])
+    res = detect_crystal_symmetry(cubic_lat, coordinates=coords, atomic_symbols=["D", "13C"])
+    assert res["crystal_system"].lower() == "cubic"
+
+
+def test_detect_crystal_symmetry_with_atomic_numbers():
+    """Verify detect_crystal_symmetry functions with atomic_numbers explicitly provided."""
+    ortho_lat = np.diag([4.0, 5.0, 6.0])
+    coords = np.array([[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]])
+    res = detect_crystal_symmetry(ortho_lat, coordinates=coords, atomic_numbers=[1, 6])
+    assert res["crystal_system"].lower() == "orthorhombic"
+
+
+def test_validate_product_m_kmesh_shape_validation():
+    """Verify validate_product_m_invariants rejects kmesh with length != 3."""
+    lat = np.diag([5.0, 5.0, 5.0])
+    with pytest.raises(ReciprocalDensityViolation) as exc_info:
+        validate_product_m_invariants(lat, kmesh=(4, 4))  # type: ignore[arg-type]
+    assert "k-point mesh must specify exactly 3 dimensions" in str(exc_info.value)
+
+
+def test_validate_product_m_pbc_shape_validation():
+    """Verify validate_product_m_invariants rejects pbc with length != 3."""
+    lat = np.diag([5.0, 5.0, 5.0])
+    with pytest.raises(ProductDomainBoundaryViolation) as exc_info:
+        validate_product_m_invariants(lat, kmesh=(4, 4, 4), pbc=(True, True))  # type: ignore[arg-type]
+    assert "Periodic boundary conditions (pbc) must specify exactly 3 axes" in str(exc_info.value)
+
+
+def test_validate_product_m_kmesh_non_sequence_scalar_fails_closed():
+    """Verify validate_product_m_invariants rejects non-sequence scalar kmesh with ReciprocalDensityViolation [M]."""
+    lat = np.diag([5.0, 5.0, 5.0])
+    for bad_kmesh in [4, 4.0, "444", None, True]:
+        with pytest.raises(ReciprocalDensityViolation) as exc_info:
+            validate_product_m_invariants(lat, kmesh=bad_kmesh)  # type: ignore[arg-type]
+        assert "k-point mesh must be a sequence of 3 integers" in str(exc_info.value)
+
+
+def test_compute_kmesh_density_non_sequence_scalar_fails_closed():
+    """Verify compute_kmesh_density rejects non-sequence scalar kmesh with ReciprocalDensityViolation [M]."""
+    lat = np.diag([5.0, 5.0, 5.0])
+    for bad_kmesh in [4, 4.5, "444", None]:
+        with pytest.raises(ReciprocalDensityViolation) as exc_info:
+            compute_kmesh_density(lat, kmesh=bad_kmesh)  # type: ignore[arg-type]
+        assert "k-point mesh must be a sequence of 3 integers" in str(exc_info.value)
+
+
+def test_validate_product_m_pbc_boolean_scalar_and_invalid_scalar_fails_closed():
+    """Verify validate_product_m_invariants accepts boolean scalars and rejects invalid non-sequence scalars [M]."""
+    lat = np.diag([5.0, 5.0, 5.0])
+    # Boolean scalar True broadcasts to (True, True, True)
+    res_bool = validate_product_m_invariants(lat, kmesh=(4, 4, 4), pbc=True)
+    assert res_bool["status"] == "VALID"
+    assert res_bool["pbc"] == [True, True, True]
+
+    # np.bool_ scalar True
+    res_np_bool = validate_product_m_invariants(lat, kmesh=(4, 4, 4), pbc=np.bool_(True))
+    assert res_np_bool["status"] == "VALID"
+    assert res_np_bool["pbc"] == [True, True, True]
+
+    # Non-sequence invalid scalars must raise ProductDomainBoundaryViolation (not TypeError crash)
+    for bad_pbc in [123, 1.0, "periodic", None]:
+        with pytest.raises(ProductDomainBoundaryViolation) as exc_info:
+            validate_product_m_invariants(lat, kmesh=(4, 4, 4), pbc=bad_pbc)  # type: ignore[arg-type]
+        assert "Periodic boundary conditions (pbc) must be a 3-element boolean sequence or boolean scalar" in str(exc_info.value)
+
+
+def test_compute_cell_volume_enforce_non_degenerate():
+    """Verify compute_cell_volume with enforce_non_degenerate=True rejects degenerate cells [M]."""
+    coplanar_lat = np.array([[2.0, 0.0, 0.0], [0.0, 2.0, 0.0], [2.0, 2.0, 0.0]])
+    # Without enforce_non_degenerate, returns 0.0
+    assert compute_cell_volume(coplanar_lat) == 0.0
+
+    # With enforce_non_degenerate=True, raises InvalidPeriodicCellError
+    with pytest.raises(InvalidPeriodicCellError) as exc_info:
+        compute_cell_volume(coplanar_lat, enforce_non_degenerate=True)
+    assert "degenerate or non-positive" in str(exc_info.value)
+
+
+def test_detect_crystal_symmetry_degenerate_cell_rejection():
+    """Verify detect_crystal_symmetry raises InvalidPeriodicCellError for degenerate unit cells [M]."""
+    coplanar_lat = np.array([[2.0, 0.0, 0.0], [0.0, 2.0, 0.0], [2.0, 2.0, 0.0]])
+    with pytest.raises(InvalidPeriodicCellError) as exc_info:
+        detect_crystal_symmetry(coplanar_lat)
+    assert "Degenerate unit cell volume" in str(exc_info.value)
+
+
+def test_preflight_pbc_numpy_boolean_scalar_detection():
+    """Verify validate_product_ontology_preflight detects np.bool_ in pbc [M]."""
+    payload_b = {
+        "product": "PRODUCT_B",
+        "parameters": {
+            "pbc": np.bool_(True),
+        },
+    }
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(payload_b)
+    assert "prohibited solid-state periodic parameters" in str(exc_info.value)
+
+
+def test_preflight_pbc_numpy_ndarray_detection():
+    """Verify validate_product_ontology_preflight detects np.ndarray in pbc [M]."""
+    payload_b = {
+        "product": "PRODUCT_B",
+        "parameters": {
+            "pbc": np.array([True, False, False]),
+        },
+    }
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(payload_b)
+    assert "prohibited solid-state periodic parameters" in str(exc_info.value)
+
+
+def test_preflight_enum_declared_product_extraction():
+    """Verify validate_product_ontology_preflight extracts string from enum objects [M]."""
+    from cochem_base.formatters.cochem_inertial_defect_validator import ProductClass
+    from cochem_base.executors.hpc_workflow_router import ProductCategory
+
+    # Test ProductClass enum
+    payload_b_enum = {
+        "product_class": ProductClass.PRODUCT_B_SEMI_EXPERIMENTAL,
+        "keywords": {"cutoff_energy": 500.0},
+    }
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(payload_b_enum)
+    assert "Job declared as Product B" in str(exc_info.value)
+
+    # Test ProductCategory enum
+    payload_m_enum = {
+        "product_category": ProductCategory.PRODUCT_M,
+        "keywords": {"rotational_constants": [1000.0, 500.0, 250.0]},
+    }
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(payload_m_enum)
+    assert "Job declared as Product M" in str(exc_info.value)
+
+
+# =============================================================================
+# 6. Adversarial Evasion Hardening Tests (L3.2.1 Boundary Invariants)
+# =============================================================================
+
+def test_adversarial_pbc_0d_and_multid_numpy_arrays():
+    """Verify preflight correctly evaluates 0-D and multi-D NumPy arrays without crashing [M]."""
+    # 0-D true
+    payload_0d_true = {"product": "PRODUCT_B", "pbc": np.array(True)}
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(payload_0d_true)
+    assert "prohibited solid-state periodic parameters" in str(exc_info.value)
+
+    # 0-D false passes for Product B
+    payload_0d_false = {"product": "PRODUCT_B", "pbc": np.array(False), "rot_a": 5000.0}
+    res = validate_product_ontology_preflight(payload_0d_false)
+    assert res["status"] == "VALID"
+
+    # Multi-D array with active boundary
+    payload_2d = {"product": "PRODUCT_B", "pbc": np.array([[False, True], [False, False]])}
+    with pytest.raises(OntologicalCollisionError):
+        validate_product_ontology_preflight(payload_2d)
+
+
+@pytest.mark.parametrize(
+    "pbc_active_val",
+    [
+        1,
+        np.int64(1),
+        1.0,
+        "True",
+        "true",
+        "1",
+        "yes",
+        "active",
+        "periodic",
+        [0, 1, 0],
+        (False, True, False),
+    ],
+)
+def test_adversarial_pbc_scalar_and_string_representations(pbc_active_val):
+    """Verify active PBC encoded as integer, float, string, or mixed sequence fails closed [M]."""
+    payload = {
+        "product": "PRODUCT_B",
+        "parameters": {"pbc": pbc_active_val},
+    }
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(payload)
+    assert "prohibited solid-state periodic parameters" in str(exc_info.value)
+
+
+def test_adversarial_enum_with_non_string_values():
+    """Verify enums with integer or custom values resolve to canonical product identifiers [M]."""
+    from enum import Enum, IntEnum
+
+    class CustomIntDomain(IntEnum):
+        PRODUCT_B = 101
+        PRODUCT_M = 202
+
+    class CustomObjectDomain(Enum):
+        B = "domain_b_marker"
+        M = "domain_m_marker"
+
+    # IntEnum for Product B
+    job_b = {"product": CustomIntDomain.PRODUCT_B, "cutoff_energy": 500.0}
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(job_b)
+    assert "Job declared as Product B" in str(exc_info.value)
+
+    # Custom enum for Product M
+    job_m = {"product": CustomObjectDomain.M, "rotational_constants": [1000.0, 500.0, 250.0]}
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(job_m)
+    assert "Job declared as Product M" in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "declared_key,declared_val",
+    [
+        ("product", "Product-B"),
+        ("product", "Product_B"),
+        ("product", "ProductB"),
+        ("domain", "gas_phase"),
+        ("product_type", "rotational_spectroscopy"),
+    ],
+)
+def test_adversarial_product_b_normalization_evasion(declared_key, declared_val):
+    """Verify hyphenated, lowercase, and alias domain representations are caught [M]."""
+    job = {declared_key: declared_val, "kmesh": (4, 4, 4)}
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(job)
+    assert "Job declared as Product B" in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "declared_key,declared_val",
+    [
+        ("product", "Product-M"),
+        ("product", "Product_M"),
+        ("product", "ProductM"),
+        ("domain", "materials"),
+        ("domain", "solid_state"),
+        ("product_class", "crystal"),
+    ],
+)
+def test_adversarial_product_m_normalization_evasion(declared_key, declared_val):
+    """Verify Product M aliases and hyphenated strings trigger spectroscopic collision [M]."""
+    job = {declared_key: declared_val, "rot_constants": [10000.0, 5000.0, 2000.0]}
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(job)
+    assert "Job declared as Product M" in str(exc_info.value)
+
+
+def test_adversarial_nested_dataclass_and_object_detection():
+    """Verify parameters nested within dataclasses or custom class instances are traversed [M]."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class SolidStateConfig:
+        cutoff_energy: float = 600.0
+        kpoints: tuple = (6, 6, 6)
+
+    @dataclass
+    class SpectroscopicConfig:
+        ray_asymmetry: float = -0.45
+        rot_a: float = 8500.0
+
+    # Product B job hiding solid-state config inside nested dataclass
+    job_b = {
+        "product": "PRODUCT_B",
+        "settings": {
+            "calc_config": SolidStateConfig(),
+        },
+    }
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(job_b)
+    assert "prohibited solid-state periodic parameters" in str(exc_info.value)
+
+    # Product M job hiding spectroscopic config inside nested dataclass
+    job_m = {
+        "product": "PRODUCT_M",
+        "settings": {
+            "spectroscopy": SpectroscopicConfig(),
+        },
+    }
+    with pytest.raises(OntologicalCollisionError) as exc_info:
+        validate_product_ontology_preflight(job_m)
+    assert "prohibited gas-phase microwave spectroscopic parameters" in str(exc_info.value)
+
+
+def test_adversarial_expanded_prohibited_keywords():
+    """Verify expanded periodic keywords in Product B and spectroscopic keywords in Product M [M]."""
+    # Periodic keywords in Product B
+    periodic_tests = [
+        {"kgrid": (4, 4, 4)},
+        {"gamma_point": True},
+        {"reciprocal_lattice": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]},
+        {"supercell": [2, 2, 2]},
+        {"spacegroup": 225},
+        {"space_group": "Fm-3m"},
+        {"brillouin_zone": "monkhorst"},
+    ]
+    for p_dict in periodic_tests:
+        job = {"product": "PRODUCT_B", **p_dict}
+        with pytest.raises(OntologicalCollisionError):
+            validate_product_ontology_preflight(job)
+
+    # Spectroscopic keywords in Product M
+    spectroscopic_tests = [
+        {"ray_asymmetry": -0.8},
+        {"ray_asymmetry_parameter": -0.5},
+        {"ray_kappa": 0.1},
+        {"kappa": 0.0},
+        {"asymmetry_parameter": 0.2},
+        {"dipole_moment_debye": 1.85},
+        {"microwave_transitions": [12345.67]},
+        {"rotational_spectrum": True},
+        {"quadrupole_coupling": [1.2, 3.4]},
+        {"spin_rotation": 0.005},
+    ]
+    for s_dict in spectroscopic_tests:
+        job = {"product": "PRODUCT_M", "lattice_vectors": [[5.0, 0, 0], [0, 5.0, 0], [0, 0, 5.0]], **s_dict}
+        with pytest.raises(OntologicalCollisionError):
+            validate_product_ontology_preflight(job)
+
+
+

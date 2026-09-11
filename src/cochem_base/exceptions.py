@@ -840,6 +840,93 @@ _EXCEPTION_REGISTRY["InvalidRotationalAnchorError"] = InvalidRotationalAnchorErr
 _EXCEPTION_REGISTRY["InvalidPeriodicCellError"] = InvalidPeriodicCellError
 
 
+# =====================================================================
+# Plane 3: Execution Engine & HPC Workflow Router Decoupling Exceptions (L3.3.1 - L3.3.3)
+# =====================================================================
+
+class QuantumExecutionError(CoChemError, RuntimeError):
+    """Raised when an electronic structure quantum calculation fails or crashes [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONVERGENCE_FAILURE
+    )
+
+
+class ORCAExecutionError(QuantumExecutionError):
+    """Raised when ORCA binary encounters an unrecoverable runtime error or abort [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONVERGENCE_FAILURE
+    )
+
+
+class CFOURExecutionError(QuantumExecutionError):
+    """Raised when CFOUR binary terminates abnormally [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONVERGENCE_FAILURE
+    )
+
+
+class MaterialsExecutionError(CoChemError, RuntimeError):
+    """Raised when a solid-state periodic calculation fails or crashes [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONVERGENCE_FAILURE
+    )
+
+
+class SLURMSubmissionError(MaterialsExecutionError):
+    """Raised when SLURM sbatch command submission fails or is rejected by scheduler [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.AIRGAP_VIOLATION
+    )
+
+
+class MPIExecutionError(MaterialsExecutionError):
+    """Raised when Message Passing Interface (MPI) ranks encounter fatal communication faults [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.AIRGAP_VIOLATION
+    )
+
+
+class OntologicalRoutingCollisionError(OntologicalCollisionError):
+    """Raised when calculation payload contains conflicting cross-domain attributes during routing [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.ONTOLOGICAL_COLLISION
+    )
+
+
+class HardwareAllocationError(CoChemError, RuntimeError):
+    """Raised when requested hardware configuration violates Method Matrix boundaries [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.HARDWARE_DETECTION_FAILED
+    )
+
+
+class QuarantineExecutionError(CoChemError, RuntimeError):
+    """Raised when sterile quarantine execution encounters integrity or permission faults [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.AIRGAP_VIOLATION
+    )
+
+
+_EXCEPTION_REGISTRY["QuantumExecutionError"] = QuantumExecutionError
+_EXCEPTION_REGISTRY["ORCAExecutionError"] = ORCAExecutionError
+_EXCEPTION_REGISTRY["CFOURExecutionError"] = CFOURExecutionError
+_EXCEPTION_REGISTRY["MaterialsExecutionError"] = MaterialsExecutionError
+_EXCEPTION_REGISTRY["SLURMSubmissionError"] = SLURMSubmissionError
+_EXCEPTION_REGISTRY["MPIExecutionError"] = MPIExecutionError
+_EXCEPTION_REGISTRY["OntologicalRoutingCollisionError"] = OntologicalRoutingCollisionError
+_EXCEPTION_REGISTRY["HardwareAllocationError"] = HardwareAllocationError
+_EXCEPTION_REGISTRY["QuarantineExecutionError"] = QuarantineExecutionError
+
+
 class IntermolecularTopologyError(CoChemError, ValueError):
     """Raised when intermolecular complex geometries violate physical topology bounds (e.g. core clashes or dissociation)."""
 
@@ -1650,6 +1737,15 @@ __all__ = [
     "ReciprocalDensityViolation",
     "InvalidRotationalAnchorError",
     "InvalidPeriodicCellError",
+    "QuantumExecutionError",
+    "ORCAExecutionError",
+    "CFOURExecutionError",
+    "MaterialsExecutionError",
+    "SLURMSubmissionError",
+    "MPIExecutionError",
+    "OntologicalRoutingCollisionError",
+    "HardwareAllocationError",
+    "QuarantineExecutionError",
     "IntermolecularTopologyError",
     "PreflightValidationError",
     "QuantumEngineCrashError",

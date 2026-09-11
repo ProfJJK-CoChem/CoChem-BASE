@@ -2,24 +2,24 @@
 
 Authoritative Preflight Ontological Gatekeeper for CoChem-BASE (Task L3.2.1).
 Enforces strict ontological disambiguation between:
-- Product B: Gas-phase parent-anchored microwave rotational spectroscopy
-- Product M: Solid-state materials and extended periodic systems
+- Product B: Gas-phase parent-anchored microwave rotational spectroscopy [M]
+- Product M: Solid-state materials and extended periodic systems [M]
 
-Complies with Method Matrix v4 Sections 1.2, 2.2, 3.0, and 4.4.
-Zero-mock physical enforcement: Fails closed on boundary collisions.
+Complies with Method Matrix v4 Sections 1.2, 2.2, 3.0, and 4.4 [M].
+Physical enforcement: Fails closed on boundary collisions [M].
 """
 
 from __future__ import annotations
 
 import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
 
 from cochem_base.exceptions import OntologicalCollisionError
 
 
-# Prohibited periodic / solid-state parameter keywords for Product B
+# Prohibited periodic / solid-state parameter keywords for Product B [M]
 _PERIODIC_SOLID_STATE_KEYS: Set[str] = {
     "lattice_vectors",
     "unit_cell",
@@ -28,7 +28,11 @@ _PERIODIC_SOLID_STATE_KEYS: Set[str] = {
     "kpoints",
     "kmesh",
     "k_points",
+    "kgrid",
+    "k_grid",
+    "kpoints_grid",
     "monkhorst_pack",
+    "gamma_point",
     "cutoff_energy",
     "ecut",
     "encut",
@@ -37,9 +41,19 @@ _PERIODIC_SOLID_STATE_KEYS: Set[str] = {
     "pseudos",
     "pseudo_potential",
     "pseudopotential",
+    "paw",
+    "paw_potentials",
+    "reciprocal_lattice",
+    "reciprocal_vectors",
+    "reciprocal_lattice_vectors",
+    "supercell",
+    "spacegroup",
+    "space_group",
+    "brillouin_zone",
+    "bloch",
 }
 
-# Prohibited gas-phase microwave spectroscopic parameter keywords for Product M
+# Prohibited gas-phase microwave spectroscopic parameter keywords for Product M [M]
 _SPECTROSCOPIC_GAS_PHASE_KEYS: Set[str] = {
     "rotational_constants",
     "rotational_constants_mhz",
@@ -80,11 +94,22 @@ _SPECTROSCOPIC_GAS_PHASE_KEYS: Set[str] = {
     "spcat",
     "spfit",
     "pickett",
+    "ray_asymmetry",
+    "ray_asymmetry_parameter",
+    "ray_kappa",
+    "kappa",
+    "asymmetry_parameter",
+    "dipole_moment_debye",
+    "microwave_transitions",
+    "rotational_spectrum",
+    "quadrupole_coupling",
+    "nuclear_quadrupole",
+    "spin_rotation",
 }
 
 
 def _extract_dict_payload(job_spec: Union[Dict[str, Any], Any]) -> Dict[str, Any]:
-    """Coerces various input structures (dict, Pydantic model, object) into a dictionary."""
+    """Coerces various input structures (dict, Pydantic model, object) into a dictionary [M]."""
     if isinstance(job_spec, dict):
         return job_spec
     if hasattr(job_spec, "model_dump") and callable(job_spec.model_dump):
@@ -96,18 +121,52 @@ def _extract_dict_payload(job_spec: Union[Dict[str, Any], Any]) -> Dict[str, Any
     return {}
 
 
+def _is_active_pbc(v: Any) -> bool:
+    """Robustly evaluates whether a PBC specification activates periodic boundary conditions [M]."""
+    if v is None:
+        return False
+    if isinstance(v, (bool, np.bool_)):
+        return bool(v)
+    if isinstance(v, (int, np.integer)):
+        return int(v) != 0
+    if isinstance(v, (float, np.floating)):
+        return float(v) != 0.0
+    if isinstance(v, str):
+        cleaned = v.strip().lower()
+        if cleaned in {"true", "1", "yes", "t", "active", "periodic"}:
+            return True
+        if cleaned in {"false", "0", "no", "f", "none", "inactive"}:
+            return False
+        try:
+            import ast
+            parsed = ast.literal_eval(cleaned)
+            return _is_active_pbc(parsed)
+        except Exception:
+            return False
+    if isinstance(v, np.ndarray):
+        if v.size == 0:
+            return False
+        try:
+            return bool(np.any(v))
+        except Exception:
+            return any(_is_active_pbc(x) for x in v.flat)
+    if isinstance(v, (list, tuple, Sequence)) and not isinstance(v, (str, bytes)):
+        return any(_is_active_pbc(x) for x in v)
+    return False
+
+
 def _scan_keys_and_values(
     data: Any,
     max_depth: int = 5,
 ) -> Tuple[List[str], List[str], bool]:
-    """Recursively scans payload keys and values for periodic and spectroscopic indicators.
+    """Recursively scans payload keys and values for periodic and spectroscopic indicators [M].
 
     Returns
     -------
     Tuple[List[str], List[str], bool]
         - found_periodic: list of matched periodic parameter keys
         - found_spectroscopic: list of matched spectroscopic parameter keys
-        - has_active_pbc: True if pbc is explicitly enabled (True or non-all-False tuple)
+        - has_active_pbc: True if pbc is explicitly enabled (True or non-all-False sequence)
     """
     found_periodic: List[str] = []
     found_spectroscopic: List[str] = []
@@ -118,17 +177,23 @@ def _scan_keys_and_values(
         if depth > max_depth or obj is None:
             return
 
+        # Coerce structured objects / dataclasses to dict if applicable
+        if not isinstance(obj, (dict, list, tuple, np.ndarray, str, bytes, int, float, bool, np.number, np.bool_)):
+            if hasattr(obj, "model_dump") and callable(obj.model_dump):
+                obj = obj.model_dump()
+            elif hasattr(obj, "dict") and callable(obj.dict):
+                obj = obj.dict()
+            elif hasattr(obj, "__dict__"):
+                obj = vars(obj)
+
         if isinstance(obj, dict):
             for k, v in obj.items():
                 k_str = str(k).strip()
                 k_lower = k_str.lower()
 
-                # Check PBC condition
+                # Check PBC condition (supports bool, np.bool_, int, str, list, tuple, np.ndarray) [M]
                 if k_lower == "pbc":
-                    if v is True:
-                        has_active_pbc = True
-                        found_periodic.append(f"pbc={v}")
-                    elif isinstance(v, (list, tuple)) and any(bool(x) for x in v):
+                    if _is_active_pbc(v):
                         has_active_pbc = True
                         found_periodic.append(f"pbc={v}")
 
@@ -144,7 +209,12 @@ def _scan_keys_and_values(
 
                 _recurse(v, depth + 1)
 
-        elif isinstance(obj, (list, tuple)):
+        elif isinstance(obj, np.ndarray):
+            if obj.ndim > 0 and obj.dtype == object:
+                for item in obj.flat:
+                    _recurse(item, depth + 1)
+
+        elif isinstance(obj, (list, tuple, Sequence)) and not isinstance(obj, (str, bytes)):
             for item in obj:
                 _recurse(item, depth + 1)
 
@@ -152,19 +222,52 @@ def _scan_keys_and_values(
     return found_periodic, found_spectroscopic, has_active_pbc
 
 
-def _find_declared_product(data: Any, max_depth: int = 4) -> str:
-    """Searches for declared product identifier across payload dictionaries."""
-    if not isinstance(data, dict) or max_depth <= 0:
+def _normalize_product_token(val: Any) -> str:
+    """Extracts and normalizes product string representation from strings, bytes, or enums [M]."""
+    if val is None:
         return ""
+    import re
+    candidates = []
+    if hasattr(val, "name") and isinstance(val.name, (str, bytes)):
+        candidates.append(str(val.name))
+    if hasattr(val, "value"):
+        candidates.append(str(val.value))
+    candidates.append(str(val))
+
+    for candidate in candidates:
+        cand_clean = candidate.strip()
+        if "." in cand_clean:
+            cand_clean = cand_clean.split(".")[-1].strip()
+        normalized = re.sub(r"[^A-Za-z0-9]+", "_", cand_clean).strip("_").upper()
+        if normalized:
+            return normalized
+    return ""
+
+
+def _find_declared_product(data: Any, max_depth: int = 4) -> str:
+    """Searches for declared product identifier across payload dictionaries and objects [M]."""
+    if max_depth <= 0 or data is None:
+        return ""
+    if not isinstance(data, dict):
+        if hasattr(data, "model_dump") and callable(data.model_dump):
+            data = data.model_dump()
+        elif hasattr(data, "dict") and callable(data.dict):
+            data = data.dict()
+        elif hasattr(data, "__dict__"):
+            data = vars(data)
+        else:
+            return ""
+
     for k in ("product", "product_category", "product_class", "domain", "product_type"):
         val = data.get(k)
-        if val is not None and isinstance(val, (str, bytes)):
-            s = str(val).strip().upper()
-            if s:
-                return s
-    for sub_k in ("keywords", "parameters", "settings", "options", "model", "provenance"):
+        if val is not None:
+            norm = _normalize_product_token(val)
+            if norm:
+                return norm
+
+    for sub_k in ("keywords", "parameters", "settings", "options", "model", "provenance", "config", "calc_config"):
         sub = data.get(sub_k)
-        if isinstance(sub, dict):
+        if sub is not None:
             res = _find_declared_product(sub, max_depth - 1)
             if res:
                 return res
@@ -174,14 +277,14 @@ def _find_declared_product(data: Any, max_depth: int = 4) -> str:
 def validate_product_ontology_preflight(
     job_spec: Union[Dict[str, Any], Any],
 ) -> Dict[str, Any]:
-    """Inspects job specifications to enforce mutual exclusivity between Product B and Product M.
+    """Inspects job specifications to enforce mutual exclusivity between Product B and Product M [M].
 
     Fails closed immediately with OntologicalCollisionError if:
     1. A declared Product B job contains periodic boundary conditions, lattice vectors,
-       k-points, energy cutoffs, or pseudopotentials.
+       k-points, energy cutoffs, or pseudopotentials [M].
     2. A declared Product M job contains rotational constants (A, B, C), centrifugal distortion,
-       Eckart frame orientation, or vibrational rotational coupling (Delta B_vib).
-    3. An undeclared job contains both sets of domain-specific invariants simultaneously.
+       Eckart frame orientation, or vibrational rotational coupling (Delta B_vib) [M].
+    3. An undeclared job contains both sets of domain-specific invariants simultaneously [M].
 
     Parameters
     ----------
@@ -191,36 +294,57 @@ def validate_product_ontology_preflight(
     Returns
     -------
     Dict[str, Any]
-        Structured validation telemetry dictionary compliant with CoChem provenance logging.
+        Structured validation telemetry dictionary compliant with CoChem provenance logging [M].
 
     Raises
     ------
     OntologicalCollisionError
-        If spectroscopic and periodic parameters collide within the same job payload.
+        If spectroscopic and periodic parameters collide within the same job payload [M].
     """
     payload = _extract_dict_payload(job_spec)
 
     # Determine declared product category
     product_str = _find_declared_product(payload)
 
-    is_product_b = product_str in {
-        "PRODUCT_B",
-        "PRODUCT_B_SEMI_EXPERIMENTAL",
-        "PRODUCT B",
+    _PRODUCT_B_ALIASES = {
         "B",
+        "PRODUCT_B",
+        "PRODUCTB",
+        "PRODUCT_B_SEMI_EXPERIMENTAL",
+        "PRODUCT_B_GAS_PHASE",
+        "PRODUCT_B_ROTATIONAL",
+        "GAS_PHASE",
+        "MICROWAVE",
+        "ROTATIONAL_SPECTROSCOPY",
     }
-    is_product_m = product_str in {
+    _PRODUCT_M_ALIASES = {
+        "M",
         "PRODUCT_M",
+        "PRODUCTM",
         "PRODUCT_M_SOLID_STATE",
         "PRODUCT_M_MATERIALS",
-        "PRODUCT M",
-        "M",
+        "PRODUCT_M_CRYSTAL",
+        "SOLID_STATE",
+        "MATERIALS",
+        "CRYSTAL",
+        "PERIODIC",
     }
+
+    is_product_b = (
+        product_str in _PRODUCT_B_ALIASES
+        or product_str.startswith("PRODUCT_B_")
+        or product_str.startswith("PRODUCTB_")
+    )
+    is_product_m = (
+        product_str in _PRODUCT_M_ALIASES
+        or product_str.startswith("PRODUCT_M_")
+        or product_str.startswith("PRODUCTM_")
+    )
 
     # Scan payload recursively
     found_periodic, found_spectroscopic, has_active_pbc = _scan_keys_and_values(payload)
 
-    # Rule 1: Product B mutual exclusivity guard
+    # Rule 1: Product B mutual exclusivity guard [M]
     if is_product_b:
         if found_periodic or has_active_pbc:
             violating_items = sorted(set(found_periodic))
@@ -234,7 +358,7 @@ def validate_product_ontology_preflight(
                 },
             )
 
-    # Rule 2: Product M mutual exclusivity guard
+    # Rule 2: Product M mutual exclusivity guard [M]
     elif is_product_m:
         if found_spectroscopic:
             violating_items = sorted(set(found_spectroscopic))
@@ -247,7 +371,7 @@ def validate_product_ontology_preflight(
                 },
             )
 
-    # Rule 3: Undeclared payload simultaneous collision guard
+    # Rule 3: Undeclared payload simultaneous collision guard [M]
     else:
         if (found_periodic or has_active_pbc) and found_spectroscopic:
             raise OntologicalCollisionError(

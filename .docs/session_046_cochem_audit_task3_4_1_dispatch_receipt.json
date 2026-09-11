@@ -1,0 +1,46 @@
+{
+  "receipt_id": "COCHEM-AUDIT-DISPATCH-RECEIPT-SESSION-046-TASK3-4-1-20260911",
+  "council_session_id": "COUNCIL-SESSION-046",
+  "task_id": "TASK-3-4-1-L3-COMPONENT-LEVEL-BREAKDOWN",
+  "document_id": "AUDIT-DISPATCH-PROMPT-3.4.1-20260910",
+  "target_artifact": "task3_4_1_dispatch_prompt.md",
+  "target_artifact_document_id": "COCHEM-DISPATCH-TASK3-4-1-SDPM-20260911",
+  "auditing_agent": "cochem-audit",
+  "designated_execution_agent": "cochem-sdp-manager",
+  "supervising_authority": "0rchestrator",
+  "timestamp": "2026-09-11T12:40:00-05:00",
+  "statutory_verdict": "[STATUS: PASS]",
+  "verdict": "PASS",
+  "governance_lifecycle_status": "RATIFIED_FOR_EXECUTION",
+  "ratification_code": "[RATIFIED_COCHEM_AUDIT_PASSED]",
+  "audit_report_id": "AUDIT-DISPATCH-PROMPT-3.4.1-20260910",
+  "audit_report_filename": "adversary_task3_4_1_prompt_audit_report.md",
+  "audit_report_sha256": "5200AFDC3550E5D5CA784B33955BE0CE20D8CF4996286DD01D4D440532ABFDF5",
+  "audit_report_bytes": 12400,
+  "dispatch_prompt_sha256": "956001931D467EE8A89129D1B729DC9209E30E3F13006FAAE65521E5E1E22176",
+  "dispatch_prompt_bytes": 12813,
+  "cryptographic_parity_audit": {
+    "byte_count": 12813,
+    "line_count": 153,
+    "sha256": "956001931D467EE8A89129D1B729DC9209E30E3F13006FAAE65521E5E1E22176",
+    "parity_percentage": 100.0,
+    "mirrors_verified": [
+      "C:/Users/ansac/.gemini/antigravity-cli/scratch/task3_4_1_dispatch_prompt.md",
+      "D:/__CoChem/.docs/task3_4_1_dispatch_prompt.md",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task3_4_1_dispatch_prompt.md",
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/task3_4_1_dispatch_prompt.md",
+      "C:/Users/ansac/.gemini/antigravity-cli/brain/bbb62488-d0bc-44a0-8cf2-7867d24064ef/task3_4_1_dispatch_prompt.md"
+    ]
+  },
+  "scorecard": {
+    "agent_selection_authority": "PASS [cochem-sdp-manager uniquely qualified under PMBOK 7th Ed / SWEBOK v3/v4; implementers barred]",
+    "rule_1_context_ingestion": "PASS [Explicit command commanding view_file, grep_search, list_dir across 4 physical categories]",
+    "rule_2_physical_disk_persistence": "PASS [Explicit command commanding write_to_file/replace_file_content to Task_List_Task3_WBS.md across mirrors]",
+    "rule_3_formal_final_report": "PASS [Explicit command enforcing formal [SDPM REPORT] itemizing modified/created paths]",
+    "anti_spoofing_v4_zero_mock": "PASS [Strict ban on mocks, stubs, NotImplementedError, empty pass blocks, and synthetic arrays]",
+    "method_matrix_v4_invariants": "PASS [Coupled Grid-SCF DEFGRID1-3 progression (VR-03), VV10 vs D3/D4 dispersion sanitization (VR-05), spin gatekeeper Delta S^2 < 10% / singlet guard |S^2| < 0.05, dynamic Mendeleev masses, Product B/M disambiguation]",
+    "pmbok_100_percent_mece_and_raci": "PASS [100% Rule, MECE work packages, single accountability A=1 with zero shared tokens]"
+  },
+  "provenance": "[M]",
+  "single_safest_next_action": "Declare Task 3.4.1 dispatch specification and execution agent determination ratified by the CoChem Agent Council, and authorize cochem-sdp-manager to proceed with execution."
+}

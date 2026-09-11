@@ -1,0 +1,114 @@
+{
+  "receipt_id": "ADVERSARY-RECEIPT-SESSION-074-TASK2-2-1-DISPATCH-20260911",
+  "audit_authority": "adversary",
+  "verdict": "[STATUS: PASS]",
+  "timestamp": "2026-09-11T09:19:30-05:00",
+  "target_artifact": {
+    "filename": "task2_2_1_dispatch_prompt.md",
+    "canonical_path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_2_1_dispatch_prompt.md",
+    "sha256": "15a85347c9c0cef62ef85379988d5a871dd1cf00c71f9771785170c43aafe48e",
+    "bytes": 17586,
+    "lines": 180,
+    "mirrors": [
+      {
+        "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_2_1_dispatch_prompt.md",
+        "sha256": "15a85347c9c0cef62ef85379988d5a871dd1cf00c71f9771785170c43aafe48e",
+        "bytes": 17586,
+        "lines": 180,
+        "parity": "MATCH"
+      },
+      {
+        "path": "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_2_1_dispatch_prompt.md",
+        "sha256": "15a85347c9c0cef62ef85379988d5a871dd1cf00c71f9771785170c43aafe48e",
+        "bytes": 17586,
+        "lines": 180,
+        "parity": "MATCH"
+      },
+      {
+        "path": "D:/__CoChem/.docs/task2_2_1_dispatch_prompt.md",
+        "sha256": "15a85347c9c0cef62ef85379988d5a871dd1cf00c71f9771785170c43aafe48e",
+        "bytes": 17586,
+        "lines": 180,
+        "parity": "MATCH"
+      },
+      {
+        "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_2_1_dispatch_prompt.md",
+        "sha256": "15a85347c9c0cef62ef85379988d5a871dd1cf00c71f9771785170c43aafe48e",
+        "bytes": 17586,
+        "lines": 180,
+        "parity": "MATCH"
+      }
+    ]
+  },
+  "qa_audit_artifacts_verified": {
+    "report_sha256": "4c40a62868ca84582fdf110339cff248f804024c6009822b1acd30dc09b5f8a6",
+    "report_bytes": 12362,
+    "receipt_sha256": "8013872c2d6ddf41554be6fcba74d5da4dd4926c9ebbd6cf6183c94f179a38ce",
+    "receipt_bytes": 5342
+  },
+  "adversary_report_deliverables": [
+    {
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/adversary_task2_2_1_prompt_audit_report.md",
+      "sha256": "00abbfd530bc69347a06dd93eb938edaec4218022977d01bbc55d683b59cb58c",
+      "bytes": 14624,
+      "lines": 181
+    },
+    {
+      "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/adversary_task2_2_1_prompt_audit_report.md",
+      "sha256": "00abbfd530bc69347a06dd93eb938edaec4218022977d01bbc55d683b59cb58c",
+      "bytes": 14624,
+      "lines": 181
+    },
+    {
+      "path": "D:/__CoChem/.docs/adversary_task2_2_1_prompt_audit_report.md",
+      "sha256": "00abbfd530bc69347a06dd93eb938edaec4218022977d01bbc55d683b59cb58c",
+      "bytes": 14624,
+      "lines": 181
+    },
+    {
+      "path": "D:/__CoChem/__agentic/dropzones/inbox_srs/adversary_task2_2_1_prompt_audit_report.md",
+      "sha256": "00abbfd530bc69347a06dd93eb938edaec4218022977d01bbc55d683b59cb58c",
+      "bytes": 14624,
+      "lines": 181
+    }
+  ],
+  "verification_dimensions": {
+    "cryptographic_quad_parity": {
+      "status": "PASS",
+      "bitwise_parity_percent": 100.0,
+      "canonical_sha256": "15a85347c9c0cef62ef85379988d5a871dd1cf00c71f9771785170c43aafe48e"
+    },
+    "mock_hunt_and_anti_spoofing": {
+      "status": "PASS",
+      "banned_tokens_detected": 0,
+      "synthetic_arrays_detected": 0,
+      "stubs_or_placeholders_detected": 0,
+      "dynamic_mendeleev_retrieval": true
+    },
+    "raci_and_separation_of_duties": {
+      "status": "PASS",
+      "designated_agent": "cochem-sdp-manager",
+      "implementers_barred_from_scoping": true,
+      "pmbok_7th_edition_compliance": true,
+      "swebok_v3_v4_compliance": true
+    },
+    "method_matrix_v4_invariants": {
+      "status": "PASS",
+      "recipe_r1_composite_dft": "VERIFIED (\u00a79A, \u00a79A.1, \u00a79A.5)",
+      "recipe_r2_high_precision": "VERIFIED (\u00a79A, \u00a79A.2, \u00a79A.5)",
+      "quintuple_stationary_block": "VERIFIED (TolE 1e-7, TolMaxG 1e-5, TolRMSG 3e-6, TolRMSD 5e-5, TolMaxD 1e-4, MaxIter 200)",
+      "initial_model_hessian_discipline": "VERIFIED (Calc_Hess true banned; InHess XTB2/Lindh mandated; chaining required)",
+      "residual_gradient_strain_parsing": "VERIFIED (||g_residual||_inf > 1.0e-4 a.u. strain threshold)"
+    },
+    "core_directives": {
+      "directive_1_tool_ingestion": "PASS",
+      "directive_2_disk_persistence": "PASS",
+      "directive_3_structured_report": "PASS"
+    }
+  },
+  "statutory_authorization": {
+    "action": "RATIFY_AND_DISPATCH_COCHEM_SDP_MANAGER",
+    "target_task": "Task 2.2.1: Survey existing Method Matrix specifications and geometry/calc modules in CoChem-BASE",
+    "status": "RATIFIED_FOR_DISPATCH"
+  }
+}

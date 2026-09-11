@@ -1,0 +1,49 @@
+{
+  "document_identifier": "COCHEM-AUDIT-TASK2-3-2-DISPATCH-PROMPT-FAIL-20260910",
+  "task_id": "TASK-2-3-2-DECOMPOSE-L2-RULE-1-1-PRE-FLIGHT-MCP-PROTOCOL",
+  "audit_target": "task2_3_2_dispatch_prompt.md & swarm_state.json",
+  "council_session_id": "COUNCIL-SESSION-032-TASK2-3-2-AUDIT",
+  "auditing_agent": "cochem-audit",
+  "timestamp": "2026-09-10T19:16:00-05:00",
+  "statutory_verdict": "FAIL [DEF_FAB_01_HASH_MISMATCH]",
+  "invariants": {
+    "DEF_OMIT_01": "PASS",
+    "DEF_FAB_01": "FAIL",
+    "DEF_ENV_01": "PASS",
+    "CRYPTOGRAPHIC_PARITY": "PASS",
+    "SWARM_STATE_LEDGER": "PASS"
+  },
+  "fatal_defect": {
+    "type": "DEF_FAB_01_HASH_MISMATCH",
+    "description": "Precedent task2_level2_wbs_breakdown.md declared hash 1e597e662a3519981c7a5be8fa6eb9664b95103526c51a262baba23bd639b77e does not match actual on-disk hash a7e21fbe86336cab8797d53564f942a3694c08ffb5ebdf9ecca39ac61a0fc687",
+    "affected_line": 27,
+    "rubber_stamp_auditor_indicted": "adversary (adversary_task2_3_2_prompt_audit_report.md:L80)"
+  },
+  "audited_artifacts": [
+    {
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_3_2_dispatch_prompt.md",
+      "sha256": "330676c03103f5336157f54ab6cb1c6b2672c4aeb8690f581afc8c1b473ac6fe",
+      "bytes": 16900,
+      "lines": 213
+    },
+    {
+      "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_3_2_dispatch_prompt.md",
+      "sha256": "330676c03103f5336157f54ab6cb1c6b2672c4aeb8690f581afc8c1b473ac6fe",
+      "bytes": 16900,
+      "lines": 213
+    },
+    {
+      "path": "D:/__CoChem/.docs/task2_3_2_dispatch_prompt.md",
+      "sha256": "330676c03103f5336157f54ab6cb1c6b2672c4aeb8690f581afc8c1b473ac6fe",
+      "bytes": 16900,
+      "lines": 213
+    },
+    {
+      "path": "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_3_2_dispatch_prompt.md",
+      "sha256": "330676c03103f5336157f54ab6cb1c6b2672c4aeb8690f581afc8c1b473ac6fe",
+      "bytes": 16900,
+      "lines": 213
+    }
+  ],
+  "audit_report_sha256": "41aaa59787780a69b5cce55243b6a3088181cdd3112077a822059cdbfcf70240"
+}

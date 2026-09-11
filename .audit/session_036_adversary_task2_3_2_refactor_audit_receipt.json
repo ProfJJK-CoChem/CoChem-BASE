@@ -1,0 +1,65 @@
+{
+  "receipt_id": "session_036_adversary_task2_3_2_refactor_audit_receipt",
+  "timestamp_utc": "2026-09-10T20:10:00Z",
+  "auditor_agent": "adversary",
+  "target_artifact": "task2_3_2_preflight_mcp_breakdown.md",
+  "target_version": "2.3.0",
+  "statutory_verdict": "UNCONDITIONAL_STATUTORY_PASS",
+  "governance_lifecycle_status": "APPROVED_FOR_BASELINE_EXECUTION",
+  "cryptographic_parity_audit": {
+    "byte_count": 61095,
+    "sha256": "e724b05137d79393bc3937e9c38f3a8eaa55445fd866dc8a3bc0de208b180db0",
+    "parity_percentage": 100.0,
+    "mirrors_verified": [
+      "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_3_2_preflight_mcp_breakdown.md",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_3_2_preflight_mcp_breakdown.md",
+      "D:/__CoChem/.docs/task2_3_2_preflight_mcp_breakdown.md",
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_3_2_preflight_mcp_breakdown.md"
+    ]
+  },
+  "rectification_audit": {
+    "issue_1_schema_contract_drift_l3_9": {
+      "status": "PASS",
+      "details": "Eliminated property key mismatch between schemas/preflight_declaration_schema.json (declared_mcp_tools) and Markdown plan declaration template."
+    },
+    "issue_2_ast_verification_gate_sec7": {
+      "status": "PASS",
+      "details": "Refactored governance AST verification script to fail-closed when target implementation files do not exist on disk."
+    },
+    "issue_3_decision_flow_and_method_matrix_invariants": {
+      "status": "PASS",
+      "details": "Corrected Section 2 Mermaid gatekeeper branching to cleanly separate Exit 1 from Exit 6; codified Method Matrix physical invariants."
+    }
+  },
+  "anti_spoofing_v4": {
+    "status": "PASS",
+    "mock_frameworks_count": 0,
+    "dummy_stubs_count": 0,
+    "synthetic_arrays_count": 0,
+    "dynamic_mendeleev_resolution": true,
+    "ast_parse_validation": "PASSED"
+  },
+  "pmbok_swebok_audit": {
+    "status": "PASS",
+    "work_packages_count": 5,
+    "work_packages": [
+      "L3.6",
+      "L3.7",
+      "L3.8",
+      "L3.9",
+      "L3.10"
+    ],
+    "mandatory_sections_per_package": 10,
+    "single_owner_raci_enforced": true,
+    "exit_codes_concordance": {
+      "0": "PREFLIGHT_PASS",
+      "1": "PREFLIGHT_FAIL_MISSING_DECLARATION",
+      "2": "PREFLIGHT_FAIL_UNKNOWN_TOOL",
+      "3": "PREFLIGHT_FAIL_UNAPPROVED_TOOL",
+      "4": "PREFLIGHT_FAIL_LOOP_DELEGATION",
+      "5": "PREFLIGHT_FAIL_DEPRECATED_SCRIPT",
+      "6": "PREFLIGHT_FAIL_SYNTAX_ERROR"
+    }
+  },
+  "authorized_next_actions": "Execution authorization released to cochem-coder for implementation of Task L3.6 (src/cochem/mcp/registry_inspector.py)"
+}

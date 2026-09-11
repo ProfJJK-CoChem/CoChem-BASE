@@ -49,6 +49,13 @@ class ProvenanceErrorCode(str, Enum):
     QCSCHEMA_VALIDATION_FAILED = "QCSCHEMA_VALIDATION_FAILED"
     BSSE_CORRECTION_FAILED = "BSSE_CORRECTION_FAILED"
 
+    # Domain Ontology & Boundaries (L3.2.1)
+    ONTOLOGICAL_COLLISION = "ONTOLOGICAL_COLLISION"
+    PRODUCT_DOMAIN_BOUNDARY_VIOLATION = "PRODUCT_DOMAIN_BOUNDARY_VIOLATION"
+    RECIPROCAL_DENSITY_VIOLATION = "RECIPROCAL_DENSITY_VIOLATION"
+    INVALID_ROTATIONAL_ANCHOR = "INVALID_ROTATIONAL_ANCHOR"
+    INVALID_PERIODIC_CELL = "INVALID_PERIODIC_CELL"
+
     # Infrastructure & Security
     HDF5_SWMR_LOCK_TIMEOUT = "HDF5_SWMR_LOCK_TIMEOUT"
     REGISTRY_LOCK_TIMEOUT = "REGISTRY_LOCK_TIMEOUT"
@@ -340,9 +347,10 @@ class CoChemError(Exception):
         msg_upper = self.message.upper()
         code_str = str(self.error_code).upper() if self.error_code is not None else ""
         cls_name = self.__class__.__name__
+        cls_upper = cls_name.upper()
 
         # 1. SCF Convergence Failure
-        if "CONVERGENCE" in cls_name or "SCF" in msg_upper or "CONVERG" in msg_upper:
+        if "CONVERGENCE" in cls_upper or "SCF" in msg_upper or "CONVERG" in msg_upper:
             return (
                 "Self-Consistent Field (SCF) electronic iteration did not reach numerical convergence. "
                 "In molecular orbital theory, this indicates electronic oscillation or near-degenerate frontier "
@@ -352,7 +360,7 @@ class CoChemError(Exception):
             )
 
         # 2. Severe Atomic Clash / Nuclear Overlap
-        if "CLASH" in msg_upper or "OVERLAP" in msg_upper or "PATHOLOGY" in code_str or "PATHOLOGY" in cls_name:
+        if "CLASH" in msg_upper or "OVERLAP" in msg_upper or "PATHOLOGY" in code_str or "PATHOLOGY" in cls_upper:
             return (
                 "Severe atomic clash / unphysical nuclear overlap detected. According to the Pauli exclusion principle, "
                 "interpenetrating electron clouds experience steep repulsive Coulombic and exchange forces, causing the "
@@ -362,7 +370,7 @@ class CoChemError(Exception):
             )
 
         # 3. Basis Set Linear Dependency / Singularity
-        if "SINGULAR" in msg_upper or "LINEAR DEPENDENCY" in msg_upper or "SINGULARITY" in cls_name:
+        if "SINGULAR" in msg_upper or "LINEAR DEPENDENCY" in msg_upper or "SINGULARITY" in cls_upper:
             return (
                 "Near-singular basis set overlap matrix detected (basis set linear dependency). Diffuse basis functions "
                 "on adjacent centers overlap excessively, causing overlap matrix eigenvalues to approach zero and matrix "
@@ -372,7 +380,7 @@ class CoChemError(Exception):
             )
 
         # 4. Negative / Imaginary Vibrational Frequencies
-        if "NEGATIVE" in msg_upper or "IMAGINARY" in msg_upper or "HESSIAN" in cls_name or "LAM" in cls_name:
+        if "NEGATIVE" in msg_upper or "IMAGINARY" in msg_upper or "HESSIAN" in cls_upper or "LAM" in cls_upper:
             return (
                 "Unexpected imaginary (negative) vibrational frequency encountered. A true ground-state local minimum "
                 "must possess 3N-6 strictly positive real normal mode frequencies. A transition state must possess exactly one "
@@ -381,12 +389,44 @@ class CoChemError(Exception):
             )
 
         # 5. Out of Memory (OOM)
-        if "MEMORY" in msg_upper or "OOM" in msg_upper or "ALLOCAT" in msg_upper or "OUTOFMEMORY" in cls_name:
+        if "MEMORY" in msg_upper or "OOM" in msg_upper or "ALLOCAT" in msg_upper or "OUTOFMEMORY" in cls_upper:
             return (
                 "Memory allocation threshold exceeded (%maxcore threshold). High-order electron correlation methods "
                 "(MP2, CCSD(T)) and four-center two-electron integral storage scale steeply with basis functions (O(N^4) to O(N^7)). "
                 "Recommended remediation: (1) transition integral evaluation to direct SCF (disk-based or on-the-fly), "
                 "(2) reduce the number of parallel MPI processes to allocate more RAM per core, or (3) use Resolution-of-Identity (RI/DF)."
+            )
+
+        # 6. Ontological Collision & Domain Boundary Violations (L3.2.1)
+        if "ONTOLOGICAL" in cls_upper or "COLLISION" in msg_upper:
+            return (
+                "Ontological collision detected between distinct physical calculation domains. CoChem enforces strict "
+                "separation between Product B (gas-phase microwave rotational spectroscopy, semi-experimental anchors) and "
+                "Product M (solid-state materials, periodic boundary conditions, plane waves). Recommended remediation: "
+                "segregate molecular microwave decks from periodic crystal calculations and remove mismatched parameters."
+            )
+
+        if "RECIPROCAL" in cls_upper or "DENSITY" in msg_upper or "KMESH" in msg_upper:
+            return (
+                "Periodic k-point mesh density below Method Matrix standard (rho_k >= 0.04 A^-1) or unphysical Gamma-point sampling "
+                "detected on a sub-2000 A^3 unit cell. In solid-state band theory, under-sampling the first Brillouin zone causes "
+                "spurious discretization errors in electronic density and Fermi surface integration. Recommended remediation: "
+                "increase Monkhorst-Pack grid dimensions or expand supercell volume beyond 2000 A^3."
+            )
+
+        if "ROTATIONAL" in cls_upper or "ANCHOR" in msg_upper:
+            return (
+                "Rotational constant ordering (A > B > C > 0) or Ray's asymmetry parameter topology violated. "
+                "In rigid-rotor quantum mechanics, the principal moments of inertia satisfy I_a <= I_b <= I_c, which "
+                "mandates A >= B >= C. Prolate rotors (kappa -> -1) and oblate rotors (kappa -> +1) cannot invert topology "
+                "between trial and parent templates. Recommended remediation: inspect nuclear inertia tensor and principal axis alignment."
+            )
+
+        if "PERIODIC" in cls_upper or "CELL" in msg_upper:
+            return (
+                "Degenerate or non-positive unit cell volume detected in periodic lattice definition. "
+                "Lattice vectors must form a non-coplanar right-handed basis with scalar triple product V_cell > 1e-6 A^3. "
+                "Recommended remediation: verify that lattice vectors a_1, a_2, a_3 are linearly independent and non-zero."
             )
 
         # Generic didactic fallback
@@ -481,6 +521,10 @@ class ProvenanceError(CoChemError):
     default_error_code: Optional[Union[ProvenanceErrorCode, str]] = None
 
 
+CoChemProvenanceError = ProvenanceError
+_EXCEPTION_REGISTRY["CoChemProvenanceError"] = ProvenanceError
+
+
 class MethodMatrixViolationError(ProvenanceError):
     """Raised when a calculation violates Method Matrix standards (e.g. DEFGRID, unsupported functionals)."""
 
@@ -515,6 +559,138 @@ class MissingDataError(ProvenanceError, KeyError):
     default_error_code: Optional[Union[ProvenanceErrorCode, str]] = ProvenanceErrorCode.MISSING_DATA
 
 
+class GridSpecificationError(MethodMatrixViolationError):
+    """Raised when quadrature grid specification violates Method Matrix standards (e.g. DEFGRID1/DEFGRID2 for FREQ)."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.METHOD_MATRIX_VIOLATION_DEFGRID
+    )
+
+    def __init__(
+        self,
+        message: str = "Quadrature grid violates Method Matrix standards (defgrid1/defgrid2 forbidden for frequency tasks; defgrid3 mandated) [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
+class RedundantDispersionError(MethodMatrixViolationError, ValueError):
+    """Raised when redundant dispersion corrections (e.g. wB97M-V + D3/D4) are requested."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.UNSUPPORTED_METHOD
+    )
+
+    def __init__(
+        self,
+        message: str = "Redundant empirical dispersion requested on functional with native non-local dispersion (e.g. wB97M-V + D3/D4) [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
+class MissingDispersionError(MethodMatrixViolationError, ValueError):
+    """Raised when required dispersion correction is omitted for non-covalent complexes."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.DISPERSION_MISSING
+    )
+
+    def __init__(
+        self,
+        message: str = "Non-covalent complex calculation requires empirical dispersion (D3BJ/D4) or native non-local dispersion functional [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
+class HessianSpecificationError(MethodMatrixViolationError, ValueError):
+    """Raised when prohibited Calc_Hess true or invalid Hessian preconditioning directives are parsed."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INVALID_HESSIAN_STRATEGY
+    )
+
+    def __init__(
+        self,
+        message: str = "Calc_Hess true is strictly banned during geometry optimization initialization; use InHess XTB2 or InHess Lindh [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
+class GeometryConvergenceError(CoChemBaseException):
+    """Raised when quantum geometry optimization diverges, encounters stationary gradient stalling, or exceeds MaxIter 200."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONVERGENCE_FAILURE
+    )
+
+    def __init__(
+        self,
+        message: str = "Quantum geometry optimization failed to reach stationary convergence within threshold or iteration ceiling [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
+class TrajectoryDriftViolationError(CoChemBaseException):
+    """Raised when monomer drift along frozen internal coordinates satisfies Delta r_max >= 1.0e-6 Angstrom."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.FROZEN_MONOMER_VIOLATION
+    )
+
+    def __init__(
+        self,
+        message: str = "Monomer internal coordinate drift Delta r_max exceeds physical threshold (1.0e-6 Angstrom) [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
 class FrozenMonomerViolationError(MethodMatrixViolationError):
     """Raised when frozen monomer constraints or coordinates are improperly modified."""
 
@@ -545,6 +721,123 @@ class BSSECorrectionError(MethodMatrixViolationError):
     default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
         ProvenanceErrorCode.BSSE_CORRECTION_FAILED
     )
+
+
+class OntologicalCollisionError(MethodMatrixViolationError):
+    """Raised when a single calculation payload or job specification attempts to mix microwave gas-phase spectroscopic parameters and solid-state periodic parameters [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.ONTOLOGICAL_COLLISION
+    )
+
+    def __init__(
+        self,
+        message: str = "Ontological collision: mixing microwave gas-phase parameters and solid-state periodic parameters in a single payload is strictly prohibited [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
+class ProductDomainBoundaryViolation(MethodMatrixViolationError):
+    """Raised when a calculation payload violates domain-specific invariants [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.PRODUCT_DOMAIN_BOUNDARY_VIOLATION
+    )
+
+    def __init__(
+        self,
+        message: str = "Product domain boundary violation: calculation payload violates domain-specific physical invariants [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
+class ReciprocalDensityViolation(ProductDomainBoundaryViolation):
+    """Raised when periodic k-point mesh density is below threshold or Gamma-point is misused [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.RECIPROCAL_DENSITY_VIOLATION
+    )
+
+    def __init__(
+        self,
+        message: str = "Reciprocal density violation: k-point density below 0.04 A^-1 or Gamma-point sampled on sub-2000 A^3 unit cell [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
+class InvalidRotationalAnchorError(ProductDomainBoundaryViolation):
+    """Raised when experimental rotational anchors are physically impossible, un-ordered, or non-positive [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INVALID_ROTATIONAL_ANCHOR
+    )
+
+    def __init__(
+        self,
+        message: str = "Invalid rotational anchor: rotational constants must satisfy strict ordering A_0 > B_0 > C_0 > 0 and preserve topology [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
+class InvalidPeriodicCellError(ProductDomainBoundaryViolation):
+    """Raised when unit cell volume is non-positive or lattice vectors are degenerate [M]."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INVALID_PERIODIC_CELL
+    )
+
+    def __init__(
+        self,
+        message: str = "Invalid periodic cell: unit cell volume must be positive (V_cell > 1e-6 A^3) and lattice vectors non-degenerate [M].",
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=details,
+            timestamp=timestamp,
+        )
+
+
+_EXCEPTION_REGISTRY["OntologicalCollisionError"] = OntologicalCollisionError
+_EXCEPTION_REGISTRY["ProductDomainBoundaryViolation"] = ProductDomainBoundaryViolation
+_EXCEPTION_REGISTRY["ReciprocalDensityViolation"] = ReciprocalDensityViolation
+_EXCEPTION_REGISTRY["InvalidRotationalAnchorError"] = InvalidRotationalAnchorError
+_EXCEPTION_REGISTRY["InvalidPeriodicCellError"] = InvalidPeriodicCellError
 
 
 class IntermolecularTopologyError(CoChemError, ValueError):
@@ -1024,6 +1317,13 @@ class SecurityWarning(CoChemWarning):
         super().__init__(message)
 
 
+class GeometricStrainWarning(CoChemWarning):
+    """Issued when residual gradient norm on frozen degrees of freedom exceeds ||g_residual||_inf > 1.0e-4 a.u."""
+
+    def __init__(self, message: str = "Residual gradient norm on frozen degrees of freedom exceeds ||g_residual||_inf > 1.0e-4 a.u. [M].") -> None:
+        super().__init__(message)
+
+
 # =====================================================================
 # Utilities, Boundaries, and Decorators
 # =====================================================================
@@ -1311,6 +1611,12 @@ class MissingTelemetryError(CoChemError):
 
 _EXCEPTION_REGISTRY["ToolUnavailableError"] = ToolUnavailableError
 _EXCEPTION_REGISTRY["MissingTelemetryError"] = MissingTelemetryError
+_EXCEPTION_REGISTRY["GridSpecificationError"] = GridSpecificationError
+_EXCEPTION_REGISTRY["RedundantDispersionError"] = RedundantDispersionError
+_EXCEPTION_REGISTRY["MissingDispersionError"] = MissingDispersionError
+_EXCEPTION_REGISTRY["HessianSpecificationError"] = HessianSpecificationError
+_EXCEPTION_REGISTRY["GeometryConvergenceError"] = GeometryConvergenceError
+_EXCEPTION_REGISTRY["TrajectoryDriftViolationError"] = TrajectoryDriftViolationError
 
 
 __all__ = [
@@ -1324,7 +1630,14 @@ __all__ = [
     "CoChemBaseException",
     # Provenance & Method Matrix Exceptions
     "ProvenanceError",
+    "CoChemProvenanceError",
     "MethodMatrixViolationError",
+    "GridSpecificationError",
+    "RedundantDispersionError",
+    "MissingDispersionError",
+    "HessianSpecificationError",
+    "GeometryConvergenceError",
+    "TrajectoryDriftViolationError",
     "ExceptionDeflectionBlockedError",
     "AntiSpoofingViolationError",
     "MissingDataError",
@@ -1332,6 +1645,11 @@ __all__ = [
     "UnsupportedMethodError",
     "TriagePathologyError",
     "BSSECorrectionError",
+    "OntologicalCollisionError",
+    "ProductDomainBoundaryViolation",
+    "ReciprocalDensityViolation",
+    "InvalidRotationalAnchorError",
+    "InvalidPeriodicCellError",
     "IntermolecularTopologyError",
     "PreflightValidationError",
     "QuantumEngineCrashError",
@@ -1390,6 +1708,7 @@ __all__ = [
     "CoChemDeprecationWarning",
     "HardwareWarning",
     "SecurityWarning",
+    "GeometricStrainWarning",
     # Utilities, Boundaries, Decorators, and Serialization Helpers
     "format_error_message",
     "format_warning_message",

@@ -1,0 +1,59 @@
+{
+  "receipt_id": "COCHEM-RECEIPT-SESSION-040-ADVERSARY-20260910",
+  "timestamp": "2026-09-10T21:51:00-05:00",
+  "council_session_id": "COUNCIL-EMERGENCY-SESSION-040",
+  "resolution_id": "COCHEM-COUNCIL-RES-040-8D-TASK3-1-4-RECTIFICATION-20260910",
+  "auditor": "adversary",
+  "role": "Independent Hostile Zero-Trust Red-Team Lead & Meta-Auditor",
+  "verdict": "[STATUS: PASS / COUNCIL_SESSION_040_CONTAINMENT_RATIFIED]",
+  "scorecard_summary": {
+    "total_criteria": 10,
+    "criteria_passed": 10,
+    "criteria_failed": 0,
+    "compliance_percentage": 100.0
+  },
+  "targets_verified": [
+    {
+      "target": "task3_1_4_dispatch_prompt.md",
+      "bytes": 23311,
+      "lines": 217,
+      "sha256": "AF1A755CDB815F04DFB8E43ACE071F0A1FDA37AADBD5F30ED27628AB617FC7FF",
+      "mirrors_count": 6,
+      "parity": "100.000% MATCH"
+    },
+    {
+      "target": "council_emergency_session_040_resolution_plan.md",
+      "bytes": 45079,
+      "lines": 478,
+      "sha256": "CA8CAE6EBD55266392A41BC40E68A0437BC58E71E4E1093B779501394729C1D3",
+      "mirrors_count": 5,
+      "parity": "100.000% MATCH"
+    },
+    {
+      "target": "swarm_state.json",
+      "bytes": 91792,
+      "sha256": "168FC969E81E2697718E5643A1F9A974B3232925D3A12E357D2526CEA81C267B",
+      "mirrors_count": 5,
+      "parity": "100.000% MATCH"
+    },
+    {
+      "target": "lessons.md",
+      "lines": 1180,
+      "sha256": "3CCCE407E026552DAACDD486B8F3E30410658C33129A73A08239106D7D455D63",
+      "mirrors_count": 2,
+      "parity": "100.000% MATCH"
+    }
+  ],
+  "git_verification": {
+    "repository": "D:/__CoChem/GitHub-Repo/CoChem-BASE",
+    "working_tree_isolation_exceptions_py": "M (unstaged in index, 157 lines preserved in worktree)",
+    "staged_status_dispatch_prompt": "A",
+    "staged_status_resolution_plan": "A",
+    "cached_diff_insertions_prompt": 217,
+    "cached_diff_insertions_resolution_plan": 477,
+    "off_target_diff_lines": 0,
+    "pca_13_compliant": true,
+    "pca_18_compliant": true
+  },
+  "audit_report_hash": "9ABD2803E7DBF5654D66AC499D5C222DEE1ABD853BAF414B6FD73175887B640D"
+}

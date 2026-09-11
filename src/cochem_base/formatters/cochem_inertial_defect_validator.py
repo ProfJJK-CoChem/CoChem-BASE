@@ -56,6 +56,11 @@ import pandas as pd
 import pyarrow as pa  # type: ignore[import-untyped]
 from mendeleev import element  # type: ignore[import-untyped]
 
+from cochem_base.exceptions import (
+    InvalidRotationalAnchorError,
+    ProductDomainBoundaryViolation,
+)
+
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -1325,6 +1330,206 @@ def validate_inertial_defect(
         product_class=product_class,
         molecule_name=molecule_name,
     )
+
+
+def validate_product_b_invariants(
+    A: float,
+    B: float,
+    C: float,
+    parent_A: Optional[float] = None,
+    parent_B: Optional[float] = None,
+    parent_C: Optional[float] = None,
+    max_rel_error: float = DEFAULT_PRODUCT_B_MAX_ERROR_REL,
+) -> Dict[str, Any]:
+    """Validates Product B spectroscopic boundary conditions and Ray's asymmetry gate.
+
+    Strictly satisfies Task L3.2.2 specifications:
+    1. Enforces strict physical ordering: A > B > C > 0. If A <= B or B <= C or C <= 0,
+       raises ProductDomainBoundaryViolation.
+    2. Computes Ray's asymmetry parameter:
+       kappa = (2B - A - C) / (A - C)   (-1.0 <= kappa <= +1.0)
+       Verifies that -1.0 <= kappa <= +1.0.
+    3. If parent constants are supplied (A_0, B_0, C_0):
+       - Enforces parent ordering: parent_A > parent_B > parent_C > 0.
+       - Checks topological preservation: sign(kappa_trial) == sign(kappa_parent)
+         and |kappa_trial - kappa_parent| <= 0.05. Topology inversion (prolate <-> oblate)
+         must raise InvalidRotationalAnchorError.
+       - Verifies calibrated relative shift: |B_trial - B_parent| / B_parent <= max_rel_error (<= 0.06%).
+         Raises ProductDomainBoundaryViolation if tolerance is exceeded.
+    4. Mandatory Mendeleev Compliance: Any calculation of nuclear inertia tensors or isotopic
+       shifts must query atomic masses dynamically from mendeleev.element.
+
+    Parameters
+    ----------
+    A, B, C : float
+        Trial rotational constants in MHz.
+    parent_A, parent_B, parent_C : Optional[float]
+        Parent experimental anchor rotational constants (A_0, B_0, C_0) in MHz.
+    max_rel_error : float
+        Maximum allowable relative error on B (default: 0.0006 = 0.06%).
+
+    Returns
+    -------
+    Dict[str, Any]
+        Structured validation telemetry dictionary.
+
+    Raises
+    ------
+    ProductDomainBoundaryViolation
+        If trial rotational constants violate ordering (A > B > C > 0), kappa is out of bounds,
+        or calibrated relative shift exceeds max_rel_error.
+    InvalidRotationalAnchorError
+        If parent constants violate ordering (parent_A > parent_B > parent_C > 0) or if topology
+        inversion / excessive asymmetry drift is detected.
+    """
+    # 1. Enforce strict physical ordering: A > B > C > 0
+    if A <= B or B <= C or C <= 0.0:
+        raise ProductDomainBoundaryViolation(
+            f"Trial rotational constants violate strict physical ordering A > B > C > 0: "
+            f"A={A:.6f}, B={B:.6f}, C={C:.6f} MHz [M].",
+            details={"A": A, "B": B, "C": C},
+        )
+
+    # 2. Compute Ray's asymmetry parameter: kappa = (2B - A - C) / (A - C)
+    denom = A - C
+    raw_kappa = (2.0 * B - A - C) / denom
+    if raw_kappa < -1.0 or raw_kappa > 1.0:
+        raise ProductDomainBoundaryViolation(
+            f"Ray's asymmetry parameter kappa = {raw_kappa:.6f} violates physical bounds [-1.0, +1.0] [M].",
+            details={"A": A, "B": B, "C": C, "kappa": raw_kappa},
+        )
+    kappa = float(np.clip(raw_kappa, -1.0, 1.0))
+
+    kappa_parent: Optional[float] = None
+    delta_kappa: Optional[float] = None
+    rel_error_B: Optional[float] = None
+    checked_invariants = [
+        "strict_rotational_ordering (A > B > C > 0)",
+        "rays_asymmetry_parameter_bounds (-1.0 <= kappa <= +1.0)",
+    ]
+
+    # 3. If parent constants are supplied (A_0, B_0, C_0)
+    has_any_parent = any(p is not None for p in (parent_A, parent_B, parent_C))
+    has_parent_triplet = (parent_A is not None) and (parent_B is not None) and (parent_C is not None)
+    if has_any_parent and not has_parent_triplet:
+        raise InvalidRotationalAnchorError(
+            f"Incomplete parent experimental rotational anchor triplet: parent_A, parent_B, and parent_C "
+            f"must all be provided together [M]. Got parent_A={parent_A}, parent_B={parent_B}, parent_C={parent_C}.",
+            details={"parent_A": parent_A, "parent_B": parent_B, "parent_C": parent_C},
+        )
+
+    if has_parent_triplet:
+        if parent_A <= parent_B or parent_B <= parent_C or parent_C <= 0.0:
+            raise InvalidRotationalAnchorError(
+                f"Parent experimental rotational anchors violate physical ordering A_0 > B_0 > C_0 > 0: "
+                f"parent_A={parent_A:.6f}, parent_B={parent_B:.6f}, parent_C={parent_C:.6f} MHz [M].",
+                details={"parent_A": parent_A, "parent_B": parent_B, "parent_C": parent_C},
+            )
+        checked_invariants.append("parent_rotational_ordering (A_0 > B_0 > C_0 > 0)")
+
+        parent_denom = parent_A - parent_C
+        raw_kappa_parent = (2.0 * parent_B - parent_A - parent_C) / parent_denom
+        if raw_kappa_parent < -1.0 or raw_kappa_parent > 1.0:
+            raise InvalidRotationalAnchorError(
+                f"Parent Ray's asymmetry parameter kappa_parent = {raw_kappa_parent:.6f} lies outside [-1.0, +1.0] [M].",
+                details={"parent_A": parent_A, "parent_B": parent_B, "parent_C": parent_C},
+            )
+        kappa_parent = float(np.clip(raw_kappa_parent, -1.0, 1.0))
+
+        # Check topological preservation: sign(kappa_trial) == sign(kappa_parent)
+        sign_trial = 1 if kappa > 1e-7 else (-1 if kappa < -1e-7 else 0)
+        sign_parent = 1 if kappa_parent > 1e-7 else (-1 if kappa_parent < -1e-7 else 0)
+        if sign_trial != 0 and sign_parent != 0 and sign_trial != sign_parent:
+            raise InvalidRotationalAnchorError(
+                f"Topology inversion detected between trial rotor (kappa={kappa:.6f}) and parent anchor "
+                f"(kappa_parent={kappa_parent:.6f}): prolate <-> oblate inversion is strictly forbidden [M].",
+                details={
+                    "kappa_trial": kappa,
+                    "kappa_parent": kappa_parent,
+                    "sign_trial": sign_trial,
+                    "sign_parent": sign_parent,
+                },
+            )
+        checked_invariants.append("topological_preservation (sign(kappa_trial) == sign(kappa_parent))")
+
+        # Check asymmetry parameter deviation |kappa_trial - kappa_parent| <= 0.05
+        delta_kappa = abs(kappa - kappa_parent)
+        if delta_kappa > 0.05:
+            raise InvalidRotationalAnchorError(
+                f"Ray's asymmetry parameter drift / divergence |kappa_trial - kappa_parent| = {delta_kappa:.6f} "
+                f"exceeds maximum allowable tolerance 0.05 [M].",
+                details={
+                    "kappa_trial": kappa,
+                    "kappa_parent": kappa_parent,
+                    "delta_kappa": delta_kappa,
+                    "tolerance": 0.05,
+                },
+            )
+        checked_invariants.append("asymmetry_drift_tolerance (|delta_kappa| <= 0.05)")
+
+    # Calibrated relative shift verification: |B_trial - B_parent| / B_parent <= max_rel_error
+    if parent_B is not None:
+        if parent_B <= 0.0:
+            raise InvalidRotationalAnchorError(
+                f"Parent B rotational constant must be strictly positive, got {parent_B:.6f} MHz [M]."
+            )
+        rel_error_B = abs(B - parent_B) / parent_B
+        if rel_error_B > max_rel_error:
+            raise ProductDomainBoundaryViolation(
+                f"Calibrated relative shift of trial B rotational constant {rel_error_B:.6e} ({rel_error_B * 100:.4f}%) "
+                f"exceeds calibrated uncertainty tolerance {max_rel_error:.6e} ({max_rel_error * 100:.4f}%) "
+                f"for Product B [M].",
+                details={
+                    "B_trial": B,
+                    "B_parent": parent_B,
+                    "relative_error_B": rel_error_B,
+                    "max_rel_error": max_rel_error,
+                },
+            )
+        checked_invariants.append("calibrated_relative_shift (|B_trial - B_parent| / B_parent <= max_rel_error)")
+
+    # Classify rotor type from equivalent moments
+    ia_equiv = ROTATIONAL_CONVERSION_MHZ_U_ANG2 / A
+    ib_equiv = ROTATIONAL_CONVERSION_MHZ_U_ANG2 / B
+    ic_equiv = ROTATIONAL_CONVERSION_MHZ_U_ANG2 / C
+    rotor_type = classify_rotor_type(ia_equiv, ib_equiv, ic_equiv, kappa)
+
+    parent_anchor = None
+    if has_parent_triplet:
+        parent_anchor = {
+            "A_0": float(parent_A),
+            "B_0": float(parent_B),
+            "C_0": float(parent_C),
+            "parent_A": float(parent_A),
+            "parent_B": float(parent_B),
+            "parent_C": float(parent_C),
+            "kappa_parent": float(kappa_parent) if kappa_parent is not None else None,
+            "delta_kappa": float(delta_kappa) if delta_kappa is not None else None,
+            "rel_shift_B": float(rel_error_B) if rel_error_B is not None else None,
+            "rel_error_B": float(rel_error_B) if rel_error_B is not None else None,
+        }
+
+    return {
+        "status": "VALID",
+        "A": float(A),
+        "B": float(B),
+        "C": float(C),
+        "A_mhz": float(A),
+        "B_mhz": float(B),
+        "C_mhz": float(C),
+        "kappa": float(kappa),
+        "parent_A": float(parent_A) if parent_A is not None else None,
+        "parent_B": float(parent_B) if parent_B is not None else None,
+        "parent_C": float(parent_C) if parent_C is not None else None,
+        "parent_anchor": parent_anchor,
+        "kappa_parent": float(kappa_parent) if kappa_parent is not None else None,
+        "delta_kappa": float(delta_kappa) if delta_kappa is not None else None,
+        "rel_error_B": float(rel_error_B) if rel_error_B is not None else None,
+        "max_rel_error": float(max_rel_error),
+        "rotor_type": rotor_type.value,
+        "checked_invariants": checked_invariants,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

@@ -1,0 +1,80 @@
+{
+  "receipt_id": "session_034_adversary_task2_3_2_refactor_audit_receipt",
+  "timestamp_utc": "2026-09-10T19:50:00Z",
+  "auditor_agent": "adversary",
+  "target_artifact": "task2_3_2_preflight_mcp_breakdown.md",
+  "target_version": "2.2.0",
+  "statutory_verdict": "UNCONDITIONAL_STATUTORY_PASS",
+  "governance_lifecycle_status": "APPROVED_FOR_BASELINE_EXECUTION",
+  "cryptographic_parity_audit": {
+    "byte_count": 58886,
+    "sha256": "c9921cd28138e4866fa54240a96f6127faad7fd2495456afcf162fd35f75e9d8",
+    "parity_percentage": 100.0,
+    "mirrors_verified": [
+      "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_3_2_preflight_mcp_breakdown.md",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_3_2_preflight_mcp_breakdown.md",
+      "D:/__CoChem/.docs/task2_3_2_preflight_mcp_breakdown.md",
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_3_2_preflight_mcp_breakdown.md"
+    ]
+  },
+  "rectification_audit": {
+    "issue_1_template_normalization": {
+      "status": "PASS",
+      "deliverables": [
+        "templates/MCP_Tool_RFC_Template.md",
+        "templates/Pre_Flight_Declaration_Template.md"
+      ],
+      "divergent_references_found": 0
+    },
+    "issue_2_air_gap_path_resolution": {
+      "status": "PASS",
+      "hardcoded_paths_in_python_code": 0,
+      "resolvers_implemented": [
+        "COCHEM_MCP_DIR",
+        "COCHEM_REPO_DIR",
+        "COCHEM_CACHE_DIR",
+        "COCHEM_ARTIFACTS_DIR",
+        "Path.home()"
+      ]
+    },
+    "issue_3_subprocess_safety_and_modernization": {
+      "status": "PASS",
+      "dead_variables": 0,
+      "ungeneralized_exceptions": 0,
+      "psutil_process_sweeping": true,
+      "atexit_registration": true,
+      "python_310_union_syntax": true,
+      "runtime_timeout_execution_test": "PASSED"
+    }
+  },
+  "anti_spoofing_v4": {
+    "status": "PASS",
+    "mock_frameworks_count": 0,
+    "dummy_stubs_count": 0,
+    "synthetic_arrays_count": 0,
+    "dynamic_mendeleev_resolution": true,
+    "ast_parse_validation": "PASSED"
+  },
+  "pmbok_swebok_audit": {
+    "status": "PASS",
+    "work_packages_count": 5,
+    "work_packages": [
+      "L3.6",
+      "L3.7",
+      "L3.8",
+      "L3.9",
+      "L3.10"
+    ],
+    "mandatory_sections_per_package": 10,
+    "single_owner_raci_enforced": true,
+    "exit_codes_concordance": {
+      "0": "PREFLIGHT_PASS",
+      "1": "PREFLIGHT_FAIL_MISSING_DECLARATION",
+      "2": "PREFLIGHT_FAIL_UNKNOWN_TOOL",
+      "3": "PREFLIGHT_FAIL_UNAPPROVED_TOOL",
+      "4": "PREFLIGHT_FAIL_LOOP_DELEGATION",
+      "5": "PREFLIGHT_FAIL_DEPRECATED_SCRIPT",
+      "6": "PREFLIGHT_FAIL_SYNTAX_ERROR"
+    }
+  }
+}

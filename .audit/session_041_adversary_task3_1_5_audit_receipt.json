@@ -1,0 +1,139 @@
+{
+  "audit_receipt_id": "COCHEM-AUDIT-RECEIPT-ADVERSARY-SESSION-041-TASK3-1-5-20260910",
+  "council_session_id": "COUNCIL-EMERGENCY-SESSION-041",
+  "auditing_agent": "adversary",
+  "audit_role": "Independent Hostile Zero-Trust Red-Team Lead & Meta-Auditor",
+  "supervising_authority": "0rchestrator",
+  "audit_type": "HOSTILE_ZERO_TRUST_8D_RESOLUTION_PLAN_AND_TASK3_1_5_META_AUDIT",
+  "timestamp": "2026-09-10T22:12:00-05:00",
+  "verdict": "PASS",
+  "statutory_verdict": "[STATUS: RATIFIED]",
+  "indictment_reference": "COCHEM-AUDIT-FORENSIC-TASK3-1-5-DIFF-MISMATCH-20260910",
+  "resolution_plan_id": "COCHEM-COUNCIL-RES-041-8D-TASK3-1-5-RECTIFICATION-20260910",
+  "target_work_package": "TASK-3-1-5-ASSEMBLE-AND-VERIFY-AUTHORITATIVE-WBS-ARTIFACT",
+  "quarantine_adjudication": {
+    "quarantine_id": "FAIL_CLOSED_QUARANTINE_041",
+    "defect_code": "QUARANTINED_DIFF_MISMATCH",
+    "containment_status": "CONTAINED_AND_DISCHARGED",
+    "discharge_authority": "COCHEM_AGENT_COUNCIL_PRESIDIUM_UNANIMOUS_VOTE_9_0_0"
+  },
+  "evaluated_deliverables": [
+    {
+      "logical_name": "task3_1_5_dispatch_prompt.md",
+      "canonical_repo_path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task3_1_5_dispatch_prompt.md",
+      "sha256": "6721E5CCDF3334E45BF3E50E4BC13D9B9DA0A355B563FD9EF1DF4CDFA0A17BEB",
+      "byte_size": 15310,
+      "line_count": 176,
+      "mirrors_verified": [
+        "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task3_1_5_dispatch_prompt.md",
+        "D:/__CoChem/.docs/task3_1_5_dispatch_prompt.md",
+        "C:/Users/ansac/.gemini/antigravity-cli/scratch/task3_1_5_dispatch_prompt.md",
+        "D:/__CoChem/__agentic/dropzones/inbox_srs/task3_1_5_dispatch_prompt.md"
+      ],
+      "parity": "100.000%",
+      "git_index_status": "STAGED_ADDITION_A",
+      "git_cached_diff": "+176 lines, 0 off-target lines",
+      "pca_13_compliant": true,
+      "pca_18_1_compliant": true
+    },
+    {
+      "logical_name": "council_emergency_session_041_task3_1_5_resolution_plan.md",
+      "canonical_repo_path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/council_emergency_session_041_task3_1_5_resolution_plan.md",
+      "sha256": "CD3819A32716D31DA4EDBD4301EFF81EA3218CAADB307E32CAA1799A491193B5",
+      "byte_size": 51035,
+      "line_count": 522,
+      "mirrors_verified": [
+        "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/council_emergency_session_041_task3_1_5_resolution_plan.md",
+        "D:/__CoChem/.docs/council_emergency_session_041_task3_1_5_resolution_plan.md",
+        "C:/Users/ansac/.gemini/antigravity-cli/scratch/council_emergency_session_041_task3_1_5_resolution_plan.md",
+        "D:/__CoChem/__agentic/dropzones/inbox_srs/council_emergency_session_041_task3_1_5_resolution_plan.md"
+      ],
+      "parity": "100.000%",
+      "git_index_status": "STAGED_ADDITION_A",
+      "git_cached_diff": "+522 lines, 0 off-target lines",
+      "disciplines_covered": "D1_THROUGH_D8_COMPLETE"
+    },
+    {
+      "logical_name": "src/cochem_base/geometry/constraints.py",
+      "canonical_repo_path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/src/cochem_base/geometry/constraints.py",
+      "git_index_staged_lines": 0,
+      "working_tree_status": "MODIFIED_UNSTAGED_248_LINES",
+      "coder_work_order": "COCHEM-WORK-ORDER-L3-T2-03-T2-04-20260910",
+      "containment_status": "ISOLATED_IN_WORKING_TREE_ZERO_LINES_STAGED",
+      "pca_18_2_compliant": true
+    },
+    {
+      "logical_name": "session_041_cochem_audit_task3_1_5_receipt.json",
+      "canonical_repo_path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.audit/session_041_cochem_audit_task3_1_5_receipt.json",
+      "sha256": "5F32422FF45442891566986E5DD2FDFE12916BE3CA44B2012B41C699EFB36932",
+      "byte_size": 8731,
+      "line_count": 174,
+      "mirrors_verified": [
+        "D:/__CoChem/GitHub-Repo/CoChem-BASE/.audit/session_041_cochem_audit_task3_1_5_receipt.json",
+        "D:/__CoChem/.audit/session_041_cochem_audit_task3_1_5_receipt.json",
+        "C:/Users/ansac/.gemini/antigravity-cli/scratch/session_041_cochem_audit_task3_1_5_receipt.json",
+        "D:/__CoChem/__agentic/dropzones/inbox_srs/session_041_cochem_audit_task3_1_5_receipt.json"
+      ],
+      "parity": "100.000%",
+      "git_index_status": "STAGED_ADDITION_A",
+      "verdict": "PASS"
+    },
+    {
+      "logical_name": "lessons.md",
+      "canonical_repo_path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/lessons.md",
+      "sha256": "D29D4AB9B3E41540E24D16167CDC98475D17270C2F35C5BFE51036D2A6B4C2F4",
+      "byte_size": 177411,
+      "line_count": 1210,
+      "mirrors_verified": [
+        "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/lessons.md",
+        "D:/__CoChem/.docs/lessons.md",
+        "C:/Users/ansac/.gemini/antigravity-cli/scratch/lessons.md"
+      ],
+      "parity": "100.000%",
+      "git_index_status": "STAGED_MODIFICATION_M",
+      "git_cached_diff": "+328 lines",
+      "session_041_recorded": true,
+      "pca_18_codified": true
+    },
+    {
+      "logical_name": "swarm_state.json",
+      "canonical_repo_path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/swarm_state.json",
+      "sha256": "A7BBEAEAB6E7EA408917BBEEE470AA319241265C62656B3B12691DCDED78500A",
+      "byte_size": 99976,
+      "line_count": 1894,
+      "mirrors_verified": [
+        "D:/__CoChem/GitHub-Repo/CoChem-BASE/swarm_state.json",
+        "D:/__CoChem/swarm_state.json",
+        "C:/Users/ansac/.gemini/antigravity-cli/scratch/swarm_state.json"
+      ],
+      "parity": "100.000%",
+      "synchronization_status": "SYNCHRONIZED_AND_STAGED",
+      "active_task": "3.1.5",
+      "quarantine_status": "FAIL_CLOSED_QUARANTINE_041_CONTAINED_AND_DISCHARGED"
+    }
+  ],
+  "adversarial_verification_scorecard": {
+    "item_01_quad_mirror_parity_dispatch_prompt": "PASS [M][E]",
+    "item_02_quad_mirror_parity_session_041_resolution_plan": "PASS [M][E]",
+    "item_03_isolated_path_scoped_staged_diff_pca_13_pca_18_1": "PASS (+176 insertions, 0 noise) [M][E]",
+    "item_04_working_tree_codebase_drift_containment_pca_18_2": "PASS (constraints.py 0 lines staged, preserved unstaged for L3-T2-03-T2-04) [M][E]",
+    "item_05_temporal_causality_and_monotonicity_pca_14": "PASS (21:48 <= 21:57 <= 22:01:32 <= 22:04:00 <= 22:08:30 <= 22:12:00) [GOV][M]",
+    "item_06_purged_conversational_self_ratification_pca_18_3": "PASS (Dual-gate enforcement satisfied via separate audit turns) [GOV]",
+    "item_07_zero_mock_zero_stub_zero_synthetic_data": "PASS (0 functional mocks/stubs/fakes) [M]",
+    "item_08_empirical_pytest_harness_verification": "PASS (tests/test_chunk17_verification_suite.py: 11/11 passed in 35.72s) [M][E]",
+    "item_09_lessons_learned_synchronization": "PASS (.docs/lessons.md +328 insertions staged, tri-mirror synchronized) [GOV][M]",
+    "item_10_swarm_state_ledger_synchronization": "PASS (swarm_state.json tri-mirror synchronized, Session 041 tracked) [GOV][M]"
+  },
+  "ratified_corrective_actions": [
+    "PCA-13",
+    "PCA-14",
+    "PCA-18.1",
+    "PCA-18.2",
+    "PCA-18.3"
+  ],
+  "audit_artifacts_emitted": [
+    ".audit/session_041_adversary_task3_1_5_audit_receipt.json",
+    ".docs/adversary_session_041_task3_1_5_audit_report.md"
+  ],
+  "single_safest_next_action": "Quarantine FAIL_CLOSED_QUARANTINE_041 permanently discharged and ratified. Authorize 0rchestrator to dispatch cochem-sdp-manager for Task 3.1.5 WBS baseline persistence (task3_level2_wbs_breakdown.md)."
+}

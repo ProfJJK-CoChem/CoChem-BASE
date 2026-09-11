@@ -1,0 +1,33 @@
+{
+  "receipt_id": "COCHEM-RECEIPT-SESSION-041-TASK3-1-6-REMEDIATION-ADVERSARY-PASS",
+  "task_id": "TASK-3-1-6-FINAL-RATIFICATION-AND-MOCK-HUNT",
+  "council_session_id": "COUNCIL-SESSION-041-TASK3-1-6-REMEDIATION",
+  "auditing_agent": "adversary",
+  "supervising_authority": "0rchestrator",
+  "timestamp": "2026-09-10T22:31:30-05:00",
+  "statutory_verdict": "PASS [RATIFIED]",
+  "target_wbs_deliverable": "task3_level2_wbs_breakdown.md",
+  "target_wbs_bytes": 42193,
+  "target_wbs_lines": 456,
+  "target_wbs_sha256": "48E92125C69DFD5E8F0D6C1A5473A31FFCA4472C5E4BC946B13EF30E74DDB97F",
+  "decoy_ui_spec_expunged": true,
+  "zero_mock_verified": true,
+  "dynamic_mendeleev_mass_verified": true,
+  "single_agent_raci_verified": true,
+  "pmbok_100_percent_rule_verified": true,
+  "five_mirror_parity_verified": true,
+  "mirrors_verified": [
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task3_level2_wbs_breakdown.md",
+    "C:/Users/ansac/.gemini/antigravity-cli/scratch/task3_level2_wbs_breakdown.md",
+    "D:/__CoChem/.docs/task3_level2_wbs_breakdown.md",
+    "D:/__CoChem/__agentic/dropzones/inbox_srs/task3_level2_wbs_breakdown.md",
+    "C:/Users/ansac/.gemini/antigravity-cli/brain/c2c76a0e-ae4d-4746-b8c0-ec7b879569ea/task3_level2_wbs_breakdown.md"
+  ],
+  "audit_report_paths": [
+    "D:/__CoChem/.docs/audits/COCHEM-ADVERSARY-AUDIT-SESSION-041-TASK3-1-6-REMEDIATION-RATIFICATION-20260910.md",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/audits/COCHEM-ADVERSARY-AUDIT-SESSION-041-TASK3-1-6-REMEDIATION-RATIFICATION-20260910.md",
+    "C:/Users/ansac/.gemini/antigravity-cli/scratch/COCHEM-ADVERSARY-AUDIT-SESSION-041-TASK3-1-6-REMEDIATION-RATIFICATION-20260910.md"
+  ],
+  "audit_report_sha256": "4F67917A7D1A0BB8393EE3EEAD87B093FD781DC6C8CE79BA5DF3C17967E42DA9",
+  "audit_transcript": "file:///C:/Users/ansac/.gemini/antigravity-cli/brain/b59840ab-36ac-43c1-af75-a77ad5f47613"
+}

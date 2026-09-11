@@ -1,0 +1,99 @@
+{
+  "audit_receipt_id": "COCHEM-AUDIT-RECEIPT-SESSION-036-TASK2-3-2-REFACTOR-RATIFICATION",
+  "audit_type": "ADVERSARIAL_ARCHITECTURAL_AND_CODE_COMPLIANCE_AUDIT",
+  "auditing_agent": "cochem-audit",
+  "supervising_authority": "0rchestrator",
+  "target_deliverable": "task2_3_2_preflight_mcp_breakdown.md",
+  "target_version": "2.3.0",
+  "governing_standards": [
+    "PMBOK Guide 7th Edition",
+    "SWEBOK v3/v4",
+    "Method Matrix v4.1",
+    "Anti-Spoofing Protocol v4"
+  ],
+  "timestamp": "2026-09-10T20:10:00-05:00",
+  "verdict": "PASS [RATIFIED]",
+  "physical_inventory": [
+    {
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_3_2_preflight_mcp_breakdown.md",
+      "exists": true,
+      "byte_size": 61095,
+      "sha256": "e724b05137d79393bc3937e9c38f3a8eaa55445fd866dc8a3bc0de208b180db0",
+      "status": "PHYSICALLY_VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_3_2_preflight_mcp_breakdown.md",
+      "exists": true,
+      "byte_size": 61095,
+      "sha256": "e724b05137d79393bc3937e9c38f3a8eaa55445fd866dc8a3bc0de208b180db0",
+      "status": "PHYSICALLY_VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": "D:/__CoChem/.docs/task2_3_2_preflight_mcp_breakdown.md",
+      "exists": true,
+      "byte_size": 61095,
+      "sha256": "e724b05137d79393bc3937e9c38f3a8eaa55445fd866dc8a3bc0de208b180db0",
+      "status": "PHYSICALLY_VERIFIED_ON_DISK [M]"
+    },
+    {
+      "path": "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_3_2_preflight_mcp_breakdown.md",
+      "exists": true,
+      "byte_size": 61095,
+      "sha256": "e724b05137d79393bc3937e9c38f3a8eaa55445fd866dc8a3bc0de208b180db0",
+      "status": "PHYSICALLY_VERIFIED_ON_DISK [M]"
+    }
+  ],
+  "rectification_verifications": {
+    "schema_contract_parity_l3_9": {
+      "status": "PASS",
+      "description": "Eliminated property key mismatch between schemas/preflight_declaration_schema.json (declared_mcp_tools) and Markdown declaration template."
+    },
+    "fail_closed_ast_verification_sec7": {
+      "status": "PASS",
+      "description": "Refactored governance AST verification script to fail-closed when target files do not exist on disk."
+    },
+    "architectural_decision_flow_sec2": {
+      "status": "PASS",
+      "description": "Corrected Section 2 Mermaid gatekeeper branching to cleanly separate Missing Declaration (Exit 1) from Schema/Syntax Malformation (Exit 6)."
+    },
+    "method_matrix_v4_1_physical_invariants": {
+      "status": "PASS",
+      "description": "Codified Recipe R1/R2, defgrid1->defgrid3, InHess Lindh/XTB2, quintuple convergence TolMaxG 1e-5, and mandatory D3/D4 dispersion."
+    }
+  },
+  "invariant_verifications": {
+    "cryptographic_parity": "PASS",
+    "template_naming_normalization": "PASS",
+    "dynamic_path_resolution": "PASS",
+    "subprocess_safety_and_sweeping": "PASS",
+    "modern_pipe_unions": "PASS",
+    "logging_standardization": "PASS",
+    "anti_spoofing_zero_mock": "PASS",
+    "mendeleev_dynamic_masses": "PASS",
+    "pmbok_100_percent_rule": "PASS",
+    "swebok_mece_decomposition": "PASS",
+    "single_owner_raci": "PASS",
+    "deterministic_exit_codes": "PASS"
+  },
+  "wbs_components": [
+    "L3.6",
+    "L3.7",
+    "L3.8",
+    "L3.9",
+    "L3.10"
+  ],
+  "deterministic_exit_codes": {
+    "0": "PREFLIGHT_PASS",
+    "1": "PREFLIGHT_FAIL_MISSING_DECLARATION",
+    "2": "PREFLIGHT_FAIL_UNKNOWN_TOOL",
+    "3": "PREFLIGHT_FAIL_UNAPPROVED_TOOL",
+    "4": "PREFLIGHT_FAIL_LOOP_DELEGATION",
+    "5": "PREFLIGHT_FAIL_DEPRECATED_SCRIPT",
+    "6": "PREFLIGHT_FAIL_SYNTAX_ERROR"
+  },
+  "presidium_sign_off": {
+    "auditor": "cochem-audit",
+    "status": "RATIFIED",
+    "recommendation": "READY_FOR_ADVERSARY_RED_TEAM_AND_COUNCIL_RATIFICATION"
+  }
+}

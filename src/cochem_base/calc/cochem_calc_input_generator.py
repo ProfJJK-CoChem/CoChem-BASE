@@ -20,6 +20,7 @@ import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from cochem.core.exceptions import RotationalGridInstabilityError
+from cochem_base.exceptions import GridSpecificationError
 from cochem_base.config_loader import get_artifact_dir, load_system_config_dict
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -41,7 +42,11 @@ class MoleculeInput(BaseModel):
     @model_validator(mode="after")
     def validate_method_matrix(self) -> "MoleculeInput":
         if self.is_weak_complex:
-            if "D3" not in self.theory_level.upper() and "D4" not in self.theory_level.upper():
+            has_dispersion = any(
+                d in self.theory_level.upper()
+                for d in ["D3", "D4", "-3C", "VV10", "WB97M-V", "B97M-V", "PBE-NL"]
+            )
+            if not has_dispersion:
                 raise ValueError("[ERR_STRATEGY_PIVOT] Dispersion: Reject DFT optimizations of weak complexes lacking D3/D4.")
         
         is_freq_task = (
@@ -50,8 +55,10 @@ class MoleculeInput(BaseModel):
             or "NUMFREQ" in self.theory_level.upper()
             or "HESS" in self.theory_level.upper()
         )
-        if is_freq_task and "DEFGRID1" in self.theory_level.upper():
-            raise ValueError("[METHOD_MATRIX_VIOLATION_DEFGRID] defgrid1 is forbidden for frequency/Hessian tasks; defgrid3 is mandated.")
+        if is_freq_task and ("DEFGRID1" in self.theory_level.upper() or "DEFGRID2" in self.theory_level.upper()):
+            raise GridSpecificationError(
+                "[METHOD_MATRIX_VIOLATION_DEFGRID] DEFGRID1/DEFGRID2 is forbidden for frequency/Hessian tasks; DEFGRID3 is mandated [M]."
+            )
 
         # 4. Hessian Preconditioning Safeguards
         if self.is_opt and "CALC_HESS TRUE" in self.theory_level.upper():
@@ -227,6 +234,7 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
             geom_block_lines.append("  TolRMSG 3e-6")
             geom_block_lines.append("  TolMaxD 1e-4")
             geom_block_lines.append("  TolRMSD 5e-5")
+            geom_block_lines.append("  MaxIter 200")
         if data.is_opt:
             geom_block_lines.append("  InHess XTB2")
 

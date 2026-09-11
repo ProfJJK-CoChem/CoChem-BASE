@@ -1,0 +1,206 @@
+{
+  "receipt_id": "session_039_adversary_task3_1_4_audit_receipt",
+  "council_session": "COUNCIL-SESSION-039-TASK3-1-4",
+  "initial_audit_timestamp_iso8601": "2026-09-10T21:35:00-05:00",
+  "ratification_timestamp_iso8601": "2026-09-10T21:40:00-05:00",
+  "auditor_agent": "adversary",
+  "target_artifact": "task3_1_4_dispatch_prompt.md",
+  "target_execution_agent": "cochem-sdp-manager",
+  "target_version": "3.1.4",
+  "statutory_verdict": "[STATUS: PASS]",
+  "governance_lifecycle_status": "RATIFIED_FOR_EXECUTION",
+  "defect_resolution": {
+    "defect_code": "DEF-OMIT-01",
+    "status": "RESOLVED_AND_CLOSED",
+    "resolution_description": "Authoritative dispatch prompt formulated, physically persisted across all host mirrors with 100.000% SHA-256 parity, and verified across all 10 criteria."
+  },
+  "cryptographic_parity_audit": {
+    "byte_count": 23311,
+    "line_count": 217,
+    "sha256": "af1a755cdb815f04dfb8e43ace071f0a1fda37aadbd5f30ed27628ab617fc7ff",
+    "parity_percentage": 100.0,
+    "mirrors_verified": [
+      "C:/Users/ansac/.gemini/antigravity-cli/scratch/task3_1_4_dispatch_prompt.md",
+      "C:/Users/ansac/.gemini/antigravity-cli/brain/e13c7e88-6b54-4837-99ee-602aed844e27/task3_1_4_dispatch_prompt.md",
+      "C:/Users/ansac/.gemini/antigravity-cli/brain/5154d88f-7933-4686-adae-e707c7c93bc0/task3_1_4_dispatch_prompt.md",
+      "D:/__CoChem/.docs/task3_1_4_dispatch_prompt.md",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task3_1_4_dispatch_prompt.md",
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/task3_1_4_dispatch_prompt.md"
+    ]
+  },
+  "ten_criteria_scorecard": {
+    "criterion_1_physical_existence_and_parity": "PASS",
+    "criterion_2_execution_agent_governance_authority": "PASS",
+    "criterion_3_rule1_context_ingestion_17_paths": "PASS",
+    "criterion_4_rule2_physical_disk_persistence_all_mirrors": "PASS",
+    "criterion_5_rule3_structured_final_text_report": "PASS",
+    "criterion_6_anti_spoofing_v4_zero_mock": "PASS",
+    "criterion_7_dynamic_mendeleev_mass_lookup": "PASS",
+    "criterion_8_jax_64bit_double_precision": "PASS",
+    "criterion_9_spectroscopy_quantum_unit_conversions": "PASS",
+    "criterion_10_granular_6tier_risk_decomposition_18_modes_raci": "PASS"
+  },
+  "context_files_audited": [
+    {
+      "index": 1,
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task3_level2_wbs_breakdown.md",
+      "bytes": 29249,
+      "lines": 362,
+      "sha256": "72044d6e7cd6965a6b117a38d09050bf3881f97bb417b631342e1a643df12380"
+    },
+    {
+      "index": 2,
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task3_boundary_and_interface_manifest.md",
+      "bytes": 18175,
+      "lines": 279,
+      "sha256": "0b78dbb38068e7fc38c43da60e586898d3a0cd8b63fa1bb018304f68218e0225"
+    },
+    {
+      "index": 3,
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task3_1_2_dispatch_prompt.md",
+      "bytes": 17419,
+      "lines": 175,
+      "sha256": "e1103ef153329dce80fcafd3b68c5b004b627ca28e160571ab26f9f46ca1d5c4"
+    },
+    {
+      "index": 4,
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task3_1_3_dispatch_prompt.md",
+      "bytes": 21366,
+      "lines": 225,
+      "sha256": "25802e86393f1a920059119dd857e126587a60dcd21bcba2468832585581f4a0"
+    },
+    {
+      "index": 5,
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/adversary_task3_1_4_prompt_audit_report.md",
+      "bytes": 25376,
+      "lines": 299,
+      "sha256": "b4a669f10cbfbc1a2d75cb8553d59a6963f5e0093b9e546ef13a9b61bec8f9ca"
+    },
+    {
+      "index": 6,
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task1_swebok_quality_and_risk_matrix.md",
+      "bytes": 31655,
+      "lines": 272,
+      "sha256": "89838ac0fc237e94efc1fab4f0ddd5fe349444f2252cea76d573fd2d163f6ae3"
+    },
+    {
+      "index": 7,
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task1_compliance_frameworks.md",
+      "bytes": 59322,
+      "lines": 674,
+      "sha256": "a45ada523483e7978138bcd79a2659c183da01189a4fd66e796d622fbaeb8b0e"
+    },
+    {
+      "index": 8,
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_level2_wbs_breakdown.md",
+      "bytes": 37126,
+      "lines": 377,
+      "sha256": "c12b4a7cccfee9626f3e2a636270dfb4b279d81fa2baf243186d78acec71c0d4"
+    },
+    {
+      "index": 9,
+      "path": "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_2_2_l3_component_decomposition.md",
+      "bytes": 68466,
+      "lines": 1138,
+      "sha256": "cc7332f88c347d1f69265d8ac7565da61f9a476d3a6495623053b25930e9b508"
+    },
+    {
+      "index": 10,
+      "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/Task_List.md",
+      "bytes": 62372,
+      "lines": 582,
+      "sha256": "0d8a60b80b4f7eb8272fbf2903d856b4a955193cbd8d194afe7352f715ea6acf"
+    },
+    {
+      "index": 11,
+      "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/src/cochem_base/mm/quadrature_manager.py",
+      "bytes": 6497,
+      "lines": 176,
+      "sha256": "46311f824b85dd538e8192b37088690af0f57bc235668f13b700a7b9353195ab"
+    },
+    {
+      "index": 12,
+      "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/src/cochem_base/analysis/electronic_sanitizer.py",
+      "bytes": 6129,
+      "lines": 159,
+      "sha256": "c50ba519a26ddbeb011cbb69220d0fd7bfff25c7fe4584eaa32755312399fad4"
+    },
+    {
+      "index": 13,
+      "path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_chunk17_verification_suite.py",
+      "bytes": 15376,
+      "lines": 367,
+      "sha256": "7929f4ac77e9c75f853f11af43c43e7425418d8bf424831950f272c05684f41c"
+    },
+    {
+      "index": 14,
+      "path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/swarm_state.json",
+      "bytes": 89320,
+      "lines": 1699,
+      "sha256": "4be1c0bb49d6f1a1652d36c1ad917ace2185498fc2a87b108d35fb9f29ddb46e"
+    },
+    {
+      "index": 15,
+      "path": "C:/Users/ansac/.gemini/config/skills/agent-cochem-sdp-manager/SKILL.md",
+      "bytes": 15241,
+      "lines": 167,
+      "sha256": "1094f06ba0c4c4cd73d1db2fe3153b865038ba8049f63942f19f989f4cf640f2"
+    },
+    {
+      "index": 16,
+      "path": "C:/Users/ansac/.gemini/config/rules/cochem-anti-spoofing-v4.md",
+      "bytes": 4909,
+      "lines": 25,
+      "sha256": "870809881f2fdedefb4b4b1a330399c77964cbd65e894d3e7ba7bf4e5c7755e1"
+    },
+    {
+      "index": 17,
+      "path": "C:/Users/ansac/.gemini/config/rules/cochem-mendeleev-masses.md",
+      "bytes": 580,
+      "lines": 18,
+      "sha256": "3d56b0491f6d6ed851d997486c9cd279cc23dd1c0cc20b1f3a2700f053a0d35e"
+    }
+  ],
+  "anti_spoofing_v4": {
+    "status": "PASS",
+    "mock_frameworks_count": 0,
+    "dummy_stubs_count": 0,
+    "synthetic_arrays_count": 0,
+    "dynamic_mendeleev_resolution": true,
+    "jax_64bit_precision": true,
+    "codata_constants_verification": true
+  },
+  "pmbok_swebok_ieee16085_audit": {
+    "status": "PASS",
+    "designated_agent": "cochem-sdp-manager",
+    "governing_standards": [
+      "PMBOK Guide 7th Edition (Systems View for Project Delivery & Uncertainty Domain)",
+      "SWEBOK v3/v4 (Software Architecture, Requirements, Quality Management)",
+      "IEEE/ISO/IEC 16085:2021 (Risk Management)",
+      "ISO/IEC 25010:2023 (Systems and Software Quality Models)"
+    ],
+    "platforms_covered": [
+      "Tier 1: Local-Windows (WSL2 / Win32 Native)",
+      "Tier 2: Local-MacOS (OrbStack / Apple Silicon ARM64)",
+      "Tier 3: Local-Linux (Debian / RHEL Native POSIX)",
+      "Tier 4: GitHub Codespaces (Cloud DevContainer / Ephemeral Docker)",
+      "Tier 5: GitHub Actions CI/CD (Headless Automated Runner)",
+      "Tier 6: High-Performance Computing (HPC Slurm / PBS / Lustre / GPFS)"
+    ],
+    "distinct_failure_modes_count": 18,
+    "single_owner_raci_enforced": true
+  },
+  "audit_report_mirrors": [
+    "C:/Users/ansac/.gemini/antigravity-cli/scratch/adversary_task3_1_4_prompt_audit_report.md",
+    "C:/Users/ansac/.gemini/antigravity-cli/brain/5154d88f-7933-4686-adae-e707c7c93bc0/adversary_task3_1_4_prompt_audit_report.md",
+    "C:/Users/ansac/.gemini/antigravity-cli/brain/e13c7e88-6b54-4837-99ee-602aed844e27/adversary_task3_1_4_prompt_audit_report.md",
+    "D:/__CoChem/.docs/adversary_task3_1_4_prompt_audit_report.md",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/adversary_task3_1_4_prompt_audit_report.md",
+    "D:/__CoChem/__agentic/dropzones/inbox_srs/adversary_task3_1_4_prompt_audit_report.md"
+  ],
+  "clearance_for_execution": {
+    "authorized_agent": "cochem-sdp-manager",
+    "authorized_target_file": "task3_multi_environment_risk_register.md",
+    "status": "CLEARED_FOR_EXECUTION"
+  }
+}

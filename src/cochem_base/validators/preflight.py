@@ -17,7 +17,11 @@ from collections import deque
 import numpy as np
 from mendeleev import element
 
-from cochem_base.exceptions import PreflightValidationError
+from cochem_base.exceptions import (
+    PreflightValidationError,
+    RedundantDispersionError,
+    MissingDispersionError,
+)
 
 
 class PreflightGeometryValidator:
@@ -75,11 +79,13 @@ class PreflightGeometryValidator:
     def validate(
         cls,
         symbols: Sequence[str],
-        coords: np.ndarray,
+        coords: Optional[np.ndarray] = None,
         charge: int = 0,
         multiplicity: int = 1,
         dft_keywords: Optional[Union[Sequence[str], str]] = None,
         is_complex: Optional[bool] = None,
+        *,
+        coordinates: Optional[np.ndarray] = None,
     ) -> bool:
         """Runs preflight validation on molecular geometry and job options.
         
@@ -90,6 +96,7 @@ class PreflightGeometryValidator:
             multiplicity: Spin multiplicity (2S + 1).
             dft_keywords: Optional DFT input keywords (e.g. ['B3LYP', 'D3BJ', 'def2-TZVP']).
             is_complex: If specified, forces complex handling; otherwise auto-detected.
+            coordinates: Alias for coords keyword argument.
             
         Returns:
             True if all checks pass.
@@ -97,6 +104,11 @@ class PreflightGeometryValidator:
         Raises:
             PreflightValidationError: If any physical rule is violated.
         """
+        if coords is None:
+            if coordinates is not None:
+                coords = coordinates
+            else:
+                raise PreflightValidationError("Coordinates must be provided.")
         arr = np.asarray(coords, dtype=np.float64)
         n_atoms = len(symbols)
 
@@ -160,10 +172,20 @@ class PreflightGeometryValidator:
                 else:
                     kw_str = " ".join(str(k).upper() for k in dft_keywords)
 
-            has_dispersion = ("D3BJ" in kw_str) or ("D4" in kw_str)
-            if not has_dispersion:
-                raise PreflightValidationError(
-                    "Non-covalent complex missing mandatory empirical dispersion correction (D3BJ/D4)"
+            # Native non-local dispersion functionals (VV10) [M]
+            is_non_local_disp = any(nl in kw_str for nl in ["WB97M-V", "REV-WB97M-V", "B97M-V", "VV10"])
+            has_empirical_disp = ("D3BJ" in kw_str) or ("D4" in kw_str) or ("D3" in kw_str)
+
+            if is_non_local_disp and has_empirical_disp:
+                raise RedundantDispersionError(
+                    f"Functional with native non-local dispersion ('{kw_str}') cannot be paired with explicit empirical dispersion (D3/D4) [M]."
+                )
+
+            if not is_non_local_disp and not has_empirical_disp:
+                raise MissingDispersionError(
+                    "Non-covalent complex missing mandatory dispersion correction (D3BJ/D4 or native non-local VV10) [M]."
                 )
 
         return True
+
+    validate_geometry_and_options = validate

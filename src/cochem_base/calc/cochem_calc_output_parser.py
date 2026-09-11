@@ -11,7 +11,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 
@@ -199,3 +199,33 @@ class QuantumParser:
             self.apply_immutable_lock(gbw_path)
         self.apply_immutable_lock(json_path)
         return True
+
+    def parse_residual_gradients(
+        self,
+        log_path: Union[str, Path],
+        strain_threshold: float = 1.0e-4,
+    ) -> Tuple[float, bool]:
+        """
+        Parses maximum residual gradient on frozen coordinates and flags geometric strain caveat (VR-02).
+        """
+        path = Path(log_path)
+        content = path.read_text(encoding="utf-8", errors="replace")
+        max_g_pattern = re.compile(r"MAX GRADIENT\s*:\s*([-+]?\d*\.\d+[eE]?[-+]?\d*)", re.IGNORECASE)
+        last_max_g = 0.0
+        for line in content.splitlines():
+            m = max_g_pattern.search(line)
+            if m:
+                last_max_g = abs(float(m.group(1)))
+        has_strain = last_max_g > strain_threshold
+        return last_max_g, has_strain
+
+
+OutputParser = QuantumParser
+
+__all__ = [
+    "QCSchemaProperties",
+    "QCSchemaProvenance",
+    "QCSchemaMolecule",
+    "QuantumParser",
+    "OutputParser",
+]

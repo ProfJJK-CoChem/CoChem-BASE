@@ -1,0 +1,92 @@
+{
+  "receipt_id": "COCHEM-AUDIT-RECEIPT-SESSION-072-TASK1-5-3-DISPATCH-RATIFIED-20260911",
+  "council_session_id": "COUNCIL-SESSION-072",
+  "resolution_id": "COCHEM-COUNCIL-RES-072-TASK1-5-3-DISPATCH-RATIFICATION-20260911",
+  "task_id": "1.5.3",
+  "task_title": "Specify explicit agent assignments, provenance tags ([M], [D]), inputs, deliverables, and acceptance criteria for all L3 tasks",
+  "wbs_code": "1.5.3",
+  "designated_agent": "cochem-sdp-manager",
+  "auditing_agent": "cochem-audit",
+  "subagent_conversation_id": "07bb352a-a6c2-4435-83b9-6cfe700787be",
+  "caller_recipient_id": "ebc37315-7575-4215-b6c3-c7ff361df5e1",
+  "supervising_authority": "0rchestrator",
+  "timestamp": "2026-09-11T08:52:00-05:00",
+  "verdict": "PASS [AUDIT_VERIFIED & UNCONDITIONALLY RATIFIED]",
+  "statutory_verdict": "[STATUS: PASS [RATIFIED_FOR_EXECUTION]]",
+  "ratification_code": "[RATIFIED_COCHEM_AUDIT_TASK1_5_3_DISPATCH_PROMPT_PASSED]",
+  "agent_selection_evaluation": {
+    "agent": "cochem-sdp-manager",
+    "pmbok_2021_domains": [
+      "Planning",
+      "Team",
+      "Project Work",
+      "Delivery",
+      "Measurement",
+      "Quality"
+    ],
+    "swebok_v4_kas": [
+      "KA 07 (Software Engineering Management)",
+      "KA 11 (Software Quality)"
+    ],
+    "raci_enforcement": "Single accountable ownership (R/A: cochem-sdp-manager; C: Domain specialists; I: Council; V: cochem-audit / adversary)",
+    "precedent_continuity": "Aligned with predecessor baselines Tasks 1.2.2, 1.2.3, 1.3.1, 1.3.2, 1.3.3, 1.3.4, and 1.5.2",
+    "status": "APPROVED"
+  },
+  "dispatch_prompt_metrics": {
+    "canonical_path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/task1_5_3_dispatch_prompt.md",
+    "bytes": 12163,
+    "lines": 144,
+    "sha256": "EB9A3FF347B565D7A3E2F0C560322A111565076988B21DB2EAD1E1AB035E49C4",
+    "mirrors_verified": [
+      "C:/Users/ansac/.gemini/antigravity-cli/scratch/task1_5_3_dispatch_prompt.md",
+      "D:/__CoChem/.docs/task1_5_3_dispatch_prompt.md",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task1_5_3_dispatch_prompt.md",
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/task1_5_3_dispatch_prompt.md"
+    ],
+    "bitwise_parity": "100.000% PASS"
+  },
+  "audit_report_metrics": {
+    "canonical_path": "C:/Users/ansac/.gemini/antigravity-cli/scratch/cochem_audit_task1_5_3_dispatch_report.md",
+    "bytes": 19351,
+    "lines": 233,
+    "sha256": "C9E5CF4AC77D297AD17F0896A397BAA83B8C5CA427F41092E0B7AB1281D19308",
+    "mirrors_verified": [
+      "C:/Users/ansac/.gemini/antigravity-cli/scratch/cochem_audit_task1_5_3_dispatch_report.md",
+      "D:/__CoChem/.docs/cochem_audit_task1_5_3_dispatch_report.md",
+      "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/cochem_audit_task1_5_3_dispatch_report.md",
+      "D:/__CoChem/__agentic/dropzones/inbox_srs/cochem_audit_task1_5_3_dispatch_report.md"
+    ],
+    "bitwise_parity": "100.000% PASS"
+  },
+  "scope_verification": {
+    "total_work_packages": 17,
+    "work_package_range": "L3-T1-01 to L3-T1-17",
+    "tracks": [
+      "Track 1: Dynamic Mendeleev Mass Resolution & Nuclide Normalization (L3-T1-01 to L3-T1-05)",
+      "Track 2: Mass-Weighted Center-of-Mass Invariant & Translation Zeroing (L3-T1-06 to L3-T1-07)",
+      "Track 3: Eckart SO(3) Frame Rotation & Inversion Gate (L3-T1-08 to L3-T1-10)",
+      "Track 4: Two-Stage Conformer Deduplication & Automorphism Sieve (L3-T1-11 to L3-T1-14)",
+      "Track 5: Subsystem Packaging, Dataclass Typing, & Verification Harness (L3-T1-15 to L3-T1-17)"
+    ],
+    "mece_status": "100.000% PASS"
+  },
+  "physical_invariants": {
+    "mendeleev_lookup": "from mendeleev import element, < 1 us lookup [D]",
+    "ghost_atoms": "Gh, Bq, X = 0.0 u [D]",
+    "com_drift_tolerance": "< 1.0e-12 a.u. (float64) [D]",
+    "eckart_angular_residual": "< 1.0e-10 a.u. (float64) [D]",
+    "rotation_gate": "det(U) = +1.000000 +- 1e-12, fail-closed ImproperRotationError [D]",
+    "automorphism_sieve": "1-WL h=3, Hungarian fallback > 720 [D]",
+    "kabsch_rmsd": "< 0.0800 A [M]",
+    "rotational_constants_sieve": "<= 0.05% [M]",
+    "jax_x64": "Line-1 JAX_ENABLE_X64=True [D]"
+  },
+  "anti_spoofing_v4": {
+    "zero_mock": true,
+    "zero_stub": true,
+    "zero_pass_or_notimplemented": true,
+    "zero_synthetic_arrays": true,
+    "zero_shortcut_tags": true,
+    "ast_linter_status": "PASSED"
+  }
+}

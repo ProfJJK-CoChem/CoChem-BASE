@@ -1,0 +1,17 @@
+{
+  "audit_receipt_id": "COCHEM-AUDIT-RECEIPT-TASK2-3-1-PROMPT-PASS-20260911",
+  "auditing_agent": "adversary",
+  "audit_type": "DISPATCH_SPECIFICATION_ADVERSARIAL_RATIFICATION",
+  "target_task": "Task 2.3.1",
+  "statutory_verdict": "[STATUS: PASS / RATIFIED]",
+  "status_code": "SUCCESS",
+  "timestamp": "2026-09-11T09:52:00-05:00",
+  "target_file": "task2_3_1_dispatch_prompt.md",
+  "target_sha256": "B55A7C2C880E0BF2002ACFDA75B34D5E8C0F551151D367F991C4FDBAC368FF79",
+  "byte_count": 18227,
+  "line_count": 214,
+  "mirrors_verified": 4,
+  "bitwise_parity": "100.000% PASS",
+  "designated_agent": "cochem-sdp-manager",
+  "containment_action": "DISPATCH_AUTHORIZED"
+}

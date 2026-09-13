@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "audit_receipt_id": "COCHEM-AUDIT-RECEIPT-SESSION-096-TASK2-1-3-DECOMPOSITION-20260913",
+  "session_number": 96,
+  "timestamp": "2026-09-13T01:13:30-05:00",
+  "auditing_persona": "adversary",
+  "auditing_role": "Independent Hostile Red-Team Meta-Auditor",
+  "supervising_authority": "0rchestrator",
+  "target_agents": [
+    "cochem-sdp-manager",
+    "cochem-coder",
+    "cochem-audit"
+  ],
+  "target_task": "Task 2.1.3 - High-Precision Geometry Optimization & Frozen Monomer Constraint Engine Granular Decomposition (WBS 2.1.3.1 through 2.1.3.5)",
+  "target_deliverable_title": "Task 2.1.3 Forensic Adjudication & Granular Decomposition",
+  "canonical_file_path": "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_1_3_granular_decomposition.md",
+  "target_file_metrics": {
+    "lf_normalized_sha256": "227fbbb65f5550bd19beae835d00cc819d48e94dfb9b6d5c9bd407bb12bf6898",
+    "raw_file_sha256": "227fbbb65f5550bd19beae835d00cc819d48e94dfb9b6d5c9bd407bb12bf6898",
+    "byte_count": 37707,
+    "line_count": 565,
+    "mirrors_verified_count": 4,
+    "bitwise_parity_percentage": 100.0
+  },
+  "mirrors_verified": [
+    "C:/Users/ansac/.gemini/antigravity-cli/scratch/task2_1_3_granular_decomposition.md",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/task2_1_3_granular_decomposition.md",
+    "D:/__CoChem/.docs/task2_1_3_granular_decomposition.md",
+    "D:/__CoChem/__agentic/dropzones/inbox_srs/task2_1_3_granular_decomposition.md"
+  ],
+  "git_index_staging_metrics": {
+    "repo_path": "D:/__CoChem/GitHub-Repo/CoChem-BASE",
+    "porcelain_status": "A ",
+    "cached_insertions": 564,
+    "cached_diff_bytes": 37707,
+    "off_target_code_staged": 0,
+    "ica_02_code_freeze_enforced": true
+  },
+  "physical_invariants_verification": {
+    "def_phys_01_eradicated": true,
+    "displacement_units": "atomic Bohr units",
+    "tol_rmsd_bohr": 5.0e-5,
+    "tol_max_d_bohr": 1.0e-4,
+    "tol_e_eh": 1.0e-7,
+    "tol_max_g_eh_bohr": 1.0e-5,
+    "tol_rms_g_eh_bohr": 3.0e-6,
+    "codata_bohr_radius_angstrom": 0.529177210903,
+    "rotational_sensitivity_relation": "dB/B = -2 dR/R",
+    "rotational_sensitivity_at_co2_h2o": "-0.141%",
+    "fraser_force_constant_mdyn_ang": 0.069,
+    "fraser_force_constant_eh_bohr2": 0.0044319,
+    "ratio_vdw_to_cov": 0.0138,
+    "forbidden_exact_hessian": true,
+    "model_hessian_strategies": ["XTB2", "Lindh", "READ"]
+  },
+  "anti_spoofing_protocol_v4_audit": {
+    "linter_executed": "ci_tools/anti_spoof_linter.py --strict",
+    "linter_exit_code": 0,
+    "deliverable_ast_zero_mock_status": "PASS",
+    "mocks_detected": 0,
+    "synthetic_arrays_detected": 0,
+    "empty_pass_blocks_detected": 0,
+    "dynamic_mendeleev_enforced": true,
+    "authentic_fixtures_verified": true
+  },
+  "governance_and_raci": {
+    "microtasks_count": 5,
+    "wbs_keys": [
+      "WBS 2.1.3.1",
+      "WBS 2.1.3.2",
+      "WBS 2.1.3.3",
+      "WBS 2.1.3.4",
+      "WBS 2.1.3.5"
+    ],
+    "mece_verified": true,
+    "single_accountability_enforced": true,
+    "accountable_lead": "0rchestrator",
+    "responsible_planner": "cochem-sdp-manager",
+    "independent_qa_auditor": "cochem-audit",
+    "independent_redteam_auditor": "adversary",
+    "implementation_agent": "cochem-coder",
+    "premature_self_ratification_detected": false
+  },
+  "audit_report_paths": [
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/.docs/audits/COCHEM-ADVERSARY-AUDIT-SESSION-096-TASK2-1-3-DECOMPOSITION-PASS-20260913.md",
+    "D:/__CoChem/.docs/audits/COCHEM-ADVERSARY-AUDIT-SESSION-096-TASK2-1-3-DECOMPOSITION-PASS-20260913.md",
+    "C:/Users/ansac/.gemini/antigravity-cli/scratch/COCHEM-ADVERSARY-AUDIT-SESSION-096-TASK2-1-3-DECOMPOSITION-PASS-20260913.md"
+  ],
+  "statutory_adversarial_verdict": "[STATUS: PASS]",
+  "signature": "sha256:48e3b67a07c6ab668a9f62c99a860c714a34f5887dd8b3218d94b8ceb26c5994"
+}

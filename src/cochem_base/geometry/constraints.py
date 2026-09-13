@@ -6,6 +6,7 @@ Compliant with Method Matrix v4 §9A.1-9A.7, Anti-Spoofing Protocol v2, and Zero
 from __future__ import annotations
 
 import itertools
+import math
 from typing import Any, List, Optional, Sequence, Set, Tuple, Union
 from mendeleev import element as mendeleev_element
 import networkx as nx
@@ -178,6 +179,7 @@ def format_orca_frozen_monomer_constraints_block(
         "TolMaxG": "1e-5",
         "TolRMSD": "5e-5",
         "TolMaxD": "1e-4",
+        "MaxIter": "200",
     }
     lines: list[str] = ["%geom"]
     for k, v in thresh.items():
@@ -197,8 +199,146 @@ def format_orca_frozen_monomer_constraints_block(
     return "\n".join(lines)
 
 
+def validate_trajectory_monomer_drift(
+    trajectory: Sequence[Union[Sequence[Sequence[float]], np.ndarray]],
+    monomer_indices: Sequence[int],
+    tolerance: float = 1.0e-5,
+) -> Tuple[bool, float]:
+    """Validate that internal pairwise distances within a frozen monomer remain invariant across a trajectory.
+
+    Parameters
+    ----------
+    trajectory : Sequence[np.ndarray]
+        List or array of Cartesian geometries [N_steps, N_atoms, 3].
+    monomer_indices : Sequence[int]
+        Indices of atoms belonging to the monomer whose internal geometry should be rigid.
+    tolerance : float, default 1.0e-5
+        Maximum permissible internal distance deviation in Angstroms.
+
+    Returns
+    -------
+    Tuple[bool, float]
+        (is_valid, max_drift) where max_drift is the maximum distance variation observed.
+    """
+    if not trajectory:
+        return True, 0.0
+
+    steps = [np.asarray(step, dtype=np.float64) for step in trajectory]
+    indices = sorted(list(monomer_indices))
+    if len(indices) < 2:
+        return True, 0.0
+
+    # Reference pairwise distances from step 0
+    ref_step = steps[0]
+    ref_distances: dict[Tuple[int, int], float] = {}
+    for i_idx, i in enumerate(indices):
+        for j in indices[i_idx + 1 :]:
+            ref_distances[(i, j)] = float(np.linalg.norm(ref_step[i] - ref_step[j]))
+
+    max_drift: float = 0.0
+    for step in steps[1:]:
+        for (i, j), ref_d in ref_distances.items():
+            curr_d = float(np.linalg.norm(step[i] - step[j]))
+            drift = abs(curr_d - ref_d)
+            if drift > max_drift:
+                max_drift = drift
+
+    is_valid = max_drift <= tolerance
+    return is_valid, max_drift
+
+
+FrozenConstraintPayload = ConstraintPayload
+
+
+def get_reference_monomer_geometry(monomer: str) -> Tuple[List[str], np.ndarray]:
+    """Retrieve isolated monomer geometries from NIST/CCCBDB (Task 5.3.1)."""
+    m = monomer.upper().strip()
+    if m == "CO2":
+        # Dinfh, r_CO = 1.1621 A, angle = 180.0 deg
+        symbols = ["C", "O", "O"]
+        coords = np.array([
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.1621],
+            [0.0, 0.0, -1.1621],
+        ], dtype=np.float64)
+        return symbols, coords
+    elif m in ("H2O", "WATER"):
+        # C2v, r_OH = 0.9572 A, angle = 104.52 deg
+        theta_rad = math.radians(104.52)
+        half_theta = theta_rad / 2.0
+        r_oh = 0.9572
+        symbols = ["O", "H", "H"]
+        coords = np.array([
+            [0.0, 0.0, 0.0],
+            [0.0, r_oh * math.sin(half_theta), r_oh * math.cos(half_theta)],
+            [0.0, -r_oh * math.sin(half_theta), r_oh * math.cos(half_theta)],
+        ], dtype=np.float64)
+        return symbols, coords
+    else:
+        raise ValueError(f"Unknown monomer: {monomer}")
+
+
+def build_reference_co2_h2o_complex(
+    r_com: float = 2.8361,
+) -> Tuple[List[str], np.ndarray, Tuple[int, int, int], Tuple[int, int, int]]:
+    """Build reference CO2...H2O complex from NIST/CCCBDB monomers (Task 5.3.1)."""
+    syms_co2, coords_co2 = get_reference_monomer_geometry("CO2")
+    syms_h2o, coords_h2o = get_reference_monomer_geometry("H2O")
+    shifted_h2o = coords_h2o + np.array([float(r_com), 0.0, 0.0])
+    symbols = syms_co2 + syms_h2o
+    coords = np.vstack([coords_co2, shifted_h2o])
+    atoms_co2 = (0, 1, 2)
+    atoms_h2o = (3, 4, 5)
+    return symbols, coords, atoms_co2, atoms_h2o
+
+
+def formulate_recipe_r2_wilson_constraints(
+    atoms_co2: Sequence[int] = (0, 1, 2),
+    atoms_h2o: Sequence[int] = (3, 4, 5),
+    symbols: Optional[Sequence[str]] = None,
+    coordinates: Optional[Union[Sequence[Sequence[float]], np.ndarray]] = None,
+) -> ConstraintPayload:
+    """Formulate Wilson internal coordinate constraints for CO2...H2O complex (Task 5.3.1).
+
+    Locks 2 C-O bonds and 1 O-C-O angle in CO2, and 2 O-H bonds and 1 H-O-H angle in H2O.
+    Ensures exactly 6 intramolecular constraints and zero intermolecular constraints.
+    """
+    c_idx, o1_idx, o2_idx = atoms_co2[0], atoms_co2[1], atoms_co2[2]
+    o_w_idx, h1_idx, h2_idx = atoms_h2o[0], atoms_h2o[1], atoms_h2o[2]
+
+    bonds = [
+        (min(c_idx, o1_idx), max(c_idx, o1_idx)),
+        (min(c_idx, o2_idx), max(c_idx, o2_idx)),
+        (min(o_w_idx, h1_idx), max(o_w_idx, h1_idx)),
+        (min(o_w_idx, h2_idx), max(o_w_idx, h2_idx)),
+    ]
+    angles = [
+        (min(o1_idx, o2_idx), c_idx, max(o1_idx, o2_idx)),
+        (min(h1_idx, h2_idx), o_w_idx, max(h1_idx, h2_idx)),
+    ]
+
+    return ConstraintPayload(
+        bonds=sorted(bonds),
+        angles=angles,
+        dihedrals=[],
+        metadata={
+            "recipe": "R2",
+            "provenance_tag": "[M]",
+            "n_constraints": 6,
+        },
+    )
+
+
 __all__ = [
+    "ConstraintPayload",
+    "FrozenConstraintPayload",
     "generate_frozen_monomer_constraints",
     "format_orca_frozen_monomer_constraints_block",
     "build_molecular_graph_from_geometry",
+    "validate_trajectory_monomer_drift",
+    "get_reference_monomer_geometry",
+    "build_reference_co2_h2o_complex",
+    "formulate_recipe_r2_wilson_constraints",
 ]
+
+

@@ -17,6 +17,10 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 import numpy as np
 
 from cochem_base.exceptions import OntologicalCollisionError
+from cochem_base.formatters.cochem_inertial_defect_validator import (
+    DEFAULT_PRODUCT_B_MAX_ERROR_REL,
+    validate_product_b_invariants,
+)
 
 
 # Prohibited periodic / solid-state parameter keywords for Product B [M]
@@ -417,3 +421,10 @@ def validate_product_ontology_preflight(
     }
 
     return telemetry
+    
+
+__all__ = [
+    "validate_product_ontology_preflight",
+    "validate_product_b_invariants",
+    "DEFAULT_PRODUCT_B_MAX_ERROR_REL",
+]

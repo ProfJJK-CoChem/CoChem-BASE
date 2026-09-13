@@ -10,33 +10,24 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from cochem_base.core.exceptions import (
-    AirGapBoundaryError,
-    CoChemError,
-    CoordinateShapeError,
-    IsotopeMassResolutionError,
-    IsotopeStabilityError,
-    PESStorageError,
-    ProcessReaperError,
-    RadiusNotFoundError,
-    SchemaMigrationError,
-    SubprocessBrokerError,
-    ThermodynamicsParameterError,
-)
+class CoChemError(Exception):
+    """Base error class for all CoChem operations with machine-actionable error codes."""
 
-try:
-    from cochem_base.exceptions import (
-        MissingDataError as BaseMissingDataError,
-        SingularityError,
-    )
-except ImportError:
-    class BaseMissingDataError(CoChemError, KeyError):
-        def __init__(self, message: str, details: Optional[Any] = None) -> None:
-            super().__init__(message, error_code="COCHEM_E_MISSING_DATA")
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "COCHEM_E_GENERIC",
+        details: Optional[Any] = None,
+    ) -> None:
+        super().__init__(f"[{error_code}] {message}")
+        self.message: str = message
+        self.error_code: str = error_code
+        self.details: Any = details if details is not None else {}
 
-    class SingularityError(CoChemError, ValueError):
-        def __init__(self, message: str, details: Optional[Any] = None) -> None:
-            super().__init__(message, error_code="COCHEM_E_SINGULARITY")
+
+class BaseMissingDataError(CoChemError, KeyError):
+    def __init__(self, message: str, details: Optional[Any] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_MISSING_DATA", details=details)
 
 
 class MissingDataError(BaseMissingDataError):
@@ -46,6 +37,11 @@ class MissingDataError(BaseMissingDataError):
         super().__init__(message)
         self.message = message
         self.symbol_or_query = symbol_or_query
+
+
+class SingularityError(CoChemError, ValueError):
+    def __init__(self, message: str, details: Optional[Any] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_SINGULARITY", details=details)
 
 
 class MendeleevInvariantError(MissingDataError):
@@ -69,6 +65,23 @@ class JobTimeoutError(CoChemError, TimeoutError):
 
     def __init__(self, message: str, details: Optional[Any] = None) -> None:
         super().__init__(message, error_code="COCHEM_E_JOB_TIMEOUT")
+
+
+try:
+    from cochem_base.core.exceptions import (
+        AirGapBoundaryError,
+        CoordinateShapeError,
+        IsotopeMassResolutionError,
+        IsotopeStabilityError,
+        PESStorageError,
+        ProcessReaperError,
+        RadiusNotFoundError,
+        SchemaMigrationError,
+        SubprocessBrokerError,
+        ThermodynamicsParameterError,
+    )
+except ImportError:
+    pass
 
 
 __all__ = [

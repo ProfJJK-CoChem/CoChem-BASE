@@ -137,6 +137,11 @@ from cochem_ml.schemas import (
     RAMGuardrailConfigSchema,
     RAMGuardrailMetricsSchema,
     RAMTelemetryRecordSchema,
+    AuditTraceQuerySchema,
+    DaemonConfigSchema,
+    DaemonTelemetryMetricsSchema,
+    ParquetBufferConfigSchema,
+    ParquetBufferMetricsSchema,
 )
 from cochem_ml.ram_guardrail import (
     DEFAULT_CRITICAL_RATIO,
@@ -539,6 +544,11 @@ __all__ = [
     "RAMGuardrailStage",
     "RAMTelemetryRecord",
     "RAMTelemetryRecordSchema",
+    "AuditTraceQuerySchema",
+    "DaemonConfigSchema",
+    "DaemonTelemetryMetricsSchema",
+    "ParquetBufferConfigSchema",
+    "ParquetBufferMetricsSchema",
     "check_heap_memory_guardrail",
     "compute_sha256_digest",
     "enforce_ram_ceiling",

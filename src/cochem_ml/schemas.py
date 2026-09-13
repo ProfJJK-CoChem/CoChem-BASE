@@ -10,7 +10,9 @@ Governed by Method Matrix v4.2 and Anti-Spoofing Protocol v4.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+import hashlib
+from pathlib import Path
+from typing import Any, Dict, Final, List, Optional, Tuple, TYPE_CHECKING, Union
 import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -76,6 +78,7 @@ from cochem_ml.hdf5_preallocation import (
     StreamedBatchReceipt,
 )
 from cochem_ml.dag_registry import (
+    AuditTraceQuery,
     DAGEdgeRecord,
     DAGNodeRecord,
     DAGNodeType,
@@ -93,6 +96,38 @@ from cochem_ml.ram_guardrail import (
     RAMGuardrailStage,
     RAMTelemetryRecord,
 )
+if TYPE_CHECKING:
+    from cochem_ml.cochem_telemetry_daemon import (
+        DaemonConfig,
+        DaemonState,
+        DaemonTelemetryMetrics,
+    )
+    from cochem_ml.parquet_buffer import (
+        ParquetBufferConfig,
+        ParquetBufferMetrics,
+    )
+from mendeleev import element
+
+
+def verify_mendeleev_integrity() -> Dict[str, float]:
+    """Dynamically resolve reference atomic masses via Mendeleev library.
+
+    Enforces Mendeleev Dynamic Mass Mandate; static atomic weight tables are forbidden.
+    """
+    elements_to_verify: Tuple[str, ...] = ("H", "C", "N", "O", "F", "P", "S", "Cl")
+    resolved_masses: Dict[str, float] = {}
+    for symbol in elements_to_verify:
+        elem_obj = element(symbol)
+        resolved_mass = float(elem_obj.mass)
+        if resolved_mass <= 0.0:
+            raise ValueError(f"Mendeleev dynamic resolution failed for element: {symbol}")
+        resolved_masses[symbol] = resolved_mass
+    return resolved_masses
+
+
+def compute_sha256_digest(data_bytes: bytes) -> str:
+    """Compute uppercase hexadecimal SHA-256 cryptographic digest of raw bytes."""
+    return hashlib.sha256(data_bytes).hexdigest().upper()
 
 
 
@@ -236,6 +271,9 @@ class FileSystemEventSchema(BaseModel):
             watch_category=record.watch_category,
             metadata=dict(record.metadata),
         )
+
+    to_dataclass = to_record
+    from_dataclass = from_record
 
 
 class ImportStatementSchema(BaseModel):
@@ -2359,6 +2397,299 @@ class RAMGuardrailMetricsSchema(BaseModel):
             average_poll_latency_ms=metrics.average_poll_latency_ms,
             growth_rate_bytes_per_sec=metrics.growth_rate_bytes_per_sec,
         )
+
+
+class AuditTraceQuerySchema(BaseModel):
+    """Pydantic v2 schema validating AuditTraceQuery with extra='forbid'."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    wbs_task_id: Optional[str] = Field(default=None, description="WBS task identifier filter")
+    agent_role: Optional[str] = Field(default=None, description="Responsible agent role filter")
+    status: Optional[str] = Field(default=None, description="Node execution status filter")
+    start_timestamp_iso: Optional[str] = Field(default=None, description="ISO 8601 start timestamp")
+    end_timestamp_iso: Optional[str] = Field(default=None, description="ISO 8601 end timestamp")
+    limit: int = Field(default=100, ge=1, le=10000, description="Maximum number of query results")
+
+    def to_dataclass(self) -> AuditTraceQuery:
+        """Convert schema to AuditTraceQuery dataclass."""
+        node_status = NodeExecutionStatus(self.status) if self.status is not None else None
+        return AuditTraceQuery(
+            wbs_task_id=self.wbs_task_id,
+            agent_role=self.agent_role,
+            status=node_status,
+            start_timestamp_iso=self.start_timestamp_iso,
+            end_timestamp_iso=self.end_timestamp_iso,
+            limit=self.limit,
+        )
+
+    @classmethod
+    def from_dataclass(cls, query: AuditTraceQuery) -> AuditTraceQuerySchema:
+        """Construct schema from AuditTraceQuery dataclass."""
+        status_val = query.status.value if query.status is not None else None
+        return cls(
+            wbs_task_id=query.wbs_task_id,
+            agent_role=query.agent_role,
+            status=status_val,
+            start_timestamp_iso=query.start_timestamp_iso,
+            end_timestamp_iso=query.end_timestamp_iso,
+            limit=query.limit,
+        )
+
+
+class DaemonConfigSchema(BaseModel):
+    """Pydantic v2 schema validating DaemonConfig with extra='forbid'."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    dropzone_roots: List[str] = Field(default_factory=list, description="Target dropzone directories to monitor")
+    scratch_roots: List[str] = Field(default_factory=list, description="Scratch directories to monitor")
+    telemetry_sink_path: Optional[str] = Field(default=None, description="Path to persist telemetry parquet logs")
+    poll_interval: float = Field(default=0.05, gt=0.0, description="Filesystem polling interval in seconds")
+    max_restarts: int = Field(default=5, ge=0, description="Maximum restart attempts before tripwire escalation")
+    restart_backoff_seconds: float = Field(default=0.2, ge=0.0, description="Base exponential backoff interval")
+    max_restart_backoff_seconds: float = Field(default=5.0, ge=0.0, description="Ceiling for restart backoff interval")
+    health_check_interval: float = Field(default=0.5, gt=0.0, description="Supervisor heartbeat interval")
+    flush_batch_size: int = Field(default=100, ge=1, description="Telemetry batch flush threshold")
+    auto_create_dirs: bool = Field(default=True, description="Auto-create dropzones if absent")
+    enable_fs_listener: bool = Field(default=True, description="Enable non-blocking fs listener hook")
+
+    def to_dataclass(self) -> DaemonConfig:
+        """Convert schema to DaemonConfig dataclass."""
+        from cochem_ml.cochem_telemetry_daemon import DaemonConfig
+        sink = Path(self.telemetry_sink_path) if self.telemetry_sink_path is not None else None
+        return DaemonConfig(
+            dropzone_roots=[Path(p) for p in self.dropzone_roots],
+            scratch_roots=[Path(p) for p in self.scratch_roots],
+            telemetry_sink_path=sink,
+            poll_interval=self.poll_interval,
+            max_restarts=self.max_restarts,
+            restart_backoff_seconds=self.restart_backoff_seconds,
+            max_restart_backoff_seconds=self.max_restart_backoff_seconds,
+            health_check_interval=self.health_check_interval,
+            flush_batch_size=self.flush_batch_size,
+            auto_create_dirs=self.auto_create_dirs,
+            enable_fs_listener=self.enable_fs_listener,
+        )
+
+    @classmethod
+    def from_dataclass(cls, config: DaemonConfig) -> DaemonConfigSchema:
+        """Construct schema from DaemonConfig dataclass."""
+        sink = str(config.telemetry_sink_path) if config.telemetry_sink_path is not None else None
+        return cls(
+            dropzone_roots=[str(p) for p in config.dropzone_roots],
+            scratch_roots=[str(p) for p in config.scratch_roots],
+            telemetry_sink_path=sink,
+            poll_interval=config.poll_interval,
+            max_restarts=config.max_restarts,
+            restart_backoff_seconds=config.restart_backoff_seconds,
+            max_restart_backoff_seconds=config.max_restart_backoff_seconds,
+            health_check_interval=config.health_check_interval,
+            flush_batch_size=config.flush_batch_size,
+            auto_create_dirs=config.auto_create_dirs,
+            enable_fs_listener=config.enable_fs_listener,
+        )
+
+
+class DaemonTelemetryMetricsSchema(BaseModel):
+    """Pydantic v2 schema validating DaemonTelemetryMetrics with extra='forbid'."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    pid: int = Field(..., ge=0, description="OS Process ID of telemetry daemon worker")
+    uptime_seconds: float = Field(default=0.0, ge=0.0, description="Uptime duration in seconds")
+    total_events_collected: int = Field(default=0, ge=0, description="Total filesystem events collected")
+    total_records_flushed: int = Field(default=0, ge=0, description="Total telemetry records committed")
+    restart_count: int = Field(default=0, ge=0, description="Number of worker restart cycles")
+    crash_count: int = Field(default=0, ge=0, description="Number of worker unhandled crashes")
+    last_error: Optional[str] = Field(default=None, description="Last recorded error string")
+    last_restart_timestamp: Optional[str] = Field(default=None, description="ISO timestamp of last restart")
+    last_heartbeat_timestamp: Optional[str] = Field(default=None, description="ISO timestamp of last heartbeat")
+    carbon_atomic_mass: float = Field(default=0.0, ge=0.0, description="Dynamic carbon atomic mass")
+    silicon_atomic_mass: float = Field(default=0.0, ge=0.0, description="Dynamic silicon atomic mass")
+
+    def to_dataclass(self) -> DaemonTelemetryMetrics:
+        """Convert schema to DaemonTelemetryMetrics dataclass."""
+        from cochem_ml.cochem_telemetry_daemon import DaemonTelemetryMetrics
+        return DaemonTelemetryMetrics(
+            pid=self.pid,
+            uptime_seconds=self.uptime_seconds,
+            total_events_collected=self.total_events_collected,
+            total_records_flushed=self.total_records_flushed,
+            restart_count=self.restart_count,
+            crash_count=self.crash_count,
+            last_error=self.last_error,
+            last_restart_timestamp=self.last_restart_timestamp,
+            last_heartbeat_timestamp=self.last_heartbeat_timestamp,
+            carbon_atomic_mass=self.carbon_atomic_mass,
+            silicon_atomic_mass=self.silicon_atomic_mass,
+        )
+
+    @classmethod
+    def from_dataclass(cls, metrics: DaemonTelemetryMetrics) -> DaemonTelemetryMetricsSchema:
+        """Construct schema from DaemonTelemetryMetrics dataclass."""
+        return cls(
+            pid=metrics.pid,
+            uptime_seconds=metrics.uptime_seconds,
+            total_events_collected=metrics.total_events_collected,
+            total_records_flushed=metrics.total_records_flushed,
+            restart_count=metrics.restart_count,
+            crash_count=metrics.crash_count,
+            last_error=metrics.last_error,
+            last_restart_timestamp=metrics.last_restart_timestamp,
+            last_heartbeat_timestamp=metrics.last_heartbeat_timestamp,
+            carbon_atomic_mass=metrics.carbon_atomic_mass,
+            silicon_atomic_mass=metrics.silicon_atomic_mass,
+        )
+
+
+class ParquetBufferConfigSchema(BaseModel):
+    """Pydantic v2 schema validating ParquetBufferConfig with extra='forbid'."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    sink_path: str = Field(..., description="Target Parquet file path")
+    chunk_size: int = Field(default=100, ge=1, description="Event threshold for automatic columnar chunk flush")
+    compression: str = Field(default="snappy", description="PyArrow compression codec (e.g. snappy, zstd, gzip)")
+    auto_flush: bool = Field(default=True, description="Automatically flush when threshold reached")
+    append: bool = Field(default=True, description="Append to existing Parquet dataset")
+    use_dictionary: bool = Field(default=True, description="Enable dictionary encoding for low-cardinality columns")
+    partition_by: Optional[List[str]] = Field(default=None, description="Optional partition column list")
+    row_group_size: Optional[int] = Field(default=None, ge=1, description="PyArrow row group chunk size")
+    time_based_flush_interval: Optional[float] = Field(default=None, gt=0.0, description="Periodic timer flush interval")
+
+    def to_dataclass(self) -> ParquetBufferConfig:
+        """Convert schema to ParquetBufferConfig dataclass."""
+        from cochem_ml.parquet_buffer import ParquetBufferConfig
+        return ParquetBufferConfig(
+            sink_path=Path(self.sink_path),
+            chunk_size=self.chunk_size,
+            compression=self.compression,
+            auto_flush=self.auto_flush,
+            append=self.append,
+            use_dictionary=self.use_dictionary,
+            partition_by=list(self.partition_by) if self.partition_by is not None else None,
+            row_group_size=self.row_group_size,
+            time_based_flush_interval=self.time_based_flush_interval,
+        )
+
+    @classmethod
+    def from_dataclass(cls, config: ParquetBufferConfig) -> ParquetBufferConfigSchema:
+        """Construct schema from ParquetBufferConfig dataclass."""
+        return cls(
+            sink_path=str(config.sink_path),
+            chunk_size=config.chunk_size,
+            compression=config.compression,
+            auto_flush=config.auto_flush,
+            append=config.append,
+            use_dictionary=config.use_dictionary,
+            partition_by=list(config.partition_by) if config.partition_by is not None else None,
+            row_group_size=config.row_group_size,
+            time_based_flush_interval=config.time_based_flush_interval,
+        )
+
+
+class ParquetBufferMetricsSchema(BaseModel):
+    """Pydantic v2 schema validating ParquetBufferMetrics with extra='forbid'."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    events_ingested: int = Field(default=0, ge=0, description="Total events ingested into buffer")
+    chunks_flushed: int = Field(default=0, ge=0, description="Total columnar chunks committed to disk")
+    records_flushed: int = Field(default=0, ge=0, description="Total individual records committed to disk")
+    bytes_written: int = Field(default=0, ge=0, description="Total compressed bytes written to Parquet storage")
+    last_flush_timestamp: Optional[str] = Field(default=None, description="ISO timestamp of last flush operation")
+    last_flush_latency_ms: float = Field(default=0.0, ge=0.0, description="Latency of last flush operation in milliseconds")
+    carbon_atomic_mass: float = Field(default=0.0, ge=0.0, description="Dynamic carbon atomic mass")
+    silicon_atomic_mass: float = Field(default=0.0, ge=0.0, description="Dynamic silicon atomic mass")
+
+    def to_dataclass(self) -> ParquetBufferMetrics:
+        """Convert schema to ParquetBufferMetrics dataclass."""
+        from cochem_ml.parquet_buffer import ParquetBufferMetrics
+        return ParquetBufferMetrics(
+            events_ingested=self.events_ingested,
+            chunks_flushed=self.chunks_flushed,
+            records_flushed=self.records_flushed,
+            bytes_written=self.bytes_written,
+            last_flush_timestamp=self.last_flush_timestamp,
+            last_flush_latency_ms=self.last_flush_latency_ms,
+            carbon_atomic_mass=self.carbon_atomic_mass,
+            silicon_atomic_mass=self.silicon_atomic_mass,
+        )
+
+    @classmethod
+    def from_dataclass(cls, metrics: ParquetBufferMetrics) -> ParquetBufferMetricsSchema:
+        """Construct schema from ParquetBufferMetrics dataclass."""
+        return cls(
+            events_ingested=metrics.events_ingested,
+            chunks_flushed=metrics.chunks_flushed,
+            records_flushed=metrics.records_flushed,
+            bytes_written=metrics.bytes_written,
+            last_flush_timestamp=metrics.last_flush_timestamp,
+            last_flush_latency_ms=metrics.last_flush_latency_ms,
+            carbon_atomic_mass=metrics.carbon_atomic_mass,
+            silicon_atomic_mass=metrics.silicon_atomic_mass,
+        )
+
+
+__all__ = [
+    "verify_mendeleev_integrity",
+    "compute_sha256_digest",
+    "TelemetryRecordSchema",
+    "FileSystemEventSchema",
+    "ImportStatementSchema",
+    "ImportShiftSchema",
+    "ImportSummarySchema",
+    "FunctionComplexitySchema",
+    "ModuleComplexitySchema",
+    "EntityModificationSchema",
+    "TreeModificationSchema",
+    "DiffASTParseSchema",
+    "TokenLogprobSchema",
+    "TokenEntropySchema",
+    "TokenVelocitySchema",
+    "PromptResponseDistributionSchema",
+    "EpistemicUncertaintyVectorSchema",
+    "TokenEntropyEvaluationSchema",
+    "EnergyGradientResidualSchema",
+    "RotationalDriftResidualSchema",
+    "SCFConvergenceResidualSchema",
+    "PhysicalResidualVectorSchema",
+    "PhysicalResidualRecordSchema",
+    "TaskVectorSchema",
+    "ASTDiffVectorSchema",
+    "ExecutionTelemetryVectorSchema",
+    "MultimodalStateVectorSchema",
+    "StateVectorRecordSchema",
+    "StandardizerConfigSchema",
+    "RollingWindowStatsSchema",
+    "StandardizedVectorRecordSchema",
+    "TensorCacheConfigSchema",
+    "TensorRecordMetadataSchema",
+    "PaginatedSliceSchema",
+    "TensorCacheMetricsSchema",
+    "ChunkGeometrySpecSchema",
+    "DatasetPreallocationSpecSchema",
+    "PreallocatedStreamerConfigSchema",
+    "FragmentationMetricsSchema",
+    "StreamedBatchReceiptSchema",
+    "DAGNodeSchema",
+    "DAGEdgeSchema",
+    "RollbackResultSchema",
+    "VisualizerNodeLayoutSchema",
+    "VisualizerEdgeLayoutSchema",
+    "DAGVisualizerStateSchema",
+    "JSONLDRegistryPayloadSchema",
+    "ProcessMemorySnapshotSchema",
+    "RAMTelemetryRecordSchema",
+    "RAMGuardrailConfigSchema",
+    "RAMGuardrailMetricsSchema",
+    "AuditTraceQuerySchema",
+    "DaemonConfigSchema",
+    "DaemonTelemetryMetricsSchema",
+    "ParquetBufferConfigSchema",
+    "ParquetBufferMetricsSchema",
+]
 
 
 

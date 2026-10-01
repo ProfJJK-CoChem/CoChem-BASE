@@ -54,6 +54,13 @@ from cochem_base.theory_matrix import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+METHOD_MATRIX_TIERS = dict(METHOD_MATRIX_TIERS)
+METHOD_MATRIX_TIERS = {"Tier 0: Machine Learning Force Fields (MLFF)": {
+    "methods": ["MACE-OFF24(M)", "AIMNet2"],
+    "allowed_basis_sets": ["None (MLFF)"]
+}, **METHOD_MATRIX_TIERS}
+
 class P7RegistryModel(BaseModel):
     scheduler_detected: str = Field(default="")
 
@@ -128,6 +135,57 @@ class CoChemGUI:
         # 1. Header (Appbar)
         self.header_title = widgets.HTML("<h2>CoChem No-Code Interface</h2>", layout=widgets.Layout(margin='0px 20px 0px 0px'))
         self.header_status = widgets.HTML(f"<b>[System: {self.state.system_status}]</b>", layout=widgets.Layout(margin='10px 20px 0px 0px'))
+# AI Assistant Opt-in Panel
+        self.ai_btn_enable = widgets.Button(description="Enable Antigravity AI Assistant", button_style="warning", icon="robot", layout=widgets.Layout(width='auto'))
+        self.ai_consent_checkbox = widgets.Checkbox(value=False, description="I consent to sharing local error logs and configuration data with the remote Antigravity AI for real-time didactic guidance.", style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'))
+        self.ai_btn_confirm = widgets.Button(description="Confirm & Install AI Hook", button_style="success", icon="check", layout=widgets.Layout(width='auto'))
+        
+        self.ai_chat_history = widgets.Textarea(value="[System]: Antigravity AI Agent offline.\n", layout=widgets.Layout(width='100%', height='150px'), disabled=True)
+        self.ai_chat_input = widgets.Text(placeholder="Ask the AI for help...", layout=widgets.Layout(width='80%'))
+        self.ai_btn_send = widgets.Button(description="Send", button_style="primary")
+        
+        self.ai_opt_in_view = widgets.VBox([
+            widgets.HTML("<h4>🤖 Antigravity AI Teaching Assistant (Optional)</h4><p>Enable the AI assistant to receive real-time, step-by-step guidance. The AI can read your errors and help you construct your molecule.</p>"),
+            self.ai_btn_enable
+        ], layout=widgets.Layout(border='2px solid #ffc107', padding='10px', background_color='#fffdf5', margin='0 0 20px 0'))
+
+        self.ai_chat_view = widgets.VBox([
+            widgets.HTML("<h4>🤖 Antigravity AI Teaching Assistant</h4>"),
+            self.ai_chat_history,
+            widgets.HBox([self.ai_chat_input, self.ai_btn_send])
+        ], layout=widgets.Layout(border='2px solid #28a745', padding='10px', background_color='#f0fff4', margin='0 0 20px 0'))
+        self.ai_chat_view.layout.display = 'none'
+
+        self.ai_consent_view = widgets.VBox([
+            widgets.HTML("<h4>⚠️ Privacy Consent Required</h4>"),
+            self.ai_consent_checkbox,
+            self.ai_btn_confirm
+        ])
+        self.ai_consent_view.layout.display = 'none'
+
+        def _on_ai_enable_click(b):
+            self.ai_opt_in_view.children = [self.ai_consent_view]
+            self.ai_consent_view.layout.display = 'block'
+
+        def _on_ai_confirm_click(b):
+            if self.ai_consent_checkbox.value:
+                self.ai_opt_in_view.layout.display = "none"
+                self.ai_chat_view.layout.display = "block"
+                self.ai_chat_history.value = "[System]: Antigravity AI Agent hook installed and active.\n[Agent]: Hello! I am your AI Teaching Assistant. I can see your configuration. How can I help you set up CoChem today?"
+            else:
+                self.ai_consent_checkbox.description = "You MUST check this box to consent before enabling."
+
+        def _on_ai_send_click(b):
+            user_msg = self.ai_chat_input.value.strip()
+            if user_msg:
+                self.ai_chat_history.value += f"\n[You]: {user_msg}\n[Agent]: I am currently running in local UI simulation mode. The backend agent websocket is disconnected."
+                self.ai_chat_input.value = ""
+
+        self.ai_btn_enable.on_click(_on_ai_enable_click)
+        self.ai_btn_confirm.on_click(_on_ai_confirm_click)
+        self.ai_btn_send.on_click(_on_ai_send_click)
+        
+        self.ai_container = widgets.VBox([self.ai_opt_in_view, self.ai_chat_view])
         self.header_env = widgets.HTML(f"<i>Environment: {self.state.environment}</i>", layout=widgets.Layout(margin='10px 0px 0px 0px'))
 
         self.header = widgets.HBox(
@@ -169,8 +227,139 @@ class CoChemGUI:
         # 3. Main Content Area (Views)
 
         # 3.1 Seamless Install View
+        
+        self.gh_pat_input = widgets.Password(description="GitHub PAT:", placeholder="ghp_...", style={'description_width': 'initial'}, layout=widgets.Layout(width='60%'))
+        self.gh_repo_input = widgets.Text(description="Repository:", placeholder="username/CoChem-BASE", style={'description_width': 'initial'}, layout=widgets.Layout(width='60%'))
+        self.gh_orca_link = widgets.Text(description="ORCA Link:", placeholder="e.g., https://dropbox.com/s/...", style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'))
+        self.gh_cfour_link = widgets.Text(description="CFOUR Link:", placeholder="e.g., https://dropbox.com/s/...", style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'))
+        self.btn_gh_setup = widgets.Button(description="Provision GitHub Secrets", button_style="success", icon="cloud", layout=widgets.Layout(width='auto', margin='10px 0'))
+        self.gh_setup_output = widgets.Output(layout=widgets.Layout(border='1px solid #ccc', padding='5px'))
+
+        def _on_gh_setup_clicked(b):
+            import requests
+            from base64 import b64encode
+            from nacl import encoding, public
+            self.gh_setup_output.clear_output()
+            with self.gh_setup_output:
+                pat = self.gh_pat_input.value.strip()
+                repo = self.gh_repo_input.value.strip()
+                orca_url = self.gh_orca_link.value.strip()
+                cfour_url = self.gh_cfour_link.value.strip()
+                if not pat or not repo:
+                    print("Error: GitHub PAT and Repository name are required.")
+                    return
+                print(f"Connecting to GitHub API for {repo}...")
+                headers = {"Accept": "application/vnd.github+json", "Authorization": f"Bearer {pat}", "X-GitHub-Api-Version": "2022-11-28"}
+                r = requests.get(f"https://api.github.com/repos/{repo}/actions/secrets/public-key", headers=headers)
+                if r.status_code != 200:
+                    print(f"Error fetching public key: {r.text}")
+                    return
+                key_data = r.json()
+                public_key = public.PublicKey(key_data['key'].encode("utf-8"), encoding.Base64Encoder())
+
+                def encrypt(public_key, secret_value):
+                    return b64encode(public.SealedBox(public_key).encrypt(secret_value.encode("utf-8"))).decode("utf-8")
+
+                secrets_to_put = []
+                if orca_url: secrets_to_put.append(('ORCA_DOWNLOAD_LINK', orca_url))
+                if cfour_url: secrets_to_put.append(('CFOUR_DOWNLOAD_LINK', cfour_url))
+
+                for s_name, s_val in secrets_to_put:
+                    data = {"encrypted_value": encrypt(public_key, s_val), "key_id": key_data['key_id']}
+                    r = requests.put(f"https://api.github.com/repos/{repo}/actions/secrets/{s_name}", headers=headers, json=data)
+                    print(f"Provisioned {s_name}: {'Success' if r.status_code in (201, 204) else 'Failed'}")
+
+        self.btn_gh_setup.on_click(_on_gh_setup_clicked)
+
+        guidance_html = """
+        <h4>GitHub Actions Provisioning (Strictly Guided)</h4>
+        <div style='background-color:#fff3cd; padding:10px; border-left:4px solid #ffeeba;'>
+        <b>Why do we need this?</b><br/>
+        CREST, SPFIT, and SPCAT are open-source and will be automatically installed. However, <b>ORCA and CFOUR have strict academic EULAs</b>. We legally cannot distribute them in the CoChem repository. 
+        <br/><br/><b>How to provision them for the Cloud:</b>
+        <ol>
+            <li>Register at the ORCA Forum and CFOUR site and download the <b>Linux (x86_64)</b> versions of the binaries.</li>
+            <li>Upload these Linux archives to a private cloud drive (Google Drive, Dropbox, or OneDrive).</li>
+            <li>Generate a <b>Direct Download Link</b> (For Dropbox, change <code>dl=0</code> to <code>dl=1</code>).</li>
+            <li>Paste the links below.</li>
+            <li><b>What is a GitHub PAT?</b> A Personal Access Token (PAT) is a secure password that allows this interface to upload your secret links directly to GitHub for you. To get one: Go to GitHub.com &rarr; Settings &rarr; Developer Settings &rarr; Personal Access Tokens (Classic) &rarr; Generate new token. Check the <b>'repo'</b> box, click generate, and paste it below!</li>
+        </ol>
+        </div>
+"""
+        self.gh_setup_box = widgets.VBox([
+            widgets.HTML(guidance_html),
+            self.gh_pat_input, self.gh_repo_input, self.gh_orca_link, self.gh_cfour_link, self.btn_gh_setup, self.gh_setup_output
+        ], layout=widgets.Layout(border='1px solid #0056b3', padding='15px', background_color='#eef5ff', margin='10px 0'))
+        self.gh_setup_output = widgets.Output(layout=widgets.Layout(border='1px solid #ccc', padding='5px'))
+
+        def _on_gh_setup_clicked(b):
+            import requests
+            from base64 import b64encode
+            from nacl import encoding, public
+            self.gh_setup_output.clear_output()
+            with self.gh_setup_output:
+                pat = self.gh_pat_input.value.strip()
+                repo = self.gh_repo_input.value.strip()
+                orca_url = self.gh_orca_link.value.strip()
+                cfour_url = self.gh_cfour_link.value.strip()
+                if not pat or not repo:
+                    print("Error: GitHub PAT and Repository name are required.")
+                    return
+                print(f"Connecting to GitHub API for {repo}...")
+                headers = {
+                    "Accept": "application/vnd.github+json",
+                    "Authorization": f"Bearer {pat}",
+                    "X-GitHub-Api-Version": "2022-11-28"
+                }
+                # Get public key
+                r = requests.get(f"https://api.github.com/repos/{repo}/actions/secrets/public-key", headers=headers)
+                if r.status_code != 200:
+                    print(f"Error fetching public key: {r.text}")
+                    return
+                key_data = r.json()
+                key_id = key_data['key_id']
+                public_key = public.PublicKey(key_data['key'].encode("utf-8"), encoding.Base64Encoder())
+
+                def encrypt(public_key, secret_value):
+                    sealed_box = public.SealedBox(public_key)
+                    encrypted = sealed_box.encrypt(secret_value.encode("utf-8"))
+                    return b64encode(encrypted).decode("utf-8")
+
+                secrets_to_put = []
+                if orca_url: secrets_to_put.append(('ORCA_DOWNLOAD_LINK', orca_url))
+                if cfour_url: secrets_to_put.append(('CFOUR_DOWNLOAD_LINK', cfour_url))
+
+                if not secrets_to_put:
+                    print("No download links provided. Nothing to do.")
+                    return
+
+                for s_name, s_val in secrets_to_put:
+                    enc_val = encrypt(public_key, s_val)
+                    data = {"encrypted_value": enc_val, "key_id": key_id}
+                    r = requests.put(f"https://api.github.com/repos/{repo}/actions/secrets/{s_name}", headers=headers, json=data)
+                    if r.status_code in (201, 204):
+                        print(f"Successfully provisioned secret: {s_name}")
+                    else:
+                        print(f"Failed to provision {s_name}: {r.status_code} {r.text}")
+                print("GitHub Actions configuration complete!")
+
+        self.btn_gh_setup.on_click(_on_gh_setup_clicked)
+
+        self.gh_setup_box = widgets.VBox([
+            widgets.HTML("<h4>GitHub Actions Provisioning</h4>"),
+            widgets.HTML("<p>Because ORCA and CFOUR have academic licenses, they cannot be checked into the repository. Configure a private download link here, and we will securely inject it into your GitHub Actions Secrets.</p>"),
+            self.gh_pat_input, self.gh_repo_input, self.gh_orca_link, self.gh_cfour_link, self.btn_gh_setup, self.gh_setup_output
+        ], layout=widgets.Layout(border='1px solid #0056b3', padding='15px', background_color='#eef5ff', margin='10px 0'))
+
         self.calc_env_dropdown = widgets.Dropdown(
-            options=['local', 'github-actions', 'hpc', 'linux', 'macos', 'wsl'],
+            options=[
+                ('Windows (Native - DEGRADED)', 'local'), 
+                ('WSL2 (Recommended for Windows)', 'wsl'), 
+                ('macOS', 'macos'), 
+                ('Linux', 'linux'), 
+                ('GitHub Actions (Cloud Compute)', 'github-actions'), 
+                ('HPC Cluster (Slurm/PBS)', 'hpc')
+            ],
             value='local',
             description='Calculation Environment:',
             style={'description_width': 'initial'}
@@ -187,6 +376,105 @@ class CoChemGUI:
             button_style="success",
             icon="play"
         )
+        
+        
+        self.wsl_setup_box = widgets.VBox(layout=widgets.Layout(border='1px solid #28a745', padding='15px', background_color='#e8f5e9', margin='10px 0'))
+        
+        def _check_wsl_status():
+            import subprocess
+            try:
+                # Run wsl -l -q to check if installed
+                res = subprocess.run(['wsl', '-l', '-q'], capture_output=True, text=True)
+                if res.returncode == 0:
+                    return True, "✓ WSL2 is installed and ready!"
+                else:
+                    return False, "⚠️ WSL is installed but no distributions found. Open PowerShell as Admin and run: wsl --install"
+            except FileNotFoundError:
+                return False, "❌ WSL is NOT installed! Open PowerShell as Admin and run: wsl --install"
+        
+        self.wsl_status_html = widgets.HTML()
+        self.btn_refresh_wsl = widgets.Button(description="Check WSL Status", button_style="info", icon="refresh")
+        
+        def _update_wsl_ui(*args):
+            is_installed, msg = _check_wsl_status()
+            if is_installed:
+                self.wsl_status_html.value = f"<h4 style='color:green;'>{msg}</h4><p>You can now use the Optimal WSL2 backend for heavy calculations.</p>"
+            else:
+                self.wsl_status_html.value = f"<h4 style='color:red;'>{msg}</h4><p>Native Windows is restricted to DEGRADED mode due to kernel stack limits. Installing WSL2 is strongly recommended for CoChem.</p>"
+
+        self.btn_refresh_wsl.on_click(_update_wsl_ui)
+        _update_wsl_ui()
+
+        self.wsl_setup_box.children = [
+            widgets.HTML("<h4>WSL2 Local Backend Provisioning</h4>"),
+            self.wsl_status_html,
+            self.btn_refresh_wsl
+        ]
+
+        
+        
+
+        
+        self.bin_orca = widgets.Text(description="ORCA Path:", placeholder="Absolute path to orca executable", layout=widgets.Layout(width='80%'))
+        self.bin_cfour = widgets.Text(description="CFOUR Path:", placeholder="Absolute path to xcfour executable", layout=widgets.Layout(width='80%'))
+        
+        self.btn_detect_bins = widgets.Button(description="Auto-Detect from PATH", button_style="info", icon="search", layout=widgets.Layout(width='auto'))
+        self.btn_save_bins = widgets.Button(description="Inject Paths into Environment", button_style="success", icon="save", layout=widgets.Layout(width='auto'))
+        self.local_setup_output = widgets.HTML("")
+
+        def _auto_detect(b):
+            import shutil
+            orca_path = shutil.which("orca")
+            cfour_path = shutil.which("xcfour")
+            if orca_path: self.bin_orca.value = orca_path
+            if cfour_path: self.bin_cfour.value = cfour_path
+            
+            msg = "Auto-detection complete. "
+            if orca_path or cfour_path:
+                self.local_setup_output.value = f"<b style='color:green'>{msg} Found binaries in PATH!</b>"
+            else:
+                self.local_setup_output.value = f"<b style='color:orange'>{msg} No binaries found in system PATH.</b>"
+
+        def _save_local_bins(b):
+            import os
+            paths = [os.path.dirname(self.bin_orca.value), os.path.dirname(self.bin_cfour.value)]
+            valid_paths = [p for p in paths if p and os.path.isdir(p)]
+            if valid_paths:
+                os.environ["PATH"] = os.pathsep.join(valid_paths) + os.pathsep + os.environ.get("PATH", "")
+                self.local_setup_output.value = "<b style='color:green'>Paths temporarily added to system PATH for installation!</b>"
+
+        self.btn_detect_bins.on_click(_auto_detect)
+        self.btn_save_bins.on_click(_save_local_bins)
+
+        local_guidance_html = """
+        <h4>Local Binary Setup (ORCA / CFOUR)</h4>
+        <div style='background-color:#e2e3e5; padding:10px; border-left:4px solid #6c757d; margin-bottom:10px;'>
+        <b>Open Source Binaries:</b> CREST, SPFIT, and SPCAT will be downloaded and compiled automatically by CoChem during the installation phases. You do not need to provide them.<br/>
+        <b>Licensed Binaries:</b> ORCA and CFOUR must be installed manually due to academic licensing. If they are already in your system PATH, click 'Auto-Detect'. Otherwise, paste the absolute paths to their executables below before clicking 'Run Installation'.
+        </div>
+        """
+        self.local_setup_box = widgets.VBox([
+            widgets.HTML(local_guidance_html),
+            self.bin_orca, self.bin_cfour, 
+            widgets.HBox([self.btn_detect_bins, self.btn_save_bins]), 
+            self.local_setup_output
+        ], layout=widgets.Layout(border='1px solid #17a2b8', padding='15px', background_color='#e0f7fa', margin='10px 0'))
+        self.dynamic_setup_container = widgets.VBox([])
+        
+        def _on_calc_env_change(change):
+            env = change['new']
+            if env == 'github-actions':
+                self.dynamic_setup_container.children = [self.gh_setup_box]
+            elif env == 'wsl':
+                self.dynamic_setup_container.children = [self.wsl_setup_box, self.local_setup_box]
+            elif env in ['local', 'windows', 'macos', 'linux', 'hpc']:
+                self.dynamic_setup_container.children = [self.local_setup_box]
+            else:
+                self.dynamic_setup_container.children = []
+                
+        self.calc_env_dropdown.observe(_on_calc_env_change, names='value')
+        _on_calc_env_change({'new': self.calc_env_dropdown.value})
+
         self.run_install_btn.on_click(self._run_installation)
 
         self.install_output = widgets.Output(layout=widgets.Layout(border='1px solid #ccc', height='300px', overflow='auto'))
@@ -196,6 +484,7 @@ class CoChemGUI:
             widgets.HTML("<p>Setup pipeline and real physical data ingestion.</p>"),
             self.calc_env_dropdown,
             self.interact_env_dropdown,
+            self.dynamic_setup_container,
             self.run_install_btn,
             widgets.HTML("<h4>Installation Logs</h4>"),
             self.install_output
@@ -214,6 +503,27 @@ class CoChemGUI:
             layout=widgets.Layout(border='1px solid #b8daff', background_color='#e8f4fd', padding='8px', margin='5px 0')
         )
         self.product_class_selector.observe(self._on_product_class_changed, 'value')
+
+        
+        self.charge_input = widgets.IntText(value=0, description="Charge:")
+        self.multiplicity_input = widgets.IntText(value=1, description="Multiplicity:")
+        self.mlff_warning = widgets.HTML("", layout=widgets.Layout(margin='5px 0'))
+        
+        def _check_mlff_validity(*args):
+            c = self.charge_input.value
+            m = self.multiplicity_input.value
+            # Method Matrix v4: MACE-OFF limited to neutral, non-radical systems
+            if c != 0 or m != 1:
+                self.mlff_warning.value = "<b style='color:red;'>⚠️ MLFF (MACE/AIMNet2) disabled: Molecule must be neutral (charge=0) and non-radical (mult=1).</b>"
+                # If currently selected, revert
+                if hasattr(self, 'matrix_tier') and 'Tier 0' in self.matrix_tier.value:
+                    self.matrix_tier.value = 'Tier 1: Modern Dispersion DFT'
+            else:
+                self.mlff_warning.value = "<b style='color:green;'>✓ MLFF (MACE/AIMNet2) enabled (neutral non-radical).</b>"
+                
+        self.charge_input.observe(_check_mlff_validity, 'value')
+        self.multiplicity_input.observe(_check_mlff_validity, 'value')
+        _check_mlff_validity()
 
         self.matrix_geometry = widgets.Textarea(
             description="Geometry (XYZ):",
@@ -257,6 +567,7 @@ class CoChemGUI:
             style={'description_width': 'initial'}
         )
         default_methods = METHOD_MATRIX_TIERS["Tier 1: Modern Dispersion DFT"]["methods"]
+
         default_bases = METHOD_MATRIX_TIERS["Tier 1: Modern Dispersion DFT"]["allowed_basis_sets"]
 
         self.matrix_method = widgets.Dropdown(
@@ -277,12 +588,25 @@ class CoChemGUI:
         self.dispersion_warning = widgets.HTML("", layout=widgets.Layout(margin='5px 0'))
 
         self.matrix_tier.observe(self._on_tier_changed, 'value')
+
+        self.tier_help = widgets.HTML(
+            value="""
+            <div style='background-color:#e8f4fd; padding:10px; border-radius:5px;'>
+            <b>Didactic Help: Theory Tiers</b><br/>
+            <i>Tier 1 (Modern Dispersion DFT):</i> Excellent for large organic molecules. Fast (Minutes-Hours). Error ~1-2 kcal/mol.<br/>
+            <i>Tier 2 (Double Hybrid DFT):</i> Good for transition states. Medium (Hours-Days). Error ~1 kcal/mol.<br/>
+            <i>Tier 3 (Coupled Cluster):</i> The 'Gold Standard' for accuracy. Slow (Days-Weeks). Error < 0.5 kcal/mol.<br/>
+            <i>Tier MLFF (Machine Learning):</i> Uses AI force fields like MACE. Lightning fast (Seconds). Good for bulk isomer search.
+            </div>
+            """, layout=widgets.Layout(margin='10px 0')
+        )
+
         self.matrix_method.observe(self._check_dispersion_gate, 'value')
         self.unphysical_override.observe(self._check_dispersion_gate, 'value')
 
         # TOPOS Widgets
         self.topos_heuristic = widgets.Dropdown(
-            options=['iMTD-GC', 'GOAT'],
+            options=['iMTD-GC', 'GOAT', 'MACE-MD (MLFF)', 'AIMNet2-MD'],
             value='iMTD-GC',
             description='Heuristics:'
         )
@@ -396,11 +720,18 @@ class CoChemGUI:
             icon="save"
         )
         self.matrix_output = widgets.Output()
+        self.artifact_output_path = widgets.Text(description="Output Dir:", placeholder="e.g. D:\\MyProjects", layout=widgets.Layout(width='60%'))
+        self.project_name = widgets.Text(description="Project Name:", placeholder="e.g. CCO", layout=widgets.Layout(width='30%'))
+        self.output_config_box = widgets.HBox([self.artifact_output_path, self.project_name], layout=widgets.Layout(margin='10px 0'))
+
 
         self.btn_save_matrix.on_click(self._save_matrix_config)
 
         self.tab_base = widgets.VBox([
-            self.matrix_geometry,
+            widgets.HBox([self.charge_input, self.multiplicity_input]),
+            self.mlff_warning,
+            self.tier_help,
+            
             self.matrix_tier,
             self.matrix_method,
             self.matrix_basis,
@@ -432,15 +763,100 @@ class CoChemGUI:
             self.fragment_preview
         ])
 
-        self.config_tabs = widgets.Tab(children=[self.tab_base, self.tab_topos, self.tab_torq, self.tab_fragments])
-        self.config_tabs.set_title(0, 'Base Config')
-        self.config_tabs.set_title(1, 'TOPOS')
-        self.config_tabs.set_title(2, 'TORQ')
-        self.config_tabs.set_title(3, 'Fragments / Frozen')
+        
+        
+
+        
+        self.smiles_input = widgets.Text(description="SMILES:", placeholder="e.g. CCO")
+        self.btn_build_smiles = widgets.Button(description="Build from SMILES", button_style="info")
+        self.xyz_upload = widgets.FileUpload(accept='.xyz', multiple=False, description="Upload .xyz")
+        
+        # 3D Viewer Output
+        self.viewer_output = widgets.Output(layout=widgets.Layout(width='400px', height='300px', border='1px solid #ccc'))
+        
+        def _update_3d_viewer(*args):
+            self.viewer_output.clear_output()
+            xyz_data = self.matrix_geometry.value.strip()
+            if not xyz_data:
+                return
+            with self.viewer_output:
+                try:
+                    import py3Dmol
+                    from IPython.display import display
+                    view = py3Dmol.view(width=400, height=300)
+                    view.addModel(xyz_data, 'xyz')
+                    view.setStyle({'stick': {}, 'sphere': {'radius': 0.4}})
+                    view.zoomTo()
+                    display(view)
+                except ImportError:
+                    print("py3Dmol is not installed. Run pip install py3Dmol to view 3D models.")
+                except Exception as e:
+                    print(f"Viewer Error: {e}")
+
+        def _on_smiles_build(b):
+            smiles = self.smiles_input.value.strip()
+            if not smiles: return
+            try:
+                from rdkit import Chem
+                from rdkit.Chem import AllChem
+                mol = Chem.MolFromSmiles(smiles)
+                if mol is None:
+                    self.matrix_geometry.value = "Error: Invalid SMILES"
+                    return
+                mol = Chem.AddHs(mol)
+                AllChem.EmbedMolecule(mol, AllChem.ETKDG())
+                AllChem.UFFOptimizeMolecule(mol)
+                self.matrix_geometry.value = Chem.MolToXYZBlock(mol)
+                self.project_name.value = smiles.replace('/', '_').replace('\\', '_')
+                _update_3d_viewer()
+            except ImportError:
+                self.matrix_geometry.value = "Error: RDKit is not installed. Run conda install -c conda-forge rdkit"
+            except Exception as e:
+                self.matrix_geometry.value = f"SMILES Build Error: {e}"
+                
+        def _on_xyz_upload(change):
+            if self.xyz_upload.value:
+                file_name = list(self.xyz_upload.value.keys())[0]
+                self.project_name.value = file_name.replace('.xyz', '')
+                file_info = list(self.xyz_upload.value.values())[0]
+                content = file_info['content'].decode('utf-8')
+                self.matrix_geometry.value = content
+                _update_3d_viewer()
+
+        self.btn_build_smiles.on_click(_on_smiles_build)
+        self.xyz_upload.observe(_on_xyz_upload, names='value')
+        
+        # Add an observe to matrix_geometry so manual typing updates the 3D model
+        self.matrix_geometry.observe(lambda c: _update_3d_viewer(), names='value')
+        
+        self.tab_builder = widgets.HBox([
+            widgets.VBox([
+                widgets.HTML("<b>Molecule Builder & Import</b><br/><i>Generate 3D geometries from SMILES or import existing .xyz files.</i>"),
+                widgets.HBox([self.smiles_input, self.btn_build_smiles]),
+                self.xyz_upload,
+                widgets.HTML("<b>Manual Coordinate Editor (Build from scratch):</b>"),
+                self.matrix_geometry
+            ], layout=widgets.Layout(width='50%')),
+            widgets.VBox([
+                widgets.HTML("<b>Interactive 3D Viewer:</b>"),
+                self.viewer_output
+            ], layout=widgets.Layout(width='50%', padding='0 0 0 20px'))
+        ])
+        
+
+        self.config_tabs = widgets.Tab(children=[self.tab_builder, self.tab_base, self.tab_topos, self.tab_torq, self.tab_fragments])
+        self.config_tabs.set_title(0, 'Molecule Builder')
+        self.config_tabs.set_title(1, 'Base Config')
+        self.config_tabs.set_title(2, 'TOPOS')
+        self.config_tabs.set_title(3, 'TORQ')
+        self.config_tabs.set_title(4, 'Fragments / Frozen')
+        
 
         self.matrix_config_panel = widgets.VBox([
             widgets.HTML("<h4>Simulation Parameters</h4>"),
             self.config_tabs,
+            widgets.HTML("<h4>Artifact Output Configuration</h4><i>Environment independent local output directory. Projects will be placed in &lt;Output Dir&gt;/cochem-artifacts/&lt;Project Name&gt;/</i>"),
+            self.output_config_box,
             widgets.HTML("<h4>Live Input Preview</h4>"),
             self.live_preview,
             self.btn_save_matrix,
@@ -1092,16 +1508,17 @@ class CoChemGUI:
         config = config_model.model_dump()
 
         # Physical implementation: save to artifacts directory
-        matrix_dir = Path.home() / "CoChem_Artifacts" / "Matrix"
-        artifact_env = os.environ.get("COCHEM_ARTIFACT_DIR")
-        if artifact_env:
-            matrix_dir = Path(artifact_env) / "Matrix"
-        else:
-            try:
-                from cochem_base.config_loader import get_artifact_dir  # type: ignore
-                matrix_dir = get_artifact_dir() / "Matrix"
-            except ImportError:
-                pass
+        out_dir = self.artifact_output_path.value.strip()
+        proj_name = self.project_name.value.strip()
+        if not out_dir:
+            out_dir = str(Path.home())
+        if not proj_name:
+            proj_name = "default_project"
+            
+        # Clean project name
+        proj_name = "".join([c for c in proj_name if c.isalpha() or c.isdigit() or c in (' ', '-', '_')]).rstrip()
+        
+        matrix_dir = Path(out_dir) / "cochem-artifacts" / proj_name
 
         try:
             matrix_dir.mkdir(parents=True, exist_ok=True)
@@ -1220,7 +1637,7 @@ class CoChemGUI:
             atexit.unregister(cleanup)
 
     def display(self) -> widgets.AppLayout:
-        return self.app
+        return widgets.VBox([self.ai_container, self.app])
 
 def create_gui() -> widgets.AppLayout:
     """Entry point to instantiate and display the GUI."""

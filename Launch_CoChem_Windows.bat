@@ -43,13 +43,18 @@ if %ERRORLEVEL% NEQ 0 (
 echo.
 echo Initializing Windows Subsystem for Linux (WSL2)...
 echo If this is your first time, WSL will install the necessary isolated Python packages.
-wsl -e bash -c "python3 -m venv ~/.cochem_venv || (sudo apt-get update && sudo apt-get install -y python3-venv && python3 -m venv ~/.cochem_venv); source ~/.cochem_venv/bin/activate; cd \"$(wslpath '%CD%')\"; pip install --upgrade pip; pip install pydantic ipywidgets voila numpy scipy ase h5py traitlets filelock psutil requests pynacl mendeleev; echo ''; echo 'WSL Backend Ready! Please open the following URL in your Windows browser:'; voila Start_Here.ipynb --no-browser"
+wsl -e bash -lc "cd \"$(wslpath '%CD%')\" && python3 scripts/bootstrap_environment.py --venv ~/.cochem_venv --launch --no-browser"
 pause
 exit
 
 :win_launch
 echo.
 echo Launching Native Windows Environment...
-voila Start_Here.ipynb --enable_nbextensions=True
+where py >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    py -3 scripts\bootstrap_environment.py --launch
+) else (
+    python scripts\bootstrap_environment.py --launch
+)
 pause
 exit

@@ -18,23 +18,36 @@ logger = logging.getLogger("cochem_base.config_loader")
 
 def get_cochem_root() -> Path:
     """Discovers and returns the absolute path to the CoChem repository root."""
-    if "COCHEM_ROOT" in os.environ and os.environ["COCHEM_ROOT"]:
-        p = Path(os.environ["COCHEM_ROOT"]).resolve()
-        if p.exists():
-            return p
+    for variable in ("COCHEM_ROOT", "COCHEM_WORKSPACE_ROOT"):
+        if os.environ.get(variable):
+            path = Path(os.environ[variable]).expanduser().resolve()
+            if path.exists():
+                return path
     current = Path(__file__).resolve()
     for parent in [current] + list(current.parents):
         if (parent / "cochem_system_config.json").exists() or (parent / "CoChem-BASE").exists():
             return parent
+        if (parent / "pyproject.toml").is_file() and (
+            (parent / "src" / "cochem_base").is_dir()
+            or (parent / "cochem_base").is_dir()
+        ):
+            return parent
         if parent.name == "GitHub-Repo":
             return parent
-    return Path("d:/__CoChem/GitHub-Repo").resolve()
+    return (Path.home() / ".cochem").resolve()
 
 def get_base_root() -> Path:
     """Returns the root directory of the CoChem-BASE module."""
+    if os.environ.get("COCHEM_BASE_ROOT"):
+        return Path(os.environ["COCHEM_BASE_ROOT"]).expanduser().resolve()
     root = get_cochem_root()
     base_dir = root / "CoChem-BASE"
-    return base_dir if base_dir.exists() else root
+    if base_dir.is_dir():
+        root = base_dir
+    if (root / "cochem_base").is_dir():
+        return root
+    source_dir = root / "src"
+    return source_dir if (source_dir / "cochem_base").is_dir() else root
 
 def get_repo_root() -> Path:
     """Alias for get_cochem_root()."""

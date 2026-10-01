@@ -1,4 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 echo "========================================================"
 echo " Launching CoChem Graphical Interface (No-Code Mode)"
 echo "========================================================"
@@ -7,12 +11,4 @@ echo "If you are on GitHub Codespaces, VS Code will prompt you"
 echo "to 'Open in Browser' once the server starts on port 8866."
 echo ""
 
-# Use --no-browser because Codespaces/Linux containers are headless
-# On Mac, the user can click the link manually or we can try to open it
-if [[ "" == "darwin"* ]]; then
-    # Mac OSX
-    voila Start_Here.ipynb --enable_nbextensions=True
-else
-    # Linux / Codespaces
-    voila Start_Here.ipynb --enable_nbextensions=True --no-browser --port=8866
-fi
+exec python3 "$SCRIPT_DIR/scripts/bootstrap_environment.py" --launch

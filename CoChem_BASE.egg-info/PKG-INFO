@@ -1,3 +1,32 @@
+Metadata-Version: 2.4
+Name: CoChem-BASE
+Version: 0.1.0
+Summary: Core shell and hardware orchestrator for CoChem-Studio
+Author: CoChem Team
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: PySide6
+Requires-Dist: cryptography>=50.0.1
+Requires-Dist: filelock>=3.32.5
+Requires-Dist: mendeleev>=1.2.0
+Requires-Dist: mmh3>=5.3.0
+Requires-Dist: networkx>=3.6.1
+Requires-Dist: pluggy
+Requires-Dist: pydantic>=2
+Requires-Dist: pyqtgraph
+Requires-Dist: pyvista
+Requires-Dist: pyvistaqt
+Requires-Dist: rdkit>=2026.3.5
+Requires-Dist: scipy>=1.17.1
+Requires-Dist: vtk
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-qt; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.8.0; extra == "dev"
+Dynamic: license-file
+
 # CoChem-BASE: Master Environment & Architecture Framework
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)

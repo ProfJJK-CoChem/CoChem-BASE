@@ -236,3 +236,23 @@ def test_actions_environment_rejects_newline_injection(tmp_path):
         github_environment(result, env_path, path_path)
     assert not env_path.exists()
     assert not path_path.exists()
+
+
+def test_actions_export_keeps_other_engine_libraries_and_mpi_unchanged(tmp_path):
+    """Configuration-only test; these paths do not represent installed engines."""
+    env_path, path_path = tmp_path / "env", tmp_path / "path"
+    env_path.write_text("LD_LIBRARY_PATH=/site/qe/lib\nMPI_HOME=/site/mpi\n")
+    path_path.write_text("/site/mpi/bin\n")
+    result = {"executable": "/configuration-example/orca", "mpirun": "/configuration-example/mpi/bin/mpirun",
+              "mpi_prefix": "/configuration-example/mpi", "ld_library_path": "/configuration-example/mpi/lib",
+              "provenance": "/configuration-example/evidence.json",
+              "path_entries": ["/configuration-example", "/configuration-example/mpi/bin"]}
+    github_environment(result, env_path, path_path)
+    lines = env_path.read_text().splitlines()
+    assert [line for line in lines if line.startswith("LD_LIBRARY_PATH=")] == ["LD_LIBRARY_PATH=/site/qe/lib"]
+    assert [line for line in lines if line.startswith("MPI_HOME=")] == ["MPI_HOME=/site/mpi"]
+    assert "COCHEM_ORCA_LD_LIBRARY_PATH=/configuration-example/mpi/lib" in lines
+    assert "COCHEM_ORCA_MPIRUN_BIN=/configuration-example/mpi/bin/mpirun" in lines
+    assert "COCHEM_MPIEXEC_BIN=/configuration-example/mpi/bin/mpiexec" in lines
+    assert path_path.read_text() == "/site/mpi/bin\n/configuration-example\n"
+    assert "/configuration-example/mpi/bin\n" not in path_path.read_text()

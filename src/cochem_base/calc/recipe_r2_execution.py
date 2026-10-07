@@ -28,6 +28,7 @@ from cochem_base.analysis.electronic_sanitizer import SpinContaminationStreamVal
 from cochem_base.calc.cochem_calc_output_parser import QuantumParser
 from cochem_base.core_engine.execution_authority import authorize_engine_execution
 from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run, sanitize_mpi_environment
+from cochem_base.core_engine.engine_environment import engine_runtime_environment
 from cochem_base.geometry.constraints import (
     build_wilson_b_matrix,
     generate_frozen_monomer_constraints,
@@ -524,7 +525,10 @@ def execute_recipe_r2(
                     authorization.command([input_path.name]),
                     cwd=directory,
                     timeout=remaining,
-                    env=sanitize_mpi_environment(dict(os.environ), force_single_thread=True),
+                    env=sanitize_mpi_environment(
+                        engine_runtime_environment("orca", executable=authorization.executable),
+                        force_single_thread=True,
+                    ),
                     capture_output=True,
                     text=True,
                     check=False,

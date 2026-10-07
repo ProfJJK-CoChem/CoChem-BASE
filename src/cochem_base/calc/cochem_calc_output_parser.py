@@ -114,7 +114,9 @@ class QuantumParser:
 
         ``threshold`` is a fraction (0.1 means 10%), not an absolute S-squared
         difference. Missing diagnostics cannot establish spin purity. Restricted
-        closed-shell jobs may omit S-squared only with explicit RKS/RHF evidence.
+        closed-shell jobs may omit S-squared only when actual SCF settings report
+        a restricted reference and singlet multiplicity. Credits and echoed
+        input keywords do not identify the calculated wavefunction.
         """
         content = Path(log_path).read_text(encoding="utf-8", errors="replace")
         if multiplicity is not None and (isinstance(multiplicity, bool) or not isinstance(multiplicity, int) or multiplicity < 1):
@@ -132,7 +134,25 @@ class QuantumParser:
             if any(not math.isclose(root, multiplicity, abs_tol=1e-6) for root in roots):
                 raise MissingDataError("Inconsistent or nonphysical ideal spin values in output.")
         if not observed:
-            if re.search(r"\b(?:RKS|RHF)\b", content, re.I) and not re.search(r"\b(?:UKS|UHF)\b", content, re.I) and multiplicity in (None, 1):
+            references = re.findall(
+                r"^[ \t]*Hartree-Fock type[ \t]+HFTyp[ \t]+\.{2,}[ \t]+(\S+)[ \t]*$",
+                content, re.I | re.M,
+            )
+            reported_multiplicities = re.findall(
+                r"^[ \t]*Multiplicity[ \t]+Mult[ \t]+\.{2,}[ \t]+(\S+)[ \t]*$",
+                content, re.I | re.M,
+            )
+            # ORCA credits mention UHF even in RHF output. Conversely, an RHF
+            # keyword in credits/input must not exempt an unrestricted result.
+            # Require every reported SCF state to be an explicit singlet with a
+            # restricted reference; mixed or incomplete summaries fail closed.
+            if (
+                references
+                and {reference.upper() for reference in references} <= {"RHF", "RKS"}
+                and len(references) == len(reported_multiplicities)
+                and set(reported_multiplicities) == {"1"}
+                and multiplicity in (None, 1)
+            ):
                 return True
             raise MissingDataError("Missing spin diagnostics; unrestricted results cannot be accepted.")
         if multiplicity is None:

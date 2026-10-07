@@ -220,6 +220,10 @@ class ExecutionRouter:
             else:
                 task_env.setdefault("OMP_NUM_THREADS", "1")
 
+        if target_engine_or_type is not None and target_engine_or_type not in known_job_types:
+            from cochem_base.core_engine.engine_environment import engine_runtime_environment
+            task_env = engine_runtime_environment(target_engine_or_type, task_env, executable=cmd[0])
+
         # Command determination
         # cmd has already been validated before creating any task directories.
 

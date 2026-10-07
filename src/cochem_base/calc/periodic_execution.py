@@ -223,6 +223,8 @@ def execute_periodic_singlepoint(elements: Sequence[str], coordinates_angstrom: 
     provenance["command"] = command
     environment = dict(os.environ, OMP_NUM_THREADS=str(authority.cores), OPENBLAS_NUM_THREADS="1",
                        MKL_NUM_THREADS="1", OMP_PROC_BIND="true", OMP_PLACES="cores")
+    from cochem_base.core_engine.engine_environment import engine_runtime_environment
+    environment = engine_runtime_environment("qe", environment, executable=authority.executable)
     start = time.monotonic()
     if on_event:
         on_event({"stage": "qe_scf", "status": "RUNNING", "job_id": job_id})

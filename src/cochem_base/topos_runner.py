@@ -371,6 +371,10 @@ def _run_worker(config_path: Path) -> int:
                 out = streams.enter_context((work / "stdout.log").open("wb"))
                 err = streams.enter_context((work / "stderr.log").open("wb"))
                 engine_env = dict(os.environ, OMP_NUM_THREADS=str(config.threads_per_engine), MKL_NUM_THREADS=str(config.threads_per_engine))
+                from cochem_base.core_engine.engine_environment import engine_runtime_environment
+                engine_env = engine_runtime_environment(
+                    "crest" if engine == "CREST" else "orca", engine_env, executable=command[0],
+                )
                 if engine != "CREST":
                     # ORCA GOAT's %pal allocates ranks; BLAS/OpenMP remain serial per rank.
                     engine_env = sanitize_mpi_environment(engine_env, force_single_thread=True)

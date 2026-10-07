@@ -1089,9 +1089,11 @@ end
 
     t0 = time.perf_counter()
     from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+    from cochem_base.core_engine.engine_environment import engine_runtime_environment
     proc = safe_subprocess_run(
         [orca_path, str(input_file)],
         cwd=str(work_dir),
+        env=engine_runtime_environment("orca", executable=orca_path),
         capture_output=True,
         text=True,
         check=False,

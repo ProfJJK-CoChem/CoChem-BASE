@@ -308,6 +308,7 @@ def provision(archive: Path, install_root: Path, mpi_prefix: Path, manifest_path
                 if path.is_file() and not path.is_symlink()
             },
             "mpi_library_paths": [str(path) for path in mpi_libraries],
+            "runtime_environment_scope": "ORCA child processes and their pinned MPI only",
             "version_probe_returncode": result.returncode,
             "version_probe_argv": version_command,
             "version_probe_mode": "intentional_missing_input_metadata",
@@ -330,10 +331,18 @@ def provision(archive: Path, install_root: Path, mpi_prefix: Path, manifest_path
 
 
 def github_environment(result: dict, env_path: Path, path_path: Path) -> None:
+    """Expose ORCA-specific bindings without changing other engine runtimes.
+
+    ORCA's own directory remains discoverable by existing callers and contains
+    no MPI launcher. MPI PATH and library additions are applied by BASE's
+    engine_runtime_environment() only in the ORCA child.
+    """
     values = {
         "COCHEM_ORCA_BIN": result["executable"], "ORCA_CMD": result["executable"],
         "ORCA_PATH": result["executable"], "COCHEM_MPIRUN_BIN": result["mpirun"],
-        "MPI_HOME": result["mpi_prefix"], "LD_LIBRARY_PATH": result["ld_library_path"],
+        "COCHEM_MPIEXEC_BIN": str(Path(result["mpi_prefix"]) / "bin" / "mpiexec"),
+        "COCHEM_ORCA_MPIRUN_BIN": result["mpirun"],
+        "COCHEM_ORCA_LD_LIBRARY_PATH": result["ld_library_path"],
         "COCHEM_ORCA_PROVENANCE": result["provenance"],
     }
     for value in [*values.values(), *result["path_entries"]]:
@@ -342,7 +351,7 @@ def github_environment(result: dict, env_path: Path, path_path: Path) -> None:
     with env_path.open("a") as stream:
         stream.writelines(f"{key}={value}\n" for key, value in values.items())
     with path_path.open("a") as stream:
-        stream.writelines(f"{value}\n" for value in result["path_entries"])
+        stream.write(f"{Path(result['executable']).parent}\n")
 
 
 def main() -> int:
@@ -352,7 +361,8 @@ def main() -> int:
     parser.add_argument("--mpi-prefix", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--github-env", type=Path)
-    parser.add_argument("--github-path", type=Path)
+    parser.add_argument("--github-path", type=Path,
+                        help="Add only the ORCA executable directory, never the pinned MPI bin directory.")
     args = parser.parse_args()
     if bool(args.github_env) != bool(args.github_path):
         parser.error("--github-env and --github-path must be supplied together")

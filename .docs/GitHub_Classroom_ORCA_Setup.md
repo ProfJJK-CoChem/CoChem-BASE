@@ -20,6 +20,12 @@ and [assignment template guide](https://github.com/foundation50/classroom50/blob
 Classroom50 login and grading credentials are separate from CoChem's narrowly
 scoped `PRIVATE_ORCA_ASSET_CREDENTIAL`.
 
+For private TOPOS, TORQ and other module source, also follow
+[Ecosystem modules setup](Ecosystem_Modules_Setup.md). Module source uses
+`COCHEM_SOURCE_READ_TOKEN` in Actions; it does not replace the ORCA archive
+credential. Leave **Send secrets and variables to workflows from fork pull
+requests** disabled. The course's manual calculation workflows do not need it.
+
 ## Student quick start
 
 Your instructor supplies a **Classroom50 assignment acceptance link**. Sign in
@@ -39,7 +45,11 @@ If your instructor enables Codespaces for the course:
 
 1. In **your accepted assignment repository**, select the instructor-approved
    branch, then **Code → Codespaces → Create codespace on [approved branch]**.
-   Resume the existing course Codespace if you already created one.
+   Confirm GitHub identifies **your personal account** as the payer when the
+   course uses your student allowance. Authorize the requested read access to
+   the course's module repositories. Resume an existing course Codespace only
+   if its repository permissions have not changed; new permissions require a
+   new Codespace.
 2. Wait for container creation and the terminal setup tasks to finish. The
    repository's `.devcontainer` configuration installs the dashboard, completes
    its setup and starts Voilà automatically; the first creation takes longer
@@ -239,6 +249,41 @@ Before enrolling a class, check the organization's Actions policy, billing or
 included minutes, spending controls and runner limits. Each fresh job downloads
 the archive and builds its runtime. Pilot one student repository before
 starting many simultaneous jobs.
+
+### Use students' Codespaces allowance and the organization's included Actions minutes
+
+Codespaces and Actions have separate usage allowances. For this course,
+students own their Codespaces; the organization does not sponsor Codespaces or
+authorize paid Actions overages.
+
+| Service | Account whose allowance is used |
+| --- | --- |
+| User-owned Codespace opened from an organization assignment | The student's personal account. Verified GitHub Education students currently receive up to 180 core-hours per month; a two-core Codespace uses two core-hours for each running hour. Check the actual allowance in the student's billing page. |
+| GitHub-hosted Actions job in a private organization assignment | The organization that owns the repository, regardless of who clicks Run workflow. GitHub Team currently includes 3,000 standard-runner minutes per month shared across the organization, not 3,000 minutes for each student. Artifact storage also uses the organization's allowance. |
+
+1. Open the course organization's **Settings → Codespaces → General**.
+2. Under **Codespace ownership**, select **User ownership**. Enable Codespaces
+   access for the intended members if the private repositories require it.
+   If changing an existing organization-owned arrangement, tell students first:
+   existing Codespaces can transfer to their accounts and start using their
+   personal allowance.
+3. Have the pilot student check the payer shown when creating a Codespace.
+   Students can inspect their remaining usage in their own **Settings →
+   Billing & Licensing**. Stop Codespaces when finished; retained Codespaces
+   continue to use storage. Commit and push work before deleting one.
+4. Open **Organization Settings → Billing & Licensing → Budgets and alerts**.
+   Retain the course's $0 paid-usage limit for Actions and its enforced stop
+   setting. Check existing budgets rather than creating overlapping limits.
+   Review the organization's included usage before scheduling a class run.
+   Jobs may stop when that shared allowance is exhausted; a student's remaining
+   personal allowance does not cover an organization-owned repository's jobs.
+
+Classroom50 does not change GitHub's payer rules. GitHub Education Team status
+provides the Team plan's included Actions allowance; it does not make private
+Actions runs unlimited. Keep course examples bounded and retain results within
+the artifact retention period. See GitHub's [Codespaces ownership guidance](https://docs.github.com/en/codespaces/managing-codespaces-for-your-organization/choosing-who-owns-and-pays-for-codespaces-in-your-organization),
+[student benefits](https://docs.github.com/en/education/about-github-education/github-education-for-students/about-github-education-for-students)
+and [Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
 
 ### Set up the Classroom50 course and assignment
 
@@ -479,7 +524,13 @@ of these routes.
 Make sure the workflow files are on the repository's **default branch** before
 expecting GitHub to show manual **Run workflow** controls. Configure Actions to
 allow the reviewed workflows and required actions. The licensed acceptance
-workflow does not run on untrusted pull requests. Never add
+workflow does not run on untrusted pull requests. In **Organization Settings →
+Actions → General → Fork pull request workflows**, leave **Send secrets and
+variables to workflows from fork pull requests** disabled, and keep **Send
+write tokens to workflows from pull requests** disabled. If a repository has
+separate controls, keep the same settings there. Save the policy. Fork pull
+requests can run permitted tests without these credentials; run private module
+installation and ORCA jobs from the reviewed course branch. Never add
 `pull_request_target` simply to make a fork receive this secret.
 
 ### 7. Run the access check, physical acceptance and course pilot

@@ -7,6 +7,7 @@
 # Preserve independently hashed scientific fixture bytes on every platform.
 # Native output whitespace is part of its immutable provenance.
 examples/product_b/gaas_ordered.cif -text -whitespace
+examples/jobs/water.xyz -text -whitespace
 tests/data/h2co_eq.xyz -text -whitespace
 tests/data/orca_6_1_1_water_hf_sto3g/provenance.json -text -whitespace
 tests/data/orca_6_1_1_water_hf_sto3g/water.engrad -text -whitespace

@@ -1,0 +1,22 @@
+{
+  "schema_version": "cochem-source-bundle/1",
+  "scope": "Reviewed open-source snapshots only; no licensed engine distributions",
+  "sources": {
+    "topos": {
+      "repository": "ProfJJK-CoChem/CoChem-TOPOS",
+      "commit": "b2e55014d7743e5301e55a041ace69f94cbaf52c",
+      "sha256": "2ae47cb0f1a535acc9259b7bdc9cd52e73fae631bdf354b9903417481231829b",
+      "size_bytes": 1130648,
+      "creation": "git archive --format=tar.gz of exact commit"
+    },
+    "torq": {
+      "repository": "ProfJJK-CoChem/CoChem-TORQ",
+      "commit": "d7a4739a5f7d6f22ed659b32eeb4706bef16225e",
+      "sha256": "fb88d99ffacf2e11e2506ad59b9d6cad8d7472650f9790585aa70a66c5be1bd6",
+      "size_bytes": 1728685,
+      "creation": "git archive --format=tar.gz of exact commit"
+    }
+  },
+  "release_repository": "ProfJJK-CoChem/CoChem-BASE",
+  "release_tag": "topos-integration-sources-b2e55014"
+}

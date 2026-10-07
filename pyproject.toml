@@ -70,12 +70,11 @@ cochem_torq = "src/cochem_torq"
 frontend = "frontend"
 ui = "ui"
 scripts = "scripts"
-Libraries = "Libraries"
 
 [tool.setuptools.packages.find]
 where = [".", "src"]
-include = ["cochem", "cochem.*", "cochem_base*", "cochem_topos*", "cochem_geom*", "cochem_ml*", "cochem_mobile*", "cochem_torq*", "frontend", "frontend.*", "ui", "ui.*", "scripts", "scripts.*", "Libraries", "Libraries.*"]
-exclude = ["*.egg-info*"]
+include = ["cochem", "cochem.*", "cochem_base*", "cochem_topos*", "cochem_geom*", "cochem_ml*", "cochem_mobile*", "cochem_torq*", "frontend", "frontend.*", "ui", "ui.*", "scripts", "scripts.*"]
+exclude = ["*.egg-info*", "Libraries", "Libraries.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["test_suite", "tests"]

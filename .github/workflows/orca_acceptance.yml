@@ -2,8 +2,29 @@ name: ORCA 6.1.1 calculation acceptance
 
 on:
   workflow_dispatch:
+    inputs:
+      topos_ref:
+        description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
+        required: false
+        default: ''
+        type: string
+      torq_ref:
+        description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
+        required: false
+        default: d7a4739a5f7d6f22ed659b32eeb4706bef16225e
+        type: string
   workflow_call:
     inputs:
+      topos_ref:
+        description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
+        required: false
+        default: ''
+        type: string
+      torq_ref:
+        description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
+        required: false
+        default: d7a4739a5f7d6f22ed659b32eeb4706bef16225e
+        type: string
       base_repository:
         description: Repository containing the reviewed BASE source for a reusable call.
         required: false
@@ -40,7 +61,7 @@ concurrency:
 jobs:
   licensed-calculations:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 330
     env:
       OMP_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
@@ -49,6 +70,17 @@ jobs:
       COCHEM_HEADLESS: '1'
       COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
     steps:
+      - name: Validate optional downstream source identities
+        env:
+          TOPOS_REF: ${{ inputs.topos_ref }}
+          TORQ_REF: ${{ inputs.torq_ref }}
+          CONTROLLER_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if [[ -n "$TOPOS_REF" ]]; then
+            test "$CONTROLLER_PRIVATE" = true
+            [[ "$TOPOS_REF" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$TORQ_REF" =~ ^[0-9a-f]{40}$ ]]
+          fi
       - name: Validate a reusable caller's BASE revision
         env:
           BASE_REF: ${{ inputs.base_ref }}
@@ -138,6 +170,48 @@ jobs:
             tests/calc/test_orca_cli_execution.py \
             --basetemp "$RUNNER_TEMP/orca-evidence/pytest" \
             --junitxml "$RUNNER_TEMP/orca-evidence/results.xml" -q
+      - name: Restore reviewed downstream source snapshots
+        if: inputs.topos_ref != ''
+        env:
+          TOPOS_REF: ${{ inputs.topos_ref }}
+          TORQ_REF: ${{ inputs.torq_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/cochem-source-download"
+          cp integration_sources/manifest.json "$RUNNER_TEMP/cochem-source-download/manifest.json"
+          source_tag=$(python -c 'import json;print(json.load(open("integration_sources/manifest.json"))["release_tag"])')
+          gh release download "$source_tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern topos.tar.gz --pattern torq.tar.gz --dir "$RUNNER_TEMP/cochem-source-download"
+          python scripts/restore_ecosystem_sources.py \
+            --bundle "$RUNNER_TEMP/cochem-source-download" --output "$RUNNER_TEMP/cochem-sources" \
+            --topos-ref "$TOPOS_REF" --torq-ref "$TORQ_REF"
+      - name: Complete mandatory package setup using the audited BASE installation
+        if: inputs.topos_ref != ''
+        run: |
+          python "$RUNNER_TEMP/cochem-sources/topos/scripts/setup_ecosystem.py" \
+            --base-root "$GITHUB_WORKSPACE" \
+            --torq-root "$RUNNER_TEMP/cochem-sources/torq" \
+            --artifacts "$COCHEM_ARTIFACT_DIR" --min-disk-space-gb 1 --existing-environment
+      - name: Require genuine TOPOS ORCA scientific acceptance
+        if: inputs.topos_ref != ''
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_topos.py" \
+            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence" \
+            --threads 2 --memory-mb 2048 --budget-seconds 10800 --include-counterpoise --include-goat
+      - name: Retain TOPOS native calculation and setup evidence
+        if: always() && inputs.topos_ref != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: topos-orca-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/topos-orca-evidence/
+            ${{ runner.temp }}/cochem-sources/source-bundle-receipt.json
+            ${{ runner.temp }}/cochem-artifacts/setup-logs/
+            ${{ runner.temp }}/cochem-artifacts/setup-receipt.json
+            ${{ runner.temp }}/cochem-artifacts/mandatory-validation.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
       - name: Retain calculation, registry and installation evidence
         if: always()
         uses: actions/upload-artifact@v4

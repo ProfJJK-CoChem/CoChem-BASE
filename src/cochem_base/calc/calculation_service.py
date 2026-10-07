@@ -33,6 +33,15 @@ def _engine_environment(engine: str, threads: int | None, inherited: dict[str, s
         # ORCA launches its MPI ranks from %pal in the input, which is not
         # visible to the broker's command-line MPI detection.
         return sanitize_mpi_environment(environment, force_single_thread=True)
+    if engine == "cfour":
+        if threads is not None:
+            environment["OMP_NUM_THREADS"] = str(threads)
+        # NCC can use OpenMP while its BLAS remains serial; allowing each
+        # OpenMP worker another BLAS team would exceed the audited allocation.
+        for variable in ("MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "GOTO_NUM_THREADS",
+                         "BLIS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
+            environment[variable] = "1"
+        return environment
     if threads is not None:
         environment.update(OMP_NUM_THREADS=str(threads), MKL_NUM_THREADS=str(threads),
                            OPENBLAS_NUM_THREADS=str(threads))
@@ -163,6 +172,11 @@ def _publish_run_artifacts(sandbox_dir: Path, output: Path) -> None:
         staging.mkdir()
         try:
             for artifact in sandbox_dir.rglob("*"):
+                # Native CFOUR stages licensed basis libraries as symlinks.
+                # Publish measured job artifacts without following links into
+                # engine installations or distributing their runtime payload.
+                if artifact.is_symlink() or artifact.name in {"GENBAS", "ECPDATA"}:
+                    continue
                 if artifact.is_file():
                     destination = staging / artifact.relative_to(sandbox_dir)
                     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -274,7 +288,7 @@ def run_calculation(
             raise ValueError("--threads must be a positive integer")
         if maxcore_mb is not None and (isinstance(maxcore_mb, bool) or not isinstance(maxcore_mb, int) or maxcore_mb < 1):
             raise ValueError("maxcore_mb must be a positive integer per process")
-        if threads is None and config.engine in {"xtb", "pyscf", "qe"}:
+        if threads is None and config.engine in {"xtb", "pyscf", "qe", "cfour"}:
             threads = 1
         elements, coordinates = parse_run_geometry(config.geometry)
         original_coordinates = np.asarray(coordinates, dtype=float)
@@ -376,7 +390,14 @@ def run_calculation(
             (sandbox_dir / "execution_authority.json").write_text(
                 json.dumps(asdict(authorization), indent=2), encoding="utf-8",
             )
-        if config.engine == "qe":
+        if config.engine == "cfour":
+            from cochem_base.calc.cfour_execution import write_cfour_input
+            deck = write_cfour_input(
+                sandbox_dir, config, elements, coordinates,
+                memory_mb=authorization.total_memory_mb if authorization is not None else (maxcore_mb or 1024) * threads,
+                gradient=config.method == "HF", harmonic=config.is_freq,
+            )
+        elif config.engine == "qe":
             from cochem_base.calc.periodic_execution import write_periodic_input
             deck = write_periodic_input(elements, coordinates, periodic, directory=sandbox_dir,
                                         charge=config.charge, multiplicity=config.multiplicity)
@@ -394,6 +415,16 @@ def run_calculation(
 
             def primary() -> None:
                 nonlocal accepted
+                if config.engine == "cfour":
+                    from cochem_base.calc.cfour_execution import execute_cfour
+                    emit({"kind": "status", "status": "RUNNING", "engine": "cfour"})
+                    accepted = execute_cfour(
+                        config, elements, coordinates, directory=sandbox_dir / "cfour",
+                        authority=authorization, environment=environment,
+                        cancellation_event=cancellation_event, on_event=on_event,
+                        telemetry_job_id=basin_id,
+                    )
+                    return
                 if config.engine == "qe":
                     from cochem_base.calc.periodic_execution import execute_periodic_singlepoint
                     accepted = execute_periodic_singlepoint(

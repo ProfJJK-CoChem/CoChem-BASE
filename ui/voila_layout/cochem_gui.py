@@ -112,6 +112,21 @@ def _observable(value: Optional[float], precision: int = 3) -> str:
     return "[MISSING DATA]" if value is None else f"{value:.{precision}f}"
 
 
+def licensed_engine_availability(registry_path: str | Path | None = None) -> dict[str, dict[str, Any]]:
+    """Report optional engine authority without turning absence into BASE failure."""
+    from cochem_base.core_engine.execution_authority import authorize_engine_execution
+
+    availability = {}
+    for engine in ("orca", "cfour"):
+        try:
+            authority = authorize_engine_execution(engine, registry_path=registry_path, cores=1)
+        except (ValueError, RuntimeError, OSError) as exc:
+            availability[engine] = {"available": False, "reason": str(exc)}
+        else:
+            availability[engine] = {"available": True, "executable": authority.executable}
+    return availability
+
+
 class CoChemGUI:
     def __init__(self) -> None:
         self.state = CoChemGUIState()
@@ -205,7 +220,7 @@ class CoChemGUI:
         )
         self.actions_job_options = widgets.VBox([
             self.actions_operation, self.actions_timeout,
-            widgets.HTML("<p>Course profile: ORCA, up to 50 atoms, one or two cores, "
+            widgets.HTML("<p>Course profile: ORCA or CFOUR, up to 50 atoms, one or two cores, "
                          "512 MB per core by default (maximum 1024 MB), and at most 1800 seconds per calculation. "
                          "Choose cores and memory on GitHub when starting the workflow.</p>"
                          "<p>Harmonic frequencies at supplied coordinates do not certify a stationary structure. "
@@ -241,9 +256,10 @@ class CoChemGUI:
             icon="play", disabled=True,
         )
         self.license_mode = widgets.Dropdown(
-            options=[("No License Only", "none"), ("ORCA", "orca"), ("CFOUR", "cfour")],
-            description="License mode:", style={'description_width': 'initial'},
+            options=[("Free engines", "none"), ("Also check ORCA", "orca"), ("Also check CFOUR", "cfour")],
+            description="Optional engine check:", style={'description_width': 'initial'},
         )
+        self.licensed_engine_status = widgets.HTML()
         self.install_data_path = widgets.Text(
             description="Scientific data:", placeholder="Geometry-bound .npz/.h5 Hessian bundle",
             style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'),
@@ -332,7 +348,7 @@ class CoChemGUI:
         <h4>Local Binary Setup (ORCA / CFOUR)</h4>
         <div style='background-color:#e2e3e5; padding:10px; border-left:4px solid #6c757d; margin-bottom:10px;'>
         <b>Open Source Binaries:</b> CREST, SPFIT, and SPCAT will be downloaded and compiled automatically by CoChem during the installation phases. You do not need to provide them.<br/>
-        <b>Licensed Binaries:</b> ORCA and CFOUR must be installed manually due to academic licensing. If they are already in your system PATH, click 'Auto-Detect'. Otherwise, paste the absolute paths to their executables below before clicking 'Run Installation'.
+        <b>Optional, strongly recommended licensed engines:</b> ORCA and CFOUR broaden the available calculations. BASE works without either engine. If already installed, click 'Auto-Detect' or provide their executable paths. An unavailable engine disables only its dependent calculations.
         </div>
         """
         self.local_setup_box = widgets.VBox([
@@ -371,8 +387,10 @@ class CoChemGUI:
         self.install_output = BoundedTelemetryOutput(layout=widgets.Layout(border='1px solid #ccc', height='300px', overflow='auto'))
         self.local_install_options = widgets.VBox([
             self.license_mode,
-            widgets.HTML("<p>Free dependencies are installed or audited. ORCA/CFOUR are only discovered; provide separately installed licensed binaries. "
-                         "The selected licensed engine must pass its audit before this setup is accepted.</p>"),
+            widgets.HTML("<p>ORCA and CFOUR are optional and strongly recommended. Free dependencies are installed or audited; "
+                         "licensed engines are discovered when separately provisioned. An unavailable licensed engine does not fail BASE setup. "
+                         "Its dependent methods remain unavailable until that engine passes its execution audit.</p>"),
+            self.licensed_engine_status,
             self.install_data_path, self.btn_validate_install_data, self.install_data_status,
             self.install_min_disk,
             widgets.HTML("<p>Set the required disk space to the measured needs of your workload. The default reserves 50 GB.</p>"),
@@ -429,22 +447,23 @@ class CoChemGUI:
             placeholder="O 0.0 0.0 0.0\nH 0.0 0.75 -0.5\nH 0.0 0.75 0.5",
             layout=widgets.Layout(width='100%', height='100px')
         )
-        from cochem_base.core_engine.execution_authority import authorize_engine_execution
-        engine_options = []
-        for label, name in (("ORCA", "ORCA"), ("xTB", "XTB"), ("PySCF (RHF single point)", "PYSCF")):
-            try:
-                authorize_engine_execution(name.lower(), cores=1)
-            except (ValueError, RuntimeError, OSError):
-                label += " [Not authorized: complete setup]"
-            engine_options.append((label, name))
+        engine_options = self._local_engine_choices()
         self._local_engine_options = tuple(engine_options)
 
         self.matrix_engine = widgets.Dropdown(
             options=engine_options,
-            value='ORCA',
+            value='ORCA' if any(value == 'ORCA' for _, value in engine_options) else None,
             description='Engine:'
         )
         self.matrix_engine.tooltip = "Scientific execution requires the complete eleven-phase setup audit. Licensed binaries must be installed separately. Other module requests use Module handoff."
+        self.cfour_operation = widgets.Dropdown(
+            options=[("Single point", "single_point"), ("Optimization", "optimization"),
+                     ("Harmonic frequencies", "harmonic_frequencies"),
+                     ("Optimize + harmonic frequencies", "optimization_frequencies")],
+            value='single_point', description='CFOUR operation:',
+            style={'description_width': 'initial'}, layout=widgets.Layout(display='none'),
+        )
+        self.cfour_operation.observe(self._check_dispersion_gate, names='value')
 
         # Method Matrix v4 Tier and Method selection
         self.matrix_tier = widgets.Dropdown(
@@ -607,6 +626,7 @@ class CoChemGUI:
 
         self.matrix_engine.observe(update_preview, 'value')
         self.actions_operation.observe(update_preview, 'value')
+        self.cfour_operation.observe(update_preview, 'value')
         self.actions_timeout.observe(update_preview, 'value')
         self.calc_env_dropdown.observe(update_preview, 'value')
         self.cb_recipe_r1.observe(self._check_dispersion_gate, 'value')
@@ -656,6 +676,7 @@ class CoChemGUI:
             self.matrix_method,
             self.matrix_basis,
             self.matrix_engine,
+            self.cfour_operation,
             self.matrix_solvation,
             self.matrix_cbs_pair,
             self.unphysical_override,
@@ -1069,41 +1090,98 @@ class CoChemGUI:
             raise ValueError("Enter your instructor-provided course repository as OWNER/REPOSITORY.")
         return repository
 
+    def _local_engine_choices(self) -> list[tuple[str, str | None]]:
+        """Hide unaudited licensed choices while retaining free-engine setup paths."""
+        available = licensed_engine_availability()
+        self._licensed_engine_availability = available
+        if hasattr(self, 'licensed_engine_status'):
+            descriptions = []
+            for engine, observation in available.items():
+                descriptions.append(
+                    f"<li><b>{engine.upper()}:</b> "
+                    + ("available for audited calculations" if observation['available'] else
+                       "unavailable; dependent calculations disabled. " + html.escape(observation['reason']))
+                    + "</li>"
+                )
+            self.licensed_engine_status.value = (
+                "<p>Licensed engines are optional and strongly recommended. BASE ingestion, inspection and free-engine setup remain available.</p>"
+                "<ul>" + "".join(descriptions) + "</ul>"
+            )
+        choices = [("Choose an available calculation engine", None)]
+        if available['orca']['available']:
+            choices.append(("ORCA", "ORCA"))
+        if available['cfour']['available']:
+            from cochem_base.interfaces.scientific_jobs import calculation_capability
+            capability = calculation_capability(CalculationMatrixConfig(
+                geometry='H 0 0 0\nH 0 0 0.74', engine='cfour', method='HF', basis_set='STO-3G',
+                product_class=None, is_opt=False, is_freq=False,
+            ))
+            if capability.adapter_status == 'connected':
+                choices.append(("CFOUR", "CFOUR"))
+            elif hasattr(self, 'licensed_engine_status'):
+                self.licensed_engine_status.value += (
+                    "<p>CFOUR runtime authority is present; scientific adapter integration is pending. "
+                    + html.escape(capability.reason) + "</p>"
+                )
+        choices.extend((("xTB", "XTB"), ("PySCF (RHF single point)", "PYSCF")))
+        return choices
+
+    def _refresh_engine_choices(self) -> None:
+        """Refresh capabilities after setup or changing the execution target."""
+        if not hasattr(self, 'matrix_engine'):
+            return
+        remote = self.calc_env_dropdown.value == 'github-actions'
+        self._local_engine_options = tuple(self._local_engine_choices())
+        selected = self.matrix_engine.value
+        options = (
+            (("ORCA (course Actions workflow)", "ORCA"),
+             ("CFOUR (course Actions workflow)", "CFOUR"),
+             ("xTB (local/HPC only)", "XTB"),
+             ("PySCF (local/HPC only)", "PYSCF"))
+            if remote else self._local_engine_options
+        )
+        values = {value for _, value in options}
+        self.matrix_engine.options = options
+        self.matrix_engine.value = selected if selected in values else ('ORCA' if remote else None)
+        if remote:
+            self.licensed_engine_status.value = (
+                "<p>ORCA and CFOUR are optional and strongly recommended. Remote licensed-engine availability is unverified in this interface. "
+                "An ORCA or CFOUR choice prepares a request only; the course workflow checks its own download, installation and execution authority. "
+                "Local engine availability does not establish GitHub Actions availability.</p>"
+            )
+        if hasattr(self, 'btn_execute'):
+            self._refresh_execution_gate()
+
     def _refresh_actions_guidance(self, change: Any = None) -> None:
         repository = self.gh_repo_input.value.strip()
         valid_repository = bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*", repository))
         guide_repository = repository if valid_repository else "ProfJJK-CoChem/CoChem-BASE"
         branch = self.gh_branch_input.value.strip() or "main"
         guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/GitHub_Classroom_ORCA_Setup.md"
+        cfour_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/CFOUR_Actions_Setup.md"
         self.gh_guidance.value = (
             "<h4>GitHub Actions: Classroom50 course setup</h4>"
             "<p>Use the GitHub course repository provided by your Classroom50 instructor. "
-            "Your instructor prepares approved private ORCA access and the course workflows. "
+            "Your instructor prepares approved private ORCA/CFOUR access and the course workflows. "
             "Students do not enter tokens or binary download links in this interface.</p>"
             "<ol><li>Enter the course repository and branch provided by your instructor.</li>"
-            "<li>Ask the instructor to confirm <b>ORCA 6.1.1 calculation acceptance</b> passed for this repository.</li>"
-            "<li>Open <b>No Code Matrix</b>, enter your molecule and ORCA method, then choose "
+            "<li>Ask the instructor to confirm calculation acceptance passed for your selected licensed engine in this repository.</li>"
+            "<li>Open <b>No Code Matrix</b>, choose ORCA or CFOUR, enter your molecule and method, then choose "
             "<b>Prepare GitHub Actions job</b>.</li>"
             "<li>Download the JSON, upload it to the stated <code>jobs/</code> path on the approved branch, "
-            "then open <b>Actions → ORCA calculation → Run workflow</b>. Enter that path as <code>job_file</code>.</li>"
+            "then open <b>Actions → ORCA calculation</b> or <b>CFOUR calculation → Run workflow</b>. Enter that path as <code>job_file</code>.</li>"
             "<li>Wait for the calculation to finish. Download its result artifact and retain the run URL. "
             "A prepared file or an archive-access check is not a completed calculation.</li></ol>"
             f"<p><a href='{guide}#student-quick-start' target='_blank' rel='noopener'>Student quick start</a> · "
             f"<a href='{guide}#instructor-setup' target='_blank' rel='noopener'>Instructor setup</a> · "
             f"<a href='{guide}#troubleshooting' target='_blank' rel='noopener'>Troubleshooting</a></p>"
+            f"<p><a href='{cfour_guide}' target='_blank' rel='noopener'>CFOUR setup and calculation instructions</a></p>"
         )
         remote = hasattr(self, 'calc_env_dropdown') and self.calc_env_dropdown.value == "github-actions"
         if hasattr(self, 'matrix_engine'):
-            selected_engine = self.matrix_engine.value
-            self.matrix_engine.options = (
-                (("ORCA (course Actions workflow)", "ORCA"),
-                 ("xTB (local/HPC only)", "XTB"),
-                 ("PySCF (local/HPC only)", "PYSCF"))
-                if remote else self._local_engine_options
-            )
-            self.matrix_engine.value = selected_engine
+            self._refresh_engine_choices()
             self.matrix_engine.tooltip = (
-                "Prepare an ORCA request without a local engine. The approved workflow provisions and authorizes its own engine."
+                "Prepare an ORCA or CFOUR request without a local engine. The approved workflow provisions and authorizes its own engine."
                 if remote else "Native execution requires the complete eleven-phase setup audit on the configured host."
             )
         self.actions_job_options.layout.display = '' if remote else 'none'
@@ -1118,9 +1196,9 @@ class CoChemGUI:
             )
         if hasattr(self, 'execution_description'):
             self.execution_description.value = (
-                "<p>Prepare the selected ORCA operation for the course Actions workflow. "
+                "<p>Prepare the selected ORCA or CFOUR operation for its course Actions workflow. "
                 "Its calculation logs and validated results are available in the GitHub run artifact after execution.</p>"
-                if remote else "<p>Run ORCA or closed-shell xTB optimization, or a PySCF RHF single point on the configured host. "
+                if remote else "<p>Run ORCA, supported closed-shell CFOUR calculations, xTB optimization, or a PySCF RHF single point on the configured host. "
                 "Screening carries no product accuracy certification. TOPOS and TORQ use their separate runners.</p>"
             )
         self.calculation_environment_status.value = (
@@ -1449,7 +1527,6 @@ class CoChemGUI:
 
     def _installation_thread(self, request: dict[str, Any]) -> None:
         from cochem_base.orchestrator.bootstrap_service import run_setup
-        from cochem_base.core_engine.execution_authority import authorize_engine_execution
         from cochem_base.core.cochem_core_registry_manager import atomic_write_json
         from cochem_base.config_loader import get_artifact_dir
 
@@ -1477,11 +1554,16 @@ class CoChemGUI:
             summary = run_setup(artifact_dir, min_disk_space_gb=request['required_disk_gb'], on_event=on_event)
             if summary['overall_status'] not in {'LOCKED', 'PASSED', 'DEGRADED_OPERATIONAL'}:
                 raise RuntimeError(f"Stage 0 was not accepted: {summary['overall_status']}. See {artifact_dir / 'Registry' / 'setup_summary.json'}")
-            if request['license_mode'] != 'none':
-                authorize_engine_execution(request['license_mode'], registry_path=summary['registry_path'], cores=1)
+            optional = licensed_engine_availability(summary['registry_path'])
+            for engine, observation in optional.items():
+                if not observation['available']:
+                    self.install_output.append_stdout(
+                        f"Optional {engine.upper()} unavailable; dependent calculations are disabled: {observation['reason']}\n"
+                    )
             self.state.system_status = f"Setup {summary['overall_status']}"
             self.state.error_message = ''
             self.install_output.append_stdout(f"Complete setup evidence: {artifact_dir / 'Registry' / 'setup_summary.json'}\n")
+            self._refresh_engine_choices()
             self._refresh_topos_capabilities()
             self._on_engine_changed({"new": self.matrix_engine.value})
         except (ValueError, RuntimeError, OSError, KeyError) as exc:
@@ -1508,7 +1590,7 @@ class CoChemGUI:
     def _on_product_class_changed(self, change: Any) -> None:
         pc_val = change["new"]
         self.product_class_card.value = self._format_product_class_card(pc_val)
-        if "Product A" in pc_val:
+        if "Product A" in pc_val and "T4" in self.matrix_tier.options:
             self.matrix_tier.value = "T4"
         elif "Product B" in pc_val:
             if hasattr(self, 'config_tabs') and len(self.config_tabs.children) > 3:
@@ -1523,6 +1605,7 @@ class CoChemGUI:
         if change["new"] == "XTB":
             self.product_class_selector.value = "Screening (no product accuracy claim)"
             self.matrix_tier.value = "T1"
+            self._on_tier_changed({'new': 'T1'})
             self.matrix_method.value = "GFN2-xTB"
             self.matrix_basis.value = "built-in"
             self.matrix_solvation.value = None
@@ -1532,20 +1615,41 @@ class CoChemGUI:
         elif change["new"] == "PYSCF":
             self.product_class_selector.value = "Screening (no product accuracy claim)"
             self.matrix_tier.value = "T2"
+            self._on_tier_changed({'new': 'T2'})
             self.matrix_method.value = "HF/STO-3G"
             self.matrix_basis.value = "STO-3G"
             self.matrix_solvation.value = None
             self.matrix_cbs_pair.value = None
             self.cb_recipe_r1.value = False
             self.cb_recipe_r2.value = False
-        self.btn_execute.description = {"XTB": "Run xTB optimization", "PYSCF": "Run PySCF single point"}.get(change["new"], "Run ORCA optimization")
+        elif change["new"] == "CFOUR":
+            self.product_class_selector.value = "Screening (no product accuracy claim)"
+            self.matrix_tier.value = "T2"
+            self._on_tier_changed({'new': 'T2'})
+            self.matrix_method.value = "HF"
+            self.matrix_basis.value = "cc-pVDZ"
+            self.matrix_solvation.value = None
+            self.matrix_cbs_pair.value = None
+            self.cb_recipe_r1.value = False
+            self.cb_recipe_r2.value = False
+        else:
+            # Changing the engine can retain the same tier. Refresh its method
+            # and basis catalogs even when the tier trait emits no change.
+            self._on_tier_changed({'new': self.matrix_tier.value})
+        self.btn_execute.description = {"XTB": "Run xTB optimization", "PYSCF": "Run PySCF single point",
+                                        "CFOUR": "Run CFOUR calculation", None: "Select a calculation engine"}.get(change["new"], "Run ORCA optimization")
         self._check_dispersion_gate()
 
     def _on_tier_changed(self, change: Any) -> None:
         tier = change["new"]
         if tier in METHOD_MATRIX_TIERS:
             methods = METHOD_MATRIX_TIERS[tier]["methods"]
+            if self.matrix_engine.value == 'CFOUR':
+                methods = {"T2": ["HF"], "T6": ["MP2"], "T8": ["CCSD", "CCSD(T)"]}[tier]
             bases = METHOD_MATRIX_TIERS[tier]["allowed_basis_sets"]
+            if self.matrix_engine.value == 'CFOUR':
+                from cochem_base.calc.cfour_execution import SUPPORTED_CFOUR_BASIS_LABELS
+                bases = ['cc-pVDZ', *(basis for basis in SUPPORTED_CFOUR_BASIS_LABELS if basis != 'cc-pVDZ')]
             self.matrix_method.options = methods
             self.matrix_method.value = methods[0]
             self.matrix_basis.options = bases
@@ -1555,16 +1659,24 @@ class CoChemGUI:
     def _check_dispersion_gate(self, *args: Any) -> None:
         """Use the same mandatory methodology guard as calculation dispatch."""
         try:
+            if self.product_class_selector.value == ProductClass.PRODUCT_B.value:
+                raise MethodologyViolationError(
+                    "Product B materials use the Periodic structures panel with a validated cell and PBE plane-wave/PAW settings."
+                )
+            if self.matrix_engine.value is None:
+                raise MethodologyViolationError("Select an available engine. ORCA and CFOUR are optional; free-engine setup and data inspection remain available.")
             if self.matrix_engine.value in {"XTB", "PYSCF"}:
                 self._xtb_run_config() if self.matrix_engine.value == "XTB" else self._pyscf_run_config()
                 self.dispersion_warning.value = ""
                 if hasattr(self, "btn_execute"):
                     self._refresh_execution_gate()
                 return
-            if self.product_class_selector.value == ProductClass.PRODUCT_B.value:
-                raise MethodologyViolationError(
-                    "Product B materials use the Periodic structures panel with a validated cell and PBE plane-wave/PAW settings."
-                )
+            if self.matrix_engine.value == 'CFOUR':
+                self._cfour_run_config()
+                self.dispersion_warning.value = ''
+                if hasattr(self, 'btn_execute'):
+                    self._refresh_execution_gate()
+                return
             from cochem_base.topology.cochem_topos_graph import parse_xyz_string
             from cochem_base.physics.isotopes import get_element_mass_and_abundance
             import numpy as np
@@ -1600,23 +1712,66 @@ class CoChemGUI:
         remote = self.calc_env_dropdown.value == "github-actions"
         if remote:
             self.btn_execute.description = "Prepare GitHub Actions job"
-            if self.matrix_engine.value != "ORCA":
-                reason = "The course Actions workflow accepts ORCA jobs. Choose ORCA or return to the configured local/HPC host."
+            if self.matrix_engine.value not in {"ORCA", "CFOUR"}:
+                reason = "The course Actions workflows accept ORCA or CFOUR jobs. Choose either engine or return to the configured local/HPC host."
             else:
                 try:
                     self._actions_repository()
                 except ValueError as exc:
                     reason = str(exc)
-        elif self.matrix_engine.value not in {"ORCA", "XTB", "PYSCF"}:
-            reason = "This launcher supports ORCA/xTB optimization and PySCF RHF single points; CFOUR requires its dedicated adapter."
+        elif self.matrix_engine.value is None:
+            reason = "Choose an available engine; licensed engines are optional."
+        elif self.matrix_engine.value not in {"ORCA", "XTB", "PYSCF", "CFOUR"}:
+            reason = "This engine requires its dedicated scientific adapter."
         else:
             engine = self.matrix_engine.value.lower()
             try:
                 authorize_engine_execution(engine, cores=1)
             except (ValueError, RuntimeError, OSError) as exc:
                 reason = f"{self.matrix_engine.value} execution is unavailable: {exc}"
+                if self.matrix_engine.value in {'ORCA', 'CFOUR'}:
+                    # A once-authorized engine can lose its binary or its audit.
+                    # Remove it immediately rather than leaving dependent
+                    # controls enabled until the next installation refresh.
+                    self._refresh_engine_choices()
+                    return
         if not remote:
-            self.btn_execute.description = {"XTB": "Run xTB optimization", "PYSCF": "Run PySCF single point"}.get(self.matrix_engine.value, "Run ORCA optimization")
+            self.btn_execute.description = {"XTB": "Run xTB optimization", "PYSCF": "Run PySCF single point",
+                                            "CFOUR": "Run CFOUR calculation", None: "Select a calculation engine"}.get(self.matrix_engine.value, "Run ORCA optimization")
+        # Disabled controls retain catalog metadata for inspection but cannot be
+        # chosen in the browser when no authorized licensed engine is selected.
+        selected = self.matrix_engine.value
+        tiers = {'XTB': ['T1'], 'PYSCF': ['T2'], 'CFOUR': ['T2', 'T6', 'T8']}.get(selected, list(METHOD_MATRIX_TIERS))
+        if tuple(self.matrix_tier.options) != tuple(tiers):
+            previous = self.matrix_tier.value
+            self.matrix_tier.options = tiers
+            self.matrix_tier.value = previous if previous in tiers else tiers[0]
+        self.matrix_tier.disabled = selected is None or selected in {'XTB', 'PYSCF'}
+        self.matrix_method.disabled = selected is None or selected in {'XTB', 'PYSCF'}
+        self.matrix_basis.disabled = selected is None or selected == 'XTB'
+        for control in (self.matrix_solvation, self.matrix_cbs_pair, self.cb_recipe_r1,
+                        self.cb_recipe_r2, self.r2_reference_manifest, self.t9_config_path):
+            control.disabled = selected != 'ORCA'
+        self.cfour_operation.layout.display = '' if selected == 'CFOUR' and not remote else 'none'
+        self.cfour_operation.disabled = selected != 'CFOUR'
+        cfour_operations = ([('Single point', 'single_point'), ('Optimization', 'optimization'),
+                             ('Harmonic frequencies', 'harmonic_frequencies'),
+                             ('Optimize + harmonic frequencies', 'optimization_frequencies')]
+                            if self.matrix_method.value in {'HF', 'HF/STO-3G'} else
+                            [('Single point', 'single_point')])
+        if selected == 'CFOUR' and tuple(self.cfour_operation.options) != tuple(cfour_operations):
+            previous = self.cfour_operation.value
+            self.cfour_operation.options = cfour_operations
+            self.cfour_operation.value = previous if previous in {value for _, value in cfour_operations} else 'single_point'
+        actions_operations = (cfour_operations if selected == 'CFOUR' else
+                              [('Single point', 'single_point'), ('Optimization', 'optimization'),
+                               ('Harmonic frequencies', 'harmonic_frequencies'),
+                               ('Optimize + harmonic frequencies', 'optimization_frequencies')])
+        if tuple(self.actions_operation.options) != tuple(actions_operations):
+            previous = self.actions_operation.value
+            self.actions_operation.options = actions_operations
+            self.actions_operation.value = previous if previous in {value for _, value in actions_operations} else 'single_point'
+        self.product_class_selector.disabled = selected in {'XTB', 'PYSCF', 'CFOUR'}
         self.engine_warning.value = f"<b>{html.escape(reason)}</b>" if reason else ""
         self.btn_execute.disabled = bool(reason or self.dispersion_warning.value or self._pipeline_running
                                          or self._topos_running or self._installation_running)
@@ -2066,8 +2221,10 @@ class CoChemGUI:
             return self._xtb_run_config()
         if self.matrix_engine.value == "PYSCF":
             return self._pyscf_run_config()
+        if self.matrix_engine.value == 'CFOUR':
+            return self._cfour_run_config()
         if self.matrix_engine.value != "ORCA":
-            raise MethodologyViolationError("This action supports ORCA; select a dedicated adapter for CFOUR or xTB.")
+            raise MethodologyViolationError("Select an available calculation engine; ORCA and CFOUR are optional.")
         remote = self.calc_env_dropdown.value == "github-actions"
         if remote and (self.cb_recipe_r2.value or self.t9_config_path.value.strip()):
             raise MethodologyViolationError("The course Actions job must be self-contained; R2 reference files and T9 checkpoints require a separate approved workflow.")
@@ -2104,6 +2261,34 @@ class CoChemGUI:
                 "is_vpt2": False, "timeout_seconds": float(self.actions_timeout.value)} if remote else {}),
         )
         return config.model_dump(mode="json")
+
+    def _cfour_run_config(self) -> dict[str, Any]:
+        """Use the native CFOUR operation validator for the selected request."""
+        from cochem_base.interfaces.scientific_jobs import calculation_capability, validate_job_configuration
+
+        remote = self.calc_env_dropdown.value == 'github-actions'
+        if (self.cb_recipe_r1.value or self.cb_recipe_r2.value or self.matrix_solvation.value
+                or self.matrix_cbs_pair.value or self.t9_config_path.value.strip()
+                or self.product_class_selector.value != "Screening (no product accuracy claim)"):
+            raise MethodologyViolationError("The CFOUR adapter requires a molecular screening request without ORCA recipes, solvation, CBS or T9 recovery")
+        method = 'HF' if self.matrix_method.value == 'HF/STO-3G' else self.matrix_method.value
+        operation = self.actions_operation.value if remote else self.cfour_operation.value
+        optimize = operation in {'optimization', 'optimization_frequencies'}
+        config = CalculationMatrixConfig(
+            geometry=self.matrix_geometry.value, engine='cfour', method=method,
+            basis_set=self.matrix_basis.value,
+            product_class=None, charge=self.charge_input.value, multiplicity=self.multiplicity_input.value,
+            is_opt=optimize,
+            is_freq=operation in {'harmonic_frequencies', 'optimization_frequencies'},
+            initial_hessian='BFGS' if optimize else 'XTB2',
+            is_vpt2=False,
+            **({'timeout_seconds': float(self.actions_timeout.value)} if remote else {}),
+        )
+        validate_job_configuration(config)
+        capability = calculation_capability(config)
+        if capability.adapter_status != 'connected':
+            raise MethodologyViolationError(f"CFOUR {capability.operation} is unavailable: {capability.reason}")
+        return config.model_dump(mode='json')
 
     def _xtb_run_config(self) -> dict[str, Any]:
         from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry
@@ -2185,7 +2370,9 @@ class CoChemGUI:
             target = self._run_artifact_root() / project / "matrix_config.json"
             target.parent.mkdir(parents=True, exist_ok=True)
             _write_json(target, config)
-            self.matrix_output.append_stdout(f"Saved {config['engine']} {'single-point' if config['engine'] == 'pyscf' else 'optimization'} configuration: {target}\n")
+            operation = ('optimization + harmonic frequencies' if config['is_opt'] and config['is_freq'] else
+                         'harmonic frequencies' if config['is_freq'] else 'optimization' if config['is_opt'] else 'single point')
+            self.matrix_output.append_stdout(f"Saved {config['engine']} {operation} configuration: {target}\n")
         except Exception as exc:
             self.matrix_output.append_stdout(f"Configuration was not saved: {exc}\n")
         finally:
@@ -2227,8 +2414,8 @@ class CoChemGUI:
         self._invalidate_actions_job()
         try:
             repository = self._actions_repository()
-            if self.matrix_engine.value != "ORCA":
-                raise ValueError("The course workflow accepts molecular ORCA jobs only.")
+            if self.matrix_engine.value not in {'ORCA', 'CFOUR'}:
+                raise ValueError("The course workflows accept molecular ORCA or CFOUR jobs only.")
             if self.cb_recipe_r2.value or self.t9_config_path.value.strip():
                 raise ValueError("The course job must be self-contained; R2 reference files and T9 checkpoints require a separate approved workflow.")
             if len(parse_run_geometry(self.matrix_geometry.value)[0]) > 50:
@@ -2242,18 +2429,19 @@ class CoChemGUI:
                 raise ValueError("The course job JSON must be at most 256 KiB.")
             validate_configuration(payload, model.model_dump(mode="json"))
             project = re.sub(r"[^A-Za-z0-9_-]", "_", self.project_name.value).strip("_")[:64] or "molecule"
-            filename = f"{project}-orca-job.json"
+            engine_name = model.engine.upper()
+            filename = f"{project}-{model.engine}-job.json"
             job_file = f"jobs/{filename}"
             digest = hashlib.sha256(payload).hexdigest()
             self._last_actions_job = {"job_file": job_file, "config": model.model_dump(mode="json"), "sha256": digest}
             encoded = base64.b64encode(payload).decode("ascii")
-            workflow = f"https://github.com/{repository}/actions/workflows/orca_calculation.yml"
+            workflow = f"https://github.com/{repository}/actions/workflows/{model.engine}_calculation.yml"
             self.actions_job_download.value = (
                 "<p role='status'><b>Actions job prepared.</b> No calculation has been submitted or run.</p>"
-                f"<p><a download='{filename}' href='data:application/json;base64,{encoded}'>Download ORCA job JSON</a></p>"
+                f"<p><a download='{filename}' href='data:application/json;base64,{encoded}'>Download {engine_name} job JSON</a></p>"
                 f"<ol><li>Upload this file as <code>{job_file}</code> in <code>{html.escape(repository)}</code> "
                 f"on the instructor-approved <code>{html.escape(self.gh_branch_input.value.strip() or 'main')}</code> branch.</li>"
-                f"<li>Open <a href='{workflow}' target='_blank' rel='noopener'>ORCA calculation</a>, select "
+                f"<li>Open <a href='{workflow}' target='_blank' rel='noopener'>{engine_name} calculation</a>, select "
                 f"<b>Run workflow</b>, and set <code>job_file</code> to <code>{job_file}</code>.</li>"
                 "<li>Select one or two cores and your instructor's memory allowance. After completion, download "
                 "the calculation artifact and retain its run URL.</li></ol>"
@@ -2287,8 +2475,11 @@ class CoChemGUI:
 
         try:
             work_dir = config_path.parent
-            engine = json.loads(config_path.read_text(encoding="utf-8"))["engine"].upper()
-            operation = "single point" if engine in {"PYSCF", "QE"} else "optimization"
+            configuration = json.loads(config_path.read_text(encoding="utf-8"))
+            engine = configuration["engine"].upper()
+            operation = ("optimization + harmonic frequencies" if configuration['is_opt'] and configuration['is_freq']
+                         else "harmonic frequencies" if configuration['is_freq']
+                         else "optimization" if configuration['is_opt'] else "single point")
             self.telemetry_output.append_stdout(f"Running the saved {engine} {operation} configuration.\nFull logs and results: {work_dir}\n")
             result = run_calculation(
                 config_path, scratch=work_dir / "Scratch", output=work_dir / "Results", device="cpu",
@@ -2304,8 +2495,9 @@ class CoChemGUI:
                 )
                 return
             if result["status"] != "EXECUTION_VERIFIED":
-                raise RuntimeError(f"{engine} optimization was not completed; diagnostics: {work_dir}.")
-            self.state.system_status = "Single Point Finished" if engine in {"PYSCF", "QE"} else "Optimization Finished"
+                raise RuntimeError(f"{engine} {operation} was not completed; diagnostics: {work_dir}.")
+            self.state.system_status = ("Optimization Finished" if configuration['is_opt'] else
+                                        "Harmonic Frequencies Finished" if configuration['is_freq'] else "Single Point Finished")
             self.state.error_message = ""
             self.telemetry_output.append_stdout(f"\n{engine} execution and scientific output checks passed. Results: {work_dir / 'Results'}\n")
             if engine in {"XTB", "PYSCF"}:
@@ -2331,8 +2523,17 @@ class CoChemGUI:
                     "Empirical product accuracy: unverified.<br/>"
                     f"Artifact: <code>{html.escape(str(result_path))}</code>"
                 )
+            elif engine == 'CFOUR':
+                result_path = work_dir / 'Results' / 'result.json'
+                payload = json.loads(result_path.read_text(encoding='utf-8'))
+                self.calculation_result.value = (
+                    f"<b>CFOUR {html.escape(operation)} result</b> (no product accuracy certification)<br/>"
+                    f"Method: {html.escape(payload['method'])}<br/>"
+                    f"Energy: {float(payload['energy_hartree']):.12f} Hartree<br/>"
+                    f"Artifact: <code>{html.escape(str(result_path))}</code>"
+                )
             else:
-                self.calculation_result.value = f"<b>ORCA optimization accepted.</b> Results: <code>{html.escape(str(work_dir / 'Results'))}</code>"
+                self.calculation_result.value = f"<b>ORCA {html.escape(operation)} accepted.</b> Results: <code>{html.escape(str(work_dir / 'Results'))}</code>"
         except SubprocessCancelledError:
             self.state.system_status = "Calculation Cancelled"
             self.state.error_message = ""

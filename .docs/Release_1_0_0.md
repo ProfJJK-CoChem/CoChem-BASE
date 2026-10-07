@@ -41,17 +41,61 @@ scientific accuracy requirement calls for them.
 
 ## Validation record
 
-The preceding complete local profile recorded **1,241 passed, 4 declared
-external checks deferred and 0 failures** at its historical prepublication
-revision. That count must not be reused for subsequent source changes. The
-canonical release profile is `python ci_tools/base_ci.py all` in the prepared
-environment; its report records exact deferred checks and source integrity.
+The complete canonical local 1.0.0 profile passed **1,469 tests**, with **2
+explicit physical Slurm deferrals**, **0 failures** and **1,471 collected** in
+**908.20 seconds**. All 10,672 warnings remain in the log. Both source and test
+gates passed; there were no unexpected skips, missing node outcomes or audited
+source changes. The two skipped nodes require an actual Slurm allocation and
+are not passed tests. Evidence is retained in
+`/workspace/cochem-runtime/evidence/base-1.0.0-final-v2/` (`summary.json`,
+`source-audit.json`, `test-acceptance.json`, pytest outcomes and source snapshots).
+This run tested the application implementation at `1cfa49a` together with the
+input fixture subsequently committed in `01cca5b`; final source metadata and
+hosted fixes require their own follow-up verification. The earlier 1,189/1,241
+counts belong to historical snapshots and are not added to this count.
 
-Current provisioning and hosted evidence belongs in
-[ORCA Actions setup](ORCA_Actions_Setup.md). Additional scientific calculations
-are recorded in [ORCA scientific acceptance](ORCA_Scientific_Acceptance.md).
-The final release record must identify the tested commit, canonical suite
-report, hosted calculation runs, browser evidence and distribution hashes.
+[Hosted ORCA acceptance run 37613653904](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613653904)
+passed at `1cfa49a84d45da7c60ffd1fa0d6eae3889dbe049`: private asset download,
+checksum/version verification, genuine two-rank MPI, all eleven Stage 0 phases,
+and **3 physical/boundary tests passed in 13.20 seconds**. The real serial and
+two-process BASE calculations satisfied the unchanged `1e-8 Eh` energy
+agreement threshold and result/HDF5 publication checks. Evidence artifact:
+`orca-6.1.1-acceptance-37613653904-1`. Exact energies are in that artifact;
+they are not inferred from the pytest pass count.
+
+The separate [student optimization/frequency run 37613654179](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613654179)
+failed and is being corrected; it is not covered by the successful acceptance
+workflow. The bounded hosted CI rerun is also incomplete: Linux/macOS controls
+and wheels have passed, while a Windows control failure is under correction.
+These outcomes prevent an all-hosted-pass claim. Current run-specific evidence
+belongs in [ORCA Actions setup](ORCA_Actions_Setup.md).
+
+The bounded real H2 PES interpolation used 128 ORCA RHF/STO-3G baseline points,
+32 CCSD(T)/cc-pVTZ correction pairs and 31 fresh geometries excluded from both
+training sets over 0.55–1.80 Å. With unchanged model defaults, standalone energy
+prediction had **3.176715694 cm⁻¹ RMSE** and **8.242899532 cm⁻¹ maximum absolute
+error**, both below the 10 cm⁻¹ bound for this protocol. Paired correction RMSE
+was 1.189292656 cm⁻¹ and its maximum absolute error was 3.726415424 cm⁻¹.
+This is a two-electron one-dimensional interpolation check; it does not measure
+nonzero triples contributions, vibrational-frequency accuracy, extrapolation,
+experimental agreement or arbitrary molecules. Evidence:
+`/workspace/cochem-runtime/evidence/quantum-pes-2026-10-07/dual-resolution-acceptance.json`.
+
+Actual frozen-monomer R1, accepted five-leg R2, grid refinements, spin recovery,
+CREST/GOAT union and Hessian/isotope parity are described in
+[ORCA scientific acceptance](ORCA_Scientific_Acceptance.md). The accepted R2
+report retains its measured signed counterpoise ordering and residual-gradient
+warnings; no sign or tolerance was changed to create acceptance.
+
+At committed revision `01cca5be1f917af29ce36900c5da4dad30564bed`, the **479-test
+bounded regression selection passed with no skips or source mutation**, and a
+fresh isolated wheel install passed package-origin, CLI, isotope database,
+`pip check`, hardware and real dry-run deck checks. These local checks do not
+claim a hosted run or a chemistry execution by the packaging test. Evidence:
+`/workspace/cochem-runtime/evidence/release-ci-01cca5b-regressions/` and
+`/workspace/cochem-runtime/evidence/release-ci-01cca5b-wheel/`. The tested wheel
+SHA-256 is `9f4b69804de322163d2d9caf0207bab8cad13ad940e75545dc289539379372b4`;
+it is a revision-specific validation artifact, not an already published release.
 
 The preliminary 1.0.0 wheel and source archive built successfully outside the
 checkout. A second clean virtual environment installed the corrected wheel

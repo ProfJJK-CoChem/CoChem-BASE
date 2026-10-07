@@ -20,9 +20,29 @@ python ci_tools/base_ci.py all --output /tmp/cochem-alpha-evidence
 
 Actual per-node pytest evidence must cover every collected node exactly once with complete execution phases. Empty collection, failures, xfails, deselection, incomplete reporting and unexpected skips fail. Inherited `PYTEST_ADDOPTS` and `PYTEST_PLUGINS` cannot silently alter the run; plugin autoload is disabled and required plugins are explicitly selected. Source snapshots cover production, CI, configuration, all test sources and the exact immutable source inputs before and after execution. Changed source/input bytes fail acceptance. Snapshots are change-detection evidence, not external signatures.
 
-[`ci_tools/deferred_acceptance.json`](../ci_tools/deferred_acceptance.json) names exact licensed/reference and physical Slurm prerequisites. A free-only environment may report an authorized missing prerequisite as an external omission, never a pass. Once actual engines/references are supplied, their physical tests must execute; the policy is not permission to skip available acceptance. Genuine ORCA/CREST union and other licensed local calculations have now run separately, as recorded in [scientific acceptance](ORCA_Scientific_Acceptance.md). Node IDs and skip reasons remain exact, and runtime outcomes determine which omissions actually occurred.
+[`ci_tools/deferred_acceptance.json`](../ci_tools/deferred_acceptance.json) names exact licensed/reference and physical Slurm prerequisites. A free-only environment may report an authorized missing prerequisite as an external omission, never a pass. Once actual engines/references are supplied, their physical tests must execute; the policy is not permission to skip available acceptance. Genuine ORCA/CREST union and R2 calculations now execute in the canonical local profile; only the two physical Slurm-node omissions occurred in the current full run. Additional bounded physical evidence is recorded in [scientific acceptance](ORCA_Scientific_Acceptance.md). Node IDs and skip reasons remain exact, and runtime outcomes determine which omissions actually occurred.
 
-## Verified snapshot
+## Current canonical acceptance — 2026-10-07
+
+The canonical source gate and complete local test profile both passed:
+**1,469 passed, 2 declared physical Slurm skips, 1,471 collected, 0 failures**.
+All 10,672 warnings remain recorded; execution took 908.20 seconds. Actual node
+coverage is complete and no audited source/input bytes changed. Evidence:
+`/workspace/cochem-runtime/evidence/base-1.0.0-final-v2/`.
+
+The source report records zero blocking production/CI, selected-test,
+atomic-mass and source/data findings. Its wider retained-test inventory is
+**563 source-pattern flags**, separately classified and not represented as 563
+proved fabrications or executed tests. The historical 559-flag snapshot below
+retains its original scope and counts; deleted legacy items are resolved.
+
+The 479-test bounded local regression profile and clean installed-wheel checks
+also passed at `01cca5b`. Actual hosted ORCA serial/parallel acceptance passed
+at `1cfa49a`; the student-job and Windows CI corrections require their own
+successful reruns. See the [release record](Release_1_0_0.md) for revision and
+publication boundaries. Overlapping selections are not added together.
+
+## Historical verified snapshot
 
 Snapshot: **2026-10-06**, after the canonical CI migration.
 
@@ -33,11 +53,11 @@ Snapshot: **2026-10-06**, after the canonical CI migration.
 | Atomic-mass policy findings | 0 |
 | Airgap findings after exact immutable-input validation | 0 |
 | Canonical CI-control execution | 157 passed; 0 skipped; no source changes |
-| Current retained test-source inventory | 559 source-pattern findings in 121 existing test files; strict whole-tree exit remains nonzero |
+| Retained test-source inventory at this snapshot | 559 source-pattern findings in 121 existing test files; strict whole-tree exit remains nonzero |
 
 Session evidence: `/tmp/cochem-ci-audit-final/source-audit.json` and `/tmp/cochem-ci-controls-final-verified/`. These temporary paths record actual runs, not committed success declarations. Full local-profile outcomes are maintained in the implementation status report; the CI-control count is not a substitute for them. Rerun after further changes.
 
-A fresh reconciliation confirmed that all nine paths in the CI retirement manifest are absent. **Zero findings refer to retired or missing files.** Deleting those items resolved them; the remaining inventory is not a historical backlog for deleted code. All 559 flags occur under `tests/` (330 flags in 83 files) or `test_suite/` (229 flags in 38 files). Of these, 42 conditional-skip references occur in 14 selected-profile files; actual outcomes are governed by the exact runtime deferral policy. The other 517 flags occur in 107 retained files outside that profile. Some concern intentional negative inputs or scanner tests, so the count is not a count of confirmed defects. Reconciliation evidence: `/tmp/cochem-retained-source-reconciliation/source-audit.json`.
+A reconciliation at that snapshot confirmed that all nine paths in the CI retirement manifest are absent. **Zero findings refer to retired or missing files.** Deleting those items resolved them; the remaining inventory is not a historical backlog for deleted code. All 559 flags occur under `tests/` (330 flags in 83 files) or `test_suite/` (229 flags in 38 files). Of these, 42 conditional-skip references occur in 14 selected-profile files; actual outcomes are governed by the exact runtime deferral policy. The other 517 flags occur in 107 retained files outside that profile. Some concern intentional negative inputs or scanner tests, so the count is not a count of confirmed defects. Reconciliation evidence: `/tmp/cochem-retained-source-reconciliation/source-audit.json`.
 
 The retained test-source inventory contains:
 
@@ -58,7 +78,7 @@ These are source-pattern findings, **not 559 proven runtime fabrications**. Reta
 
 [`.github/workflows/cochem_base_ci.yml`](../.github/workflows/cochem_base_ci.yml) now owns the source gate, actual cross-OS CI-control tests and the reusable bounded free-engine/dashboard acceptance workflow. The source gate runs in a Python `-I -S` process. The physical workflow retains real eleven-phase Stage 0 setup, isolated xTB/PySCF installation/calculations, CLI publication and rendered dashboard lifecycle checks.
 
-GitHub's free-engine scope is bounded: it does **not** claim that the entire silo-dependent local profile ran on hosted hardware. Separate ORCA access, physical acceptance and student calculation workflows use the reviewed private distribution manifest. Actual licensed local calculations, browser export and installed-wheel checks now supply additional evidence; a hosted run must still establish its own setup/execution result. Native-platform/GPU/Slurm acceptance remains separately identified. See [ORCA Actions evidence](ORCA_Actions_Setup.md) for run-specific outcomes.
+GitHub's free-engine scope is bounded: it does **not** claim that the entire silo-dependent local profile ran on hosted hardware. Separate ORCA access, physical acceptance and student calculation workflows use the reviewed private distribution manifest. Actual licensed local calculations, browser export and installed-wheel checks supply additional evidence. Hosted ORCA acceptance run 37613653904 passed; the student optimization/frequency workflow and remaining cross-platform CI corrections require separate reruns. Native-platform/GPU/Slurm acceptance remains separately identified. See [ORCA Actions evidence](ORCA_Actions_Setup.md) for run-specific outcomes.
 
 [`ci_tools/ci_migration.json`](../ci_tools/ci_migration.json) records the retired duplicate BENCH/SCRIBE workflows, orphaned historical linter patch, misleading uncalled log “sanitizer”, stale self-issued hashrings, and duplicate tests of the old inline workflow logic. Meaningful format/configuration/entropy checks now call the canonical implementation instead of reproducing scanner algorithms inside tests. `verify_core_integrity.py` remains a compatibility entrypoint to the canonical audit; it cannot generate an accepting baseline. Administrative cleanup/classification utilities and the older extension-only scanner are explicitly supplementary, not additional scientific acceptance pipelines.
 

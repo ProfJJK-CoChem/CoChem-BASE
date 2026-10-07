@@ -168,34 +168,55 @@ python scripts/verify_orca.py --registry "$COCHEM_CONFIG" --output /external/new
 The output must be a fresh path outside the checkout. The script preserves a
 failed report on a failed attempt and refuses to overwrite earlier evidence.
 
-## Prepublication validation
+## Current local release validation — 2026-10-07
 
-The complete canonical local run passed: **1,241 passed, 4 external checks
-deferred, 0 failures**, from 1,245 collected tests in 486.08 seconds. The source
-audit passed and source bytes were unchanged during testing. The 10,669 warnings
-are retained in the log. The four deferred checks are physical R2/reference
-acceptance, CREST/GOAT union and two physical Slurm-node checks. Actual licensed
-ORCA installation and the separate hosted serial/parallel test are not included
-in this local pass count. All workflow files passed `actionlint`; the prepared
-Python environment passed `pip check`.
+The complete canonical local 1.0.0 profile passed **1,469 tests**, with **2
+physical Slurm checks deferred**, **0 failures** and **1,471 collected** in
+908.20 seconds. Source and test gates passed with no unexpected skips, omitted
+node outcomes or source mutation. The 10,672 warnings remain in the logs.
+Unlike the preceding 1,241-pass/4-deferral snapshot, actual R2 and CREST/GOAT
+acceptance executed; only the two exact physical Slurm nodes remain skipped.
+Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v2/`.
 
-Evidence is retained at
-`/workspace/cochem-runtime/evidence/orca-actions-prepublication/`.
+The separate 479-test bounded selection and a fresh isolated 1.0.0 wheel install
+passed at `01cca5be1f917af29ce36900c5da4dad30564bed`. The bounded selection is
+not the full canonical profile; the packaging test generates a real input deck
+without claiming an engine calculation. See the [release record](Release_1_0_0.md)
+for evidence paths, revision boundaries and remaining publication checks.
 
-## Hosted execution status
+The earlier **1,241 passed, 4 deferred, 0 failures** result (1,245 collected;
+486.08 seconds) is historical evidence at
+`/workspace/cochem-runtime/evidence/orca-actions-prepublication/`. Its deferrals
+were R2/reference acceptance, CREST/GOAT union and two physical Slurm nodes.
+It is not the current suite count or a hosted result.
 
-Commit `cf709d040fff7a5c4db433cb921f3451f7888328` was pushed to
-`codex/orca-6.1.1-actions`. Both the [push run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37571459336)
-and [dispatched run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37571482477)
-executed on GitHub-hosted runners and failed at the private release download:
-`release not found`. The Actions secret was present, but its credential did not
-provide effective access. Neither run reached MPI installation or calculations.
+## Hosted execution status — 2026-10-07
 
-An independently authorized cloud credential successfully retrieved the
-published release and archive, and the archive matches the user-supplied SHA-256.
-GitHub API and upstream MPI download access now work in the cloud environment.
-The user has since saved a replacement Actions token. Its effective access and
-the complete installation must be established by a new hosted calculation run;
-the historical failures above do not describe the replacement token's result.
-Download/hash success in this cloud environment does not establish hosted
-calculation success.
+[ORCA acceptance run 37613653904](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613653904)
+**succeeded** at commit `1cfa49a84d45da7c60ffd1fa0d6eae3889dbe049`. Every
+provisioning, Stage 0, physical-test, artifact-upload and cleanup step passed.
+The hosted log records **3 passed, 1 deprecation warning in 13.20 seconds**,
+including actual serial and two-rank BASE publication with energy agreement
+within `1e-8 Eh`. The registry records one physical CPU, two logical CPUs and
+two allocatable vCPUs under the explicit `github_hosted_vcpus` policy.
+
+The evidence artifact is `orca-6.1.1-acceptance-37613653904-1`
+(artifact ID `11478918809`, 1,218,780 bytes). It contains the actual scientific
+and provisioning records. Exact energies and their difference were not printed
+in the pytest log and are not invented here. Sanitized logs and run metadata
+are retained at `/workspace/cochem-runtime/evidence/hosted-orca-37613653904/`.
+
+The separate [student optimization/frequency run 37613654179](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613654179)
+failed and its correction/rerun is pending. Successful serial/parallel acceptance
+does not turn that submission workflow into a pass. The current bounded CI
+rerun has passed Linux/macOS controls and wheel checks; its Windows control
+failure is being corrected. Final release acceptance must record those results
+against the final reviewed revision.
+
+For historical context, the [initial push run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37571459336)
+and [initial dispatched run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37571482477)
+at `cf709d040fff7a5c4db433cb921f3451f7888328` failed at private release download
+with `release not found` and did not reach MPI or chemistry. The subsequently
+replaced Actions token now has demonstrated effective access in the successful
+hosted run above. Those historical failures no longer describe current asset
+authorization.

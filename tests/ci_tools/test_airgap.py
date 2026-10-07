@@ -25,6 +25,47 @@ from ci_tools.process_runner import async_run_process, run_process
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _assert_child_terminated(pid: int) -> None:
+    """Check execution state, including Windows handles retained by tracebacks."""
+    if os.name != "nt":
+        assert not psutil.pid_exists(pid), f"child PID {pid} still exists"
+        return
+
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel.WaitForSingleObject.restype = wintypes.DWORD
+    kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel.GetExitCodeProcess.restype = wintypes.BOOL
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+    # SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION: observe, never terminate.
+    handle = kernel.OpenProcess(0x00100000 | 0x1000, False, pid)
+    if not handle:
+        assert ctypes.get_last_error() == 87, "Cannot inspect the child process"
+        assert not psutil.pid_exists(pid), "Child PID still exists without an observable handle"
+        return
+    try:
+        # TimeoutExpired may retain Popen's handle through its traceback, so
+        # Windows can retain a dead PID. The kernel signal and exit status must
+        # nevertheless prove termination immediately, with no cleanup grace.
+        assert kernel.WaitForSingleObject(handle, 0) == 0, "Child process is still running"
+        exit_code = wintypes.DWORD()
+        assert kernel.GetExitCodeProcess(handle, ctypes.byref(exit_code)), "Cannot read child exit status"
+        assert exit_code.value != 259, "Child process is still active"
+    finally:
+        assert kernel.CloseHandle(handle), "Failed to close the observation handle"
+
+
+def test_termination_check_rejects_a_genuinely_live_process() -> None:
+    with pytest.raises(AssertionError, match="still"):
+        _assert_child_terminated(os.getpid())
+
+
 def test_runner_uses_utf8_in_a_cp1252_parent(tmp_path: Path) -> None:
     script = (
         "import sys; "
@@ -84,7 +125,7 @@ def test_invalid_timeouts_are_rejected(timeout: float) -> None:
 def test_sync_timeout_reaps_child() -> None:
     with pytest.raises(subprocess.TimeoutExpired) as error:
         run_process([sys.executable, "-c", "import os,time; print(os.getpid(), flush=True); time.sleep(30)"], timeout=0.5)
-    assert not psutil.pid_exists(int(error.value.stdout.strip()))
+    _assert_child_terminated(int(error.value.stdout.strip()))
 
 
 def test_async_execution_errors_and_timeout() -> None:
@@ -98,7 +139,7 @@ def test_async_execution_errors_and_timeout() -> None:
         assert error.value.returncode == 9
         with pytest.raises(subprocess.TimeoutExpired) as error:
             await async_run_process([sys.executable, "-c", "import os,time; print(os.getpid(), flush=True); time.sleep(30)"], timeout=0.5)
-        assert not psutil.pid_exists(int(error.value.stdout.strip()))
+        _assert_child_terminated(int(error.value.stdout.strip()))
 
     asyncio.run(exercise())
 
@@ -120,7 +161,7 @@ def test_async_cancellation_reaps_child(tmp_path: Path) -> None:
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await task
-        assert not psutil.pid_exists(pid)
+        _assert_child_terminated(pid)
 
     asyncio.run(exercise())
 

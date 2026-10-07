@@ -64,6 +64,11 @@ The licensed job has no pull-request trigger.
    removes unrelated preinstalled SDKs to make room. Local and HPC installations
    do not perform that cleanup. Require a native
    executable and exact ORCA/MPI versions; record all distribution file hashes.
+   ORCA's version probe invokes the genuine executable with an intentionally
+   absent input filename inside a temporary directory and reads its own
+   `Program Version` banner, as ASE's ORCA adapter does. Its expected input-file
+   error is metadata interrogation, not a successful calculation. Bare ORCA
+   does not print this banner, and `--version` is not a supported version flag.
 5. Install the bounded BASE/UI profile and run all eleven real Stage 0 phases.
    The explicit 1 GB minimum free-storage profile is for these small CPU tests;
    the production setup default remains 50 GB.

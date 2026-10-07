@@ -269,12 +269,20 @@ def provision(archive: Path, install_root: Path, mpi_prefix: Path, manifest_path
             [*(str(path) for path in orca_libraries), environment["LD_LIBRARY_PATH"]]
         )
         with tempfile.TemporaryDirectory(prefix="cochem-orca-probe-") as temporary:
-            # Bare ORCA emits its banner and may return nonzero because no input
-            # was supplied. Scientific success is checked by separate real jobs.
-            result = probe([str(binary)], environment, Path(temporary))
+            # Real ORCA 6.1.1 prints no version for bare invocation and has no
+            # --version flag. Its normal input-file invocation prints the real
+            # banner before rejecting this deliberately absent file. This is
+            # metadata discovery only, never a successful calculation.
+            missing_input = "cochem-version-probe.inp"
+            version_command = [str(binary), missing_input]
+            result = probe(version_command, environment, Path(temporary))
         orca_version = exact_version(result.stdout, "orca", manifest["orca_version"])
-        if result.returncode < 0:
-            raise ValueError(f"ORCA version probe terminated by signal {-result.returncode}")
+        expected_error = f"Cannot open input file: {missing_input}"
+        if result.returncode != 2 or expected_error not in result.stdout:
+            raise ValueError(
+                f"ORCA metadata probe did not produce its expected missing-input response "
+                f"(exit {result.returncode}); no calculation acceptance is inferred."
+            )
         files = {}
         for path in sorted(install_root.rglob("*")):
             if path.is_symlink():
@@ -301,6 +309,9 @@ def provision(archive: Path, install_root: Path, mpi_prefix: Path, manifest_path
             },
             "mpi_library_paths": [str(path) for path in mpi_libraries],
             "version_probe_returncode": result.returncode,
+            "version_probe_argv": version_command,
+            "version_probe_mode": "intentional_missing_input_metadata",
+            "version_probe_expected_error": expected_error,
             "version_probe_output": result.stdout, "files": files,
         }
         provenance_path.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")

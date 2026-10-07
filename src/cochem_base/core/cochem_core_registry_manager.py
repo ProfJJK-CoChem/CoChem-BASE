@@ -54,13 +54,7 @@ from cochem_base.config_loader import (
     resolve_mapped_path,
 )
 
-try:
-    from cochem_core_registry_schema import CoChemSystemConfig
-except ImportError:
-    try:
-        from core_engine.cochem_core_registry_schema import CoChemSystemConfig  # type: ignore
-    except ImportError:
-        from ..cochem_core_registry_schema import CoChemSystemConfig  # type: ignore
+from cochem_base.cochem_core_registry_schema import CoChemSystemConfig
 
 logger = logging.getLogger("CoChem-RegistryManager")
 
@@ -82,6 +76,7 @@ class CoChemLockTimeoutError(RegistryLockError, TimeoutError):
 
 
 RegistryLockTimeoutError = CoChemLockTimeoutError
+FileLockTimeoutError = CoChemLockTimeoutError
 
 
 class RegistryMissingError(RegistryError, FileNotFoundError):
@@ -121,11 +116,13 @@ class IsotopeStabilityError(RegistryError, _BaseIsotopeStabilityError):
 # =============================================================================
 
 class AtomicFileLock:
-    """Process-safe, thread-safe, cross-platform atomic file lock using filelock.SoftFileLock / FileLock.
+    """Process-safe, thread-safe, cross-platform atomic file lock using FileLock.
 
     Combines thread-level RLock serialization per canonical path with cross-platform
     filelock, thread-local re-entrancy tracking, and strict 10-second gatekeeper timeout.
-    POSIX fcntl is explicitly eradicated in favor of cross-platform filelock.
+    Lock files intentionally remain on disk: unlinking a released lock can let
+    waiters lock different inodes. The OS releases ownership after a process dies;
+    a file's age never establishes that its owner has stopped writing.
     """
 
     _tls = threading.local()
@@ -150,7 +147,7 @@ class AtomicFileLock:
         self.stale_timeout = float(stale_timeout)
         self._depth: int = 0
         self._thread_lock_acquired: bool = False
-        self._filelock: Optional[Union[filelock.SoftFileLock, filelock.FileLock]] = None
+        self._filelock: Optional[filelock.FileLock] = None
 
     @property
     def _is_locked(self) -> bool:
@@ -174,11 +171,11 @@ class AtomicFileLock:
             self._depth += 1
             return True
 
-        start_time = time.time()
+        start_time = time.monotonic()
         thread_lock = self._get_path_lock(path_str)
 
         # 1. In-process thread lock
-        remaining = max(0.001, self.timeout - (time.time() - start_time))
+        remaining = max(0.0, self.timeout - (time.monotonic() - start_time))
         if not thread_lock.acquire(timeout=remaining):
             raise CoChemLockTimeoutError(
                 f"Could not acquire thread lock on '{self.lock_path}' within {self.timeout}s"
@@ -187,22 +184,11 @@ class AtomicFileLock:
         self._thread_lock_acquired = True
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Stale lock reaping check
-        if self.lock_path.exists():
-            try:
-                mtime = self.lock_path.stat().st_mtime
-                if (time.time() - mtime) > self.stale_timeout:
-                    try:
-                        self.lock_path.unlink(missing_ok=True)
-                        logger.info(f"Reaped stale lock file: {self.lock_path}")
-                    except OSError as _e:
-                        logger.debug(f"Ignored exception: {_e}")
-            except OSError as _e:
-                logger.debug(f"Ignored exception: {_e}")
-
-        # 2. Cross-platform process lock via filelock.SoftFileLock
-        rem_filelock = max(0.001, self.timeout - (time.time() - start_time))
-        fl = filelock.SoftFileLock(str(self.lock_path), timeout=rem_filelock)
+        # Kernel-backed ownership is automatically released on process death.
+        # Keep stale_timeout as a compatible argument, never as permission to
+        # unlink a possibly active lock.
+        rem_filelock = max(0.0, self.timeout - (time.monotonic() - start_time))
+        fl = filelock.FileLock(str(self.lock_path), timeout=rem_filelock)
         try:
             fl.acquire(timeout=rem_filelock)
             # Write diagnostic lock ownership payload (PID:thread:timestamp)
@@ -270,12 +256,6 @@ class AtomicFileLock:
             try:
                 fl.release()
             except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-
-        if self.lock_path.exists():
-            try:
-                self.lock_path.unlink(missing_ok=True)
-            except OSError as _e:
                 logger.debug(f"Ignored exception: {_e}")
 
         if self._thread_lock_acquired:
@@ -1267,7 +1247,9 @@ class RegistryManager:
         self, config_path: Optional[str] = None, registry_path: Optional[str] = None
     ) -> None:
         if config_path:
-            self.config_path = str(resolve_config_path(Path(config_path)))
+            # An explicit new registry is a write destination, even before it
+            # exists. Discovery would silently redirect it to another registry.
+            self.config_path = str(resolve_mapped_path(config_path))
         else:
             self.config_path = str(resolve_config_path())
 
@@ -1978,6 +1960,7 @@ __all__ = [
     "BaseMetadataServer",
     "BasisSetNotFoundError",
     "CoChemLockTimeoutError",
+    "FileLockTimeoutError",
     "FilesystemMetadataServer",
     "IsotopeStabilityError",
     "MetadataBackendType",

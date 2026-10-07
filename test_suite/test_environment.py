@@ -68,21 +68,20 @@ def test_check_cochem_base_silo_active_environment() -> None:
         assert "Warning: Not running within cochem_base_silo" in msg
 
 
-def test_check_cochem_base_silo_with_matching_conda_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Validate that check_cochem_base_silo returns True when CONDA_DEFAULT_ENV is set."""
-    monkeypatch.setenv("CONDA_DEFAULT_ENV", "cochem_base_silo")
-    ok, msg = check_cochem_base_silo()
-    assert ok is True
-    assert msg == "Success: Running within cochem_base_silo."
-
-
-def test_check_cochem_base_silo_with_non_matching_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Validate that check_cochem_base_silo handles non-matching conda environments."""
-    monkeypatch.setenv("CONDA_DEFAULT_ENV", "base")
-    if "cochem_base_silo" not in sys.executable:
-        ok, msg = check_cochem_base_silo()
-        assert ok is False
-        assert "Warning: Not running within cochem_base_silo (current env: base)." == msg
+@pytest.mark.parametrize("environment_name", ["cochem_base_silo", "base"])
+def test_check_cochem_base_silo_with_child_environment(environment_name: str) -> None:
+    """Verify actual child startup configuration without changing the test process."""
+    code = """
+import os, sys
+from test_suite.test_environment import check_cochem_base_silo
+ok, message = check_cochem_base_silo()
+expected = 'cochem_base_silo' in os.environ['CONDA_DEFAULT_ENV'] or 'cochem_base_silo' in sys.executable
+assert ok is expected
+assert ('Success:' if expected else 'Warning:') in message
+"""
+    environment = {**os.environ, "CONDA_DEFAULT_ENV": environment_name}
+    subprocess.run([sys.executable, "-c", code], env=environment, cwd=_repo_root,
+                   check=True, timeout=15)
 
 
 def test_check_artifacts_dir_default_resolution() -> None:
@@ -137,15 +136,19 @@ def test_check_artifacts_dir_str_input_handling(tmp_path: Path) -> None:
     assert str(str_dir) in msg
 
 
-def test_check_artifacts_dir_env_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Validate check_artifacts_dir respects the COCHEM_ARTIFACT_DIR environment variable."""
+def test_check_artifacts_dir_env_override(tmp_path: Path) -> None:
+    """Verify the real configuration loader against a child process environment."""
     env_dir = tmp_path / "env_artifacts"
-    env_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(env_dir))
-
-    ok, msg = check_artifacts_dir()
-    assert ok is True
-    assert str(env_dir) in msg
+    env_dir.mkdir()
+    code = """
+import os
+from test_suite.test_environment import check_artifacts_dir
+ok, message = check_artifacts_dir()
+assert ok
+assert os.environ['COCHEM_ARTIFACT_DIR'] in message
+"""
+    subprocess.run([sys.executable, "-c", code], cwd=_repo_root,
+                   env={**os.environ, "COCHEM_ARTIFACT_DIR": str(env_dir)}, check=True, timeout=15)
 
 
 def test_environment_direct_script_execution() -> None:

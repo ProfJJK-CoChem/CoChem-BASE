@@ -82,11 +82,11 @@ def test_shared_memory_buffer_roundtrip() -> None:
     descriptor = shm_buffer.descriptor
 
     # Consumer process reconstructs from descriptor
-    recovered = SharedMemoryBuffer.read_from_descriptor(descriptor)
     try:
-        assert np.allclose(recovered, arr)  # type: ignore[attr-defined]
-        assert recovered.shape == (128, 1024)
-        assert recovered.dtype == np.float64
+        with SharedMemoryBuffer.read_from_descriptor(descriptor) as recovered:
+            assert np.array_equal(recovered, arr)
+            assert recovered.shape == (128, 1024)
+            assert recovered.dtype == np.float64
     finally:
         shm_buffer.close()
         shm_buffer.unlink()

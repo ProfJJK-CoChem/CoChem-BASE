@@ -17,6 +17,8 @@ from __future__ import annotations
 import logging
 import math
 import os
+import re
+import shlex
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Optional
@@ -42,6 +44,22 @@ class SlurmSubmissionSpec:
     qos: Optional[str] = None
     gpus_per_node: Optional[int] = None
 
+    def __post_init__(self) -> None:
+        for name in ("job_name", "partition", "account", "qos", "solver"):
+            value = getattr(self, name)
+            if value is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", value):
+                raise ValueError(f"Invalid Slurm {name}: expected a single identifier")
+        for name in ("cores", "mem_mb"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+        if not re.fullmatch(r"(?:\d+-)?\d+:\d{2}:\d{2}", self.walltime):
+            raise ValueError("Walltime must use [days-]hours:minutes:seconds")
+        for name in ("scratch_dir", "artifact_dir"):
+            value = getattr(self, name)
+            if not PurePosixPath(value).is_absolute() or any(c in value for c in "\n\r\0"):
+                raise ValueError(f"{name} must be an absolute single-line path")
+
 
 class SlurmGenerator:
     """Generator for HPC SLURM submission scripts strictly adhering to Method Matrix §8A.6."""
@@ -55,7 +73,9 @@ class SlurmGenerator:
         if slurm_env and slurm_env.isdigit():
             return int(slurm_env)
         count = psutil.cpu_count(logical=False)
-        return int(count) if count is not None and count > 0 else 8
+        if count is None or count <= 0:
+            raise RuntimeError("Cannot determine physical CPU capacity")
+        return int(count)
 
     def generate_submission_script(
         self,
@@ -101,26 +121,36 @@ class SlurmGenerator:
 
         # OpenMPI Fabric Variable Exports for Tier 6 HPC Environments (Method Matrix §8A.6 [M])
         exec_lines = [
+            "set -euo pipefail",
             'export OMPI_MCA_btl="^openib"',
             'export OMPI_MCA_pml="ucx"',
             'export OMPI_MCA_opal_warn_on_missing_libudev=0',
-            "export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK",
-            "export MKL_NUM_THREADS=$SLURM_CPUS_PER_TASK",
-            f"export COCHEM_SCRATCH=\"{scratch_posix}\"",
-            f"export COCHEM_ARTIFACTS=\"{artifact_posix}\"",
+            # ORCA launches %pal ranks itself. Each rank gets one library thread.
+            "export OMP_NUM_THREADS=" + ("1" if solver_lower == "orca" else "$SLURM_CPUS_PER_TASK"),
+            "export MKL_NUM_THREADS=" + ("1" if solver_lower == "orca" else "$SLURM_CPUS_PER_TASK"),
+            "export OPENBLAS_NUM_THREADS=" + ("1" if solver_lower == "orca" else "$SLURM_CPUS_PER_TASK"),
+            f"export COCHEM_SCRATCH={shlex.quote(scratch_posix)}",
+            f"export COCHEM_ARTIFACTS={shlex.quote(artifact_posix)}",
             "mkdir -p \"$COCHEM_SCRATCH\"",
             "mkdir -p \"$COCHEM_ARTIFACTS\"",
             "cd \"$COCHEM_SCRATCH\"",
         ]
 
+        if solver_lower == "orca":
+            exec_lines.extend([
+                "export VECLIB_MAXIMUM_THREADS=1",
+                "export NUMEXPR_NUM_THREADS=1",
+                "export BLIS_NUM_THREADS=1",
+            ])
+
         if payload_command:
             exec_lines.append(payload_command)
         elif solver_lower == "orca":
-            maxcore_mb = int(math.floor((spec.mem_mb * 0.75) / 1))
+            maxcore_mb = int(math.floor((spec.mem_mb * 0.75) / effective_cores))
             exec_lines.extend([
                 f"# ORCA parallel execution alignment (%pal nprocs {effective_cores} end)",
                 f"# MaxCore per rank: {maxcore_mb} MB",
-                f"orca {input_file} > orca_output.out",
+                f"orca {shlex.quote(input_file)} > orca_output.out",
             ])
         elif solver_lower == "cfour":
             exec_lines.extend([
@@ -130,10 +160,10 @@ class SlurmGenerator:
             ])
         elif solver_lower == "crest":
             exec_lines.append(
-                f"crest {input_file} --nci --nocross --noreftopo -T $SLURM_CPUS_PER_TASK > crest_output.out"
+                f"crest {shlex.quote(input_file)} --nci --nocross --noreftopo -T $SLURM_CPUS_PER_TASK > crest_output.out"
             )
         else:
-            exec_lines.append(f"{spec.solver} {input_file}")
+            exec_lines.append(f"{shlex.quote(spec.solver)} {shlex.quote(input_file)}")
 
         exec_lines.append("cp -r \"$COCHEM_SCRATCH\"/* \"$COCHEM_ARTIFACTS\"/")
 

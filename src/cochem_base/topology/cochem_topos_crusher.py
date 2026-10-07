@@ -264,8 +264,8 @@ class ConformerCandidate(BaseModel):
     atomic_numbers: list[int] = Field(..., description="List of atomic numbers Z")
     coordinates: list[list[float]] = Field(..., description="Cartesian coordinates (N, 3) in Angstroms")
     monoisotopic_masses: list[float] = Field(..., description="Exact mono-isotopic masses in Daltons")
-    energy_kcal: float = Field(..., description="Potential energy in kcal/mol")
-    source_engine: str = Field(default="GOAT", description="Source search engine: GOAT, CREST, or INITIAL")
+    energy_kcal: float = Field(..., allow_inf_nan=False, description="Potential energy in kcal/mol")
+    source_engine: str = Field(default="SUPPLIED", description="Recorded source of the supplied conformer")
     rotational_constants: Optional[RotationalConstants] = Field(default=None)
     dipole_moment: Optional[DipoleMoment] = Field(default=None)
     symmetry_group: Optional[str] = Field(default=None)
@@ -642,28 +642,10 @@ def get_molsym_point_group(
     coords: np.ndarray | Sequence[Sequence[float]],
 ) -> str:
     """Detect molecular point group symmetry using molsym and dynamic mendeleev atomic masses."""
+    from cochem_base.intake.cochem_molsym_eckart_aligner import analyze_molecular_symmetry
+
     syms = [normalize_element_symbol(s) for s in symbols]
-    c = np.ascontiguousarray(np.array(coords, dtype=np.float64, copy=True))
-    if len(syms) == 0 or c.shape[0] != len(syms) or c.shape[1] != 3:
-        return "C1"
-    if len(syms) == 1:
-        return "C1"
-
-    masses = np.ascontiguousarray(
-        np.array([get_dynamic_atomic_mass(s) for s in syms], dtype=np.float64, copy=True)
-    )
-
-    try:
-        mol = molsym.Molecule(syms, c, masses)
-        pg_res = molsym.find_point_group(mol)
-        if isinstance(pg_res, tuple):
-            return str(pg_res[0])
-        elif hasattr(pg_res, "symbol"):
-            return str(pg_res.symbol)
-        return str(pg_res)
-    except Exception as exc:
-        logger.debug(f"molsym point group detection fallback to C1: {exc}")
-        return "C1"
+    return analyze_molecular_symmetry(coords, syms).point_group
 
 
 def evaluate_molsym_symmetry_filter(
@@ -875,31 +857,24 @@ def compute_dipole_moment(
     coordinates: np.ndarray | Sequence[Sequence[float]],
     partial_charges: Optional[Sequence[float]] = None,
 ) -> DipoleMoment:
-    """Compute total molecular dipole moment vector and scalar magnitude in Debye.
+    """Compute the COM-referenced dipole of supplied point charges in Debye.
 
-    mu = SUM_i q_i * (r_i - COM) * 4.8032047 (Debye).
+    Partial charges are external evidence, never inferred from geometry or
+    electronegativity. This charge model is not an electronic-density dipole.
     """
+    if partial_charges is None:
+        raise ValueError("Dipole unavailable: explicit partial charges or a calculated dipole are required")
     coords = np.ascontiguousarray(np.array(coordinates, dtype=np.float64, copy=True))
     symbols = [normalize_element_symbol(s) for s in symbols_or_zs]
+    if not symbols or coords.shape != (len(symbols), 3) or not np.all(np.isfinite(coords)):
+        raise ValueError("Dipole calculation requires finite N x 3 coordinates matching atom identities")
+    q = np.asarray(partial_charges, dtype=float)
+    if q.shape != (len(symbols),) or not np.all(np.isfinite(q)):
+        raise ValueError("Dipole calculation requires one finite supplied partial charge per atom")
     masses = get_monoisotopic_masses(symbols)
     total_mass = float(np.sum(masses))
     com = np.sum(coords * masses[:, np.newaxis], axis=0) / total_mass
     shifted = coords - com
-
-    if partial_charges is not None:
-        q = np.ascontiguousarray(np.array(partial_charges, dtype=np.float64, copy=True))
-    else:
-        n_atoms = len(symbols)
-        if n_atoms == 1:
-            q = np.zeros(1, dtype=np.float64)
-        else:
-            chi = np.array([
-                get_dynamic_electronegativity(s)
-                for s in symbols
-            ], dtype=np.float64)
-            mean_chi = np.mean(chi)
-            raw_q = (chi - mean_chi) * 0.8
-            q = raw_q - np.mean(raw_q)
 
     dipole_ea = np.sum(shifted * q[:, np.newaxis], axis=0)
     dipole_debye = dipole_ea * ELEMENTARY_CHARGE_TO_DEBYE
@@ -924,13 +899,17 @@ class RotationalSieve:
         coords1: np.ndarray | Sequence[Sequence[float]],
         symbols2: Sequence[str | int],
         coords2: np.ndarray | Sequence[Sequence[float]],
-    ) -> tuple[bool, float, float]:
-        """Compare Rotational Constants and Dipole Moments of two structures."""
+        *,
+        dipole1: Optional[DipoleMoment] = None,
+        dipole2: Optional[DipoleMoment] = None,
+    ) -> tuple[bool, float, Optional[float]]:
+        """Compare inertias and any supplied dipoles as a preliminary filter.
+
+        None explicitly marks unavailable dipole evidence. Passing this filter
+        alone does not establish conformer identity.
+        """
         rot1 = compute_rotational_constants(symbols1, coords1)
         rot2 = compute_rotational_constants(symbols2, coords2)
-
-        dip1 = compute_dipole_moment(symbols1, coords1)
-        dip2 = compute_dipole_moment(symbols2, coords2)
 
         rot_vals1 = np.array([rot1.A_GHz, rot1.B_GHz, rot1.C_GHz])
         rot_vals2 = np.array([rot2.A_GHz, rot2.B_GHz, rot2.C_GHz])
@@ -939,9 +918,14 @@ class RotationalSieve:
         rot_diffs = np.abs(rot_vals1 - rot_vals2) / denom
         max_rot_diff = float(np.max(rot_diffs))
 
-        dipole_diff = abs(dip1.magnitude_debye - dip2.magnitude_debye)
+        dipole_diff = None
+        if dipole1 is not None and dipole2 is not None:
+            magnitudes = [dipole1.magnitude_debye, dipole2.magnitude_debye]
+            if not all(math.isfinite(value) and value >= 0 for value in magnitudes):
+                raise ValueError("Supplied dipole magnitudes must be finite and nonnegative")
+            dipole_diff = abs(magnitudes[0] - magnitudes[1])
 
-        is_match = (max_rot_diff <= self.rot_tol) and (dipole_diff <= self.dipole_tol)
+        is_match = (max_rot_diff <= self.rot_tol) and (dipole_diff is None or dipole_diff <= self.dipole_tol)
         return is_match, max_rot_diff, dipole_diff
 
 
@@ -1194,6 +1178,14 @@ class MassWeightedEckartRMSD:
 # ===========================================================================
 
 
+class PhysicalCascadeError(EcosystemDependencyError):
+    """All applicable physical energy/force backends failed or were unavailable."""
+
+    def __init__(self, failures: List[str]) -> None:
+        self.engine_failures = tuple(failures)
+        super().__init__("No physical cascade result is available: " + "; ".join(failures))
+
+
 class PhysicalCascadeCalculator(Calculator):
     """Authentic physical force-field / potential fallback cascade calculator [M].
 
@@ -1205,32 +1197,50 @@ class PhysicalCascadeCalculator(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, base_atoms: Optional[Atoms] = None, **kwargs: Any) -> None:
+    def __init__(
+        self, base_atoms: Optional[Atoms] = None, *,
+        xtb_executable: Union[str, Path] = "xtb",
+        mace_model: Union[str, Path] = "small",
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
+        self.xtb_executable = str(xtb_executable)
+        self.mace_model = mace_model
         self._rdkit_mol: Optional[Any] = None
         if base_atoms is not None and "rdkit_mol" in base_atoms.info:
             self._rdkit_mol = base_atoms.info["rdkit_mol"]
 
     @staticmethod
+    def _integer_state(value: Any, name: str, minimum: Optional[int] = None) -> int:
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+            raise ValueError(f"Molecular {name} must be an integer")
+        if minimum is not None and value < minimum:
+            raise ValueError(f"Molecular {name} must be at least {minimum}")
+        return int(value)
+
+    @staticmethod
     def get_system_charge(atoms: Atoms) -> int:
         """Extract net molecular system charge."""
         if "charge" in atoms.info:
-            return int(atoms.info["charge"])
+            return PhysicalCascadeCalculator._integer_state(atoms.info["charge"], "charge")
         elif "net_charge" in atoms.info:
-            return int(atoms.info["net_charge"])
+            return PhysicalCascadeCalculator._integer_state(atoms.info["net_charge"], "net_charge")
         elif atoms.has("initial_charges"):
-            return int(round(np.sum(atoms.get_initial_charges())))
+            charge = float(np.sum(atoms.get_initial_charges()))
+            if not math.isfinite(charge) or not math.isclose(charge, round(charge), abs_tol=1e-6):
+                raise ValueError("Supplied atomic partial charges must sum to a finite integer molecular charge")
+            return round(charge)
         return 0
 
     @staticmethod
     def get_system_uhf(atoms: Atoms) -> int:
         """Extract system unpaired electron count (uhf = 2S = multiplicity - 1)."""
         if "uhf" in atoms.info:
-            return int(atoms.info["uhf"])
+            return PhysicalCascadeCalculator._integer_state(atoms.info["uhf"], "uhf", 0)
         if "multiplicity" in atoms.info:
-            return max(0, int(atoms.info["multiplicity"]) - 1)
+            return PhysicalCascadeCalculator._integer_state(atoms.info["multiplicity"], "multiplicity", 1) - 1
         if "spin" in atoms.info:
-            return int(atoms.info["spin"])
+            return PhysicalCascadeCalculator._integer_state(atoms.info["spin"], "spin", 0)
         return 0
 
     @classmethod
@@ -1240,6 +1250,20 @@ class PhysicalCascadeCalculator(Calculator):
         uhf = cls.get_system_uhf(atoms)
         return chrg != 0 or uhf > 0
 
+    def check_state(self, atoms: Atoms, tol: float = 1e-15) -> list[str]:
+        """Invalidate ASE's result cache when molecular charge/spin metadata changes."""
+        changes = super().check_state(atoms, tol=tol)
+        if self.atoms is not None:
+            try:
+                if self.get_system_charge(atoms) != self.get_system_charge(self.atoms):
+                    changes.append("charge")
+                if self.get_system_uhf(atoms) != self.get_system_uhf(self.atoms):
+                    changes.append("spin")
+            except ValueError:
+                self.results.clear()
+                raise
+        return changes
+
     def calculate(
         self,
         atoms: Optional[Atoms] = None,
@@ -1247,26 +1271,35 @@ class PhysicalCascadeCalculator(Calculator):
         system_changes: Any = all_changes,
     ) -> None:
         super().calculate(atoms, properties, system_changes)
-        assert atoms is not None
+        self.results.clear()
+        if atoms is None:
+            raise ValueError("Physical cascade requires an atomic geometry")
+        failures: List[str] = []
         pos = atoms.positions
         symbols = atoms.get_chemical_symbols()
         n_atoms = len(symbols)
+        if n_atoms == 0 or pos.shape != (n_atoms, 3) or not np.all(np.isfinite(pos)):
+            raise ValueError("Physical cascade requires finite nonempty Cartesian coordinates")
 
         chrg = self.get_system_charge(atoms)
         uhf = self.get_system_uhf(atoms)
+        electrons = int(np.sum(atoms.numbers)) - chrg
+        if electrons < 0 or uhf > electrons or (electrons - uhf) % 2:
+            raise ValueError("Molecular charge and spin are inconsistent with electron count/parity")
         is_open_or_charged = self.is_open_shell_or_charged(atoms)
 
         # Tier 1: GFN-FF / GFN2-xTB via xtb CLI if available
-        if shutil.which("xtb") is not None:
+        xtb_path = shutil.which(self.xtb_executable)
+        if xtb_path is not None:
             try:
                 with tempfile.TemporaryDirectory() as td:
                     xyz_file = Path(td) / "mol.xyz"
                     from ase.io import write as ase_write
                     ase_write(str(xyz_file), atoms)
                     if is_open_or_charged:
-                        cmd = ["xtb", str(xyz_file), "--gfn", "2", "--chrg", str(chrg), "--uhf", str(uhf), "--grad"]
+                        cmd = [xtb_path, str(xyz_file), "--gfn", "2", "--chrg", str(chrg), "--uhf", str(uhf), "--grad"]
                     else:
-                        cmd = ["xtb", str(xyz_file), "--gfnff", "--grad"]
+                        cmd = [xtb_path, str(xyz_file), "--gfnff", "--grad"]
                     res = subprocess.run(
                         cmd,
                         cwd=td,
@@ -1275,27 +1308,38 @@ class PhysicalCascadeCalculator(Calculator):
                         timeout=30,
                         check=True,
                     )
-                    energy_val = 0.0
+                    energy_val = None
                     for line in res.stdout.splitlines():
                         if "TOTAL ENERGY" in line:
-                            energy_val = float(line.split()[-3]) * units.Hartree
+                            energy_val = float(line.split()[-3].replace("D", "E")) * units.Hartree
+                    if energy_val is None or not np.isfinite(energy_val):
+                        raise ValueError("xTB did not provide a finite TOTAL ENERGY")
                     grad_file = Path(td) / "gradient"
                     if grad_file.exists():
                         glines = grad_file.read_text().splitlines()
                         forces = []
                         hartree_per_bohr_to_ev_per_ang = units.Hartree / units.Bohr
-                        for gline in glines[2 : 2 + n_atoms]:
-                            parts = [float(x) for x in gline.split()]
-                            forces.append([
-                                -parts[0] * hartree_per_bohr_to_ev_per_ang,
-                                -parts[1] * hartree_per_bohr_to_ev_per_ang,
-                                -parts[2] * hartree_per_bohr_to_ev_per_ang,
-                            ])
-                        self.results["energy"] = energy_val
-                        self.results["forces"] = np.array(forces, dtype=np.float64)
+                        # Turbomole $grad contains atom coordinates with element
+                        # labels, followed by exactly N numeric gradient vectors.
+                        for gline in glines:
+                            tokens = gline.split()
+                            if len(tokens) != 3:
+                                continue
+                            try:
+                                parts = [float(value.replace("D", "E").replace("d", "e")) for value in tokens]
+                            except ValueError:
+                                continue
+                            forces.append([-value * hartree_per_bohr_to_ev_per_ang for value in parts])
+                        forces_array = np.asarray(forces, dtype=float)
+                        if forces_array.shape != (n_atoms, 3) or not np.all(np.isfinite(forces_array)):
+                            raise ValueError("xTB gradient must contain N finite Cartesian vectors")
+                        self.results.update(energy=energy_val, forces=forces_array, backend="xTB")
                         return
+                    raise FileNotFoundError("xTB did not produce its gradient artifact")
             except Exception as exc:
-                logger.debug("Tier 1 GFN calculation bypassed: %s", exc)
+                failures.append(f"xTB: {type(exc).__name__}: {exc}")
+        else:
+            failures.append(f"xTB executable unavailable: {self.xtb_executable}")
 
         # Tier 2: RDKit MMFF94 with fallback to UFF (strictly bypassed for open-shell / charged systems)
         if not is_open_or_charged:
@@ -1327,6 +1371,8 @@ class PhysicalCascadeCalculator(Calculator):
                         mol.UpdatePropertyCache(strict=False)
 
                 if mol is not None:
+                    if [atom.GetAtomicNum() for atom in mol.GetAtoms()] != atoms.numbers.tolist():
+                        raise ValueError("RDKit molecular template does not match the current atomic identities")
                     try:
                         mol.UpdatePropertyCache(strict=False)
                     except Exception:
@@ -1348,30 +1394,45 @@ class PhysicalCascadeCalculator(Calculator):
                     energy_ev = ff.CalcEnergy() * kcal_per_mol_to_ev
                     grad = ff.CalcGrad()
                     forces_arr = -np.array(grad).reshape((n_atoms, 3)) * kcal_per_mol_to_ev
-                    self.results["energy"] = float(energy_ev)
-                    self.results["forces"] = forces_arr
+                    if not np.isfinite(energy_ev) or not np.all(np.isfinite(forces_arr)):
+                        raise ValueError("RDKit returned nonfinite energy or forces")
+                    self.results.update(energy=float(energy_ev), forces=forces_arr, backend="RDKit MMFF94/UFF")
                     return
+                raise ValueError("RDKit could not parameterize a molecular force field")
             except Exception as exc:
-                logger.debug("Tier 2 RDKit MMFF94/UFF calculation bypassed: %s", exc)
+                failures.append(f"RDKit: {type(exc).__name__}: {exc}")
+        else:
+            failures.append("RDKit MMFF94/UFF is inapplicable to charged or open-shell systems")
 
         # Tier 3: TORQ MACE-MP0 neural network potential
         try:
+            if isinstance(self.mace_model, Path) or str(self.mace_model) not in {"small", "medium", "large"}:
+                if not Path(self.mace_model).is_file():
+                    raise FileNotFoundError(f"MACE model unavailable: {self.mace_model}")
+            if is_open_or_charged:
+                raise ValueError("MACE-MP0 does not parameterize molecular charge or spin states")
             from mace.calculators import mace_mp
-            mace_calc = mace_mp(model="small", device="cpu", default_dtype="float64")
+            mace_calc = mace_mp(model=str(self.mace_model), device="cpu", default_dtype="float64")
             mace_calc.calculate(atoms, properties=["energy", "forces"], system_changes=system_changes)
-            self.results["energy"] = mace_calc.results["energy"]
-            self.results["forces"] = mace_calc.results["forces"]
+            energy = float(mace_calc.results["energy"])
+            forces = np.asarray(mace_calc.results["forces"], dtype=float)
+            if not np.isfinite(energy) or forces.shape != (n_atoms, 3) or not np.all(np.isfinite(forces)):
+                raise ValueError("MACE returned invalid energy or forces")
+            self.results.update(energy=energy, forces=forces, backend="MACE-MP0")
             return
         except Exception as exc:
-            logger.debug("Tier 3 MACE-MP0 calculation bypassed: %s", exc)
+            failures.append(f"MACE: {type(exc).__name__}: {exc}")
 
-        # Harmonic bond/angle tether fallback
-        self.results["energy"] = 0.0
-        self.results["forces"] = np.zeros((n_atoms, 3), dtype=np.float64)
+        self.results.clear()
+        raise PhysicalCascadeError(failures)
 
 
 class GOATConformerEngine:
-    """Global Optimization Algorithm for Topology (GOAT) stochastic conformer generator."""
+    """Legacy ASE/Langevin conformer exploration, retained under its former name.
+
+    This is not the ORCA GOAT algorithm. Native GOAT execution is provided by
+    cochem_base.topos_runner with its configured ORCA executable.
+    """
 
     def __init__(self, temperature_k: float = 300.0, friction: float = 0.01) -> None:
         self.temperature_k = temperature_k
@@ -1599,18 +1660,24 @@ class CRESTConformerEngine:
             if not ensemble_path.exists():
                 ensemble_path = crest_workdir / "crest_ensemble.xyz"
             if ensemble_path.exists():
-                from ase.io import read as ase_read
-                return ase_read(str(ensemble_path), index=":")
+                from cochem_base.topos_runner import _parse_xyz
+
+                ensemble = []
+                for frame in _parse_xyz(ensemble_path, require_energy=True):
+                    conformer = Atoms(frame.symbols, positions=frame.coordinates)
+                    conformer.info["energy_kcal"] = frame.energy * units.Hartree / (units.kcal / units.mol)
+                    conformer.info["source_engine"] = "CREST"
+                    ensemble.append(conformer)
+                if ensemble:
+                    return ensemble
+            raise EcosystemDependencyError("CREST did not produce a nonempty validated ensemble")
         except EcosystemDependencyError:
             raise
         except Exception as exc:
-            logger.warning(f"CREST binary execution skipped ({exc}). Using physical fallback.")
+            raise EcosystemDependencyError(f"CREST search failed without a publishable result: {exc}") from exc
         finally:
             if crest_workdir.exists():
                 shutil.rmtree(crest_workdir, ignore_errors=True)
-
-        goat_engine = GOATConformerEngine(temperature_k=350.0)
-        return goat_engine.generate_conformers(seed_atoms, num_conformers=num_conformers)
 
 
 # ===========================================================================
@@ -1702,11 +1769,26 @@ class TopologyCrusher:
             self._last_ticker_time = now
             self._last_ticker_count = current_index
 
+    @staticmethod
+    def _resolve_energy_kcal(atoms: Atoms, supplied: Optional[float] = None) -> float:
+        """Require finite supplied energy or an actual attached ASE calculation."""
+        if supplied is not None:
+            value = supplied
+        elif atoms.calc is not None:
+            value = atoms.get_potential_energy() / (units.kcal / units.mol)
+        elif "energy_kcal" in atoms.info:
+            value = atoms.info["energy_kcal"]
+        else:
+            raise ValueError("Conformer energy unavailable: supply energy_kcal or an attached physical calculator")
+        if isinstance(value, bool) or not math.isfinite(float(value)):
+            raise ValueError("Conformer energy must be a finite physical value in kcal/mol")
+        return float(value)
+
     def process_conformer(
         self,
         candidate: Union[Atoms, ConformerCandidate],
-        energy_kcal: float = 0.0,
-        source_engine: str = "GOAT",
+        energy_kcal: Optional[float] = None,
+        source_engine: str = "SUPPLIED",
         candidate_id: Optional[str] = None,
         bthr: Optional[float] = None,
         complex_flag: bool = False,
@@ -1719,6 +1801,7 @@ class TopologyCrusher:
         is_atoms_input = isinstance(candidate, Atoms)
         if is_atoms_input:
             candidate_atoms = cast(Atoms, candidate)
+            energy_kcal = self._resolve_energy_kcal(candidate_atoms, energy_kcal)
             syms = [normalize_element_symbol(s) for s in candidate_atoms.get_chemical_symbols()]
             zs = [get_element_info(s).atomic_number for s in syms]
             masses = [get_element_info(s).monoisotopic_mass for s in syms]
@@ -1740,17 +1823,17 @@ class TopologyCrusher:
         cand_syms = cand_obj.symbols
         cand_zs = cand_obj.atomic_numbers
         cand_rot = compute_rotational_constants(cand_syms, cand_coords)
-        cand_dip = compute_dipole_moment(cand_syms, cand_coords)
         cand_obj.rotational_constants = cand_rot
-        cand_obj.dipole_moment = cand_dip
         cand_obj.symmetry_group = get_molsym_point_group(cand_syms, cand_coords)
 
         eff_bthr = bthr or self.bthr
         audit_steps: list[str] = []
+        if cand_obj.dipole_moment is None:
+            audit_steps.append("Dipole unavailable: no supplied electronic dipole or partial-charge result")
         is_duplicate = False
         matched_basin_idx: Optional[int] = None
         rot_diff = 0.0
-        dip_diff = 0.0
+        dip_diff = None
         max_kdd = 0.0
         mean_kdd = 0.0
         mw_rmsd = 0.0
@@ -1793,8 +1876,11 @@ class TopologyCrusher:
 
             # Stage 5: Rotational Sieve & KD-Tree Filter
             is_rot_match, r_diff, d_diff = self.rotational_sieve.evaluate_match(
-                b_syms, b_coords, cand_syms, cand_coords
+                b_syms, b_coords, cand_syms, cand_coords,
+                dipole1=basin.dipole_moment, dipole2=cand_obj.dipole_moment,
             )
+            if d_diff is None:
+                audit_steps.append(f"Basin {basin_idx:05d}: Dipole comparison unavailable; comparing supplied geometry")
             rot_diff, dip_diff = r_diff, d_diff
             if not is_rot_match:
                 audit_steps.append(f"Basin {basin_idx:05d}: Rotational sieve rejected (rot_diff={r_diff:.4f})")
@@ -1892,7 +1978,11 @@ class TopologyCrusher:
         num_crest_variants: int = 3,
         crest_flags: Optional[list[str]] = None,
     ) -> EnsembleDeduplicationReport:
-        """Execute GOAT + CREST union conformer generation and sequential deduplication."""
+        """Execute legacy ASE exploration plus CREST with recorded actual energies.
+
+        Use the canonical TOPOS runner for the native ORCA GOAT + CREST protocol.
+        """
+        self._resolve_energy_kcal(seed_atoms)
         goat_ensemble = self.goat_engine.generate_conformers(
             seed_atoms, num_conformers=num_goat_variants
         )
@@ -1902,7 +1992,7 @@ class TopologyCrusher:
 
         union_items: list[tuple[Atoms, str]] = [(seed_atoms, "INITIAL")]
         for a in goat_ensemble:
-            union_items.append((a, "GOAT"))
+            union_items.append((a, "ASE_LANGEVIN"))
         for a in crest_ensemble:
             union_items.append((a, "CREST"))
 
@@ -1910,7 +2000,7 @@ class TopologyCrusher:
         for i, (atoms, source) in enumerate(union_items):
             self.process_conformer(
                 candidate=atoms,
-                energy_kcal=float(-10.0 - i * 0.5),
+                energy_kcal=self._resolve_energy_kcal(atoms),
                 source_engine=source,
                 candidate_id=f"{source.lower()}_{i:04d}",
             )
@@ -2043,15 +2133,16 @@ class TopologyCrusher:
         return self.crest_engine.execute_secondary_search(atoms, num_conformers=num_conformers)
 
     def _apply_shake_constraints(self, atoms: Atoms) -> Atoms:
-        """Legacy helper applying RATTLE/SHAKE bond constraints on water."""
+        """Attach ASE bond constraints using this molecule's reference lengths."""
+        from ase.constraints import FixBondLengths
+        from cochem_base.geometry.constraints import build_molecular_graph_from_geometry
+
         res = atoms.copy()
-        syms = res.get_chemical_symbols()
-        if syms == ["O", "H", "H"]:
-            pos = res.positions
-            pos[0] = np.array([0.0, 0.0, 0.1173])
-            pos[1] = np.array([0.0, 0.7572, -0.4692])
-            pos[2] = np.array([0.0, -0.7572, -0.4692])
-            res.positions = pos
+        graph = build_molecular_graph_from_geometry(res.get_chemical_symbols(), res.positions)
+        pairs = list(graph.edges)
+        if pairs:
+            lengths = [res.get_distance(i, j) for i, j in pairs]
+            res.set_constraint([*res.constraints, FixBondLengths(pairs, bondlengths=lengths)])
         return res
 
     def _apply_spectroscopic_override(self, atoms1: Atoms, atoms2: Atoms) -> bool:
@@ -2067,7 +2158,7 @@ class TopologyCrusher:
         if len(self.accepted_basins) < 2:
             return self.base_rmsd
         energies = [
-            b.energy_kcal if isinstance(b, ConformerCandidate) else b.get("energy_kcal", 0.0)
+            b.energy_kcal if isinstance(b, ConformerCandidate) else b["energy_kcal"]
             for b in self.accepted_basins
         ]
         var = float(np.var(energies))
@@ -2080,27 +2171,25 @@ class TopologyCrusher:
         return max(0.05, self.base_rmsd * scale)
 
     def _execute_jax_neb(self, atoms1: Atoms, atoms2: Atoms) -> float:
-        """Legacy helper computing barrier between two geometries."""
-        d = float(np.linalg.norm(atoms1.positions - atoms2.positions))
-        return max(0.1, d * 0.5)
+        """Reject unavailable NEB calculations instead of inventing a barrier."""
+        raise EcosystemDependencyError(
+            "NEB barrier unavailable: a configured energy/force backend and converged path are required"
+        )
 
     async def process_monomer_phase(self, atoms: Optional[Atoms]) -> dict[str, list[Any]]:
         """Asynchronous monomer search phase handler."""
         if atoms is None:
             return {"monomers": []}
-        res = self.process_conformer(atoms, energy_kcal=-10.0)
+        res = self.process_conformer(atoms)
         return {"monomers": [{"atoms": atoms, "status": "accepted", "record": res}]}
 
     async def process_strong_complex_phase(self, monomers: list[dict[str, Any]]) -> dict[str, list[Any]]:
         """Asynchronous strong complex phase handler."""
         if not monomers:
             return {"strong_complexes": []}
-        res_list: list[dict[str, Any]] = []
-        for m in monomers:
-            atoms = m["atoms"]
-            self.process_conformer(atoms, energy_kcal=-20.0, complex_flag=True)
-            res_list.append({"atoms": atoms, "status": "accepted"})
-        return {"strong_complexes": res_list}
+        raise EcosystemDependencyError(
+            "Strong-complex search unavailable in this legacy helper: submit an explicit complex to the configured TOPOS runner"
+        )
 
     async def process_weak_complex_phase(
         self, monomers: list[dict[str, Any]], strong_complexes: list[dict[str, Any]]
@@ -2108,12 +2197,9 @@ class TopologyCrusher:
         """Asynchronous weak complex phase handler."""
         if len(monomers) + len(strong_complexes) < 2:
             return {"weak_complexes": []}
-        res_list: list[dict[str, Any]] = []
-        for item in monomers + strong_complexes:
-            atoms = item["atoms"]
-            self.process_conformer(atoms, energy_kcal=-15.0, lam_trigger_required=True)
-            res_list.append({"atoms": atoms, "status": "accepted"})
-        return {"weak_complexes": res_list}
+        raise EcosystemDependencyError(
+            "Weak-complex search unavailable in this legacy helper: submit an explicit complex to the configured TOPOS runner"
+        )
 
 
 # Backward compatibility aliases

@@ -7,6 +7,8 @@ machine-readable SPDX licensing, and schema version migration contracts adhering
 
 from __future__ import annotations
 
+from cochem_base.core import cochem_constants as _constants
+
 import copy
 import uuid
 from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Type, TypeVar, Union
@@ -20,8 +22,8 @@ from cochem_base.core.glossary import CalculationFidelity
 from cochem_base.core.licensing import validate_spdx_license
 
 # Authoritative CODATA 2022 conversion factors
-BOHR_TO_ANGSTROM: float = 0.529177210903
-ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM
+BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_BOHR: float = _constants.ANGSTROM_TO_BOHR
 
 # Authoritative CoChem Namespace UUID for deterministic UUIDv5 hashing
 NAMESPACE_COCHEM: uuid.UUID = uuid.UUID("a6c4f69a-2d4e-4e68-912f-6e2101e4a682")
@@ -32,6 +34,19 @@ CURRENT_CORE_SCHEMA_VERSION: int = 1
 T = TypeVar("T", bound=BaseModel)
 MigrationCallable = Callable[[Dict[str, Any]], Dict[str, Any]]
 _MIGRATION_REGISTRY: Dict[Tuple[str, int], MigrationCallable] = {}
+
+
+class CoChemConfig(BaseModel):
+    """Legacy campaign metadata envelope for HDF5 dataset attributes.
+
+    Hardware and execution settings remain governed by CoChemSystemConfig;
+    this compatibility model identifies a campaign and its workflow only.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    project_name: str = Field(min_length=1)
+    workflow_id: str = Field(min_length=1)
 
 
 def register_migration(model_name: str, from_version: int) -> Callable[[MigrationCallable], MigrationCallable]:
@@ -400,8 +415,8 @@ class PESPointRecord(BaseModel):
     energy: float = Field(default=0.0, description="Electronic energy in Hartrees")
     gradient: Optional[List[float]] = Field(None, description="Flat 1D gradient in Hartree/Bohr (size 3*N)")
     units: Literal["bohr", "angstrom"] = Field(default="bohr", description="Physical unit of spatial coordinates")
-    converged: bool = Field(default=True, description="Whether SCF and geometry optimization converged")
-    wall_s: float = Field(default=0.0, ge=0.0, description="Calculation wall clock time in seconds")
+    converged: Optional[bool] = Field(default=None, strict=True, description="Reported convergence status; None when not established")
+    wall_s: Optional[float] = Field(default=None, ge=0.0, allow_inf_nan=False, description="Measured wall clock seconds; None when not measured")
     provenance: Any = Field(default_factory=dict, description="Calculation provenance record")
     license: str = Field(default="CC-BY-4.0", description="SPDX license identifier")
 

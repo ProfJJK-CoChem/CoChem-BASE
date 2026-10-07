@@ -55,7 +55,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import atexit
 import json
 import logging
 import math
@@ -66,6 +65,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import (
     Any,
+    Callable,
     Dict,
     List,
     Optional,
@@ -106,28 +106,16 @@ logging.basicConfig(
 logger = logging.getLogger("CoChem-CoreContextCompressor")
 
 
-def _reap_zombies() -> None:
-    """Sweep and reap zombie processes to enforce clean OS process lifecycle."""
-    try:
-        current_proc = psutil.Process()
-        for child in current_proc.children(recursive=True):
-            try:
-                if child.status() == psutil.STATUS_ZOMBIE:
-                    child.wait(timeout=0.1)
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-    except (psutil.Error, OSError) as exc:
-        logger.debug("Process cleanup warning: %s", exc)
+# Process handles remain under their launching broker/library ownership.
+from cochem_base.process_cleanup import reap_owned_children as _reap_zombies
 
-
-atexit.register(_reap_zombies)
 
 
 # =============================================================================
 # CONSTANTS & REGEX DEFINITIONS
 # =============================================================================
 
-DEFAULT_LTTB_THRESHOLD: int = 1000
+DEFAULT_LTTB_THRESHOLD: int = 500
 DEFAULT_TENSOR_THRESHOLD: int = 10000
 DEFAULT_ARRAY_THRESHOLD: int = 50
 DEFAULT_TRACEBACK_MAX_LINES: int = 30
@@ -852,6 +840,26 @@ def lttb_downsample(
             f"Input array to lttb_downsample must have shape (N, 2), got {data_arr.shape}."
         )
     return lttb_downsample_xy(data_arr[:, 0], data_arr[:, 1], threshold=threshold, use_numba=use_numba)
+
+
+def compress_trajectory(data: np.ndarray) -> Dict[str, Any]:
+    """Create the bounded, statistical trajectory payload required by BASE.
+
+    Moments describe the full observed ordinates, not merely the decimated
+    sample. Non-finite telemetry is rejected instead of silently imputed.
+    """
+    values = np.asarray(data, dtype=np.float64)
+    if values.ndim != 2 or values.shape[1] != 2 or len(values) == 0 or not np.isfinite(values).all():
+        raise ValueError("Trajectory must be a nonempty, finite (N, 2) array")
+    y = values[:, 1]
+    mean = float(np.mean(y))
+    variance = float(np.var(y))
+    skewness = float(np.mean((y - mean) ** 3) / variance**1.5) if variance else 0.0
+    return {
+        "points": lttb_downsample(values, threshold=min(500, len(values)), use_numba=False).tolist(),
+        "statistics": {"count": len(y), "mean": mean, "variance": variance,
+                       "skewness": skewness, "min": float(np.min(y)), "max": float(np.max(y))},
+    }
 
 
 def lttb_downsample_1d(

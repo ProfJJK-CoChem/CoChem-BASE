@@ -66,6 +66,11 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from scipy import integrate
 
+from cochem_base.core.cochem_constants import C_ROT_MHZ_U_ANG2
+from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
+
+logger = logging.getLogger("cochem.mm.conference.ref.jensen")
+
 # Reconfigure stream encodings for safe cross-platform output (prevent Windows cp1252 crash)
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -78,26 +83,19 @@ if hasattr(sys.stderr, "reconfigure"):
     except Exception as _e:
         logger.debug(f"Ignored exception: {_e}")
 
-try:
-    from mendeleev import element as _mendeleev_element
-    _MENDELEEV_AVAILABLE = True
-except ImportError:
-    _mendeleev_element = None  # type: ignore[assignment]
-    _MENDELEEV_AVAILABLE = False
-
 # ---------------------------------------------------------------------------
 # Physical Constants & Authoritative Calibration Standards
 # ---------------------------------------------------------------------------
 # Conversion constant from moment of inertia (amu * Angstrom^2) to rotational
 # constant in MHz: [B(MHz)][I(amu Angstrom^2)] = 505379.0 MHz * amu * Angstrom^2
 # Reference: Groner (2016); NIST CCCBDB; Method Matrix Section 5.1, Section 4.1.
-CONV_MHZ_AMU_ANG2: float = 505379.0
-CODATA_CONV_EXACT: float = 505379.00536  # High-precision Groner / CODATA constant
+CONV_MHZ_AMU_ANG2: float = C_ROT_MHZ_U_ANG2
+CODATA_CONV_EXACT: float = C_ROT_MHZ_U_ANG2  # High-precision Groner / CODATA constant
 
-PROVENANCE_TAG: str = "[M]"
+PROVENANCE_TAG: str = "[D]"
 SECTION_REF: str = "Method Matrix §5.1 & §16.3"
 
-logger = logging.getLogger("cochem.mm.conference.ref.jensen")
+
 
 
 # ---------------------------------------------------------------------------
@@ -116,38 +114,10 @@ class VibrationalAveragingRejectionError(MethodMatrixComplianceError):
 # ---------------------------------------------------------------------------
 def get_atomic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
     """
-    Dynamically retrieves atomic or isotopic mass in unified atomic mass units (u/amu)
+    Dynamically retrieves the selected exact nuclide mass in unified atomic mass units (u/amu)
     from the `mendeleev` library. Strictly adheres to the Mendeleev Library Mandate.
     """
-    if not _MENDELEEV_AVAILABLE or _mendeleev_element is None:
-        raise RuntimeError(
-            "The 'mendeleev' library is strictly required by the Mendeleev Mandate "
-            "but is not available in the current environment."
-        )
-
-    clean_sym = symbol.strip().capitalize()
-    # Handle hydrogen isotopes notation
-    if clean_sym in ("D", "H2"):
-        clean_sym = "H"
-        mass_number = 2
-    elif clean_sym in ("T", "H3"):
-        clean_sym = "H"
-        mass_number = 3
-
-    el = _mendeleev_element(clean_sym)
-    if mass_number is not None:
-        for iso in getattr(el, "isotopes", []):
-            if getattr(iso, "mass_number", None) == mass_number:
-                iso_mass = getattr(iso, "mass", None)
-                if iso_mass is not None:
-                    return float(iso_mass)
-                break
-    
-    el_mass = getattr(el, "mass", None) or getattr(el, "atomic_weight", None)
-    if el_mass is not None:
-        return float(el_mass)
-
-    raise ValueError(f"Could not retrieve dynamic mass for element '{symbol}' (mass_number={mass_number})")
+    return get_nuclide_mass(symbol, mass_number)
 
 
 def get_reduced_mass(
@@ -205,7 +175,7 @@ class Jensen3DResult:
     avg_mu_tensor: List[List[float]]
     avg_I_tensor: List[List[float]]
     is_valid_jensen: bool
-    provenance: str = PROVENANCE_TAG
+    provenance: str = "caller_supplied_ensemble_unverified"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -439,6 +409,8 @@ def average_inverse_inertia_ensemble(
     symbols: Optional[Sequence[str]] = None,
     conv: float = CONV_MHZ_AMU_ANG2,
     ref_coords: Optional[np.ndarray] = None,
+    *,
+    provenance: str = "caller_supplied_ensemble_unverified",
 ) -> Jensen3DResult:
     """
     Computes vibrationally averaged rotational constants for an ensemble of
@@ -460,10 +432,13 @@ def average_inverse_inertia_ensemble(
             f"Length of masses ({len(masses)}) does not match n_atoms ({n_atoms})"
         )
 
-    if symbols is None:
-        sym_list = [f"X{i+1}" for i in range(n_atoms)]
-    else:
-        sym_list = list(symbols)
+    if n_snapshots == 0 or n_atoms == 0 or not np.isfinite(ensemble_coords).all():
+        raise ValueError("The ensemble must contain finite, nonempty molecular snapshots")
+    if not np.isfinite(masses).all() or np.any(np.asarray(masses) <= 0):
+        raise ValueError("Ensemble masses must be finite and positive")
+    if symbols is None or len(symbols) != n_atoms:
+        raise ValueError("Actual species must be supplied for every ensemble atom")
+    sym_list = list(symbols)
 
     if ref_coords is None:
         ref_coords = ensemble_coords[0]
@@ -520,6 +495,7 @@ def average_inverse_inertia_ensemble(
         avg_mu_tensor=avg_mu.tolist(),
         avg_I_tensor=avg_I.tolist(),
         is_valid_jensen=is_valid_jensen,
+        provenance=provenance,
     )
 
 
@@ -532,13 +508,30 @@ def generate_vdw_stretch_ensemble(
     sigma_R: float = 0.15,
     n_samples: int = 10000,
     seed: Optional[int] = 42,
+    *,
+    monomer1_symbols: Sequence[str],
+    monomer2_symbols: Sequence[str],
 ) -> Tuple[np.ndarray, np.ndarray, List[str]]:
     """
-    Generates a synthetic physical vibrational ensemble for a weakly bound van der Waals
-    dimer along the intermolecular separation coordinate R ~ N(R0, sigma_R^2).
+    Generate an explicitly assumed Gaussian stretch model, not measured dynamics.
+
+    R is sampled from N(R0, sigma_R^2) with a 0.5 Angstrom lower floor.
+    Caller-provided atom labels are preserved; this model supplies no evidence
+    for an experimental amplitude, a quantum potential, or a ground state.
     """
-    if seed is not None:
-        np.random.seed(seed)
+    if isinstance(n_samples, bool) or not isinstance(n_samples, int) or n_samples < 1:
+        raise ValueError("n_samples must be a positive integer")
+    if not math.isfinite(R0) or R0 <= 0 or not math.isfinite(sigma_R) or sigma_R < 0:
+        raise ValueError("Model separation and width must be finite and physical")
+    for coords, masses, labels in ((monomer1_coords, monomer1_masses, monomer1_symbols),
+                                   (monomer2_coords, monomer2_masses, monomer2_symbols)):
+        if np.shape(coords) != (len(masses), 3) or len(masses) == 0 or len(labels) != len(masses):
+            raise ValueError("Each monomer requires one mass and actual species per coordinate")
+        if not np.isfinite(coords).all() or not np.isfinite(masses).all() or np.any(np.asarray(masses) <= 0):
+            raise ValueError("Monomer coordinates and positive masses must be finite")
+        if any(not isinstance(label, str) or not label.strip() for label in labels):
+            raise ValueError("Actual species labels must be nonempty strings")
+    rng = np.random.default_rng(seed)
 
     com1 = compute_center_of_mass(monomer1_coords, monomer1_masses)
     com2 = compute_center_of_mass(monomer2_coords, monomer2_masses)
@@ -550,10 +543,10 @@ def generate_vdw_stretch_ensemble(
 
     total_masses = np.concatenate([monomer1_masses, monomer2_masses])
     n_total_atoms = len(total_masses)
-    symbols = ["Ar", "C", "O", "O"][:n_total_atoms]
+    symbols = list(monomer1_symbols) + list(monomer2_symbols)
 
     ensemble = np.zeros((n_samples, n_total_atoms, 3), dtype=np.float64)
-    r_displacements = np.random.normal(R0, sigma_R, size=n_samples)
+    r_displacements = rng.normal(R0, sigma_R, size=n_samples)
 
     for k in range(n_samples):
         R_k = max(0.5, float(r_displacements[k]))
@@ -719,7 +712,7 @@ def main() -> int:
     parser.add_argument(
         "--vdw-3d-test",
         action="store_true",
-        help="Run 3D polyatomic molecular ensemble vibrational tensor averaging test.",
+        help="Evaluate a Gaussian Ar-CO2 stretch model; this is not a measured trajectory.",
     )
 
     args = parser.parse_args()
@@ -744,6 +737,8 @@ def main() -> int:
             "metadata": {
                 "module": "mm.conference.ref.jensen",
                 "mandate": "Method Matrix §5.1, §16.3",
+                "evidence_kind": "analytical_model",
+                "measured_trajectory": False,
                 "conversion_constant_MHz_amu_Ang2": CONV_MHZ_AMU_ANG2,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             },
@@ -757,8 +752,13 @@ def main() -> int:
             m2 = np.array([m_C, m_O, m_O])
             c1 = np.array([[0.0, 0.0, 0.0]])
             c2 = np.array([[0.0, 0.0, 0.0], [0.0, 1.16, 0.0], [0.0, -1.16, 0.0]])
-            ens, total_masses, syms = generate_vdw_stretch_ensemble(c1, c2, m1, m2, R0=3.80, sigma_R=0.15)
-            res_3d = average_inverse_inertia_ensemble(ens, total_masses, syms)
+            ens, total_masses, syms = generate_vdw_stretch_ensemble(
+                c1, c2, m1, m2, R0=3.80, sigma_R=0.15,
+                monomer1_symbols=["Ar"], monomer2_symbols=["C", "O", "O"],
+            )
+            res_3d = average_inverse_inertia_ensemble(
+                ens, total_masses, syms, provenance="gaussian_stretch_model",
+            )
             out_payload["vdw_3d_test_result"] = res_3d.to_dict()
 
         sys.stdout.write(json.dumps(out_payload, indent=2) + "\n")
@@ -776,7 +776,7 @@ def main() -> int:
         print()
 
     if args.vdw_3d_test:
-        print("\n--- Running 3D Polyatomic Ensemble Tensor Averaging Test (Ar···CO2) ---")
+        print("\n--- Gaussian Stretch Model (Ar···CO2); no measured trajectory ---")
         m_Ar = get_atomic_mass("Ar")
         m_C = get_atomic_mass("C")
         m_O = get_atomic_mass("O")
@@ -784,8 +784,13 @@ def main() -> int:
         m2 = np.array([m_C, m_O, m_O])
         c1 = np.array([[0.0, 0.0, 0.0]])
         c2 = np.array([[0.0, 0.0, 0.0], [0.0, 1.16, 0.0], [0.0, -1.16, 0.0]])
-        ens, total_masses, syms = generate_vdw_stretch_ensemble(c1, c2, m1, m2, R0=3.80, sigma_R=0.15)
-        res_3d = average_inverse_inertia_ensemble(ens, total_masses, syms)
+        ens, total_masses, syms = generate_vdw_stretch_ensemble(
+            c1, c2, m1, m2, R0=3.80, sigma_R=0.15,
+            monomer1_symbols=["Ar"], monomer2_symbols=["C", "O", "O"],
+        )
+        res_3d = average_inverse_inertia_ensemble(
+            ens, total_masses, syms, provenance="gaussian_stretch_model",
+        )
         print(f"Correct <mu> Route: A = {res_3d.A_correct:.2f} MHz, B = {res_3d.B_correct:.2f} MHz, C = {res_3d.C_correct:.2f} MHz")
         print(f"Flawed  1/<I> Route: A = {res_3d.A_flawed:.2f} MHz, B = {res_3d.B_flawed:.2f} MHz, C = {res_3d.C_flawed:.2f} MHz")
         print(f"Bias:               dA = {res_3d.bias_A_MHz:.2f} MHz ({res_3d.bias_pct_A:.3f}%), dB = {res_3d.bias_B_MHz:.2f} MHz ({res_3d.bias_pct_B:.3f}%), dC = {res_3d.bias_C_MHz:.2f} MHz ({res_3d.bias_pct_C:.3f}%)")

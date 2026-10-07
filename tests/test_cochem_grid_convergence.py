@@ -273,57 +273,15 @@ class TestGridConvergenceEndToEnd:
 
     @pytest.mark.parametrize("system_name", ["water_dimer", "co2_h2o", "ar_ketene"])
     def test_canonical_system_benchmarks(self, tmp_path: Path, system_name: str) -> None:
-        report = execute_grid_convergence_benchmark(
-            system_name=system_name,
-            output_dir=tmp_path,
-            test_rotation=True
-        )
+        from cochem_base.exceptions import MissingDataError
 
-        assert isinstance(report, GridConvergenceReport)
-        assert report.method_matrix_compliant is True
-        assert len(report.convergence_steps) >= 2
-        assert len(report.rotation_invariance_audits) == 2
-
-        # Check target step (DEFGRID2 -> DEFGRID3)
-        target_step = report.convergence_steps[-1]
-        assert target_step.baseline_grid == "DEFGRID2"
-        assert target_step.target_grid == "DEFGRID3"
-        assert target_step.passed_energy_gate is True
-        assert target_step.passed_geometry_gate is True
-        assert target_step.passed_rotational_gate is True
-
-        # Check rotation audits
-        for rot in report.rotation_invariance_audits:
-            assert rot.passed_rotational_invariance_gate is True
-
-        # Verify artifacts exist on disk
-        json_file = tmp_path / f"{report.complex_name}_grid_convergence.json"
-        h5_file = tmp_path / f"{report.complex_name}_grid_convergence.h5"
-        md_file = tmp_path / f"{report.complex_name}_grid_convergence.md"
-
-        assert json_file.exists()
-        assert h5_file.exists()
-        assert md_file.exists()
-
-        # Check JSON roundtrip
-        with open(json_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            assert data["complex_name"] == report.complex_name
-            assert data["method_matrix_compliant"] is True
-
-        # Check HDF5 structure
-        with h5py.File(h5_file, "r") as h5f:
-            grp = h5f[f"grid_convergence/{report.complex_name}"]
-            assert bool(grp.attrs["method_matrix_compliant"]) is True
-            assert "DEFGRID3" in grp
-            assert "coordinates" in grp["DEFGRID3"]
-            assert "masses" in grp["DEFGRID3"]
-
-        # Check Markdown content
-        with open(md_file, "r", encoding="utf-8") as f:
-            md_text = f.read()
-            assert "COMPLIANT" in md_text
-            assert "DEFGRID3" in md_text
+        with pytest.raises(MissingDataError, match="Real ORCA"):
+            execute_grid_convergence_benchmark(
+                system_name=system_name, output_dir=tmp_path, test_rotation=True,
+            )
+        assert not list(tmp_path.iterdir())
+        seeds = get_canonical_reference_system(system_name)
+        assert all("energy" not in grid for grid in seeds["grids"].values())
 
     def test_cli_execution(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         test_args = [
@@ -334,4 +292,4 @@ class TestGridConvergenceEndToEnd:
         ]
         monkeypatch.setattr("sys.argv", test_args)
         exit_code = main()
-        assert exit_code == 0
+        assert exit_code == 2

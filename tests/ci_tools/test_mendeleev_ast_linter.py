@@ -299,7 +299,7 @@ def get_weight(symbol: str) -> float:
 
 
 def test_assert_atomic_weight_import_present_alias_nuclide_resolver(tmp_path: Path) -> None:
-    """Verifies that imported alias containing 'nuclide_resolver' passes."""
+    """An arbitrary provider cannot gain authority by choosing a trusted-looking alias."""
     code = '''
 from custom_utils import helper as custom_nuclide_resolver
 
@@ -310,11 +310,11 @@ def get_weight(sym: str) -> float:
     f.write_text(code, encoding="utf-8")
 
     violations = scan_file(f)
-    assert len(violations) == 0, f"Expected 0 violations for nuclide_resolver alias import, got: {violations}"
+    assert any(item.category == "UNRESOLVED_ATOMIC_WEIGHT_IMPORT" for item in violations)
 
 
 def test_assert_atomic_weight_import_present_asname(tmp_path: Path) -> None:
-    """Verifies that 'import ... as mendeleev' or 'import ... as nuclide_resolver' passes."""
+    """An arbitrary provider aliased as mendeleev must fail."""
     code = '''
 import chemical_data_provider as mendeleev
 
@@ -326,7 +326,7 @@ def get_weight(sym: str) -> float:
     f.write_text(code, encoding="utf-8")
 
     violations = scan_file(f)
-    assert len(violations) == 0, f"Expected 0 violations for asname import, got: {violations}"
+    assert any(item.category == "UNRESOLVED_ATOMIC_WEIGHT_IMPORT" for item in violations)
 
 
 
@@ -352,7 +352,7 @@ CONFIG = {
 
 
 def test_inline_suppression_comment(tmp_path: Path) -> None:
-    """Verifies that inline comment suppression disables linter on specific lines."""
+    """Verifies that comments cannot suppress scientific checks."""
     code = '''
 # Offline calibration fixture
 CALIBRATION_REF = { "H": 1.008, "C": 12.011 }  # mendeleev-linter: disable
@@ -361,45 +361,31 @@ CALIBRATION_REF = { "H": 1.008, "C": 12.011 }  # mendeleev-linter: disable
     suppressed_file.write_text(code, encoding="utf-8")
 
     violations = scan_file(suppressed_file)
-    assert len(violations) == 0
+    assert {item.category for item in violations} >= {"DISALLOWED_SUPPRESSION", "STATIC_MASS_DICTIONARY"}
 
 
-def test_amnesty_file_bypass(tmp_path: Path) -> None:
-    """Verifies that files listed in the amnesty JSON file are bypassed."""
-    bad_code = '''
-ISOTOPE_TABLE = {"H": 1.008, "C": 12.011, "O": 15.999}
-'''
-    amnestied_file = tmp_path / "legacy_table.py"
-    amnestied_file.write_text(bad_code, encoding="utf-8")
-
-    amnesty_json = tmp_path / "test_amnesty.json"
-    amnesty_data = [str(amnestied_file)]
-    amnesty_json.write_text(json.dumps(amnesty_data), encoding="utf-8")
-
-    amnesty_paths = load_amnesty_file(amnesty_json)
-    violations = scan_file(amnestied_file, amnesty_paths=amnesty_paths)
-    assert len(violations) == 0
+def test_amnesty_file_bypass(tmp_path):
+    """External lists cannot authorize static scientific masses."""
+    source = tmp_path / "legacy_table.py"
+    source.write_text('MASSES = {"H": 1.008, "C": 12.011}\n', encoding="utf-8")
+    amnesty = tmp_path / "amnesty.json"
+    amnesty.write_text(json.dumps([str(source)]), encoding="utf-8")
+    with pytest.raises(ValueError, match="forbidden"):
+        load_amnesty_file(amnesty)
+    violations = scan_file(source, amnesty_paths={str(source)})
+    assert {item.category for item in violations} >= {"DISALLOWED_AMNESTY", "STATIC_MASS_DICTIONARY"}
 
 
-def test_builtin_legacy_amnesty_paths_content() -> None:
-    """Verifies BUILTIN_LEGACY_AMNESTY_PATHS contains all required legacy offline tables."""
-    expected_paths = {
-        "src/cochem_base/calc/cochem_kie_profiler.py",
-        "cochem_base/calc/cochem_kie_profiler.py",
-        "calc/cochem_kie_profiler.py",
-        "src/cochem_base/physics/isotopes.py",
-        "cochem_base/physics/isotopes.py",
-    }
-    assert BUILTIN_LEGACY_AMNESTY_PATHS == expected_paths
-
-    # Verify load_amnesty_file returns all built-in paths even with non-existent file
-    loaded = load_amnesty_file("non_existent_file.json")
-    for expected in expected_paths:
-        assert expected in loaded
+def test_builtin_legacy_amnesty_paths_content():
+    """No legacy source path can waive the mass contract."""
+    assert not BUILTIN_LEGACY_AMNESTY_PATHS
+    assert load_amnesty_file() == set()
+    with pytest.raises(ValueError, match="forbidden"):
+        load_amnesty_file("non_existent_file.json")
 
 
 def test_builtin_legacy_amnesty_bypasses_files(tmp_path: Path) -> None:
-    """Verifies that files matching built-in legacy amnesty paths bypass static mass checks."""
+    """Legacy filenames receive the same static mass checks as any other file."""
     bad_code = '''
 # Legacy offline table
 MASS_TABLE = {"H": 1.008, "C": 12.011, "O": 15.999}
@@ -410,7 +396,7 @@ MASS_TABLE = {"H": 1.008, "C": 12.011, "O": 15.999}
     profiler_file.write_text(bad_code, encoding="utf-8")
 
     violations = scan_file(profiler_file)
-    assert len(violations) == 0, f"Expected profiler to be amnestied, got violations: {violations}"
+    assert any(item.category == "STATIC_MASS_DICTIONARY" for item in violations)
 
     physics_dir = tmp_path / "cochem_base" / "physics"
     physics_dir.mkdir(parents=True)
@@ -418,20 +404,20 @@ MASS_TABLE = {"H": 1.008, "C": 12.011, "O": 15.999}
     isotopes_file.write_text(bad_code, encoding="utf-8")
 
     violations = scan_file(isotopes_file)
-    assert len(violations) == 0, f"Expected isotopes to be amnestied, got violations: {violations}"
+    assert any(item.category == "STATIC_MASS_DICTIONARY" for item in violations)
 
 
 def test_physical_amnestied_files_scan_clean() -> None:
-    """Verifies that physical repo files in BUILTIN_LEGACY_AMNESTY_PATHS scan with 0 violations."""
+    """Real dynamic providers pass without any path exemption."""
     profiler = REPO_ROOT / "src" / "cochem_base" / "calc" / "cochem_kie_profiler.py"
     if profiler.is_file():
         violations = scan_file(profiler)
-        assert len(violations) == 0, f"Expected 0 violations for amnestied profiler, got: {violations}"
+        assert len(violations) == 0, f"Expected 0 violations for dynamic profiler, got: {violations}"
 
     isotopes = REPO_ROOT / "src" / "cochem_base" / "physics" / "isotopes.py"
     if isotopes.is_file():
         violations = scan_file(isotopes)
-        assert len(violations) == 0, f"Expected 0 violations for amnestied isotopes, got: {violations}"
+        assert len(violations) == 0, f"Expected 0 violations for dynamic isotope provider, got: {violations}"
 
 
 
@@ -513,3 +499,75 @@ def test_cli_main_violation_returns_nonzero(tmp_path: Path) -> None:
     ret = main([str(bad_file), "--fail-on-violation", "--json"])
     assert ret == 1
 
+
+@pytest.mark.parametrize("code", [
+    'MASSES = {"12C": 12, "13C": 13.00335}',
+    'MASS = dict([("H", 1.008), ("C", 12.011)])',
+    'ATOMIC_MASSES = [1.008, 12.011]',
+    'NUCLEAR_MASSES = np.array([1.008, 12.011])',
+    'molecule(masses=np.asarray([1.008, 15.999]))',
+    'COVALENT_RADII = {"C": 12.011, "O": 15.999}',
+    'MASS = {"C1": 1, "Cs": 1, "H": 1.008, "C": 12.011}',
+    'MASSES = {"H": 1.008}  # noqa: mendeleev-ast',
+])
+def test_scientific_mass_tables_cannot_hide_in_constructors_or_suppressions(tmp_path, code):
+    source = tmp_path / "mass_source.py"
+    source.write_text(code, encoding="utf-8")
+    assert any(item.category.startswith("STATIC_MASS") for item in scan_file(source, element_symbols=set()))
+
+
+@pytest.mark.parametrize("code", [
+    'import fake_mendeleev\nvalue = element.atomic_weight',
+    'from unknown import get_mendeleev_element\nvalue = get_mendeleev_element("H").atomic_weight',
+    'from unknown import helper as disambiguate_mass\nvalue = disambiguate_mass("H")',
+    'import mendeleev\nimport unknown as resolver\nvalue = resolver.disambiguate_mass("H")',
+    'import mendeleev\nimport unknown\nel = unknown.element("H")\nvalue = el.atomic_weight',
+    'import mendeleev\nimport unknown\nmendeleev = unknown\nvalue = mendeleev.element("H").atomic_weight',
+])
+def test_lookalike_provider_imports_do_not_establish_mass_provenance(tmp_path, code):
+    source = tmp_path / "nuclide_resolver.py"
+    source.write_text(code, encoding="utf-8")
+    assert any(item.category == "UNRESOLVED_ATOMIC_WEIGHT_IMPORT" for item in scan_file(source))
+
+
+@pytest.mark.parametrize("code", [
+    'from mendeleev import element as query\nvalue = query("C").atomic_weight',
+    'from cochem_base.physics.nuclide_resolver import disambiguate_mass as mass\nvalue = mass("13C")',
+    'STANDARD_NUCLEAR_QUADRUPOLE_MOMENTS_MBARN = {"2H": 2.860, "14N": 20.44}',
+    'calculate(weights=[0.25, 0.75])',
+    'RADIUS_PM = {"C": 76.0, "O": 66.0}',
+    'ATOMIC_NUMBERS = {"C": 6, "O": 8}',
+    'text = "# mendeleev-linter: disable"',
+])
+def test_legitimate_provider_imports_and_other_physical_quantities_remain_valid(tmp_path, code):
+    source = tmp_path / "legitimate.py"
+    source.write_text(code, encoding="utf-8")
+    assert scan_file(source) == []
+
+
+def test_missing_unreadable_and_invalid_python_sources_fail_closed(tmp_path):
+    missing = tmp_path / "missing.py"
+    assert scan_file(missing)[0].category == "SOURCE_READ_ERROR"
+    assert main([str(missing), "--json"]) == 1
+    invalid_encoding = tmp_path / "invalid_encoding.py"
+    invalid_encoding.write_bytes(b"\xff\xfe\x80")
+    assert scan_file(invalid_encoding)[0].category == "SOURCE_READ_ERROR"
+    invalid_syntax = tmp_path / "invalid_syntax.py"
+    invalid_syntax.write_text("MASSES = {", encoding="utf-8")
+    assert scan_file(invalid_syntax)[0].category == "SOURCE_PARSE_ERROR"
+    assert scan_file(tmp_path)[0].category == "SOURCE_READ_ERROR"
+
+
+def test_data_and_hidden_source_directories_cannot_hide_mass_tables(tmp_path):
+    for name in ["data", ".physics"]:
+        directory = tmp_path / name
+        directory.mkdir()
+        (directory / "masses.py").write_text('MASSES = {"H": 1.008}', encoding="utf-8")
+    violations = scan_directory(tmp_path)
+    assert len([item for item in violations if item.category == "STATIC_MASS_DICTIONARY"]) == 2
+
+
+def test_cli_does_not_accept_an_amnesty_switch(tmp_path):
+    with pytest.raises(SystemExit) as caught:
+        main([str(tmp_path), "--amnesty-file", "untrusted.json"])
+    assert caught.value.code != 0

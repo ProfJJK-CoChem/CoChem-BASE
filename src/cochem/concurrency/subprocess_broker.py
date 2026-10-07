@@ -6,6 +6,7 @@ Strictly adheres to Zero-Mock mandate and authentic subprocess execution.
 from __future__ import annotations
 
 import atexit
+import asyncio
 from collections import deque
 import ctypes
 import dataclasses
@@ -20,6 +21,7 @@ import signal
 import subprocess
 import sys
 import time
+import threading
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -31,6 +33,7 @@ except ImportError:
 
 from cochem.core.context import assert_writable_path
 from cochem.core.hardware.topology import TopologyDiscoveryEngine
+from cochem_base.core.exceptions import SubprocessBrokerError
 
 logger = logging.getLogger("cochem.concurrency.subprocess_broker")
 
@@ -59,6 +62,7 @@ class SubprocessExecutionResult:
     success: bool = True
     retries_attempted: int = 0
     final_params: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    crash_diagnostics: Optional[Dict[str, Any]] = None
 
 
 class DiagnosticTriageEngine:
@@ -143,10 +147,14 @@ class SubprocessBroker:
         scratch_dir: Optional[Union[pathlib.Path, str]] = None,
         base_scratch_dir: Optional[Union[pathlib.Path, str]] = None,
         max_retries: int = 3,
+        engine_name: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         # If first positional argument was passed as context_or_engine, disambiguate:
-        if cwd is not None and not isinstance(cwd, pathlib.Path) and not os.path.exists(str(cwd)) and "/" not in str(cwd) and "\\" not in str(cwd):
+        if cwd is not None and not isinstance(cwd, (str, os.PathLike)):
+            context_or_engine = cwd
+            cwd = None
+        elif cwd is not None and not isinstance(cwd, pathlib.Path) and not os.path.exists(str(cwd)) and "/" not in str(cwd) and "\\" not in str(cwd):
             context_or_engine = cwd
             cwd = None
 
@@ -156,7 +164,12 @@ class SubprocessBroker:
             self.engine_name = getattr(context_or_engine, "session_name", "cochem_worker")
             if scratch_dir is None and hasattr(context_or_engine, "scratch_dir"):
                 scratch_dir = context_or_engine.scratch_dir
+        if engine_name is not None:
+            if not isinstance(engine_name, str) or not engine_name.strip():
+                raise ValueError("engine_name must be a non-empty string")
+            self.engine_name = engine_name
 
+        self._has_explicit_cwd = cwd is not None
         self.cwd: pathlib.Path = pathlib.Path(cwd).resolve() if cwd else pathlib.Path.cwd()
         self.env: Optional[Dict[str, str]] = env.copy() if env is not None else None
         eff_t = timeout_sec if timeout_sec is not None else (timeout_seconds if timeout_seconds is not None else 3600.0)
@@ -193,18 +206,45 @@ class SubprocessBroker:
                 os.environ.get("COCHEM_ARTIFACTS_DIR", os.environ.get("COCHEM_ARTIFACTS", pathlib.Path.home() / ".cochem" / "store")),
             )
         ).resolve()
+        assert_writable_path(self.store_dir)
 
         self._job_handle: Optional[Any] = None
+        self._active_processes: set[subprocess.Popen[Any]] = set()
+        self._process_lock = threading.RLock()
+        self._cancel_requested = threading.Event()
         self._init_process_group_guard()
         atexit.register(self.cleanup)
 
 
     def _init_process_group_guard(self) -> None:
         """Initialize Windows Job Object with KILL_ON_JOB_CLOSE or configure POSIX process group."""
+        if sys.platform.startswith("linux"):
+            # Containers frequently use a PID 1 that does not reap orphans.
+            # Adopt only terminated descendants for explicit waitpid cleanup;
+            # do this in the parent, never in thread-unsafe preexec_fn code.
+            libc = ctypes.CDLL(None, use_errno=True)
+            if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+                raise SubprocessBrokerError(f"Cannot establish descendant reaping: errno {ctypes.get_errno()}")
         if sys.platform == "win32":
             try:
+                from ctypes import wintypes
+                kernel = ctypes.windll.kernel32
+                kernel.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+                kernel.CreateJobObjectW.restype = wintypes.HANDLE
+                kernel.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+                kernel.SetInformationJobObject.restype = wintypes.BOOL
+                kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+                kernel.OpenProcess.restype = wintypes.HANDLE
+                kernel.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+                kernel.AssignProcessToJobObject.restype = wintypes.BOOL
+                kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+                kernel.CloseHandle.restype = wintypes.BOOL
+                ctypes.windll.ntdll.NtResumeProcess.argtypes = [wintypes.HANDLE]
+                ctypes.windll.ntdll.NtResumeProcess.restype = ctypes.c_long
                 # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
                 job_handle = ctypes.windll.kernel32.CreateJobObjectW(None, None)
+                if not job_handle:
+                    raise OSError("CreateJobObjectW failed")
                 if job_handle:
                     class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
                         _fields_ = [
@@ -243,15 +283,18 @@ class SubprocessBroker:
                     info.BasicLimitInformation.LimitFlags = 0x00002000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
 
                     JobObjectExtendedLimitInformation = 9
-                    ctypes.windll.kernel32.SetInformationJobObject(
+                    configured = ctypes.windll.kernel32.SetInformationJobObject(
                         job_handle,
                         JobObjectExtendedLimitInformation,
                         ctypes.byref(info),
                         ctypes.sizeof(info),
                     )
+                    if not configured:
+                        kernel.CloseHandle(job_handle)
+                        raise OSError("SetInformationJobObject failed")
                     self._job_handle = job_handle
             except Exception as job_err:
-                logger.debug("Windows Job Object initialization bypassed: %s", job_err)
+                raise SubprocessBrokerError(f"Windows Job Object initialization failed: {job_err}") from job_err
 
     def assign_to_job(self, proc: subprocess.Popen[Any]) -> None:
         """Assign subprocess handle to Win32 Job Object."""
@@ -260,11 +303,15 @@ class SubprocessBroker:
                 # Open process handle with PROCESS_SET_QUOTA | PROCESS_TERMINATE
                 PROCESS_ALL_ACCESS = 0x1F0FFF
                 p_handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, proc.pid)
-                if p_handle:
-                    ctypes.windll.kernel32.AssignProcessToJobObject(self._job_handle, p_handle)
+                if not p_handle:
+                    raise OSError("OpenProcess failed")
+                try:
+                    if not ctypes.windll.kernel32.AssignProcessToJobObject(self._job_handle, p_handle):
+                        raise OSError("AssignProcessToJobObject failed")
+                finally:
                     ctypes.windll.kernel32.CloseHandle(p_handle)
             except Exception as assign_err:
-                logger.debug("Could not assign PID %d to Job Object: %s", proc.pid, assign_err)
+                raise SubprocessBrokerError(f"Could not contain process {proc.pid}: {assign_err}") from assign_err
 
     def _prepare_worker_environment(
         self,
@@ -317,6 +364,54 @@ class SubprocessBroker:
             **kwargs,
         )
 
+    async def execute_async(self, command: Union[str, List[str]], **kwargs: Any) -> SubprocessExecutionResult:
+        """Run without blocking the event loop and reap the tree on cancellation.
+
+        Each invocation owns a separate broker so cancelling one asynchronous
+        job cannot kill another job sharing the caller's broker.
+        """
+        worker = type(self)(
+            cwd=self.cwd if self._has_explicit_cwd else None, env=self.env, timeout_seconds=self.timeout_seconds,
+            context_or_engine=self.engine_name, initial_params=self.current_params.copy(),
+            base_scratch_dir=self.base_scratch_dir, max_retries=self.max_retries,
+        )
+        task = asyncio.create_task(asyncio.to_thread(worker.execute, command, **kwargs))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            worker._cancel_requested.set()
+            await asyncio.to_thread(worker.cleanup)
+            await asyncio.shield(task)
+            raise
+        finally:
+            worker.cleanup()
+            atexit.unregister(worker.cleanup)
+
+    def suspend(self) -> None:
+        """Suspend owned processes and their children using the portable API."""
+        self._control_processes("suspend")
+
+    def resume(self) -> None:
+        """Resume owned process trees without POSIX-only signal assumptions."""
+        self._control_processes("resume")
+
+    def _control_processes(self, operation: str) -> None:
+        if not HAS_PSUTIL:
+            raise SubprocessBrokerError("psutil is required for portable process control")
+        with self._process_lock:
+            owned = list(self._active_processes)
+        for process in owned:
+            try:
+                parent = psutil.Process(process.pid)
+                children = parent.children(recursive=True)
+                targets = [parent, *children] if operation == "suspend" else [*children, parent]
+                for target in targets:
+                    getattr(target, operation)()
+            except psutil.NoSuchProcess:
+                continue
+            except psutil.Error as exc:
+                raise SubprocessBrokerError(f"Cannot {operation} process {process.pid}: {exc}") from exc
+
     def execute_with_remediation(
         self,
         command: Union[str, List[str]],
@@ -334,6 +429,7 @@ class SubprocessBroker:
         last_stderr = ""
         last_code = 1
         peak_mem_mb = 0.0
+        crash_diagnostics = None
 
         # Ephemeral per-job sandbox subdirectory conforming to Tripartite Air-Gap
         job_id = uuid.uuid4().hex
@@ -358,9 +454,10 @@ class SubprocessBroker:
             if current_cmd[0].lower() in ("echo", "dir", "type", "copy", "del", "mkdir", "rmdir", "cls"):
                 current_cmd = ["cmd.exe", "/c"] + current_cmd
 
-        effective_cwd = pathlib.Path(cwd).resolve() if cwd is not None else job_scratch
-        effective_cwd.mkdir(parents=True, exist_ok=True)
+        effective_cwd = (pathlib.Path(cwd).resolve() if cwd is not None
+                         else self.cwd if self._has_explicit_cwd else job_scratch)
         assert_writable_path(effective_cwd)
+        effective_cwd.mkdir(parents=True, exist_ok=True)
 
         effective_timeout = (
             timeout_sec
@@ -370,7 +467,7 @@ class SubprocessBroker:
 
         proc: Optional[subprocess.Popen[Any]] = None
         try:
-            while retries < self.max_retries:
+            while retries < self.max_retries and not self._cancel_requested.is_set():
                 worker_env = self._prepare_worker_environment(
                     worker_index=int(self.current_params.get("worker_index", 0)),
                     retries=retries,
@@ -382,34 +479,30 @@ class SubprocessBroker:
                     "env": worker_env,
                     "stdout": subprocess.PIPE,
                     "stderr": subprocess.PIPE,
-                    "text": True,
+                    "text": False,
                 }
 
                 if sys.platform == "win32":
                     CREATE_SUSPENDED = 0x00000004
-                    proc_kwargs["creationflags"] = proc_kwargs.get("creationflags", 0) | CREATE_SUSPENDED
+                    proc_kwargs["creationflags"] = CREATE_SUSPENDED | subprocess.CREATE_NEW_PROCESS_GROUP
                 else:
                     proc_kwargs["start_new_session"] = True
-                    if sys.platform.startswith("linux"):
-                        def _posix_pdeathsig() -> None:
-                            try:
-                                import ctypes
-                                libc = ctypes.CDLL("libc.so.6")
-                                PR_SET_PDEATHSIG = 1
-                                SIGKILL = 9
-                                libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
-                            except Exception as _e:
-                                logger.debug(f"Ignored exception: {_e}")
-                        proc_kwargs["preexec_fn"] = _posix_pdeathsig
 
                 try:
                     proc = subprocess.Popen(current_cmd, **proc_kwargs)
+                    with self._process_lock:
+                        self._active_processes.add(proc)
+                    if self._cancel_requested.is_set():
+                        self.terminate_process_tree(proc)
+                        break
                     self.assign_to_job(proc)
                     if sys.platform == "win32":
                         try:
-                            ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
-                        except Exception as _e:
-                            logger.debug(f"Ignored exception: {_e}")
+                            if ctypes.windll.ntdll.NtResumeProcess(int(proc._handle)) != 0:
+                                raise OSError("NtResumeProcess failed")
+                        except Exception as exc:
+                            self.terminate_process_tree(proc)
+                            raise SubprocessBrokerError(f"Could not resume Windows process {proc.pid}") from exc
 
                     if HAS_PSUTIL and proc is not None:
                         try:
@@ -448,11 +541,19 @@ class SubprocessBroker:
                     # Capture subprocess stdout/stderr using bounded 10 MB ring buffers
                     stdout_buf: deque[str] = deque(maxlen=10485760)
                     stderr_buf: deque[str] = deque(maxlen=10485760)
-                    stdout_buf.extend(out or "")
-                    stderr_buf.extend(err or "")
+                    stdout_buf.extend((out or b"").decode("utf-8", errors="replace"))
+                    stderr_buf.extend((err or b"").decode("utf-8", errors="replace"))
                     last_stdout = "".join(stdout_buf)
                     last_stderr = "".join(stderr_buf)
                     last_code = code
+                    if code in {139, 134, 137, -11, -6, -9, 0xC0000005, -1073741819}:
+                        from cochem_base.core_engine.crash_provenance import record_process_crash
+                        crash_diagnostics = record_process_crash(
+                            current_cmd, code, err or b"",
+                            self.store_dir / "Logs",
+                        )
+                        # Fatal native crashes are not numerical solver retries.
+                        break
 
                     if code == 0:
                         # Extract validated artifacts to persistent store (T_store) conforming to Tripartite Air-Gap
@@ -517,10 +618,20 @@ class SubprocessBroker:
                             "No remediation callback provided; retrying static command without physical input escalation."
                         )
 
+                except SubprocessBrokerError:
+                    if proc is not None and proc.poll() is None:
+                        self.terminate_process_tree(proc)
+                    raise
                 except Exception as exec_err:
+                    if proc is not None and proc.poll() is None:
+                        self.terminate_process_tree(proc)
                     last_stderr = str(exec_err)
                     last_code = 1
                     retries += 1
+                finally:
+                    if proc is not None:
+                        with self._process_lock:
+                            self._active_processes.discard(proc)
 
             return SubprocessExecutionResult(
                 returncode=last_code,
@@ -532,8 +643,11 @@ class SubprocessBroker:
                 success=False,
                 retries_attempted=retries,
                 final_params=self.current_params,
+                crash_diagnostics=crash_diagnostics,
             )
         finally:
+            if proc is not None and proc.poll() is None:
+                self.terminate_process_tree(proc)
             # Lifecycle hygiene: sweep and delete ephemeral sandbox
             shutil.rmtree(str(job_scratch), ignore_errors=True)
 
@@ -596,11 +710,22 @@ class SubprocessBroker:
                     logger.debug(f"Ignored exception: {_e}")
             parent.terminate()
             _, alive = psutil.wait_procs(children + [parent], timeout=grace_timeout)
+            # Grandchild zombies belong to their parent/subreaper, not this
+            # process. They consume no resources and cannot be killed again.
+            alive = [p for p in alive if p.is_running() and p.status() != psutil.STATUS_ZOMBIE]
             for p in alive:
                 try:
                     p.kill()
                 except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
                     logger.debug(f"Ignored exception: {_e}")
+            psutil.wait_procs(alive, timeout=min(grace_timeout, 0.5))
+            proc.wait(timeout=grace_timeout)
+            if sys.platform.startswith("linux"):
+                for child in children:
+                    try:
+                        os.waitpid(child.pid, os.WNOHANG)
+                    except ChildProcessError:
+                        continue
         except Exception:
             if sys.platform != "win32":
                 try:
@@ -616,6 +741,11 @@ class SubprocessBroker:
 
     def cleanup(self) -> None:
         """Close Job Object handle and release scratch resources."""
+        with self._process_lock:
+            processes = list(self._active_processes)
+        for process in processes:
+            if process.poll() is None:
+                self.terminate_process_tree(process)
         if sys.platform == "win32" and self._job_handle is not None:
             try:
                 ctypes.windll.kernel32.CloseHandle(self._job_handle)

@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 
 import numpy as np
+import pytest
 import torch
 from mendeleev import element
 
@@ -71,7 +72,9 @@ def test_co2_water_complex_graph_partitioning():
 
 def test_bipartite_potential_prevents_covalent_collapse():
     """Assert inter-fragment non-covalent forces evaluate via Lennard-Jones/Coulomb and prevent collapse [M]."""
-    calc = PhysicalMACEOFFFallbackCalculator(charge=0, multiplicity=1)
+    # An untrained pair potential must never be emitted as MACE output.
+    with pytest.raises(RuntimeError, match="untrained physical MACE fallback was removed"):
+        PhysicalMACEOFFFallbackCalculator(charge=0, multiplicity=1)
 
     symbols = ["C", "O", "O", "O", "H", "H"]
     coords = [
@@ -82,12 +85,6 @@ def test_bipartite_potential_prevents_covalent_collapse():
         [0.757, 3.586, 0.000],
         [-0.757, 3.586, 0.000],
     ]
-
-    energy_ev, forces = calc.calculate_energy_and_forces(symbols, coords)
-    assert isinstance(energy_ev, float)
-    assert not np.isnan(energy_ev)
-    assert not np.isinf(energy_ev)
-    assert len(forces) == 6
 
     # Test library function evaluate_physical_potential
     energy_lib, forces_lib, converged = evaluate_physical_potential(symbols, coords)

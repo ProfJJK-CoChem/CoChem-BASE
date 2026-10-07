@@ -58,6 +58,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -65,18 +66,21 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     List,
+    Literal,
     Optional,
     Sequence,
     Set,
     Tuple,
+    TextIO,
     Union,
 )
 
 import numpy as np
 import scipy.linalg
 from mendeleev import element
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from cochem_base.config_loader import (
     get_artifact_dir,
@@ -409,7 +413,7 @@ class NuclearSpinRotationTensor(BaseModel):
 
 class HarmonicForceField(BaseModel):
     """Complete harmonic force field specification from CFOUR."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     n_atoms: int = Field(..., description="Number of atoms.")
     symbols: List[str] = Field(..., description="Atom symbols.")
@@ -417,8 +421,8 @@ class HarmonicForceField(BaseModel):
     frequencies_cm_inv: List[float] = Field(..., description="Harmonic vibrational frequencies in cm^-1.")
     symmetries: List[str] = Field(default_factory=list, description="Normal mode symmetry labels.")
     ir_intensities_km_mol: List[float] = Field(default_factory=list, description="IR intensities in km/mol.")
-    zpe_cm_inv: float = Field(..., description="Zero-point vibrational energy in cm^-1.")
-    zpe_kcal_mol: float = Field(..., description="Zero-point vibrational energy in kcal/mol.")
+    zpe_cm_inv: Optional[float] = Field(default=None, description="Zero-point vibrational energy in cm^-1.")
+    zpe_kcal_mol: Optional[float] = Field(default=None, description="Zero-point vibrational energy in kcal/mol.")
     cartesian_hessian: Optional[List[List[float]]] = Field(
         default=None, description="Cartesian force constant matrix (3N x 3N) in Hartree/bohr^2."
     )
@@ -426,7 +430,7 @@ class HarmonicForceField(BaseModel):
 
 class CFOURObservables(BaseModel):
     """Complete structured spectroscopic observables emitted by CFOUR CCSD(T) / VPT2."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     # Energies
     scf_energy_hartree: Optional[float] = Field(default=None, description="SCF total energy in Hartree.")
@@ -436,36 +440,36 @@ class CFOURObservables(BaseModel):
     final_energy_hartree: float = Field(..., description="Final electronic energy in Hartree.")
 
     # Equilibrium Rotational Constants (Be)
-    Ae_MHz: float = Field(..., description="Equilibrium rotational constant A_e in MHz.")
-    Be_MHz: float = Field(..., description="Equilibrium rotational constant B_e in MHz.")
-    Ce_MHz: float = Field(..., description="Equilibrium rotational constant C_e in MHz.")
-    Ae_cm_inv: float = Field(..., description="Equilibrium rotational constant A_e in cm^-1.")
-    Be_cm_inv: float = Field(..., description="Equilibrium rotational constant B_e in cm^-1.")
-    Ce_cm_inv: float = Field(..., description="Equilibrium rotational constant C_e in cm^-1.")
+    Ae_MHz: Optional[float] = Field(default=None, description="Equilibrium rotational constant A_e in MHz.")
+    Be_MHz: Optional[float] = Field(default=None, description="Equilibrium rotational constant B_e in MHz.")
+    Ce_MHz: Optional[float] = Field(default=None, description="Equilibrium rotational constant C_e in MHz.")
+    Ae_cm_inv: Optional[float] = Field(default=None, description="Equilibrium rotational constant A_e in cm^-1.")
+    Be_cm_inv: Optional[float] = Field(default=None, description="Equilibrium rotational constant B_e in cm^-1.")
+    Ce_cm_inv: Optional[float] = Field(default=None, description="Equilibrium rotational constant C_e in cm^-1.")
 
     # Vibrational Corrections & Ground-State Constants (B0)
-    delta_A_vib_MHz: float = Field(default=0.0, description="Vibrational correction delta_A_vib in MHz.")
-    delta_B_vib_MHz: float = Field(default=0.0, description="Vibrational correction delta_B_vib in MHz.")
-    delta_C_vib_MHz: float = Field(default=0.0, description="Vibrational correction delta_C_vib in MHz.")
-    A0_MHz: float = Field(..., description="Ground-state rotational constant A_0 = A_e + delta_A_vib (MHz).")
-    B0_MHz: float = Field(..., description="Ground-state rotational constant B_0 = B_e + delta_B_vib (MHz).")
-    C0_MHz: float = Field(..., description="Ground-state rotational constant C_0 = C_e + delta_C_vib (MHz).")
-    A0_cm_inv: float = Field(..., description="Ground-state rotational constant A_0 in cm^-1.")
-    B0_cm_inv: float = Field(..., description="Ground-state rotational constant B_0 in cm^-1.")
-    C0_cm_inv: float = Field(..., description="Ground-state rotational constant C_0 in cm^-1.")
+    delta_A_vib_MHz: Optional[float] = Field(default=None, description="Vibrational correction delta_A_vib in MHz.")
+    delta_B_vib_MHz: Optional[float] = Field(default=None, description="Vibrational correction delta_B_vib in MHz.")
+    delta_C_vib_MHz: Optional[float] = Field(default=None, description="Vibrational correction delta_C_vib in MHz.")
+    A0_MHz: Optional[float] = Field(default=None, description="Ground-state rotational constant A_0 = A_e + delta_A_vib (MHz).")
+    B0_MHz: Optional[float] = Field(default=None, description="Ground-state rotational constant B_0 = B_e + delta_B_vib (MHz).")
+    C0_MHz: Optional[float] = Field(default=None, description="Ground-state rotational constant C_0 = C_e + delta_C_vib (MHz).")
+    A0_cm_inv: Optional[float] = Field(default=None, description="Ground-state rotational constant A_0 in cm^-1.")
+    B0_cm_inv: Optional[float] = Field(default=None, description="Ground-state rotational constant B_0 in cm^-1.")
+    C0_cm_inv: Optional[float] = Field(default=None, description="Ground-state rotational constant C_0 in cm^-1.")
 
     # Rigid-Rotor Inertial Observables
-    inertial_defect_amu_ang2: float = Field(..., description="Inertial defect Delta = I_c - I_a - I_b (u * Angstrom^2).")
-    planar_moment_Paa_amu_ang2: float = Field(..., description="Planar moment P_aa in u * Angstrom^2.")
-    planar_moment_Pbb_amu_ang2: float = Field(..., description="Planar moment P_bb in u * Angstrom^2.")
-    planar_moment_Pcc_amu_ang2: float = Field(..., description="Planar moment P_cc in u * Angstrom^2.")
-    ray_asymmetry_kappa: float = Field(..., description="Ray's asymmetry parameter kappa = (2B-A-C)/(A-C).")
+    inertial_defect_amu_ang2: Optional[float] = Field(default=None, description="Inertial defect Delta = I_c - I_a - I_b (u * Angstrom^2).")
+    planar_moment_Paa_amu_ang2: Optional[float] = Field(default=None, description="Planar moment P_aa in u * Angstrom^2.")
+    planar_moment_Pbb_amu_ang2: Optional[float] = Field(default=None, description="Planar moment P_bb in u * Angstrom^2.")
+    planar_moment_Pcc_amu_ang2: Optional[float] = Field(default=None, description="Planar moment P_cc in u * Angstrom^2.")
+    ray_asymmetry_kappa: Optional[float] = Field(default=None, description="Ray's asymmetry parameter kappa = (2B-A-C)/(A-C).")
 
     # Dipole Moments (Debye)
-    dipole_a_debye: float = Field(default=0.0, description="Principal axis dipole component mu_a in Debye.")
-    dipole_b_debye: float = Field(default=0.0, description="Principal axis dipole component mu_b in Debye.")
-    dipole_c_debye: float = Field(default=0.0, description="Principal axis dipole component mu_c in Debye.")
-    dipole_total_debye: float = Field(default=0.0, description="Total dipole moment in Debye.")
+    dipole_a_debye: Optional[float] = Field(default=None, description="Principal axis dipole component mu_a in Debye.")
+    dipole_b_debye: Optional[float] = Field(default=None, description="Principal axis dipole component mu_b in Debye.")
+    dipole_c_debye: Optional[float] = Field(default=None, description="Principal axis dipole component mu_c in Debye.")
+    dipole_total_debye: Optional[float] = Field(default=None, description="Total dipole moment in Debye.")
 
     # Vibrational & Anharmonic Data
     harmonic_force_field: HarmonicForceField = Field(..., description="Harmonic force field and normal modes.")
@@ -514,12 +518,12 @@ class IsotopologueFFResult(BaseModel):
 
     # Parent constants
     parent_Be_MHz: Tuple[float, float, float] = Field(..., description="Parent equilibrium (Ae, Be, Ce) in MHz.")
-    parent_B0_MHz: Tuple[float, float, float] = Field(..., description="Parent ground-state (A0, B0, C0) in MHz.")
+    parent_B0_MHz: Optional[Tuple[float, float, float]] = Field(default=None, description="Parent ground-state (A0, B0, C0) in MHz.")
     parent_zpe_cm_inv: float = Field(..., description="Parent harmonic ZPE in cm^-1.")
 
     # Isotopologue constants
     iso_Be_MHz: Tuple[float, float, float] = Field(..., description="Isotopologue equilibrium (Ae, Be, Ce) in MHz.")
-    iso_B0_MHz: Tuple[float, float, float] = Field(..., description="Isotopologue ground-state (A0, B0, C0) in MHz.")
+    iso_B0_MHz: Optional[Tuple[float, float, float]] = Field(default=None, description="Isotopologue ground-state (A0, B0, C0) in MHz.")
     iso_frequencies_cm_inv: List[float] = Field(..., description="Isotopologue harmonic vibrational frequencies (cm^-1).")
     iso_zpe_cm_inv: float = Field(..., description="Isotopologue harmonic ZPE in cm^-1.")
     zpe_shift_cm_inv: float = Field(..., description="Delta ZPE = ZPE_iso - ZPE_parent in cm^-1.")
@@ -530,9 +534,9 @@ class IsotopologueFFResult(BaseModel):
     iso_ray_asymmetry_kappa: float = Field(..., description="Isotopologue Ray's asymmetry parameter kappa.")
 
     # Shifts
-    delta_A0_MHz: float = Field(..., description="Shift Delta A0 = A0_iso - A0_parent in MHz.")
-    delta_B0_MHz: float = Field(..., description="Shift Delta B0 = B0_iso - B0_parent in MHz.")
-    delta_C0_MHz: float = Field(..., description="Shift Delta C0 = C0_iso - C0_parent in MHz.")
+    delta_A0_MHz: Optional[float] = Field(default=None, description="Shift Delta A0 = A0_iso - A0_parent in MHz.")
+    delta_B0_MHz: Optional[float] = Field(default=None, description="Shift Delta B0 = B0_iso - B0_parent in MHz.")
+    delta_C0_MHz: Optional[float] = Field(default=None, description="Shift Delta C0 = C0_iso - C0_parent in MHz.")
     provenance_tag: str = Field(default="[D]", description="Method Matrix provenance tag ([M], [D], [E]).")
 
 
@@ -551,6 +555,19 @@ class CFOURJobResult(BaseModel):
     error_message: Optional[str] = Field(default=None, description="Error message if run failed.")
     preserved_files: List[str] = Field(default_factory=list, description="List of preserved binary archive files.")
     compliance_notes: List[str] = Field(default_factory=list, description="Method Matrix audit and compliance remarks.")
+    status: Literal["EXECUTION_VERIFIED", "PENDING_INTEGRATION", "REJECTED"] = "REJECTED"
+    handoff_manifest: Optional[str] = None
+
+    @model_validator(mode="after")
+    def verify_status_scope(self) -> "CFOURJobResult":
+        if self.success != (self.status == "EXECUTION_VERIFIED"):
+            raise ValueError("Only an execution-verified CFOUR result can report success")
+        if self.status == "PENDING_INTEGRATION" and (
+            not self.handoff_manifest or self.observables is not None or self.error_message is not None
+            or self.stdout_hash or self.zmat_hash
+        ):
+            raise ValueError("A pending CFOUR job requires a handoff and cannot contain execution evidence")
+        return self
 
 
 # ==============================================================================
@@ -928,10 +945,10 @@ def generate_cfour_zmat(
 class CFOUROutputParser:
     """Robust parser for CFOUR standard output logs and auxiliary text archives."""
 
-    PAT_SCF_ENERGY = re.compile(r"(?:E\(SCF\)|SCF ENERGY|Total SCF energy|SCF energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
-    PAT_MP2_ENERGY = re.compile(r"(?:E\(CORR\)\(MP2\)|E\(MP2\)|MP2 ENERGY|Total MP2 energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
-    PAT_CCSD_ENERGY = re.compile(r"(?:E\(CCSD\)|CCSD ENERGY|Total CCSD energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
-    PAT_CCSD_T_ENERGY = re.compile(r"(?:E\(CCSD\(T\)\)|CCSD\(T\) ENERGY|Total CCSD\(T\) energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
+    PAT_SCF_ENERGY = re.compile(r"(?:E\(SCF\)|SCF ENERGY|Total SCF energy|SCF energy)\s*[:=]?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?|[+-]?(?:nan|inf))", re.IGNORECASE)
+    PAT_MP2_ENERGY = re.compile(r"(?:E\(CORR\)\(MP2\)|E\(MP2\)|MP2 ENERGY|Total MP2 energy)\s*[:=]?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?|[+-]?(?:nan|inf))", re.IGNORECASE)
+    PAT_CCSD_ENERGY = re.compile(r"(?:E\(CCSD\)|CCSD ENERGY|Total CCSD energy)\s*[:=]?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?|[+-]?(?:nan|inf))", re.IGNORECASE)
+    PAT_CCSD_T_ENERGY = re.compile(r"(?:E\(CCSD\(T\)\)|CCSD\(T\) ENERGY|Total CCSD\(T\) energy)\s*[:=]?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?|[+-]?(?:nan|inf))", re.IGNORECASE)
 
     PAT_ROT_CONST_BE = re.compile(
         r"Rotational constants\s*\(in\s*MHz\)\s*:\s*([+-]?\d+\.\d+)\s+([+-]?\d+\.\d+)\s+([+-]?\d+\.\d+)",
@@ -948,9 +965,20 @@ class CFOUROutputParser:
     )
 
     PAT_FINAL_ENERGY = re.compile(
-        r"(?:The\s+final\s+electronic\s+energy\s+is|FINAL\s+ELECTRONIC\s+ENERGY\s+IS|FINAL\s+ENERGY)\s*[:=]?\s*([+-]?\d+\.\d+)",
+        r"(?:The\s+final\s+electronic\s+energy\s+is|FINAL\s+ELECTRONIC\s+ENERGY\s+IS|FINAL\s+ENERGY)\s*[:=]?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?|[+-]?(?:nan|inf))",
         re.IGNORECASE,
     )
+
+    @staticmethod
+    def verify_execution_evidence(text: str, config: CFOURInputConfig) -> None:
+        """Reject absent convergence; a zero process status alone is not physics."""
+        if re.search(r"NOT CONVERGED|DID NOT CONVERGE|FAILED TO CONVERGE|FATAL ERROR|ABNORMAL TERMINATION", text, re.I):
+            raise ConvergenceError("CFOUR reported failed electronic convergence")
+        if not re.search(r"\bSCF\b[^\n]*\b(?:converged|convergence achieved)\b", text, re.I):
+            raise ConvergenceError("CFOUR output lacks explicit SCF convergence evidence")
+        if config.calc_level.value.upper() not in {"SCF", "HF", "MP2"}:
+            if not re.search(r"\b(?:CCSD(?:\(T\))?|coupled.cluster|CC amplitude)\b[^\n]*\bconverged\b", text, re.I):
+                raise ConvergenceError("CFOUR output lacks explicit coupled-cluster convergence evidence")
 
     @classmethod
     def parse_cfour_stdout(
@@ -1016,10 +1044,10 @@ class CFOUROutputParser:
         ccsd_t_energy: Optional[float] = None
         explicit_final_energy: Optional[float] = None
 
-        Ae_MHz, Be_MHz, Ce_MHz = 0.0, 0.0, 0.0
-        Ae_cm, Be_cm, Ce_cm = 0.0, 0.0, 0.0
+        Ae_MHz, Be_MHz, Ce_MHz = None, None, None
+        Ae_cm, Be_cm, Ce_cm = None, None, None
 
-        dipole_a, dipole_b, dipole_c, dipole_tot = 0.0, 0.0, 0.0, 0.0
+        dipole_a, dipole_b, dipole_c, dipole_tot = None, None, None, None
 
         freqs: List[float] = []
         symmetries: List[str] = []
@@ -1036,26 +1064,22 @@ class CFOUROutputParser:
         parsed_symbols: List[str] = list(symbols_fallback or [])
 
         for line in stream:
-            # 1. Parse Energies
-            if "SCF energy" in line or "E(SCF)" in line or "Total SCF energy" in line:
-                m = cls.PAT_SCF_ENERGY.search(line)
-                if m:
-                    scf_energy = float(m.group(1))
-            if "MP2 energy" in line or "E(MP2)" in line or "E(CORR)(MP2)" in line:
-                m = cls.PAT_MP2_ENERGY.search(line)
-                if m:
-                    mp2_energy = float(m.group(1))
-            if "CCSD energy" in line or "E(CCSD)" in line:
-                m = cls.PAT_CCSD_ENERGY.search(line)
-                if m:
-                    ccsd_energy = float(m.group(1))
-            if "CCSD(T) energy" in line or "E(CCSD(T))" in line:
-                m = cls.PAT_CCSD_T_ENERGY.search(line)
-                if m:
-                    ccsd_t_energy = float(m.group(1))
+            # Energy tokens preserve scientific notation, including Fortran D exponents.
+            m = cls.PAT_SCF_ENERGY.search(line)
+            if m:
+                scf_energy = float(m.group(1).replace("D", "E").replace("d", "e"))
+            m = cls.PAT_MP2_ENERGY.search(line)
+            if m:
+                mp2_energy = float(m.group(1).replace("D", "E").replace("d", "e"))
+            m = cls.PAT_CCSD_ENERGY.search(line)
+            if m:
+                ccsd_energy = float(m.group(1).replace("D", "E").replace("d", "e"))
+            m = cls.PAT_CCSD_T_ENERGY.search(line)
+            if m:
+                ccsd_t_energy = float(m.group(1).replace("D", "E").replace("d", "e"))
             m_fin = cls.PAT_FINAL_ENERGY.search(line)
             if m_fin:
-                explicit_final_energy = float(m_fin.group(1))
+                explicit_final_energy = float(m_fin.group(1).replace("D", "E").replace("d", "e"))
 
             # 2. Parse Rotational Constants (Single-line and Multiline)
             if "Rotational constants (in MHz)" in line or "ROTATIONAL CONSTANTS (MHZ)" in line:
@@ -1398,50 +1422,51 @@ class CFOUROutputParser:
             final_energy = ccsd_t_energy
         elif ccsd_energy is not None:
             final_energy = ccsd_energy
-        elif mp2_energy is not None:
-            final_energy = mp2_energy
+        elif mp2_energy is not None and scf_energy is not None:
+            # E(CORR)(MP2) is not a total electronic energy; never promote it.
+            raise ValueError("CFOUR MP2 output requires an explicit final total energy")
         elif scf_energy is not None:
             final_energy = scf_energy
         else:
-            final_energy = 0.0
-
-        delta_A_vib_MHz = -0.5 * sum(a.alpha_A_MHz for a in alphas) if alphas else 0.0
-        delta_B_vib_MHz = -0.5 * sum(a.alpha_B_MHz for a in alphas) if alphas else 0.0
-        delta_C_vib_MHz = -0.5 * sum(a.alpha_C_MHz for a in alphas) if alphas else 0.0
-
-        A0_MHz = Ae_MHz + delta_A_vib_MHz
-        B0_MHz = Be_MHz + delta_B_vib_MHz
-        C0_MHz = Ce_MHz + delta_C_vib_MHz
+            raise ValueError("CFOUR output contains no measured finite electronic energy")
+        if not math.isfinite(final_energy):
+            raise ValueError("CFOUR final electronic energy is not finite")
 
         c_cm_s = CONSTANTS.C_CM_S
-        A0_cm = (A0_MHz * 1e6) / c_cm_s
-        B0_cm = (B0_MHz * 1e6) / c_cm_s
-        C0_cm = (C0_MHz * 1e6) / c_cm_s
-
-        if (Ae_MHz == 0.0 or Be_MHz == 0.0) and parsed_symbols and coordinates_fallback is not None:
+        if Ae_MHz is None and Ae_cm is not None:
+            Ae_MHz, Be_MHz, Ce_MHz = (value * c_cm_s / 1e6 for value in (Ae_cm, Be_cm, Ce_cm))
+        if Ae_MHz is None and parsed_symbols and coordinates_fallback is not None:
             ((Ae_MHz, Be_MHz, Ce_MHz), (Ae_cm, Be_cm, Ce_cm), in_def, (Paa, Pbb, Pcc), kappa) = (
                 compute_equilibrium_rotational_constants(parsed_symbols, coordinates_fallback)
             )
-            A0_MHz = Ae_MHz + delta_A_vib_MHz
-            B0_MHz = Be_MHz + delta_B_vib_MHz
-            C0_MHz = Ce_MHz + delta_C_vib_MHz
-            A0_cm = (A0_MHz * 1e6) / c_cm_s
-            B0_cm = (B0_MHz * 1e6) / c_cm_s
-            C0_cm = (C0_MHz * 1e6) / c_cm_s
-        else:
+        elif Ae_MHz is not None:
+            Ae_cm, Be_cm, Ce_cm = (value * 1e6 / c_cm_s for value in (Ae_MHz, Be_MHz, Ce_MHz))
             conv = CONSTANTS.C_ROT_MHZ_U_ANG2
             Ia = conv / Ae_MHz if Ae_MHz > 0 else 0.0
             Ib = conv / Be_MHz if Be_MHz > 0 else 0.0
             Ic = conv / Ce_MHz if Ce_MHz > 0 else 0.0
-            Paa = (Ib + Ic - Ia) / 2.0
-            Pbb = (Ia + Ic - Ib) / 2.0
-            Pcc = (Ia + Ib - Ic) / 2.0
+            Paa, Pbb, Pcc = (Ib + Ic - Ia) / 2, (Ia + Ic - Ib) / 2, (Ia + Ib - Ic) / 2
             in_def = Ic - Ia - Ib
             denom = Ae_MHz - Ce_MHz
-            kappa = (2.0 * Be_MHz - Ae_MHz - Ce_MHz) / denom if abs(denom) > 1e-6 else -1.0
+            kappa = (2 * Be_MHz - Ae_MHz - Ce_MHz) / denom if abs(denom) > 1e-6 else None
+        else:
+            in_def = Paa = Pbb = Pcc = kappa = None
 
-        zpe_cm = 0.5 * sum(freqs) if freqs else 0.0
-        zpe_kcal = (zpe_cm / CONSTANTS.HARTREE_TO_CM_INV) * CONSTANTS.HARTREE_TO_KCAL_MOL
+        rigid_modes = 5 if Ae_MHz == 0 and Be_MHz is not None and Be_MHz > 0 else 6
+        expected_modes = max(0, 3 * len(parsed_symbols) - rigid_modes) if parsed_symbols else None
+        complete_frequencies = expected_modes is not None and len(freqs) == expected_modes and bool(freqs)
+        complete_alphas = complete_frequencies and len(alphas) == len(freqs) and {a.mode_index for a in alphas} == set(range(1, len(freqs) + 1))
+        delta_A_vib_MHz = -0.5 * sum(a.alpha_A_MHz for a in alphas) if complete_alphas else None
+        delta_B_vib_MHz = -0.5 * sum(a.alpha_B_MHz for a in alphas) if complete_alphas else None
+        delta_C_vib_MHz = -0.5 * sum(a.alpha_C_MHz for a in alphas) if complete_alphas else None
+        A0_MHz = Ae_MHz + delta_A_vib_MHz if Ae_MHz is not None and complete_alphas else None
+        B0_MHz = Be_MHz + delta_B_vib_MHz if Be_MHz is not None and complete_alphas else None
+        C0_MHz = Ce_MHz + delta_C_vib_MHz if Ce_MHz is not None and complete_alphas else None
+        A0_cm = A0_MHz * 1e6 / c_cm_s if A0_MHz is not None else None
+        B0_cm = B0_MHz * 1e6 / c_cm_s if B0_MHz is not None else None
+        C0_cm = C0_MHz * 1e6 / c_cm_s if C0_MHz is not None else None
+        zpe_cm = 0.5 * sum(freqs) if complete_frequencies and all(value >= 0 for value in freqs) else None
+        zpe_kcal = zpe_cm / CONSTANTS.HARTREE_TO_CM_INV * CONSTANTS.HARTREE_TO_KCAL_MOL if zpe_cm is not None else None
 
         masses = [get_dynamic_atomic_mass(s) for s in parsed_symbols] if parsed_symbols else []
 
@@ -1639,8 +1664,9 @@ def isomass_rediagonalize_force_field(
     Delivers:
     - New equilibrium rotational constants (Ae', Be', Ce').
     - Exact harmonic vibrational frequencies (omega_i') and isotope-shifted ZPE.
-    - Ground-state rotational constants (A0', B0', C0') via scaled alpha projection.
-    - Complete before-and-after shift telemetry (Delta A0, Delta B0, Delta C0).
+    - Parent ground-state constants only when complete parent alphas are supplied.
+    - Isotope ground-state constants remain unknown: harmonic data and parent
+      alphas cannot replace a transformation of the full anharmonic force field.
     """
     coords = np.asarray(coordinates_angstrom, dtype=np.float64)
     n_atoms = len(symbols)
@@ -1675,53 +1701,20 @@ def isomass_rediagonalize_force_field(
     )
 
     n_modes = len(parent_frequencies_cm)
-    if parent_alphas and len(parent_alphas) > 0 and n_modes > 0 and len(iso_frequencies_cm) == n_modes:
-        # Duschinsky transformation matrix J = L_parent.T @ L_iso
-        J = L_parent.T @ L_iso
-        J2 = J ** 2
-
-        # Equilibrium rotational constant squared scaling
-        scale_A = (iso_Be[0] / parent_Be[0]) ** 2 if parent_Be[0] > 0 else 1.0
-        scale_B = (iso_Be[1] / parent_Be[1]) ** 2 if parent_Be[1] > 0 else 1.0
-        scale_C = (iso_Be[2] / parent_Be[2]) ** 2 if parent_Be[2] > 0 else 1.0
-
-        parent_alpha_A_vec = np.array([a.alpha_A_MHz for a in parent_alphas[:n_modes]], dtype=np.float64)
-        parent_alpha_B_vec = np.array([a.alpha_B_MHz for a in parent_alphas[:n_modes]], dtype=np.float64)
-        parent_alpha_C_vec = np.array([a.alpha_C_MHz for a in parent_alphas[:n_modes]], dtype=np.float64)
-
-        parent_w = np.array([max(1.0, f) for f in parent_frequencies_cm], dtype=np.float64)
-        iso_w = np.array([max(1.0, f) for f in iso_frequencies_cm], dtype=np.float64)
-
-        iso_alphas_A: List[float] = []
-        iso_alphas_B: List[float] = []
-        iso_alphas_C: List[float] = []
-
-        for k in range(n_modes):
-            freq_ratio = parent_w / iso_w[k]
-            a_A = scale_A * float(np.sum(J2[:, k] * freq_ratio * parent_alpha_A_vec))
-            a_B = scale_B * float(np.sum(J2[:, k] * freq_ratio * parent_alpha_B_vec))
-            a_C = scale_C * float(np.sum(J2[:, k] * freq_ratio * parent_alpha_C_vec))
-            iso_alphas_A.append(a_A)
-            iso_alphas_B.append(a_B)
-            iso_alphas_C.append(a_C)
-
-        parent_delta_A = -0.5 * sum(a.alpha_A_MHz for a in parent_alphas)
-        parent_delta_B = -0.5 * sum(a.alpha_B_MHz for a in parent_alphas)
-        parent_delta_C = -0.5 * sum(a.alpha_C_MHz for a in parent_alphas)
-
-        iso_delta_A = -0.5 * sum(iso_alphas_A)
-        iso_delta_B = -0.5 * sum(iso_alphas_B)
-        iso_delta_C = -0.5 * sum(iso_alphas_C)
-    else:
-        parent_delta_A, parent_delta_B, parent_delta_C = 0.0, 0.0, 0.0
-        iso_delta_A, iso_delta_B, iso_delta_C = 0.0, 0.0, 0.0
-
-    parent_B0 = (parent_Be[0] + parent_delta_A, parent_Be[1] + parent_delta_B, parent_Be[2] + parent_delta_C)
-    iso_B0 = (iso_Be[0] + iso_delta_A, iso_Be[1] + iso_delta_B, iso_Be[2] + iso_delta_C)
-
-    delta_A0 = iso_B0[0] - parent_B0[0]
-    delta_B0 = iso_B0[1] - parent_B0[1]
-    delta_C0 = iso_B0[2] - parent_B0[2]
+    parent_B0 = None
+    if parent_alphas:
+        if len(parent_alphas) != n_modes or {alpha.mode_index for alpha in parent_alphas} != set(range(1, n_modes + 1)):
+            raise ValueError("Parent ground-state constants require complete, uniquely indexed vibration-rotation alphas")
+        corrections = [-0.5 * sum(getattr(alpha, component) for alpha in parent_alphas)
+                       for component in ("alpha_A_MHz", "alpha_B_MHz", "alpha_C_MHz")]
+        if not all(math.isfinite(value) for value in corrections):
+            raise ValueError("Parent vibration-rotation corrections must be finite")
+        parent_B0 = tuple(value + correction for value, correction in zip(parent_Be, corrections, strict=True))
+    # A harmonic Hessian gives exact mass-dependent harmonic modes and Be.
+    # Isotope-specific B0 needs transformed cubic/quartic force constants and
+    # Coriolis/rotation couplings; neither alpha rescaling nor Be is equivalent.
+    iso_B0 = None
+    delta_A0 = delta_B0 = delta_C0 = None
 
     return IsotopologueFFResult(
         parent_name=parent_name,
@@ -1776,6 +1769,8 @@ def export_cfour_to_spcat_var(
     - 41100: phi_jk / h_2 (MHz)
     - 50100: phi_k / h_3 (MHz)
     """
+    if any(value is None or not math.isfinite(value) for value in (observables.A0_MHz, observables.B0_MHz, observables.C0_MHz)):
+        raise ValueError("SPCAT export requires measured or complete anharmonically derived ground-state rotational constants")
     lines: List[str] = []
     lines.append(f"CoChem CFOUR Bridge Export - Watson {reduction.value}-Reduction")
 
@@ -1879,6 +1874,8 @@ class CFOURBridge:
         self.cfour_executable = cfour_executable
         self.genbas_path = Path(genbas_path) if genbas_path else None
         self.scratch_root = Path(scratch_root) if scratch_root else (get_ramdisk_dir() or get_runtime_dir() / "cfour_scratch")
+        from cochem.core.context import assert_writable_path
+        assert_writable_path(self.scratch_root)
         self.scratch_root.mkdir(parents=True, exist_ok=True)
 
     def prepare_job_directory(
@@ -1890,7 +1887,11 @@ class CFOURBridge:
         existing_jobarc: Optional[Path] = None,
     ) -> Path:
         """Prepare working directory containing ZMAT and required basis set libraries."""
-        work_dir = self.scratch_root / f"cfour_{job_id}_{int(time.time())}"
+        from cochem.core.context import assert_writable_path
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", job_id):
+            raise ValueError("CFOUR job_id must be a safe filename component")
+        work_dir = self.scratch_root / f"cfour_{job_id}_{uuid.uuid4().hex}"
+        assert_writable_path(work_dir)
         work_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Write ZMAT input file
@@ -1925,6 +1926,45 @@ class CFOURBridge:
         existing_jobarc: Optional[Path] = None,
     ) -> CFOURJobResult:
         """Dispatch CFOUR execution via subprocess broker with strict wall-clock and crash isolation."""
+        if config.reference != CFOURReference.RHF or config.multiplicity != 1 or config.anharm_mode != CFOURAnharmMode.NONE:
+            # BASE preserves the complete job for the future spectroscopy/open-shell
+            # adapter; a generated deck is not evidence of scientific execution.
+            from cochem_base.calc.calculation_service import CalculationMatrixConfig
+            from cochem_base.interfaces.scientific_jobs import prepare_calculation_handoff
+            from cochem.core.context import assert_writable_path
+            import uuid
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+", job_id):
+                raise ValueError("CFOUR job identifiers must contain only safe filename characters")
+            work_dir = self.scratch_root / f"cfour_{job_id}_{uuid.uuid4().hex}"
+            assert_writable_path(work_dir)
+            work_dir.mkdir(parents=True)
+            geometry = "\n".join([str(len(symbols)), "CFOUR scientific job awaiting adapter integration"] +
+                                 [symbol + " " + " ".join(format(float(value), ".17g") for value in xyz)
+                                  for symbol, xyz in zip(symbols, coordinates_angstrom, strict=True)]) + "\n"
+            request = CalculationMatrixConfig(
+                geometry=geometry, engine="cfour", method=config.calc_level.value, basis_set=config.basis,
+                charge=config.charge, multiplicity=config.multiplicity, is_opt=False, is_freq=True,
+                is_vpt2=config.anharm_mode != CFOURAnharmMode.NONE, timeout_seconds=timeout_seconds,
+            )
+            geometry_path = work_dir / "geometry.xyz"
+            geometry_path.write_text(geometry, encoding="utf-8")
+            dependencies = {}
+            if existing_jobarc is not None:
+                dependencies.update(JOBARC=existing_jobarc, JAINDX=existing_jobarc.parent / "JAINDX")
+            if self.genbas_path is not None:
+                dependencies["GENBAS"] = self.genbas_path
+            prepare_calculation_handoff(request, geometry_path, work_dir / "handoff",
+                                        dependency_files=dependencies,
+                                        provider_options={"cfour_input": config.model_dump(mode="json"),
+                                                          "restart_jobarc": str(existing_jobarc) if existing_jobarc else None,
+                                                          "genbas_path": str(self.genbas_path) if self.genbas_path else None})
+            return CFOURJobResult(
+                success=False, status="PENDING_INTEGRATION", job_id=job_id, working_directory=str(work_dir),
+                wall_time_seconds=0.0, stdout_hash="", zmat_hash="", observables=None,
+                handoff_manifest=str(work_dir / "handoff" / "handoff.json"),
+                compliance_notes=["Input job preserved; no CFOUR process or scientific result was produced.",
+                                  "The requested anharmonic/open-shell result validator remains pending integration."],
+            )
         work_dir = self.prepare_job_directory(job_id, symbols, coordinates_angstrom, config, existing_jobarc)
         zmat_path = work_dir / "ZMAT"
         zmat_hash = hashlib.sha256(zmat_path.read_bytes()).hexdigest()
@@ -1933,22 +1973,20 @@ class CFOURBridge:
         out_file = work_dir / "output.dat"
         err_file = work_dir / "cfour.err"
 
-        cmd = [self.cfour_executable]
-
         try:
-            with open(out_file, "w", encoding="utf-8") as fh_out, open(err_file, "w", encoding="utf-8") as fh_err:
-                proc = subprocess.Popen(
-                    cmd,
-                    cwd=str(work_dir),
-                    stdout=fh_out,
-                    stderr=fh_err,
-                )
-                try:
-                    proc.wait(timeout=timeout_seconds)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait()
-                    raise TimeoutError(f"CFOUR job {job_id} exceeded wall-clock timeout of {timeout_seconds}s.")
+            from cochem_base.core_engine.execution_authority import authorize_engine_execution
+            from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+            authority = authorize_engine_execution("cfour", executable=shutil.which(self.cfour_executable))
+            if config.memory_size_gb * 1024 > authority.total_memory_mb:
+                raise OutOfMemoryGateError("CFOUR global memory request exceeds audited available RAM")
+            proc = safe_subprocess_run(
+                authority.command(), cwd=work_dir, timeout=timeout_seconds, check=False,
+                capture_output=True, text=True, required_disk_gb=0.1,
+                cpu_affinity=list(authority.cpu_affinity) or None,
+                env={**os.environ, "OMP_NUM_THREADS": str(authority.cores), "MKL_NUM_THREADS": str(authority.cores)},
+            )
+            out_file.write_text(proc.stdout or "", encoding="utf-8")
+            err_file.write_text(proc.stderr or "", encoding="utf-8")
 
             if proc.returncode != 0:
                 err_text = err_file.read_text(encoding="utf-8", errors="replace")
@@ -1957,11 +1995,28 @@ class CFOURBridge:
             wall_time = time.time() - start_time
             stdout_text = out_file.read_text(encoding="utf-8", errors="replace")
             stdout_hash = hashlib.sha256(stdout_text.encode("utf-8")).hexdigest()
+            CFOUROutputParser.verify_execution_evidence(stdout_text, config)
 
             # Parse observables
             observables = CFOUROutputParser.parse_cfour_stdout(
                 stdout_text, symbols_fallback=symbols, coordinates_fallback=coordinates_angstrom
             )
+            requested_energy = {
+                CFOURCalcLevel.HF: observables.scf_energy_hartree,
+                CFOURCalcLevel.MP2: observables.mp2_energy_hartree,
+                CFOURCalcLevel.CCSD: observables.ccsd_energy_hartree,
+                CFOURCalcLevel.CCSD_T: observables.ccsd_t_energy_hartree,
+            }.get(config.calc_level)
+            if requested_energy is None or not math.isfinite(requested_energy):
+                raise ValueError(f"CFOUR lacks measured energy at the requested {config.calc_level.value} method")
+            if not observables.harmonic_force_field.frequencies_cm_inv:
+                raise ValueError("CFOUR frequency request returned no harmonic frequencies")
+            if config.vib_mode in {CFOURVibMode.EXACT, CFOURVibMode.ANALYTIC}:
+                hessian_path = work_dir / "FCMFINAL"
+                if not hessian_path.is_file() or not hessian_path.stat().st_size:
+                    raise ValueError("CFOUR analytic Hessian request returned no FCMFINAL artifact")
+            if config.anharm_mode != CFOURAnharmMode.NONE and observables.B0_MHz is None:
+                raise ValueError("CFOUR anharmonic request returned incomplete vibration-rotation evidence")
 
             # Preserve binary archives
             preserved: List[str] = []
@@ -1969,9 +2024,17 @@ class CFOURBridge:
                 p = work_dir / arc_name
                 if p.exists():
                     preserved.append(arc_name)
+            from cochem_base.core_engine.scientific_telemetry import append_scientific_result
+            append_scientific_result(
+                f"cfour_{job_id}", symbols, coordinates_angstrom, observables.final_energy_hartree,
+                metadata={"engine": "cfour", "method": config.calc_level.value,
+                          "scf_convergence_verified": True, "zmat_sha256": zmat_hash,
+                          "stdout_sha256": stdout_hash},
+            )
 
             return CFOURJobResult(
                 success=True,
+                status="EXECUTION_VERIFIED",
                 job_id=job_id,
                 working_directory=str(work_dir),
                 wall_time_seconds=wall_time,
@@ -1982,8 +2045,7 @@ class CFOURBridge:
                 error_message=None,
                 preserved_files=preserved,
                 compliance_notes=[
-                    "Method Matrix v4 §8B.6 / §9.3 compliant",
-                    "Analytic CCSD(T) second derivatives executed",
+                    "Audited executable and explicit electronic convergence verified",
                     f"Wall time: {wall_time:.2f}s",
                 ],
             )

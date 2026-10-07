@@ -26,7 +26,7 @@ import time
 import typing
 from datetime import datetime, timezone
 
-import psutil
+from cochem_base.core.resource_guard import evaluate_resource_guard
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -597,33 +597,25 @@ class LocalLlamaEngine(ScribeLLMEngine):
         return models_dir / "mistral-7b-instruct-v0.2.Q4_K_M.gguf"
 
     def _check_hardware_resources(self) -> bool:
-        """Evaluates host hardware memory constraints."""
-        total_ram_gb = psutil.virtual_memory().total / (1024**3)
-        resource_guard_active = os.environ.get(
-            "RESOURCE_GUARD", "1"
-        ).strip().lower() not in (
-            "0",
-            "false",
-            "off",
+        """Apply the canonical registry, available-memory, cgroup and GPU gate."""
+        weights = self._resolve_model_weights(self.model_path)
+        gpu_weight_gb = (max(weights.stat().st_size / 1024**3, 1e-9)
+                         if self.n_gpu_layers != 0 and weights.is_file() else
+                         1e-9 if self.n_gpu_layers != 0 else 0.0)
+        decision = evaluate_resource_guard(
+            min_ram_gb=MINIMUM_RAM_GB_REQUIRED,
+            min_available_ram_gb=MINIMUM_RAM_GB_REQUIRED,
+            min_vram_gb=gpu_weight_gb,
         )
-
-        if resource_guard_active and total_ram_gb < MINIMUM_RAM_GB_REQUIRED:
-            logger.warning(
-                f"LocalLlamaEngine: RESOURCE_GUARD blocked loading local weights. "
-                f"Host RAM ({total_ram_gb:.2f} GB) < required ({MINIMUM_RAM_GB_REQUIRED:.1f} GB)."
-            )
+        self.resource_guard_decision = decision
+        if not decision.allow_local_llm:
+            logger.warning("LocalLlamaEngine: %s", decision.reason)
             record_audit_event(
                 event_type="HARDWARE_OVERRIDE",
-                details={
-                    "engine": "LocalLlamaEngine",
-                    "reason": "INSUFFICIENT_HOST_RAM",
-                    "total_ram_gb": total_ram_gb,
-                    "required_ram_gb": MINIMUM_RAM_GB_REQUIRED,
-                },
+                details={"engine": "LocalLlamaEngine", **decision.model_dump()},
                 audit_log_path=self.audit_log_path,
             )
-            return False
-        return True
+        return decision.allow_local_llm
 
     def _handle_oom_kernel_trap(self, stage: str, exc: Exception) -> None:
         """Executes OOM release and structured critical logging."""
@@ -763,14 +755,14 @@ def get_engine(config: dict[str, typing.Any] | None = None) -> ScribeLLMEngine:
 
     # Rule 3: Local Llama preference
     if preferred_model in ("local", "local-llama", "llama"):
-        total_ram_gb = psutil.virtual_memory().total / (1024**3)
+        guard = evaluate_resource_guard()
         candidate_weights = pathlib.Path(
             cfg.get("model_path")
             or (get_default_models_dir() / "mistral-7b-instruct-v0.2.Q4_K_M.gguf")
         )
         weights_exist = candidate_weights.exists() and candidate_weights.is_file()
 
-        if total_ram_gb < MINIMUM_RAM_GB_REQUIRED or not weights_exist:
+        if not guard.allow_local_llm or not weights_exist:
             logger.warning(
                 "RESOURCE_GUARD detected constrained RAM or missing .gguf weights. "
                 "Attempting fallback to GeminiEngine or DryRunEngine."
@@ -779,7 +771,7 @@ def get_engine(config: dict[str, typing.Any] | None = None) -> ScribeLLMEngine:
                 event_type="HARDWARE_ROUTER_OVERRIDE",
                 details={
                     "reason": "LOCAL_WEIGHTS_OR_RAM_UNAVAILABLE",
-                    "total_ram_gb": total_ram_gb,
+                    "resource_guard": guard.model_dump(),
                     "weights_exist": weights_exist,
                 },
                 audit_log_path=audit_log_path,

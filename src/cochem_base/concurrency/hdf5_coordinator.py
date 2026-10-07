@@ -28,6 +28,7 @@ import numpy as np
 
 from cochem_base.concurrency.atomic_file_lock import RWFileLock
 from cochem_base.schemas import HDF5PersistenceConfig
+from cochem_base.result_evidence import normalize_point_evidence
 
 logger = logging.getLogger("cochem.concurrency.hdf5_coordinator")
 
@@ -129,7 +130,7 @@ class HDF5PersistenceCoordinator:
         routine: str = "sp",
         config: Optional[HDF5PersistenceConfig] = None,
     ) -> Path:
-        """Atomically stage a single-point chunk into Ring 2 ephemeral scratch ($COCHEM_SCRATCH/chunks/chunk_<uuid>.h5)."""
+        """Stage explicit convergence evidence; unknown elapsed times remain NaN."""
         cfg = config or HDF5PersistenceConfig()
         chunks_dir = Path(scratch_dir).resolve() / "chunks"
         chunks_dir.mkdir(parents=True, exist_ok=True)
@@ -139,8 +140,22 @@ class HDF5PersistenceCoordinator:
         coords_arr = np.asarray(coords, dtype=np.float64)
         if coords_arr.ndim == 2:
             coords_arr = coords_arr[None, ...]
+        if coords_arr.ndim != 3 or coords_arr.shape[2] != 3 or not np.all(np.isfinite(coords_arr)):
+            raise ValueError("Coordinates must be a finite array of shape (Npoints, Natoms, 3)")
         npts, natm, spatial = coords_arr.shape
         energies_arr = np.atleast_1d(np.asarray(energies, dtype=np.float64))
+        if energies_arr.shape != (npts,) or not np.all(np.isfinite(energies_arr)):
+            raise ValueError("Provide one finite energy per result point")
+        conv_arr, wall_arr = normalize_point_evidence(converged, wall_s, npts)
+        if point_ids is not None and len(point_ids) != npts:
+            raise ValueError("Provide one point identifier per result point")
+        g_arr = None
+        if gradients is not None:
+            g_arr = np.asarray(gradients, dtype=np.float64)
+            if g_arr.ndim == 2:
+                g_arr = g_arr[None, ...]
+            if g_arr.shape != coords_arr.shape or not np.all(np.isfinite(g_arr)):
+                raise ValueError("Gradient shape must match coordinates and contain finite values")
 
         with locked_h5(chunk_path, mode="w", config=cfg) as f:
             grp = f.create_group(f"points/{method_id}")
@@ -161,19 +176,9 @@ class HDF5PersistenceCoordinator:
             }
             grp.create_dataset("energy", data=energies_arr, **ekw)
 
-            conv_arr = (
-                np.ones(npts, dtype=bool)
-                if converged is None
-                else np.atleast_1d(np.asarray(converged, dtype=bool))
-            )
             grp.create_dataset("converged", data=conv_arr)
-
-            wall_arr = (
-                np.zeros(npts, dtype=np.float64)
-                if wall_s is None
-                else np.atleast_1d(np.asarray(wall_s, dtype=np.float64))
-            )
-            grp.create_dataset("wall_s", data=wall_arr)
+            elapsed_dataset = grp.create_dataset("wall_s", data=wall_arr)
+            elapsed_dataset.attrs["missing_value_policy"] = "NaN means elapsed time was not measured"
 
             pids = (
                 list(point_ids)
@@ -193,10 +198,7 @@ class HDF5PersistenceCoordinator:
             })
             grp.create_dataset("provenance", data=np.array([prov_str] * npts, dtype=object), dtype=dt_str)
 
-            if gradients is not None:
-                g_arr = np.asarray(gradients, dtype=np.float64)
-                if g_arr.ndim == 2:
-                    g_arr = g_arr[None, ...]
+            if g_arr is not None:
                 grp.create_dataset("gradient", data=g_arr, **kw)
 
         return chunk_path
@@ -269,6 +271,15 @@ class HDF5PersistenceCoordinator:
         prov: Optional[np.ndarray],
     ) -> None:
         npts, natm, spatial = coords.shape
+        conv, wall = normalize_point_evidence(conv, wall, npts)
+        if spatial != 3 or energies.shape != (npts,) or len(pids) != npts:
+            raise ValueError("Staged result arrays must contain aligned result points")
+        if not np.all(np.isfinite(coords)) or not np.all(np.isfinite(energies)):
+            raise ValueError("Staged coordinates and energies must be finite")
+        if grads is not None and (grads.shape != coords.shape or not np.all(np.isfinite(grads))):
+            raise ValueError("Staged gradients must match coordinates and be finite")
+        if prov is not None and prov.shape != (npts,):
+            raise ValueError("Staged provenance must contain one record per result point")
         grp = f.require_group(f"points/{mid}")
         cfg = self.config
         dt_str = h5py.string_dtype(encoding="utf-8")
@@ -306,9 +317,9 @@ class HDF5PersistenceCoordinator:
         ds_conv = _get_or_create("converged", (), np.bool_)
         _append(ds_conv, conv)
 
-        if wall is not None:
-            ds_wall = _get_or_create("wall_s", (), np.float64)
-            _append(ds_wall, wall)
+        ds_wall = _get_or_create("wall_s", (), np.float64)
+        ds_wall.attrs["missing_value_policy"] = "NaN means elapsed time was not measured"
+        _append(ds_wall, wall)
 
         ds_pids = _get_or_create("point_id", (), dt_str)
         _append(ds_pids, np.array(pids, dtype=object))

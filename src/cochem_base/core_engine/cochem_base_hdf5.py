@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from cochem_base.config_loader import get_artifact_dir, get_state_file_path, resolve_mapped_path
 from cochem_base.core.models import CoChemConfig
+from cochem_base.core.cochem_core_registry_manager import AtomicFileLock
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -50,7 +51,7 @@ class HDF5OntologyEnforcer:
     def write_record(self, group_path: str, data: Dict[str, Any]) -> None:
         """Validate data into BasinRecord and commit to HDF5 store at group_path."""
         record = self.validate_payload(data, model_cls=BasinRecord)
-        with h5py.File(self.hdf5_path, "a") as h5f:
+        with AtomicFileLock(str(self.hdf5_path) + ".lock", timeout=10.0), h5py.File(self.hdf5_path, "a", libver="latest") as h5f:
             grp = h5f.require_group(group_path)
             grp.attrs["molecule_name"] = record.molecule_name
             grp.attrs["energy"] = record.energy
@@ -79,7 +80,7 @@ class HDF5OntologyEnforcer:
                 logging.error(f"HDF5 metadata schema validation failed: {exc}")
                 raise ValueError(f"HDF5 metadata schema validation failed: {exc}") from exc
 
-        with h5py.File(self.hdf5_path, "a") as h5f:
+        with AtomicFileLock(str(self.hdf5_path) + ".lock", timeout=10.0), h5py.File(self.hdf5_path, "a", libver="latest") as h5f:
             grp = h5f.require_group(group_name)
             if dataset_name in grp:
                 del grp[dataset_name]

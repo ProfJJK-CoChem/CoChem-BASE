@@ -811,7 +811,8 @@ def test_ast_compliance_no_prohibited_simulation_modules() -> None:
     both context_compression.py and test_context_compression.py.
     """
     current_test_file = Path(__file__).resolve()
-    target_source_file = current_test_file.parent.parent / "cochem_core" / "ai" / "context_compression.py"
+    from cochem_core.ai import context_compression
+    target_source_file = Path(context_compression.__file__).resolve()
 
     assert target_source_file.is_file(), f"Target source file not found at {target_source_file}"
 

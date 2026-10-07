@@ -1,4 +1,4 @@
-"""Dual-Resolution Baseline Fitting in Active Learning Delta-ML PES Orchestration Zero-Mock Tests.
+"""Dual-Resolution Baseline Fitting in Active Learning Delta-ML PES Orchestration Numerical Tests.
 
 Method Matrix Reference: Method Matrix v4 §4.4, §8C, §10.8, Table 2, Suggestion #129.
 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
@@ -8,6 +8,8 @@ Validates:
 2. Sparse delta-learning escalation fit (delta_krr trained strictly on aligned high-level CCSD(T) residuals).
 3. Graceful reduction to baseline DFT surface in distant extrapolation regions devoid of CCSD(T) data.
 4. Process-safe HDF5 datastore persistence using SWMR mode under cross-platform filelock.FileLock.
+The helper supplies empirical EMT and an artificial affine target. Historical
+DFT/CCSD labels below name datastore roles, not quantum-engine provenance.
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ from cochem_base.core_engine.cochem_core_auto_pes import (
 
 def test_dual_resolution_baseline_fitting():
     """Assert low_krr is anchored on all 2000 dense DFT points and delta_krr on sparse residuals [M], [D]."""
-    # 1. Generate 2000 dense DFT points and aligned reference CCSD(T) points
+    # 1. Generate 2000 EMT labels and aligned numerical affine-transformed targets
     symbols, geoms_dense, e_dft_dense, e_cc_dense = generate_benchmark_intermolecular_pes_data(
         n_points=2000, random_seed=42
     )
@@ -50,8 +52,8 @@ def test_dual_resolution_baseline_fitting():
     )
     orchestrator = AutoPESOrchestrator(
         symbols=symbols,
-        low_method="dft_pbe0",
-        high_method="ccsd_t",
+        low_method="ase_emt",
+        high_method="numerical_affine_emt_target",
         fit_config=fit_config,
     )
 
@@ -85,7 +87,7 @@ def test_dual_resolution_baseline_fitting():
     ], dtype=np.float64)
 
     delta_extrap = float(model.predict_delta(extrap_geom)[0])
-    total_extrap = float(model.predict_total_energy(extrap_geom)[0])
+    total_extrap = float(model.predict_total_energy(extrap_geom, allow_unvalidated_baseline=True)[0])
 
     assert abs(delta_extrap) < 0.5, f"Delta correction {delta_extrap:.4f} Eh diverged in extrapolation."
     assert not math.isnan(total_extrap) and not math.isinf(total_extrap)
@@ -112,8 +114,8 @@ def test_hdf5_swmr_dual_resolution_store_persistence(tmp_path: Path):
 
     orchestrator = AutoPESOrchestrator(
         symbols=symbols,
-        low_method="dft_pbe0",
-        high_method="ccsd_t",
+        low_method="ase_emt",
+        high_method="numerical_affine_emt_target",
     )
 
     model, fit_summary = orchestrator.fit_delta_surface_from_store(h5_path, held_out_ratio=0.20)

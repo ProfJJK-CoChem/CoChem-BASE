@@ -1,0 +1,61 @@
+name: ORCA private archive access
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  verify-archive:
+    name: Download and verify the licensed ORCA archive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check private access and the independently recorded checksum
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.ORCA_ASSET_READ_TOKEN }}
+          ORCA_ASSET_REPOSITORY: ${{ vars.ORCA_ASSET_REPOSITORY || 'ProfJJK-CoChem/CoChem-ORCA' }}
+          ORCA_RELEASE_TAG: ${{ vars.ORCA_RELEASE_TAG || 'orca-6.1.1' }}
+          ORCA_ARCHIVE_NAME: ${{ vars.ORCA_ARCHIVE_NAME || 'orca_6_1_1_linux_x86-64_shared_openmpi418.tar.xz' }}
+          ORCA_ARCHIVE_SHA256: ${{ vars.ORCA_ARCHIVE_SHA256 || 'a0bc1d6d2c3c00620367bbc5dbf2b3a7018abc92d1ff65f06cec46f75350b9be' }}
+        run: |
+          set -euo pipefail
+          for name in GH_TOKEN ORCA_ASSET_REPOSITORY ORCA_RELEASE_TAG ORCA_ARCHIVE_NAME ORCA_ARCHIVE_SHA256; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing required Actions setting: $name"
+              exit 1
+            fi
+          done
+          if [[ ! "$ORCA_ASSET_REPOSITORY" =~ ^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "::error::ORCA_ASSET_REPOSITORY must be OWNER/REPOSITORY."
+            exit 1
+          fi
+          if [[ ! "$ORCA_RELEASE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "::error::Use a release tag such as orca-6.1.1."
+            exit 1
+          fi
+          if [[ "$ORCA_ARCHIVE_NAME" != "orca_6_1_1_linux_x86-64_shared_openmpi418.tar.xz" ]]; then
+            echo "::error::This access check expects the selected ORCA 6.1.1 Linux/Open MPI 4.1.8 archive."
+            exit 1
+          fi
+          if [[ ! "$ORCA_ARCHIVE_SHA256" =~ ^[[:xdigit:]]{64}$ ]]; then
+            echo "::error::ORCA_ARCHIVE_SHA256 must contain exactly 64 hexadecimal characters."
+            exit 1
+          fi
+
+          download_dir="$(mktemp -d "$RUNNER_TEMP/cochem-orca-access.XXXXXX")"
+          trap 'rm -rf -- "$download_dir"' EXIT
+          gh release download "$ORCA_RELEASE_TAG" \
+            --repo "$ORCA_ASSET_REPOSITORY" \
+            --pattern "$ORCA_ARCHIVE_NAME" \
+            --dir "$download_dir"
+          cd "$download_dir"
+          printf '%s  %s\n' "${ORCA_ARCHIVE_SHA256,,}" "$ORCA_ARCHIVE_NAME" |
+            sha256sum --check --strict
+          {
+            echo 'Private release download and independent SHA-256 verification passed.'
+            echo ''
+            echo 'Scope: archive access and integrity only. ORCA/MPI installation, BASE setup and physical calculations have not run.'
+            echo 'The downloaded archive is removed; it is not published as an Actions artifact.'
+          } >> "$GITHUB_STEP_SUMMARY"

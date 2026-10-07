@@ -251,7 +251,7 @@ def get_weight(symbol: str) -> float:
 
 
 def test_assert_atomic_weight_import_present_alias_nuclide_resolver(tmp_path: Path) -> None:
-    """Verifies that imported alias containing 'nuclide_resolver' passes."""
+    """An arbitrary provider cannot gain authority by choosing a trusted-looking alias."""
     code = '''
 from custom_utils import helper as custom_nuclide_resolver
 
@@ -262,27 +262,19 @@ def get_weight(sym: str) -> float:
     f.write_text(code, encoding="utf-8")
 
     violations = scan_file(f)
-    assert len(violations) == 0, f"Expected 0 violations for nuclide_resolver alias import, got: {violations}"
+    assert any(item.category == "UNRESOLVED_ATOMIC_WEIGHT_IMPORT" for item in violations)
 
 
-def test_builtin_legacy_amnesty_paths_content() -> None:
-    """Verifies BUILTIN_LEGACY_AMNESTY_PATHS contains all required legacy offline tables."""
-    expected_paths = {
-        "src/cochem_base/calc/cochem_kie_profiler.py",
-        "cochem_base/calc/cochem_kie_profiler.py",
-        "calc/cochem_kie_profiler.py",
-        "src/cochem_base/physics/isotopes.py",
-        "cochem_base/physics/isotopes.py",
-    }
-    assert BUILTIN_LEGACY_AMNESTY_PATHS == expected_paths
-
-    loaded = load_amnesty_file("non_existent_file.json")
-    for expected in expected_paths:
-        assert expected in loaded
+def test_builtin_legacy_amnesty_paths_content():
+    """No legacy source path can waive the mass contract."""
+    assert not BUILTIN_LEGACY_AMNESTY_PATHS
+    assert load_amnesty_file() == set()
+    with pytest.raises(ValueError, match="forbidden"):
+        load_amnesty_file("non_existent_file.json")
 
 
 def test_builtin_legacy_amnesty_bypasses_files(tmp_path: Path) -> None:
-    """Verifies that files matching built-in legacy amnesty paths bypass static mass checks."""
+    """Legacy filenames receive the same static mass checks as any other file."""
     bad_code = '''
 MASS_TABLE = {"H": 1.008, "C": 12.011, "O": 15.999}
 '''
@@ -292,7 +284,7 @@ MASS_TABLE = {"H": 1.008, "C": 12.011, "O": 15.999}
     profiler_file.write_text(bad_code, encoding="utf-8")
 
     violations = scan_file(profiler_file)
-    assert len(violations) == 0, f"Expected profiler to be amnestied, got violations: {violations}"
+    assert any(item.category == "STATIC_MASS_DICTIONARY" for item in violations)
 
     physics_dir = tmp_path / "cochem_base" / "physics"
     physics_dir.mkdir(parents=True)
@@ -300,20 +292,20 @@ MASS_TABLE = {"H": 1.008, "C": 12.011, "O": 15.999}
     isotopes_file.write_text(bad_code, encoding="utf-8")
 
     violations = scan_file(isotopes_file)
-    assert len(violations) == 0, f"Expected isotopes to be amnestied, got violations: {violations}"
+    assert any(item.category == "STATIC_MASS_DICTIONARY" for item in violations)
 
 
 def test_physical_amnestied_files_scan_clean() -> None:
-    """Verifies that physical repo files in BUILTIN_LEGACY_AMNESTY_PATHS scan with 0 violations."""
+    """Real dynamic providers pass without any path exemption."""
     profiler = REPO_ROOT / "src" / "cochem_base" / "calc" / "cochem_kie_profiler.py"
     if profiler.is_file():
         violations = scan_file(profiler)
-        assert len(violations) == 0, f"Expected 0 violations for amnestied profiler, got: {violations}"
+        assert len(violations) == 0, f"Expected 0 violations for dynamic profiler, got: {violations}"
 
     isotopes = REPO_ROOT / "src" / "cochem_base" / "physics" / "isotopes.py"
     if isotopes.is_file():
         violations = scan_file(isotopes)
-        assert len(violations) == 0, f"Expected 0 violations for amnestied isotopes, got: {violations}"
+        assert len(violations) == 0, f"Expected 0 violations for dynamic isotope provider, got: {violations}"
 
 
 def test_cli_main_clean_pass() -> None:

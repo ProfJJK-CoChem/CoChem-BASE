@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "path": "tests/data/h2co_eq.xyz",
+      "sha256": "fa55aace2bb062798e6a3302aab9c79f3bfcf370221205322f7e47d6988c3a10",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_known_emt_origin",
+      "provenance": "Historical generator ec5c2f8:tests/data/generate_test_files.py performs ASE EMT/BFGS optimization. Species labels corrected to generator Atoms(CH2O) order C,H,H,O. Used only as structural coordinates, not as an ab initio geometry or accuracy reference."
+    },
+    {
+      "path": "tests/data/water.xyz",
+      "sha256": "f8c7756854cb292c025882866920605ae0f62151cfa24deafe5456879c53cc53",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_unverified_origin",
+      "provenance": "Introduced in repository commit 8f9c69c. Coordinate-only parser input; generating method and physical reference provenance are unverified."
+    },
+    {
+      "path": "tests/data/water_dimer.xyz",
+      "sha256": "023ae36bae7e831a2916420768e609381ffa6804fe65b7dc1221f0f45d04e8d6",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_known_emt_origin",
+      "provenance": "Historical generator ec5c2f8:tests/data/generate_test_files.py performs ASE EMT/BFGS optimization. Used only as structural coordinates; not an ab initio geometry or accuracy reference."
+    },
+    {
+      "path": "tests/data/water_eq.xyz",
+      "sha256": "bcb2c64dc3baebf893d9a1a66c8144d710b3b9e2800c303b47403005933ee644",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_known_emt_origin",
+      "provenance": "Historical generator ec5c2f8:tests/data/generate_test_files.py performs ASE EMT/BFGS optimization. Used only as structural coordinates; not an ab initio geometry or accuracy reference."
+    },
+    {
+      "path": "tests/fixtures/trajectories/xtb-6.7.1-water-optimization.xyz",
+      "sha256": "9338f7e83af9c64b32baecab821c42080ea9c88f231a4dbcdb2c1e74c90607de",
+      "purpose": "Recorded trajectory parsing and transport; replay is not live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Native xTB 6.7.1 water optimization; see tests/fixtures/trajectories/README.md and original /workspace/cochem-runtime/chain-pass2-jt1upcd8/campaign/xtbopt.log"
+    },
+    {
+      "path": "examples/product_b/gaas_ordered.cif",
+      "sha256": "49e92a70862833154db267b70f6ff95c3e61b9203a0a4ec61d673a374e94d6c2",
+      "purpose": "Ordered primitive-cell CIF ingestion example; no calculated electronic properties",
+      "provenance_status": "constructed_geometry_input",
+      "provenance": "Explicit GaAs 5.65 angstrom cubic cell represented in primitive vectors; see examples/product_b/README.md. Example coordinates are not a computed reference."
+    }
+  ]
+}

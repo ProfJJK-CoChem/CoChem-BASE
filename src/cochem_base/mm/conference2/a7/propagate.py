@@ -75,6 +75,8 @@ Every number emitted carries an authoritative provenance tag:
 
 from __future__ import annotations
 
+from cochem_base.core import cochem_constants as _constants
+
 import argparse
 import hashlib
 import json
@@ -87,6 +89,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Reconfigure stream encodings for safe cross-platform output (prevent Windows cp1252 crash)
 if hasattr(sys.stdout, "reconfigure"):
@@ -113,12 +117,12 @@ except ImportError:
 # Conversion constant from moment of inertia (amu * Angstrom^2) to rotational
 # constant in MHz: [B(MHz)][I(amu Angstrom^2)] = 505379.0 MHz * amu * Angstrom^2
 # Reference: Groner (2016); NIST CCCBDB; Method Matrix §4.1, §4.5, §5.1.
-CONV_MHZ_AMU_ANG2: float = 505379.0
-CODATA_CONV_EXACT: float = 505379.00536  # High-precision Groner / CODATA constant
+CONV_MHZ_AMU_ANG2: float = _constants.C_ROT_MHZ_U_ANG2
+CODATA_CONV_EXACT: float = _constants.C_ROT_MHZ_U_ANG2
 
 # Unit conversions
-BOHR_TO_ANGSTROM: float = 0.529177210903
-ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM
+BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_BOHR: float = _constants.ANGSTROM_TO_BOHR
 ANGSTROM_TO_PM: float = 100.0
 PM_TO_ANGSTROM: float = 0.01
 

@@ -208,6 +208,7 @@ def test_rotor_classification_and_linear_singularity():
 # ==============================================================================
 def test_molsym_point_group_and_symmetry_orbits():
     """Verify point group symmetry detection, rotational symmetry number sigma, and SEA partitioning."""
+    pytest.importorskip("molsym", reason="Install CoChem-BASE[symmetry] for point-group classification")
     # Water: C2v, sigma = 2, 2 SEA orbits ([O], [H1, H2])
     water_coords = np.array([[0.0, 0.0, 0.1173], [0.0, 0.7572, -0.4692], [0.0, -0.7572, -0.4692]])
     prof_h2o = analyze_molecular_symmetry(water_coords, symbols=["O", "H", "H"])

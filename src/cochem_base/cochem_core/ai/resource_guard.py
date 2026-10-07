@@ -45,7 +45,7 @@ logger = logging.getLogger("CoChem.AI.ResourceGuard")
 # =============================================================================
 
 DEFAULT_MIN_RAM_GB: float = 8.0
-DEFAULT_MIN_AVAILABLE_RAM_GB: float = 2.0
+DEFAULT_MIN_AVAILABLE_RAM_GB: float = 8.0
 DEFAULT_MIN_VRAM_GB: float = 0.0
 
 CGROUP_V2_MAX_PATH: str = "/sys/fs/cgroup/memory.max"
@@ -462,65 +462,16 @@ def detect_active_calculations(
 def resolve_cochem_system_config(
     config_path: Optional[Union[str, Path]] = None,
 ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[str]]:
-    """
-    Discovers and parses cochem_system_config.json to retrieve the HardwareSchema and active_jobs.
-    Follows authoritative resolution hierarchy:
-    1. Explicit custom config_path parameter.
-    2. COCHEM_CONFIG environment variable.
-    3. $HOME/CoChem_Artifacts/Registry/cochem_system_config.json
-    4. $HOME/cochem_artifacts/Registry/cochem_system_config.json
-    5. $COCHEM_ARTIFACT_DIR/Registry/cochem_system_config.json
-    6. Local repository cochem_system_config.json
-    Returns (hardware_schema_dict, active_jobs_dict, resolved_path_str).
-    Never raises an exception on missing or corrupted files.
-    """
-    candidates: List[Path] = []
-
-    if config_path:
-        candidates.append(Path(os.path.expandvars(str(config_path))).expanduser().resolve())
-
-    env_config = os.environ.get("COCHEM_CONFIG")
-    if env_config:
-        candidates.append(Path(os.path.expandvars(env_config)).expanduser().resolve())
-
-    env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
-    if env_art:
-        art_path = Path(os.path.expandvars(env_art)).expanduser()
-        candidates.append(art_path / "Registry" / "cochem_system_config.json")
-        candidates.append(art_path / "cochem_system_config.json")
-
-    home = Path.home()
-    candidates.append(home / "CoChem_Artifacts" / "Registry" / "cochem_system_config.json")
-    candidates.append(home / "cochem_artifacts" / "Registry" / "cochem_system_config.json")
-    candidates.append(home / "CoChem_Artifacts" / "cochem_system_config.json")
-
-    # Repo-relative fallback paths
-    current_dir = Path(__file__).resolve().parent
-    repo_candidates = [
-        current_dir.parent.parent / "cochem_system_config.json",
-        current_dir.parent.parent / "Registry" / "cochem_system_config.json",
-        Path.cwd() / "cochem_system_config.json",
-        Path.cwd() / "Registry" / "cochem_system_config.json",
-    ]
-    candidates.extend(repo_candidates)
-
-    for target in candidates:
-        try:
-            if target.exists() and target.is_file():
-                content = target.read_text(encoding="utf-8")
-                raw_data = json.loads(content)
-                if isinstance(raw_data, dict):
-                    hardware = raw_data.get("hardware")
-                    active_jobs = raw_data.get("active_jobs", {})
-                    return (
-                        hardware if isinstance(hardware, dict) else None,
-                        active_jobs if isinstance(active_jobs, dict) else {},
-                        str(target),
-                    )
-        except Exception as e:
-            logger.debug(f"Failed to load or parse candidate system config at {target}: {e}")
-
-    return None, None, None
+    """Load only the selected, schema-validated Stage 0 authority registry."""
+    from cochem_base.orchestrator.cochem_system_config import load_golden_registry, resolve_golden_registry_path
+    target = resolve_golden_registry_path(config_path)
+    try:
+        config = load_golden_registry(target)
+        data = config.model_dump(mode="json")
+        return data["hardware"], data.get("active_jobs", {}), str(target)
+    except (OSError, ValueError, RuntimeError) as exc:
+        logger.debug("Golden registry unavailable at %s: %s", target, exc)
+        return None, None, str(target)
 
 
 # =============================================================================
@@ -570,7 +521,15 @@ def evaluate_resource_guard(
         # Calculate effective total RAM (respecting container ceilings)
         if cgroup_ram_limit_gb is not None and cgroup_ram_limit_gb < host_total_ram_gb:
             effective_total_ram_gb = cgroup_ram_limit_gb
-            effective_available_ram_gb = min(host_available_ram_gb, cgroup_ram_limit_gb)
+            v2_limit = Path(custom_cgroup_v2_path or CGROUP_V2_MAX_PATH)
+            v1_limit = Path(custom_cgroup_v1_path or CGROUP_V1_LIMIT_PATH)
+            v2_value = v2_limit.read_text().strip() if v2_limit.exists() else "max"
+            usage_path = (v2_limit.with_name("memory.current") if v2_value.isdigit() and int(v2_value) > 0
+                          else v1_limit.with_name("memory.usage_in_bytes"))
+            # A ceiling is not free memory. Unknown usage authorizes no local model.
+            used_gb = (int(usage_path.read_text().strip()) / 1024**3
+                       if usage_path.exists() else cgroup_ram_limit_gb)
+            effective_available_ram_gb = min(host_available_ram_gb, max(0.0, cgroup_ram_limit_gb - used_gb))
         else:
             effective_total_ram_gb = host_total_ram_gb
             effective_available_ram_gb = host_available_ram_gb
@@ -584,9 +543,11 @@ def evaluate_resource_guard(
         resolved_config_path: Optional[str]
 
         if system_config_override is not None:
-            hw_schema = system_config_override.get("hardware")
-            active_jobs = system_config_override.get("active_jobs", {})
-            resolved_config_path = "[OVERRIDE_IN_MEMORY]"
+            from cochem_base.orchestrator.cochem_system_config import CoChemSystemConfig
+            validated = CoChemSystemConfig.model_validate(system_config_override).model_dump(mode="json")
+            hw_schema = validated["hardware"]
+            active_jobs = validated.get("active_jobs", {})
+            resolved_config_path = "[VALIDATED_IN_MEMORY]"
         else:
             hw_schema, active_jobs, resolved_config_path = resolve_cochem_system_config(config_path)
 
@@ -599,6 +560,12 @@ def evaluate_resource_guard(
 
         # 6. Evaluate Resource Guard Invariants
         intercept_reasons: List[str] = []
+        if hw_schema is None:
+            intercept_reasons.append("Authoritative Stage 0 hardware registry is unavailable or invalid")
+        else:
+            effective_total_ram_gb = min(effective_total_ram_gb, float(hw_schema["ram_gb"]))
+            effective_available_ram_gb = min(effective_available_ram_gb, effective_total_ram_gb)
+            available_vram_gb = min(available_vram_gb, float(hw_schema.get("vram_gb", 0)))
 
         # Criterion A: Total RAM Safety Threshold (< 8.0 GB default)
         if effective_total_ram_gb < min_ram_gb:

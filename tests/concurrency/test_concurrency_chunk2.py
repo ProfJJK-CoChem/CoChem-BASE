@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import json
 import multiprocessing.shared_memory as sm
 import os
 import pathlib
@@ -67,34 +68,32 @@ def test_zero_orphan_process_reaping(test_exec_context: ExecutionContext) -> Non
     broker = SubprocessBroker(test_exec_context)
 
     # Launch a Python script that spawns a child worker and waits
-    marker_token = f"cochem_orphan_marker_{uuid.uuid4().hex[:8]}"
+    pid_file = test_exec_context.scratch_dir / "owned_processes.json"
     script = (
-        "import sys, subprocess, time\n"
+        "import json, os, pathlib, sys, subprocess, time\n"
         "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
-        f"# {marker_token}\n"
+        "pathlib.Path(sys.argv[1]).write_text(json.dumps([os.getpid(), p.pid]))\n"
         "time.sleep(30)\n"
     )
 
     result = broker.execute(
-        [sys.executable, "-c", script],
+        [sys.executable, "-c", script, str(pid_file)],
         timeout_sec=1.5,
     )
 
     # The broker should report timeout
     assert not result.success
-    assert result.returncode == -1
+    assert result.returncode == -124
 
     # Give OS brief grace window to clean up handles
     time.sleep(0.5)
 
-    # Scan psutil to verify zero remaining processes containing the marker or lingering child sleep
-    current_pids = set(psutil.pids())
-    for pid in current_pids:
+    # Check both processes we actually launched, without scanning unrelated jobs.
+    for pid in json.loads(pid_file.read_text()):
         try:
             p = psutil.Process(pid)
-            cmdline = " ".join(p.cmdline())
-            assert marker_token not in cmdline, f"Orphaned process detected: PID {pid}, {cmdline}"
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            assert not p.is_running() or p.status() == psutil.STATUS_ZOMBIE, f"Live orphan: {pid}"
+        except psutil.NoSuchProcess:
             continue
 
     # On Windows, verify WindowsJobObject capability
@@ -140,7 +139,7 @@ def test_pes_store_swmr_concurrent_readers(tmp_path: pathlib.Path) -> None:
 
     # Register method and seed initial point
     store.register_method("b3lyp_svp", method="b3lyp", basis="def2-svp")
-    store.record_point_to_active("b3lyp_svp", coords=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]], energy=-1.17)
+    store.record_point_to_active("b3lyp_svp", coords=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]], energy=-1.17, converged=False)
 
     read_results: List[int] = []
     read_errors: List[Exception] = []
@@ -168,6 +167,7 @@ def test_pes_store_swmr_concurrent_readers(tmp_path: pathlib.Path) -> None:
                 "b3lyp_svp",
                 coords=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74 + 0.01 * step]],
                 energies=[-1.17 - 0.001 * step],
+                converged=False,
             )
 
     for t in threads:
@@ -188,8 +188,8 @@ def test_shared_memory_zero_leakage() -> None:
     shm_name = desc["name"]
 
     # Ingest array from descriptor in consumer
-    extracted = SharedMemoryBuffer.read_from_descriptor(desc)
-    assert np.allclose(extracted, test_data)
+    with SharedMemoryBuffer.read_from_descriptor(desc) as extracted:
+        assert np.allclose(extracted, test_data)
 
     # Close the producer buffer
     shm_buffer.close()

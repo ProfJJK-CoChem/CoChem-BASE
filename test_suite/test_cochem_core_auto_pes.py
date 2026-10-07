@@ -1,5 +1,5 @@
 """
-Physical Unit and Integration Test Suite for CoChem Core AutoPES Engine.
+Numerical Unit and Integration Test Suite for CoChem Core AutoPES Engine.
 
 Validates:
 1. AUD-01: Invariant GeometryFeaturizer (Morse coordinates, pair distances, Coulomb matrix, analytical Jacobians).
@@ -7,8 +7,11 @@ Validates:
 3. AUD-03: Committee Uncertainty Quantification (M=4 ensemble, E_bar, sigma_E / sqrt(N_atoms) in meV/atom, G5 IQR threshold).
 4. AUD-04: Active Learning point selection (300-800 points from ~2,000 pool, Two-Set Error-Based Acquisition, anti-pure-variance checks).
 5. AUD-05: Delta-Learning Potential Energy Surface Fitting (Kernel Ridge Regression, analytical Cartesian gradients, exact model persistence).
-6. AUD-06: Spectroscopic Held-Out Validation Protocol (Held-out RMSE in cm^-1, kcal/mol, and Hartree against <= 10.0 cm^-1 target).
+6. AUD-06: Numerical paired-correction validation and separate standalone-surrogate rejection (Held-out RMSE in cm^-1, kcal/mol, and Hartree against <= 10.0 cm^-1 target).
 7. AUD-07: Integration with PESStore HDF5 campaign container (dataset loading, delta_pairs extraction, model fitting).
+
+The Cu/Ag/Au EMT trajectory and affine transformed target exercise numerical
+software contracts. They are not DFT/CCSD(T) or experimental spectroscopy.
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ from core_engine.cochem_core_auto_pes import (
     get_dynamic_atomic_number,
 )
 from core_engine.cochem_core_pes_store import PESStore
+from cochem_base.exceptions import MethodMatrixViolationError
 
 
 # =============================================================================
@@ -109,11 +113,11 @@ def test_geometry_featurizer_morse_and_jacobian() -> None:
 
 def test_committee_uncertainty_and_g5_gate() -> None:
     """Validates CommitteeModel M=4 ensemble UQ and Guard G5 IQR threshold calculation."""
-    symbols, geoms, e_dft, _ = generate_benchmark_intermolecular_pes_data(n_points=100, random_seed=42)
+    symbols, geoms, empirical_energy, _ = generate_benchmark_intermolecular_pes_data(n_points=100, random_seed=42)
     featurizer = GeometryFeaturizer(symbols=symbols, morse_lambda=2.0)
 
     committee = CommitteeModel(featurizer=featurizer, committee_size=4, random_seed=42)
-    committee.fit(geoms[:50], e_dft[:50])
+    committee.fit(geoms[:50], empirical_energy[:50])
 
     assert committee.is_fitted
     assert len(committee.members) == 4
@@ -130,7 +134,7 @@ def test_committee_uncertainty_and_g5_gate() -> None:
 
 def test_active_learning_selection_execution() -> None:
     """Validates active learning selection of 300-800 points from candidate pool."""
-    symbols, geoms, e_dft, _ = generate_benchmark_intermolecular_pes_data(n_points=600, random_seed=42)
+    symbols, geoms, empirical_energy, _ = generate_benchmark_intermolecular_pes_data(n_points=600, random_seed=42)
     featurizer = GeometryFeaturizer(symbols=symbols, morse_lambda=2.0)
 
     config = ActiveLearningConfig(
@@ -144,7 +148,7 @@ def test_active_learning_selection_execution() -> None:
     )
     al_engine = ActiveLearningEngine(featurizer=featurizer, config=config)
 
-    res = al_engine.select_points(geoms, e_dft)
+    res = al_engine.select_points(geoms, empirical_energy)
 
     assert res.n_selected == 300
     assert len(res.selected_indices) == 300
@@ -157,14 +161,14 @@ def test_active_learning_selection_execution() -> None:
 # Delta-Learning PES Fitting & Validation Tests
 # =============================================================================
 
-def test_delta_pes_fitting_and_spectroscopic_validation() -> None:
-    """Validates Delta-learning surface fitting, spectroscopic held-out RMSE, and analytical gradients."""
-    symbols, geoms, e_dft, e_cc = generate_benchmark_intermolecular_pes_data(n_points=500, random_seed=42)
+def test_affine_emt_correction_and_standalone_rejection() -> None:
+    """Verify paired-correction fitting on EMT/affine EMT; this is not quantum accuracy evidence."""
+    symbols, geoms, empirical_energy, transformed_energy = generate_benchmark_intermolecular_pes_data(n_points=500, random_seed=42)
 
     orchestrator = AutoPESOrchestrator(
         symbols=symbols,
-        low_method="wb97x_v_tz",
-        high_method="dlpno_ccsdt1_avtz",
+        low_method="ase_emt",
+        high_method="numerical_affine_emt_target",
         fit_config=DeltaFittingConfig(
             backend=FittingBackend.KERNEL_RIDGE,
             kernel=KernelType.RBF,
@@ -178,18 +182,35 @@ def test_delta_pes_fitting_and_spectroscopic_validation() -> None:
 
     model, summary = orchestrator.fit_delta_surface_from_data(
         train_geoms=geoms[train_idx],
-        train_low_energies=e_dft[train_idx],
-        train_high_energies=e_cc[train_idx],
+        train_low_energies=empirical_energy[train_idx],
+        train_high_energies=transformed_energy[train_idx],
         held_out_geoms=geoms[held_idx],
-        held_out_low_energies=e_dft[held_idx],
-        held_out_high_energies=e_cc[held_idx],
+        held_out_low_energies=empirical_energy[held_idx],
+        held_out_high_energies=transformed_energy[held_idx],
     )
 
     metrics = summary.metrics
     assert metrics.n_train == 350
     assert metrics.n_held_out == 150
-    assert metrics.held_out_rmse_cm1 < 10.0  # Spectroscopic grade verification (< 10 cm^-1)
+    assert metrics.held_out_rmse_cm1 < 10.0  # Unchanged numerical correction threshold; the baseline is evaluated independently.
     assert metrics.spectroscopic_grade is True
+    assert metrics.validation_scope == "paired_delta_correction_with_evaluated_low_energy"
+    np.testing.assert_array_equal(model.krr_estimator.y_train, transformed_energy[train_idx] - empirical_energy[train_idx])
+    # The same withheld geometries still expose poor standalone extrapolation.
+    # A passing correction cannot conceal or certify that separate failure.
+    assert metrics.held_out_baseline_rmse_cm1 > 10.0
+    assert metrics.held_out_total_surrogate_rmse_cm1 > 10.0
+    assert metrics.total_surrogate_meets_target is False
+    # The constructed target supplies only a 2% correction to the same EMT
+    # labels. Its small error is algebraically scaled, not independent evidence
+    # that the total surface or a quantum calculation reaches this threshold.
+    assert metrics.held_out_rmse_cm1 == pytest.approx(0.02 * metrics.held_out_baseline_rmse_cm1, abs=1e-8)
+    assert metrics.held_out_total_surrogate_rmse_cm1 == pytest.approx(1.02 * metrics.held_out_baseline_rmse_cm1, abs=1e-8)
+    corrected_energy = model.predict_total_energy(geoms[held_idx], v_low_eval=empirical_energy[held_idx])
+    corrected_rmse = np.sqrt(np.mean((corrected_energy - transformed_energy[held_idx]) ** 2)) * 219474.63136320
+    assert corrected_rmse < 10.0
+    with pytest.raises(MethodMatrixViolationError, match="standalone total-energy accuracy"):
+        model.predict_total_energy(geoms[held_idx])
 
     # Analytical gradient shape verification
     grad = model.predict_gradient(geoms[0])
@@ -215,39 +236,39 @@ def test_autopes_pesstore_integration() -> None:
     """Validates end-to-end integration between AutoPES and PESStore HDF5 container."""
     with tempfile.TemporaryDirectory() as tmpdir:
         h5_path = Path(tmpdir) / "test_campaign.h5"
-        symbols, geoms, e_dft, e_cc = generate_benchmark_intermolecular_pes_data(n_points=300, random_seed=42)
+        symbols, geoms, empirical_energy, transformed_energy = generate_benchmark_intermolecular_pes_data(n_points=300, random_seed=42)
 
         store = PESStore(
             path=str(h5_path),
-            complex_name="Ar-HCl",
+            complex_name="CuAgAu numerical regression",
             symbols=symbols,
         )
 
         # Register low and high methods
         store.register_method(
-            method_id="wb97x_v_tz",
-            method="wB97X-V",
-            basis="def2-TZVPP",
-            program="ORCA",
+            method_id="ase_emt",
+            method="EMT",
+            basis="not_applicable",
+            program="ASE numerical fixture",
             driver="energy",
         )
         store.register_method(
-            method_id="dlpno_ccsdt1_avtz",
-            method="DLPNO-CCSD(T1)",
-            basis="cc-pVDZ-F12",
-            program="ORCA",
+            method_id="numerical_affine_emt_target",
+            method="Affine-transformed EMT numerical target",
+            basis="not_applicable",
+            program="ASE numerical fixture",
             driver="energy",
         )
 
         # Append points to store
         point_ids = [f"pt_{i:04d}" for i in range(len(geoms))]
-        store.add_points("wb97x_v_tz", geoms, e_dft, point_ids=point_ids, wall_s=np.full(len(geoms), 1.0, dtype=np.float64))
-        store.add_points("dlpno_ccsdt1_avtz", geoms, e_cc, point_ids=point_ids, wall_s=np.full(len(geoms), 1.0, dtype=np.float64))
+        store.add_points("ase_emt", geoms, empirical_energy, point_ids=point_ids, converged=True)
+        store.add_points("numerical_affine_emt_target", geoms, transformed_energy, point_ids=point_ids, converged=True)
 
         orchestrator = AutoPESOrchestrator(
             symbols=symbols,
-            low_method="wb97x_v_tz",
-            high_method="dlpno_ccsdt1_avtz",
+            low_method="ase_emt",
+            high_method="numerical_affine_emt_target",
             al_config=ActiveLearningConfig(
                 pool_size=300,
                 n_select_min=100,

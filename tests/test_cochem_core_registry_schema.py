@@ -20,7 +20,6 @@ from pydantic import ValidationError
 from cochem_core_registry_schema import (
     BYPASS_TOKENS,
     CARBON_13_ISOTOPIC_MASS,
-    ISOTOPIC_MASSES,
     CoChemConfig,
     CoChemSystemConfig,
     CorePinningConfig,
@@ -328,10 +327,11 @@ def test_environment_schema_isotopic_mass_locking():
     assert env.isotopic_mass_13c == CARBON_13_ISOTOPIC_MASS
     assert abs(env.isotopic_mass_13c - 13.00335483507) < 1e-9
     assert env.get_isotopic_mass("13C") == CARBON_13_ISOTOPIC_MASS
-    assert env.get_isotopic_mass("12C") == 12.0
-    assert env.get_isotopic_mass("1H") == 1.00782503223
-    assert env.get_isotopic_mass("14N") == 14.00307400443
-    assert env.get_isotopic_mass("16O") == 15.99491461957
+    from mendeleev import element
+    for symbol, number in (("C", 12), ("H", 1), ("N", 14), ("O", 16)):
+        expected = next(isotope.mass for isotope in element(symbol).isotopes if isotope.mass_number == number)
+        assert env.get_isotopic_mass(f"{number}{symbol}") == expected
+
 
     with pytest.raises(KeyError):
         env.get_isotopic_mass("999Unobtainium")
@@ -572,9 +572,10 @@ def test_cochem_system_config_io_lifecycle(tmp_path: Path):
     assert loaded.hpc.scheduler == "slurm"
 
     # create_default
-    default_cfg = CoChemSystemConfig.create_default(auto_detect_hardware=False)
-    assert default_cfg.hardware.cpu_physical_cores == 4
-    assert default_cfg.silos.torq_silo_active is True
+    default_cfg = CoChemSystemConfig.create_default(auto_detect_hardware=True)
+    import psutil
+    assert default_cfg.hardware.cpu_physical_cores == psutil.cpu_count(logical=False)
+    assert default_cfg.silos.torq_silo_active is False
 
 
 # =============================================================================

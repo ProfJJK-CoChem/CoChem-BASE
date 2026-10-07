@@ -8,6 +8,7 @@ cryptographic SHA-256 artifact verification, and applies immutable POSIX read-on
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 from pathlib import Path
@@ -15,9 +16,18 @@ from typing import Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 
+from cochem_base.analysis.electronic_sanitizer import ElectronicSanitizer
+from cochem_base.exceptions import GeometryConvergenceError, MissingDataError
+
+_NUMBER = r"(?:[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][-+]?\d+)?|[-+]?(?:nan|inf(?:inity)?))"
+
+
+def _number(value: str) -> float:
+    return float(value.replace("D", "E").replace("d", "e"))
+
 
 class QCSchemaProperties(BaseModel):
-    return_energy: float
+    return_energy: float = Field(allow_inf_nan=False)
     scf_iterations: int
 
 class QCSchemaProvenance(BaseModel):
@@ -50,7 +60,10 @@ class QuantumParser:
         self.scf_threshold = 1e-7
 
     def verify_scf_convergence(self, log_path: Path) -> bool:
-        delta_e_pattern = re.compile(r"dE\s*=\s*([-+]?\d*\.\d+[eE]?[-+]?\d*)")
+        delta_e_pattern = re.compile(
+            rf"(?:\bdE\s*=\s*|\bLast Energy change\s*(?:\.{{2,}}|:|=)?\s*)({_NUMBER})",
+            re.IGNORECASE,
+        )
         last_de = None
 
         with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
@@ -61,15 +74,15 @@ class QuantumParser:
         for line in content.splitlines():
             match = delta_e_pattern.search(line)
             if match:
-                last_de = abs(float(match.group(1)))
-
-            if "TERMINATED NORMALLY" in line:
-                if last_de is not None and last_de < self.scf_threshold:
-                    return True
-                else:
-                    logger.error(f"❌ Pseudo-Convergence detected! Final ΔE ({last_de}) >= {self.scf_threshold}")
-                    return False
-        return False
+                last_de = abs(_number(match.group(1)))
+        if re.search(r"SCF NOT CONVERGED|SCF DID NOT CONVERGE|ERROR TERMINATION", content, re.I):
+            return False
+        if "TERMINATED NORMALLY" not in content or last_de is None:
+            return False
+        if not math.isfinite(last_de) or last_de >= self.scf_threshold:
+            logger.error("SCF energy change %s does not satisfy %s", last_de, self.scf_threshold)
+            return False
+        return True
 
     def verify_basis_saturation(self, log_path: Path) -> None:
         primary_pat = re.compile(r"^\s*(?:Number of basis functions|Basis Dimension|Basis Size)\s*(?:Dim\s*)?(?:\.{3,}|:)\s*(\d+)", re.IGNORECASE)
@@ -94,39 +107,76 @@ class QuantumParser:
             if n_aux <= n_primary:
                 logger.warning(f"[CROWN WARNING] Auxiliary Basis Under-saturation! N_aux ({n_aux}) <= N_primary ({n_primary}). Risk of severe Density Fitting accuracy loss.")
 
-    def check_spin_contamination(self, log_path: Path, threshold: float = 0.1) -> bool:
+    def check_spin_contamination(
+        self, log_path: Path, threshold: float = 0.1, multiplicity: Optional[int] = None
+    ) -> bool:
+        """Enforce the relative spin gate before accepting any trajectory result.
+
+        ``threshold`` is a fraction (0.1 means 10%), not an absolute S-squared
+        difference. Missing diagnostics cannot establish spin purity. Restricted
+        closed-shell jobs may omit S-squared only with explicit RKS/RHF evidence.
         """
-        Verifies spin contamination (<S**2> vs S*(S+1)) in open/closed shell calculations.
-        Returns True if spin contamination is within acceptable limits (diff <= threshold).
-        """
-        s2_pat = re.compile(r"Expectation value of <S\*\*2>\s*:\s*([-+]?\d*\.\d+)")
-        ideal_pat = re.compile(r"Ideal value S\*\(S\+1\)\s*:\s*([-+]?\d*\.\d+)")
-        s2_val = None
-        ideal_val = None
-        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
-            for line in f:
-                m1 = s2_pat.search(line)
-                if m1:
-                    s2_val = float(m1.group(1))
-                m2 = ideal_pat.search(line)
-                if m2:
-                    ideal_val = float(m2.group(1))
-        if s2_val is not None and ideal_val is not None:
-            return abs(s2_val - ideal_val) <= threshold
+        content = Path(log_path).read_text(encoding="utf-8", errors="replace")
+        if multiplicity is not None and (isinstance(multiplicity, bool) or not isinstance(multiplicity, int) or multiplicity < 1):
+            raise ValueError("Spin multiplicity must be a positive integer.")
+        observed = re.findall(rf"Expectation value of <S(?:\*\*|\^)2>\s*:\s*({_NUMBER})", content, re.I)
+        ideal = re.findall(rf"Ideal value S\*\(S\+1\)\s*:\s*({_NUMBER})", content, re.I)
+        if not math.isfinite(threshold) or not 0 < threshold <= 0.1:
+            raise ValueError("The spin-contamination threshold must be in (0, 0.1].")
+        if multiplicity is None and ideal:
+            ideals = [_number(item) for item in ideal]
+            if any(not math.isfinite(item) or item < 0 for item in ideals):
+                raise MissingDataError("Invalid ideal spin expectation value in output.")
+            roots = [math.sqrt(1.0 + 4.0 * item) for item in ideals]
+            multiplicity = round(roots[-1])
+            if any(not math.isclose(root, multiplicity, abs_tol=1e-6) for root in roots):
+                raise MissingDataError("Inconsistent or nonphysical ideal spin values in output.")
+        if not observed:
+            if re.search(r"\b(?:RKS|RHF)\b", content, re.I) and not re.search(r"\b(?:UKS|UHF)\b", content, re.I) and multiplicity in (None, 1):
+                return True
+            raise MissingDataError("Missing spin diagnostics; unrestricted results cannot be accepted.")
+        if multiplicity is None:
+            raise MissingDataError("Spin multiplicity or ideal S*(S+1) is required to assess contamination.")
+        for value in observed:
+            ElectronicSanitizer.diagnose_spin_contamination(
+                _number(value), multiplicity=multiplicity, relative_threshold_pct=100.0 * threshold
+            )
         return True
+
+    def verify_geometry_convergence(self, log_path: Path) -> dict[str, float]:
+        """Check the final ORCA convergence table against all five SRS limits."""
+        content = Path(log_path).read_text(encoding="utf-8", errors="replace")
+        if not re.search(r"OPTIMIZATION (?:HAS )?CONVERGED", content, re.I):
+            raise GeometryConvergenceError("Missing successful geometry optimization termination.")
+        limits = {"Energy change": 1e-7, "RMS gradient": 3e-6, "MAX gradient": 1e-5,
+                  "RMS step": 5e-5, "MAX step": 1e-4}
+        final: dict[str, float] = {}
+        # A new convergence table invalidates the preceding cycle's evidence.
+        tables = re.split(r"Geometry convergence", content, flags=re.I)
+        table = tables[-1]
+        for label, limit in limits.items():
+            values = re.findall(rf"^\s*{label}\s*(?::|=)?\s*({_NUMBER})\b", table, re.I | re.M)
+            if not values:
+                raise GeometryConvergenceError(f"Missing final {label} convergence evidence.")
+            value = abs(_number(values[-1]))
+            if not math.isfinite(value) or value > limit:
+                raise GeometryConvergenceError(f"Final {label} {value:g} exceeds required {limit:g}.")
+            final[label] = value
+        return final
 
     def parse_to_qcschema(self, log_path: Path, basin_id: str, log_sha256: str, gbw_sha256: Optional[str] = None) -> QCSchemaMolecule:
         final_energy = None
         scf_iterations = None
-        energy_pattern = re.compile(r"FINAL SINGLE POINT ENERGY\s+([-+]?\d+\.\d+)")
+        energy_pattern = re.compile(rf"FINAL SINGLE POINT ENERGY\s+({_NUMBER})", re.I)
         iter_pattern1 = re.compile(r"Total SCF iterations\s*:\s*(\d+)")
         iter_pattern2 = re.compile(r"SCF ITERATION\s+(\d+)", re.IGNORECASE)
+        iter_pattern3 = re.compile(r"SCF CONVERGED AFTER\s+(\d+)\s+CYCLES", re.IGNORECASE)
 
         with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
             for line in f:
                 match = energy_pattern.search(line)
                 if match:
-                    final_energy = float(match.group(1))
+                    final_energy = _number(match.group(1))
                 
                 m1 = iter_pattern1.search(line)
                 if m1:
@@ -137,8 +187,11 @@ class QuantumParser:
                     val = int(m2.group(1))
                     if scf_iterations is None or val > scf_iterations:
                         scf_iterations = val
+                m3 = iter_pattern3.search(line)
+                if m3:
+                    scf_iterations = int(m3.group(1))
 
-        if final_energy is None:
+        if final_energy is None or not math.isfinite(final_energy):
             raise ValueError("[MISSING DATA] Could not extract FINAL SINGLE POINT ENERGY from log.")
         if scf_iterations is None:
             raise ValueError("[MISSING DATA] Could not extract SCF iterations from log.")
@@ -156,7 +209,12 @@ class QuantumParser:
         if file_path.exists():
             file_path.chmod(0o444)
 
-    def process_artifact(self, basin_id: str) -> bool:
+    def process_artifact(
+        self, basin_id: str, *, is_optimization: Optional[bool] = None,
+        multiplicity: Optional[int] = None,
+    ) -> bool:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", basin_id):
+            raise ValueError("basin_id must be a safe filename component.")
         log_path = self.artifact_base / f"{basin_id}_job.out"
         json_path = self.artifact_base / f"{basin_id}_qcschema.json"
         gbw_path = self.artifact_base / f"{basin_id}_job.gbw"
@@ -167,11 +225,12 @@ class QuantumParser:
         if not self.verify_scf_convergence(log_path):
             return False
 
-        if not self.check_spin_contamination(log_path):
-            return False
-
-        if not self.check_spin_contamination(log_path):
-            return False
+        self.check_spin_contamination(log_path, multiplicity=multiplicity)
+        if is_optimization is None:
+            content = log_path.read_text(encoding="utf-8", errors="replace")
+            is_optimization = bool(re.search(r"GEOMETRY OPTIMIZATION|OPTIMIZATION (?:HAS )?CONVERGED", content, re.I))
+        if is_optimization:
+            self.verify_geometry_convergence(log_path)
 
         self.verify_basis_saturation(log_path)
 
@@ -210,12 +269,16 @@ class QuantumParser:
         """
         path = Path(log_path)
         content = path.read_text(encoding="utf-8", errors="replace")
-        max_g_pattern = re.compile(r"MAX GRADIENT\s*:\s*([-+]?\d*\.\d+[eE]?[-+]?\d*)", re.IGNORECASE)
-        last_max_g = 0.0
+        if not math.isfinite(strain_threshold) or strain_threshold <= 0:
+            raise ValueError("Residual gradient threshold must be finite and positive.")
+        max_g_pattern = re.compile(rf"MAX GRADIENT\s*(?::|=)?\s*({_NUMBER})", re.IGNORECASE)
+        last_max_g = None
         for line in content.splitlines():
             m = max_g_pattern.search(line)
             if m:
-                last_max_g = abs(float(m.group(1)))
+                last_max_g = abs(_number(m.group(1)))
+        if last_max_g is None or not math.isfinite(last_max_g):
+            raise MissingDataError("Missing finite residual gradient evidence in output.")
         has_strain = last_max_g > strain_threshold
         return last_max_g, has_strain
 

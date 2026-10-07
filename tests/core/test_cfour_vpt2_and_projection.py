@@ -1,6 +1,6 @@
-"""Physical unit tests for CFOUR projection null-space and VPT2 force-field re-transformation.
+"""Analytical-model tests for CFOUR projection and anharmonic evidence boundaries.
 Strictly adheres to Method Matrix v4, Zero-Mock Protocol, and the Mendeleev Mandate.
-Verifies 3N-6 mode preservation without scalar cutoffs and exact Duschinsky-based alpha re-weighting.
+Verifies 3N-6 mode preservation and refuses unsupported isotope ground-state constants.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def test_diagonalize_projected_hessian_mode_count_and_soft_modes() -> None:
     n_atoms = len(symbols)
     assert n_atoms == 6
 
-    # Physical water dimer benchmark geometry
+    # Water-dimer coordinate input; not an accuracy reference geometry
     coordinates = np.array([
         [-1.455, 0.0, -0.076],
         [-1.838, -0.781, 0.325],
@@ -38,7 +38,7 @@ def test_diagonalize_projected_hessian_mode_count_and_soft_modes() -> None:
 
     masses = [float(element(sym).mass) for sym in symbols]
 
-    # Construct physical Cartesian force constant matrix (intramolecular + weak intermolecular)
+    # Construct an analytical spring-network Cartesian matrix (intramolecular + weak intermolecular)
     # in Hartree / bohr^2
     hessian = np.full((3 * n_atoms, 3 * n_atoms), 0.0, dtype=np.float64)
     interactions = [
@@ -86,8 +86,8 @@ def test_diagonalize_projected_hessian_mode_count_and_soft_modes() -> None:
     assert zpe > 0.0
 
 
-def test_isomass_vpt2_non_linear_alpha_scaling() -> None:
-    """Verify that VPT2 force-field re-transformation for HDO vs H2O tests non-linear alpha scaling."""
+def test_isomass_cannot_infer_isotope_anharmonic_constants_from_parent_alphas() -> None:
+    """Parent alphas do not determine the full isotope-specific anharmonic tensor."""
     symbols = ["O", "H", "H"]
     coordinates = np.array([
         [0.0, 0.0, 0.1173],
@@ -95,7 +95,7 @@ def test_isomass_vpt2_non_linear_alpha_scaling() -> None:
         [0.0, -0.7572, -0.4692],
     ], dtype=np.float64)
 
-    # Cartesian force constants for water (Hartree / bohr^2)
+    # Analytical spring-network constants; not quantum force-field evidence
     hessian = np.full((9, 9), 0.0, dtype=np.float64)
     interactions = [(0, 1, 0.55), (0, 2, 0.55), (1, 2, 0.06)]
     for i, j, k_const in interactions:
@@ -145,28 +145,11 @@ def test_isomass_vpt2_non_linear_alpha_scaling() -> None:
         parent_alphas=parent_alphas,
     )
 
-    # Linear scaling baseline prediction (the flawed formula that was eradicated)
+    # Complete explicitly supplied parent alphas determine the parent B0 only.
     parent_delta_A = -0.5 * sum(a.alpha_A_MHz for a in parent_alphas)
-    parent_delta_B = -0.5 * sum(a.alpha_B_MHz for a in parent_alphas)
-    linear_scaled_delta_A = parent_delta_A * (iso_result.iso_Be_MHz[0] / iso_result.parent_Be_MHz[0])
-    linear_scaled_delta_B = parent_delta_B * (iso_result.iso_Be_MHz[1] / iso_result.parent_Be_MHz[1])
-
-    # Exact Duschinsky VPT2 re-transformation results
-    actual_delta_A = iso_result.iso_B0_MHz[0] - iso_result.iso_Be_MHz[0]
-    actual_delta_B = iso_result.iso_B0_MHz[1] - iso_result.iso_Be_MHz[1]
-
-    # Assert that non-linear VPT2 scaling differs significantly from the flawed linear scaling formula
-    assert abs(actual_delta_A - linear_scaled_delta_A) > 10.0, (
-        f"VPT2 re-transformation must produce non-linear alpha scaling: "
-        f"actual={actual_delta_A}, linear={linear_scaled_delta_A}"
-    )
-    assert abs(actual_delta_B - linear_scaled_delta_B) > 10.0, (
-        f"VPT2 re-transformation must produce non-linear alpha scaling: "
-        f"actual={actual_delta_B}, linear={linear_scaled_delta_B}"
-    )
-
-    # Assert ground-state rotational constants strictly evaluate as B0 = Be + delta_vib
-    assert iso_result.iso_B0_MHz[0] == pytest.approx(iso_result.iso_Be_MHz[0] + actual_delta_A, rel=1e-12)
-    assert iso_result.iso_B0_MHz[1] == pytest.approx(iso_result.iso_Be_MHz[1] + actual_delta_B, rel=1e-12)
+    assert iso_result.parent_B0_MHz[0] == pytest.approx(iso_result.parent_Be_MHz[0] + parent_delta_A)
+    assert iso_result.iso_B0_MHz is None
+    assert iso_result.delta_A0_MHz is None
+    assert iso_result.delta_B0_MHz is None
     assert iso_result.iso_zpe_cm_inv > 0.0
     assert iso_result.zpe_shift_cm_inv != 0.0

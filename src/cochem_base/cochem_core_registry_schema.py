@@ -9,10 +9,21 @@ All schemas strictly forbid extra fields and enforce validation on assignment.
 
 from __future__ import annotations
 
+import sys
+
+# Keep the legacy top-level import and package import on one class authority.
+# Both paths previously executed this file independently, breaking isinstance
+# checks and registry persistence across installed and checkout entry points.
+if __name__ == "cochem_core_registry_schema":
+    sys.modules.setdefault("cochem_base.cochem_core_registry_schema", sys.modules[__name__])
+else:
+    sys.modules.setdefault("cochem_core_registry_schema", sys.modules[__name__])
+
 import functools
 import hashlib
 import json
 import logging
+import math
 import os
 import platform
 import re
@@ -39,26 +50,20 @@ logger = logging.getLogger(__name__)
 # CONSTANTS AND ENVIRONMENT EXPANSION
 # =============================================================================
 
-CARBON_13_ISOTOPIC_MASS: float = 13.00335483507
-
-
-@functools.lru_cache(maxsize=512)
+@functools.lru_cache(maxsize=512, typed=True)
 def get_registry_atomic_mass(symbol_or_z: Union[str, int], mass_number: Optional[int] = None) -> float:
     """Dynamic IUPAC/CIAAW mass resolver honoring the Mendeleev Mandate [M]."""
     import mendeleev
     from cochem_base.core.exceptions import IsotopeStabilityError
+    from cochem_base.physics.isotopes import get_atomic_mass, get_isotope_mass
+    symbol = mendeleev.element(symbol_or_z).symbol if isinstance(symbol_or_z, int) else symbol_or_z
+    try:
+        return get_isotope_mass(symbol, mass_number) if mass_number is not None else get_atomic_mass(symbol)
+    except ValueError as exc:
+        raise IsotopeStabilityError(f"Isotope {symbol}-{mass_number} not found in Mendeleev: {exc}") from exc
 
-    el = mendeleev.element(symbol_or_z)
-    if mass_number is not None:
-        iso = next((i for i in el.isotopes if i.mass_number == mass_number), None)
-        if iso is not None and iso.mass is not None:
-            return float(iso.mass)
-        raise IsotopeStabilityError(f"Isotope {el.symbol}-{mass_number} not found in Mendeleev.")
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    if el.mass is not None:
-        return float(el.mass)
-    raise ValueError(f"No valid mass available for element {el.symbol}.")
+
+CARBON_13_ISOTOPIC_MASS: float = get_registry_atomic_mass("C", 13)
 
 
 BYPASS_TOKENS: Set[str] = {"BYPASSED", "Not_Found", "missing"}
@@ -203,7 +208,7 @@ class MPSConfig(BaseModel):
     """CUDA Multi-Process Service (MPS) configuration."""
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    enabled: bool = Field(default=True, description="Enable CUDA MPS daemon multiplexing")
+    enabled: bool = Field(default=False, description="Enable CUDA MPS daemon multiplexing")
     max_workers: int = Field(default=4, gt=0, le=64, description="Max concurrent MPS worker tasks per GPU")
     thread_percentage: int = Field(default=25, ge=1, le=100, description="CUDA MPS active thread percentage ceiling")
     pipe_dir: str = Field(default_factory=_default_mps_pipe_dir, description="MPS pipe directory")
@@ -272,6 +277,8 @@ class HardwareSchema(BaseModel):
 
     ram_gb: float = Field(..., gt=0.0, description="Total accessible memory in GB")
     cpu_physical_cores: int = Field(default=1, ge=1, description="Actual physical silicon cores")
+    audited_cpu_ids: Optional[list[int]] = None
+    numa_cpu_ids: Dict[str, list[int]] = Field(default_factory=dict)
     allocatable_compute_cores: int = Field(default=1, ge=0, description="Allocatable compute cores for scientific jobs")
     vram_gb: float = Field(default=0.0, ge=0.0, description="Total video memory in GB")
     gpu_compute_metrics: GPUComputeSchema = Field(default_factory=GPUComputeSchema, description="GPU compute metrics and capabilities")
@@ -291,7 +298,7 @@ class HardwareSchema(BaseModel):
     os_target: Union[OSTarget, str] = Field(default=OSTarget.LOCAL_WINDOWS, description="Target execution environment")
     host_id: Optional[str] = Field(default=None, description="Host identity identifier")
     mps: Optional[MPSConfig] = Field(default_factory=MPSConfig, description="MPS daemon configuration")
-    core_pinning: Optional[CorePinningConfig] = Field(default_factory=CorePinningConfig, description="CPU core pinning topology")
+    core_pinning: Optional[CorePinningConfig] = Field(default=None, description="Audited CPU core pinning topology")
     gpu: Optional[GPUComputeSchema] = Field(default=None, description="Legacy alias for gpu_compute_metrics")
 
     @field_validator("os_target", mode="before")
@@ -347,11 +354,8 @@ class HardwareSchema(BaseModel):
             except (ValueError, TypeError) as _e:
                 logger.debug(f"Ignored exception: {_e}")
 
-        if "logical_cpu_cores" not in d or d["logical_cpu_cores"] is None:
-            if "cpu_cores" in d and d["cpu_cores"] is not None:
-                d["logical_cpu_cores"] = int(d["cpu_cores"])
-            elif "cpu_physical_cores" in d and d["cpu_physical_cores"] is not None:
-                d["logical_cpu_cores"] = int(d["cpu_physical_cores"]) * 2
+        # Physical cores do not establish the logical CPU count. Keep absent
+        # topology observations unknown until hardware discovery supplies them.
 
         # Synchronize allocatable compute cores
         if "allocatable_compute_cores" not in d or d["allocatable_compute_cores"] is None:
@@ -377,7 +381,7 @@ class HardwareSchema(BaseModel):
         phys_count = int(d.get("cpu_physical_cores") or d.get("physical_cpu_cores") or 1)
         ram_mb_val = d.get("ram_mb")
         if ram_mb_val is not None:
-            calc_maxcore = max(500, int(int(ram_mb_val) * 0.75 / max(1, phys_count)))
+            calc_maxcore = max(1, int(int(ram_mb_val) * 0.75 / max(1, phys_count)))
             if "maxcore_mb" not in d or d["maxcore_mb"] is None:
                 d["maxcore_mb"] = calc_maxcore
             else:
@@ -388,7 +392,7 @@ class HardwareSchema(BaseModel):
                 except (ValueError, TypeError):
                     d["maxcore_mb"] = calc_maxcore
         elif "maxcore_mb" not in d or d["maxcore_mb"] is None:
-            d["maxcore_mb"] = 3000
+            d["maxcore_mb"] = None
 
         # Synchronize AVX-512 capabilities
         if "avx_512_capable" in d and "avx512_support" not in d:
@@ -461,8 +465,8 @@ class EnvironmentSchema(BaseModel):
     codata_version: str = Field(default="2018", description="CODATA constant version (e.g. '2018')")
     isotopic_mass_locking: bool = Field(default=True, description="Strict lock on atomic/isotopic masses")
     isotopic_mass_13c: float = Field(
-        default=CARBON_13_ISOTOPIC_MASS,
-        description="Locked isotopic mass for Carbon-13 (^13C = 13.00335483507)",
+        default_factory=lambda: get_registry_atomic_mass("C", 13),
+        description="Carbon-13 isotopic mass dynamically resolved from Mendeleev",
     )
     isotopic_masses: Dict[str, float] = Field(
         default_factory=dict,
@@ -514,22 +518,31 @@ class EnvironmentSchema(BaseModel):
             raise ValueError(f"Strict path resolution enabled: relative path '{raw_path}' is rejected.")
         return p.resolve()
 
+    @field_validator("isotopic_mass_13c")
+    @classmethod
+    def validate_carbon13_mass(cls, value: float) -> float:
+        expected = get_registry_atomic_mass("C", 13)
+        if not math.isclose(value, expected, rel_tol=0.0, abs_tol=1e-9):
+            raise ValueError("Carbon-13 mass must match the dynamic Mendeleev database")
+        return expected
+
+    @field_validator("isotopic_masses")
+    @classmethod
+    def validate_isotopic_mass_overrides(cls, values: Dict[str, float]) -> Dict[str, float]:
+        resolved = {}
+        for isotope, value in values.items():
+            expected = get_registry_atomic_mass(isotope)
+            if not math.isclose(value, expected, rel_tol=0.0, abs_tol=1e-9):
+                raise ValueError(f"Mass for {isotope} must match the dynamic Mendeleev database")
+            resolved[isotope] = expected
+        return resolved
+
     def get_isotopic_mass(self, isotope: str) -> float:
-        """Retrieve authoritative locked isotopic mass float [M]."""
-        if isotope in self.isotopic_masses:
-            return self.isotopic_masses[isotope]
-        if isotope == "13C":
-            return self.isotopic_mass_13c
-        import re
-        m = re.match(r"^(\d+)?([A-Za-z]+)$", str(isotope).strip())
-        if m:
-            mass_num = int(m.group(1)) if m.group(1) else None
-            sym = m.group(2)
-            try:
-                return get_registry_atomic_mass(sym, mass_num)
-            except Exception as exc:
-                raise KeyError(f"Isotope '{isotope}' not registered in isotopic mass matrix: {exc}") from exc
-        raise KeyError(f"Isotope '{isotope}' not registered in isotopic mass matrix.")
+        """Resolve the current database mass rather than trust serialized floats."""
+        try:
+            return get_registry_atomic_mass(isotope)
+        except Exception as exc:
+            raise KeyError(f"Isotope '{isotope}' not registered in isotopic mass matrix: {exc}") from exc
 
 
 # =============================================================================
@@ -737,6 +750,11 @@ class EnginePaths(BaseModel):
     cfour: Optional[EngineInfo] = Field(default=None)
     aimnet2: Optional[EngineInfo] = Field(default=None)
     mace: Optional[EngineInfo] = Field(default=None)
+    pyscf: Optional[EngineInfo] = Field(default=None)
+    crest: Optional[EngineInfo] = Field(default=None)
+    gxtb: Optional[EngineInfo] = Field(default=None)
+    mopac: Optional[EngineInfo] = Field(default=None)
+    qe: Optional[EngineInfo] = Field(default=None)
 
 
 class SiloConfig(BaseModel):
@@ -787,6 +805,50 @@ class HPCConfig(BaseModel):
 # 8. MASTER COCHEM SYSTEM CONFIG
 # =============================================================================
 
+class Stage0PhaseEvidence(BaseModel):
+    """Digest of one actual phase report in the current setup execution."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    phase_number: int = Field(ge=1, le=11)
+    status: str
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class MicroSiloAuthority(BaseModel):
+    """An isolated interpreter validated against the complete dependency lock."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    root: str
+    python_executable: str
+    python_version: str
+    packages: Dict[str, str]
+
+    @field_validator("root", "python_executable")
+    @classmethod
+    def absolute_path(cls, value: str) -> str:
+        if not Path(value).is_absolute():
+            raise ValueError("Micro-silo authority paths must be absolute")
+        # Preserve the venv launcher: resolving its symlink points to the host Python.
+        return str(Path(value).absolute())
+
+
+class Stage0Authority(BaseModel):
+    """Complete setup evidence; unavailable capabilities never imply readiness."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    completed_at: str
+    phases: list[Stage0PhaseEvidence]
+    micro_silos: Dict[str, MicroSiloAuthority] = Field(default_factory=dict)
+    capabilities: Dict[str, bool] = Field(default_factory=dict)
+    unavailable_capabilities: list[str] = Field(default_factory=list)
+
+    @field_validator("phases")
+    @classmethod
+    def complete_phases(cls, value: list[Stage0PhaseEvidence]) -> list[Stage0PhaseEvidence]:
+        if sorted(item.phase_number for item in value) != list(range(1, 12)):
+            raise ValueError("Stage 0 authority requires each of phases 1 through 11 exactly once")
+        if any(item.status not in {"PASSED", "DEGRADED"} for item in value):
+            raise ValueError("Failed or unexecuted phases cannot become Stage 0 authority")
+        return value
+
+
 class CoChemSystemConfig(BaseModel):
     """
     The CoChem Master System Configuration Schema.
@@ -798,7 +860,7 @@ class CoChemSystemConfig(BaseModel):
     schema_version: str = Field(default="4.0.0")
     registry_version: Optional[str] = Field(default="4.0")
     status: Optional[str] = Field(default="LOCKED", description="Registry operational status ('LOCKED', 'INITIALIZED', 'ACTIVE')")
-    orca_version: Optional[str] = Field(default="6.1.1")
+    orca_version: Optional[str] = Field(default=None)
     rdkit_random_seed: Optional[int] = Field(default=42)
     registry_checksum: Optional[str] = Field(default="", description="SHA-256 checksum of registry payload")
     last_updated: Optional[str] = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -811,6 +873,7 @@ class CoChemSystemConfig(BaseModel):
     adaptive_routing: Optional[RoutingPolicy] = None
     hpc: HPCConfig = Field(default_factory=HPCConfig)
     execution: Optional[Dict[str, Any]] = Field(default=None, description="Execution routing and default engine settings")
+    stage0: Optional[Stage0Authority] = Field(default=None)
     alignment_engine_ready: bool = Field(default=False)
     active_jobs: Dict[str, Any] = Field(default_factory=dict, description="Live execution pointers")
 
@@ -961,18 +1024,13 @@ class CoChemSystemConfig(BaseModel):
 
     @classmethod
     def create_default(cls, auto_detect_hardware: bool = False) -> CoChemSystemConfig:
-        hw = discover_host_hardware() if auto_detect_hardware else HardwareSchema(
-            cpu_physical_cores=4,
-            physical_cpu_cores=4,
-            logical_cpu_cores=8,
-            ram_gb=16.0,
-            os_target=OSTarget.LOCAL_WINDOWS if os.name == "nt" else OSTarget.LOCAL_LINUX,
-        )
-        return cls(
-            hardware=hw,
-            quantum_settings=QuantumSettings(implicit_solvation="CPCM", integration_grid="defgrid2"),
-            silos=SiloConfig(torq_silo_active=True),
-        )
+        if not auto_detect_hardware:
+            from cochem_base.core_engine.execution_authority import RegistryAuthorityViolationError
+            raise RegistryAuthorityViolationError(
+                "A default registry requires measured hardware; use auto_detect_hardware=True during Stage 0"
+            )
+        return cls(hardware=discover_host_hardware(), silos=SiloConfig())
+
 
 
 CoChemConfig = CoChemSystemConfig
@@ -984,36 +1042,34 @@ CoChemConfig = CoChemSystemConfig
 
 def discover_engine(binary_name: str) -> EngineInfo:
     """Check physical presence and provenance of a scientific binary."""
-    p = shutil.which(binary_name)
-    if p:
-        return EngineInfo(status="found", path=str(p), version="auto", hash="auto")
-    return EngineInfo(status="missing", path=None, version=None, hash=None)
+    from cochem_base.orchestrator.cochem_setup_phase_3 import audit_single_binary
+    record = audit_single_binary(binary_name)
+    return EngineInfo(
+        status="found" if record.is_available else "missing",
+        path=record.path if record.is_available else None,
+        version=record.version, hash=record.sha256_hash,
+    )
 
 
 def discover_host_hardware() -> HardwareSchema:
-    """Discover host hardware configuration safely."""
-    try:
-        import psutil  # type: ignore[import-untyped]
-        total_ram_gb = psutil.virtual_memory().total / (1024**3)
-        phys_cores = psutil.cpu_count(logical=False) or 1
-        log_cores = psutil.cpu_count(logical=True) or 1
-    except ImportError:
-        total_ram_gb = 16.0
-        phys_cores = os.cpu_count() or 1
-        log_cores = os.cpu_count() or 1
+    """Discover measured CPU/RAM; never invent missing hardware capacity.
 
-    os_target = _default_os_target()
-
+    Unavailable GPU/ISA telemetry authorizes no accelerated capacity. The full
+    probe (including observation status) is exposed by ``profile_hardware``.
+    """
+    from cochem_base.core_engine.hardware_profiler import profile_hardware
+    profile = profile_hardware()
     return HardwareSchema(
-        cpu_physical_cores=phys_cores,
-        physical_cpu_cores=phys_cores,
-        logical_cpu_cores=log_cores,
-        allocatable_compute_cores=phys_cores,
-        ram_gb=round(total_ram_gb, 2),
-        avx_512_capable=False,
-        gpu_profile="None",
-        vram_gb=0.0,
-        os_target=os_target,
+        cpu_physical_cores=profile.physical_cores,
+        physical_cpu_cores=profile.physical_cores,
+        logical_cpu_cores=profile.logical_cores,
+        allocatable_compute_cores=min(profile.physical_cores, len(profile.available_cpu_ids)),
+        audited_cpu_ids=list(profile.available_cpu_ids),
+        ram_gb=profile.allocatable_ram_bytes / 1024**3,
+        avx_512_capable=profile.avx512 is True,
+        gpu_profile="NVIDIA" if profile.gpu_probe_status == "measured" else "Unknown",
+        vram_gb=(profile.vram_bytes or 0) / 1024**3,
+        os_target=profile.environment.os_target,
     )
 
 

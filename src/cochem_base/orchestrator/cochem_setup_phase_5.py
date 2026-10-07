@@ -20,6 +20,7 @@ import argparse
 import getpass
 import json
 import logging
+import math
 import os
 import platform
 import re
@@ -73,17 +74,8 @@ import atexit
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("cochem_setup_phase_5")
 
-def sweep_zombies() -> None:
-    if psutil is None:
-        return
-    for p in psutil.process_iter(['pid', 'status']):
-        try:
-            if p.info['status'] == psutil.STATUS_ZOMBIE:
-                p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
-            logger.debug(f"Ignored exception: {_e}")
+from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
 
-atexit.register(sweep_zombies)
 
 
 # =============================================================================
@@ -649,13 +641,13 @@ def test_posix_byte_range_locking(
     else:
         test_dir = resolve_golden_config_path().parent
 
-    test_dir.mkdir(parents=True, exist_ok=True)
     probe_filename = f".cochem_swmr_lock_probe_{uuid.uuid4().hex[:8]}.lock"
     probe_path = test_dir / probe_filename
 
     is_posix = platform.system() != "Windows"
 
     try:
+        test_dir.mkdir(parents=True, exist_ok=True)
         # Create physical probe file with data to lock
         with open(probe_path, "w+b") as f:
             f.write(b"COCHEM_SWMR_BYTE_RANGE_LOCK_PROBE_HEADER_BLOCK\n" * 10)
@@ -726,14 +718,14 @@ def _sanitize_engine_record(raw_eng: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(raw_eng, dict):
         return None
     st_raw = str(raw_eng.get("status", "")).lower()
-    if "found" in st_raw or raw_eng.get("is_available") is True:
+    if st_raw in {"found", "found_valid", "ready", "available"} and raw_eng.get("is_available") is not False:
         st = "found"
     elif "bypass" in st_raw:
         st = "bypassed"
     elif "denied" in st_raw or "permission" in st_raw:
         st = "permission_denied"
     else:
-        st = "missing" if not raw_eng.get("path") else "found"
+        st = "missing"
 
     p = raw_eng.get("path")
     v = raw_eng.get("version")
@@ -866,10 +858,10 @@ def consolidate_intermediate_states(
                         # Silo Provisioning & Isolation
                         silos_data = phase_data.get("silos") or phase_data.get("silo_manifest", {})
                         gpu_active = False
-                        torq_active = True
+                        torq_active = False
                         if isinstance(silos_data, dict):
-                            if any("mace" in k or "gpu" in k for k in silos_data.keys()):
-                                gpu_active = True
+                            # An ML interpreter alone does not establish GPU availability.
+                            gpu_active = False
                             if "torq_silo_active" in silos_data:
                                 torq_active = bool(silos_data["torq_silo_active"])
                             if "gpu_silo_active" in silos_data:
@@ -923,7 +915,7 @@ def consolidate_intermediate_states(
                     elif phase_filename == "p10.json":
                         # MolSym Intake & Theoretical Eckart Frame Alignment
                         consolidated_raw["alignment_engine_ready"] = bool(
-                            phase_data.get("alignment_engine_ready", True)
+                            phase_data.get("alignment_engine_ready", False)
                         )
 
                     elif phase_filename == "p11.json":
@@ -963,27 +955,27 @@ def validate_and_build_system_config(
             discovered_hw = discover_host_hardware()
             raw["hardware"] = discovered_hw.model_dump()
         else:
-            raw["hardware"] = {
-                "cpu_physical_cores": 4,
-                "physical_cpu_cores": 4,
-                "logical_cpu_cores": 8,
-                "ram_gb": 16.0,
-            }
+            raise ConfigLockError("Hardware measurements are required when automatic discovery is disabled")
     else:
         hw_dict = dict(raw["hardware"])
         ram_val = hw_dict.get("ram_gb")
-        if ram_val is None or float(ram_val) <= 0.0:
+        if ram_val is None or not math.isfinite(float(ram_val)) or float(ram_val) <= 0.0:
             if auto_detect_fallback:
                 hw_dict["ram_gb"] = discover_host_hardware().ram_gb
             else:
-                hw_dict["ram_gb"] = 16.0
+                raise ConfigLockError("Positive measured RAM is required before registry finalization")
 
         if not hw_dict.get("cpu_physical_cores") or int(hw_dict.get("cpu_physical_cores", 0)) < 1:
-            hw_dict["cpu_physical_cores"] = hw_dict.get("physical_cpu_cores") or (discover_host_hardware().cpu_physical_cores if auto_detect_fallback else 4)
+            if hw_dict.get("physical_cpu_cores"):
+                hw_dict["cpu_physical_cores"] = hw_dict["physical_cpu_cores"]
+            elif auto_detect_fallback:
+                hw_dict["cpu_physical_cores"] = discover_host_hardware().cpu_physical_cores
+            else:
+                raise ConfigLockError("Measured physical CPU count is required before registry finalization")
         if not hw_dict.get("physical_cpu_cores"):
             hw_dict["physical_cpu_cores"] = hw_dict["cpu_physical_cores"]
-        if not hw_dict.get("logical_cpu_cores"):
-            hw_dict["logical_cpu_cores"] = hw_dict["cpu_physical_cores"] * 2
+        if not hw_dict.get("logical_cpu_cores") and auto_detect_fallback:
+            hw_dict["logical_cpu_cores"] = discover_host_hardware().logical_cpu_cores
 
         raw["hardware"] = hw_dict
 
@@ -1102,7 +1094,9 @@ def execute_workspace_sweep(
                 is_ephemeral = False
 
                 # Check for .tmp extensions or lock probe patterns
-                if ".tmp" in filename or filename.startswith(".cochem_") or filename.endswith(".lock"):
+                # Lock paths may belong to a live writer. Their existence or
+                # age does not authorize unlinking them from another process.
+                if filename.endswith((".tmp", ".tmp.json")):
                     is_ephemeral = True
 
                 # Check for intermediate p1..p11 fragments if requested
@@ -1668,17 +1662,8 @@ def stop_mps_daemon(
         except Exception as _e:
             logger.debug(f"Ignored exception: {_e}")
 
-    try:
-        for proc in psutil.process_iter(["pid", "name"]):
-            try:
-                pname = proc.info.get("name") or ""
-                if "nvidia-cuda-mps-control" in pname or "nvidia-cuda-mps-server" in pname:
-                    proc.terminate()
-                    stopped = True
-            except (psutil.NoSuchProcess, psutil.AccessDenied, Exception) as _e:
-                logger.debug(f"Ignored exception: {_e}")
-    except Exception as _e:
-        logger.debug(f"Ignored exception: {_e}")
+    # The control pipe identifies the requested daemon. Never terminate other
+    # users' MPS processes by executable name when this pipe cannot be stopped.
 
     return stopped
 
@@ -1820,15 +1805,16 @@ def run_phase_5_audit(
     force_restart: bool = False,
     dry_run: bool = False,
     workspace_dir: Optional[Union[str, Path]] = None,
-    sweep_workspace: bool = True,
+    sweep_workspace: bool = False,
+    finalize_registry: bool = False,
 ) -> Phase5AuditReport:
     """
     Execute full Phase 5 Audit Pipeline:
     1. NVIDIA MPS Daemon & VRAM Budgeting (SRS Doc 2 Part 2 Section 3.5).
     2. Physical POSIX byte-range locking test (fcntl) with graceful degradation to single-threaded mode.
     3. Intermediate state consolidation (p1.json through p11.json).
-    4. Pydantic validation and Golden Registry locking to cochem_system_config.json with os.chmod(0o444).
-    5. Workspace garbage collection sweep purging ephemeral .tmp files.
+    4. Pydantic validation of provisional hardware; final authority follows all eleven phases.
+    5. Optional explicitly requested workspace cleanup (disabled by default).
     """
     timestamp_utc = datetime.now(timezone.utc).isoformat()
     warnings: List[str] = []
@@ -1899,11 +1885,13 @@ def run_phase_5_audit(
         single_threaded_mode=lock_result.single_threaded_mode,
     )
 
-    golden_path, _ = finalize_and_lock_golden_registry(
-        cfg=system_config,
-        output_path=resolved_registry_dir / "cochem_system_config.json",
-        dry_run=dry_run,
-    )
+    # Phase 5 precedes six further audits. Only the complete Stage 0 aggregator
+    # can publish the execution authority; retain standalone compatibility on request.
+    golden_path = resolved_registry_dir / "cochem_system_config.json"
+    if finalize_registry:
+        golden_path, _ = finalize_and_lock_golden_registry(
+            cfg=system_config, output_path=golden_path, dry_run=dry_run,
+        )
 
     # 8. Workspace Garbage Collection Sweep
     if sweep_workspace:
@@ -1923,7 +1911,7 @@ def run_phase_5_audit(
         posix_lock_test=lock_result,
         sweep_report=sweep_report,
         intermediate_phases_found=found_phases,
-        is_immutable_mode_enforced=True,
+        is_immutable_mode_enforced=finalize_registry and not dry_run,
     )
 
     # 9. Evaluate Phase Status
@@ -2049,7 +2037,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         control_bin, _ = discover_mps_binaries()
         stopped = stop_mps_daemon(pipe_path, control_bin)
         status_msg = "MPS daemon stopped successfully." if stopped else "No active MPS daemon found to stop."
-        logger.info(status_msg)
+        print(status_msg)
         return 0
 
     try:
@@ -2066,7 +2054,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
 
         if args.json:
-            logger.info(report.model_dump_json(indent=2))
+            print(report.model_dump_json(indent=2))
         else:
             logger.info("=" * 75)
             logger.info("COCHEM SETUP PHASE 5: IPC CONFIG LOCK, WORKSPACE SWEEP & MPS VRAM BUDGETING")

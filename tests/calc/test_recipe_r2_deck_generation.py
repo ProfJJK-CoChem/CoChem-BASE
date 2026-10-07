@@ -29,7 +29,7 @@ from cochem_base.geometry.constraints import (
 )
 
 
-def test_recipe_r2_electronic_structure_keywords(tmp_path: Path) -> None:
+def test_recipe_r2_electronic_structure_keywords(tmp_path: Path, configured_registry) -> None:
     """Verifies electronic structure keywords strictly match Method Matrix v4.1 Recipe R2 standard."""
     deck_path = generate_recipe_r2_orca_deck(output_dir=tmp_path)
     assert deck_path.exists(), "Recipe R2 deck file was not generated"
@@ -79,18 +79,18 @@ def test_recipe_r2_prohibition_of_redundant_dispersion() -> None:
 
 
 def test_recipe_r2_prohibition_of_calc_hess_true() -> None:
-    """Verifies Calc_Hess true is prohibited and stripped, and InHess XTB2 is enforced."""
-    inp = MoleculeInput(
-        basin_id="test_calc_hess_prohibition",
-        elements=["C", "O", "O"],
-        coordinates=[(0.0, 0.0, 0.0), (0.0, 0.0, 1.16), (0.0, 0.0, -1.16)],
-        theory_level="B3LYP-D3 def2-SVP Calc_Hess true",
-        is_opt=True,
-    )
-    assert "CALC_HESS TRUE" not in inp.theory_level.upper()
+    """An invalid exact initial Hessian is rejected before a deck can be written."""
+    with pytest.raises(ValueError, match="Calc_Hess true"):
+        MoleculeInput(
+            basin_id="test_calc_hess_prohibition",
+            elements=["C", "O", "O"],
+            coordinates=[(0.0, 0.0, 0.0), (0.0, 0.0, 1.16), (0.0, 0.0, -1.16)],
+            theory_level="B3LYP-D3BJ def2-SVP Calc_Hess true",
+            is_opt=True,
+        )
 
 
-def test_recipe_r2_scf_convergence_parameters(tmp_path: Path) -> None:
+def test_recipe_r2_scf_convergence_parameters(tmp_path: Path, configured_registry) -> None:
     """Verifies that %scf block strictly contains TolE 1.0e-08, Thresh 1.0e-11, and MaxIter 150 [M]."""
     deck_path = generate_recipe_r2_orca_deck(output_dir=tmp_path)
     content = deck_path.read_text(encoding="utf-8")
@@ -101,7 +101,7 @@ def test_recipe_r2_scf_convergence_parameters(tmp_path: Path) -> None:
     assert "MaxIter 150" in content, "Missing MaxIter 150 in %scf block"
 
 
-def test_recipe_r2_quintuple_geometry_convergence_block(tmp_path: Path) -> None:
+def test_recipe_r2_quintuple_geometry_convergence_block(tmp_path: Path, configured_registry) -> None:
     """Verifies %geom contains InHess XTB2 and the quintuple stationary point convergence criteria [M]."""
     deck_path = generate_recipe_r2_orca_deck(output_dir=tmp_path)
     content = deck_path.read_text(encoding="utf-8")
@@ -118,7 +118,7 @@ def test_recipe_r2_quintuple_geometry_convergence_block(tmp_path: Path) -> None:
     assert "MaxIter 200" in content, "Missing MaxIter 200 in %geom"
 
 
-def test_recipe_r2_wilson_internal_constraints_ingestion(tmp_path: Path) -> None:
+def test_recipe_r2_wilson_internal_constraints_ingestion(tmp_path: Path, configured_registry) -> None:
     """Verifies that Wilson internal coordinate constraints lock exactly 6 intramolecular DOFs.
 
     And leave all 6 intermolecular degrees of freedom fully unconstrained (Method Matrix §9A.1, WBS 5.3.1/5.3.2).
@@ -185,7 +185,7 @@ def test_recipe_r2_reference_monomer_geometry_integrity() -> None:
     assert math.isclose(angle_hoh, 104.52, abs_tol=1e-12), f"H2O angle distorted: {angle_hoh}"
 
 
-def test_recipe_r2_counterpoise_distance_bracketing_flags(tmp_path: Path) -> None:
+def test_recipe_r2_counterpoise_distance_bracketing_flags(tmp_path: Path, configured_registry) -> None:
     """Verifies generation of 3-leg distance bracketing decks and CP keyword flags [M]."""
     # 1. Single deck with counterpoise=True
     cp_deck_path = generate_recipe_r2_orca_deck(
@@ -236,7 +236,7 @@ def test_recipe_r2_dynamic_mendeleev_library_mandate() -> None:
     assert math.isclose(expected_total, 62.024, abs_tol=1e-2)
 
 
-def test_recipe_r2_deck_zero_syntax_warnings_and_srs_parity(tmp_path: Path) -> None:
+def test_recipe_r2_deck_zero_syntax_warnings_and_srs_parity(tmp_path: Path, configured_registry) -> None:
     """Verifies generated input deck strictly matches SRS_Chunk_17.md §6.1 specification."""
     deck_path = generate_recipe_r2_orca_deck(output_dir=tmp_path)
     content = deck_path.read_text(encoding="utf-8")
@@ -261,9 +261,11 @@ def test_recipe_r2_deck_zero_syntax_warnings_and_srs_parity(tmp_path: Path) -> N
     assert "Constraints" in geom_block_match.group(1)
 
 
-def test_recipe_r2_canonical_deliverable_artifact_on_disk() -> None:
-    """Verifies that the authentic production Recipe R2 input deck physically exists on disk [M]."""
-    canonical_artifact = Path("D:/__CoChem/GitHub-Repo/CoChem-BASE/artifacts/recipe_r2_production_deck.inp")
+def test_recipe_r2_canonical_deliverable_artifact_on_disk(tmp_path: Path, configured_registry) -> None:
+    """The requested deck is written to the configured artifact directory."""
+    canonical_artifact = generate_recipe_r2_orca_deck(
+        output_dir=tmp_path, filename="recipe_r2_production_deck.inp"
+    )
     assert canonical_artifact.exists(), f"Physical deliverable missing at: {canonical_artifact}"
     assert canonical_artifact.stat().st_size > 1000, "Deliverable file size too small (< 1000 bytes)"
 

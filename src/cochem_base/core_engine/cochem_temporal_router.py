@@ -40,6 +40,7 @@ import tempfile
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -49,10 +50,11 @@ if platform.system() == "Windows":
     try:
         import ctypes.wintypes
     except Exception as _e:
-        logger.debug(f"Ignored exception: {_e}")
+        logging.getLogger("CoChem-TemporalRouter").debug("Could not load Windows ctypes helpers: %s", _e)
 
 import h5py
 import numpy as np
+from cochem_base.result_evidence import normalize_point_evidence
 import psutil
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -60,6 +62,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # Logging Configuration
 # ---------------------------------------------------------------------------
 logger = logging.getLogger("CoChem-TemporalRouter")
+
+# This is an execution API: both directions run the alternate physical backend,
+# while classification-only route() calls never claim a calculation occurred.
+from cochem_base.core_engine.mlff_fallback import execute_screening_with_fallback
 if not logger.handlers:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s"))
@@ -1060,7 +1066,10 @@ def route(
     engine = "orca"
     device = "cpu"
 
-    if obs_clean in {
+    if method_clean in {"maceoff24m", "maceoff24medium", "gxtb"} and obs_clean in {"energy", "gradient", "pes_scan", "mlff_scan"}:
+        engine = "gxtb" if method_clean == "gxtb" else "mace"
+        device = "cpu"
+    elif obs_clean in {
         "cc_analytic_2nd_derivative", "anharmonic_ccsd(t)_force_field", "anharmonic_ff",
         "sextic_distortion", "spin_rotation", "dboc", "vibration_rotation_alpha_r_at_cc"
     }:
@@ -1235,6 +1244,32 @@ def route_electronic_structure(job: JobSpec) -> RoutingDecision:
         density_fitting=job.density_fitting,
         restart_needed=job.restart_needed,
         keywords=job.keywords,
+    )
+
+
+def execute_temporal_screening(
+    job: JobSpec, coordinates_angstrom: Any, *, workdir: Union[str, Path],
+    checkpoint: Optional[Union[str, Path]] = None,
+    registry_path: Optional[Union[str, Path]] = None,
+    timeout_seconds: float = 180,
+) -> Dict[str, Any]:
+    """Execute a temporal screening job with the mandatory physical MLFF fallback.
+
+    No frequency, optimization, anharmonic or Product-B periodic result is claimed
+    by this energy/gradient operation. Engine identity in the result records the
+    backend that actually ran, which may differ from the first routing choice.
+    """
+    if job.task_type not in {"energy", "gradient", "pes_scan", "mlff_scan"}:
+        raise ValueError("Dynamic MLFF fallback supports screening energy/gradient evaluations")
+    if job.product_class == "B":
+        raise ValueError("Periodic Product B requires a plane-wave/PAW backend")
+    if job.symbols is None or len(job.symbols) != job.n_atoms:
+        raise ValueError("Temporal screening requires the actual atom identities")
+    return execute_screening_with_fallback(
+        job.symbols, coordinates_angstrom, primary=job.method,
+        charge=job.keywords.get("charge", 0), multiplicity=job.keywords.get("multiplicity", 1),
+        checkpoint=checkpoint, registry_path=registry_path, workdir=workdir,
+        cores=job.n_cores, timeout_seconds=timeout_seconds,
     )
 
 
@@ -1430,13 +1465,22 @@ class PESStore:
         path: Union[str, Path],
         complex_name: str = "",
         symbols: Sequence[str] = (),
+        *,
+        lock_timeout: float = 10.0,
     ) -> None:
-        self.path = Path(path)
+        # Share the canonical store's lock protocol so legacy and current
+        # interfaces cannot admit competing writers to the same database.
+        from cochem_base.core_engine.cochem_core_pes_store import ReadWriteFileLock, validate_airgap_write_path
+
+        self.path = validate_airgap_write_path(Path(path).resolve())
+        self.lock_path = self.path.with_name(f"{self.path.name}.lock")
+        self.lock_timeout = lock_timeout
+        self.rw_lock = ReadWriteFileLock(self.lock_path, timeout=lock_timeout)
         new_file = not self.path.exists()
         if new_file:
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
-        with h5py.File(self.path, "a") as f:
+        with self._open("a") as f:
             m = f.require_group("meta")
             if new_file:
                 m.attrs["schema_name"] = "vdw_pes_campaign"
@@ -1449,11 +1493,22 @@ class PESStore:
                 m.attrs["n_atoms"] = len(symbols)
             self.n_atoms = int(m.attrs.get("n_atoms", len(symbols)))
 
+    @contextmanager
+    def _open(self, mode: str):
+        """Serialize writers and protect readers using the shared adjacent lock."""
+        writing = mode != "r"
+        lock = self.rw_lock.write_lock() if writing else self.rw_lock.read_lock()
+        with lock:
+            with h5py.File(self.path, mode, libver="latest") as handle:
+                yield handle
+                if writing:
+                    handle.flush()
+
     def register_method(self, method_id: str, **attrs: Any) -> None:
         """Registers a computational method with QCSchema attributes."""
         validate_theory_cleanliness(method_id)
         validate_theory_cleanliness(attrs)
-        with h5py.File(self.path, "a") as f:
+        with self._open("a") as f:
             g = f.require_group(f"methods/{method_id}")
             for k, v in attrs.items():
                 g.attrs[k] = json.dumps(v) if isinstance(v, (dict, list)) else v
@@ -1510,10 +1565,24 @@ class PESStore:
         coords_arr = np.asarray(coords, dtype=np.float64)
         if coords_arr.ndim == 2:
             coords_arr = coords_arr[None]
+        if coords_arr.ndim != 3 or coords_arr.shape[2] != 3 or not np.all(np.isfinite(coords_arr)):
+            raise ValueError("Coordinates must be a finite array of shape (Npoints, Natoms, 3)")
         npts, natm = coords_arr.shape[0], coords_arr.shape[1]
         energies_arr = np.asarray(energies, dtype=np.float64)
         if energies_arr.ndim == 0:
             energies_arr = energies_arr[None]
+        if energies_arr.shape != (npts,) or not np.all(np.isfinite(energies_arr)):
+            raise ValueError("Provide one finite energy per result point")
+        conv_arr, wall_arr = normalize_point_evidence(converged, wall_s, npts)
+        if point_ids is not None and len(point_ids) != npts:
+            raise ValueError("Provide one point identifier per result point")
+        g = None
+        if gradients is not None:
+            g = np.asarray(gradients, dtype=np.float64)
+            if g.ndim == 2:
+                g = g[None]
+            if g.shape != coords_arr.shape or not np.all(np.isfinite(g)):
+                raise ValueError("Gradient shape must match coordinates and contain finite values")
 
         prov = json.dumps({
             "creator": creator,
@@ -1524,17 +1593,18 @@ class PESStore:
             "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         })
 
-        with h5py.File(self.path, "a") as f:
+        with self._open("a") as f:
             i0 = self._append(self._ds(f, method_id, "coordinates", (natm, 3), np.float64), coords_arr)
             self._append(self._ds(f, method_id, "energy", (), np.float64, checksum=True), energies_arr)
             self._append(
                 self._ds(f, method_id, "converged", (), np.bool_),
-                np.ones(npts, bool) if converged is None else np.asarray(converged, bool),
+                conv_arr,
             )
             self._append(
                 self._ds(f, method_id, "wall_s", (), np.float64),
-                np.zeros(npts, dtype=np.float64) if wall_s is None else np.asarray(wall_s, dtype=np.float64),
+                wall_arr,
             )
+            f[f"points/{method_id}/wall_s"].attrs["missing_value_policy"] = "NaN means elapsed time was not measured"
             self._append(
                 self._ds(f, method_id, "provenance", (), VLEN_STR),
                 np.array([prov] * npts, dtype=object),
@@ -1544,23 +1614,25 @@ class PESStore:
                 self._ds(f, method_id, "point_id", (), VLEN_STR),
                 np.array(p_ids, dtype=object),
             )
-            if gradients is not None:
-                g = np.asarray(gradients, dtype=np.float64)
-                if g.ndim == 2:
-                    g = g[None]
+            if g is not None:
                 self._append(self._ds(f, method_id, "gradient", (natm, 3), np.float64), g)
         return i0
 
     def add_hessian(self, label: str, H: Any, *, level: str, geometry_ref: str) -> None:
         """Stores Cartesian Hessian tensor in HDF5."""
         validate_theory_cleanliness(level)
-        with h5py.File(self.path, "a") as f:
+        hessian = np.asarray(H, dtype=np.float64)
+        if hessian.ndim != 2 or hessian.shape[0] != hessian.shape[1] or not np.all(np.isfinite(hessian)):
+            raise ValueError("Hessian must be a finite square matrix")
+        if not np.allclose(hessian, hessian.T, rtol=1e-10, atol=1e-12):
+            raise ValueError("Hessian must be symmetric")
+        with self._open("a") as f:
             g = f.require_group("hessians")
             if label in g:
                 del g[label]
             d = g.create_dataset(
                 label,
-                data=np.asarray(H, dtype=np.float64),
+                data=hessian,
                 compression="gzip",
                 compression_opts=4,
                 shuffle=True,
@@ -1570,7 +1642,7 @@ class PESStore:
 
     def register_grid(self, grid_id: str, axes: Dict[str, Any]) -> None:
         """Registers grid axes for potential energy surfaces."""
-        with h5py.File(self.path, "a") as f:
+        with self._open("a") as f:
             g = f.require_group(f"grids/{grid_id}")
             for name, vals in axes.items():
                 if name in g:
@@ -1581,7 +1653,7 @@ class PESStore:
 
     def todo(self, method_id: str, wanted_ids: Iterable[str]) -> List[str]:
         """Identifies missing / unconverged points for incremental refinement and restart."""
-        with h5py.File(self.path, "a") as f:
+        with self._open("a") as f:
             p = f.get(f"points/{method_id}")
             if p is None or "point_id" not in p:
                 return list(wanted_ids)
@@ -1594,14 +1666,14 @@ class PESStore:
 
     def dataset(self, method_id: str, converged_only: bool = True) -> Tuple[np.ndarray, np.ndarray]:
         """Retrieves coordinates and energies for a method."""
-        with h5py.File(self.path, "r") as f:
+        with self._open("r") as f:
             p = f[f"points/{method_id}"]
             m = p["converged"][:] if converged_only else slice(None)
             return p["coordinates"][:][m], p["energy"][:][m]
 
     def delta_pairs(self, low: str, high: str) -> Tuple[List[str], np.ndarray, np.ndarray]:
         """Returns aligned (coordinates, E_high - E_low) pairs for Delta-learning."""
-        with h5py.File(self.path, "r") as f:
+        with self._open("r") as f:
             def idx(mid: str) -> Dict[str, int]:
                 p = f[f"points/{mid}"]
                 ids = [(s.decode() if isinstance(s, bytes) else s) for s in p["point_id"][:]]
@@ -1615,7 +1687,7 @@ class PESStore:
 
     def dvr_grid(self, method_id: str, grid_id: str) -> np.ndarray:
         """Reshapes energies onto a registered product grid for DVR solvers."""
-        with h5py.File(self.path, "r") as f:
+        with self._open("r") as f:
             shape = tuple(int(x) for x in f[f"grids/{grid_id}"].attrs["shape"])
             p = f[f"points/{method_id}"]
             ids = [(s.decode() if isinstance(s, bytes) else s) for s in p["point_id"][:]]
@@ -1631,7 +1703,7 @@ class PESStore:
     def checkpoint_state(self, checkpoint_name: str, state_data: Dict[str, Any]) -> None:
         """Serializes arbitrary dictionary state to HDF5 checkpoint group."""
         validate_theory_cleanliness(state_data)
-        with h5py.File(self.path, "a") as f:
+        with self._open("a") as f:
             grp = f.require_group(f"checkpoints/{checkpoint_name}")
             grp.attrs["saved_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             for k, v in state_data.items():
@@ -1647,7 +1719,7 @@ class PESStore:
     def read_checkpoint(self, checkpoint_name: str) -> Dict[str, Any]:
         """Reads back saved checkpoint state dictionary."""
         result: Dict[str, Any] = {}
-        with h5py.File(self.path, "r") as f:
+        with self._open("r") as f:
             if f"checkpoints/{checkpoint_name}" not in f:
                 return result
             grp = f[f"checkpoints/{checkpoint_name}"]

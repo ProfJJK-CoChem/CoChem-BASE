@@ -278,25 +278,16 @@ class ProcessTreeManager:
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
 
-            # Platform-specific process containment termination
-            if sys.platform == "win32" and self._job_handle is not None:
-                try:
-                    import ctypes
-                    ctypes.windll.kernel32.TerminateJobObject(self._job_handle, 1)
-                except Exception as job_err:
-                    logger.debug("TerminateJobObject error: %s", job_err)
-            elif sys.platform != "win32":
+            # A caller may register a child which shares its process group.
+            # Escalation must never kill that caller or unrelated sibling jobs.
+            # Individual tracked processes above are sufficient on Windows;
+            # the manager's common Job Object may hold other active jobs.
+            if sys.platform != "win32":
                 try:
                     pgid = os.getpgid(pid)
-                    os.killpg(pgid, signal.SIGKILL)
+                    if pgid == pid and pgid != os.getpgrp():
+                        os.killpg(pgid, signal.SIGKILL)
                 except (OSError, ProcessLookupError) as _e:
-                    logger.debug(f"Ignored exception: {_e}")
-
-            # Evict MPS context if present
-            if "CUDA_MPS_PIPE_DIRECTORY" in os.environ:
-                try:
-                    subprocess.run(["nvidia-smi", "--gpu-reset"], capture_output=True, timeout=2.0)
-                except Exception as _e:
                     logger.debug(f"Ignored exception: {_e}")
 
             # Final check with 2.0s timeout
@@ -417,4 +408,3 @@ __all__ = [
     "set_pdeathsig",
     "get_pdeathsig_preexec_fn",
 ]
-

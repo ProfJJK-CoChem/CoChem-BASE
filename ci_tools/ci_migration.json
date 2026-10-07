@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "scope": "BASE alpha CI architecture; sibling ecosystem solver acceptance is separate",
+  "canonical_entrypoint": "python ci_tools/base_ci.py all --output <external-evidence-directory>",
+  "hosted_scope": "Canonical source and selected-test source policy; cross-platform CI controls; bounded xTB/PySCF and rendered-dashboard acceptance. The complete silo-dependent local profile is not claimed as hosted acceptance.",
+  "retirements": [
+    {
+      "paths": [
+        ".github/workflows/ci_scribe.yml",
+        ".github/workflows/scribe_ci_cd.yml",
+        ".github/workflows/cochem_bench_ci.yml"
+      ],
+      "reason": "Duplicate workflows copied and diverged from airgap/AST rules, included obsolete concurrency bans or amnesty behavior, and attempted unrelated ecosystem test collection.",
+      "replacement": ".github/workflows/cochem_base_ci.yml invoking canonical CI tools and reusable low_compute_acceptance.yml",
+      "caller_migration": "The old BENCH workflow tests now exercise the BASE workflow and canonical detector implementations. SCRIBE/BENCH future module acceptance must be defined by their actual repositories."
+    },
+    {
+      "paths": [
+        "ci_tools/anti_spoof_linter.diff"
+      ],
+      "reason": "Orphaned historical patch is not an executable guard and had no active callers.",
+      "replacement": "ci_tools/anti_spoof_linter.py and executable regression corpus"
+    },
+    {
+      "paths": [
+        "ci_tools/Log_Sanitizer.py"
+      ],
+      "reason": "Uncalled legacy script claimed sanitization but merely split and renamed raw logs; it performed no sanitization.",
+      "replacement": "Canonical acceptance retains original process logs and explicit JSON/JUnit evidence in external directories. No sanitization capability is advertised.",
+      "caller_migration": "Repository source/workflow search found no active callers."
+    },
+    {
+      "paths": [
+        ".core_infrastructure_hashring.json",
+        "ci_tools/.core_infrastructure_hashring.json"
+      ],
+      "reason": "Stale self-issued hashes covered old ci_tools/core locations, omitted actual application source, and could be rewritten by the old generator. They were not publisher signatures.",
+      "replacement": "Actual SHA-256 source snapshots before/after execution, full static audit, and hashed immutable fixture validation.",
+      "caller_migration": "verify_core_integrity.py remains as a thin canonical audit compatibility entrypoint; --generate is rejected."
+    },
+    {
+      "paths": [
+        "tests/test_ci_cd_workflow.py",
+        "test_suite/test_ci_cd_workflow.py"
+      ],
+      "reason": "Byte-identical duplicated tests validate retired inline workflow algorithms and amnesty bypass instead of the canonical executing scanner.",
+      "replacement": "tests/test_cochem_bench_ci.py preserves triggers, LF/YAML, dependency graph, cross-OS control matrix, minimal dependency boundary and real production scanner format/config/entropy cases. tests/test_anti_spoof_linter.py replaces the obsolete amnesty-positive acceptance with strict adversarial checks.",
+      "caller_migration": "Canonical profiles select the replacement tests; no production code imports these historical test modules."
+    }
+  ],
+  "retained_utilities": [
+    {
+      "path": "ci_tools/ci_airgap_sweep.py",
+      "role": "Canonical byte-format, runtime-registry and source/runtime separation scanner"
+    },
+    {
+      "path": "ci_tools/mendeleev_ast_linter.py",
+      "role": "Independent static atomic-mass policy checked by canonical source gate"
+    },
+    {
+      "path": "ci_tools/process_runner.py",
+      "role": "Application-independent UTF-8 process execution"
+    },
+    {
+      "path": "ci_tools/zero_trust_runner.py",
+      "role": "Optional process quarantine; uses only copied paths, no hardcoded sibling repository fallback"
+    },
+    {
+      "path": "ci_tools/verify_anti_patching.py",
+      "role": "Supplementary AST diagnostic and preserved adversarial tests; not a second acceptance pipeline"
+    },
+    {
+      "path": "ci_tools/file_triage_classifier.py",
+      "role": "Legacy file administration utility; not a scientific validator or canonical acceptance gate"
+    },
+    {
+      "path": "ci_tools/cleanup_executor.py",
+      "role": "Legacy explicit file administration utility; not executed by canonical CI"
+    },
+    {
+      "path": "scripts/airgap_trap.py",
+      "role": "Legacy extension-only scanner with existing callers/tests. Supplementary utility; canonical acceptance uses ci_tools/ci_airgap_sweep.py with immutable source-input validation."
+    }
+  ],
+  "replacement_verification": [
+    "tests/ci_tools/test_base_ci.py executes real isolated pytest subprocesses and rejects failures, unexpected skips, xfails, empty runs, incomplete outcome coverage and changed fixture bytes",
+    "tests/test_cochem_bench_ci.py calls actual canonical magic/entropy/coordinate/config scanners instead of duplicated inline algorithms",
+    "tests/test_anti_spoof_linter.py verifies both genuine fabrication rejection and legitimate numerical/concurrency implementations",
+    "tests/ci_tools/test_airgap.py validates actual process ownership, cancellation, UTF-8 and CI/application import isolation",
+    "test_suite/test_ci_airgap_sweep.py preserves actual filesystem/git/CLI detector coverage",
+    "test_suite/test_verify_anti_patching.py preserves the independent AST diagnostic corpus"
+  ],
+  "evidence_policy": "Run outputs supply current counts and results. This migration inventory is not an execution receipt. Deferred checks are pending, not passed; the whole legacy test-source inventory remains visible and is not certified by the selected alpha profile."
+}

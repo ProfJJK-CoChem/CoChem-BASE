@@ -51,3 +51,20 @@ def test_unknown_profile_is_rejected_before_destination_mutation(tmp_path):
     with pytest.raises(SystemExit, match='cpu or cuda128'):
         provision_mace_silo(tmp_path / 'new', profile='auto')
     assert not (tmp_path / 'new').exists()
+
+
+def test_actual_cpu_silo_passes_the_phase4_provisioner_boundary(tmp_path):
+    import os
+    from pathlib import Path
+    from cochem_base.orchestrator.cochem_setup_phase_4 import SiloConfig, SiloType, provision_micro_silo
+
+    root = os.environ.get('COCHEM_TEST_MACE_SILO')
+    if not root or not (Path(root) / 'bin/python').is_file():
+        pytest.skip('Actual reviewed MACE CPU installation not provided')
+    config = SiloConfig(name=SiloType.MACE.value, silo_type=SiloType.MACE,
+                        target_path=root, python_version='3.12', is_requested=True,
+                        packages=['mace-torch', 'torch', 'e3nn'], pip_packages=DEFAULT_PINS['mace'])
+    result = provision_micro_silo(config)
+    assert result.is_available, result.error_detail
+    assert result.dependency_profile == 'cpu'
+    assert result.python_executable == str(Path(root) / 'bin/python')

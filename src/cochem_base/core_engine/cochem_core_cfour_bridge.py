@@ -1863,7 +1863,7 @@ def export_cfour_to_spcat_var(
 # ==============================================================================
 
 class CFOURBridge:
-    """High-throughput execution, finite-difference decomposition, and state-persistence broker for CFOUR."""
+    """Historical CFOUR input generation and immutable provider handoff API."""
 
     def __init__(
         self,
@@ -1925,145 +1925,56 @@ class CFOURBridge:
         timeout_seconds: int = 3600,
         existing_jobarc: Optional[Path] = None,
     ) -> CFOURJobResult:
-        """Dispatch CFOUR execution via subprocess broker with strict wall-clock and crash isolation."""
-        if config.reference != CFOURReference.RHF or config.multiplicity != 1 or config.anharm_mode != CFOURAnharmMode.NONE:
-            # BASE preserves the complete job for the future spectroscopy/open-shell
-            # adapter; a generated deck is not evidence of scientific execution.
-            from cochem_base.calc.calculation_service import CalculationMatrixConfig
-            from cochem_base.interfaces.scientific_jobs import prepare_calculation_handoff
-            from cochem.core.context import assert_writable_path
-            import uuid
-            if not re.fullmatch(r"[A-Za-z0-9_.-]+", job_id):
-                raise ValueError("CFOUR job identifiers must contain only safe filename characters")
-            work_dir = self.scratch_root / f"cfour_{job_id}_{uuid.uuid4().hex}"
-            assert_writable_path(work_dir)
-            work_dir.mkdir(parents=True)
-            geometry = "\n".join([str(len(symbols)), "CFOUR scientific job awaiting adapter integration"] +
-                                 [symbol + " " + " ".join(format(float(value), ".17g") for value in xyz)
-                                  for symbol, xyz in zip(symbols, coordinates_angstrom, strict=True)]) + "\n"
-            request = CalculationMatrixConfig(
-                geometry=geometry, engine="cfour", method=config.calc_level.value, basis_set=config.basis,
-                charge=config.charge, multiplicity=config.multiplicity, is_opt=False, is_freq=True,
-                is_vpt2=config.anharm_mode != CFOURAnharmMode.NONE, timeout_seconds=timeout_seconds,
-            )
-            geometry_path = work_dir / "geometry.xyz"
-            geometry_path.write_text(geometry, encoding="utf-8")
-            dependencies = {}
-            if existing_jobarc is not None:
-                dependencies.update(JOBARC=existing_jobarc, JAINDX=existing_jobarc.parent / "JAINDX")
-            if self.genbas_path is not None:
-                dependencies["GENBAS"] = self.genbas_path
-            prepare_calculation_handoff(request, geometry_path, work_dir / "handoff",
-                                        dependency_files=dependencies,
-                                        provider_options={"cfour_input": config.model_dump(mode="json"),
-                                                          "restart_jobarc": str(existing_jobarc) if existing_jobarc else None,
-                                                          "genbas_path": str(self.genbas_path) if self.genbas_path else None})
-            return CFOURJobResult(
-                success=False, status="PENDING_INTEGRATION", job_id=job_id, working_directory=str(work_dir),
-                wall_time_seconds=0.0, stdout_hash="", zmat_hash="", observables=None,
-                handoff_manifest=str(work_dir / "handoff" / "handoff.json"),
-                compliance_notes=["Input job preserved; no CFOUR process or scientific result was produced.",
-                                  "The requested anharmonic/open-shell result validator remains pending integration."],
-            )
-        work_dir = self.prepare_job_directory(job_id, symbols, coordinates_angstrom, config, existing_jobarc)
-        zmat_path = work_dir / "ZMAT"
-        zmat_hash = hashlib.sha256(zmat_path.read_bytes()).hexdigest()
+        """Preserve the historical provider configuration as an immutable job.
 
-        start_time = time.time()
-        out_file = work_dir / "output.dat"
-        err_file = work_dir / "cfour.err"
+        This API's reference, isotope, restart, property and arbitrary-keyword
+        options have no complete result validator. Native supported BASE jobs
+        use calc.calculation_service.run_calculation and its geometry-bound
+        gradient/Hessian validation; this ingestion API never executes CFOUR.
+        """
+        from cochem_base.calc.calculation_service import CalculationMatrixConfig
+        from cochem_base.interfaces.scientific_jobs import prepare_calculation_handoff
+        from cochem.core.context import assert_writable_path
 
-        try:
-            from cochem_base.core_engine.execution_authority import authorize_engine_execution
-            from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
-            authority = authorize_engine_execution("cfour", executable=shutil.which(self.cfour_executable))
-            if config.memory_size_gb * 1024 > authority.total_memory_mb:
-                raise OutOfMemoryGateError("CFOUR global memory request exceeds audited available RAM")
-            proc = safe_subprocess_run(
-                authority.command(), cwd=work_dir, timeout=timeout_seconds, check=False,
-                capture_output=True, text=True, required_disk_gb=0.1,
-                cpu_affinity=list(authority.cpu_affinity) or None,
-                env={**os.environ, "OMP_NUM_THREADS": str(authority.cores), "MKL_NUM_THREADS": str(authority.cores)},
-            )
-            out_file.write_text(proc.stdout or "", encoding="utf-8")
-            err_file.write_text(proc.stderr or "", encoding="utf-8")
-
-            if proc.returncode != 0:
-                err_text = err_file.read_text(encoding="utf-8", errors="replace")
-                raise CoChemError(f"CFOUR execution failed with exit code {proc.returncode}: {err_text[:1000]}")
-
-            wall_time = time.time() - start_time
-            stdout_text = out_file.read_text(encoding="utf-8", errors="replace")
-            stdout_hash = hashlib.sha256(stdout_text.encode("utf-8")).hexdigest()
-            CFOUROutputParser.verify_execution_evidence(stdout_text, config)
-
-            # Parse observables
-            observables = CFOUROutputParser.parse_cfour_stdout(
-                stdout_text, symbols_fallback=symbols, coordinates_fallback=coordinates_angstrom
-            )
-            requested_energy = {
-                CFOURCalcLevel.HF: observables.scf_energy_hartree,
-                CFOURCalcLevel.MP2: observables.mp2_energy_hartree,
-                CFOURCalcLevel.CCSD: observables.ccsd_energy_hartree,
-                CFOURCalcLevel.CCSD_T: observables.ccsd_t_energy_hartree,
-            }.get(config.calc_level)
-            if requested_energy is None or not math.isfinite(requested_energy):
-                raise ValueError(f"CFOUR lacks measured energy at the requested {config.calc_level.value} method")
-            if not observables.harmonic_force_field.frequencies_cm_inv:
-                raise ValueError("CFOUR frequency request returned no harmonic frequencies")
-            if config.vib_mode in {CFOURVibMode.EXACT, CFOURVibMode.ANALYTIC}:
-                hessian_path = work_dir / "FCMFINAL"
-                if not hessian_path.is_file() or not hessian_path.stat().st_size:
-                    raise ValueError("CFOUR analytic Hessian request returned no FCMFINAL artifact")
-            if config.anharm_mode != CFOURAnharmMode.NONE and observables.B0_MHz is None:
-                raise ValueError("CFOUR anharmonic request returned incomplete vibration-rotation evidence")
-
-            # Preserve binary archives
-            preserved: List[str] = []
-            for arc_name in ["JOBARC", "JAINDX", "OPTARC", "FCMFINAL", "FCMINT", "DIPDER", "MOINTS", "MOABCD"]:
-                p = work_dir / arc_name
-                if p.exists():
-                    preserved.append(arc_name)
-            from cochem_base.core_engine.scientific_telemetry import append_scientific_result
-            append_scientific_result(
-                f"cfour_{job_id}", symbols, coordinates_angstrom, observables.final_energy_hartree,
-                metadata={"engine": "cfour", "method": config.calc_level.value,
-                          "scf_convergence_verified": True, "zmat_sha256": zmat_hash,
-                          "stdout_sha256": stdout_hash},
-            )
-
-            return CFOURJobResult(
-                success=True,
-                status="EXECUTION_VERIFIED",
-                job_id=job_id,
-                working_directory=str(work_dir),
-                wall_time_seconds=wall_time,
-                stdout_hash=stdout_hash,
-                zmat_hash=zmat_hash,
-                observables=observables,
-                isotopologues=[],
-                error_message=None,
-                preserved_files=preserved,
-                compliance_notes=[
-                    "Audited executable and explicit electronic convergence verified",
-                    f"Wall time: {wall_time:.2f}s",
-                ],
-            )
-        except Exception as ex:
-            wall_time = time.time() - start_time
-            return CFOURJobResult(
-                success=False,
-                job_id=job_id,
-                working_directory=str(work_dir),
-                wall_time_seconds=wall_time,
-                stdout_hash="",
-                zmat_hash=zmat_hash,
-                observables=None,
-                isotopologues=[],
-                error_message=str(ex),
-                preserved_files=[],
-                compliance_notes=[f"Execution failed: {ex}"],
-            )
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", job_id):
+            raise ValueError("CFOUR job identifiers must contain only safe filename characters")
+        work_dir = self.scratch_root / f"cfour_{job_id}_{uuid.uuid4().hex}"
+        assert_writable_path(work_dir)
+        work_dir.mkdir(parents=True)
+        geometry = "\n".join([str(len(symbols)), "Historical CFOUR provider input awaiting its result adapter"] +
+                             [symbol + " " + " ".join(format(float(value), ".17g") for value in xyz)
+                              for symbol, xyz in zip(symbols, coordinates_angstrom, strict=True)]) + "\n"
+        request = CalculationMatrixConfig(
+            geometry=geometry, engine="cfour", method=config.calc_level.value, basis_set=config.basis,
+            charge=config.charge, multiplicity=config.multiplicity, is_opt=False, is_freq=True,
+            is_vpt2=config.anharm_mode != CFOURAnharmMode.NONE, timeout_seconds=timeout_seconds,
+            # The historical config is an exact provider input, including its
+            # native SCF/property/isotope/restart choices. Its adapter remains
+            # pending; do not silently reinterpret it as the bounded BASE job.
+            initial_hessian="PROVIDER_NATIVE",
+        )
+        geometry_path = work_dir / "geometry.xyz"
+        geometry_path.write_text(geometry, encoding="utf-8")
+        dependencies = {}
+        if existing_jobarc is not None:
+            dependencies.update(JOBARC=existing_jobarc, JAINDX=existing_jobarc.parent / "JAINDX")
+        if self.genbas_path is not None:
+            dependencies["GENBAS"] = self.genbas_path
+        prepare_calculation_handoff(
+            request, geometry_path, work_dir / "handoff", dependency_files=dependencies,
+            provider_options={"cfour_input": config.model_dump(mode="json"),
+                              "restart_jobarc": str(existing_jobarc) if existing_jobarc else None,
+                              "genbas_path": str(self.genbas_path) if self.genbas_path else None,
+                              "native_base_execution_api": "cochem_base.calc.calculation_service.run_calculation"},
+        )
+        return CFOURJobResult(
+            success=False, status="PENDING_INTEGRATION", job_id=job_id, working_directory=str(work_dir),
+            wall_time_seconds=0.0, stdout_hash="", zmat_hash="", observables=None,
+            handoff_manifest=str(work_dir / "handoff" / "handoff.json"),
+            compliance_notes=["Historical provider input preserved; no CFOUR process or scientific result was produced.",
+                              "Use cochem_base.calc.calculation_service.run_calculation for supported native BASE calculations.",
+                              "Exact historical spectroscopy, isotope, restart and property-option acceptance remains pending integration."],
+        )
 
 
 # ==============================================================================

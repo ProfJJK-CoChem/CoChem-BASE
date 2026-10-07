@@ -106,7 +106,19 @@ def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) 
         "--output", str(artifact_dir / "free-engines" / "installation.json"),
     ], cwd=REPO_ROOT, env=env, check=True)
     manifest = artifact_dir / "dashboard" / "deployment_manifest.json"
-    manifest.write_text(json.dumps({"selected_repositories": ["CoChem-BASE"]}) + "\n", encoding="utf-8")
+    selected_repositories = ["CoChem-BASE"]
+    requested_modules = os.environ.get("COCHEM_MODULES", "").replace(",", " ").split()
+    if requested_modules:
+        catalog = json.loads((REPO_ROOT / "scripts/module-distribution.json").read_text(encoding="utf-8"))["modules"]
+        if any(name not in catalog for name in requested_modules):
+            raise ValueError("COCHEM_MODULES must contain module IDs from scripts/module-distribution.json")
+        subprocess.run([
+            str(python), str(REPO_ROOT / "scripts/manage_modules.py"), "install",
+            "--modules", *requested_modules, "--root", str(artifact_dir / "Modules"), "--json",
+        ], cwd=REPO_ROOT, env=env, check=True)
+        selected_repositories.extend(catalog[name]["repository"].split("/")[1]
+                                     for name in dict.fromkeys(requested_modules))
+    manifest.write_text(json.dumps({"selected_repositories": selected_repositories}) + "\n", encoding="utf-8")
     env = runtime_environment(artifact_dir)  # Include the newly installed binary.
     with (artifact_dir / "dashboard" / "setup-command.json").open("w", encoding="utf-8") as output:
         subprocess.run([

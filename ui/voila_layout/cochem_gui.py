@@ -949,7 +949,7 @@ class CoChemGUI:
             value="topos", description="Recipient module:", style={'description_width': 'initial'},
         )
         self.module_artifact = widgets.Text(description="Input artifact:", layout=widgets.Layout(width='90%'))
-        self.module_operation = widgets.Text(description="Requested task:", value="ingest_artifact",
+        self.module_operation = widgets.Text(description="Requested task:", value="geometry_analysis",
                                              style={'description_width': 'initial'})
         self.module_output = widgets.Text(description="Package directory:",
             value=str(get_artifact_dir() / "Handoffs"), style={'description_width': 'initial'},
@@ -960,12 +960,21 @@ class CoChemGUI:
         self.btn_module_refresh = widgets.Button(description="Refresh module availability", layout=widgets.Layout(width='auto'))
         self.btn_module_refresh.on_click(self._refresh_module_capabilities)
         self.module_handoff_status = widgets.HTML("<p role='status'>No handoff prepared.</p>")
+        self.module_root = widgets.Text(description="Module storage:", value=str(get_artifact_dir() / "Modules"),
+                                        style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'))
+        self.btn_module_install = widgets.Button(description="Install selected recipient", layout=widgets.Layout(width='auto'))
+        self.btn_module_install.on_click(self._install_selected_module)
+        self.btn_module_run = widgets.Button(description="Run geometry analysis", layout=widgets.Layout(width='auto'))
+        self.btn_module_run.on_click(self._run_module_geometry)
+        self.module_install_status = widgets.HTML("<p role='status'>Select a module to install or inspect.</p>")
         self.view_modules = widgets.VBox([
-            widgets.HTML("<h3>BASE ingestion and module handoff</h3><p>BASE manages setup, validated input and this interface. TOPOS, TORQ and other workflow modules are integrated separately. Installation discovery does not certify a scientific calculation.</p>"),
+            widgets.HTML("<h3>Module installation and execution</h3><p>Install approved modules in separate environments. TOPOS and TORQ expose geometry analysis; other operations require a reviewed adapter. Installation does not certify scientific accuracy.</p>"),
             self.btn_module_refresh, self.module_capabilities,
             widgets.HTML("<p>Select a single XYZ geometry, geometry-bound Hessian (.npz/.h5/.hess), or converged result JSON. The package preserves its source and verifies its contents when loaded by a recipient.</p>"),
-            self.module_recipient, self.module_artifact, self.module_operation,
+            self.module_recipient, self.module_root, self.btn_module_install, self.module_install_status,
+            self.module_artifact, self.module_operation,
             self.module_output, self.btn_module_handoff, self.module_handoff_status,
+            self.btn_module_run,
         ], layout=widgets.Layout(padding='20px'))
         self._refresh_module_capabilities()
 
@@ -1230,14 +1239,82 @@ class CoChemGUI:
 
     def _refresh_module_capabilities(self, b: Any = None) -> None:
         from cochem_base.interfaces.module_registry import list_module_capabilities
-        rows = []
-        for item in list_module_capabilities():
-            state = item.status.value.replace("_", " ")
-            rows.append(f"<tr><td>{html.escape(item.name)}</td><td>{html.escape(state)}</td><td>{html.escape(item.responsibility)}</td></tr>")
-        self.module_capabilities.value = (
-            "<table><caption>Observed module availability</caption><thead><tr><th scope='col'>Module</th><th scope='col'>Status</th><th scope='col'>Responsibility</th></tr></thead><tbody>"
-            + "".join(rows) + "</tbody></table>"
-        )
+        from cochem_base.interfaces.module_execution import installed_module_status
+        self.module_capabilities.value = "<p role='status'>Checking module installations…</p>"
+        root = Path(self.module_root.value)
+        self.btn_module_refresh.disabled = True
+
+        def refresh() -> None:
+            try:
+                managed = {entry['module_id']: entry for entry in installed_module_status(root)}
+                rows = []
+                for item in list_module_capabilities():
+                    state = item.status.value.replace("_", " ")
+                    if item.module_id in managed:
+                        observed = managed[item.module_id]
+                        state = observed['status'].replace('_', ' ')
+                        if observed['operations']:
+                            state += ': ' + ', '.join(observed['operations'])
+                    rows.append(f"<tr><td>{html.escape(item.name)}</td><td>{html.escape(state)}</td><td>{html.escape(item.responsibility)}</td></tr>")
+                self.module_capabilities.value = (
+                    "<table><caption>Observed module availability</caption><thead><tr><th scope='col'>Module</th><th scope='col'>Status</th><th scope='col'>Responsibility</th></tr></thead><tbody>"
+                    + "".join(rows) + "</tbody></table>")
+            except Exception as exc:
+                self.module_capabilities.value = f"<p role='alert'>Module status check failed: {html.escape(str(exc))}</p>"
+            finally:
+                self.btn_module_refresh.disabled = False
+        self._module_refresh_worker = threading.Thread(target=refresh, daemon=True)
+        self._module_refresh_worker.start()
+
+    def _install_selected_module(self, b: Any = None) -> None:
+        from scripts.manage_modules import DEFAULT_MANIFEST, load_manifest, install_module
+        name = self.module_recipient.value
+        spec = load_manifest(DEFAULT_MANIFEST)["modules"].get(name)
+        if spec is None or spec['distribution'] is None or spec.get('install_blocker'):
+            self.module_install_status.value = "<p role='alert'>This recipient has no installable package in the approved catalog. Source download is available through the module CLI where catalogued.</p>"
+            return
+        root = Path(self.module_root.value).expanduser()
+        self.btn_module_install.disabled = True
+        self.module_install_status.value = "<p role='status'>Installing the pinned module in its own environment…</p>"
+
+        def install() -> None:
+            try:
+                receipt = install_module(name, spec, root)
+                self.module_install_status.value = f"<p role='status'>{html.escape(name)} installed at revision {html.escape(receipt['revision'])}.</p>"
+                self._refresh_module_capabilities()
+            except Exception as exc:
+                self.module_install_status.value = f"<p role='alert'>Module installation failed: {html.escape(str(exc))}</p>"
+            finally:
+                self.btn_module_install.disabled = False
+        self._module_worker = threading.Thread(target=install, daemon=True)
+        self._module_worker.start()
+
+    def _run_module_geometry(self, b: Any = None) -> None:
+        from cochem_base.interfaces.artifact_handoff import prepare_module_handoff
+        from cochem_base.interfaces.module_execution import execute_module_handoff
+        import uuid
+        name = self.module_recipient.value
+        artifact = self.module_artifact.value
+        destination = Path(self.module_output.value).expanduser() / f"execution_{uuid.uuid4().hex}"
+        root = Path(self.module_root.value).expanduser()
+        self.btn_module_run.disabled = True
+        self.module_handoff_status.value = "<p role='status'>Running geometry analysis…</p>"
+
+        def run() -> None:
+            try:
+                prepare_module_handoff(name, artifact, destination / 'handoff', operation='geometry_analysis')
+                result = execute_module_handoff(destination / 'handoff/handoff.json', destination / 'result', root=root)
+                self._last_module_result = result
+                self.module_handoff_status.value = (
+                    f"<p role='status'>Geometry analysis completed for {html.escape(name)}.</p>"
+                    f"<p>{html.escape(result['scope'])}</p><p>Result: <code>{html.escape(str(destination / 'result/result.json'))}</code></p>"
+                    f"<pre>{html.escape(json.dumps(result['operation_report'], indent=2, allow_nan=False))}</pre>")
+            except Exception as exc:
+                self.module_handoff_status.value = f"<p role='alert'>Module operation failed: {html.escape(str(exc))}</p>"
+            finally:
+                self.btn_module_run.disabled = False
+        self._module_worker = threading.Thread(target=run, daemon=True)
+        self._module_worker.start()
 
     def _prepare_module_handoff(self, b: Any = None) -> None:
         from cochem_base.interfaces.artifact_handoff import prepare_module_handoff, load_module_handoff

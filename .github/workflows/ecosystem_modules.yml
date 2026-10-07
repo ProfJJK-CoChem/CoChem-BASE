@@ -1,0 +1,139 @@
+name: CoChem ecosystem modules
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Download sources, install packages, or run reviewed geometry analysis
+        type: choice
+        options: [fetch, install, geometry_analysis]
+        default: geometry_analysis
+        required: true
+      modules:
+        description: Space-separated module IDs from scripts/module-distribution.json
+        type: string
+        default: topos torq
+        required: true
+      xyz_file:
+        description: Repository-relative XYZ input for geometry analysis
+        type: string
+        default: examples/jobs/water.xyz
+        required: false
+  # Trusted implementation-branch pilot; no pull-request trigger receives secrets.
+  push:
+    branches: [codex/ecosystem-module-installation]
+    paths:
+      - '.github/workflows/ecosystem_modules.yml'
+      - 'scripts/manage_modules.py'
+      - 'scripts/module*'
+      - 'scripts/run_module*'
+      - 'src/cochem_base/interfaces/module_execution.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecosystem-modules-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  modules:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      COCHEM_ARTIFACT_DIR: ${{ runner.temp }}/cochem-modules
+      COCHEM_HEADLESS: '1'
+      QT_QPA_PLATFORM: offscreen
+      PYTHONDONTWRITEBYTECODE: '1'
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MODULE_ACTION: ${{ inputs.action || 'geometry_analysis' }}
+      MODULE_IDS: ${{ inputs.modules || 'topos torq' }}
+      MODULE_XYZ: ${{ inputs.xyz_file || 'examples/jobs/water.xyz' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate the reviewed selection and input
+        run: |
+          python - <<'PY'
+          import math, os
+          from pathlib import Path
+          from scripts.manage_modules import load_manifest
+          names = os.environ['MODULE_IDS'].split()
+          catalog = load_manifest()['modules']
+          if not names or len(names) > len(catalog) or any(name not in catalog for name in names):
+              raise SystemExit('Select module IDs from the reviewed distribution manifest.')
+          action = os.environ['MODULE_ACTION']
+          if action not in {'fetch', 'install', 'geometry_analysis'}:
+              raise SystemExit('Unsupported module action.')
+          if action != 'fetch' and any(catalog[name]['distribution'] is None or catalog[name].get('install_blocker') for name in names):
+              raise SystemExit('A selected module has missing or broken upstream Python packaging. Choose fetch to obtain its source.')
+          if action == 'geometry_analysis':
+              if any('geometry_analysis' not in catalog[name]['operations'] for name in names):
+                  raise SystemExit('A selected module has no reviewed geometry-analysis adapter.')
+              candidate = Path(os.environ['MODULE_XYZ'])
+              source = candidate.resolve(strict=True)
+              if candidate.is_absolute() or not source.is_relative_to(Path.cwd()) or not source.is_file():
+                  raise SystemExit('XYZ must be a regular file inside this assignment repository.')
+              if source.stat().st_size > 2 * 1024 * 1024:
+                  raise SystemExit('XYZ exceeds the bounded geometry input limit.')
+              lines = source.read_text().splitlines()
+              if not lines or not lines[0].strip().isdigit():
+                  raise SystemExit('XYZ requires an explicit atom count.')
+              count = int(lines[0])
+              if not 0 < count <= 2000 or len(lines) != count + 2:
+                  raise SystemExit('XYZ must contain one complete geometry of at most 2000 atoms.')
+              for line in lines[2:]:
+                  fields = line.split()
+                  if len(fields) != 4 or not all(math.isfinite(float(value)) for value in fields[1:]):
+                      raise SystemExit('XYZ coordinates must be three finite numbers per atom.')
+              # BASE and the selected provider validate element identity at execution.
+          PY
+      - name: Fetch and install immutable module sources
+        env:
+          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from scripts.manage_modules import fetch_module, install_module, load_manifest, default_root
+          if not os.environ.get('COCHEM_SOURCE_READ_TOKEN'):
+              raise SystemExit('Configure COCHEM_SOURCE_READ_TOKEN for this repository with Contents read access to selected module sources.')
+          catalog = load_manifest()['modules']
+          action = fetch_module if os.environ['MODULE_ACTION'] == 'fetch' else install_module
+          receipts = [action(name, catalog[name], default_root()) for name in dict.fromkeys(os.environ['MODULE_IDS'].split())]
+          report_dir = Path(os.environ['COCHEM_ARTIFACT_DIR']) / 'evidence'
+          report_dir.mkdir(parents=True, exist_ok=True)
+          report = {'modules': receipts, 'scientific_accuracy_established': False}
+          (report_dir / 'installations.json').write_text(json.dumps(report, indent=2) + '\n')
+          (report_dir / 'module-distribution.json').write_text(Path('scripts/module-distribution.json').read_text())
+          for receipt in receipts:
+              print(json.dumps({'module': receipt['module_id'], 'status': receipt['status'], 'revision': receipt['revision']}))
+          PY
+      - name: Install BASE for validated artifact handoffs
+        if: env.MODULE_ACTION == 'geometry_analysis'
+        run: |
+          git rev-parse HEAD > "$COCHEM_ARTIFACT_DIR/evidence/base-revision.txt"
+          python -m pip install .
+      - name: Execute real module geometry operations
+        if: env.MODULE_ACTION == 'geometry_analysis'
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from scripts.run_module_job import main
+          target = Path(os.environ['COCHEM_ARTIFACT_DIR']) / 'evidence' / 'geometry'
+          main(['--modules', *os.environ['MODULE_IDS'].split(), '--xyz-file', os.environ['MODULE_XYZ'], '--output', str(target)])
+          PY
+      - name: Retain module execution and provenance reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cochem-modules-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cochem-modules/evidence/
+          if-no-files-found: warn
+          retention-days: 14

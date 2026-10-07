@@ -13,21 +13,31 @@
   ],
   "postCreateCommand": "sudo chown vscode:vscode /home/vscode/CoChem_Artifacts && python3 scripts/hosted_dashboard.py setup --min-disk-space-gb 1",
   "postStartCommand": "python3 scripts/hosted_dashboard.py start",
-  "forwardPorts": [8866],
+  "forwardPorts": [
+    8866
+  ],
   "portsAttributes": {
     "8866": {
-      "label": "CoChem Voilà dashboard",
+      "label": "CoChem Voil\u00e0 dashboard",
       "onAutoForward": "notify",
       "protocol": "http"
     }
   },
   "customizations": {
     "vscode": {
-      "extensions": ["ms-python.python", "ms-python.vscode-pylance", "ms-toolsai.jupyter", "charliermarsh.ruff"],
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "charliermarsh.ruff"
+      ],
       "settings": {
         "python.defaultInterpreterPath": "/home/vscode/CoChem_Artifacts/ui-env/bin/python",
         "python.testing.pytestEnabled": true,
-        "python.testing.pytestArgs": ["-c", "pytest-srs.ini"]
+        "python.testing.pytestArgs": [
+          "-c",
+          "pytest-srs.ini"
+        ]
       }
     },
     "codespaces": {

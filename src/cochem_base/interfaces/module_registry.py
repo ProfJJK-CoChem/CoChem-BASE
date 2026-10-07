@@ -46,7 +46,7 @@ _MODULES = {
     "dock": ("CoChem-DOCK", "Remote service and telemetry interface"),
     **{name: ("CoChem-" + name.upper(), "External ecosystem workflow") for name in (
         "node", "oracle", "bench", "kinetic", "lumos", "mage", "scan", "shift",
-        "geom", "council", "cure", "ehs", "eval", "labs", "play", "pulse", "seed",
+        "geom", "council", "cure", "ehs", "eval", "labs", "play", "pulse", "seed", "orb",
     )},
 }
 _CONSOLIDATED = {"core", "mint", "unity", "synap"}

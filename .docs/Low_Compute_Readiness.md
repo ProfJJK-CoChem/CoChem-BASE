@@ -14,7 +14,7 @@ The current acceptance boundary is BASE ingestion, setup, GUI and validated inte
 | Stage 0 | All eleven phases completed with actual package, interpreter, I/O and hardware evidence. Golden Registry is checksummed, not independently signed. Status truthfully records `DEGRADED_OPERATIONAL` and an explicit 1 GB free-disk workload profile on this small workspace. The default production policy remains 50 GB. |
 | Voilà | Actual browser interactions exercised native calculations, CREST, cancellation, telemetry, Hessian isotope inspection and scientific exports. Newly added module-handoff and periodic ingestion flows have separate current-pass checks. |
 | ORCA 6.1.1 / Open MPI 4.1.8 | Approved archive hash/version and real MPI execution; actual serial/parallel, R1, DFT grid-series, harmonic and contaminated-spin recovery calculations. See [scientific evidence](ORCA_Scientific_Acceptance.md) and reports below. |
-| Classroom50 Actions interface | Guide based on official Classroom50 documentation; real browser JSON export uses shared workflow validation. Actual student backend single-point and optimization/frequency jobs executed locally. Each hosted run has separate evidence. |
+| Classroom50 Actions interface | Guide based on official Classroom50 documentation; real browser JSON export uses shared workflow validation. Actual student backend single-point and optimization/frequency jobs executed locally; hosted two-process optimization/frequency run 37616684042 also passed. |
 
 These are measured configurations on the current CPU/Linux machine. ORCA is now available and has run real calculations. CFOUR, accelerator variants, additional platforms and independent physical accuracy targets retain their own requirements.
 
@@ -76,15 +76,20 @@ are not summed into a fabricated final suite count.
 
 ## Current canonical result — 2026-10-07
 
-The complete 1.0.0 profile passed **1,469 tests**, with **2 physical Slurm skips**,
-**0 failures**, **1,471 collected** and no source mutation in 908.20 seconds.
+The complete 1.0.0 profile passed **1,477 tests**, with **2 physical Slurm skips**,
+**0 failures**, **1,479 collected** and no source mutation in 931.49 seconds.
 All 10,672 warnings are retained. Actual R2 and CREST/GOAT acceptance executed;
 the two remaining deferrals require physical Slurm allocation. Evidence:
-`/workspace/cochem-runtime/evidence/base-1.0.0-final-v2/`.
+`/workspace/cochem-runtime/evidence/base-1.0.0-final-v3/`.
 
 [Hosted ORCA serial/parallel acceptance](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613653904)
-passed separately. The student optimization/frequency workflow and Windows CI
-corrections still need successful reruns; consult the [release record](Release_1_0_0.md)
-for their status and revision boundaries. Neither the complete canonical
+passed separately. [Student optimization/frequency run 37616684042](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37616684042)
+also passed, with actual two-process ORCA calculation and accepted publication.
+[Bounded hosted CI run 37617769942](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37617769942)
+passed all Ubuntu/macOS/Windows controls and clean wheel checks, native launcher
+diagnostics, real Linux xTB/PySCF calculations, Stage 0 and dashboard lifecycle.
+The complete local profile also passed on that final code revision `190e5c5`;
+the preceding 1,469-pass v2 run remains historical. Consult
+the [release record](Release_1_0_0.md) for evidence and publication boundaries. Neither the complete canonical
 profile nor the bounded hosted selection claims execution of every retained
 historical test or unavailable platform.

@@ -10,13 +10,15 @@ The previous snapshot (994 passed, 4 skipped, 1 failed) and its strict-scan coun
 
 ## Current 1.0.0 acceptance — 2026-10-07
 
-The complete canonical profile passed **1,469 tests**, with **2 exact physical
-Slurm skips**, **0 failures**, **1,471 collected** and **10,672 retained warnings**
-in **908.20 seconds**. The source audit passed, all collected-node outcomes were
+The complete canonical profile passed **1,477 tests**, with **2 exact physical
+Slurm skips**, **0 failures**, **1,479 collected** and **10,672 retained warnings**
+in **931.49 seconds**. The source audit passed, all collected-node outcomes were
 accounted for, and no audited source/input bytes changed during execution.
 The remaining skipped checks require an actual Slurm allocation; they are not
 successful platform acceptance. Real R2 and CREST/GOAT checks now execute.
-Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v2/`.
+Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v3/`, against
+`190e5c548b800872626b87a463f0e6d854ba2030`. The earlier 1,469-pass v2 run on
+2026-10-07 remains historical; the current result includes subsequent fixes.
 
 The current retained-source inventory contains **563 source-pattern flags**,
 separate from the passing canonical source gate. Deleted legacy findings are
@@ -26,11 +28,16 @@ fabrications. The dated 559-flag inventory below is historical.
 [Actual hosted ORCA acceptance](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613653904)
 passed at `1cfa49a84d45da7c60ffd1fa0d6eae3889dbe049`, including fresh private
 archive installation, all eleven Stage 0 phases and genuine serial/two-rank
-calculation publication. The separate student optimization/frequency workflow
-and Windows CI correction still require successful reruns. A 479-test bounded
-local selection and isolated wheel installation passed at `01cca5b`; these
-selections are not added to the canonical count. The full local profile tested
-the `1cfa49a` implementation with the input fixture committed in `01cca5b`.
+calculation publication. The separate [student optimization/frequency run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37616684042)
+passed at `0a9effe`, including actual two-process ORCA derivatives and result
+publication. [Bounded hosted CI](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37617769942)
+passed at `190e5c5`: source integrity, all three operating-system control and
+wheel/CLI jobs, native launcher diagnostics, real Linux xTB/PySCF calculations,
+Stage 0 and dashboard lifecycle. A 479-test bounded local selection and isolated
+wheel installation also passed at `01cca5b`; overlapping selections are not
+added to the canonical count. The full local profile tested the final `190e5c5` implementation. Subsequent
+release changes are documentation only; the tested revisions and source
+equivalence are retained in publication evidence.
 The [release record](Release_1_0_0.md) preserves exact revision boundaries,
 evidence paths and outstanding publication checks.
 
@@ -62,7 +69,7 @@ A subsequent reporting clarification reproduced the affine error scaling, remove
 | 008 — R2 production | Actual ORCA canonical CCSD(T)/TZ-QZ reference generation, independent PySCF energy comparison and accepted five-leg R2 execution. Source hashes, atom mapping, gradients, trajectory drift and achieved convergence are retained. Signed counterpoise ordering and residual-gradient warnings remain explicit. | The bounded accepted run is recorded in [scientific acceptance](ORCA_Scientific_Acceptance.md); it does not claim a rigorous counterpoise energy bound. A finite-basis CBS estimate is not exact-CBS geometry certification. Higher-order R2 frequency/VPT2 providers remain downstream work. |
 | 009 — grid lifecycle | Native models and Chain, including compound decks, enforce DEFGRID1 → DEFGRID2 → DEFGRID3 minima. T5/T7/T8 and frequencies cannot silently use a coarse grid. | Actual rotational/grid convergence requires independently executed solver outputs. Stage progression is not a proof of empirical integration error. |
 | 010 — quintuple convergence | Required thresholds are emitted; achieved-value parsing rejects absent, incomplete, nonfinite or failed convergence. Chain cannot override geometry/resource policy through arbitrary raw blocks. | Actual coordinate and rotational-error targets need independent physical reference data. Configured tolerances cannot guarantee those errors for every molecule. |
-| 011 — Hessian discipline | XTB2/Lindh/READ policy, forbidden exact initial Hessians, nonempty checkpoints, safe identifiers, unique basenames and geometry-bearing Hessian validation. Compound generation shares the same policy. | Real ORCA state-transfer and compound execution acceptance. A nonempty file alone is not proof that every external wavefunction format is valid. |
+| 011 — Hessian discipline | XTB2/Lindh/READ policy, forbidden exact initial Hessians, safe identifiers, unique basenames and geometry-bearing Hessian validation. Actual ORCA checkpoint consumption and compound execution passed, including native MO projection, Hessian initialization, per-stage convergence and unchanged source hashes. | The compound acceptance validates native execution; it does not automatically import compound stages into Chain HDF5. Other external wavefunction formats and CFOUR retain their own acceptance. |
 | 012 — dispersion | B3LYP/PBE0 require D3BJ/D4, including isolated molecules. VV10 plus empirical dispersion is rejected. Real B3LYP-D4 and wB97M-V calculations passed through DEFGRID1/2/3 with retained convergence/refinement evidence. | The measured combinations do not certify all functionals, molecules or empirical accuracy targets. |
 | 013 — spin and T9 fallback | Inclusive 10% relative spin rejection and real isolated PySCF CASSCF/NEVPT2 recovery. Actual stretched H3 ORCA `<S²>=1.591697` was rejected and explicit CAS(3,3)/NEVPT2 recovered the doublet (`<S²>≈0.75`). CLI, GUI and Chain preserve the recovery contract. | Active spaces remain explicit. Single-point recovery does not complete an interrupted optimization/frequency request. Open-shell CFOUR diagnostics require its provider. |
 | 014 — isotope transformations | Actual ORCA water Hessian ingestion and simultaneous 18O/D2 substitutions passed library/GUI parity, rigid-mode removal, unchanged-source and changed-geometry rejection checks, without new electronic calculations. | Harmonic mass scaling does not supply VPT2 `B0`; missing anharmonic corrections stay unknown. The minimal-basis example is integration evidence, not experimental frequency accuracy. |
@@ -84,7 +91,7 @@ A subsequent reporting clarification reproduced the affine error scaling, remove
 | 9 — quadrature | Chunk 17's three-stage sequence governs overlapping proposal language. | Real output-based grid/rotation acceptance. |
 | 10 — stationary convergence | Emission and achieved-value gates are connected to execution. | Universal sub-mÅ/rotational accuracy is not established by thresholds alone. |
 | 11 — Wilson freezing | Real derivative/nullspace mathematics, complete fragments and live trajectory integrity; actual R1 and R2 frozen-monomer acceptance passed. | Additional molecules and external solver/host combinations retain their own physical acceptance. |
-| 12 — chained Hessians | Structured policy, checkpoint presence/content checks and output geometry agreement. | Actual cross-stage ORCA/CFOUR state transfer. |
+| 12 — chained Hessians | Structured policy, checkpoint presence/content checks, output geometry agreement and actual ORCA checkpoint/compound state-transfer acceptance. | Compound stages are not automatically imported into Chain HDF5 by the deck-generator acceptance. CFOUR state transfer requires its scientific provider. |
 | 13 — dispersion | Common sanitizer covers standalone and Chain inputs; actual B3LYP-D4/wB97M-V grid series passed. | Additional solver combinations and systems. |
 | 14 — CREST/GOAT union | Actual CREST plus ORCA GOAT water union, graph/RMSD/rotation/energy gates, HDF5 publication and promotion passed. | Additional systems and future TOPOS domain acceptance. |
 | 15 — multireference escalation | Real configured CASSCF/NEVPT2 execution after typed spin rejection. | Workflow-specific active spaces and completion of requested higher-order tasks. |
@@ -99,7 +106,7 @@ The proposal workflow's **MACE-OFF24m ↔ g-xTB fallback is now executed**, not 
 3. **TOPOS/TORQ future work is recorded, not counted as a BASE-only solver deficit.** BASE retains its working native calculation, CREST, isotope inspector and scientific export flows, and provides validated future-module handoffs in the GUI. Full multidimensional PES exploration and domain workflows will be completed in their repositories. Accessibility and real platform acceptance remain bounded by actual tests.
 4. **Product B now has direct BASE ingestion examples.** Ordered CIF and periodic JSON with fractional or Cartesian coordinates and explicit Angstrom/Bohr units preserve the periodic frame, original source hash and canonical converted structure hash. Singular/left-handed cells, duplicate lattice-equivalent sites, disorder/partial occupancy and invalid PAW inputs are rejected. The real registered QE PAW GaAs single point remains connected. Advanced bands, SOC, cell optimization and empirical accuracy claims need their scientific providers and benchmark evidence; ingesting a cell or executing one SCF does not certify them.
 5. **CI must preserve failures as evidence.** Obsolete duplicated workflows and misleading physical fixtures are retired with recorded replacements. Selected test interface interception is migrated to actual child-process configuration. The canonical pipeline rejects missing/zero-test evidence, source changes during validation and unexpected skips. The wider legacy collection is inventoried explicitly, not claimed as executed or compliant.
-6. **External acceptance requires actual execution evidence:** ORCA 6.1.1 hosted serial/two-rank acceptance has passed, with its run linked above. The student optimization/frequency workflow remains a separate pending rerun. Codespaces, CFOUR, GPU/Slurm, deployment filesystems and native physical calculations remain deferred. Source-level Slurm staging now prepares a real validated, hash-bound request and performs fresh Stage 0 within the compute allocation; those tests do not claim a physical cluster run.
+6. **External acceptance requires actual execution evidence:** ORCA 6.1.1 hosted serial/two-rank acceptance has passed, with its run linked above. The separate student optimization/frequency workflow also passed. Ubuntu/macOS/Windows controls, wheel/CLI checks and native launcher diagnostics passed in bounded hosted CI; this does not certify native ORCA science on Windows/macOS. Codespaces, CFOUR, GPU/Slurm, deployment filesystems and native physical calculations remain deferred. Source-level Slurm staging now prepares a real validated, hash-bound request and performs fresh Stage 0 within the compute allocation; those tests do not claim a physical cluster run.
 
 ## Reproduction and retained evidence
 
@@ -129,7 +136,7 @@ MPI rank/thread oversubscription was fixed in native, TOPOS, R2 and Slurm paths.
 The historical prepublication canonical local run passed **1,241 tests**, with the
 same **4 external deferrals** and no failures, collected-node omissions,
 unexpected skips or source changes. This superseded the earlier alpha count at that revision;
-it is now superseded by the 1,469-pass profile above and did not establish hosted ORCA execution. Evidence:
+it is now superseded by the 1,477-pass profile above and did not establish hosted ORCA execution. Evidence:
 `/workspace/cochem-runtime/evidence/orca-actions-prepublication/`.
 
 ## Real ORCA and Classroom50 evidence — 2026-10-07
@@ -157,6 +164,14 @@ or request errors; its report explicitly states that no hosted calculation was
 performed by the export test:
 `/workspace/cochem-runtime/evidence/classroom-actions-ui/browser/browser-summary.json`.
 
+Actual ORCA checkpoint and two-step compound execution passed in
+`/workspace/cochem-runtime/evidence/orca-state-transfer-resource-final/validated-acceptance.json`.
+The checkpoint job consumed genuine XYZ/GBW/Hessian inputs without changing their
+hashes and satisfied all five geometry limits. The compound job verified native
+MO projection, per-step resources and achieved SCF convergence. This native
+deck-generator check does not automatically import compound stages into Chain
+HDF5 or validate a CFOUR provider.
+
 The accepted five-leg R2 publication is retained at
 `/workspace/cochem-runtime/evidence/r2-physical-2026-10-07/accepted-r2-publication.json`.
 Its maximum internal monomer drift is `8.257453875e-7 Å` against `1e-6 Å`;
@@ -167,5 +182,5 @@ retains the observed residual-gradient warning.
 The complete instructor/student procedure is the
 [Classroom50 guide](GitHub_Classroom_ORCA_Setup.md). Current canonical counts
 and hosted outcomes are recorded above. Final publication must identify the
-reviewed revision and subsequent rerun outcomes; neither the historical
+reviewed revision and source equivalence to these tested revisions; neither the historical
 1,189/1,241 counts nor overlapping targeted selections replace that evidence.

@@ -25,10 +25,12 @@ Actual per-node pytest evidence must cover every collected node exactly once wit
 ## Current canonical acceptance — 2026-10-07
 
 The canonical source gate and complete local test profile both passed:
-**1,469 passed, 2 declared physical Slurm skips, 1,471 collected, 0 failures**.
-All 10,672 warnings remain recorded; execution took 908.20 seconds. Actual node
+**1,477 passed, 2 declared physical Slurm skips, 1,479 collected, 0 failures**.
+All 10,672 warnings remain recorded; execution took 931.49 seconds. Actual node
 coverage is complete and no audited source/input bytes changed. Evidence:
-`/workspace/cochem-runtime/evidence/base-1.0.0-final-v2/`.
+`/workspace/cochem-runtime/evidence/base-1.0.0-final-v3/`, at
+`190e5c548b800872626b87a463f0e6d854ba2030`. The preceding 1,469-pass v2 run
+on 2026-10-07 is historical and is not the current profile count.
 
 The source report records zero blocking production/CI, selected-test,
 atomic-mass and source/data findings. Its wider retained-test inventory is
@@ -38,9 +40,12 @@ retains its original scope and counts; deleted legacy items are resolved.
 
 The 479-test bounded local regression profile and clean installed-wheel checks
 also passed at `01cca5b`. Actual hosted ORCA serial/parallel acceptance passed
-at `1cfa49a`; the student-job and Windows CI corrections require their own
-successful reruns. See the [release record](Release_1_0_0.md) for revision and
-publication boundaries. Overlapping selections are not added together.
+at `1cfa49a`; student optimization/frequency run `37616684042` then passed at
+`0a9effe`. Bounded hosted CI run `37617769942` passed at `190e5c5`, including
+all three operating-system control and installed-wheel jobs, native launcher
+diagnostics, real Linux free-engine calculations and dashboard lifecycle.
+The complete local profile also passed on that source revision. See the
+[release record](Release_1_0_0.md) for evidence and publication boundaries. Overlapping selections are not added together.
 
 ## Historical verified snapshot
 
@@ -78,7 +83,7 @@ These are source-pattern findings, **not 559 proven runtime fabrications**. Reta
 
 [`.github/workflows/cochem_base_ci.yml`](../.github/workflows/cochem_base_ci.yml) now owns the source gate, actual cross-OS CI-control tests and the reusable bounded free-engine/dashboard acceptance workflow. The source gate runs in a Python `-I -S` process. The physical workflow retains real eleven-phase Stage 0 setup, isolated xTB/PySCF installation/calculations, CLI publication and rendered dashboard lifecycle checks.
 
-GitHub's free-engine scope is bounded: it does **not** claim that the entire silo-dependent local profile ran on hosted hardware. Separate ORCA access, physical acceptance and student calculation workflows use the reviewed private distribution manifest. Actual licensed local calculations, browser export and installed-wheel checks supply additional evidence. Hosted ORCA acceptance run 37613653904 passed; the student optimization/frequency workflow and remaining cross-platform CI corrections require separate reruns. Native-platform/GPU/Slurm acceptance remains separately identified. See [ORCA Actions evidence](ORCA_Actions_Setup.md) for run-specific outcomes.
+GitHub's free-engine scope is bounded: it does **not** claim that the entire silo-dependent local profile ran on hosted hardware. Separate ORCA access, physical acceptance and student calculation workflows use the reviewed private distribution manifest. Actual licensed local calculations, browser export and installed-wheel checks supply additional evidence. Hosted ORCA acceptance run 37613653904, student optimization/frequency run 37616684042 and bounded cross-platform CI run 37617769942 passed independently. The bounded CI run includes genuine free-engine calculations and dashboard lifecycle; it does not replace the full canonical local profile. Native-platform/GPU/Slurm acceptance remains separately identified. See [ORCA Actions evidence](ORCA_Actions_Setup.md) for run-specific outcomes.
 
 [`ci_tools/ci_migration.json`](../ci_tools/ci_migration.json) records the retired duplicate BENCH/SCRIBE workflows, orphaned historical linter patch, misleading uncalled log “sanitizer”, stale self-issued hashrings, and duplicate tests of the old inline workflow logic. Meaningful format/configuration/entropy checks now call the canonical implementation instead of reproducing scanner algorithms inside tests. `verify_core_integrity.py` remains a compatibility entrypoint to the canonical audit; it cannot generate an accepting baseline. Administrative cleanup/classification utilities and the older extension-only scanner are explicitly supplementary, not additional scientific acceptance pipelines.
 

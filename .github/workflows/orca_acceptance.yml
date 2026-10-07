@@ -3,6 +3,11 @@ name: ORCA 6.1.1 calculation acceptance
 on:
   workflow_dispatch:
     inputs:
+      baseline_only:
+        description: Execute all five TOPOS baseline cases without extended cases or native pytest; diagnostic scope only.
+        required: false
+        default: false
+        type: boolean
       topos_ref:
         description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
         required: false
@@ -15,6 +20,11 @@ on:
         type: string
   workflow_call:
     inputs:
+      baseline_only:
+        description: Execute all five TOPOS baseline cases without extended cases or native pytest; diagnostic scope only.
+        required: false
+        default: false
+        type: boolean
       topos_ref:
         description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
         required: false
@@ -230,13 +240,13 @@ jobs:
             --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence" \
             --threads 2 --memory-mb 2048 --budget-seconds 10800 --include-counterpoise --include-goat
       - name: Execute native correlated and anharmonic acceptance
-        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
+        if: always() && !inputs.baseline_only && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
         run: |
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_extended.py" \
             --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-extended" \
             --threads 2 --memory-mb 4096 --budget-seconds 7200
       - name: Retain source-bound licensed pytest results
-        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
+        if: always() && !inputs.baseline_only && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
         run: |
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_pytest.py" \
             --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence"

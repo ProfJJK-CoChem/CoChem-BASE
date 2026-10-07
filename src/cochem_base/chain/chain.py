@@ -63,6 +63,7 @@ from cochem.core.context import assert_writable_path
 from cochem_base.analysis.electronic_sanitizer import SpinContaminationStreamValidator
 from cochem_base.calc.cochem_calc_output_parser import QuantumParser
 from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+from cochem_base.core_engine.engine_environment import engine_runtime_environment
 from cochem_base.spectroscopy.isotopologue import get_nuclide_mass, projected_harmonic_frequencies
 from cochem_base.core.cochem_constants import (
     PLANCK_CONSTANT_J_S, SPEED_OF_LIGHT_CM_S, SPEED_OF_LIGHT_M_S,
@@ -1459,6 +1460,7 @@ class Chain:
             with trajectory:
                 result = safe_subprocess_run(
                     authorization.command([inp_path.name]), cwd=self.workdir, check=False,
+                    env=engine_runtime_environment("orca", executable=authorization.executable),
                     capture_output=True, text=True, required_disk_gb=0.1,
                     cpu_affinity=list(authorization.cpu_affinity) or None,
                     cancellation_event=telemetry_cancel,
@@ -1633,6 +1635,7 @@ class Chain:
                 ):
                     result = safe_subprocess_run(
                         command, cwd=self.workdir, check=False, capture_output=True, text=True,
+                        env=engine_runtime_environment("xtb", executable=authorization.executable),
                         required_disk_gb=0.1, on_stdout_line=SpinContaminationStreamValidator(self.mult),
                         cpu_affinity=list(authorization.cpu_affinity) or None,
                         cancellation_event=telemetry_cancel, load_full_stdout=True,

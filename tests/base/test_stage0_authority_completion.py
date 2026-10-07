@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -17,9 +19,11 @@ from cochem_base.core_engine.execution_authority import (
 )
 from cochem_base.orchestrator.stage0_authority import Stage0AuthorityError, build_stage0_authority
 from cochem_base.orchestrator.cochem_setup_phase_3 import (
+    audit_binary_linkage,
     extract_semantic_version,
     interrogate_binary_version,
 )
+from cochem_base.core_engine.engine_environment import engine_runtime_environment
 
 
 def _python_registry(tmp_path):
@@ -76,6 +80,68 @@ def test_actual_interpreter_cannot_be_misidentified_as_orca():
     version, error = interrogate_binary_version(sys.executable, "orca")
     assert version is None
     assert error == "No recognized version was returned by the executable"
+
+
+@pytest.mark.parametrize("engine", ["orca", "qe", "crest", "pyscf"])
+def test_native_runtime_selection_reaches_only_its_own_child(engine, tmp_path):
+    """A real interpreter observes environment transport, not chemistry output."""
+    site_lib = tmp_path / "site-libraries"
+    orca_lib = tmp_path / "orca-libraries"
+    mpi_bin = tmp_path / "orca-mpi" / "bin"
+    for directory in (site_lib, orca_lib, mpi_bin):
+        directory.mkdir(parents=True)
+    inherited = {**os.environ, "LD_LIBRARY_PATH": str(site_lib),
+                 "DYLD_LIBRARY_PATH": str(site_lib),
+                 "COCHEM_ORCA_LD_LIBRARY_PATH": str(orca_lib),
+                 "COCHEM_ORCA_DYLD_LIBRARY_PATH": str(orca_lib),
+                 "COCHEM_ORCA_MPIRUN_BIN": str(mpi_bin / "mpirun")}
+    before = inherited.copy()
+    environment = engine_runtime_environment(engine, inherited, executable=sys.executable)
+    observed = subprocess.run([
+        sys.executable, "-I", "-c",
+        "import json,os; print(json.dumps({key:os.environ.get(key) for key in "
+        "['LD_LIBRARY_PATH','DYLD_LIBRARY_PATH','PATH']}))",
+    ], env=environment, check=True, text=True, capture_output=True, timeout=15)
+    payload = json.loads(observed.stdout)
+    assert inherited == before
+    if engine == "orca":
+        assert payload["LD_LIBRARY_PATH"] == payload["DYLD_LIBRARY_PATH"] == str(orca_lib)
+        assert str(mpi_bin) in payload["PATH"].split(os.pathsep)
+    else:
+        assert payload["LD_LIBRARY_PATH"].split(os.pathsep)[0] == str(site_lib)
+        assert payload["DYLD_LIBRARY_PATH"].split(os.pathsep)[0] == str(site_lib)
+        assert str(orca_lib) not in payload["LD_LIBRARY_PATH"].split(os.pathsep)
+        assert str(mpi_bin) not in payload["PATH"].split(os.pathsep)
+
+
+def test_runtime_sibling_libraries_are_child_only_fallbacks(tmp_path):
+    executable = tmp_path / "native" / "bin" / "engine"
+    sibling = executable.parent.parent / "lib"
+    sibling.mkdir(parents=True)
+    inherited = {"PATH": os.environ.get("PATH", ""),
+                 "LD_LIBRARY_PATH": "/configured/site", "DYLD_LIBRARY_PATH": "/configured/site"}
+    environment = engine_runtime_environment("qe", inherited, executable=executable)
+    variable = {"linux": "LD_LIBRARY_PATH", "darwin": "DYLD_LIBRARY_PATH"}.get(sys.platform, "PATH")
+    assert environment[variable].split(os.pathsep)[-1] == str(sibling)
+    assert inherited["LD_LIBRARY_PATH"] == inherited["DYLD_LIBRARY_PATH"] == "/configured/site"
+    if variable != "PATH":
+        assert environment[variable].split(os.pathsep)[0] == "/configured/site"
+
+
+def test_runtime_mpi_scope_requires_the_selected_launcher_identity(tmp_path):
+    selected = tmp_path / "orca-mpi" / "bin" / "mpirun"
+    unrelated = tmp_path / "site-mpi" / "bin" / "mpirun"
+    inherited = {"LD_LIBRARY_PATH": "/site/lib", "COCHEM_ORCA_LD_LIBRARY_PATH": "/orca/lib",
+                 "COCHEM_ORCA_MPIRUN_BIN": str(selected)}
+    assert engine_runtime_environment("mpirun", inherited, executable=selected)["LD_LIBRARY_PATH"] == "/orca/lib"
+    assert engine_runtime_environment("mpirun", inherited, executable=unrelated)["LD_LIBRARY_PATH"] == "/site/lib"
+
+
+def test_actual_linkage_audit_preserves_process_environment():
+    before = dict(os.environ)
+    valid, missing = audit_binary_linkage(Path(sys.executable), engine_name="python")
+    assert valid and not missing
+    assert dict(os.environ) == before
 
 
 def test_real_audited_interpreter_executes_and_resource_overrides_fail(tmp_path):

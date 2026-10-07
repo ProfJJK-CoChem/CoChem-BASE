@@ -4,8 +4,6 @@ Geometry checks exercise actual molecular internal-coordinate derivatives. Text
 cases exercise parser grammar and rejection paths, not simulated quantum results.
 """
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -210,6 +208,69 @@ def test_quantum_parser_uses_relative_spin_and_requires_evidence(tmp_path):
     log.write_text("UKS\nORCA TERMINATED NORMALLY\n")
     with pytest.raises(MissingDataError):
         parser.check_spin_contamination(log)
+
+
+# Exact relevant excerpts from the native ORCA 6.1.1 water HF/STO-3G run.
+# Full output SHA-256:
+# 9471dbfc9461b192960fa5201f13fb1efd760ac953ad46d4ccc37ffb3dadc1ff
+# Excerpts test classification grammar only; physical acceptance uses full logs.
+_NATIVE_RHF_STATE_EXCERPT = """  Marcos Casanova-Páez   : Triplet and SCS-CIS(D). UHF-(DLPNO)-IP/EA/STEOM-CCSD. UHF-CVS-IP/STEOM-CCSD
+  Dipayan Datta          : RHF DLPNO-CCSD density
+------------
+SCF SETTINGS
+------------
+General Settings:
+ Hartree-Fock type      HFTyp           .... RHF
+ Total Charge           Charge          ....    0
+ Multiplicity           Mult            ....    1
+ Number of Electrons    NEL             ....   10
+"""
+
+
+@pytest.mark.parametrize("multiplicity", (None, 1))
+def test_native_restricted_singlet_is_not_reclassified_by_orca_credits(tmp_path, multiplicity):
+    parser = QuantumParser(str(tmp_path))
+    log = tmp_path / "native_rhf_state_excerpt.out"
+    log.write_text(_NATIVE_RHF_STATE_EXCERPT)
+    assert parser.check_spin_contamination(log, multiplicity=multiplicity)
+
+
+@pytest.mark.parametrize("reference", ("UHF", "UKS", "ROHF", "unknown"))
+def test_open_shell_or_unknown_scf_reference_still_requires_spin_measurement(tmp_path, reference):
+    parser = QuantumParser(str(tmp_path))
+    log = tmp_path / "reference_rejection_grammar.out"
+    # Only the actual settings field changes; RHF in the credits cannot exempt it.
+    log.write_text(_NATIVE_RHF_STATE_EXCERPT.replace(".... RHF", f".... {reference}"))
+    with pytest.raises(MissingDataError):
+        parser.check_spin_contamination(log, multiplicity=1)
+
+
+@pytest.mark.parametrize("state,multiplicity", [
+    ("RHF\n", 1),
+    ("|  1> ! RHF\n|  2> * xyz 0 1\n", 1),
+    (" Hartree-Fock type HFTyp .... RHF\n", 1),
+    (" Multiplicity Mult .... 1\n", 1),
+    (" Hartree-Fock type HFTyp .... RHF\n Multiplicity Mult .... 3\n", 1),
+    (" Hartree-Fock type HFTyp .... RHF\n Multiplicity Mult .... 1\n", 3),
+    (" Hartree-Fock type HFTyp .... RHF\n Multiplicity Mult .... 1\n"
+     " Hartree-Fock type HFTyp .... UHF\n Multiplicity Mult .... 1\n", 1),
+    (" Hartree-Fock type HFTyp .... RHF\n Multiplicity Mult .... 1\n"
+     " Hartree-Fock type HFTyp .... RHF\n", 1),
+])
+def test_missing_or_conflicting_scf_state_cannot_exempt_spin_evidence(tmp_path, state, multiplicity):
+    parser = QuantumParser(str(tmp_path))
+    log = tmp_path / "incomplete_state_grammar.out"
+    log.write_text(state)
+    with pytest.raises(MissingDataError):
+        parser.check_spin_contamination(log, multiplicity=multiplicity)
+
+
+def test_restricted_scf_settings_never_override_measured_contamination(tmp_path):
+    parser = QuantumParser(str(tmp_path))
+    log = tmp_path / "contaminated_restricted_state_grammar.out"
+    log.write_text(_NATIVE_RHF_STATE_EXCERPT + "Expectation value of <S**2> : 0.06\n")
+    with pytest.raises(SpinContaminationError):
+        parser.check_spin_contamination(log, multiplicity=1)
 
 
 def test_stationarity_requires_all_five_actual_values(tmp_path):

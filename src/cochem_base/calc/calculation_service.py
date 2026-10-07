@@ -22,15 +22,17 @@ logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
-def _engine_environment(engine: str, threads: int | None, inherited: dict[str, str]) -> dict[str, str]:
+def _engine_environment(engine: str, threads: int | None, inherited: dict[str, str],
+                        *, executable: str | Path | None = None) -> dict[str, str]:
     """Keep ORCA's MPI ranks from each inheriting the full CPU thread budget."""
     from cochem_base.core_engine.cochem_core_subprocess_broker import sanitize_mpi_environment
+    from cochem_base.core_engine.engine_environment import engine_runtime_environment
 
+    environment = engine_runtime_environment(engine, inherited, executable=executable)
     if engine == "orca":
         # ORCA launches its MPI ranks from %pal in the input, which is not
         # visible to the broker's command-line MPI detection.
-        return sanitize_mpi_environment(inherited, force_single_thread=True)
-    environment = dict(inherited)
+        return sanitize_mpi_environment(environment, force_single_thread=True)
     if threads is not None:
         environment.update(OMP_NUM_THREADS=str(threads), MKL_NUM_THREADS=str(threads),
                            OPENBLAS_NUM_THREADS=str(threads))
@@ -383,7 +385,7 @@ def run_calculation(
         fallback = None
         emit({"kind": "status", "status": "DECK_GENERATED", "scratch_dir": str(sandbox_dir)})
         if not dry_run:
-            environment = _engine_environment(config.engine, threads, dict(os.environ))
+            environment = _engine_environment(config.engine, threads, dict(os.environ), executable=engine_path)
             accepted: dict[str, Any] | None = None
 
             def primary() -> None:

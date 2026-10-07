@@ -345,6 +345,8 @@ class DualCorrelationEngine:
             else:
                 cmd = [cmd_str, str(inp_file)]
 
+        from cochem_base.core_engine.engine_environment import engine_runtime_environment
+        env = engine_runtime_environment("orca", env, executable=cmd[0])
         proc = subprocess.run(
             cmd,
             cwd=str(scratch_path),

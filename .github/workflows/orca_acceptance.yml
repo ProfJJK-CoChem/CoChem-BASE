@@ -89,6 +89,10 @@ jobs:
           python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
             > "$RUNNER_TEMP/orca-evidence/stage0-setup.log" 2>&1
       - name: Run actual serial and parallel ORCA calculations through BASE
+        env:
+          # These CLI tests use pytest itself; unrelated installed GUI plugins
+          # must not require a display/Qt runtime before collection.
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
         run: |
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -m pytest \
             tests/calc/test_orca_cli_execution.py \
@@ -107,6 +111,7 @@ jobs:
             ${{ runner.temp }}/orca-evidence/**/*.out
             ${{ runner.temp }}/orca-evidence/**/*.inp
             ${{ runner.temp }}/orca-evidence/**/*.sha256
+            ${{ runner.temp }}/orca-evidence/**/complexes.h5
             ${{ runner.temp }}/cochem-openmpi-build/**/*.log
             ${{ runner.temp }}/cochem-artifacts/Registry/*.json
             ${{ runner.temp }}/cochem-artifacts/Registry/*.sha256

@@ -25,13 +25,14 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from contextlib import nullcontext
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
+
+from cochem_base.core_engine.engine_environment import engine_runtime_environment
 
 # =============================================================================
 # LOGGING & ATEXIT SWEEPING
@@ -508,7 +509,7 @@ def _get_pe_imported_dlls(pe_path: Path) -> List[str]:
     return dlls
 
 
-def audit_binary_linkage(binary_path: Path) -> Tuple[bool, List[str]]:
+def audit_binary_linkage(binary_path: Path, *, engine_name: Optional[str] = None) -> Tuple[bool, List[str]]:
     """Inspect dynamic shared library linkage for a binary executable.
 
     Checks:
@@ -516,9 +517,9 @@ def audit_binary_linkage(binary_path: Path) -> Tuple[bool, List[str]]:
     - macOS: `otool -L <binary_path>` verifying library existence
     - Windows: PE import table parsing / dumpbin checking for DLL resolution
 
-    If missing dependencies are found in sibling directories (e.g. ../lib or lib/),
-    automatically appends those paths to the appropriate environment variables
-    (LD_LIBRARY_PATH, DYLD_LIBRARY_PATH, PATH).
+    Sibling library directories and engine-specific runtime selections apply to
+    the probe's copied environment, using the same resolver as native execution.
+    The calling process's library paths are never changed by discovery.
 
     Returns:
     --------
@@ -531,6 +532,7 @@ def audit_binary_linkage(binary_path: Path) -> Tuple[bool, List[str]]:
 
     missing: List[str] = []
     current_os = platform.system()
+    environment = engine_runtime_environment(engine_name or p.name, executable=p)
 
     if current_os == "Linux":
         try:
@@ -540,6 +542,7 @@ def audit_binary_linkage(binary_path: Path) -> Tuple[bool, List[str]]:
                 text=True,
                 timeout=5.0,
                 check=False,
+                env=environment,
             )
             if res.returncode == 0:
                 for line in res.stdout.splitlines():
@@ -558,6 +561,7 @@ def audit_binary_linkage(binary_path: Path) -> Tuple[bool, List[str]]:
                 text=True,
                 timeout=5.0,
                 check=False,
+                env=environment,
             )
             if res.returncode == 0:
                 for line in res.stdout.splitlines()[1:]:
@@ -567,7 +571,9 @@ def audit_binary_linkage(binary_path: Path) -> Tuple[bool, List[str]]:
                     dylib_path_str = line.split()[0]
                     if dylib_path_str.startswith(("@", "/System", "/usr/lib")):
                         continue
-                    if not Path(dylib_path_str).exists():
+                    alternatives = [Path(directory) / Path(dylib_path_str).name for directory in
+                                    environment.get("DYLD_LIBRARY_PATH", "").split(os.pathsep) if directory]
+                    if not Path(dylib_path_str).exists() and not any(path.is_file() for path in alternatives):
                         missing.append(dylib_path_str)
         except Exception as exc:
             logger.debug(f"otool audit failed on {p}: {exc}")
@@ -582,6 +588,7 @@ def audit_binary_linkage(binary_path: Path) -> Tuple[bool, List[str]]:
                     text=True,
                     timeout=5.0,
                     check=False,
+                    env=environment,
                 )
                 if res.returncode == 0:
                     recording = False
@@ -608,7 +615,7 @@ def audit_binary_linkage(binary_path: Path) -> Tuple[bool, List[str]]:
             Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32",
             Path(os.environ.get("SystemRoot", r"C:\Windows")),
         ]
-        path_env_dirs = [Path(x) for x in os.environ.get("PATH", "").split(os.pathsep) if x.strip()]
+        path_env_dirs = [Path(x) for x in environment.get("PATH", "").split(os.pathsep) if x.strip()]
         search_dirs = sys_dirs + path_env_dirs
 
         for dll in imported_dlls:
@@ -625,35 +632,6 @@ def audit_binary_linkage(binary_path: Path) -> Tuple[bool, List[str]]:
                     continue
             if not found:
                 missing.append(dll)
-
-    # Check sibling directories (../lib, ./lib) for missing dependencies
-    if missing:
-        sibling_lib_dirs = [
-            p.parent / "lib",
-            p.parent.parent / "lib",
-        ]
-        still_missing: List[str] = []
-        for lib in missing:
-            found_sibling = False
-            for s_dir in sibling_lib_dirs:
-                if s_dir.is_dir() and any(s_dir.glob(f"*{lib}*")):
-                    found_sibling = True
-                    if current_os == "Linux":
-                        curr_ld = os.environ.get("LD_LIBRARY_PATH", "")
-                        if str(s_dir) not in curr_ld:
-                            os.environ["LD_LIBRARY_PATH"] = f"{s_dir}:{curr_ld}" if curr_ld else str(s_dir)
-                    elif current_os == "Darwin":
-                        curr_dyld = os.environ.get("DYLD_LIBRARY_PATH", "")
-                        if str(s_dir) not in curr_dyld:
-                            os.environ["DYLD_LIBRARY_PATH"] = f"{s_dir}:{curr_dyld}" if curr_dyld else str(s_dir)
-                    elif current_os == "Windows":
-                        curr_path = os.environ.get("PATH", "")
-                        if str(s_dir) not in curr_path:
-                            os.environ["PATH"] = f"{s_dir};{curr_path}" if curr_path else str(s_dir)
-                    break
-            if not found_sibling:
-                still_missing.append(lib)
-        missing = still_missing
 
     is_valid = len(missing) == 0
     return is_valid, missing
@@ -679,7 +657,7 @@ def discover_binary_path(
                 except OSError:
                     continue
 
-            is_valid, missing = audit_binary_linkage(cand)
+            is_valid, missing = audit_binary_linkage(cand, engine_name=engine_name)
             if is_valid:
                 return cand
             else:
@@ -811,8 +789,9 @@ def interrogate_binary_version(
         cmd.append("--version")
 
     try:
-        directory = (tempfile.TemporaryDirectory(prefix="cochem-orca-version-")
-                     if "orca" in raw else nullcontext(None))
+        # Some native metadata probes (including QE --help) create diagnostics
+        # before rejecting empty input. Keep every probe outside the checkout.
+        directory = tempfile.TemporaryDirectory(prefix="cochem-engine-version-")
         commands = [cmd, [str(p)]] if raw == "orca" else [cmd]
         with directory as probe_directory:
             for command in commands:
@@ -824,6 +803,7 @@ def interrogate_binary_version(
                     stdin=subprocess.DEVNULL,
                     timeout=timeout,
                     check=False,
+                    env=engine_runtime_environment(engine_name, executable=p),
                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
                 )
                 if res.returncode < 0:

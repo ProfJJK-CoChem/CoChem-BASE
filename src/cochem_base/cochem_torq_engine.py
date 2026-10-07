@@ -1149,10 +1149,12 @@ def opi_persistent_threading(
 
         logger.info(f"[OPI Thread] Executing ORCA step {idx} (n_procs={safe_n_procs}) at {inp_path}")
         try:
+            from cochem_base.core_engine.engine_environment import engine_runtime_environment
             stdout, stderr, ret_code = execute_subprocess_safe(
                 cmd=[orca_bin, str(inp_path)],
                 cwd=scratch_dir,
-                timeout=3600.0
+                timeout=3600.0,
+                env=engine_runtime_environment("orca", executable=orca_bin),
             )
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(stdout)

@@ -44,6 +44,20 @@ def supported_cfour_request(config: Any) -> bool:
             and config.theory_tier is None and config.r2_reference_manifest is None)
 
 
+def _require_authorized_runtime_seal(authorized_seal: str | None, observed_seal: str) -> None:
+    """Every observation must match Stage 0, including the first observation."""
+    from cochem_base.core_engine.execution_authority import RegistryAuthorityViolationError
+    if (not isinstance(authorized_seal, str) or not re.fullmatch(r"[0-9a-f]{64}", authorized_seal)
+            or observed_seal != authorized_seal):
+        raise RegistryAuthorityViolationError("CFOUR runtime does not match its authorized Stage 0 integrity seal")
+
+
+def _raise_if_cancelled(cancellation_event: Any) -> None:
+    from cochem_base.core_engine.cochem_core_subprocess_broker import SubprocessCancelledError
+    if cancellation_event is not None and cancellation_event.is_set():
+        raise SubprocessCancelledError("CFOUR calculation cancelled before its next operation")
+
+
 def _float(value: str) -> float:
     number = float(value.replace("D", "E").replace("d", "e"))
     if not math.isfinite(number):
@@ -238,8 +252,11 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
     from cochem_base.core_engine.scientific_telemetry import append_scientific_result
     if not supported_cfour_request(config):
         raise ValueError("CFOUR requested operation remains pending integration")
-    directory.mkdir(parents=True, exist_ok=False)
+    _raise_if_cancelled(cancellation_event)
+    authorized_seal = getattr(authority, "runtime_seal_sha256", None)
     runtime = verify_cfour_runtime(authority.executable, environment=environment)
+    _require_authorized_runtime_seal(authorized_seal, runtime["runtime_seal_sha256"])
+    directory.mkdir(parents=True, exist_ok=False)
     (directory / "runtime_provenance.json").write_text(json.dumps(runtime, indent=2, allow_nan=False), encoding="utf-8")
     child_environment = {key: value for key, value in environment.items()
                          if not any(marker in key.upper() for marker in ("TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "API_KEY"))}
@@ -251,15 +268,14 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
     trajectory: list[dict[str, Any]] = []
 
     def native(xyz: Any, *, gradient: bool = False, harmonic: bool = False) -> dict[str, Any]:
-        if cancellation_event is not None and cancellation_event.is_set():
-            raise RuntimeError("CFOUR calculation was cancelled")
+        _raise_if_cancelled(cancellation_event)
         remaining = config.timeout_seconds - (time.monotonic() - started)
         if remaining <= 0:
             raise TimeoutError("CFOUR operation exceeded its total wall-clock budget")
         work = directory / f"evaluation-{len(runs):04d}"
         current_runtime = verify_cfour_runtime(authority.executable, environment=environment)
-        if current_runtime["runtime_seal_sha256"] != runtime["runtime_seal_sha256"]:
-            raise ValueError("CFOUR runtime changed after operation authorization")
+        _require_authorized_runtime_seal(authorized_seal, current_runtime["runtime_seal_sha256"])
+        _raise_if_cancelled(cancellation_event)
         deck = write_cfour_input(work, config, elements, xyz, memory_mb=authority.total_memory_mb,
                                  gradient=gradient, harmonic=harmonic)
         for name, field in (("GENBAS", "genbas"), ("ECPDATA", "ecpdata")):
@@ -269,6 +285,7 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
         proc = safe_subprocess_run(authority.command(), cwd=work, timeout=remaining, check=False,
                                    capture_output=True, text=True, env=child_environment,
                                    required_disk_gb=0.1, load_full_stdout=True,
+                                   sanitize_mpi=False,
                                    cpu_affinity=list(authority.cpu_affinity) or None,
                                    cancellation_event=cancellation_event,
                                    on_stdout_line=(lambda line: on_event({"kind": "log", "stream": "stdout", "message": line})) if on_event else None)
@@ -276,8 +293,8 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
         stdout.write_text(proc.stdout or "", encoding="utf-8")
         stderr.write_text(proc.stderr or "", encoding="utf-8")
         completed_runtime = verify_cfour_runtime(authority.executable, environment=environment)
-        if completed_runtime["runtime_seal_sha256"] != runtime["runtime_seal_sha256"]:
-            raise ValueError("CFOUR runtime changed during native execution")
+        _require_authorized_runtime_seal(authorized_seal, completed_runtime["runtime_seal_sha256"])
+        _raise_if_cancelled(cancellation_event)
         if proc.returncode != 0:
             raise RuntimeError(f"CFOUR process exited {proc.returncode}; diagnostics retained in {work}")
         accepted = _accept_output(proc.stdout or "", config.method, authority.cores)
@@ -357,4 +374,5 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
         result["optimization_evidence"] = optimization
     result["metadata"] = {key: result[key] for key in ("gradient_artifact", "hessian_artifact", "hessian_bundle_artifact", "optimization_evidence",
                            "harmonic_frequencies_cm1", "principal_isotope_masses_u", "parallel_model") if key in result}
+    _raise_if_cancelled(cancellation_event)
     return result

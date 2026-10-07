@@ -1,12 +1,17 @@
 """Input/resource/publication boundaries; no invented chemistry reference data."""
 import json
+import hashlib
 import os
 from pathlib import Path
+import sys
+import threading
 
 import pytest
 
 from cochem_base.calc.calculation_service import CalculationMatrixConfig, _engine_environment, _publish_run_artifacts
-from cochem_base.calc.cfour_execution import supported_cfour_request, write_cfour_input
+from cochem_base.calc.cfour_execution import _require_authorized_runtime_seal, execute_cfour, supported_cfour_request, write_cfour_input
+from cochem_base.core_engine.cochem_core_subprocess_broker import SubprocessCancelledError, safe_subprocess_run
+from cochem_base.core_engine.execution_authority import RegistryAuthorityViolationError
 from cochem_base.interfaces.scientific_jobs import calculation_capability
 
 
@@ -54,6 +59,45 @@ def test_cfour_openmp_cannot_enable_nested_blas_teams():
     assert environment["OPENBLAS_NUM_THREADS"] == environment["MKL_NUM_THREADS"] == "1"
     assert environment["BLIS_NUM_THREADS"] == environment["GOTO_NUM_THREADS"] == "1"
     assert inherited["OMP_NUM_THREADS"] == inherited["OPENBLAS_NUM_THREADS"] == "8"
+
+
+def test_native_openmp_broker_preserves_threads_in_a_slurm_environment(tmp_path):
+    # An ordinary Python diagnostic process observes the actual child environment;
+    # it is not a CFOUR executable and produces no chemistry reference data.
+    environment = _engine_environment("cfour", 2, {"PATH": os.defpath, "SLURM_NTASKS": "2"})
+    command = [sys.executable, "-c", "import json,os; print(json.dumps({key:os.environ.get(key) for key in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS')}))"]
+    preserved = safe_subprocess_run(command, cwd=tmp_path, env=environment, sanitize_mpi=False,
+                                    timeout=30, capture_output=True, text=True, required_disk_gb=.01)
+    assert json.loads(preserved.stdout) == {"OMP_NUM_THREADS": "2", "OPENBLAS_NUM_THREADS": "1"}
+    ordinary_mpi = safe_subprocess_run(command, cwd=tmp_path, env=environment, sanitize_mpi=True,
+                                       timeout=30, capture_output=True, text=True, required_disk_gb=.01)
+    assert json.loads(ordinary_mpi.stdout) == {"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1"}
+
+
+def test_first_observation_cannot_replace_the_authorized_runtime_seal():
+    # Digests of actual different repository files exercise the identity boundary;
+    # neither file is presented as a quantum binary or scientific checkpoint.
+    source = Path(__file__).resolve()
+    previous = hashlib.sha256(source.read_bytes()).hexdigest()
+    changed = hashlib.sha256((source.parent / "test_scientific_job_boundaries.py").read_bytes()).hexdigest()
+    assert previous != changed
+    _require_authorized_runtime_seal(previous, previous)
+    with pytest.raises(RegistryAuthorityViolationError, match="authorized Stage 0"):
+        _require_authorized_runtime_seal(previous, changed)
+    with pytest.raises(RegistryAuthorityViolationError, match="authorized Stage 0"):
+        _require_authorized_runtime_seal(None, changed)
+
+
+def test_pre_cancelled_cfour_request_uses_the_brokers_cancellation_type(tmp_path):
+    cancelled = threading.Event()
+    cancelled.set()
+    directory = tmp_path / "cancelled-cfour"
+    # Cancellation precedes runtime discovery/authorization, so no authority or
+    # installed CFOUR is needed and no substitute engine is invoked.
+    with pytest.raises(SubprocessCancelledError):
+        execute_cfour(request(), ["H", "H"], [[0, 0, 0], [0, 0, .74]], directory=directory,
+                      authority=None, environment={}, cancellation_event=cancelled)
+    assert not directory.exists()
 
 
 @pytest.mark.parametrize("memory", [0, -1, True, 512.5])

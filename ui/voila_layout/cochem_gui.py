@@ -1605,6 +1605,7 @@ class CoChemGUI:
         if change["new"] == "XTB":
             self.product_class_selector.value = "Screening (no product accuracy claim)"
             self.matrix_tier.value = "T1"
+            self._on_tier_changed({'new': 'T1'})
             self.matrix_method.value = "GFN2-xTB"
             self.matrix_basis.value = "built-in"
             self.matrix_solvation.value = None
@@ -1614,6 +1615,7 @@ class CoChemGUI:
         elif change["new"] == "PYSCF":
             self.product_class_selector.value = "Screening (no product accuracy claim)"
             self.matrix_tier.value = "T2"
+            self._on_tier_changed({'new': 'T2'})
             self.matrix_method.value = "HF/STO-3G"
             self.matrix_basis.value = "STO-3G"
             self.matrix_solvation.value = None
@@ -1630,6 +1632,10 @@ class CoChemGUI:
             self.matrix_cbs_pair.value = None
             self.cb_recipe_r1.value = False
             self.cb_recipe_r2.value = False
+        else:
+            # Changing the engine can retain the same tier. Refresh its method
+            # and basis catalogs even when the tier trait emits no change.
+            self._on_tier_changed({'new': self.matrix_tier.value})
         self.btn_execute.description = {"XTB": "Run xTB optimization", "PYSCF": "Run PySCF single point",
                                         "CFOUR": "Run CFOUR calculation", None: "Select a calculation engine"}.get(change["new"], "Run ORCA optimization")
         self._check_dispersion_gate()

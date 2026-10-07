@@ -27,6 +27,7 @@ class ExecutionAuthorization:
     binary_sha256: str
     cpu_affinity: tuple[int, ...] = ()
     cpu_budget_unit: str = "physical_core"
+    runtime_seal_sha256: str | None = None
 
     def command(self, arguments: Sequence[str] = ()) -> list[str]:
         return [self.executable, *arguments]
@@ -159,6 +160,7 @@ def authorize_engine_execution(
             digest,
             affinity,
             budget_unit,
+            runtime_seal_sha256=record.get("runtime_seal_sha256"),
         )
     except Exception as exc:
         if isinstance(exc, RegistryAuthorityViolationError):

@@ -56,7 +56,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: ProfJJK-CoChem/CoChem-TOPOS
-          ref: 73b3fb87386cfc1d572455454b9ebf43af978e04
+          ref: d7db6a7df896ec7783bafc4f8cbd5ce1913e8071
           token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
           path: .cochem-dependencies/topos
           persist-credentials: false

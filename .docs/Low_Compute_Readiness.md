@@ -32,7 +32,15 @@ The previous repository-wide collection attempt found 4,416 tests and 237 collec
 
 ## Scientific evidence corrections
 
-The failed 1631.753 cm⁻¹ PES report mixed incorrect fitting/energy-reference semantics with out-of-domain extrapolation and mislabeled EMT data as quantum reference data. The artificial affine target makes the paired correction error 2% of the fitted baseline error: 6.271842 cm⁻¹. The standalone predicted surface remains 319.863926 cm⁻¹ (0.915 kcal/mol) and is not certified. These are energy-fitting errors, not vibrational frequencies or independent quantum accuracy measurements. See the scope report for the independent decomposition.
+The failed 1631.753 cm⁻¹ PES report mixed incorrect fitting/energy-reference semantics with out-of-domain extrapolation and mislabeled EMT data as quantum reference data. The artificial affine target makes the paired correction error 2% of the fitted baseline error: 6.271842 cm⁻¹. That historical synthetic example’s standalone predicted surface remains 319.863926 cm⁻¹ (0.915 kcal/mol) and is not certified. These are energy-fitting errors, not vibrational frequencies or independent quantum accuracy measurements. See the scope report for the independent decomposition.
+
+A separate real quantum H2 interpolation protocol now meets the 10 cm⁻¹
+energy-error target: 128 RHF/STO-3G baseline points, 32 CCSD(T)/cc-pVTZ correction
+pairs and 31 fresh held-out geometries give 3.176715694 cm⁻¹ standalone RMSE and
+8.242899532 cm⁻¹ maximum absolute error with unchanged model defaults. The
+0.55–1.80 Å two-electron one-dimensional interpolation does not certify spectra,
+extrapolation or arbitrary molecules. Evidence:
+`/workspace/cochem-runtime/evidence/quantum-pes-2026-10-07/dual-resolution-acceptance.json`.
 
 The historical saved water Hessian had wrong unit interpretation. It is replaced by a fresh ASE/EMT Hessian with explicit conversion. Fabricated formaldehyde calibration/uncertainty data and the dependent TORQ “physical acceptance” test were removed. These corrections do not create quantum accuracy evidence.
 
@@ -65,3 +73,18 @@ Classroom50 browser export passed independently of hosted execution. Installed
 1.0.0 wheel checks and the final release evidence are described in
 [the release record](Release_1_0_0.md). Historical and overlapping selections
 are not summed into a fabricated final suite count.
+
+## Current canonical result — 2026-10-07
+
+The complete 1.0.0 profile passed **1,469 tests**, with **2 physical Slurm skips**,
+**0 failures**, **1,471 collected** and no source mutation in 908.20 seconds.
+All 10,672 warnings are retained. Actual R2 and CREST/GOAT acceptance executed;
+the two remaining deferrals require physical Slurm allocation. Evidence:
+`/workspace/cochem-runtime/evidence/base-1.0.0-final-v2/`.
+
+[Hosted ORCA serial/parallel acceptance](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613653904)
+passed separately. The student optimization/frequency workflow and Windows CI
+corrections still need successful reruns; consult the [release record](Release_1_0_0.md)
+for their status and revision boundaries. Neither the complete canonical
+profile nor the bounded hosted selection claims execution of every retained
+historical test or unavailable platform.

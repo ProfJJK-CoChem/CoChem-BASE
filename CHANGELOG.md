@@ -18,6 +18,16 @@ Publication and acceptance status are recorded in
   and inherited thread counts from corrupting execution.
 - Added molecular optimization and harmonic derivative acceptance, explicit
   geometry provenance and canonical result/HDF5 agreement checks.
+- Executed real frozen-monomer R1/R2, dispersion/grid, spin-recovery,
+  CREST/GOAT-union and isotope/Hessian integration checks, preserving achieved
+  convergence and signed counterpoise warnings.
+- Met the 10 cm⁻¹ held-out energy-error bound in a bounded real H2 interpolation
+  protocol: 3.176715694 cm⁻¹ standalone RMSE, 8.242899532 cm⁻¹ maximum error.
+  This does not certify other molecules, extrapolation or spectroscopic accuracy.
+- Completed the 1,469-pass canonical local profile with only two declared
+  physical Slurm deferrals and no source mutation. Hosted ORCA serial/parallel
+  acceptance passed; student-job and cross-platform CI follow-ups remain tracked
+  separately in the release record.
 - Retained complete eleven-phase Stage 0 setup, independently checked engine
   identities, immutable source checks and explicit downstream handoff states.
 - Prepared versioned Python distributions and installed CLI entry points.

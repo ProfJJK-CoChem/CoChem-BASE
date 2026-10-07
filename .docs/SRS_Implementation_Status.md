@@ -8,13 +8,39 @@ Local runnable acceptance, downstream scientific acceptance and platform accepta
 
 The previous snapshot (994 passed, 4 skipped, 1 failed) and its strict-scan counts are historical evidence under `/workspace/cochem-runtime/evidence/srs-pass2/`. This pass corrects the failed PES analysis, withdraws misleading fixture evidence, replaces legacy interface shells with versioned capability/handoff contracts, and replaces duplicated CI pipelines. Current-run counts and evidence follow below.
 
+## Current 1.0.0 acceptance — 2026-10-07
+
+The complete canonical profile passed **1,469 tests**, with **2 exact physical
+Slurm skips**, **0 failures**, **1,471 collected** and **10,672 retained warnings**
+in **908.20 seconds**. The source audit passed, all collected-node outcomes were
+accounted for, and no audited source/input bytes changed during execution.
+The remaining skipped checks require an actual Slurm allocation; they are not
+successful platform acceptance. Real R2 and CREST/GOAT checks now execute.
+Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v2/`.
+
+The current retained-source inventory contains **563 source-pattern flags**,
+separate from the passing canonical source gate. Deleted legacy findings are
+resolved; these flags refer to retained files and are not 563 proved runtime
+fabrications. The dated 559-flag inventory below is historical.
+
+[Actual hosted ORCA acceptance](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613653904)
+passed at `1cfa49a84d45da7c60ffd1fa0d6eae3889dbe049`, including fresh private
+archive installation, all eleven Stage 0 phases and genuine serial/two-rank
+calculation publication. The separate student optimization/frequency workflow
+and Windows CI correction still require successful reruns. A 479-test bounded
+local selection and isolated wheel installation passed at `01cca5b`; these
+selections are not added to the canonical count. The full local profile tested
+the `1cfa49a` implementation with the input fixture committed in `01cca5b`.
+The [release record](Release_1_0_0.md) preserves exact revision boundaries,
+evidence paths and outstanding publication checks.
+
 ## Historical BASE alpha acceptance — 2026-10-06
 
 The canonical `ci_tools/base_ci.py all` run on **2026-10-06** passed both gates:
 
 - **1,189 tests passed, 4 external checks deferred, 0 failed**, from 1,193 collected tests in **391.21 seconds**. The 10,669 warnings are retained in the log, not suppressed. Deferrals are the actual ORCA R2/reference calculation, ORCA/CREST union and two physical Slurm-node checks.
 - **Zero blocking findings** across production/CI source, selected-test source, mass policy and source/data airgap. The runner verified complete per-node outcomes and **no audited source change during testing**.
-- The current retained test-source inventory has **559 automated flags in 121 existing test files**. **No flags refer to deleted legacy files; those items are resolved.** This includes 42 conditional-skip references in selected tests and 517 flags outside the profile. It is not a count of 559 confirmed code defects or an unfinished backlog for deleted code. See [current CI review](SRS_AST_Review.md) and the machine-readable audit.
+- The retained test-source inventory at that historical snapshot had **559 automated flags in 121 existing test files**. **No flags refer to deleted legacy files; those items are resolved.** This includes 42 conditional-skip references in selected tests and 517 flags outside the profile. It is not a count of 559 confirmed code defects or an unfinished backlog for deleted code. See [current CI review](SRS_AST_Review.md) and the machine-readable audit.
 - Actual Chromium acceptance passed **30 checks**, including xTB, PySCF, CREST, QE, isotope exports and verified future-module handoff download, with no page errors or failed requests. The separate focused GUI selection passed 52 tests; overlapping selections are not added to the canonical count.
 - The **complete reusable installation script was rerun successfully**. All eleven setup phases republished genuine authority, retaining native xTB/CREST/g-xTB/MOPAC/QE and isolated PySCF/MACE. Explicit four-silo selection fixes the former lightweight-default capability loss. Setup remains truthfully degraded for unavailable licensed/host capabilities and the explicitly reduced disk workload profile.
 
@@ -33,7 +59,7 @@ A subsequent reporting clarification reproduced the affine error scaling, remove
 | 005 — COM/Eckart ingress | Native calculations, TOPOS and Chain normalize ingress using exact isotope masses; proper rotation and residual gates are tested. Quantum decks retain sufficient coordinate precision after normalization. | Verification of every imported tensor/state frame and each external engine's independently rotated output remains required. |
 | 006 — graph/geometric conformer sieve | WL graph/isomorphism, atom mapping, mass-weighted alignment, stricter Chunk 17 RMSD/rotation gates and proposal energy agreement `<0.05 kcal/mol`. Actual CREST plus ORCA GOAT water union passed, including HDF5 publication and durable promotion. | This bounded two-engine ingestion check does not implement the future TOPOS domain solver. |
 | 007 — R1 frozen monomers | Wilson bond/angle/dihedral and linear-bending handling; all-frame monomer drift checks. Actual ORCA water-dimer R1 optimization passed with maximum monomer drift `6.1213138e-7 Å`. | `r2SCAN-3c` retains its published composite basis; no appended unrelated basis is accepted. One successful case does not certify every system’s coordinate or rotational accuracy. |
-| 008 — R2 production | Actual ORCA canonical CCSD(T)/TZ-QZ reference generation, independent PySCF energy comparison and real five-leg R2 execution have been exercised. Source hashes, atom mapping, gradients, trajectory drift, achieved convergence and signed counterpoise evidence remain explicit. | Final accepted run status belongs in [scientific acceptance](ORCA_Scientific_Acceptance.md), separately from attempted execution. A finite-basis CBS estimate is not exact-CBS geometry certification. Higher-order R2 frequency/VPT2 providers remain downstream work. |
+| 008 — R2 production | Actual ORCA canonical CCSD(T)/TZ-QZ reference generation, independent PySCF energy comparison and accepted five-leg R2 execution. Source hashes, atom mapping, gradients, trajectory drift and achieved convergence are retained. Signed counterpoise ordering and residual-gradient warnings remain explicit. | The bounded accepted run is recorded in [scientific acceptance](ORCA_Scientific_Acceptance.md); it does not claim a rigorous counterpoise energy bound. A finite-basis CBS estimate is not exact-CBS geometry certification. Higher-order R2 frequency/VPT2 providers remain downstream work. |
 | 009 — grid lifecycle | Native models and Chain, including compound decks, enforce DEFGRID1 → DEFGRID2 → DEFGRID3 minima. T5/T7/T8 and frequencies cannot silently use a coarse grid. | Actual rotational/grid convergence requires independently executed solver outputs. Stage progression is not a proof of empirical integration error. |
 | 010 — quintuple convergence | Required thresholds are emitted; achieved-value parsing rejects absent, incomplete, nonfinite or failed convergence. Chain cannot override geometry/resource policy through arbitrary raw blocks. | Actual coordinate and rotational-error targets need independent physical reference data. Configured tolerances cannot guarantee those errors for every molecule. |
 | 011 — Hessian discipline | XTB2/Lindh/READ policy, forbidden exact initial Hessians, nonempty checkpoints, safe identifiers, unique basenames and geometry-bearing Hessian validation. Compound generation shares the same policy. | Real ORCA state-transfer and compound execution acceptance. A nonempty file alone is not proof that every external wavefunction format is valid. |
@@ -57,7 +83,7 @@ A subsequent reporting clarification reproduced the affine error scaling, remove
 | 8 — constants | Shared CODATA conversion exports and required rotational conversion; discrepant formatter/propagation/Chain copies corrected. | Third-party numerical libraries retain their own documented versions. |
 | 9 — quadrature | Chunk 17's three-stage sequence governs overlapping proposal language. | Real output-based grid/rotation acceptance. |
 | 10 — stationary convergence | Emission and achieved-value gates are connected to execution. | Universal sub-mÅ/rotational accuracy is not established by thresholds alone. |
-| 11 — Wilson freezing | Real derivative/nullspace mathematics, complete fragments and live trajectory integrity. | Licensed R1/R2 physical acceptance. |
+| 11 — Wilson freezing | Real derivative/nullspace mathematics, complete fragments and live trajectory integrity; actual R1 and R2 frozen-monomer acceptance passed. | Additional molecules and external solver/host combinations retain their own physical acceptance. |
 | 12 — chained Hessians | Structured policy, checkpoint presence/content checks and output geometry agreement. | Actual cross-stage ORCA/CFOUR state transfer. |
 | 13 — dispersion | Common sanitizer covers standalone and Chain inputs; actual B3LYP-D4/wB97M-V grid series passed. | Additional solver combinations and systems. |
 | 14 — CREST/GOAT union | Actual CREST plus ORCA GOAT water union, graph/RMSD/rotation/energy gates, HDF5 publication and promotion passed. | Additional systems and future TOPOS domain acceptance. |
@@ -68,12 +94,12 @@ The proposal workflow's **MACE-OFF24m ↔ g-xTB fallback is now executed**, not 
 
 ## Scientific and integration acceptance boundaries
 
-1. **The PES failure had real implementation and analysis defects.** The corrected paired high-minus-low fit uses training-only centering for absolute energies and preserves dissociation-zero constraints for interaction energies. The unchanged 500-frame, 350/150 split gives **6.271842 cm⁻¹** for paired correction, against the unchanged **10 cm⁻¹** threshold. The predicted-low-plus-delta surface remains **319.863926 cm⁻¹**, and must not be certified or used as a validated standalone surface. The Cu/Ag/Au EMT data and affine target are now labeled correctly, with no ORCA/DFT/CCSD(T) or measured-timing claims. The artificial target is exactly `1.02 * E_EMT - 0.005 eV`, so the 6.27 correction error is 2% of the baseline error by construction. This verifies limited numerical behavior, not independent quantum spectroscopic accuracy. All 150 held-out geometries extend beyond the training Cu–Ag separation range; the 319.86 value is an energy-fitting RMSE (0.915 kcal/mol), not a predicted vibrational frequency.
+1. **The PES failure had real implementation and analysis defects; a new quantum protocol now passes its bounded target.** The historical Cu/Ag/Au EMT example used the artificial target `1.02 * E_EMT - 0.005 eV` and placed all 150 holdout geometries beyond its training Cu–Ag separation range. Correct fitting/provenance reduced its paired correction RMSE to 6.271842 cm⁻¹, but its standalone extrapolation RMSE remained 319.863926 cm⁻¹ (0.915 kcal/mol). These are energy errors, not vibrational frequencies; that example remains uncertified and cannot provide independent quantum accuracy evidence. The new actual ORCA H2 protocol instead uses 128 RHF/STO-3G baseline points, 32 canonical CCSD(T)/cc-pVTZ correction pairs and 31 fresh holdout geometries excluded from both training sets over 0.55–1.80 Å. Unchanged model defaults give paired RMSE **1.189292656 cm⁻¹** (maximum **3.726415424 cm⁻¹**) and standalone RMSE **3.176715694 cm⁻¹** (maximum **8.242899532 cm⁻¹**), meeting the unchanged 10 cm⁻¹ threshold for both metrics. Denser independent baseline sampling addressed interpolation error; the model was not tuned on holdouts. This two-electron one-dimensional interpolation does not certify nonzero triples contributions, vibrational frequencies, extrapolation, experimental agreement or arbitrary molecules. Full provenance is in `/workspace/cochem-runtime/evidence/quantum-pes-2026-10-07/dual-resolution-acceptance.json`.
 2. **CFOUR/VPT2 belongs at an explicit scientific-provider boundary.** BASE owns complete validated input configuration, geometry/artifact hashes, required output evidence, capability discovery and pending handoff. Missing scientific adapters must not fabricate energies, anharmonic corrections, isotope `B0`, convergence or completed operations. Domain implementation and physical acceptance proceed with the corresponding ecosystem modules and licensed host.
 3. **TOPOS/TORQ future work is recorded, not counted as a BASE-only solver deficit.** BASE retains its working native calculation, CREST, isotope inspector and scientific export flows, and provides validated future-module handoffs in the GUI. Full multidimensional PES exploration and domain workflows will be completed in their repositories. Accessibility and real platform acceptance remain bounded by actual tests.
 4. **Product B now has direct BASE ingestion examples.** Ordered CIF and periodic JSON with fractional or Cartesian coordinates and explicit Angstrom/Bohr units preserve the periodic frame, original source hash and canonical converted structure hash. Singular/left-handed cells, duplicate lattice-equivalent sites, disorder/partial occupancy and invalid PAW inputs are rejected. The real registered QE PAW GaAs single point remains connected. Advanced bands, SOC, cell optimization and empirical accuracy claims need their scientific providers and benchmark evidence; ingesting a cell or executing one SCF does not certify them.
 5. **CI must preserve failures as evidence.** Obsolete duplicated workflows and misleading physical fixtures are retired with recorded replacements. Selected test interface interception is migrated to actual child-process configuration. The canonical pipeline rejects missing/zero-test evidence, source changes during validation and unexpected skips. The wider legacy collection is inventoried explicitly, not claimed as executed or compliant.
-6. **External acceptance requires actual execution evidence:** the user has authorized the ORCA 6.1.1 Actions pathway. Codespaces, CFOUR, GPU/Slurm, deployment filesystems and native platforms remain deferred. Existing local browser/lifecycle checks remain valid only for their local scope.
+6. **External acceptance requires actual execution evidence:** ORCA 6.1.1 hosted serial/two-rank acceptance has passed, with its run linked above. The student optimization/frequency workflow remains a separate pending rerun. Codespaces, CFOUR, GPU/Slurm, deployment filesystems and native physical calculations remain deferred. Source-level Slurm staging now prepares a real validated, hash-bound request and performs fresh Stage 0 within the compute allocation; those tests do not claim a physical cluster run.
 
 ## Reproduction and retained evidence
 
@@ -85,7 +111,7 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 python ci_tools/base_
 python ci_tools/anti_spoof_linter.py . --strict --json > /tmp/cochem-strict-repository-inventory.json
 ```
 
-Final logs, JUnit, strict scans and a source manifest are retained together in `/workspace/cochem-runtime/evidence/srs-pass2/`. Session evidence also includes `/workspace/cochem-runtime/stage0-complete-audit.json`, `/workspace/cochem-runtime/topos-second-pass/`, `/workspace/cochem-runtime/mlff-second-pass/`, `/workspace/cochem-runtime/gui-srs-pass/` and `/workspace/cochem-runtime/chain-pass2-jt1upcd8/`. Runtime artifacts remain outside the repository. The self-contained cloud install script completed successfully, including all free-engine/ML checks and all eleven Stage 0 phases. The environment setup draft is saved for review; a fresh published/restored environment is a separate acceptance step. The repaired hosted lifecycle also completed setup twice in a separate external environment, passed 27 native CLI/lifecycle checks, all five workflow syntax checks, and actual Chromium interactions. That earlier local lifecycle report did not establish hosted acceptance; subsequent run-specific outcomes are recorded in ORCA_Actions_Setup.md.
+Historical second-pass logs, JUnit, strict scans and a source manifest are retained together in `/workspace/cochem-runtime/evidence/srs-pass2/`. Session evidence also includes `/workspace/cochem-runtime/stage0-complete-audit.json`, `/workspace/cochem-runtime/topos-second-pass/`, `/workspace/cochem-runtime/mlff-second-pass/`, `/workspace/cochem-runtime/gui-srs-pass/` and `/workspace/cochem-runtime/chain-pass2-jt1upcd8/`. Runtime artifacts remain outside the repository. The self-contained cloud install script completed successfully, including all free-engine/ML checks and all eleven Stage 0 phases. The environment setup draft is saved for review; a fresh published/restored environment is a separate acceptance step. The repaired hosted lifecycle also completed setup twice in a separate external environment, passed 27 native CLI/lifecycle checks, all five workflow syntax checks, and actual Chromium interactions. That earlier local lifecycle report did not establish hosted acceptance; subsequent run-specific outcomes are recorded in ORCA_Actions_Setup.md.
 
 A separate full-repository collection attempt discovered **4,416 tests and 237 collection errors** (`/tmp/cochem-all-collection-pass2.log`). These include missing sibling interfaces, legacy import paths and tests that import heavy libraries directly into BASE even though those libraries are installed in their required silos. This is not evidence that every low-compute test ran. An isolated built-wheel check imports the shipped CLI, GUI, frontend adapter, native setup service and provenance implementation without checkout paths or `.pth` processing.
 
@@ -100,10 +126,10 @@ installer, MPI runtime build, reusable action and real serial/parallel BASE CLI
 acceptance are documented in [ORCA Actions setup](ORCA_Actions_Setup.md). ORCA
 MPI rank/thread oversubscription was fixed in native, TOPOS, R2 and Slurm paths.
 
-The fresh prepublication canonical local run passed **1,241 tests**, with the
+The historical prepublication canonical local run passed **1,241 tests**, with the
 same **4 external deferrals** and no failures, collected-node omissions,
-unexpected skips or source changes. This supersedes the earlier local count;
-it does not relabel earlier evidence or certify hosted ORCA execution. Evidence:
+unexpected skips or source changes. This superseded the earlier alpha count at that revision;
+it is now superseded by the 1,469-pass profile above and did not establish hosted ORCA execution. Evidence:
 `/workspace/cochem-runtime/evidence/orca-actions-prepublication/`.
 
 ## Real ORCA and Classroom50 evidence — 2026-10-07
@@ -131,7 +157,15 @@ or request errors; its report explicitly states that no hosted calculation was
 performed by the export test:
 `/workspace/cochem-runtime/evidence/classroom-actions-ui/browser/browser-summary.json`.
 
+The accepted five-leg R2 publication is retained at
+`/workspace/cochem-runtime/evidence/r2-physical-2026-10-07/accepted-r2-publication.json`.
+Its maximum internal monomer drift is `8.257453875e-7 Å` against `1e-6 Å`;
+its signed counterpoise correction is `-8.39272e-7 Eh`. The report explicitly
+states that the measured energy interval is not a rigorous physical bound and
+retains the observed residual-gradient warning.
+
 The complete instructor/student procedure is the
-[Classroom50 guide](GitHub_Classroom_ORCA_Setup.md). Final 1.0.0 canonical counts
-and hosted results must refer to the final source revision; neither the earlier
-1,189/1,241 counts nor overlapping targeted selections replace that validation.
+[Classroom50 guide](GitHub_Classroom_ORCA_Setup.md). Current canonical counts
+and hosted outcomes are recorded above. Final publication must identify the
+reviewed revision and subsequent rerun outcomes; neither the historical
+1,189/1,241 counts nor overlapping targeted selections replace that evidence.

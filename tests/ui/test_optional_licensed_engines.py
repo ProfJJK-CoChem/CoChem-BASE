@@ -9,7 +9,7 @@ import sys
 import pytest
 
 
-@pytest.mark.parametrize('case', ['missing', 'free', 'remote', 'cfour-contract', 'remote-cfour'])
+@pytest.mark.parametrize('case', ['missing', 'free', 'remote', 'cfour-contract', 'remote-cfour', 'catalog-transitions'])
 def test_optional_engine_controls_in_isolated_process(tmp_path, case):
     environment = dict(os.environ, COCHEM_CONFIG=str(tmp_path / 'absent-registry.json'),
                        COCHEM_ARTIFACT_DIR=str(tmp_path / 'artifacts'))
@@ -46,6 +46,41 @@ def _exercise(case: str) -> None:
     assert not gui.license_mode.disabled
     geometry = Path(__file__).resolve().parents[2].joinpath('examples/jobs/water.xyz').read_text(encoding='utf-8')
     gui.matrix_geometry.value = geometry
+    if case == 'catalog-transitions':
+        from ui.voila_layout.cochem_gui import METHOD_MATRIX_TIERS
+
+        gui.calc_env_dropdown.value = 'github-actions'
+        gui.gh_repo_input.value = 'course-organization/student-water'
+        for engine, tier, method, basis in (
+                ('PYSCF', 'T2', 'HF', 'STO-3G'), ('XTB', 'T1', 'GFN2-xTB', 'built-in')):
+            gui.matrix_engine.value = 'CFOUR'
+            assert gui.matrix_tier.value == 'T2' and gui.matrix_method.options == ('HF',)
+            gui.matrix_engine.value = engine
+            assert gui.matrix_tier.options == (tier,)
+            assert gui.matrix_method.options == tuple(METHOD_MATRIX_TIERS[tier]['methods'])
+            assert gui.matrix_basis.options == tuple(METHOD_MATRIX_TIERS[tier]['allowed_basis_sets'])
+            gui.calc_env_dropdown.value = 'linux'
+            config = gui._collect_run_config()
+            assert config['engine'] == engine.lower() and config['method'] == method
+            assert config['basis_set'] == basis
+            assert gui.btn_execute.disabled and not gui._pipeline_running
+            gui.calc_env_dropdown.value = 'github-actions'
+        for tier in ('T2', 'T6', 'T8'):
+            gui.matrix_engine.value = 'CFOUR'
+            gui.matrix_tier.value = tier
+            gui.matrix_engine.value = 'ORCA'
+            assert gui.matrix_tier.value == tier
+            assert gui.matrix_method.options == tuple(METHOD_MATRIX_TIERS[tier]['methods'])
+            assert gui.matrix_basis.options == tuple(METHOD_MATRIX_TIERS[tier]['allowed_basis_sets'])
+            gui._prepare_actions_job()
+            assert gui._last_actions_job['config']['engine'] == 'orca'
+            assert not gui._pipeline_running and not hasattr(gui, '_pipeline_worker')
+        gui.matrix_engine.value = 'CFOUR'
+        gui.calc_env_dropdown.value = 'linux'
+        assert gui.matrix_engine.value is None and gui.matrix_method.disabled
+        assert gui.matrix_method.options == tuple(METHOD_MATRIX_TIERS['T2']['methods'])
+        assert gui.matrix_basis.options == tuple(METHOD_MATRIX_TIERS['T2']['allowed_basis_sets'])
+        return
     if case == 'missing':
         gui._execute_pipeline(None)
         assert not gui._pipeline_running

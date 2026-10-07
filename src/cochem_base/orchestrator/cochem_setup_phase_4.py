@@ -1135,6 +1135,7 @@ def provision_micro_silo(
         if silo_config.silo_type == SiloType.MACE:
             from cochem_base.orchestrator.ml_silo_manager import mace_profile_lock, provision_mace_silo
             from cochem_base.orchestrator.micro_silo_manager import validate_pins
+            from cochem_base.orchestrator.silo_dependency_pins import DEFAULT_PINS
             profile = os.environ.get("COCHEM_ML_TORCH_PROFILE", "cpu")
             if validate_pins(silo_config.pip_packages) != validate_pins(DEFAULT_PINS[mace_profile_lock(profile)]):
                 raise MicroSiloValidationError("Custom MACE dependencies differ from the explicit reviewed profile")

@@ -115,6 +115,13 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
                 digest = hashlib.file_digest(handle, "sha256").hexdigest()
             if digest != record.get("sha256_hash"):
                 raise Stage0AuthorityError(f"Audited executable changed since phase 3: {name}")
+            for component, expected in record.get("native_components", {}).items():
+                component_path = Path(component)
+                if not component_path.is_absolute() or not component_path.is_file():
+                    raise Stage0AuthorityError(f"Audited native component is unavailable: {name}")
+                with component_path.open("rb") as handle:
+                    if hashlib.file_digest(handle, "sha256").hexdigest() != expected:
+                        raise Stage0AuthorityError(f"Audited native component changed since phase 3: {name}")
         else:
             path = None
             digest = None
@@ -124,6 +131,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
             path=path,
             version=record.get("version") if available else None,
             hash=digest,
+            native_components=record.get("native_components", {}) if available else {},
             track=record.get("track"),
         )
         capabilities[canonical] = available

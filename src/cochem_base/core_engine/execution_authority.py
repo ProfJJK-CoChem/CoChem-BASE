@@ -73,6 +73,16 @@ def authorize_engine_execution(
             digest = hashlib.file_digest(handle, "sha256").hexdigest()
         if not record.get("hash") or digest != record["hash"]:
             raise ValueError("Engine executable does not match its audited SHA-256 digest")
+        native_components = record.get("native_components", {})
+        if name == "psi4" and not native_components:
+            raise ValueError("Psi4 requires a successful native compiled-core audit, not launcher metadata alone")
+        for component, expected in native_components.items():
+            component_path = Path(component)
+            if not component_path.is_absolute() or not component_path.is_file():
+                raise ValueError("Audited native engine component is unavailable")
+            with component_path.open("rb") as handle:
+                if hashlib.file_digest(handle, "sha256").hexdigest() != expected:
+                    raise ValueError("Native engine component does not match its audited SHA-256 digest")
         requested = list(command) if command is not None else None
         if requested is not None:
             if not requested or any(

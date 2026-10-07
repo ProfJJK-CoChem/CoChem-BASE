@@ -29,6 +29,20 @@
         "python.testing.pytestEnabled": true,
         "python.testing.pytestArgs": ["-c", "pytest-srs.ini"]
       }
+    },
+    "codespaces": {
+      "repositories": {
+        "ProfJJK-CoChem/CoChem-TOPOS": {
+          "permissions": {
+            "contents": "read"
+          }
+        },
+        "ProfJJK-CoChem/CoChem-TORQ": {
+          "permissions": {
+            "contents": "read"
+          }
+        }
+      }
     }
   }
 }

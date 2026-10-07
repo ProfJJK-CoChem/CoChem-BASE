@@ -161,7 +161,8 @@
       "adapter": "topos_geometry",
       "adapter_requirements": [
         "ase==3.29.0",
-        "networkx==3.7"
+        "networkx==3.7",
+        "filelock==4.0.12"
       ],
       "operations": [
         "geometry_analysis"
@@ -169,7 +170,7 @@
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "d7a4739a5f7d6f22ed659b32eeb4706bef16225e",
+      "revision": "c6d6088bee8ab6570de2dbfb2bb96ab1e5957db7",
       "distribution": "CoChem-TORQ",
       "adapter": "torq_geometry",
       "adapter_requirements": [

@@ -10,6 +10,7 @@ from scripts import install_openmpi
 @pytest.mark.parametrize("output", [
     "mpirun (Open MPI) 4.1.8\n",
     "mpiexec (Open MPI) 4.1.8\n",
+    "mpiexec (OpenRTE) 4.1.8\n\nReport bugs to http://www.open-mpi.org/community/help/\n",
     "Open MPI v4.1.8\n",
 ])
 def test_exact_launcher_and_info_version(output: str) -> None:
@@ -20,6 +21,9 @@ def test_exact_launcher_and_info_version(output: str) -> None:
     "mpirun (Open MPI) 4.1.80", "mpirun (Open MPI) 4.1.8rc1",
     "mpirun (Open MPI) 5.0.0", "MPICH Version: 4.1.8", "4.1.8",
     "mpirun (Open MPI) 4.1.8\nOpen MPI: 4.1.7",
+    "mpiexec (OpenRTE) 4.1.7", "mpiexec (OpenRTE) 4.1.80",
+    "mpiexec (OpenRTE) 4.1.8rc1", "OpenRTE 4.1.8",
+    "mpiexec (OpenRTE) 4.1.8\nOpen MPI v4.1.7",
 ])
 def test_unexpected_or_ambiguous_version_is_rejected(output: str) -> None:
     with pytest.raises(ValueError, match="Expected Open MPI"):

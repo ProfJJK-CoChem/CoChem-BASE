@@ -20,6 +20,23 @@ private `ProfJJK-CoChem/CoChem-ORCA` repository. The default `GITHUB_TOKEN` cann
 automatically read another private repository. Organization approval, when
 required by the repository owner, must be complete before download.
 
+In GitHub's fine-grained token editor, select resource owner
+`ProfJJK-CoChem`, then **Only select repositories → CoChem-ORCA**. Under
+**Permissions → Add permissions**, select **Contents** directly
+and set its access to **Read-only**. This is the asset repository, not BASE.
+Generate the token with an expiration date and save its value in
+**CoChem-BASE → Settings → Secrets and variables → Actions →
+PRIVATE_ORCA_ASSET_CREDENTIAL**. Do not put the token in source, logs or chat.
+GitHub also supports a [prefilled token form](https://github.com/settings/personal-access-tokens/new?name=CoChem%20ORCA%20asset%20reader&target_name=ProfJJK-CoChem&contents=read&expires_in=90)
+that selects the owner and Contents read permission; select `CoChem-ORCA`
+manually before generating it.
+
+A `release not found` response can mean that the token cannot access a private
+release. Check the token's repository selection, expiration and any required
+organization approval before changing the reviewed repository or tag. Updating
+a token in GitHub does not automatically replace an older token value saved in
+the Actions secret.
+
 The full installation workflow reads the reviewed manifest directly; no Actions
 variables are required. The separate `ORCA private archive access` workflow
 supports the earlier four optional `ORCA_ASSET_*`/`ORCA_RELEASE_TAG` settings and
@@ -40,7 +57,12 @@ The licensed job has no pull-request trigger.
 3. Download checksum-pinned Open MPI 4.1.8 from the upstream release site; build a
    fresh shared C/C++ runtime, check versions and run a two-rank C++ collective.
    The source digest is also recorded by Spack's Open MPI 4.1.8 package recipe.
-4. Verify the ORCA checksum again before safe extraction. Require a native
+4. Verify the ORCA checksum again before safe extraction. Check expanded archive
+   size against available installation storage, retaining a 4 GiB reserve.
+   This 471,531,860-byte archive expands to 17,442,002,115 bytes; compressed size
+   is not a suitable disk requirement. The disposable GitHub-hosted Linux job
+   removes unrelated preinstalled SDKs to make room. Local and HPC installations
+   do not perform that cleanup. Require a native
    executable and exact ORCA/MPI versions; record all distribution file hashes.
 5. Install the bounded BASE/UI profile and run all eleven real Stage 0 phases.
    The explicit 1 GB minimum free-storage profile is for these small CPU tests;
@@ -103,9 +125,20 @@ in this local pass count. All workflow files passed `actionlint`; the prepared
 Python environment passed `pip check`.
 
 Evidence is retained at
-`/workspace/cochem-runtime/evidence/orca-actions-prepublication/`. At publication
-preparation, Git read/push access worked, while the cloud HTTP proxy denied
-`api.github.com`. Network additions for the API and upstream MPI download were
-saved to the environment draft; hosted dispatch/results must be checked after
-that access is applied. A configured push trigger is not evidence of a completed
-calculation.
+`/workspace/cochem-runtime/evidence/orca-actions-prepublication/`.
+
+## Hosted execution status
+
+Commit `cf709d040fff7a5c4db433cb921f3451f7888328` was pushed to
+`codex/orca-6.1.1-actions`. Both the [push run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37571459336)
+and [dispatched run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37571482477)
+executed on GitHub-hosted runners and failed at the private release download:
+`release not found`. The Actions secret was present, but its credential did not
+provide effective access. Neither run reached MPI installation or calculations.
+
+An independently authorized cloud credential successfully retrieved the
+published release and archive, and the archive matches the user-supplied SHA-256.
+GitHub API and upstream MPI download access now work in the cloud environment.
+The remaining hosted prerequisite is correcting the Actions secret's effective
+repository access, then rerunning the calculation workflow. Download/hash
+success in this cloud environment does not establish hosted calculation success.

@@ -23,6 +23,7 @@ from pathlib import Path, PurePosixPath
 
 DEFAULT_MANIFEST = Path(__file__).with_name("orca-distribution.json")
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+INSTALLATION_RESERVE_BYTES = 4 * 1024**3
 
 
 def sha256_file(path: Path) -> str:
@@ -40,6 +41,37 @@ def verified_digest(archive: Path, expected: str) -> str:
     if actual != expected.lower():
         raise ValueError(f"Archive SHA-256 mismatch: expected {expected.lower()}, got {actual}")
     return actual
+
+
+def installation_space_requirement(uncompressed_bytes: int, free_bytes: int) -> dict[str, int]:
+    """Keep 4 GiB beyond the genuine archive's expanded size for BASE/jobs.
+
+    Input sizes may be supplied directly in boundary tests; production obtains
+    them from the approved tar headers and the destination filesystem.
+    """
+    if uncompressed_bytes < 0 or free_bytes < 0:
+        raise ValueError("Archive and filesystem byte counts must be nonnegative.")
+    required = uncompressed_bytes + INSTALLATION_RESERVE_BYTES
+    if free_bytes < required:
+        raise ValueError(
+            f"Insufficient installation disk space: archive expands to {uncompressed_bytes:,} bytes; "
+            f"{required:,} bytes required including a 4 GiB reserve, but only {free_bytes:,} bytes free. "
+            "Free space on the installation filesystem or select a larger runner."
+        )
+    return {"uncompressed_archive_bytes": uncompressed_bytes,
+            "reserve_bytes": INSTALLATION_RESERVE_BYTES,
+            "required_free_bytes": required, "available_free_bytes": free_bytes}
+
+
+def archive_space_preflight(archive: Path, install_root: Path, expected: str) -> dict[str, int]:
+    # Even metadata inspection follows the independently pinned checksum check.
+    verified_digest(archive, expected)
+    with tarfile.open(archive, mode="r:*") as bundle:
+        expanded_size = sum(member.size for member in bundle if member.isfile())
+    ancestor = install_root.parent
+    while not ancestor.exists():
+        ancestor = ancestor.parent
+    return installation_space_requirement(expanded_size, shutil.disk_usage(ancestor).free)
 
 
 def _member_path(name: str) -> PurePosixPath:
@@ -190,6 +222,7 @@ def provision(archive: Path, install_root: Path, mpi_prefix: Path, manifest_path
     install_root = _external_path(install_root)
     if install_root.exists():
         raise ValueError("Install root already exists; choose a fresh job-local installation path.")
+    disk_preflight = archive_space_preflight(archive, install_root, manifest["sha256"])
     mpi_prefix = mpi_prefix.expanduser().resolve()
     mpirun = mpi_prefix / "bin/mpirun"
     mpi_info = mpi_prefix / "bin/ompi_info"
@@ -229,8 +262,11 @@ def provision(archive: Path, install_root: Path, mpi_prefix: Path, manifest_path
     try:
         binary = install_root / relative_binary
         environment["PATH"] = os.pathsep.join([str(binary.parent), environment["PATH"]])
+        orca_libraries = [binary.parent]
+        if (binary.parent / "lib").is_dir():
+            orca_libraries.append(binary.parent / "lib")
         environment["LD_LIBRARY_PATH"] = os.pathsep.join(
-            [str(binary.parent), environment["LD_LIBRARY_PATH"]]
+            [*(str(path) for path in orca_libraries), environment["LD_LIBRARY_PATH"]]
         )
         with tempfile.TemporaryDirectory(prefix="cochem-orca-probe-") as temporary:
             # Bare ORCA emits its banner and may return nonzero because no input
@@ -253,6 +289,7 @@ def provision(archive: Path, install_root: Path, mpi_prefix: Path, manifest_path
             "recorded_at": datetime.now(timezone.utc).isoformat(),
             "distribution": manifest, "archive_sha256": archive_sha,
             "manifest_sha256": sha256_file(manifest_path),
+            "disk_preflight": disk_preflight,
             "executable": str(binary), "orca_version": orca_version,
             "openmpi_version": mpi_version, "mpi_prefix": str(mpi_prefix),
             "openmpi_version_output": mpi_banner, "ompi_info_version_output": info.stdout,
@@ -272,6 +309,7 @@ def provision(archive: Path, install_root: Path, mpi_prefix: Path, manifest_path
             "archive_sha256": archive_sha, "openmpi_version": mpi_version,
             "mpirun": str(mpirun), "mpi_prefix": str(mpi_prefix),
             "path_entries": [str(binary.parent), str(mpirun.parent)],
+            "disk_preflight": disk_preflight,
             "ld_library_path": environment["LD_LIBRARY_PATH"],
             "provenance": str(provenance_path),
         }

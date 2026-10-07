@@ -125,6 +125,7 @@ jobs:
           name: orca-calculation-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/orca-evidence/
+            ${{ runner.temp }}/cochem-artifacts/**/CrashRecords/*.json
             ${{ runner.temp }}/cochem-artifacts/Registry/*.json
             ${{ runner.temp }}/cochem-artifacts/Registry/*.sha256
             ${{ runner.temp }}/cochem-openmpi-build/**/*.log

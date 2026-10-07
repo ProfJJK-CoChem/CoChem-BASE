@@ -23,14 +23,15 @@ def build_molecular_input(
     frame. Both paths enforce the same method, recipe, grid, Hessian and product
     requirements. Hardware allocation and engine authority remain later gates.
     """
-    from cochem_base.calc.calculation_service import parse_run_geometry
+    from cochem_base.calc.calculation_service import parse_run_geometry_identity
     from cochem_base.calc.cochem_calc_input_generator import MoleculeInput
     from cochem_base.geometry.fragment_partitioner import detect_molecular_fragments
     from cochem_base.theory_matrix import ProductClass
 
     if config.engine not in {"orca", "pyscf"}:
         raise ValueError("The molecular input builder accepts ORCA and PySCF configurations")
-    elements, supplied_coordinates = parse_run_geometry(config.geometry)
+    identity = parse_run_geometry_identity(config.geometry)
+    elements, supplied_coordinates = list(identity.elements), list(identity.coordinates_angstrom)
     coordinates = supplied_coordinates if coordinates is None else coordinates
     product = None
     if config.product_class:
@@ -39,7 +40,7 @@ def build_molecular_input(
     tier = canonical_theory_tier(config.theory_tier)
     data = config.model_dump(include=set(MoleculeInput.model_fields))
     data.update(
-        basin_id=basin_id, elements=elements, coordinates=coordinates,
+        basin_id=basin_id, elements=elements, nuclides=list(identity.nuclides), coordinates=coordinates,
         theory_level=" ".join(part for part in (config.method, config.basis_set)
                               if part and part.lower() not in {"built-in", "default"}),
         product_class=product, tier=tier,

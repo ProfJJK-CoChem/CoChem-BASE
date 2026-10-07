@@ -1,4 +1,4 @@
-"""Bounded public CI checks and clean-wheel acceptance for BASE 1.0.0.
+"""Bounded public CI checks and clean-wheel acceptance for the reviewed BASE release.
 
 This deliberately does not replace the full canonical release-candidate gate or
 licensed ORCA, ML-model, QE, GPU, Slurm and native scientific acceptance. Every
@@ -15,10 +15,17 @@ from pathlib import Path
 import subprocess
 import sys
 import tarfile
+import tomllib
 
 
 ROOT = Path(__file__).resolve().parents[1]
 HOSTED_TESTS = (
+    "tests/base/test_native_grid_execution.py",
+    "tests/base/test_native_crash_provenance.py",
+    "tests/base/test_python_hook_swmr.py",
+    "tests/base/test_gradient_telemetry.py",
+    "tests/base/test_chain_integrity.py",
+    "tests/calc/test_nuclide_ingress_handoff.py",
     "tests/ui/test_optional_licensed_engines.py",
     "tests/calc/test_cfour_execution_contract.py",
     "tests/base/test_cfour_provisioning.py",
@@ -118,6 +125,7 @@ def wheel(output: Path) -> dict:
          environment, output / "archive.log", 60)
     with tarfile.open(archive) as bundle:
         bundle.extractall(source, filter="data")
+    expected_version = tomllib.loads((source / "pyproject.toml").read_text())["project"]["version"]
     distribution = output / "dist"
     _run([sys.executable, "-m", "build", "--outdir", str(distribution), str(source)],
          output, environment, output / "build.log")
@@ -137,8 +145,8 @@ def wheel(output: Path) -> dict:
         ("module-version", [str(python), "-I", "-m", "cochem_base.cli", "--version"]),
     ):
         version = _run(argv, output, environment, output / f"{label}.log", 90)
-        if "CoChem-BASE 1.0.0 " not in version:
-            raise RuntimeError("Installed CLI does not report the reviewed 1.0.0 version")
+        if f"CoChem-BASE {expected_version} " not in version:
+            raise RuntimeError(f"Installed CLI does not report the reviewed {expected_version} version")
     _run([str(command), "run", "--help"], output, environment, output / "run-help.log", 90)
     isotope = json.loads(_run([str(command), "mass", "13C", "--json"], output, environment,
                               output / "isotope-mass.json", 90))
@@ -157,7 +165,8 @@ from cochem_base import _version
 from cochem_base.core_engine.hardware_profiler import profile_hardware
 from cochem_base.calc.calculation_service import CalculationMatrixConfig
 from cochem_base.core_engine import cfour_runtime
-assert importlib.metadata.version('CoChem-BASE') == '1.0.0'
+expected_version = sys.argv[2]
+assert importlib.metadata.version('CoChem-BASE') == expected_version
 installation = Path(sys.prefix).resolve()
 package_roots = [Path(path).resolve() for path in cochem_base.__path__]
 assert package_roots and all(path.is_relative_to(installation) for path in package_roots)
@@ -175,9 +184,9 @@ cfour = CalculationMatrixConfig(geometry='H 0 0 0\\nH 0 0 0.74', engine='cfour',
                                method='HF', basis_set='STO-3G', is_opt=False)
 (root / 'cfour-input.json').write_text(cfour.model_dump_json())
 print(json.dumps({'installed_module': str(Path(_version.__file__).resolve()),
-                  'namespace_roots': list(map(str, package_roots)), 'version': '1.0.0'}))
+                  'namespace_roots': list(map(str, package_roots)), 'version': expected_version}))
 """
-    _run([str(python), "-I", "-c", probe, str(output)], output, environment, output / "installed-imports.json", 90)
+    _run([str(python), "-I", "-c", probe, str(output), expected_version], output, environment, output / "installed-imports.json", 90)
     environment["COCHEM_CONFIG"] = str(output / "hardware.json")
     _run([str(command), "run", "--config", str(output / "input.json"), "--threads", "1",
           "--maxcore-mb", "128", "--dry-run", "--scratch", str(output / "scratch"),
@@ -205,7 +214,7 @@ print(json.dumps({'installed_module': str(Path(_version.__file__).resolve()),
         raise RuntimeError("Installed CFOUR dry-run deck changed its method, units or resource limits")
     _run([str(python), "-m", "pip", "freeze"], output, environment, output / "installed-dependencies.txt", 60)
     return {"passed": True, "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
-            "source_revision": revision, "version": "1.0.0", "wheel": wheels[0].name,
+            "source_revision": revision, "version": expected_version, "wheel": wheels[0].name,
             "wheel_sha256": hashlib.sha256(wheels[0].read_bytes()).hexdigest()}
 
 

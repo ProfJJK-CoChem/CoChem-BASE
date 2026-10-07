@@ -14,6 +14,7 @@ import numpy as np
 
 from cochem_base.core.cochem_core_hdf5_manager import CoChemHDF5Manager
 from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
+from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
 
 
 def append_scientific_result(
@@ -31,7 +32,10 @@ def append_scientific_result(
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", job_id):
         raise ValueError("Telemetry job ID must be a safe HDF5 component")
     symbols = list(elements)
+    identity = resolve_nuclear_identity(symbols)
+    symbols = list(identity.nuclides)
     masses = [get_nuclide_mass(symbol) for symbol in symbols]
+    principal_masses = [get_nuclide_mass(symbol) for symbol in identity.elements]
     coordinates = np.asarray(coordinates_angstrom, dtype=float)
     if not symbols or coordinates.shape != (len(symbols), 3) or not np.isfinite(coordinates).all():
         raise ValueError("Telemetry requires finite N x 3 coordinates matching atom identities")
@@ -58,7 +62,10 @@ def append_scientific_result(
         if "symbols_json" in group.attrs and json.loads(group.attrs["symbols_json"]) != symbols:
             raise ValueError("Telemetry job atom identities/order cannot change between records")
         group.attrs["symbols_json"] = json.dumps(symbols)
-        group.attrs["principal_isotope_masses_u"] = masses
+        group.attrs["elements_json"] = json.dumps(identity.elements)
+        group.attrs["nuclear_identity_json"] = json.dumps(identity.metadata, sort_keys=True)
+        group.attrs["selected_isotope_masses_u"] = masses
+        group.attrs["principal_isotope_masses_u"] = principal_masses
         for name, (shape, maxshape, chunks, dtype) in topology.items():
             if name not in group:
                 group.create_dataset(name, shape=shape, maxshape=maxshape, chunks=chunks,
@@ -106,7 +113,11 @@ def read_scientific_results(job_id: str, *, store_path: str | Path | None = None
         indices = group["gradient_record_indices"][:]
         selected = indices < count
         return {
-            "elements": json.loads(group.attrs["symbols_json"]),
+            "elements": json.loads(group.attrs.get("elements_json", group.attrs["symbols_json"])),
+            "nuclides": json.loads(group.attrs["symbols_json"]),
+            "nuclear_identity": json.loads(group.attrs["nuclear_identity_json"]) if "nuclear_identity_json" in group.attrs else None,
+            "selected_isotope_masses_u": group.attrs.get("selected_isotope_masses_u", group.attrs["principal_isotope_masses_u"]),
+            "principal_isotope_masses_u": group.attrs["principal_isotope_masses_u"],
             "coordinates_angstrom": group["coordinates_angstrom"][:count],
             "energy_hartree": group["energy_hartree"][:count],
             "metadata": [json.loads(value.decode("utf-8")) for value in group["metadata_json"][:count]],

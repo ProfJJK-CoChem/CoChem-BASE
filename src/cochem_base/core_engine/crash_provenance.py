@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import uuid
+from typing import Mapping, Sequence
 
 import psutil
 
@@ -73,17 +74,93 @@ def _source_git_identity() -> tuple[str | None, str | None, dict]:
     return None, None, metadata
 
 
-def record_process_crash(command: list[str], exit_code: int, stderr: bytes, log_directory: Path) -> dict:
+def snapshot_process_context(
+    command: Sequence[str], *, cwd: Path | str | None = None,
+    environment: Mapping[str, str] | None = None,
+    resources: Mapping | None = None,
+) -> dict:
+    """Bind executable and input hashes before launch, using the child's paths.
+
+    Only resource controls are retained from the child environment. Credentials,
+    other environment values, and licensed basis contents never enter the record.
+    Native drivers such as CFOUR consume ``ZMAT`` without a command-line input.
+    """
+    work = Path(cwd or Path.cwd()).resolve()
+    child_environment = dict(os.environ if environment is None else environment)
+    binary = None
+    if command:
+        executable = Path(command[0])
+        if executable.is_absolute() or any(separator in command[0] for separator in ("/", "\\")):
+            candidate = executable if executable.is_absolute() else work / executable
+            binary = str(candidate.resolve()) if candidate.is_file() else None
+        else:
+            binary = shutil.which(str(executable), path=child_environment.get("PATH", os.defpath))
+            binary = str(Path(binary).resolve()) if binary else None
+    binary_hash = None
+    binary_status = "unresolved"
+    if binary is not None:
+        try:
+            with open(binary, "rb") as stream:
+                binary_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+            binary_status = "hashed_before_launch"
+        except OSError as error:
+            binary_status = f"unreadable:{type(error).__name__}"
+    inputs = []
+    candidates = [str(argument) for argument in command[1:]]
+    candidates.extend(["ZMAT", "GENBAS", "ECPDATA"])
+    seen: set[Path] = set()
+    for argument in candidates:
+        if "\x00" in argument or "\n" in argument:
+            continue
+        candidate = Path(argument)
+        if not candidate.is_absolute():
+            candidate = work / candidate
+        try:
+            candidate = candidate.resolve()
+            if candidate in seen or not candidate.is_file():
+                continue
+            seen.add(candidate)
+            with candidate.open("rb") as stream:
+                digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            inputs.append({"path": str(candidate), "sha256": digest,
+                           "size_bytes": candidate.stat().st_size})
+        except OSError as error:
+            inputs.append({"path": str(candidate), "status": f"unreadable:{type(error).__name__}"})
+    resource_names = ("OMP_NUM_THREADS", "OMP_THREAD_LIMIT", "MKL_NUM_THREADS",
+                      "OPENBLAS_NUM_THREADS", "BLIS_NUM_THREADS", "SLURM_CPUS_PER_TASK",
+                      "SLURM_NTASKS", "PBS_NP")
+    return {
+        "working_directory": str(work), "binary_path": binary,
+        "binary_sha256": binary_hash, "binary_identity_status": binary_status,
+        "input_files": inputs, "input_identity_observed": "before_launch",
+        "requested_resources": {**dict(resources or {}), "thread_environment": {
+            name: child_environment[name] for name in resource_names if name in child_environment}},
+    }
+
+
+def record_process_crash(
+    command: list[str], exit_code: int, stderr: bytes, log_directory: Path, *,
+    execution_context: Mapping | None = None,
+) -> dict:
     """Persist an exclusive, read-only JSON-LD crash record with exact tail bytes.
 
     Git object identity and its SHA-256 digest are distinct fields: Git may use
     SHA-1 object IDs, which must never be mislabeled as SHA-256.
     """
-    binary = shutil.which(command[0]) if command else None
-    binary_hash = None
-    if binary is not None:
-        with open(binary, "rb") as stream:
-            binary_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+    context = dict(execution_context) if execution_context is not None else snapshot_process_context(command)
+    recorder_module = Path(__file__).resolve()
+    source_identity = {"package_version": None, "recorder_module_path": str(recorder_module),
+                       "recorder_module_sha256": None}
+    try:
+        from cochem_base._version import get_version
+        source_identity["package_version"] = get_version()
+    except (ImportError, OSError, ValueError, KeyError) as error:
+        source_identity["package_version_status"] = f"unavailable:{type(error).__name__}"
+    try:
+        with recorder_module.open("rb") as stream:
+            source_identity["recorder_module_sha256"] = hashlib.file_digest(stream, "sha256").hexdigest()
+    except OSError as error:
+        source_identity["recorder_module_status"] = f"unavailable:{type(error).__name__}"
     commit, commit_hash, git_provenance = _source_git_identity()
     memory = psutil.virtual_memory()
     record = {
@@ -94,15 +171,16 @@ def record_process_crash(command: list[str], exit_code: int, stderr: bytes, log_
         "exit_code": exit_code,
         "stderr_tail_hex": stderr[-256:].hex(),
         "stderr_tail_bytes": len(stderr[-256:]),
-        "binary_path": binary,
-        "binary_sha256": binary_hash,
+        **context,
         "git_commit": commit,
         "git_commit_object_sha256": commit_hash,
         "git_provenance": git_provenance,
+        "source_identity": source_identity,
         "inputs": command,
         "cpu_utilization_percent": psutil.cpu_percent(interval=None),
         "ram_used_bytes": memory.used,
         "ram_available_bytes": memory.available,
+        "resource_observation": "system_at_crash_recording",
     }
     canonical = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
     record["sha256"] = hashlib.sha256(canonical).hexdigest()

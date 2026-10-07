@@ -116,6 +116,7 @@ jobs:
           name: cfour-calculation-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/cfour-evidence/**/*.json
+            ${{ runner.temp }}/cochem-artifacts/**/CrashRecords/*.json
             ${{ runner.temp }}/cfour-evidence/**/*.txt
             ${{ runner.temp }}/cfour-evidence/**/*.log
             ${{ runner.temp }}/cfour-evidence/**/*.xyz

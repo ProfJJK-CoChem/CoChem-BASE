@@ -23,6 +23,7 @@ import atexit
 import ctypes
 import hashlib
 import json
+import locale
 import logging
 import os
 import platform
@@ -90,13 +91,7 @@ from cochem_base.config_loader import (
     resolve_mapped_path,
 )
 
-try:
-    from core_engine.cochem_core_telemetry_logger import TelemetryLogger
-except ImportError:
-    try:
-        from cochem_core_telemetry_logger import TelemetryLogger  # type: ignore
-    except ImportError:
-        TelemetryLogger = None  # type: ignore
+from cochem_base.core_engine.cochem_core_telemetry_logger import TelemetryLogger
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-Broker")
@@ -107,8 +102,8 @@ _GLOBAL_TRACKING_LOCK = threading.RLock()
 
 # Comprehensive cross-platform segmentation fault, abort, access violation, and fatal crash return codes
 CRITICAL_SEGFAULT_EXIT_CODES = {
-    139, 134, 135, 136, 137,             # POSIX fatal signals (128 + signal)
-    -11, -6, -7, -8, -9,                 # Subprocess negative signal numbers
+    132, 139, 134, 135, 136, 137,       # POSIX fatal signals (128 + signal)
+    -4, -11, -6, -7, -8, -9,           # Subprocess negative signal numbers
     0xC0000005, -1073741819,  # Windows STATUS_ACCESS_VIOLATION (unsigned & signed 32-bit)
     0xC00000FD, -1073741571,  # Windows STATUS_STACK_OVERFLOW
     0xC000001D, -1073741795,  # Windows STATUS_ILLEGAL_INSTRUCTION
@@ -193,6 +188,8 @@ def extract_segfault_hex_dump(
         crash_type = "SIGSEGV"
     elif returncode in (134, -6):
         crash_type = "SIGABRT"
+    elif returncode in (132, -4):
+        crash_type = "SIGILL"
     elif returncode in (-1073741571, 3221225725, 0xC00000FD):
         crash_type = "STATUS_STACK_OVERFLOW"
     elif returncode in (-1073741795, 3221225501, 0xC000001D):
@@ -385,10 +382,31 @@ def unregister_popen_process(proc: subprocess.Popen) -> None:
             _GLOBAL_ACTIVE_POPEN_PROCESSES.remove(proc)
 
 
+def _enable_descendant_reaping() -> None:
+    """Adopt descendants on Linux when launching/cleaning owned work, not import."""
+    if sys.platform.startswith("linux"):
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.prctl(36, 1, 0, 0, 0) != 0:
+            logger.warning("Host refused descendant subreaping (errno %s); terminating owned processes anyway.",
+                           ctypes.get_errno())
+
+
+def _reap_owned_group_children(group_id: int) -> None:
+    """Reap only adopted, terminated members of the launched POSIX group."""
+    if not sys.platform.startswith("linux") or not HAS_PSUTIL:
+        return
+    for child in psutil.Process().children():
+        try:
+            if os.getpgid(child.pid) == group_id and child.status() == psutil.STATUS_ZOMBIE:
+                os.waitpid(child.pid, os.WNOHANG)
+        except (ChildProcessError, ProcessLookupError, PermissionError, psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+
 def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
     """Terminates a process and all of its recursive child processes.
 
-    Mathematically guarantees no orphaned process trees survive:
+    Reaps descendants that the host permits this process to own:
     1. Uses psutil recursive tree discovery (parent.children(recursive=True)).
     2. Sends graceful terminate signal (.terminate()) to all children and parent.
     3. Waits for a 10-second grace period (allowing .gbw caches to dump cleanly).
@@ -399,6 +417,7 @@ def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
         try:
             parent = psutil.Process(pid)
             children = parent.children(recursive=True)
+            _enable_descendant_reaping()
             for child in children:
                 try:
                     child.terminate()
@@ -420,6 +439,12 @@ def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
                             logger.debug(f"Ignored exception: {_e}")
                     # Final reap confirmation
                     psutil.wait_procs(alive, timeout=3.0)
+            if sys.platform.startswith("linux"):
+                for child in children:
+                    try:
+                        os.waitpid(child.pid, os.WNOHANG)
+                    except ChildProcessError:
+                        continue
         except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
             logger.debug(f"Ignored exception: {_e}")
         except (ProcessLookupError, PermissionError, OSError) as _e:
@@ -795,13 +820,6 @@ def verify_scratch_quota_and_io(
             details={"path": str(resolved), "tier": "Tier 2"},
         )
 
-    now = time.monotonic()
-    with _SCRATCH_CACHE_LOCK:
-        if not force and resolved in _SCRATCH_VERIFICATION_CACHE:
-            last_verified = _SCRATCH_VERIFICATION_CACHE[resolved]
-            if (now - last_verified) < ttl_seconds:
-                return True
-
     resolved.mkdir(parents=True, exist_ok=True)
 
     if required_gb is not None and required_gb > 0:
@@ -810,6 +828,15 @@ def verify_scratch_quota_and_io(
         if free_gb < required_gb:
             logger.error(f"Insufficient scratch disk space at {resolved}: {free_gb:.2f} GB free, {required_gb:.2f} GB required.")
             raise DiskQuotaError(required_gb=required_gb, available_gb=free_gb, path=resolved)
+
+    # Free space and each job's quota are observed at every launch. Only the
+    # expensive fsync/read-back probe is cached; prior capacity is not authority.
+    now = time.monotonic()
+    with _SCRATCH_CACHE_LOCK:
+        if not force and resolved in _SCRATCH_VERIFICATION_CACHE:
+            last_verified = _SCRATCH_VERIFICATION_CACHE[resolved]
+            if (now - last_verified) < ttl_seconds:
+                return True
 
     probe_file = resolved / f".cochem_io_probe_{os.getpid()}_{time.time_ns()}.bin"
     probe_data = os.urandom(64 * 1024)  # 64 KB physical binary probe
@@ -1205,6 +1232,7 @@ def safe_subprocess_run(
     tail_buffer_lines: int = 500,
     load_full_stdout: bool = False,
     cancellation_event: Optional[threading.Event] = None,
+    crash_log_directory: Optional[Union[str, Path]] = None,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess:
     """Executes a subprocess safely with cross-platform process isolation.
@@ -1212,7 +1240,9 @@ def safe_subprocess_run(
     Relies on robust tracking of process trees via `psutil` (avoiding POSIX-exclusive os.setsid),
     Win32 Job Object binding on Windows, pre-flight disk quota assertion, hardware CPU affinity pinning,
     10-second grace period recursive tree termination upon timeout, and Segfault & Access Violation
-    256-byte stderr hex-dump extraction.
+    exact 256-byte stderr extraction and immutable native crash provenance.
+    Output is captured as bytes before decoding, including when live callbacks
+    consume text, so invalid encodings cannot erase native failure evidence.
     """
     if cancellation_event is not None and cancellation_event.is_set():
         raise SubprocessCancelledError("Calculation cancelled before process launch.")
@@ -1251,10 +1281,38 @@ def safe_subprocess_run(
     if cpu_affinity is not None:
         target_env = build_thread_affinity_env(cores=cpu_affinity, base_env=target_env)
 
+    from cochem_base.core_engine.crash_provenance import (
+        record_process_crash, snapshot_process_context,
+    )
+    if isinstance(parsed_cmd, str):
+        command_tokens = shlex.split(parsed_cmd, posix=platform.system() != "Windows")
+        if platform.system() == "Windows":
+            command_tokens = [token[1:-1] if len(token) >= 2 and token[0] == token[-1] == '"'
+                              else token for token in command_tokens]
+    else:
+        command_tokens = [os.fsdecode(argument) for argument in parsed_cmd]
+    context = snapshot_process_context(
+        command_tokens, cwd=cwd_path, environment=target_env,
+        resources={"timeout_seconds": timeout, "cpu_affinity": cpu_affinity},
+    )
+    context["stderr_capture"] = "raw_bytes" if capture_output else "not_captured"
+    if kwargs.get("shell", False):
+        context["shell_execution"] = True
+        context["binary_identity_status"] = "command_identity_only_shell_dispatch"
+    output_encoding = kwargs.pop("encoding", None) or locale.getpreferredencoding(False)
+    output_errors = kwargs.pop("errors", None) or "replace"
+    kwargs.pop("universal_newlines", None)
+
+    def _decode_output(data: Any, *, fatal_crash: bool = False) -> Any:
+        if data is None or not text:
+            return data
+        errors = "replace" if fatal_crash else output_errors
+        return data.decode(output_encoding, errors=errors).replace("\r\n", "\n").replace("\r", "\n")
+
     popen_args: Dict[str, Any] = {
         "cwd": cwd_str,
         "env": target_env,
-        "text": text,
+        "text": False,
         **kwargs,
     }
     if capture_output:
@@ -1265,6 +1323,7 @@ def safe_subprocess_run(
         popen_args["creationflags"] = popen_args.get("creationflags", 0) | subprocess.CREATE_NEW_PROCESS_GROUP
 
     job_obj = WindowsJobObject() if (use_job_object and platform.system() == "Windows") else None
+    _enable_descendant_reaping()
 
     if job_obj is not None and platform.system() == "Windows":
         CREATE_SUSPENDED = 0x00000004
@@ -1287,6 +1346,8 @@ def safe_subprocess_run(
 
     stdout_data: Any = ""
     stderr_data: Any = ""
+    stderr_raw_tail = bytearray()
+    decoding_errors: list[UnicodeError] = []
 
     try:
         if stream_to_disk and capture_output:
@@ -1295,25 +1356,36 @@ def safe_subprocess_run(
             stdout_log_path = Path(cwd_path) / "process_stdout.log"
             stderr_log_path = Path(cwd_path) / "process_stderr.log"
 
-            stdout_tail: deque[str] = deque(maxlen=tail_buffer_lines)
-            stderr_tail: deque[str] = deque(maxlen=tail_buffer_lines)
+            stdout_tail: deque[bytes] = deque(maxlen=tail_buffer_lines)
+            stderr_tail: deque[bytes] = deque(maxlen=tail_buffer_lines)
             stream_errors: list[Exception] = []
             stream_failed = threading.Event()
 
             def _stream_reader(
                 pipe: Any,
                 log_path: Path,
-                tail_buf: deque[str],
+                tail_buf: deque[bytes],
                 on_line_cb: Optional[Callable[[str], None]],
+                retain_stderr: bool = False,
             ) -> None:
                 try:
-                    with open(log_path, "w", encoding="utf-8") as f:
-                        for line in iter(pipe.readline, ""):
+                    with open(log_path, "wb") as f:
+                        for line in iter(pipe.readline, b""):
+                            if retain_stderr:
+                                stderr_raw_tail.extend(line)
+                                del stderr_raw_tail[:-256]
                             f.write(line)
                             f.flush()
                             tail_buf.append(line)
                             if on_line_cb is not None:
-                                on_line_cb(line)
+                                try:
+                                    decoded = _decode_output(line)
+                                except UnicodeError as error:
+                                    # Drain exact bytes through process exit before
+                                    # deciding whether this was a native crash.
+                                    decoding_errors.append(error)
+                                else:
+                                    on_line_cb(decoded)
                 except Exception as exc:
                     stream_errors.append(exc)
                     stream_failed.set()
@@ -1330,16 +1402,27 @@ def safe_subprocess_run(
             )
             t_stderr = threading.Thread(
                 target=_stream_reader,
-                args=(proc.stderr, stderr_log_path, stderr_tail, on_stderr_line),
+                args=(proc.stderr, stderr_log_path, stderr_tail, on_stderr_line, True),
                 daemon=True,
             )
             t_stdout.start()
             t_stderr.start()
 
             deadline = time.monotonic() + timeout
+            fatal_workers_reaped = False
             # A launcher may exit while its workers still hold inherited pipes.
             # Keep supervising until both the process and output readers finish.
             while (proc.poll() is None or t_stdout.is_alive() or t_stderr.is_alive()) and not stream_failed.is_set():
+                if is_crash_returncode(proc.returncode) and not fatal_workers_reaped:
+                    kill_process_tree(proc.pid, timeout=0.1)
+                    if platform.system() == "Windows" and job_obj is not None:
+                        job_obj.close()
+                    elif platform.system() != "Windows" and popen_args.get("start_new_session"):
+                        try:
+                            os.killpg(proc.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    fatal_workers_reaped = True
                 if cancellation_event is not None and cancellation_event.is_set():
                     stream_errors.append(SubprocessCancelledError("Calculation cancelled by the user."))
                     stream_failed.set()
@@ -1365,30 +1448,55 @@ def safe_subprocess_run(
                 raise stream_errors[0]
 
             if load_full_stdout:
-                stdout_data = stdout_log_path.read_text(encoding="utf-8")
+                stdout_data = stdout_log_path.read_bytes()
             else:
-                stdout_data = "".join(stdout_tail)
+                stdout_data = b"".join(stdout_tail)
 
-            stderr_data = "".join(stderr_tail)
+            stderr_data = b"".join(stderr_tail)
         else:
-            stdout_data, stderr_data = proc.communicate(timeout=timeout)
+            stdout_bytes, stderr_bytes = proc.communicate(timeout=timeout)
+            stderr_raw_tail.extend((stderr_bytes or b"")[-256:])
+            stdout_data = stdout_bytes
+            stderr_data = stderr_bytes
             ret = proc.returncode
 
-        crash_payload = extract_segfault_hex_dump(ret, stderr_data)
+        crash_payload = extract_segfault_hex_dump(ret, stderr_raw_tail)
+        crash_record = None
         if crash_payload.get("is_crash"):
+            from cochem.core.context import AirGapViolationError
+            from cochem_base.config_loader import _writable_runtime_path
+            if crash_log_directory is not None:
+                record_directory = _writable_runtime_path(crash_log_directory)
+            else:
+                try:
+                    record_directory = _writable_runtime_path(cwd_path / "CrashRecords")
+                except AirGapViolationError:
+                    record_directory = get_artifact_dir() / "Logs" / "CrashRecords"
+            crash_record = record_process_crash(
+                command_tokens, ret, bytes(stderr_raw_tail), record_directory,
+                execution_context=context,
+            )
+            crash_payload["record_path"] = crash_record["record_path"]
+            crash_payload["record_sha256"] = crash_record["sha256"]
             logger.error(
                 f"Critical process crash detected ({crash_payload.get('crash_type')}, code {ret}):\n"
                 f"{crash_payload.get('formatted_hex_dump')}"
             )
 
+        if decoding_errors and not crash_payload.get("is_crash"):
+            raise decoding_errors[0]
+        stdout_data = _decode_output(stdout_data, fatal_crash=bool(crash_payload.get("is_crash")))
+        stderr_data = _decode_output(stderr_data, fatal_crash=bool(crash_payload.get("is_crash")))
         completed = subprocess.CompletedProcess(args=cmd, returncode=ret, stdout=stdout_data, stderr=stderr_data)
         completed.crash_payload = crash_payload  # type: ignore[attr-defined]
         completed.hex_dump = crash_payload.get("raw_hex", "")  # type: ignore[attr-defined]
+        completed.crash_record = crash_record  # type: ignore[attr-defined]
 
         if check and ret != 0:
             err = subprocess.CalledProcessError(ret, cmd, output=stdout_data, stderr=stderr_data)
             err.crash_payload = crash_payload  # type: ignore[attr-defined]
             err.hex_dump = crash_payload.get("raw_hex", "")  # type: ignore[attr-defined]
+            err.crash_record = crash_record  # type: ignore[attr-defined]
             raise err
 
         return completed
@@ -1407,6 +1515,8 @@ def safe_subprocess_run(
         logger.error(f"Subprocess execution error for '{cmd}': {e}")
         raise
     finally:
+        if platform.system() != "Windows" and popen_args.get("start_new_session"):
+            _reap_owned_group_children(proc.pid)
         unregister_popen_process(proc)
         if job_obj is not None:
             job_obj.close()
@@ -1454,6 +1564,7 @@ class SubprocessBroker:
             self.telemetry = None
 
         self.active_processes: List[subprocess.Popen] = []
+        self.last_crash_record: Optional[Dict[str, Any]] = None
         self._lock = threading.RLock()
 
         self._monitor_thread: Optional[threading.Thread] = None
@@ -1479,6 +1590,8 @@ class SubprocessBroker:
     def close(self) -> None:
         """Closes the broker, stopping monitors and cleaning up process trees."""
         self.shutdown()
+        if self.telemetry is not None:
+            self.telemetry.close()
 
     def verify_scratch_io(self, target_dir: Optional[Union[str, Path]] = None, required_mb: int = 100) -> bool:
         """Verifies scratch directory I/O readiness."""
@@ -1699,18 +1812,32 @@ class SubprocessBroker:
             cmd_str = " ".join(payload_command)
 
         sanitized_env = sanitize_mpi_environment(self.env, cmd=command)
+        from cochem_base.core_engine.crash_provenance import (
+            record_process_crash, snapshot_process_context,
+        )
+        tokens = shlex.split(command, posix=False) if isinstance(command, str) else list(command)
+        if platform.system() == "Windows":
+            tokens = [token[1:-1] if len(token) >= 2 and token[0] == token[-1] == '"'
+                      else token for token in tokens]
+        execution_context = snapshot_process_context(
+            tokens, cwd=exec_path, environment=sanitized_env,
+            resources={"timeout_seconds": timeout, "cpu_affinity": cpu_affinity},
+        )
+        execution_context["stderr_capture"] = "raw_bytes"
+        self.last_crash_record = None
 
         logger.info(f"Dispatching '{job_name}' to broker in {exec_path}...")
 
         stdout_hist: List[str] = []
         stderr_hist: List[str] = []
+        stderr_raw_tail = bytearray()
 
         popen_kwargs: Dict[str, Any] = {
             "cwd": str(exec_path),
             "env": sanitized_env,
             "stdout": subprocess.PIPE,
             "stderr": subprocess.PIPE,
-            "text": True,
+            "text": False,
         }
         if platform.system() == "Windows":
             popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
@@ -1723,6 +1850,7 @@ class SubprocessBroker:
         exit_code: int = 0
 
         try:
+            _enable_descendant_reaping()
             process = subprocess.Popen(command, **popen_kwargs)
             with self._lock:
                 self.active_processes.append(process)
@@ -1744,10 +1872,10 @@ class SubprocessBroker:
 
             def _stream_stdout() -> None:
                 if process and process.stdout:
-                    for line in iter(process.stdout.readline, ''):
+                    for line in iter(process.stdout.readline, b''):
                         if watchdog:
                             watchdog.ping()
-                        clean_line = line.strip()
+                        clean_line = line.decode("utf-8", errors="replace").strip()
                         stdout_hist.append(clean_line)
                         if self.telemetry and not self.telemetry.process_stream_chunk(clean_line):
                             logger.error("Telemetry trap triggered. Preempting process.")
@@ -1756,10 +1884,12 @@ class SubprocessBroker:
 
             def _stream_stderr() -> None:
                 if process and process.stderr:
-                    for line in iter(process.stderr.readline, ''):
+                    for line in iter(process.stderr.readline, b''):
                         if watchdog:
                             watchdog.ping()
-                        stderr_hist.append(line.strip())
+                        stderr_raw_tail.extend(line)
+                        del stderr_raw_tail[:-256]
+                        stderr_hist.append(line.decode("utf-8", errors="replace").strip())
 
             t_stdout = threading.Thread(target=_stream_stdout, daemon=True)
             t_stderr = threading.Thread(target=_stream_stderr, daemon=True)
@@ -1767,28 +1897,50 @@ class SubprocessBroker:
             t_stdout.start()
             t_stderr.start()
 
-            if timeout is not None and timeout > 0:
-                try:
-                    process.wait(timeout=timeout)
-                    exit_code = process.returncode
-                except subprocess.TimeoutExpired:
+            deadline = time.monotonic() + timeout if timeout is not None and timeout > 0 else None
+            fatal_workers_reaped = False
+            while process.poll() is None or t_stdout.is_alive() or t_stderr.is_alive():
+                if is_crash_returncode(process.returncode) and not fatal_workers_reaped:
+                    # A crashed launcher can leave workers holding its pipes.
+                    # Terminate the owned group/job before publishing its tail.
+                    kill_process_tree(process.pid, timeout=0.1)
+                    if platform.system() == "Windows" and job_obj is not None:
+                        job_obj.close()
+                    elif platform.system() != "Windows":
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    fatal_workers_reaped = True
+                    deadline = min(deadline, time.monotonic() + 5.0) if deadline else time.monotonic() + 5.0
+                if deadline is not None and time.monotonic() >= deadline:
                     logger.error(f"Process '{job_name}' timed out after {timeout} seconds.")
                     kill_process_tree(process.pid, timeout=10.0)
-                    try:
-                        process.wait(timeout=3.0)
-                    except subprocess.TimeoutExpired as _e:
-                        logger.debug(f"Ignored exception: {_e}")
-                    exit_code = -124
+                    if platform.system() == "Windows" and job_obj is not None:
+                        job_obj.close()
+                    elif platform.system() != "Windows":
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    process.wait(timeout=3.0)
+                    t_stdout.join(timeout=5.0)
+                    t_stderr.join(timeout=5.0)
+                    if t_stdout.is_alive() or t_stderr.is_alive():
+                        raise SubprocessBrokerError("Native output pipes did not close; exact crash evidence is incomplete")
+                    exit_code = process.returncode if fatal_workers_reaped else -124
+                    break
+                time.sleep(0.01)
             else:
-                process.wait()
                 exit_code = process.returncode
 
-            t_stdout.join(timeout=2.0)
-            t_stderr.join(timeout=2.0)
-
             # Check for segfault / access violation crash and sweep 256-byte hex dump
-            crash_info = extract_segfault_hex_dump(exit_code, stderr_hist)
+            crash_info = extract_segfault_hex_dump(exit_code, stderr_raw_tail)
             if crash_info.get("is_crash"):
+                self.last_crash_record = record_process_crash(
+                    tokens, exit_code, bytes(stderr_raw_tail), self.cwd / "CrashRecords",
+                    execution_context=execution_context,
+                )
                 logger.error(
                     f"Process payload '{job_name}' crashed ({crash_info.get('crash_type')}, code {exit_code}):\n"
                     f"{crash_info.get('formatted_hex_dump')}"
@@ -1812,6 +1964,8 @@ class SubprocessBroker:
                 job_obj.close()
 
             if process is not None:
+                if platform.system() != "Windows":
+                    _reap_owned_group_children(process.pid)
                 with self._lock:
                     if process in self.active_processes:
                         self.active_processes.remove(process)
@@ -1822,7 +1976,8 @@ class SubprocessBroker:
             dispatch_hash = hashlib.sha256(dispatch_seed).hexdigest()
 
             if self.telemetry:
-                self.telemetry.aggregate_and_lock(job_name, stdout_hist, stderr_hist, exit_code, dispatch_hash)
+                self.telemetry.aggregate_and_lock(job_name, stdout_hist, stderr_hist, exit_code, dispatch_hash,
+                                                  stderr_bytes=bytes(stderr_raw_tail))
 
             if not (watchdog is not None and watchdog.is_daemonized):
                 self.garbage_collect_core_dumps(exec_path)

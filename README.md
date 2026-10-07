@@ -25,18 +25,21 @@ It explains `COCHEM_SOURCE_READ_TOKEN`, student-owned Codespaces, the
 organization's shared Actions allowance, and which modules currently support
 installation or execution.
 
-Version **1.0.0 validates the supported Classroom50 / GitHub Actions route**,
-including real ORCA optimization and harmonic calculations. The complete local
-BASE profile passed 1,532 tests with two declared physical Slurm deferrals;
-Ubuntu, macOS and Windows control and wheel checks also passed. The
-[release record](.docs/Release_1_0_0.md) identifies exact revisions, evidence,
-distribution records and remaining host/scientific boundaries.
+Version **1.0.1** brings the integrated CFOUR/module routes and the current SRS
+closure work into the student distribution. The
+[release and validation record](.docs/Release_1_0_1.md) identifies actual tested
+revisions, supported operations and publication status. The older
+[1.0.0 record](.docs/Release_1_0_0.md) remains historical. Existing Classroom50
+assignment copies must be updated to the approved course source; pulling this
+repository does not grant assignment secrets or private-module permissions.
+Use the [single-student deployment pilot](.docs/Student_Deployment_Pilot.md)
+before rolling a new template out to the course.
 
 ## Choose a calculation environment
 
 | Route | How to use it | Validation boundary |
 | --- | --- | --- |
-| Classroom50 / GitHub Actions | Accept the assignment, export a JSON job in Voilà, and run **ORCA calculation**. | Hosted installation and chemistry must pass for the selected source revision. See [ORCA evidence](.docs/ORCA_Actions_Setup.md). |
+| Classroom50 / GitHub Actions | Accept the assignment, export a JSON job in Voilà, and run **ORCA calculation** or **CFOUR calculation**. | Hosted installation and chemistry must pass for the selected source revision. See [ORCA evidence](.docs/ORCA_Actions_Setup.md). |
 | Local Linux CPU | Complete Stage 0 and select an audited installed engine. | Local tests and real bounded calculations provide evidence for documented operations. |
 | Windows / WSL2 | Submit Actions jobs from the interface; use WSL2 for local Linux ORCA. | The Linux archive does not run natively on Windows. WSL acceptance is separate from Linux cloud tests. |
 | macOS | Use Actions or install the matching macOS engine build and complete setup. | Native macOS acceptance needs an appropriate host. Linux binaries and registries are not portable to it. |

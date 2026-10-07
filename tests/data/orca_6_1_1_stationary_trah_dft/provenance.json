@@ -1,0 +1,33 @@
+{
+  "engine": "ORCA",
+  "version": "6.1.1",
+  "method": "PBE-D4",
+  "basis": "STO-3G",
+  "requested_grid": "DEFGRID2",
+  "cores": 1,
+  "maxcore_mb": 512,
+  "source_execution": "Actual local native grid-refinement diagnostic, stage 2. Full unmodified stdout exhibits stationary one-cycle TRAH final-SCF summary sentinel; earlier stage acceptance rejected it under the original parser. This fixture is parser evidence, not a claim that all stages completed.",
+  "native_archive_sha256": "a0bc1d6d2c3c00620367bbc5dbf2b3a7018abc92d1ff65f06cec46f75350b9be",
+  "artifacts": {
+    "stationary.out.txt": {
+      "sha256": "8207b6f2fb87127ca5afa66a4cff7c998deb3ed411ad97f3773b1614351abb54",
+      "bytes": 110492,
+      "native_original_name": "job_ef49c17edbad4de1938fea294df7b509_job.out"
+    },
+    "stationary.inp": {
+      "sha256": "5cfc6eb83330a5d817f78770b22c833ab87b171a85b6735f9396600fb2649d09",
+      "bytes": 799,
+      "native_original_name": "job_ef49c17edbad4de1938fea294df7b509_job.inp"
+    },
+    "stationary.xyz": {
+      "sha256": "9d8a3cc77c476d65bbdeb4ff3939925dd4ead9c7d5bea43d8387ef90c79bfbc4",
+      "bytes": 238,
+      "native_original_name": "job_ef49c17edbad4de1938fea294df7b509_job.xyz"
+    },
+    "stationary.engrad": {
+      "sha256": "4df8281024bd6185398ca71e0be606050e505bc17325e58ec2ba401d7c8e7041",
+      "bytes": 402,
+      "native_original_name": "job_ef49c17edbad4de1938fea294df7b509_job.engrad"
+    }
+  }
+}

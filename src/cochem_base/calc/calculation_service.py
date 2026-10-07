@@ -7,9 +7,7 @@ import logging
 import os
 from pathlib import Path
 import shutil
-import threading
 import uuid
-from contextlib import nullcontext
 from datetime import datetime, timezone
 from typing import Any, Callable, List, Optional, Tuple
 
@@ -118,38 +116,16 @@ class CalculationMatrixConfig(BaseModel):
         return self
 
 
+def parse_run_geometry_identity(text: str):
+    """Return the immutable nuclear identity and coordinates of one geometry."""
+    from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+    return parse_geometry_identity(text)
+
+
 def parse_run_geometry(text: str) -> Tuple[List[str], List[Tuple[float, float, float]]]:
-    import math
-    import re
-
-    from cochem_base.physics.isotopes import get_element_mass_and_abundance
-
-    lines = text.strip().splitlines()
-    if not lines:
-        raise ValueError("Geometry cannot be empty")
-    expected = None
-    if lines[0].strip().isdigit():
-        expected = int(lines[0])
-        if len(lines) < 3:
-            raise ValueError("Incomplete XYZ frame")
-        lines = lines[2:]
-    elements, coordinates = [], []
-    for line in lines:
-        if not line.strip():
-            continue
-        fields = line.split()
-        if len(fields) != 4 or not re.fullmatch(r"[A-Z][a-z]?", fields[0]):
-            raise ValueError(f"Invalid XYZ coordinate line: {line}")
-        if get_element_mass_and_abundance(fields[0])[2] < 1:
-            raise ValueError("A real element symbol is required for each nucleus")
-        xyz = tuple(float(value) for value in fields[1:])
-        if not all(math.isfinite(value) for value in xyz):
-            raise ValueError("Geometry coordinates must be finite")
-        elements.append(fields[0])
-        coordinates.append(xyz)
-    if not elements or expected is not None and len(elements) != expected:
-        raise ValueError("XYZ atom count does not match its coordinates")
-    return elements, coordinates
+    """Return canonical electronic elements; nuclear assignments remain separate."""
+    identity = parse_run_geometry_identity(text)
+    return list(identity.elements), list(identity.coordinates_angstrom)
 
 
 def _external_run_path(path: Path) -> Path:
@@ -253,7 +229,6 @@ def run_calculation(
 
     from cochem_base.calc.cochem_calc_input_generator import generate_orca_input, generate_pyscf_input
     from cochem_base.calc.molecular_input import build_molecular_input, canonical_theory_tier
-    from cochem_base.analysis.electronic_sanitizer import SpinContaminationStreamValidator
     from cochem_base.config_loader import get_artifact_dir, resolve_executable
     from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
     from cochem_base.theory_matrix import ProductClass
@@ -290,7 +265,9 @@ def run_calculation(
             raise ValueError("maxcore_mb must be a positive integer per process")
         if threads is None and config.engine in {"xtb", "pyscf", "qe", "cfour"}:
             threads = 1
-        elements, coordinates = parse_run_geometry(config.geometry)
+        identity = parse_run_geometry_identity(config.geometry)
+        elements, coordinates = list(identity.elements), list(identity.coordinates_angstrom)
+        nuclides = list(identity.nuclides)
         original_coordinates = np.asarray(coordinates, dtype=float)
         product = None
         if config.product_class:
@@ -313,7 +290,7 @@ def run_calculation(
             rotation, alignment_rmsd = None, None
         else:
             normalized_coordinates, rotation, alignment_rmsd = align_coordinates(
-                original_coordinates, original_coordinates, symbols=elements,
+                original_coordinates, original_coordinates, masses=identity.masses_u,
             )
             coordinates = normalized_coordinates.tolist()
         canonical_theory_tier(config.theory_tier)
@@ -347,6 +324,7 @@ def run_calculation(
         (sandbox_dir / "matrix_config.validated.json").write_text(config.model_dump_json(indent=2), encoding="utf-8")
         (sandbox_dir / "ingress_alignment.json").write_text(json.dumps({
             "method": "periodic_cell_frame_preserved" if periodic is not None else "pending_input_frame_preserved" if pending else "mass_weighted_COM_and_Eckart_SVD", "elements": elements,
+            "nuclear_identity": identity.metadata,
             "original_coordinates_angstrom": original_coordinates.tolist(),
             "coordinates_angstrom": coordinates, "rotation": rotation.tolist() if rotation is not None else None,
             "mass_weighted_rmsd_angstrom": alignment_rmsd,
@@ -354,7 +332,7 @@ def run_calculation(
         if pending:
             geometry = "\n".join([str(len(elements)), "Validated BASE job input; pending scientific integration"] +
                                  [symbol + " " + " ".join(format(float(value), ".17g") for value in xyz)
-                                  for symbol, xyz in zip(elements, coordinates)]) + "\n"
+                                  for symbol, xyz in zip(nuclides, coordinates)]) + "\n"
             geometry_path = sandbox_dir / "geometry.xyz"
             geometry_path.write_text(geometry, encoding="utf-8")
             handoff_config = config.model_copy(update={"geometry": geometry})
@@ -408,6 +386,11 @@ def run_calculation(
         else:
             deck = write_xtb_input(sandbox_dir, elements, coordinates)
         fallback = None
+        if config.engine == "orca":
+            from cochem_base.calc.grid_execution import quadrature_execution_plan
+            (sandbox_dir / "grid_lifecycle.plan.json").write_text(
+                json.dumps(quadrature_execution_plan(molecule), indent=2, allow_nan=False), encoding="utf-8",
+            )
         emit({"kind": "status", "status": "DECK_GENERATED", "scratch_dir": str(sandbox_dir)})
         if not dry_run:
             environment = _engine_environment(config.engine, threads, dict(os.environ), executable=engine_path)
@@ -434,6 +417,7 @@ def run_calculation(
                         registry_path=registry_path,
                         cancellation_event=cancellation_event,
                         on_event=lambda event: emit({"kind": event.get("kind", "status"), **event}),
+                        nuclides=nuclides,
                     )
                     return
                 if config.recipe == "R2":
@@ -451,90 +435,50 @@ def run_calculation(
                         timeout_seconds=config.timeout_seconds,
                         cancellation_event=cancellation_event, on_event=on_event,
                         is_freq=config.is_freq, is_vpt2=config.is_vpt2,
+                        nuclides=nuclides,
+                        publication_metadata={
+                            "source_artifact_relative_path": "r2/dimer/native-gradient-evaluations.txt",
+                            "published_source_path": str(output / "r2/dimer/native-gradient-evaluations.txt")
+                                                     if output is not None else None,
+                        },
                     )
                     return
-                spin_validator = SpinContaminationStreamValidator(config.multiplicity) if config.engine == "orca" else None
+                if config.engine == "orca":
+                    from cochem_base.calc.grid_execution import execute_orca_calculation
+                    accepted = execute_orca_calculation(
+                        config, molecule, directory=sandbox_dir, authority=authorization,
+                        environment=environment, capability=capability, registry_path=registry_path,
+                        cancellation_event=cancellation_event, on_event=on_event,
+                        telemetry_job_id=basin_id, nuclides=nuclides,
+                        published_directory=output,
+                    )
+                    return
+                if config.engine == "xtb" and config.is_opt:
+                    from cochem_base.calc.xtb_optimization import execute_xtb_optimization
+                    accepted = execute_xtb_optimization(
+                        config, elements, coordinates, directory=sandbox_dir,
+                        authority=authorization, environment=environment,
+                        cancellation_event=cancellation_event, on_event=on_event,
+                        telemetry_job_id=basin_id, nuclides=nuclides,
+                        metadata={"nuclear_identity": identity.metadata},
+                    )
+                    return
 
                 def stdout_line(line: str) -> None:
-                    if spin_validator is not None:
-                        spin_validator(line)
                     emit({"kind": "log", "stream": "stdout", "message": line})
 
                 emit({"kind": "status", "status": "RUNNING", "engine": config.engine})
                 command = ([engine_path, "-I", deck.name] if config.engine == "pyscf" else
                            [engine_path, deck.name, *xtb_arguments])
-                telemetry_cancel = threading.Event()
-
-                class CancellationScope:
-                    def is_set(self) -> bool:
-                        return telemetry_cancel.is_set() or cancellation_event is not None and cancellation_event.is_set()
-
-                follower = None
-                if config.is_opt and config.engine in {"orca", "xtb"}:
-                    from cochem_base.core_engine.trajectory_telemetry import XYZTrajectoryFollower
-                    trajectory = sandbox_dir / ("xtbopt.log" if config.engine == "xtb" else f"{basin_id}_job_trj.xyz")
-                    follower = XYZTrajectoryFollower(
-                        trajectory, basin_id, elements, source_format=config.engine, required=True,
-                        metadata={"engine": config.engine, "method": config.method, "record_kind": "optimization_trajectory"},
-                        on_error=lambda error: telemetry_cancel.set(),
-                    )
-                try:
-                    with follower if follower is not None else nullcontext():
-                        result = safe_subprocess_run(
-                            command, cwd=sandbox_dir,
-                            timeout=config.timeout_seconds, check=False, capture_output=True, text=True,
-                            env=environment, required_disk_gb=0.1, on_stdout_line=stdout_line,
-                            on_stderr_line=lambda line: emit({"kind": "log", "stream": "stderr", "message": line}),
-                            load_full_stdout=True, cancellation_event=CancellationScope(),
-                            cpu_affinity=list(authorization.cpu_affinity) or None,
-                        )
-                except Exception as engine_error:
-                    if follower is not None and follower.status.get("error"):
-                        engine_error.add_note(f"Trajectory telemetry: {follower.status['error']}")
-                    raise
-                finally:
-                    if follower is not None:
-                        (sandbox_dir / "trajectory_telemetry.json").write_text(
-                            json.dumps(follower.status, indent=2), encoding="utf-8",
-                        )
-                if config.engine == "orca":
-                    schema = _accept_orca_result(result, sandbox_dir, basin_id, config)
-                    result_elements, result_coordinates = elements, coordinates
-                    if config.is_opt:
-                        result_elements, result_coordinates = parse_run_geometry(
-                            (sandbox_dir / f"{basin_id}_job.xyz").read_text(encoding="utf-8"),
-                        )
-                        if result_elements != elements:
-                            raise RuntimeError("ORCA output atom identities/order differ from the submitted geometry")
-                        if config.recipe is not None:
-                            drift = validate_frozen_monomer_trajectory(
-                                sandbox_dir / f"{basin_id}_job_trj.xyz", elements, coordinates, result_coordinates,
-                            )
-                            (sandbox_dir / "frozen_monomer_integrity.json").write_text(
-                                json.dumps(drift, indent=2, allow_nan=False), encoding="utf-8",
-                            )
-                    accepted = {"engine": "orca", "method": config.method, "converged": True,
-                                "energy_hartree": schema["properties"]["return_energy"],
-                                "elements": result_elements, "coordinates_angstrom": result_coordinates,
-                                "operation": capability.operation, "optimization_performed": config.is_opt}
-                    from cochem_base.calc.orca_derivatives import accept_gradient, accept_harmonic_hessian
-                    import re
-                    accepted.update(accept_gradient(
-                        sandbox_dir / f"{basin_id}_job.engrad", result_elements, result_coordinates,
-                        accepted["energy_hartree"], required=config.is_opt or bool(re.search(
-                            r"\bENGRAD\b", " ".join(value for value in (config.method, config.basis_set) if value), re.I,
-                        )),
-                    ))
-                    if config.is_freq:
-                        accepted.update(accept_harmonic_hessian(
-                            sandbox_dir / f"{basin_id}_job.hess", sandbox_dir / f"{basin_id}_job.out",
-                            result_elements, result_coordinates, optimized=config.is_opt,
-                        ))
-                    accepted["metadata"] = {key: accepted[key] for key in (
-                        "gradient_artifact", "hessian_artifact", "harmonic_frequencies_cm1",
-                        "principal_isotope_masses_u", "harmonic_frequency_provenance",
-                    ) if key in accepted}
-                elif config.engine == "xtb":
+                result = safe_subprocess_run(
+                    command, cwd=sandbox_dir,
+                    timeout=config.timeout_seconds, check=False, capture_output=True, text=True,
+                    env=environment, required_disk_gb=0.1, on_stdout_line=stdout_line,
+                    on_stderr_line=lambda line: emit({"kind": "log", "stream": "stderr", "message": line}),
+                    load_full_stdout=True, cancellation_event=cancellation_event,
+                    cpu_affinity=list(authorization.cpu_affinity) or None,
+                )
+                if config.engine == "xtb":
                     accepted = accept_xtb_result(result, sandbox_dir, config, elements, parse_run_geometry)
                 else:
                     from cochem_base.calc.pyscf_execution import accept_pyscf_result
@@ -545,6 +489,7 @@ def run_calculation(
                 charge=config.charge, multiplicity=config.multiplicity,
                 directory=sandbox_dir / "t9", cancellation_event=cancellation_event,
                 registry_path=registry_path,
+                nuclides=nuclides,
             )
             if fallback is not None:
                 emit({"kind": "status", "status": "T9_FALLBACK_VERIFIED", "result": fallback})
@@ -556,11 +501,13 @@ def run_calculation(
                     )
             elif accepted is not None:
                 from cochem_base.core_engine.scientific_telemetry import append_scientific_result
+                accepted.update(nuclides=nuclides, nuclear_identity=identity.metadata)
+                accepted.setdefault("metadata", {})["nuclear_identity"] = identity.metadata
                 if config.engine == "qe" and accepted.get("job_id") == basin_id:
                     store = Path(accepted["archive_path"])
                 else:
                     store = append_scientific_result(
-                        basin_id, accepted["elements"], accepted["coordinates_angstrom"], accepted["energy_hartree"],
+                        basin_id, nuclides, accepted["coordinates_angstrom"], accepted["energy_hartree"],
                         gradients=accepted.get("gradients_hartree_per_bohr"),
                         metadata={"engine": config.engine, "method": config.method,
                                   "operation": accepted.get("operation", "optimization" if config.is_opt else "single_point"),

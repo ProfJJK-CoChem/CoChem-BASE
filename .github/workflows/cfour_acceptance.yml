@@ -136,6 +136,11 @@ jobs:
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/verify_cfour_scientific.py \
             --registry "$COCHEM_CONFIG" \
             --output "$RUNNER_TEMP/cfour-evidence/scientific-acceptance.json"
+      - name: Validate input isotopologue identity through native harmonics and ingestion
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/verify_srs_completion.py \
+            --engine cfour --registry "$COCHEM_CONFIG" \
+            --output "$RUNNER_TEMP/cfour-evidence/srs-completion.json"
       - name: Retain scientific results and failure diagnostics
         if: always()
         uses: actions/upload-artifact@v4

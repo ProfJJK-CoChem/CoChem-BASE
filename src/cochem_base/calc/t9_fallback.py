@@ -79,11 +79,16 @@ def run_t9_fallback(
     trigger: SpinContaminationError,
     cancellation_event: Any = None,
     registry_path: Path | None = None,
+    nuclides: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Run and validate CASSCF/NEVPT2 after an already terminated primary job."""
     from cochem.core.context import assert_writable_path
     from cochem_base.core_engine.hardware_profiler import profile_hardware
     from cochem_base.core_engine.execution_authority import authorize_engine_execution
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+    nuclear_identity = resolve_nuclear_identity(nuclides if nuclides is not None else elements)
+    if nuclear_identity.elements != tuple(elements):
+        raise ValueError("T9 nuclide assignments must match its ordered electronic elements")
 
     directory = Path(directory).expanduser().resolve()
     assert_writable_path(directory)
@@ -112,6 +117,7 @@ def run_t9_fallback(
     directory.mkdir(parents=True, exist_ok=False)
     input_payload = {
         "configuration": config.model_dump(mode="json"), "elements": list(elements),
+        "nuclides": list(nuclear_identity.nuclides), "nuclear_identity": nuclear_identity.metadata,
         "coordinates_angstrom": [list(xyz) for xyz in coordinates],
         "charge": charge, "multiplicity": multiplicity,
     }
@@ -164,12 +170,13 @@ def run_t9_fallback(
     from cochem_base.core_engine.scientific_telemetry import append_scientific_result
     telemetry_id = f"t9_{uuid.uuid4().hex}"
     telemetry_path = append_scientific_result(
-        telemetry_id, elements, coordinates, payload["energy_hartree"],
+        telemetry_id, nuclear_identity.nuclides, coordinates, payload["energy_hartree"],
         metadata={"engine": "pyscf", "method": config.method, "tier": "T9",
                   "operation": "single_point", "spin_square": payload["spin_square"],
                   "input_sha256": payload["input_sha256"], "scf_converged": True, "casscf_converged": True},
     )
-    payload.update(telemetry_path=str(telemetry_path), telemetry_job_id=telemetry_id)
+    payload.update(telemetry_path=str(telemetry_path), telemetry_job_id=telemetry_id,
+                   nuclides=list(nuclear_identity.nuclides), nuclear_identity=nuclear_identity.metadata)
     _write_json(directory / "t9_verified.json", payload)
     return payload
 

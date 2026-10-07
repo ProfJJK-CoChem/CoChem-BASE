@@ -37,16 +37,11 @@ def test_dual_entry_point_model_parity():
         "engine": "ORCA",
         "method": "wB97M-V",
         "basis_set": "def2-TZVP",
-        "topos_heuristic": "iMTD-GC",
-        "topos_dedup": 0.05,
-        "torq_dihedrals": "",
-        "torq_resolution": 36,
-        "torq_qrrho": False,
     }
 
     # GUI Model validation
     gui_cfg = MatrixConfigModel(**payload)
-    assert gui_cfg.engine == "ORCA"
+    assert gui_cfg.engine == "orca"
     assert gui_cfg.method == "wB97M-V"
 
     # CLI Model validation
@@ -68,8 +63,6 @@ def test_cli_run_subcommand_dry_run_success():
             "engine": "orca",
             "method": "wB97M-V",
             "basis_set": "def2-TZVP",
-            "topos_heuristic": "iMTD-GC",
-            "topos_dedup": 0.05,
         }
         with open(cfg_file, "w", encoding="utf-8") as f:
             json.dump(config_data, f, indent=2)
@@ -81,15 +74,25 @@ def test_cli_run_subcommand_dry_run_success():
             "--config",
             str(cfg_file),
             "--dry-run",
+            "--scratch", str(Path(tmpdir) / "scratch"),
+            "--output", str(Path(tmpdir) / "results"),
             "--json",
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        from cochem_base.core_engine.hardware_profiler import profile_hardware
+        hardware = profile_hardware()
+        authority = Path(tmpdir) / "hardware.json"
+        authority.write_text(json.dumps({"hardware": {
+            "physical_cpu_cores": min(hardware.physical_cores, len(hardware.available_cpu_ids)),
+            "ram_mb": hardware.available_ram_bytes // (1024 * 1024),
+        }}))
+        env = {**os.environ, "COCHEM_CONFIG": str(authority)}
+        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
         assert result.returncode == 0, f"CLI run failed with stderr: {result.stderr}"
 
         # Validate JSON telemetry output
         parsed_out = json.loads(result.stdout)
-        assert parsed_out["status"] == "VALIDATED_SUCCESS"
+        assert parsed_out["status"] == "DECK_GENERATED"
         assert parsed_out["engine"] == "orca"
         assert parsed_out["method"] == "wB97M-V"
         assert parsed_out["dry_run"] is True
@@ -120,7 +123,7 @@ def test_cli_run_subcommand_validation_failure():
         result = subprocess.run(cmd, capture_output=True, text=True)
         assert result.returncode == 1
         combined_out = result.stdout + result.stderr
-        assert "Validation Error" in combined_out or "Unsupported engine" in combined_out
+        assert "Unknown engine" in combined_out
 
 
 def test_slurm_script_synthesis_valid():

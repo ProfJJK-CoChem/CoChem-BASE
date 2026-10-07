@@ -1,5 +1,5 @@
 """Centralized Physical Constants & Dynamic Mendeleev Registry.
-Strictly adheres to Mendeleev Mandate and CODATA 2018 Dynamic Lookup.
+Strictly adheres to Mendeleev Mandate and the installed SciPy CODATA database.
 Zero hardcoding of atomic masses or periodic tables.
 """
 
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import scipy.constants
 from mendeleev import element
@@ -16,6 +16,24 @@ from mendeleev import element
 # Authoritative conversion constant for rotational constants: MHz * u * Angstrom^2
 # Derived from CODATA 2022: C_rot = 10^-6 * h / (8 * pi^2 * u * Angstrom^2)
 C_ROT_MHZ_U_ANG2: float = 505379.0084350172
+
+# All conversion consumers share the installed CODATA database. Unit definitions
+# (Angstrom, calorie and MHz) are exact; no second table is maintained downstream.
+PLANCK_CONSTANT_J_S = scipy.constants.h
+BOLTZMANN_CONSTANT_J_K = scipy.constants.k
+SPEED_OF_LIGHT_M_S = scipy.constants.c
+SPEED_OF_LIGHT_CM_S = SPEED_OF_LIGHT_M_S * 100.0
+AVOGADRO_CONSTANT = scipy.constants.Avogadro
+ATOMIC_MASS_UNIT_KG = scipy.constants.physical_constants["atomic mass constant"][0]
+ANGSTROM_TO_METER = 1e-10
+BOHR_TO_METER = scipy.constants.physical_constants["Bohr radius"][0]
+BOHR_TO_ANGSTROM = BOHR_TO_METER / ANGSTROM_TO_METER
+ANGSTROM_TO_BOHR = 1.0 / BOHR_TO_ANGSTROM
+HARTREE_TO_JOULE = scipy.constants.physical_constants["Hartree energy"][0]
+HARTREE_TO_EV = HARTREE_TO_JOULE / scipy.constants.e
+HARTREE_TO_KCAL_MOL = HARTREE_TO_JOULE * AVOGADRO_CONSTANT / 4184.0
+KCAL_MOL_TO_HARTREE = 1.0 / HARTREE_TO_KCAL_MOL
+HARTREE_TO_CM_INV = HARTREE_TO_JOULE / (PLANCK_CONSTANT_J_S * SPEED_OF_LIGHT_CM_S)
 
 
 @dataclass(frozen=True)
@@ -28,7 +46,7 @@ class PhysicalConstant:
     uncertainty: float
     unit: str
     provenance: str
-    source: str = "CODATA 2018 / scipy.constants"
+    source: str = "CODATA / scipy.constants"
 
 
 @dataclass(frozen=True)
@@ -145,7 +163,7 @@ class PhysicalConstantsRegistry:
             uncertainty=float(unc),
             unit=str(unit),
             provenance=provenance,
-            source="CODATA 2018 / scipy.constants",
+            source="CODATA / scipy.constants",
         )
 
     @staticmethod

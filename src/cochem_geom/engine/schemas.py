@@ -1248,10 +1248,10 @@ class CFOURInputDeckSchema(CoChemBaseModel):
 
 class QuantumCalculationResult(CoChemBaseModel):
     """Complete execution result payload from a quantum chemistry run."""
-    success: bool = Field(default=True, description="True if geometry / SCF converged without errors")
-    engine: EngineType | str = Field(default=EngineType.ORCA, description="Executed engine name")
-    task_type: TaskType | str = Field(
-        default=TaskType.OPT, description="Executed task type"
+    success: Optional[bool] = Field(default=None, strict=True, description="Reported execution success; unknown when not supplied")
+    engine: EngineType | str | None = Field(default=None, description="Reported executed engine name")
+    task_type: TaskType | str | None = Field(
+        default=None, description="Reported executed task type"
     )
     method: Optional[str] = Field(default=None, description="Electronic structure method used")
     basis: Optional[str] = Field(default=None, description="Basis set used")
@@ -1260,16 +1260,16 @@ class QuantumCalculationResult(CoChemBaseModel):
     )
     nuclear_repulsion_hartree: Optional[float] = Field(default=None, description="Nuclear repulsion energy in Hartree")
     zero_point_energy_hartree: Optional[float] = Field(default=None, description="Zero-point vibrational energy in Hartree")
-    converged: bool = Field(
-        default=True, description="True if calculation converged"
+    converged: Optional[bool] = Field(
+        default=None, strict=True, description="Reported convergence; unknown when not supplied"
     )
     final_geometry: Optional[MolecularGeometry] = Field(default=None, description="Converged equilibrium structure")
     rotational_constants_mhz: Optional[PickettRotationalConstants | SpectroscopicConstants | Dict[str, Any]] = Field(
         alias="spectroscopic_constants", default=None, description="Calculated equilibrium rotational constants"
     )
     harmonic_frequencies_cm1: List[float] = Field(default_factory=list, description="Harmonic vibrational frequencies")
-    total_steps: int = Field(default=0, ge=0, description="Total optimization steps")
-    elapsed_seconds: float = Field(alias="wall_time_seconds", default=0.0, ge=0.0, description="Elapsed wall time in seconds")
+    total_steps: Optional[int] = Field(default=None, ge=0, description="Observed optimization steps")
+    elapsed_seconds: Optional[float] = Field(alias="wall_time_seconds", default=None, ge=0.0, allow_inf_nan=False, description="Measured elapsed wall time in seconds")
     t1_diagnostic: Optional[float] = Field(default=None, description="Coupled-cluster T1 diagnostic (T1 <= 0.02)")
     d1_diagnostic: Optional[float] = Field(default=None, description="Coupled-cluster D1 diagnostic (D1 <= 0.05)")
     spin_contamination_pct: Optional[float] = Field(
@@ -1280,10 +1280,26 @@ class QuantumCalculationResult(CoChemBaseModel):
     provenance_tag: Optional[str] = Field(default="[M]", description="Scientific provenance tag")
     warnings: List[str] = Field(default_factory=list, description="Warning messages emitted during run")
 
+    @field_validator("energy_hartree", "nuclear_repulsion_hartree", "zero_point_energy_hartree",
+                     "t1_diagnostic", "d1_diagnostic", "spin_contamination_pct")
+    @classmethod
+    def finite_measurements(cls, value: Optional[float]) -> Optional[float]:
+        if value is not None and not math.isfinite(value):
+            raise ValueError("Reported physical measurements must be finite")
+        return value
+
+    @field_validator("harmonic_frequencies_cm1")
+    @classmethod
+    def finite_frequencies(cls, values: List[float]) -> List[float]:
+        if any(not math.isfinite(value) for value in values):
+            raise ValueError("Reported vibrational frequencies must be finite")
+        return values
+
     @model_validator(mode="before")
     @classmethod
     def pre_populate_aliases(cls, data: Any) -> Any:
         if isinstance(data, dict):
+            data = dict(data)
             if "calculation_type" in data and "task_type" not in data:
                 data["task_type"] = data["calculation_type"]
             if "final_energy_hartree" in data:
@@ -1305,7 +1321,7 @@ class QuantumCalculationResult(CoChemBaseModel):
         return self.energy_hartree
 
     @property
-    def convergence_achieved(self) -> bool:
+    def convergence_achieved(self) -> Optional[bool]:
         return self.converged
 
     @property
@@ -1313,7 +1329,7 @@ class QuantumCalculationResult(CoChemBaseModel):
         return self.energy_hartree
 
     @property
-    def wall_time_seconds(self) -> float:
+    def wall_time_seconds(self) -> Optional[float]:
         return self.elapsed_seconds
 
     @property
@@ -1336,8 +1352,8 @@ class ChainedStateSchema(CoChemBaseModel):
     elements: List[str] = Field(default_factory=list, description="Element symbols")
     charge: int = Field(default=0, description="Charge")
     multiplicity: int = Field(default=1, ge=1, description="Spin multiplicity")
-    energy_hartree: float = Field(alias="total_energy_hartree", default=0.0, description="Electronic energy in Hartree")
-    gradient_norm: Optional[float] = Field(default=1e-5, description="RMS gradient norm at convergence")
+    energy_hartree: Optional[float] = Field(alias="total_energy_hartree", default=None, allow_inf_nan=False, description="Observed electronic energy in Hartree")
+    gradient_norm: Optional[float] = Field(default=None, ge=0.0, allow_inf_nan=False, description="Observed RMS gradient norm")
     geometry_sha256: Optional[str] = Field(default=None, description="SHA-256 hash of coordinate geometry")
     hessian_available: bool = Field(default=False, description="Whether full Hessian matrix is available for transfer")
     gbw_file_path: Optional[str] = Field(default=None, description="Path to ORCA wavefunction file (.gbw)")
@@ -1352,7 +1368,7 @@ class ChainedStateSchema(CoChemBaseModel):
         return self.target_stage
 
     @property
-    def total_energy_hartree(self) -> float:
+    def total_energy_hartree(self) -> Optional[float]:
         return self.energy_hartree
 
 
@@ -1386,15 +1402,17 @@ class ProvenanceRecord(CoChemBaseModel):
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="UTC timestamp of computation in ISO 8601 format",
     )
-    software_version: str = Field(default="CoChem-GEOM v4.0", description="Software engine version")
-    codata_version: str = Field(default="CODATA 2026", description="Physical constants ledger standard")
+    software_version: Optional[str] = Field(default=None, description="Reported software engine version")
+    codata_version: Optional[str] = Field(default=None, description="Reported physical constants ledger standard")
     input_deck_sha256: Optional[str] = Field(default=None, description="SHA-256 hash of input deck")
     output_log_sha256: Optional[str] = Field(default=None, description="SHA-256 hash of output calculation log")
     wavefunction_sha256: Optional[str] = Field(default=None, description="SHA-256 hash of wavefunction binary (.gbw)")
     notes: Optional[str] = Field(default=None, description="Descriptive notes or theoretical rationale")
 
     def to_provenance_tag(self) -> str:
-        return f"{self.tag_type.value} {self.software_version} ({self.codata_version}) [{self.timestamp_iso}]"
+        software = self.software_version or "software version unreported"
+        constants = self.codata_version or "constants version unreported"
+        return f"{self.tag_type.value} {software} ({constants}) [{self.timestamp_iso}]"
 
 
 # ---------------------------------------------------------------------------

@@ -313,6 +313,9 @@ def compress_tensors_for_llm(
     # 1. Handle NumPy ndarray
     if isinstance(payload, np.ndarray):
         if np.issubdtype(payload.dtype, np.number) or np.issubdtype(payload.dtype, np.bool_):
+            if payload.ndim == 2 and payload.shape[1] == 2 and len(payload) > 500:
+                from cochem_base.core_engine.cochem_core_context_compressor import compress_trajectory
+                return compress_trajectory(payload)
             if payload.size >= threshold:
                 stats = _compute_tensor_stats(payload)
                 return TensorSummaryModel(**stats) if return_models else stats
@@ -328,6 +331,8 @@ def compress_tensors_for_llm(
 
     # 3. Handle HDF5 Dataset if passed directly
     if isinstance(payload, h5py.Dataset):
+        if payload.ndim == 2 and payload.shape[1] == 2 and len(payload) > 500:
+            return compress_tensors_for_llm(payload[()], threshold=threshold, return_models=return_models)
         if payload.size >= threshold:
             # Read into numpy array and summarize
             arr = payload[()]
@@ -351,6 +356,13 @@ def compress_tensors_for_llm(
 
     # 6. Handle List
     if isinstance(payload, list):
+        if len(payload) > 500 and isinstance(payload[0], (list, tuple)):
+            try:
+                trajectory = np.asarray(payload, dtype=np.float64)
+                if trajectory.ndim == 2 and trajectory.shape[1] == 2:
+                    return compress_tensors_for_llm(trajectory, threshold=threshold, return_models=return_models)
+            except (TypeError, ValueError):
+                pass
         # Check if list is a large flat list of numbers
         if len(payload) >= threshold and all(isinstance(x, (int, float, np.number)) for x in payload[:20]):
             try:

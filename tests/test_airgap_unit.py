@@ -11,6 +11,8 @@ Adheres strictly to the Zero-Mock Mandate and Method Matrix v4 Standards:
 from __future__ import annotations
 
 import hashlib
+import subprocess
+import json
 import os
 import sys
 from pathlib import Path
@@ -464,20 +466,24 @@ def test_file_io_monitor_path_containment(tmp_path: Path) -> None:
 # UNIT TESTS: Air-Gap Boundary Utility Functions & Path Isolation
 # =============================================================================
 
-def test_path_resolvers_dynamic_tier_defaults(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Verify path resolvers direct dynamic outputs strictly to the configured artifact directory."""
+def test_path_resolvers_dynamic_tier_defaults(tmp_path: Path) -> None:
+    """Resolve a child's configured artifact paths without changing pytest's environment."""
     custom_art = tmp_path / "custom_artifacts"
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(custom_art))
-
-    resolved_art = get_artifact_dir()
-    assert resolved_art == custom_art.resolve()
-
-    state_path = get_state_file_path("cochem_state.h5")
-    assert state_path == (custom_art / "cochem_state.h5").resolve()
-    assert not str(state_path).startswith(str(get_base_root()))
-
-    scratch_path = get_scratch_dir()
-    assert str(scratch_path).startswith(str(custom_art)) or str(scratch_path).startswith(str(Path.home()))
+    script = (
+        "import json; from cochem_base.config_loader import "
+        "get_artifact_dir,get_state_file_path,get_scratch_dir; "
+        "print(json.dumps([str(get_artifact_dir()),str(get_state_file_path()),"
+        "str(get_scratch_dir())]))"
+    )
+    environment = dict(os.environ, COCHEM_ARTIFACT_DIR=str(custom_art))
+    environment.pop("COCHEM_SCRATCH", None)
+    completed = subprocess.run([sys.executable, "-c", script], env=environment, capture_output=True,
+                               text=True, check=True, timeout=20)
+    artifact, state, scratch = map(Path, json.loads(completed.stdout))
+    assert artifact == custom_art.resolve()
+    assert state == (custom_art / "Registry" / "swarm_state.json").resolve()
+    assert not state.is_relative_to(get_base_root())
+    assert scratch.is_relative_to(custom_art) or scratch.is_relative_to(Path.home())
 
 
 def test_blocked_extensions_matching() -> None:

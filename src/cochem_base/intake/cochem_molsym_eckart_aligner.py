@@ -19,7 +19,7 @@ Key Capabilities:
    linear, spherical_top, prolate_symmetric_top, oblate_symmetric_top, asymmetric_top.
 6. MolSym point group symmetry detection (Schoenflies notation), rotational symmetry
    number sigma, Symmetrically Equivalent Atoms (SEAs), irreducible representations (irreps),
-   character table extraction, and nuclear spin statistical weights.
+   character table extraction; unsupported nuclear spin weights remain explicitly unavailable.
 7. Mass-weighted Eckart frame alignment via Kabsch / SVD algorithm minimizing mass-weighted
    RMSD, enforcing det(U) = +1.0 (reflection-free), and verifying translational and rotational
    Eckart conditions with residual torque norm <= 1e-12.
@@ -57,7 +57,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_valid
 # Try importing molsym library
 try:
     import molsym  # type: ignore[import-untyped]
-    import molsym.salcs  # type: ignore[import-untyped]
     _MOLSYM_AVAILABLE = True
 except ImportError:
     molsym = None  # type: ignore
@@ -87,8 +86,10 @@ ANGSTROM_TO_M: float = 1.0e-10            # m / Angstrom
 
 # Rotational constant factor: B = h / (8 * pi^2 * I)
 # FACTOR_HZ: [J * s] / [kg * m^2] = [1 / s] = Hz
-FACTOR_HZ: float = PLANCK_H / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_U * (ANGSTROM_TO_M ** 2))
-FACTOR_MHZ: float = FACTOR_HZ / 1.0e6
+from cochem_base.core.cochem_constants import C_ROT_MHZ_U_ANG2
+
+FACTOR_MHZ: float = C_ROT_MHZ_U_ANG2
+FACTOR_HZ: float = FACTOR_MHZ * 1.0e6
 FACTOR_GHZ: float = FACTOR_HZ / 1.0e9
 FACTOR_CM1: float = FACTOR_HZ / (SPEED_OF_LIGHT_C * 100.0)
 
@@ -119,6 +120,10 @@ class EckartAlignmentError(MolSymEckartError):
 
 class SymmetryAnalysisError(MolSymEckartError):
     """Raised when MolSym point group analysis encounters unresolvable geometries."""
+
+
+class SymmetryBackendUnavailableError(SymmetryAnalysisError, ImportError):
+    """Accurate point-group classification requires the optional MolSym backend."""
 
 
 class VibrationalProjectionError(MolSymEckartError):
@@ -162,60 +167,23 @@ class DynamicMendeleevMassMap(Mapping):
         if not clean:
             raise KeyError(key)
 
-        # Hydrogen isotope aliases
-        if clean.upper() in {"D", "2H"}:
-            try:
-                for iso in getattr(mendeleev.element("H"), "isotopes", []):
-                    if iso.mass_number == 2 and iso.mass is not None:
-                        return float(iso.mass)
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-            from cochem_base.physics.isotopes import get_isotope_mass
-            return get_isotope_mass("H", 2)
+        from cochem_base.physics.isotopes import get_atomic_mass, get_isotope_mass
 
-        if clean.upper() in {"T", "3H"}:
-            try:
-                for iso in getattr(mendeleev.element("H"), "isotopes", []):
-                    if iso.mass_number == 3 and iso.mass is not None:
-                        return float(iso.mass)
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-            from cochem_base.physics.isotopes import get_isotope_mass
-            return get_isotope_mass("H", 3)
-
-        # Parse element symbol with optional isotope / label (e.g., C13, 13C, Cl-35, O_16, C:1)
-        m = re.match(r"^([0-9]*)([A-Za-z]{1,2})([0-9_\-:]*)$", clean)
-        if m:
-            iso_prefix, sym_raw, iso_suffix = m.groups()
-            sym_head = sym_raw.capitalize()
-            iso_num_str = iso_prefix or re.sub(r"[^0-9]", "", iso_suffix)
-
-            if iso_num_str:
-                iso_num = int(iso_num_str)
-                try:
-                    elem_obj = mendeleev.element(sym_head)
-                    if elem_obj is not None:
-                        for iso in getattr(elem_obj, "isotopes", []):
-                            if iso.mass_number == iso_num:
-                                return float(iso.mass)
-                except Exception as _e:
-                    logger.debug(f"Ignored exception: {_e}")
-
-            try:
-                elem = mendeleev.element(sym_head)
-                if elem is not None and elem.mass is not None:
-                    return float(elem.mass)
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-        else:
-            try:
-                elem = mendeleev.element(clean.capitalize())
-                if elem is not None and elem.mass is not None:
-                    return float(elem.mass)
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-
-        raise KeyError(f"Chemical element '{key}' could not be resolved in Mendeleev library.")
+        try:
+            # Preserve the legacy underscore/colon notation, while routing every
+            # explicit isotope to the authoritative resolver. Missing isotopes
+            # must never become standard atomic weights.
+            match = re.fullmatch(r"([0-9]*)([A-Za-z]{1,2})(?:[_:\-]?([0-9]+))?", clean)
+            if match:
+                prefix, symbol, suffix = match.groups()
+                if prefix and suffix and int(prefix) != int(suffix):
+                    raise ValueError(f"Contradictory isotope specification: {clean}")
+                mass_number = prefix or suffix
+                if mass_number:
+                    return get_isotope_mass(symbol, int(mass_number))
+            return get_atomic_mass(clean)
+        except (ValueError, RuntimeError) as exc:
+            raise KeyError(f"Chemical element or isotope '{key}' could not be resolved in Mendeleev library.") from exc
 
     def __iter__(self):
         return iter([
@@ -848,12 +816,14 @@ class MolSymProfile(BaseModel):
     is_centrosymmetric: bool = Field(default=False, description="Whether the group contains inversion center Ci")
     is_chiral: bool = Field(default=False, description="Whether the group is chiral (lacks Sn improper rotations)")
     nuclear_spin_weights: Dict[str, float] = Field(
-        default_factory=dict, description="Estimated nuclear spin statistical weights for symmetry species"
+        default_factory=dict, description="Independently computed nuclear spin weights; empty when unavailable"
     )
     symmetrized_coords: Optional[Any] = Field(
         None, description="Symmetrized Cartesian coordinates from MolSym if requested"
     )
-    source: str = Field(default="molsym", description="Resolver source: 'molsym' or 'geometric_solver'")
+    source: str = Field(default="molsym", description="Verified symmetry backend or analytic isolated-atom result")
+    backend_version: Optional[str] = None
+    unavailable_properties: List[str] = Field(default_factory=list)
 
     @field_serializer("symmetrized_coords", check_fields=False)
     def _serialize_numpy(self, val: Any) -> Any:
@@ -902,81 +872,15 @@ def _geometric_fallback_point_group(
     symbols: Sequence[str],
     masses: np.ndarray,
 ) -> Tuple[str, int, List[List[int]]]:
-    """Fallback geometric symmetry solver when MolSym library is unavailable or encounters exceptions."""
-    n_atoms = len(coords)
-    if n_atoms <= 1:
-        return "Kh", 1, [[0]]
-    if n_atoms == 2:
-        sym1, sym2 = symbols[0].capitalize(), symbols[1].capitalize()
-        if sym1 == sym2:
-            return "Dinfh", 2, [[0, 1]]
-        return "Cinfv", 1, [[0], [1]]
+    """Reject the former heuristic, which mislabeled water, methane and benzene.
 
-    # Center at COM
-    coords_com, _ = translate_to_center_of_mass(coords, masses=masses)
-
-    # Check collinearity
-    v01 = coords_com[1] - coords_com[0]
-    norm_v01 = np.linalg.norm(v01)
-    is_linear = True
-    if norm_v01 > 1e-6:
-        u = v01 / norm_v01
-        for i in range(2, n_atoms):
-            v_i = coords_com[i] - coords_com[0]
-            cross = np.cross(u, v_i)
-            if np.linalg.norm(cross) > 1e-4:
-                is_linear = False
-                break
-    else:
-        is_linear = False
-
-    if is_linear:
-        # Check inversion center
-        has_inversion = True
-        for i in range(n_atoms):
-            inv_pt = -coords_com[i]
-            dists = np.linalg.norm(coords_com - inv_pt, axis=1)
-            min_idx = int(np.argmin(dists))
-            if dists[min_idx] > 1e-4 or symbols[min_idx].capitalize() != symbols[i].capitalize():
-                has_inversion = False
-                break
-        if has_inversion:
-            return "Dinfh", 2, [[i for i in range(n_atoms)]]
-        return "Cinfv", 1, [[i] for i in range(n_atoms)]
-
-    # Planarity check
-    I_res = align_to_principal_axes(coords_com, masses=masses)
-    Ia, Ib, Ic = I_res.eigenvalues_amu_angstrom2
-    is_planar = abs(Ic - Ia - Ib) < 1e-2
-
-    # Inversion check
-    has_ci = True
-    for i in range(n_atoms):
-        inv_pt = -coords_com[i]
-        dists = np.linalg.norm(coords_com - inv_pt, axis=1)
-        min_idx = int(np.argmin(dists))
-        if dists[min_idx] > 1e-4 or symbols[min_idx].capitalize() != symbols[i].capitalize():
-            has_ci = False
-            break
-
-    # SEAs approximation via distance-to-COM and elemental equality
-    dist_to_com = np.linalg.norm(coords_com, axis=1)
-    sea_map: Dict[Tuple[str, float], List[int]] = {}
-    for i in range(n_atoms):
-        sym = symbols[i].capitalize()
-        r = round(float(dist_to_com[i]), 3)
-        key = (sym, r)
-        sea_map.setdefault(key, []).append(i)
-    seas = list(sea_map.values())
-
-    if has_ci and is_planar:
-        return "C2h", 2, seas
-    if has_ci:
-        return "Ci", 1, seas
-    if is_planar:
-        return "Cs", 1, seas
-
-    return "C1", 1, seas
+    Kept as a compatibility failure point; planarity and inertia degeneracy alone
+    do not determine a point group. COM/Eckart functions do not use this backend.
+    """
+    raise SymmetryBackendUnavailableError(
+        "Accurate point-group analysis requires MolSym. Install CoChem-BASE[symmetry] "
+        "(python -m pip install '.[symmetry]'). COM/Eckart alignment remains available."
+    )
 
 
 def analyze_molecular_symmetry(
@@ -986,172 +890,112 @@ def analyze_molecular_symmetry(
     symmetrize: bool = False,
     tolerance: float = 1e-3,
 ) -> MolSymProfile:
-    """Performs rigorous molecular point group symmetry detection and character table extraction.
+    """Classify a molecular point group using the real optional MolSym backend.
 
-    Utilizes `molsym` with authentic dynamic Mendeleev masses, with fallback to geometric analyzer.
-
-    Parameters
-    ----------
-    coords : np.ndarray | Sequence
-        Cartesian coordinates (N, 3).
-    symbols : Sequence[str]
-        Atomic element symbols (N,).
-    masses : Sequence[float] | np.ndarray, optional
-        Pre-resolved atomic masses.
-    symmetrize : bool, default False
-        Whether to generate idealized symmetrized coordinates via MolSym.
-    tolerance : float, default 1e-3
-        Symmetry tolerance threshold.
-
-    Returns
-    -------
-    MolSymProfile
-        Pydantic model containing point group, symmetry operations, character table, and SEAs.
+    Unsupported backend calculations raise SymmetryAnalysisError. Infinite-group
+    character tables and nuclear-spin statistical weights are explicitly absent;
+    rotational symmetry numbers are not nuclear-spin weights. Coordinates returned
+    by optional symmetrization follow MolSym's standard molecular frame.
     """
     coords_arr = np.array(coords, dtype=np.float64, copy=True)
+    if not len(symbols) or coords_arr.shape != (len(symbols), 3) or not np.all(np.isfinite(coords_arr)):
+        raise SymmetryAnalysisError("Symmetry analysis requires finite, nonempty N x 3 coordinates matching symbols.")
+    if isinstance(tolerance, bool) or not math.isfinite(tolerance) or tolerance <= 0:
+        raise ValueError("Symmetry tolerance must be finite and positive.")
     n_atoms = len(coords_arr)
     masses_arr = resolve_molecular_masses(coords_arr, masses=masses, symbols=symbols)
-    syms_list = [str(s).strip() for s in symbols]
-
-    # Handle single atom
-    if n_atoms <= 1:
+    if not np.all(np.isfinite(masses_arr)) or np.any(masses_arr <= 0):
+        raise SymmetryAnalysisError("Point-group analysis requires finite positive masses without ghost centers.")
+    syms_list = [str(symbol).strip() for symbol in symbols]
+    if n_atoms == 1:
         return MolSymProfile(
-            point_group="Kh",
-            schoenflies_symbol="Kh",
-            rotational_symmetry_number=1,
-            symmetrically_equivalent_atoms=[[0]] if n_atoms == 1 else [],
-            symmetry_elements=["E"],
-            classes=["E"],
-            irreps=["A1g"],
-            character_table={"A1g": {"E": 1.0}},
-            is_abelian=True,
-            is_linear=False,
-            is_centrosymmetric=True,
-            is_chiral=False,
-            source="analytic_atom",
+            point_group="Kh", schoenflies_symbol="Kh", rotational_symmetry_number=1,
+            symmetrically_equivalent_atoms=[[0]], is_abelian=False,
+            is_centrosymmetric=True, source="analytic_atom",
+            unavailable_properties=["character_table", "nuclear_spin_weights"],
         )
+    if not _MOLSYM_AVAILABLE:
+        _geometric_fallback_point_group(coords_arr, syms_list, masses_arr)
 
-    # Attempt MolSym analysis
-    if _MOLSYM_AVAILABLE:
-        try:
-            mol = molsym.Molecule(syms_list, np.array(coords_arr, copy=True), masses_arr)
-            pg_res = molsym.find_point_group(mol)
-            pg_name = str(pg_res[0]).strip() if isinstance(pg_res, tuple) else str(pg_res).strip()
-
-            sym = None
-            try:
-                sym = molsym.Symtext.from_molecule(mol)
-                if hasattr(sym, "pg"):
-                    pg_name = str(sym.pg).strip()
-            except Exception as symtext_err:
-                logger.debug("MolSym Symtext creation fallback: %s", symtext_err)
-
+    try:
+        from importlib.metadata import version
+        backend_version = version("MolSym")
+        mol = molsym.Molecule(syms_list, coords_arr.copy(), masses_arr.copy())
+        mol.tol = tolerance
+        pg_result = molsym.find_point_group(mol)
+        pg_name = str(pg_result[0]).strip()
+        is_linear = pg_name in {"C0v", "D0h", "Cinfv", "Dinfh"}
+        unavailable = ["nuclear_spin_weights"]
+        symels, classes, irreps, char_table = [], [], [], {}
+        if is_linear:
+            # MolSym 1.2 identifies linear groups correctly but its finite
+            # Symtext character-table constructor does not support them.
+            unavailable.append("infinite_group_character_table")
+            seas = []
+            for sea in mol.find_SEAs():
+                by_identity = {}
+                for index in sea.subset:
+                    key = (syms_list[index], float(masses_arr[index]))
+                    by_identity.setdefault(key, []).append(int(index))
+                seas.extend(sorted(indices) for indices in by_identity.values())
             sigma = _pg_to_sigma(pg_name)
-            if sym is not None and hasattr(sym, "rotational_symmetry_number"):
-                sigma = int(sym.rotational_symmetry_number)
-
-            # Extract Symmetrically Equivalent Atoms (SEAs)
-            seas: List[List[int]] = []
-            try:
-                raw_seas = mol.find_SEAs()
-                for sea in raw_seas:
-                    subset = [int(idx) for idx in getattr(sea, "subset", [])]
-                    if subset:
-                        seas.append(sorted(subset))
-            except Exception as sea_err:
-                logger.debug("MolSym SEA partition non-fatal exception: %s", sea_err)
-
-            if not seas:
-                seas = [[i] for i in range(n_atoms)]
-
-            # Extract symmetry elements, classes, and character table
-            symels: List[str] = []
-            classes: List[str] = []
-            irreps: List[str] = []
-            char_table: Dict[str, Dict[str, float]] = {}
-
-            if sym is not None:
-                try:
-                    if hasattr(sym, "symels"):
-                        symels = [str(el.symbol) if hasattr(el, "symbol") else str(el) for el in sym.symels]
-                    if hasattr(sym, "classes"):
-                        classes = [str(c.symbol) if hasattr(c, "symbol") else str(c) for c in sym.classes]
-                    if hasattr(sym, "irreps"):
-                        irreps = [str(irr.symbol) if hasattr(irr, "symbol") else str(irr) for irr in sym.irreps]
-                    if hasattr(sym, "character_table") and hasattr(sym, "classes") and hasattr(sym, "irreps"):
-                        ct = np.asarray(sym.character_table, dtype=np.float64)
-                        for r_idx, irr in enumerate(irreps):
-                            char_table[irr] = {}
-                            for c_idx, cls_lbl in enumerate(classes):
-                                if r_idx < ct.shape[0] and c_idx < ct.shape[1]:
-                                    char_table[irr][cls_lbl] = float(ct[r_idx, c_idx])
-                except Exception as ct_err:
-                    logger.debug("Character table extraction exception: %s", ct_err)
-
-            # Symmetrized coordinates if requested
-            symmetrized_coords_res = None
-            if symmetrize:
-                try:
-                    sym_mol = molsym.symmetrize(mol)
-                    if hasattr(sym_mol, "coords"):
-                        symmetrized_coords_res = np.asarray(sym_mol.coords, dtype=np.float64)
-                except Exception as symm_err:
-                    logger.debug("MolSym coordinate symmetrization non-fatal: %s", symm_err)
-
-            is_linear = (
-                pg_name.lower().startswith("c_inf")
-                or pg_name.lower().startswith("d_inf")
-                or "inf" in pg_name.lower()
-                or pg_name.lower() in {"c0v", "d0h", "c0", "d0", "d0d", "cinfv", "dinfh"}
-            )
-            is_centrosymmetric = "i" in pg_name.lower() or "h" in pg_name.lower() or pg_name in {"Oh", "Ih", "Dinfh"}
-            is_chiral = pg_name in {"C1", "C2", "C3", "C4", "C5", "C6", "D2", "D3", "D4", "D5", "D6", "T", "O", "I"}
-
-            # Calculate nuclear spin statistical weights
-            spin_weights: Dict[str, float] = {}
-            for irr in (irreps or ["A1"]):
-                spin_weights[irr] = 1.0 / max(1, sigma)
-
-            return MolSymProfile(
-                point_group=pg_name,
-                schoenflies_symbol=pg_name,
-                rotational_symmetry_number=sigma,
-                symmetrically_equivalent_atoms=seas,
-                symmetry_elements=symels or ["E"],
-                classes=classes or ["E"],
-                irreps=irreps or ["A1"],
-                character_table=char_table or {"A1": {"E": 1.0}},
-                is_abelian=pg_name in {"C1", "Cs", "Ci", "C2", "C2v", "C2h", "D2", "D2h"},
-                is_linear=is_linear,
-                is_centrosymmetric=is_centrosymmetric,
-                is_chiral=is_chiral,
-                nuclear_spin_weights=spin_weights,
-                symmetrized_coords=symmetrized_coords_res,
-                source="molsym",
-            )
-
-        except Exception as exc:
-            logger.warning("MolSym analysis encountered exception (%s). Falling back to geometric solver.", exc)
-
-    # Geometric Fallback
-    pg_fallback, sigma_fallback, seas_fallback = _geometric_fallback_point_group(coords_arr, syms_list, masses_arr)
-    return MolSymProfile(
-        point_group=pg_fallback,
-        schoenflies_symbol=pg_fallback,
-        rotational_symmetry_number=sigma_fallback,
-        symmetrically_equivalent_atoms=seas_fallback,
-        symmetry_elements=["E"],
-        classes=["E"],
-        irreps=["A"],
-        character_table={"A": {"E": 1.0}},
-        is_abelian=pg_fallback in {"C1", "Cs", "Ci", "C2", "C2v", "C2h", "D2", "D2h"},
-        is_linear="inf" in pg_fallback.lower(),
-        is_centrosymmetric=pg_fallback in {"Ci", "C2h", "D2h", "Dinfh"},
-        is_chiral=pg_fallback in {"C1", "C2", "D2"},
-        nuclear_spin_weights={"A": 1.0 / max(1, sigma_fallback)},
-        symmetrized_coords=None,
-        source="geometric_solver",
-    )
+            is_centrosymmetric = pg_name in {"D0h", "Dinfh"}
+            is_chiral = False
+            is_abelian = False
+        else:
+            sym = molsym.Symtext.from_molecule(mol)
+            if str(sym.pg) != pg_name:
+                raise SymmetryAnalysisError("MolSym returned inconsistent point-group classifications.")
+            operations = np.asarray([operation.rrep for operation in sym.symels])
+            determinants = np.linalg.det(operations)
+            if not np.allclose(np.abs(determinants), 1.0, atol=1e-8):
+                raise SymmetryAnalysisError("MolSym returned invalid orthogonal symmetry operations.")
+            sigma = int(np.sum(determinants > 0))
+            is_centrosymmetric = bool(np.any(np.all(np.isclose(operations, -np.eye(3), atol=1e-8), axis=(1, 2))))
+            is_chiral = bool(np.all(determinants > 0))
+            is_abelian = bool(np.array_equal(sym.mult_table, np.asarray(sym.mult_table).T))
+            atom_map = np.asarray(sym.atom_map, dtype=int)
+            if atom_map.shape != (n_atoms, len(operations)) or np.any(atom_map < 0) or np.any(atom_map >= n_atoms):
+                raise SymmetryAnalysisError("MolSym returned an invalid atom permutation table.")
+            seas, seen = [], set()
+            for index in range(n_atoms):
+                if index in seen:
+                    continue
+                orbit = sorted(set(atom_map[index].tolist()))
+                if any(syms_list[other] != syms_list[index] or not math.isclose(masses_arr[other], masses_arr[index], rel_tol=1e-12)
+                       for other in orbit):
+                    raise SymmetryAnalysisError("MolSym symmetry operation exchanges distinct atomic identities or isotopes.")
+                seas.append(orbit)
+                seen.update(orbit)
+            symels = [str(operation.symbol) for operation in sym.symels]
+            classes = [str(group) for group in sym.classes]
+            irreps = [str(irrep.symbol) for irrep in sym.irreps]
+            table = np.asarray(sym.character_table)
+            if np.iscomplexobj(table) and not np.allclose(table.imag, 0, atol=1e-12):
+                unavailable.append("complex_character_table")
+            else:
+                if table.shape != (len(irreps), len(classes)) or not np.all(np.isfinite(table)):
+                    raise SymmetryAnalysisError("MolSym returned an invalid character table.")
+                char_table = {irrep: {group: float(table.real[i, j]) for j, group in enumerate(classes)}
+                              for i, irrep in enumerate(irreps)}
+        symmetrized = None
+        if symmetrize:
+            # Failure is explicit: do not silently ignore a requested operation.
+            symmetrized = np.asarray(molsym.symmetrize(mol, asym_tol=tolerance).coords, dtype=float)
+            if symmetrized.shape != coords_arr.shape or not np.all(np.isfinite(symmetrized)):
+                raise SymmetryAnalysisError("MolSym returned invalid symmetrized coordinates.")
+        return MolSymProfile(
+            point_group=pg_name, schoenflies_symbol=pg_name,
+            rotational_symmetry_number=sigma, symmetrically_equivalent_atoms=seas,
+            symmetry_elements=symels, classes=classes, irreps=irreps, character_table=char_table,
+            is_abelian=is_abelian, is_linear=is_linear, is_centrosymmetric=is_centrosymmetric,
+            is_chiral=is_chiral, nuclear_spin_weights={}, symmetrized_coords=symmetrized,
+            source="molsym", backend_version=backend_version, unavailable_properties=unavailable,
+        )
+    except SymmetryAnalysisError:
+        raise
+    except Exception as exc:
+        raise SymmetryAnalysisError(f"MolSym could not establish the requested symmetry analysis: {exc}") from exc
 
 
 def compare_molecular_symmetry(

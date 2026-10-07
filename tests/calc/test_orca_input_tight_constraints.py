@@ -15,7 +15,7 @@ from cochem_base.calc.cochem_calc_input_generator import (
 )
 
 
-def test_orca_input_tight_convergence_criteria(tmp_path: Path) -> None:
+def test_orca_input_tight_convergence_criteria(tmp_path: Path, configured_registry) -> None:
     """Verifies that generated ORCA inputs for weak complexes contain all five
 
     tight convergence thresholds in %geom mandated by Method Matrix §4.4.
@@ -55,7 +55,7 @@ def test_orca_input_tight_convergence_criteria(tmp_path: Path) -> None:
     assert "InHess XTB2" in content, "Missing InHess XTB2 preconditioner in %geom"
 
 
-def test_orca_input_internal_coordinate_constraints_no_cartesian_locks(tmp_path: Path) -> None:
+def test_orca_input_internal_coordinate_constraints_no_cartesian_locks(tmp_path: Path, configured_registry) -> None:
     """Verifies that frozen monomer inputs use internal coordinate {B}, {A}, {D} constraints
 
     and eradicate all Cartesian {C idx C} locks, leaving intermolecular DOFs free to relax.
@@ -76,7 +76,7 @@ def test_orca_input_internal_coordinate_constraints_no_cartesian_locks(tmp_path:
         basin_id="water_dimer_frozen_monomer",
         elements=elements,
         coordinates=coords,
-        theory_level="B3LYP-D3 def2-SVP",
+        theory_level="B3LYP D3BJ def2-SVP",
         is_weak_complex=True,
         is_opt=True,
         frozen_monomer_indices=[0, 1, 2],

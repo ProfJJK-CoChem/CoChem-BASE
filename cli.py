@@ -43,7 +43,6 @@ import os
 import platform
 import shutil
 import signal
-import subprocess
 import sys
 import tempfile
 import time
@@ -55,12 +54,12 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 # Reconfigure stream encodings for safe cross-platform output (prevent Windows cp1252 crash)
 if hasattr(sys.stdout, "reconfigure"):
     try:
-        sys.stdout.reconfigure(errors="replace")
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 if hasattr(sys.stderr, "reconfigure"):
     try:
-        sys.stderr.reconfigure(errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -80,7 +79,7 @@ if lib_path not in sys.path:
 os.environ["COCHEM_BASE_ROOT"] = str(REPO_ROOT)
 
 # Core CoChem imports
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator  # noqa: E402
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator  # noqa: E402
 
 from cochem_base.config_loader import (  # noqa: E402
     get_artifact_dir,
@@ -181,17 +180,14 @@ def reap_zombie_processes() -> int:
         for child in children:
             try:
                 if child.is_running() and child.status() == psutil.STATUS_ZOMBIE:
-                    child.terminate()
+                    child.wait(timeout=0)
                     reaped_count += 1
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, psutil.TimeoutExpired):
                 continue
     except Exception as exc:
         logger.debug(f"Zombie sweep error: {exc}")
 
     return reaped_count
-
-
-atexit.register(reap_zombie_processes)
 
 
 def handle_shutdown_signal(signum: int, frame: Any) -> None:
@@ -200,10 +196,6 @@ def handle_shutdown_signal(signum: int, frame: Any) -> None:
     sys.stderr.write(f"\n[INTERRUPT] Received signal {sig_name}. Terminating active workers...\n")
     reap_zombie_processes()
     sys.exit(128 + signum)
-
-
-signal.signal(signal.SIGINT, handle_shutdown_signal)
-signal.signal(signal.SIGTERM, handle_shutdown_signal)
 
 
 # =============================================================================
@@ -272,8 +264,8 @@ PHASE_METADATA: Dict[int, Dict[str, str]] = {
         "func": "run_phase_10_audit",
     },
     11: {
-        "name": "Memory Router & Final Golden Registry Lock",
-        "desc": "OOM Shield %maxcore calculation, registers environment, commits LOCKED registry",
+        "name": "Memory Router & OOM Shield Audit",
+        "desc": "Measures memory bounds and writes the p11 memory-budget audit record",
         "module": "orchestrator.cochem_setup_phase_11",
         "func": "run_phase_11_audit",
     },
@@ -311,6 +303,7 @@ def execute_phase(
     skip_iops: bool = False,
     skip_eckart: bool = False,
     verbose: bool = False,
+    min_disk_space_gb: float = 50.0,
 ) -> Tuple[bool, str, Dict[str, Any]]:
     """Executes a single Stage 0 setup phase and returns (success, status_str, report_dict)."""
     func = load_phase_callable(phase_number)
@@ -330,6 +323,9 @@ def execute_phase(
         if dry_run:
             kwargs["dry_run"] = True
     elif phase_number == 6:
+        kwargs["min_disk_space_gb"] = min_disk_space_gb
+        if output_dir:
+            kwargs["scratch_dir"] = str(Path(output_dir).parent / "Scratch")
         if dry_run:
             kwargs["dry_run"] = True
     elif phase_number == 7:
@@ -342,6 +338,9 @@ def execute_phase(
         if dry_run:
             kwargs["dry_run"] = True
     elif phase_number == 10:
+        if output_dir:
+            kwargs["registry_dir"] = str(output_dir)
+            kwargs["sandbox_base_dir"] = str(Path(output_dir).parent / "Scratch")
         if skip_iops:
             kwargs["skip_iops"] = True
         if skip_eckart:
@@ -364,7 +363,7 @@ def execute_phase(
 
         report_dict: Dict[str, Any]
         if hasattr(report, "model_dump"):
-            report_dict = report.model_dump()
+            report_dict = report.model_dump(mode="json")
         elif hasattr(report, "dict"):
             report_dict = report.dict()
         else:
@@ -385,10 +384,24 @@ def execute_phase(
         }
 
 
-def action_setup(args: argparse.Namespace) -> int:
+def action_setup(args: argparse.Namespace, on_event: Optional[Callable[[Dict[str, Any]], None]] = None) -> int:
     """Handles the 'setup' subcommand, executing all or specified Stage 0 phases."""
     artifact_dir = Path(args.artifact_dir).resolve() if args.artifact_dir else get_artifact_dir()
     os.environ["COCHEM_ARTIFACT_DIR"] = str(artifact_dir)
+
+    existing_registry = artifact_dir / "Registry" / "cochem_system_config.json"
+    if existing_registry.exists() and not args.dry_run:
+        from cochem_base.core.cochem_core_registry_manager import load_system_config
+        try:
+            load_system_config(existing_registry)
+        except Exception as exc:
+            logger.error("Existing Golden Registry is invalid and was preserved: %s", exc)
+            failure = {"overall_status": "FAILED", "registry_error": str(exc)}
+            if on_event:
+                on_event({"event": "setup_complete", "summary": failure})
+            if args.json and not getattr(args, "native_service", False):
+                print(json.dumps(failure))
+            return 1
 
     phases_to_run: List[int]
     if args.all or not args.phase:
@@ -433,6 +446,8 @@ def action_setup(args: argparse.Namespace) -> int:
             print(f"\n[{p_num}/11] Running {TermColor.BOLD}Phase {p_num}: {meta['name']}{TermColor.RESET}...")
             print(f"     {TermColor.DIM}{meta['desc']}{TermColor.RESET}")
 
+        if on_event:
+            on_event({"event": "phase_start", "phase_number": p_num, "phase_name": meta["name"]})
         success, status_str, report_dict = execute_phase(
             phase_number=p_num,
             output_dir=artifact_dir / "Registry",
@@ -441,6 +456,7 @@ def action_setup(args: argparse.Namespace) -> int:
             skip_iops=args.skip_iops,
             skip_eckart=args.skip_eckart,
             verbose=args.verbose,
+            min_disk_space_gb=getattr(args, "min_disk_space_gb", 50.0),
         )
 
         phase_summary = {
@@ -451,6 +467,8 @@ def action_setup(args: argparse.Namespace) -> int:
             "report": report_dict,
         }
         summary_results["phases_executed"].append(phase_summary)
+        if on_event:
+            on_event({"event": "phase_result", **phase_summary})
 
         if not args.json:
             timing_str = f"({report_dict.get('execution_time_sec', 0.0)}s)"
@@ -486,40 +504,54 @@ def action_setup(args: argparse.Namespace) -> int:
     if overall_success and degraded_operational:
         summary_results["overall_status"] = "DEGRADED_OPERATIONAL"
         summary_results["missing_capabilities"] = missing_capabilities
+    summary_results["dry_run"] = args.dry_run
+    if overall_success and args.dry_run:
+        summary_results["overall_status"] = "AUDIT_ONLY"
+    elif overall_success and phases_to_run != list(range(1, 12)):
+        summary_results["overall_status"] = "PARTIAL_AUDIT"
 
-    # Persist or update cochem_system_config.json in Registry directory
+    # Partial audits must not overwrite the execution authority. The complete
+    # registry is assembled once, after all eleven reports are available.
     reg_dir = artifact_dir / "Registry"
-    reg_dir.mkdir(parents=True, exist_ok=True)
-    cfg_path = reg_dir / "cochem_system_config.json"
-    existing_cfg: Dict[str, Any] = {}
-    if cfg_path.exists():
-        try:
-            with open(cfg_path, "r", encoding="utf-8") as fh:
-                existing_cfg = json.load(fh)
-        except Exception:
-            existing_cfg = {}
-    existing_cfg["status"] = summary_results["overall_status"]
-    existing_cfg["overall_status"] = summary_results["overall_status"]
-    existing_cfg["missing_capabilities"] = missing_capabilities
-    existing_cfg["last_setup_timestamp"] = summary_results["timestamp_utc"]
-    try:
-        with open(cfg_path, "w", encoding="utf-8") as fh:
-            json.dump(existing_cfg, fh, indent=2)
-    except Exception as _e:
-        logger.debug(f"Failed writing cochem_system_config.json: {_e}")
+    if not args.dry_run:
+        from cochem_base.core.cochem_core_registry_manager import atomic_write_json
+        from cochem_base.orchestrator.stage0_authority import publish_stage0_authority
 
+        try:
+            if overall_success and phases_to_run == list(range(1, 12)):
+                registry = publish_stage0_authority(summary_results)
+                summary_results["overall_status"] = registry.status
+                summary_results["missing_capabilities"] = registry.stage0.unavailable_capabilities
+                summary_results["registry_path"] = str(reg_dir / "cochem_system_config.json")
+                degraded_operational = registry.status == "DEGRADED_OPERATIONAL"
+                missing_capabilities = registry.stage0.unavailable_capabilities
+            atomic_write_json(reg_dir / "setup_summary.json", summary_results)
+        except (Exception, SystemExit) as exc:
+            logger.error("Could not publish complete Stage 0 authority: %s", exc)
+            overall_success = False
+            summary_results["overall_status"] = "FAILED"
+            summary_results["registry_error"] = str(exc)
+            atomic_write_json(reg_dir / "setup_summary.json", summary_results)
+
+    if on_event:
+        on_event({"event": "setup_complete", "summary": summary_results})
     if args.json:
-        print(json.dumps(summary_results, indent=2))
+        if not getattr(args, "native_service", False):
+            print(json.dumps(summary_results, indent=2))
     else:
         print("\n" + "=" * 78)
         if overall_success:
-            if degraded_operational:
+            if args.dry_run:
+                print(TermColor.ok("Requested audits finished; the registry was not updated."))
+            elif summary_results["overall_status"] == "PARTIAL_AUDIT":
+                print(TermColor.ok("Requested setup phases finished; the full bootstrap has not been verified."))
+            elif degraded_operational:
                 print(TermColor.warn(f"Stage 0 Bootstrap Finished in DEGRADED_OPERATIONAL mode ({summary_results['total_execution_time_sec']}s)."))
                 print(f"Missing Solver Capabilities: {', '.join(missing_capabilities) if missing_capabilities else 'None'}")
                 print(f"Registry Status: {TermColor.BOLD}DEGRADED_OPERATIONAL & FUNCTIONAL{TermColor.RESET}")
             else:
                 print(TermColor.ok(f"Stage 0 Bootstrap Completed Successfully in {summary_results['total_execution_time_sec']}s!"))
-                print(f"Registry Status: {TermColor.BOLD}LOCKED & VERIFIED{TermColor.RESET}")
+                print(f"Recorded Setup Status: {TermColor.BOLD}{summary_results['overall_status']}{TermColor.RESET}")
             print(f"Artifact Store:  {artifact_dir}")
         else:
             print(TermColor.fail(f"Stage 0 Bootstrap FAILED after {summary_results['total_execution_time_sec']}s."))
@@ -941,211 +973,30 @@ def action_mass(args: argparse.Namespace) -> int:
         return 1
 
 
-class CalculationMatrixConfig(BaseModel):
-    """Pydantic schema validating matrix_config.json inputs for CLI run subcommand. [M]"""
-    model_config = ConfigDict(extra="allow")
-
-    geometry: str = Field(..., description="XYZ formatted geometry string")
-    engine: str = Field(default="orca", description="Target electronic structure engine")
-    method: str = Field(default="wB97M-V", description="Level of theory or functional")
-    basis_set: Optional[str] = Field(default="def2-TZVP", description="Atomic orbital basis set")
-    product_class: Optional[str] = Field(default=None, description="Product class (§0 Step 0)")
-    theory_tier: Optional[str] = Field(default=None, description="Theory tier")
-    topos_heuristic: Optional[str] = Field(default="iMTD-GC", description="TOPOS conformer generation heuristic")
-    topos_dedup: Optional[float] = Field(default=0.05, description="TOPOS deduplication RMSD threshold")
-    torq_dihedrals: Optional[str] = Field(default="", description="TORQ active dihedrals")
-    torq_resolution: Optional[int] = Field(default=36, description="Scan resolution")
-    torq_qrrho: Optional[bool] = Field(default=False, description="Enable qRRHO harmonic treatment")
-
-    @field_validator("geometry")
-    @classmethod
-    def validate_geometry(cls, v: str) -> str:
-        lines = [line.strip() for line in v.strip().split("\n") if line.strip()]
-        if not lines:
-            raise ValueError("Geometry cannot be empty.")
-        start_idx = 0
-        if len(lines) > 2 and lines[0].isdigit():
-            start_idx = 2
-        for line in lines[start_idx:]:
-            parts = line.split()
-            if len(parts) != 4:
-                raise ValueError(f"Invalid XYZ format. Expected: Element X Y Z, got '{line}'")
-            try:
-                float(parts[1])
-                float(parts[2])
-                float(parts[3])
-            except ValueError as err:
-                raise ValueError(f"Coordinates must be numeric in line: '{line}'") from err
-        return v
-
-    @field_validator("engine")
-    @classmethod
-    def validate_engine(cls, v: str) -> str:
-        cleaned = v.strip().lower()
-        if cleaned not in ["orca", "cfour", "xtb"]:
-            raise ValueError(f"Unsupported engine: '{v}'. Must be one of ['orca', 'cfour', 'xtb']")
-        return cleaned
+# Compatibility exports; the GUI and Python callers use the native service directly.
+from cochem_base.calc.calculation_service import (  # noqa: E402
+    CalculationMatrixConfig,
+    _accept_orca_result,
+    parse_run_geometry as _parse_run_geometry,
+    run_calculation,
+)
 
 
 def action_run(args: argparse.Namespace) -> int:
-    """Executes or validates quantum calculation pipeline from matrix_config.json adhering to Dual-Entry Parity."""
-    cfg_path = Path(args.config)
-    if not cfg_path.exists():
-        logger.error(f"Configuration file not found: {cfg_path}")
-        print(TermColor.fail(f"[MISSING DATA] Matrix configuration file not found at '{cfg_path}'"))
-        return 1
-
+    """Return 0 for completed execution/deck preparation, 3 for a pending handoff."""
     try:
-        with open(cfg_path, "r", encoding="utf-8") as f:
-            raw_data = json.load(f)
+        payload = run_calculation(
+            args.config, scratch=getattr(args, "scratch", None), output=getattr(args, "output", None),
+            threads=getattr(args, "threads", None), device=getattr(args, "device", "auto"),
+            dry_run=bool(getattr(args, "dry_run", False)), keep_scratch=bool(getattr(args, "keep_scratch", False)),
+            engine=getattr(args, "engine", None),
+        )
+        print(json.dumps(payload, indent=2) if getattr(args, "json", False) else
+              f"{payload['status']}: {payload['output_dir'] or payload['scratch_dir']}")
+        return 3 if payload["status"] == "PENDING_INTEGRATION" else 0
     except Exception as exc:
-        logger.error(f"Failed to parse configuration JSON at {cfg_path}: {exc}")
+        print(f"Calculation was not accepted: {exc}", file=sys.stderr)
         return 1
-
-    if getattr(args, "engine", None):
-        raw_data["engine"] = args.engine
-
-    try:
-        matrix_cfg = CalculationMatrixConfig(**raw_data)
-    except ValidationError as err:
-        logger.error(f"Pydantic validation failed for {cfg_path}: {err}")
-        print(TermColor.fail(f"Validation Error in {cfg_path}:\n{err}"))
-        return 1
-
-    engine_name = matrix_cfg.engine
-    binary_name = "orca" if engine_name == "orca" else ("xcfour" if engine_name == "cfour" else "xtb")
-    bin_path = shutil.which(binary_name)
-
-    dry_run = getattr(args, "dry_run", False)
-    if not dry_run and bin_path is None:
-        msg = f"[MISSING DATA] Required engine binary '{binary_name}' for engine '{engine_name}' not found on PATH. Remediation: run 'python cli.py setup --phase 3' to provision engine binaries."
-        logger.error(msg)
-        print(TermColor.fail(msg))
-        raise BinaryNotFoundError(msg)
-
-    # Thread count budgeting
-    threads = getattr(args, "threads", None)
-    if threads:
-        os.environ["OMP_NUM_THREADS"] = str(threads)
-        os.environ["MKL_NUM_THREADS"] = str(threads)
-
-    # Dynamic CUDA device allocation via non-initializing NVML & non-blocking CPU fallback
-    device = getattr(args, "device", "auto")
-    cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
-    if device == "cpu" or cuda_visible == "":
-        os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    elif device in ("auto", "cuda"):
-        try:
-            import pynvml  # type: ignore
-            pynvml.nvmlInit()
-            cnt = pynvml.nvmlDeviceGetCount()
-            if cnt > 0:
-                h = pynvml.nvmlDeviceGetHandleByIndex(0)
-                mem = pynvml.nvmlDeviceGetMemoryInfo(h)
-                free_gb = mem.free / (1024 ** 3)
-                if free_gb < 2.0:
-                    # Insufficient VRAM headroom, non-blocking CPU fallback
-                    os.environ["CUDA_VISIBLE_DEVICES"] = ""
-            else:
-                os.environ["CUDA_VISIBLE_DEVICES"] = ""
-            pynvml.nvmlShutdown()
-        except Exception:
-            if device == "auto" and shutil.which("nvidia-smi") is None:
-                os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
-    if os.environ.get("CUDA_VISIBLE_DEVICES") == "":
-        if "OMP_NUM_THREADS" not in os.environ:
-            threads_budget = str(getattr(args, "threads", None) or 4)
-            os.environ["OMP_NUM_THREADS"] = threads_budget
-            os.environ["MKL_NUM_THREADS"] = threads_budget
-
-    # Tripartite Air-Gap Ephemeral Sandbox Isolation ($T_scr)
-    scratch_root = getattr(args, "scratch", None) or getattr(args, "scratch_dir", None) or os.environ.get("COCH_SCRATCH")
-    if scratch_root is None:
-        scratch_root = Path(tempfile.gettempdir()) / "cochem_scratch"
-    else:
-        scratch_root = Path(scratch_root)
-    scratch_root.mkdir(parents=True, exist_ok=True)
-
-    job_id = f"job_{uuid.uuid4().hex[:12]}"
-    sandbox_dir = scratch_root / job_id
-    sandbox_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        # Generate verified artifacts inside ephemeral sandbox
-        validated_cfg_path = sandbox_dir / "matrix_config.validated.json"
-        with open(validated_cfg_path, "w", encoding="utf-8") as vf:
-            json.dump(matrix_cfg.model_dump(), vf, indent=2)
-
-        geom_file = sandbox_dir / "structure.xyz"
-        geom_file.write_text(matrix_cfg.geometry, encoding="utf-8")
-
-        deck_file = sandbox_dir / f"{engine_name}.inp"
-        deck_file.write_text(f"# CoChem Stage 0 Deck: {matrix_cfg.method}/{matrix_cfg.basis_set}\n{matrix_cfg.geometry}\n", encoding="utf-8")
-
-        prop_file = sandbox_dir / "calculation.property.txt"
-        prop_file.write_text(f"ENGINE={matrix_cfg.engine}\nMETHOD={matrix_cfg.method}\nBASIS={matrix_cfg.basis_set}\nSTATUS=VALIDATED\n", encoding="utf-8")
-
-        if not dry_run and bin_path:
-            res = subprocess.run(
-                [bin_path, str(deck_file.name)],
-                cwd=str(sandbox_dir),
-                capture_output=True,
-                text=True,
-            )
-            (sandbox_dir / "run.log").write_text(res.stdout + "\n" + res.stderr, encoding="utf-8")
-
-        # Promote finalized artifacts to persistent store ($T_store) with SHA-256 integrity verification
-        output_dir = getattr(args, "output", None)
-        if output_dir:
-            store_path = Path(output_dir)
-            store_path.mkdir(parents=True, exist_ok=True)
-            for artifact in sandbox_dir.iterdir():
-                if artifact.is_file():
-                    dest = store_path / artifact.name
-                    shutil.copy2(artifact, dest)
-                    sha_val = hashlib.sha256(dest.read_bytes()).hexdigest()
-                    sha_dest = store_path / f"{artifact.name}.sha256"
-                    sha_dest.write_text(f"{sha_val}  {artifact.name}\n", encoding="utf-8")
-
-        payload = {
-            "status": "VALIDATED_SUCCESS" if dry_run else "EXECUTION_COMPLETE",
-            "config_file": str(cfg_path),
-            "engine": matrix_cfg.engine,
-            "method": matrix_cfg.method,
-            "basis_set": matrix_cfg.basis_set,
-            "dry_run": dry_run,
-            "scratch_dir": str(sandbox_dir),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-
-        if getattr(args, "json", False):
-            print(json.dumps(payload, indent=2))
-        else:
-            print(TermColor.title("=" * 60))
-            print(TermColor.title(" CoChem-BASE Calculation Pipeline Dispatch "))
-            print(TermColor.title("=" * 60))
-            print(f"Engine:      {matrix_cfg.engine.upper()}")
-            print(f"Method:      {matrix_cfg.method}")
-            print(f"Basis Set:   {matrix_cfg.basis_set}")
-            print(f"Dry Run:     {dry_run}")
-            print(f"Scratch:     {sandbox_dir}")
-            print("Validation:  Pydantic CalculationMatrixConfig Verified [M]")
-            print("=" * 60)
-            if dry_run:
-                print(TermColor.ok("[DRY RUN COMPLETE] Configuration valid. Input deck generation verified."))
-            else:
-                print(TermColor.ok("[PIPELINE COMPLETE] Physical execution finished successfully."))
-
-        return 0
-    finally:
-        # Purge ephemeral sandbox from $T_scr unless explicitly retained
-        keep_scratch = getattr(args, "keep_scratch", False)
-        if not keep_scratch and sandbox_dir.exists():
-            try:
-                shutil.rmtree(sandbox_dir, ignore_errors=True)
-            except Exception as exc:
-                logger.debug(f"Failed to purge ephemeral sandbox at {sandbox_dir}: {exc}")
 
 
 # =============================================================================
@@ -1178,6 +1029,7 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     p_setup.add_argument("--all", action="store_true", help="Execute all 11 setup phases in sequence")
     p_setup.add_argument("-p", "--phase", type=int, nargs="+", choices=range(1, 12), help="Specific phase numbers to run (1-11)")
     p_setup.add_argument("-a", "--artifact-dir", type=str, default=None, help="Custom artifact directory root")
+    p_setup.add_argument("--min-disk-space-gb", type=float, default=50.0, help="Required free storage capacity for the chosen workload (GB; default 50)")
     p_setup.add_argument("--clean", action="store_true", help="Purge existing micro-silos before running")
     p_setup.add_argument("--dry-run", action="store_true", help="Audit and validate without persisting modifications")
     p_setup.add_argument("--skip-heavy", action="store_true", help="Skip heavy micro-silo builds (PySCF/MACE)")
@@ -1238,7 +1090,7 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     p_run.add_argument(
         "--engine", "-e",
         type=str,
-        choices=["orca", "cfour", "xtb"],
+        choices=["orca", "cfour", "xtb", "pyscf", "qe"],
         default=None,
         help="Override electronic structure engine",
     )
@@ -1330,4 +1182,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 
 if __name__ == "__main__":
+    atexit.register(reap_zombie_processes)
+    signal.signal(signal.SIGINT, handle_shutdown_signal)
+    signal.signal(signal.SIGTERM, handle_shutdown_signal)
     sys.exit(main())

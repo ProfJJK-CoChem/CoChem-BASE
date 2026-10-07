@@ -36,17 +36,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-def sweep_zombies() -> None:
-    if psutil is None:
-        return
-    for p in psutil.process_iter(['pid', 'status']):
-        try:
-            if p.info['status'] == psutil.STATUS_ZOMBIE:
-                p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
-            logger.debug(f"Ignored exception: {_e}")
+from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
 
-atexit.register(sweep_zombies)
 
 # Threshold above which cgroup v1 values are treated as unlimited (e.g. 0x7FFFFFFFFFFFF000)
 CGROUP_V1_UNLIMITED_THRESHOLD: int = 2**62
@@ -1314,7 +1305,8 @@ def run_phase_11_audit(
     """
     Execute comprehensive Setup Phase 11 Memory Router & OOM Shield Gatekeeper Audit.
     Discovers hardware limits, computes dynamic %maxcore scaling across active job cores,
-    formats multi-engine directives, and persists state into Golden Registry (p11.json).
+    formats multi-engine directives, and writes the p11.json memory audit record.
+    This phase does not create, verify, or lock the final system registry.
     """
     warnings: List[str] = []
     errors: List[str] = []
@@ -1364,11 +1356,13 @@ def run_phase_11_audit(
             is_numa_aware=False,
         )
 
-    # 3. Interrogate CPU Physical Cores (utilizing Phase 2 findings if available)
-    if p2_findings is not None and p2_findings.physical_cores > 0:
-        physical_cores = p2_findings.physical_cores
-    else:
-        physical_cores = psutil.cpu_count(logical=False) or os.cpu_count() or 1
+    # Reserve threads against the live affinity and cgroup allocation, not
+    # unrestricted physical host capacity.
+    from cochem_base.core_engine.hardware_profiler import profile_hardware
+    cpu_profile = profile_hardware()
+    physical_cores = min(cpu_profile.physical_cores, len(cpu_profile.available_cpu_ids))
+    if active_cores is not None and active_cores > physical_cores:
+        raise EngineBudgetError("Requested active cores exceed measured CPU allocation")
 
     # 4. Compute OOM Shield Scaling Profile
     try:

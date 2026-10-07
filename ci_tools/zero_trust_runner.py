@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -55,37 +56,55 @@ class QuarantineResult:
         }
 
 
-def sweep_zombie_processes() -> int:
-    """Safely terminate orphaned and zombie child processes using psutil."""
-    if not psutil:
-        return 0
+_ACTIVE_PROCESSES: set[subprocess.Popen] = set()
+_PROCESS_LOCK = threading.RLock()
 
-    current_pid = os.getpid()
+
+def sweep_zombie_processes(processes: Optional[Sequence[subprocess.Popen]] = None) -> int:
+    """Stop only explicitly owned quarantine commands and their descendants.
+
+    Libraries and callers may own other children of this interpreter. A process
+    tree scan rooted at the interpreter would kill them and steal their statuses.
+    """
+    with _PROCESS_LOCK:
+        owned = list(_ACTIVE_PROCESSES if processes is None else processes)
     terminated_count = 0
-    try:
-        parent = psutil.Process(current_pid)
-        children = parent.children(recursive=True)
-        for child in children:
-            try:
-                child.terminate()
-                terminated_count += 1
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-
-        if children:
-            _, alive = psutil.wait_procs(children, timeout=3.0)
-            for proc in alive:
+    for process in owned:
+        children = []
+        if process.poll() is None:
+            if psutil is not None:
                 try:
-                    proc.kill()
+                    children = psutil.Process(process.pid).children(recursive=True)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
-        pass
-
+            for child in children:
+                try:
+                    child.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            try:
+                process.terminate()
+                process.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3.0)
+            except ProcessLookupError:
+                process.wait(timeout=3.0)
+            terminated_count += 1
+            if children:
+                _, alive = psutil.wait_procs(children, timeout=0.5)
+                for child in alive:
+                    try:
+                        child.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                psutil.wait_procs(alive, timeout=0.5)
+        with _PROCESS_LOCK:
+            _ACTIVE_PROCESSES.discard(process)
     return terminated_count
 
 
-# Register automatic cleanup on process exit
+# Only explicit handles launched by this module are registered here.
 atexit.register(sweep_zombie_processes)
 
 
@@ -102,13 +121,14 @@ class QuarantineEnvironment:
         if base_dir:
             self.base_dir = Path(base_dir).resolve()
         else:
-            self.base_dir = Path(r"d:\__CoChem").resolve()
+            self.base_dir = Path(tempfile.gettempdir()).resolve()
 
         self.prefix = prefix
         self.copy_paths = [Path(p).resolve() for p in copy_paths] if copy_paths else []
         self.preserve_on_failure = preserve_on_failure
         self.quarantine_id = str(uuid.uuid4())
         self.quarantine_dir = self.base_dir / f"{self.prefix}{self.quarantine_id}"
+        self._active_processes: set[subprocess.Popen] = set()
 
     def __enter__(self) -> "QuarantineEnvironment":
         self.quarantine_dir.mkdir(parents=True, exist_ok=True)
@@ -122,11 +142,11 @@ class QuarantineEnvironment:
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        sweep_zombie_processes(list(self._active_processes))
         if exc_type is not None and self.preserve_on_failure:
             logger.warning(f"Preserving failed quarantine directory: {self.quarantine_dir}")
         else:
             shutil.rmtree(self.quarantine_dir, ignore_errors=True)
-        sweep_zombie_processes()
 
     def run_command(
         self,
@@ -139,23 +159,41 @@ class QuarantineEnvironment:
         if env_overrides:
             env.update(env_overrides)
 
-        root_env = os.environ.get("COCHEM_ROOT")
-        if root_env:
-            cwd_path = Path(root_env).resolve()
-            env["PYTHONPATH"] = str(cwd_path)
+        # Explicit caller overrides take precedence over inherited bindings.
+        # The CLI sets these to its copied quarantine checkout.
+        root_env = env.get("COCHEM_ROOT")
+        if root_env and "PYTHONPATH" not in (env_overrides or {}):
+            env["PYTHONPATH"] = str(Path(root_env).resolve())
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
 
         start_time = time.monotonic()
         timed_out = False
 
         try:
-            result = subprocess.run(
-                list(command),
-                cwd=str(self.quarantine_dir),
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
+            process = subprocess.Popen(
+                list(command), cwd=str(self.quarantine_dir), env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, encoding="utf-8", errors="strict",
+                start_new_session=os.name != "nt",
             )
+            self._active_processes.add(process)
+            with _PROCESS_LOCK:
+                _ACTIVE_PROCESSES.add(process)
+            try:
+                stdout, stderr = process.communicate(timeout=timeout)
+                result = subprocess.CompletedProcess(list(command), process.returncode, stdout, stderr)
+            except BaseException:
+                sweep_zombie_processes([process])
+                raise
+            finally:
+                self._active_processes.discard(process)
+                with _PROCESS_LOCK:
+                    _ACTIVE_PROCESSES.discard(process)
+                if process.stdout is not None:
+                    process.stdout.close()
+                if process.stderr is not None:
+                    process.stderr.close()
             duration = time.monotonic() - start_time
             passed = (result.returncode == 0)
             return QuarantineResult(
@@ -242,13 +280,10 @@ def main() -> int:
                 
         # 3. Set PYTHONPATH and COCHEM_ROOT strictly to quarantine directory
         extra_paths = [str(qe.quarantine_dir)]
-        ci_tools_dir = Path(__file__).resolve().parent
-        if ci_tools_dir.exists():
-            extra_paths.append(str(ci_tools_dir))
-        for sibling_name in ("CoChem-BASE", "CoChem-KINETIC"):
-            sibling_dir = Path("d:/__CoChem/GitHub-Repo") / sibling_name
-            if sibling_dir.exists():
-                extra_paths.append(str(sibling_dir))
+        for relative in ("src", "ci_tools"):
+            copied_directory = qe.quarantine_dir / relative
+            if copied_directory.is_dir():
+                extra_paths.append(str(copied_directory))
 
         env_overrides = {
             "PYTHONPATH": os.pathsep.join(extra_paths),
@@ -271,4 +306,7 @@ def main() -> int:
     return res.exit_code
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     sys.exit(main())

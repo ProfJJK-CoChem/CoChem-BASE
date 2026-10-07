@@ -2,7 +2,7 @@
 via Mass-Weighted Hessian Re-Diagonalization (Suggestion #118).
 
 Method Matrix v4 (§6.10, §8B.4) and Anti-Spoofing Protocol v4.
-Strict Zero-Mock Mandate: Offline pinned isotopic masses and millisecond Hessian re-weighting.
+Dynamic Mendeleev masses and a Cartesian Hessian calculated with ASE/EMT.
 """
 from __future__ import annotations
 
@@ -25,18 +25,16 @@ WATER_COORDS = np.array([
     [0.00000000, -0.75545300, -0.47116100],
 ], dtype=np.float64)
 
-def _generate_authentic_water_hessian():
-    H = np.zeros((9, 9), dtype=np.float64)
-    diag = [0.55, 0.62, 0.71, 0.32, 0.38, 0.41, 0.32, 0.38, 0.41]
-    for i in range(9):
-        H[i, i] = diag[i]
-    H[0, 3] = H[3, 0] = -0.22
-    H[1, 4] = H[4, 1] = -0.25
-    H[2, 5] = H[5, 2] = -0.28
-    H[0, 6] = H[6, 0] = -0.22
-    H[1, 7] = H[7, 1] = -0.25
-    H[2, 8] = H[8, 2] = -0.28
-    return H
+def _calculate_water_hessian(directory):
+    from ase import Atoms
+    from ase.calculators.emt import EMT
+    from ase.units import Bohr, Hartree
+    from ase.vibrations import Vibrations
+    atoms = Atoms(WATER_SYMBOLS, positions=WATER_COORDS)
+    atoms.calc = EMT()
+    vibrations = Vibrations(atoms, name=str(directory / "water"))
+    vibrations.run()
+    return vibrations.get_vibrations().get_hessian_2d() * Bohr**2 / Hartree
 
 def test_offline_pinned_mass_tables_integrity():
     result = validate_pinned_tables_against_mendeleev()
@@ -46,8 +44,12 @@ def test_offline_pinned_mass_tables_integrity():
     assert pytest.approx(get_isotope_mass("C", 13), rel=1e-5) == 13.00335
     assert pytest.approx(get_isotope_mass("H", 2), rel=1e-5) == 2.01410
 
-def test_mass_perturbation_executes_in_sub_50ms():
-    hessian = _generate_authentic_water_hessian()
+def test_mass_perturbation_executes_in_sub_50ms(tmp_path):
+    hessian = _calculate_water_hessian(tmp_path)
+    # Measure re-diagonalization after database resolution, not cold SQLite setup.
+    from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
+    for symbol in (*WATER_SYMBOLS, "D"):
+        get_nuclide_mass(symbol)
 
     t0 = time.perf_counter()
     res_parent = compute_isotopologue_observables(

@@ -427,7 +427,10 @@ def test_method_matrix_8c_pes_store_compliance(tmp_path: Path) -> None:
         coords_ds = f["points/dlpno_avtz/coordinates"]
         energy_ds = f["points/dlpno_avtz/energy"]
         converged_ds = f["points/dlpno_avtz/converged"]
-        prov_ds = f["points/dlpno_avtz/provenance"]
+        # The current schema stores each provenance record once, with a checked
+        # per-point identifier rather than duplicated JSON on every point.
+        prov_ids = f["points/dlpno_avtz/provenance_id"]
+        prov_ds = f["methods/dlpno_avtz/provenance_index"]
 
         # Chunking & resizability
         assert coords_ds.shape == (2, 3, 3)
@@ -455,7 +458,10 @@ def test_method_matrix_8c_pes_store_compliance(tmp_path: Path) -> None:
         assert energy_ds.scaleoffset is None
 
         # Provenance verification
-        prov_entry = json.loads(prov_ds[0].decode("utf-8") if isinstance(prov_ds[0], bytes) else prov_ds[0])
+        assert prov_ids.shape == energy_ds.shape
+        assert prov_ids.fletcher32 is True
+        raw_provenance = prov_ds[int(prov_ids[0])]
+        prov_entry = json.loads(raw_provenance.decode("utf-8") if isinstance(raw_provenance, bytes) else raw_provenance)
         assert prov_entry["creator"] == "ORCA"
         assert prov_entry["version"] == "6.1"
 

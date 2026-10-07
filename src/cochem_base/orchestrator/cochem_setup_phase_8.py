@@ -36,17 +36,8 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-def sweep_zombies() -> None:
-    if psutil is None:
-        return
-    for p in psutil.process_iter(['pid', 'status']):
-        try:
-            if p.info['status'] == psutil.STATUS_ZOMBIE:
-                p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
-            logger.debug(f"Ignored exception: {_e}")
+from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
 
-atexit.register(sweep_zombies)
 
 # =============================================================================
 # 1. CUSTOM EXCEPTION HIERARCHY

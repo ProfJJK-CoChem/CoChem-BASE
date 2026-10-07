@@ -10,8 +10,9 @@ import hashlib
 import logging
 import math
 import re
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 from jinja2 import Template
 from mendeleev import element
@@ -21,6 +22,12 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from cochem.core.exceptions import RotationalGridInstabilityError
 from cochem_base.exceptions import GridSpecificationError, RedundantDispersionError
+from cochem_base.exceptions import HessianSpecificationError, FrozenMonomerViolationError
+from cochem_base.exceptions import HardwareAllocationError
+from cochem_base.analysis.electronic_sanitizer import ElectronicSanitizer
+from cochem_base.mm.quadrature_manager import QuadratureManager
+from cochem_base.geometry.fragment_partitioner import detect_molecular_fragments
+from cochem_base.theory_matrix import validate_product_class_policy
 from cochem_base.config_loader import get_artifact_dir, load_system_config_dict
 from cochem_base.geometry.constraints import (
     FrozenConstraintPayload,
@@ -28,60 +35,116 @@ from cochem_base.geometry.constraints import (
     format_orca_frozen_monomer_constraints_block,
     formulate_recipe_r2_wilson_constraints,
     get_reference_monomer_geometry,
+    get_dynamic_covalent_radius,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+
+@lru_cache(maxsize=128)
+def _nuclear_charge(symbol: str) -> int:
+    return int(element(symbol).atomic_number)
+
 class MoleculeInput(BaseModel):
     basin_id: str = Field(..., description="Unique Basin ID")
     elements: List[str] = Field(..., description="List of elements")
     coordinates: List[Tuple[float, float, float]] = Field(..., description="XYZ coordinates")
-    theory_level: str = Field(default="B3LYP-D3 def2-SVP", description="Level of theory")
-    charge: int = Field(default=0, description="Molecular charge")
-    multiplicity: int = Field(default=1, description="Spin multiplicity")
+    theory_level: str = Field(default="B3LYP D3BJ def2-SVP", description="Level of theory")
+    charge: int = Field(default=0, strict=True, description="Molecular charge")
+    multiplicity: int = Field(default=1, strict=True, description="Spin multiplicity")
     is_weak_complex: bool = Field(default=False, description="Is this a weak intermolecular complex?")
     is_opt: bool = Field(default=True, description="Is this a geometry optimization?")
     is_freq: bool = Field(default=False, description="Is this a harmonic frequency or Hessian calculation?")
     frozen_monomer_indices: Optional[List[int]] = Field(default=None, description="0-indexed atom indices to freeze")
     implicit_solvation: Optional[str] = Field(default=None, description="Implicit solvation model (e.g., CPCM(Water), SMD)")
+    grid_stage: Optional[Literal[1, 2, 3]] = None
+    recipe: Optional[Literal["R1", "R2"]] = None
+    is_vpt2: bool = False
+    initial_hessian: Literal["XTB2", "Lindh", "READ"] = "XTB2"
+    hessian_file: Optional[Path] = None
+    product_class: Optional[Literal["A", "B", "C"]] = None
+    tier: Optional[int] = None
+    geometry_source: str = "electronic_structure"
+    ab_initio_relaxed: bool = False
+    cbs_cardinal_pair: Optional[Tuple[int, int]] = None
+    nprocs: Optional[int] = Field(default=None, ge=1, strict=True)
+    maxcore_mb: Optional[int] = Field(default=None, ge=1, strict=True)
 
     @model_validator(mode="after")
     def validate_method_matrix(self) -> "MoleculeInput":
-        theory_upper = self.theory_level.upper()
-
-        # 1. Redundant Dispersion Check: wB97M-V / B97M-V paired with D3/D4 is strictly forbidden [M]
-        is_vv10_functional = any(f in theory_upper for f in ["WB97M-V", "B97M-V", "PBE-NL"])
-        has_redundant_disp = any(d in theory_upper for d in ["D3", "D4", "D3BJ", "D4BJ", "-D3", "-D4"])
-        if is_vv10_functional and has_redundant_disp:
-            raise RedundantDispersionError(
-                f"[METHOD_MATRIX_VIOLATION_DISPERSION] External dispersion correction (D3/D4) is strictly forbidden for {self.theory_level} because VV10 non-local correlation is built-in [M]."
+        coords = np.asarray(self.coordinates, dtype=float)
+        if not self.elements or coords.shape != (len(self.elements), 3) or not np.all(np.isfinite(coords)):
+            raise ValueError("Molecular coordinates must be a nonempty, finite N x 3 array matching elements.")
+        electrons = sum(_nuclear_charge(symbol) for symbol in self.elements if not symbol.endswith(":")) - self.charge
+        if electrons < 0 or self.multiplicity > electrons + 1 or (electrons + self.multiplicity) % 2 != 1:
+            raise ValueError("Spin multiplicity is incompatible with the electron count and charge.")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", self.basin_id):
+            raise ValueError("basin_id must be a safe filename component.")
+        if any(char in self.theory_level for char in "\r\n%#!*"):
+            raise ValueError("theory_level must contain only a single ORCA keyword line.")
+        if self.implicit_solvation and any(char in self.implicit_solvation for char in "\r\n%#!*"):
+            raise ValueError("implicit_solvation must contain a single keyword expression.")
+        if "R2SCAN-3C" in self.theory_level.upper().split() and re.search(r"\b(?:DEF2[-_]|(?:AUG-)?CC-|STO-|[36]-\d|MINIX)", self.theory_level, re.I):
+            raise ValueError("r2SCAN-3c requires its published built-in composite basis; do not append a different basis")
+        if self.recipe:
+            self.is_weak_complex = True
+            if "theory_level" not in self.model_fields_set:
+                self.theory_level = "r2SCAN-3c" if self.recipe == "R1" else "wB97M-V def2-QZVPP def2/J RIJCOSX"
+            if self.recipe == "R1" and "R2SCAN-3C" not in self.theory_level.upper().split():
+                raise ValueError("Recipe R1 requires r2SCAN-3c.")
+            if self.recipe == "R2" and not {"WB97M-V", "DEF2-QZVPP"}.issubset(self.theory_level.upper().split()):
+                raise ValueError("Recipe R2 requires wB97M-V/def2-QZVPP.")
+            if self.frozen_monomer_indices is None:
+                self.frozen_monomer_indices = list(range(len(self.elements)))
+            elif set(self.frozen_monomer_indices) != set(range(len(self.elements))):
+                raise FrozenMonomerViolationError("Recipes R1 and R2 must freeze every monomer's internal coordinates.")
+        if self.frozen_monomer_indices is not None:
+            indices = self.frozen_monomer_indices
+            if len(set(indices)) != len(indices) or any(i < 0 or i >= len(self.elements) for i in indices):
+                raise FrozenMonomerViolationError("Frozen atom indices must be unique and within the molecule.")
+        ElectronicSanitizer.sanitize_dft_dispersion(self.theory_level, is_complex=self.is_weak_complex)
+        self.resolved_grid()
+        if re.search(r"(?i)\bcalc_?hess\s+(?:true|1)\b", self.theory_level):
+            raise HessianSpecificationError()
+        if re.search(r"(?i)\binhess\b", self.theory_level):
+            raise HessianSpecificationError("Set initial_hessian and hessian_file explicitly; InHess belongs in %geom.")
+        if self.initial_hessian == "READ":
+            if self.hessian_file is None or not self.hessian_file.is_file() or self.hessian_file.stat().st_size == 0:
+                raise HessianSpecificationError("InHess READ requires an existing, nonempty Hessian checkpoint.")
+            if any(char in str(self.hessian_file) for char in '\r\n"'):
+                raise HessianSpecificationError("Unsafe Hessian checkpoint filename.")
+        elif self.hessian_file is not None:
+            raise HessianSpecificationError("A Hessian checkpoint requires initial_hessian='READ'.")
+        if self.product_class is not None:
+            if self.tier is None:
+                raise ValueError("A declared product class requires an explicit calculation tier.")
+            if self.product_class == "B":
+                raise ValueError("Product B materials require the periodic plane-wave/PAW engine, not an ORCA molecular XYZ deck.")
+            validate_product_class_policy(
+                self.product_class, tier=self.tier, solvation=self.implicit_solvation,
+                geometry_source=self.geometry_source, ab_initio_relaxed=self.ab_initio_relaxed,
+                cbs_cardinal_pair=self.cbs_cardinal_pair,
+                method=self.theory_level,
             )
-
-        if self.is_weak_complex:
-            has_dispersion = any(
-                d in theory_upper
-                for d in ["D3", "D4", "-3C", "VV10", "WB97M-V", "B97M-V", "PBE-NL"]
-            )
-            if not has_dispersion:
-                raise ValueError("[ERR_STRATEGY_PIVOT] Dispersion: Reject DFT optimizations of weak complexes lacking D3/D4.")
-        
-        is_freq_task = (
-            self.is_freq
-            or "FREQ" in theory_upper
-            or "NUMFREQ" in theory_upper
-            or "HESS" in theory_upper
-        )
-        if is_freq_task and ("DEFGRID1" in theory_upper or "DEFGRID2" in theory_upper):
-            raise GridSpecificationError(
-                "[METHOD_MATRIX_VIOLATION_DEFGRID] DEFGRID1/DEFGRID2 is forbidden for frequency/Hessian tasks; DEFGRID3 is mandated [M]."
-            )
-
-        # 4. Hessian Preconditioning Safeguards
-        if self.is_opt and "CALC_HESS TRUE" in theory_upper:
-            self.theory_level = re.sub(r'(?i)calc_hess\s+true', '', self.theory_level).strip()
-            
         return self
+
+    def resolved_grid(self) -> str:
+        """Resolve a single grid; explicit settings may tighten but never relax the stage."""
+        upper = self.theory_level.upper()
+        frequencies = self.is_freq or self.is_vpt2 or bool(re.search(r"\b(?:NUMFREQ|ANFREQ|FREQ|VPT2|HESSIAN)\b", upper))
+        tier_minimum = 3 if self.tier is not None and self.tier >= 5 else 2 if self.tier == 4 else 1
+        minimum = max(tier_minimum, 3 if frequencies or self.recipe == "R2" else self.grid_stage or 1)
+        grids = re.findall(r"\bDEFGRID\d+\b", upper)
+        if re.search(r"\b(?:GRID|FINALGRID)\d+\b", upper):
+            raise GridSpecificationError("Use the DEFGRID1/2/3 lifecycle instead of legacy grid overrides.")
+        if len(set(grids)) > 1:
+            raise GridSpecificationError("Conflicting quadrature grids in the same calculation.")
+        grid = grids[0] if grids else f"DEFGRID{minimum}"
+        QuadratureManager.validate_coupled_grid_scf_invariant(grid, is_frequency_or_hessian=frequencies)
+        if int(grid[-1]) < minimum or (frequencies or self.recipe == "R2") and self.grid_stage not in (None, 3):
+            raise GridSpecificationError(f"This calculation requires DEFGRID{minimum} or tighter.")
+        return grid
 
     @field_validator("multiplicity")
     @classmethod
@@ -89,6 +152,13 @@ class MoleculeInput(BaseModel):
         if v < 1:
             raise ValueError("[ERR_MISSING_DATA] Multiplicity must be >= 1.")
         return v
+
+    @field_validator("frozen_monomer_indices", mode="before")
+    @classmethod
+    def validate_frozen_indices(cls, values):
+        if values is not None and any(isinstance(value, bool) or not isinstance(value, (int, np.integer)) for value in values):
+            raise ValueError("Frozen atom indices must be integers, not booleans or floats.")
+        return values
 
 def get_artifact_base() -> Path:
     """Enforces the strict air-gap to read-write user data tier."""
@@ -116,12 +186,18 @@ def build_internal_coordinate_constraints(
     """
     if not frozen_indices:
         return []
+    coords = np.asarray(coordinates, dtype=float)
+    if coords.shape != (len(elements), 3) or not np.all(np.isfinite(coords)):
+        raise ValueError("Internal constraints require finite coordinates matching the elements.")
+    if len(frozen_indices) != len(set(frozen_indices)) or any(
+        isinstance(i, bool) or not isinstance(i, (int, np.integer)) or i < 0 or i >= len(elements) for i in frozen_indices
+    ):
+        raise FrozenMonomerViolationError("Frozen atom indices must be valid, integral and unique.")
 
     # Dynamically retrieve covalent radii in Angstroms via Mendeleev Mandate
     cov_radii: Dict[str, float] = {}
     for el in set(elements):
-        r_pm = element(el).covalent_radius_pyykko or element(el).covalent_radius
-        cov_radii[el] = (float(r_pm) / 100.0) if r_pm is not None else 1.5
+        cov_radii[el] = get_dynamic_covalent_radius(el)
 
     # Find intramolecular covalent bonds within frozen atom set
     bonds: List[Tuple[int, int]] = []
@@ -204,35 +280,55 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
     - Parameterized charge and spin multiplicity
     - Method Matrix Compliance (Grids, Dispersion, Hessians)
     """
+    # Revalidate at the write boundary, including models built/copied without validation.
+    data = MoleculeInput.model_validate(data.model_dump())
     config = load_system_config()
     hw = config.get("hardware", {})
-    if not hw or ("maxcore_mb" not in hw and "ram_mb" not in hw) or "physical_cpu_cores" not in hw:
+    if not hw or not any(key in hw for key in ("maxcore_mb", "ram_mb", "ram_gb")) or "physical_cpu_cores" not in hw:
         raise RuntimeError("[MISSING DATA] Hardware configuration missing maxcore_mb/ram_mb or physical_cpu_cores.")
-    nprocs = hw["physical_cpu_cores"]
+    physical_cores = int(hw["physical_cpu_cores"])
+    nprocs = data.nprocs or physical_cores
+    if physical_cores < 1 or nprocs > physical_cores:
+        raise HardwareAllocationError("Requested CPU count exceeds audited physical-core capacity.")
+    ram_mb = hw.get("ram_mb", float(hw.get("ram_gb", 0)) * 1024)
     if "maxcore_mb" in hw:
-        maxcore = hw["maxcore_mb"]
+        maxcore = int(hw["maxcore_mb"])
+        memory_budget = maxcore * physical_cores
+        if ram_mb:
+            memory_budget = min(memory_budget, int(0.75 * ram_mb))
     else:
         # Standard 75% memory ceiling divided among physical CPU cores
-        maxcore = int(0.75 * hw["ram_mb"] / max(1, nprocs))
+        memory_budget = int(0.75 * ram_mb)
+        maxcore = memory_budget // nprocs
+    maxcore = data.maxcore_mb or maxcore
+    if maxcore < 1 or maxcore * nprocs > memory_budget:
+        raise HardwareAllocationError("Requested per-core memory exceeds the audited memory budget.")
 
     # Transition metal check for tight grid override
     transition_metals = {"Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
                          "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd",
                          "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg"}
     needs_tight_grid = any(el in data.elements for el in transition_metals)
-    is_frequency_task = (
-        data.is_freq
-        or "FREQ" in data.theory_level.upper()
-        or "NUMFREQ" in data.theory_level.upper()
-        or "HESS" in data.theory_level.upper()
-    )
-
     # 2. Dynamic Grid Tightening: defgrid3 mandated for frequency/Hessian tasks
-    grid_keyword = "defgrid3" if (needs_tight_grid or is_frequency_task) else "defgrid1"
+    grid_keyword = "DEFGRID3" if needs_tight_grid else data.resolved_grid()
+    theory_level = re.sub(r"(?i)\bDEFGRID\d+\b", "", data.theory_level).strip()
+    if data.is_freq and not re.search(r"(?i)\b(?:NUMFREQ|FREQ)\b", theory_level):
+        theory_level += " Freq"
+    if data.is_vpt2 and not re.search(r"(?i)\bVPT2\b", theory_level):
+        theory_level += " VPT2"
+    if data.is_weak_complex:
+        fragments = detect_molecular_fragments(data.elements, data.coordinates)
+        if data.recipe and len(fragments) < 2:
+            raise FrozenMonomerViolationError("Frozen-monomer recipes require at least two distinct fragments.")
+        dispersion = ElectronicSanitizer.sanitize_dft_dispersion(
+            theory_level, is_complex=True, num_monomers=max(1, len(fragments))
+        )
+    else:
+        dispersion = {}
 
     coord_block = []
     for el, (x, y, z) in zip(data.elements, data.coordinates, strict=True):
-        coord_block.append(f"  {el:<4} {x:14.8f} {y:14.8f} {z:14.8f}")
+        coord_block.append(f"  {el:<4} {x:.17g} {y:.17g} {z:.17g}")
     coord_str = "\n".join(coord_block)
 
     hasher = hashlib.sha256()
@@ -242,9 +338,9 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
     opt_keyword = "Opt" if data.is_opt else ""
 
     geom_block_lines = []
-    if data.is_opt or data.is_weak_complex or data.frozen_monomer_indices:
+    if data.is_opt or data.frozen_monomer_indices:
         geom_block_lines.append("%geom")
-        if data.is_opt or data.is_weak_complex:
+        if data.is_opt:
             # 5-parameter tightened convergence block mandated by Method Matrix v4 §4.4 (Task 8)
             geom_block_lines.append("  TolE 1e-7")
             geom_block_lines.append("  TolMaxG 1e-5")
@@ -253,7 +349,9 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
             geom_block_lines.append("  TolRMSD 5e-5")
             geom_block_lines.append("  MaxIter 200")
         if data.is_opt:
-            geom_block_lines.append("  InHess XTB2")
+            geom_block_lines.append(f"  InHess {data.initial_hessian}")
+            if data.hessian_file is not None:
+                geom_block_lines.append(f'  InHessName "{data.hessian_file.resolve()}"')
 
         # 3. Frozen-Monomer Protocol (Internal Coordinate Constraints - Task 9)
         if data.frozen_monomer_indices:
@@ -287,6 +385,11 @@ end
 %maxcore {{ maxcore }}
 
 {{ geom_block }}
+{% if requires_atm %}
+%method
+  D3S9 1.0
+end
+{% endif %}
 
 * xyz {{ charge }} {{ multiplicity }}
 {{ coord_block }}
@@ -297,7 +400,7 @@ end
     rendered_inp = template.render(
         sha256=coord_hash,
         basin_id=data.basin_id,
-        theory_level=data.theory_level,
+        theory_level=theory_level,
         opt_keyword=opt_keyword,
         grid_keyword=grid_keyword,
         solvation_keyword=solvation_keyword,
@@ -306,7 +409,9 @@ end
         charge=data.charge,
         multiplicity=data.multiplicity,
         coord_block=coord_str,
-        geom_block=geom_block
+        geom_block=geom_block,
+        requires_atm=dispersion.get("requires_atm_3body", False)
+        and "D3" in dispersion.get("dispersion", ""),
     )
 
     out_base = output_dir if output_dir else get_artifact_base()
@@ -320,44 +425,65 @@ end
     return output_path
 
 
-def generate_pyscf_input(data: MoleculeInput, output_dir: Optional[Path] = None) -> Path:
-    """Compiles a PySCF calculation script deck enforcing defgrid3-equivalent grid levels for frequency tasks."""
-    is_frequency_task = (
-        data.is_freq
-        or "FREQ" in data.theory_level.upper()
-        or "NUMFREQ" in data.theory_level.upper()
-        or "HESS" in data.theory_level.upper()
-    )
-    grid_level = 4 if is_frequency_task else 3
+def generate_pyscf_input(data: MoleculeInput, output_dir: Optional[Path] = None, *, expected_version: str = "2.14.0") -> Path:
+    """Generate an explicit restricted-HF single-point deck without method substitution.
 
-    atom_lines = []
-    for el, (x, y, z) in zip(data.elements, data.coordinates, strict=True):
-        atom_lines.append(f"    ['{el}', ({x:.8f}, {y:.8f}, {z:.8f})],")
-    atom_str = "\n".join(atom_lines)
+    MolecularInput currently describes ORCA directives. Those are not silently
+    translated into unrelated PySCF DFT grids, dispersion models or optimizers.
+    Configured CASSCF/NEVPT2 recovery uses the separate T9 micro-silo worker.
+    """
+    import json
 
-    pyscf_script = f"""# PySCF Input Deck: Basin {data.basin_id}
-# Provenance: [M] Method Matrix §16.1
+    tokens = data.theory_level.split()
+    if len(tokens) != 2 or tokens[0].upper() not in {"HF", "RHF"}:
+        raise ValueError("PySCF deck generation requires explicit 'HF basis' or 'RHF basis'; ORCA DFT keywords cannot be silently translated")
+    if data.multiplicity != 1 or data.is_opt or data.is_freq or data.is_vpt2 or data.recipe or data.implicit_solvation or data.frozen_monomer_indices or data.hessian_file or data.product_class or data.grid_stage is not None or data.tier not in (None, 2) or data.cbs_cardinal_pair or data.initial_hessian != "XTB2":
+        raise ValueError("This PySCF adapter supports restricted closed-shell single-point energies only")
+    if data.tier == 2 and tokens[1].upper() not in {"MINI", "STO-3G"}:
+        raise ValueError("Canonical Tier T2 requires HF/MINI or HF/STO-3G")
+    specification = {
+        "atom": [[symbol, list(xyz)] for symbol, xyz in zip(data.elements, data.coordinates, strict=True)],
+        "unit": "Angstrom", "basis": tokens[1], "charge": data.charge, "spin": 0,
+        "max_memory": (data.maxcore_mb or 1024) * (data.nprocs or 1),
+    }
+    script = """# Explicit PySCF restricted-HF single-point calculation.
+import hashlib
+import json
+import math
+import sys
+from pathlib import Path
+import numpy as np
 import pyscf
-from pyscf import gto, dft, hessian
+from pyscf import gto, scf
 
-mol = gto.Mole()
-mol.atom = [
-{atom_str}
-]
-mol.basis = 'def2-tzvp'
-mol.charge = {data.charge}
-mol.spin = {data.multiplicity - 1}
-mol.build()
-
-mf = dft.RKS(mol)
-mf.xc = 'b3lyp'
-mf.grids.level = {grid_level}  # Level {grid_level} enforced (defgrid3 standard)
-mf.kernel()
-"""
+if sys.prefix == sys.base_prefix:
+    raise RuntimeError("PySCF must execute in its isolated micro-silo")
+if pyscf.__version__ != EXPECTED_VERSION:
+    raise RuntimeError("PySCF version differs from the pinned requested version")
+pyscf.lib.num_threads(PROCESS_THREADS)
+specification = json.loads(SPECIFICATION_JSON)
+molecule = gto.M(**specification)
+calculation = scf.RHF(molecule)
+calculation.conv_tol = 1e-10
+calculation.max_cycle = 200
+calculation.kernel()
+if not calculation.converged or not math.isfinite(float(calculation.e_tot)):
+    raise RuntimeError("Requested restricted-HF single point did not converge")
+gradient = calculation.nuc_grad_method().kernel()
+if gradient.shape != (molecule.natm, 3) or not np.isfinite(gradient).all():
+    raise RuntimeError("PySCF returned invalid nuclear gradients")
+Path(__file__).with_suffix('.result.json').write_text(json.dumps({
+    'engine': 'PySCF', 'version': pyscf.__version__, 'method': 'RHF',
+    'basis': specification['basis'], 'operation': 'single_point',
+    'scf_converged': bool(calculation.converged), 'energy_hartree': float(calculation.e_tot),
+    'gradients_hartree_per_bohr': gradient.tolist(),
+    'input_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+}, indent=2, allow_nan=False), encoding='utf-8')
+""".replace("EXPECTED_VERSION", repr(expected_version)).replace("PROCESS_THREADS", str(data.nprocs or 1)).replace("SPECIFICATION_JSON", repr(json.dumps(specification)))
     out_base = output_dir if output_dir else get_artifact_base()
     out_base.mkdir(parents=True, exist_ok=True)
     output_path = out_base / f"{data.basin_id}_pyscf.py"
-    output_path.write_text(pyscf_script, encoding="utf-8")
+    output_path.write_text(script, encoding="utf-8")
     return output_path
 
 
@@ -503,7 +629,13 @@ def generate_recipe_r2_orca_deck(
         Path to the generated production .inp file.
     """
     # 1. Geometry Ingestion & Monomer Distortion Verification
-    if symbols is None or coordinates is None:
+    if (symbols is None) != (coordinates is None):
+        raise ValueError("Provide both symbols and coordinates, or neither for the reference geometry.")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", basin_id):
+        raise ValueError("basin_id must be a safe filename component.")
+    if cp_leg not in (None, "dimer", "monomer_a_ghosts", "monomer_b_ghosts"):
+        raise ValueError(f"Unknown counterpoise leg: {cp_leg}")
+    if symbols is None:
         syms_list, coords_arr, a_co2, a_h2o = build_reference_co2_h2o_complex(r_com=r_com)
         eff_symbols = list(syms_list)
         eff_coords = np.asarray(coords_arr, dtype=np.float64)
@@ -527,7 +659,12 @@ def generate_recipe_r2_orca_deck(
 
     set_co2 = set(eff_atoms_co2)
     set_h2o = set(eff_atoms_h2o)
-    assert set_co2.isdisjoint(set_h2o), "Monomer subsets CO2 and H2O must be strictly disjoint [M]."
+    if not set_co2.isdisjoint(set_h2o) or set_co2 | set_h2o != set(range(len(eff_symbols))):
+        raise FrozenMonomerViolationError("CO2 and H2O monomers must be disjoint and cover all atoms.")
+    if eff_coords.shape != (len(eff_symbols), 3) or not np.all(np.isfinite(eff_coords)):
+        raise ValueError("Coordinates must be finite N x 3 values matching the atom symbols.")
+    if [eff_symbols[i] for i in eff_atoms_co2] != ["C", "O", "O"] or [eff_symbols[i] for i in eff_atoms_h2o] != ["O", "H", "H"]:
+        raise FrozenMonomerViolationError("This Recipe R2 reference helper requires CO2 and H2O atom ordering.")
 
     # 2. Dynamic Mendeleev Invariant [M]
     total_mass = sum(get_dynamic_atomic_mass(s) for s in eff_symbols)
@@ -560,20 +697,17 @@ def generate_recipe_r2_orca_deck(
 
     # 4. Hardware Parameters
     if nprocs is None or maxcore_mb is None:
-        try:
-            hw = load_system_config().get("hardware", {})
-            if nprocs is None:
-                nprocs = int(hw.get("physical_cpu_cores", 8))
-            if maxcore_mb is None:
-                if "maxcore_mb" in hw:
-                    maxcore_mb = int(hw["maxcore_mb"])
-                elif "ram_mb" in hw:
-                    maxcore_mb = int(0.75 * hw["ram_mb"] / max(1, nprocs))
-                else:
-                    maxcore_mb = 3400
-        except Exception:
-            nprocs = nprocs or 8
-            maxcore_mb = maxcore_mb or 3400
+        hw = load_system_config().get("hardware", {})
+        if nprocs is None:
+            nprocs = int(hw["physical_cpu_cores"])
+        if maxcore_mb is None:
+            if "maxcore_mb" in hw:
+                maxcore_mb = int(hw["maxcore_mb"])
+            else:
+                ram_mb = hw.get("ram_mb", float(hw.get("ram_gb", 0)) * 1024)
+                maxcore_mb = int(0.75 * ram_mb / max(1, nprocs))
+    if nprocs < 1 or maxcore_mb < 1 or multiplicity < 1:
+        raise ValueError("CPU count, per-core memory and spin multiplicity must be positive.")
 
     # 5. Format Electronic Structure Keywords
     if counterpoise and cp_leg is None:
@@ -595,7 +729,7 @@ def generate_recipe_r2_orca_deck(
             label = f"{sym}:" if idx in set_co2 else sym
         else:
             label = sym
-        coord_lines.append(f"  {label:<8} {x:14.8f} {y:14.8f} {z:14.8f}")
+        coord_lines.append(f"  {label:<8} {x:.17g} {y:.17g} {z:.17g}")
     coord_str = "\n".join(coord_lines)
 
     hasher = hashlib.sha256()
@@ -664,17 +798,13 @@ end
 *
 """
 
-    out_base = output_dir if output_dir else Path("D:/__CoChem/GitHub-Repo/CoChem-BASE/artifacts")
+    out_base = output_dir if output_dir else get_artifact_base()
     out_base.mkdir(parents=True, exist_ok=True)
     target_filename = filename if filename else f"{basin_id}.inp"
+    if Path(target_filename).name != target_filename or any(char in target_filename for char in '\r\n\\'):
+        raise ValueError("Deck filename must be a single filename component.")
     target_path = out_base / target_filename
     target_path.write_text(deck_content, encoding="utf-8")
-
-    # Mirror to canonical deliverable artifact path
-    canonical_artifact = Path("D:/__CoChem/GitHub-Repo/CoChem-BASE/artifacts/recipe_r2_production_deck.inp")
-    canonical_artifact.parent.mkdir(parents=True, exist_ok=True)
-    if basin_id == "cochem_dimer_recipe_r2" or filename == "recipe_r2_production_deck.inp":
-        canonical_artifact.write_text(deck_content, encoding="utf-8")
 
     logger.info(f"Generated publication-grade ORCA Recipe R2 input deck at: {target_path} [M]")
     return target_path
@@ -705,7 +835,7 @@ def generate_recipe_r2_counterpoise_bracketing_decks(
     Returns:
         Dict[str, Path] mapping leg name to file path.
     """
-    out_dir = output_dir or Path("D:/__CoChem/GitHub-Repo/CoChem-BASE/artifacts")
+    out_dir = output_dir or get_artifact_base()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     decks: Dict[str, Path] = {

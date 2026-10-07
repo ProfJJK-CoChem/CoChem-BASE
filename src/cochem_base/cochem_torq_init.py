@@ -132,8 +132,7 @@ def verify_airgap(
         )
 
     # Rule 2: Execution directory cannot be located inside artifact directory
-    try:
-        resolved_exec.relative_to(resolved_artifact)
+    if resolved_exec.is_relative_to(resolved_artifact):
         msg = f"Airgap violation: Execution directory {resolved_exec} is located inside artifact directory {resolved_artifact}."
         _logger.error(msg)
         raise TorqAirgapViolationError(
@@ -144,9 +143,6 @@ def verify_airgap(
                 "expected": f"Path outside of {resolved_artifact}",
             },
         )
-    except ValueError as _e:
-        logger.debug(f"Ignored exception: {_e}")
-
     _logger.info("Airgap verified: exec=%s <-> artifact=%s", resolved_exec, resolved_artifact)
     return True
 

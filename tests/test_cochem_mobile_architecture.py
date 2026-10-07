@@ -45,12 +45,13 @@ from cochem_mobile.core.telemetry_wal import (
 
 
 
-def test_mount_resolver_bidirectional_translation(tmp_path: Path) -> None:
+@pytest.mark.parametrize("windows_input", ["C:/data/spectra/experiment1.h5", r"C:\data\spectra\experiment1.h5"])
+def test_mount_resolver_bidirectional_translation(tmp_path: Path, windows_input: str) -> None:
     """Verify bidirectional host-to-container path translation across environments."""
     resolver = HostToContainerMountResolver(default_target_env=EnvironmentType.LINUX_DEBIAN)
 
     # 1. Windows to WSL translation
-    win_path = Path("C:/data/spectra/experiment1.h5")
+    win_path = Path(windows_input)
     wsl_trans = resolver.host_to_container(win_path, target_env=EnvironmentType.WSL)
     assert str(wsl_trans).lower() == "/mnt/c/data/spectra/experiment1.h5"
 

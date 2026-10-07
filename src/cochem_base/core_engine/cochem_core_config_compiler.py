@@ -55,23 +55,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("CoChem-ConfigCompiler")
 
 
-import atexit
-def _reap_zombies() -> None:
-    try:
-        current_proc = psutil.Process()
-        for child in current_proc.children(recursive=True):
-            try:
-                if child.status() == psutil.STATUS_ZOMBIE:
-                    child.wait(timeout=1)
-                else:
-                    child.terminate()
-                    child.wait(timeout=1)
-            except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
-                logger.debug(f"Ignored exception: {_e}")
-    except Exception as _e:
-        logger.debug(f"Ignored exception: {_e}")
+# Process handles remain under their launching broker/library ownership.
+from cochem_base.process_cleanup import reap_owned_children as _reap_zombies
 
-atexit.register(_reap_zombies)
 
 # =============================================================================
 # EXCEPTIONS

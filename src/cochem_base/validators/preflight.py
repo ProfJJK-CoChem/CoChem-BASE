@@ -16,6 +16,7 @@ from typing import Optional, Union, Sequence
 from collections import deque
 import numpy as np
 from mendeleev import element
+from cochem_base.analysis.electronic_sanitizer import ElectronicSanitizer
 
 from cochem_base.exceptions import (
     PreflightValidationError,
@@ -119,6 +120,10 @@ class PreflightGeometryValidator:
             raise PreflightValidationError(
                 f"Coordinate shape mismatch: expected ({n_atoms}, 3), got {arr.shape}"
             )
+        if not np.all(np.isfinite(arr)):
+            raise PreflightValidationError("Coordinates must be finite.")
+        if not isinstance(multiplicity, int) or isinstance(multiplicity, bool) or multiplicity < 1:
+            raise PreflightValidationError("Spin multiplicity must be a positive integer.")
 
         # 1. Detect steric clashes (R_ij < 0.8 Å) [M]
         for i in range(n_atoms):
@@ -147,7 +152,7 @@ class PreflightGeometryValidator:
         z_total = sum(int(element(s.capitalize()).atomic_number) for s in symbols)
         n_electrons = z_total - charge
 
-        if (n_electrons % 2) == (multiplicity % 2):
+        if n_electrons < 0 or multiplicity > n_electrons + 1 or (n_electrons % 2) == (multiplicity % 2):
             raise PreflightValidationError(
                 f"Spin multiplicity {multiplicity} is unphysical for system with {n_electrons} electrons"
             )
@@ -162,7 +167,7 @@ class PreflightGeometryValidator:
 
         # 4. Dispersion enforcement for multi-fragment non-covalent complexes [M]
         fragments = cls.detect_fragments(symbols, arr)
-        has_multiple_fragments = len(fragments) > 1 if is_complex is None else is_complex
+        has_multiple_fragments = len(fragments) > 1 or bool(is_complex)
 
         if has_multiple_fragments:
             kw_str = ""
@@ -172,19 +177,12 @@ class PreflightGeometryValidator:
                 else:
                     kw_str = " ".join(str(k).upper() for k in dft_keywords)
 
-            # Native non-local dispersion functionals (VV10) [M]
-            is_non_local_disp = any(nl in kw_str for nl in ["WB97M-V", "REV-WB97M-V", "B97M-V", "VV10"])
-            has_empirical_disp = ("D3BJ" in kw_str) or ("D4" in kw_str) or ("D3" in kw_str)
-
-            if is_non_local_disp and has_empirical_disp:
-                raise RedundantDispersionError(
-                    f"Functional with native non-local dispersion ('{kw_str}') cannot be paired with explicit empirical dispersion (D3/D4) [M]."
-                )
-
-            if not is_non_local_disp and not has_empirical_disp:
-                raise MissingDispersionError(
-                    "Non-covalent complex missing mandatory dispersion correction (D3BJ/D4 or native non-local VV10) [M]."
-                )
+            ElectronicSanitizer.sanitize_dft_dispersion(
+                kw_str, is_complex=True, num_monomers=max(1, len(fragments))
+            )
+        elif dft_keywords:
+            kw_str = dft_keywords if isinstance(dft_keywords, str) else " ".join(dft_keywords)
+            ElectronicSanitizer.sanitize_dft_dispersion(kw_str)
 
         return True
 

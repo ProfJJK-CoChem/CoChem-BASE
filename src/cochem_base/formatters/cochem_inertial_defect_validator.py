@@ -24,6 +24,8 @@ Authoritative Method Matrix v4 Standards Enforced:
 
 from __future__ import annotations
 
+from cochem_base.core import cochem_constants as _constants
+
 import argparse
 import datetime
 import enum
@@ -53,7 +55,6 @@ from typing import (
 
 import numpy as np
 import pandas as pd
-import pyarrow as pa  # type: ignore[import-untyped]
 from mendeleev import element  # type: ignore[import-untyped]
 
 from cochem_base.exceptions import (
@@ -66,15 +67,15 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Physical Constants (CODATA 2018 / 2022 Standards via Mendeleev & Exact SI)
 # =============================================================================
-PLANCK_CONSTANT_J_S: float = 6.62607015e-34  # J*s (exact SI definition)
-SPEED_OF_LIGHT_CM_S: float = 2.99792458e10  # cm/s (exact SI definition)
-SPEED_OF_LIGHT_M_S: float = 299792458.0  # m/s (exact SI definition)
-AVOGADRO_CONSTANT: float = 6.02214076e23  # mol^-1 (exact SI definition)
-ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27  # kg (CODATA 2018/2022)
+PLANCK_CONSTANT_J_S: float = _constants.PLANCK_CONSTANT_J_S
+SPEED_OF_LIGHT_CM_S: float = _constants.SPEED_OF_LIGHT_CM_S
+SPEED_OF_LIGHT_M_S: float = _constants.SPEED_OF_LIGHT_M_S
+AVOGADRO_CONSTANT: float = _constants.AVOGADRO_CONSTANT
+ATOMIC_MASS_UNIT_KG: float = _constants.ATOMIC_MASS_UNIT_KG
 
 # Rotational constant conversion factor: h / (8 * pi^2) in MHz * u * Angstrom^2
 # h / (8 * pi^2 * u_kg * (1e-10 m)^2) / 1e6 = 505379.008784 MHz * u * Angstrom^2
-ROTATIONAL_CONVERSION_MHZ_U_ANG2: float = 505379.008784
+ROTATIONAL_CONVERSION_MHZ_U_ANG2: float = _constants.C_ROT_MHZ_U_ANG2
 MHZ_TO_GHZ: float = 1e-3
 MHZ_TO_CM1: float = 1.0 / (SPEED_OF_LIGHT_CM_S * 1e-6)  # 1 / 29979.2458 ~ 3.33564095e-5
 
@@ -1303,8 +1304,10 @@ class InertialDefectValidator:
 
     def to_pyarrow_table(
         self, reports: Sequence[InertialDefectValidationReport]
-    ) -> pa.Table:
+    ):
         """Converts a sequence of validation reports into a PyArrow Table for Parquet storage."""
+        import pyarrow as pa
+
         df = self.to_dataframe(reports)
         return pa.Table.from_pandas(df)
 

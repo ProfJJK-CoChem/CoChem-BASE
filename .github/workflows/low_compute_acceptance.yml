@@ -1,0 +1,72 @@
+name: Free-engine low-compute acceptance
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-engine-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  physical-acceptance:
+    name: Small xTB and PySCF CPU calculations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Keep calculation artifacts outside the checkout
+        run: |
+          echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
+          echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
+      - name: Install dashboard and audit all eleven Stage 0 phases
+        run: >-
+          python scripts/hosted_dashboard.py setup
+          --min-disk-space-gb 1
+      - name: Provision verified free engines into isolated environments
+        run: >-
+          python scripts/install_free_engines.py
+          --root "${{ runner.temp }}/cochem-free-engines"
+          --engines xtb pyscf
+          --output "${{ runner.temp }}/cochem-evidence/install.json"
+      - name: Execute bounded physical calculations and verify numerical outputs
+        run: >-
+          python scripts/verify_free_engines.py
+          --root "${{ runner.temp }}/cochem-free-engines"
+          --engines xtb pyscf
+          --output "${{ runner.temp }}/cochem-evidence/verification.json"
+      - name: Verify native CLI calculations and result publication
+        env:
+          XTB_CMD: ${{ runner.temp }}/cochem-artifacts/free-engines/xtb/xtb-dist/bin/xtb
+          XTBPATH: ${{ runner.temp }}/cochem-artifacts/free-engines/xtb/xtb-dist/share/xtb
+        run: |
+          test -x "$XTB_CMD"
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -m pytest -c pytest-srs.ini tests/calc/test_xtb_cli_execution.py tests/base/test_hosted_dashboard_runtime.py --junitxml="${{ runner.temp }}/cochem-evidence/cli-results.xml" -q
+      - name: Verify rendered dashboard lifecycle with the audited registry
+        run: |
+          python scripts/hosted_dashboard.py start
+          python scripts/hosted_dashboard.py check
+          python scripts/hosted_dashboard.py start
+      - name: Retain calculation evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: free-engine-acceptance-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/cochem-evidence/
+            ${{ runner.temp }}/cochem-artifacts/Registry/
+            ${{ runner.temp }}/cochem-artifacts/dashboard/setup-validation.json
+            ${{ runner.temp }}/cochem-artifacts/dashboard/setup-command.json
+            ${{ runner.temp }}/cochem-artifacts/dashboard/voila.log
+          if-no-files-found: error
+          retention-days: 14

@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from pathlib import Path
 
-from cochem_base.exceptions import PreflightValidationError
+from cochem_base.exceptions import PreflightValidationError, MissingDispersionError
 from cochem_base.validators.preflight import PreflightGeometryValidator
 from cochem_base.diagnostics.log_parser import LogDiagnosticParser
 
@@ -71,7 +71,7 @@ def test_preflight_validator_dispersion_enforcement_for_complexes():
     dimer_symbols = ["O", "H", "H", "O", "H", "H"]
 
     # Missing dispersion: raise PreflightValidationError
-    with pytest.raises(PreflightValidationError, match="Non-covalent complex missing mandatory empirical dispersion"):
+    with pytest.raises(MissingDispersionError, match="dispersion"):
         PreflightGeometryValidator.validate(
             dimer_symbols,
             dimer_coords,

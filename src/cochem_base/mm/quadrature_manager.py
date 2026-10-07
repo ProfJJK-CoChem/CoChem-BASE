@@ -6,6 +6,7 @@ Standard Compliance: IEEE 830-1998 / Method Matrix v4.1 Zero-Trust Directive.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional, Union
@@ -83,7 +84,12 @@ class QuadratureManager:
     @staticmethod
     def get_stage_spec(stage: Union[int, GridStage]) -> GridSpec:
         """Retrieve authoritative specification for a given grid lifecycle stage."""
-        stage_enum = GridStage(stage)
+        try:
+            if isinstance(stage, bool):
+                raise ValueError
+            stage_enum = GridStage(stage)
+        except ValueError as exc:
+            raise GridSpecificationError(f"Unknown quadrature stage: {stage!r}") from exc
         return STAGE_SPECS[stage_enum]
 
     @staticmethod
@@ -100,6 +106,8 @@ class QuadratureManager:
         """
         clean_grid = grid_keyword.strip().upper()
         is_spectroscopic_task = is_frequency_or_hessian or is_vpt2
+        if clean_grid not in {"DEFGRID1", "DEFGRID2", "DEFGRID3"}:
+            raise GridSpecificationError(f"ORCA requires DEFGRID1, DEFGRID2 or DEFGRID3; got {grid_keyword!r}.")
 
         if is_spectroscopic_task:
             if clean_grid in {"DEFGRID1", "DEFGRID2"} or "GRID1" in clean_grid or "GRID2" in clean_grid:
@@ -107,7 +115,7 @@ class QuadratureManager:
                     f"[METHOD_MATRIX_VIOLATION_DEFGRID] Spectroscopic task requested with coarse grid '{grid_keyword}'. "
                     f"Frequencies, Hessians, and VPT2 strictly require DEFGRID3 or finer [M]."
                 )
-            if clean_grid not in {"DEFGRID3", "VERYTIGHTGRID", "GRID3", "GRID4", "GRID5"}:
+            if clean_grid != "DEFGRID3":
                 raise GridSpecificationError(
                     f"[METHOD_MATRIX_VIOLATION_DEFGRID] Unrecognized or coarse grid '{grid_keyword}' for spectroscopic task. "
                     f"DEFGRID3 is mandated by Method Matrix v4.1 §2.5 [M]."
@@ -135,6 +143,14 @@ class QuadratureManager:
         """
         curr_enum = GridStage(current_stage)
         spec = STAGE_SPECS[curr_enum]
+        if not math.isfinite(current_max_gradient) or current_max_gradient < 0:
+            raise GridSpecificationError("Maximum gradient must be finite and nonnegative.")
+        if not math.isfinite(current_energy_change):
+            raise GridSpecificationError("Energy change must be finite.")
+        if intermolecular_rmsd is not None and (
+            not math.isfinite(intermolecular_rmsd) or intermolecular_rmsd < 0
+        ):
+            raise GridSpecificationError("Intermolecular RMSD must be finite and nonnegative.")
 
         # If current stage converged to its threshold, advance to the next stage
         if curr_enum == GridStage.STAGE_1:
@@ -147,7 +163,7 @@ class QuadratureManager:
             grad_energy_converged = (
                 current_max_gradient <= spec.tol_max_g and abs(current_energy_change) <= spec.tol_e
             )
-            rmsd_converged = intermolecular_rmsd is None or intermolecular_rmsd < 0.05
+            rmsd_converged = intermolecular_rmsd is not None and intermolecular_rmsd < 0.05
             if grad_energy_converged and rmsd_converged:
                 logger.info(
                     f"Stage 2 converged (max_g={current_max_gradient:.2e}, dE={current_energy_change:.2e}, "

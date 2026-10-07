@@ -56,6 +56,7 @@ from topology.cochem_topos_crusher import (
     KDTreeCoordinateFilter,
     MassWeightedEckartRMSD,
     MemmapIsomerBuffer,
+    PhysicalCascadeCalculator,
     RotationalConstants,
     RotationalSieve,
     TopologyCrusher,
@@ -697,7 +698,9 @@ class TestStateSerializationAndHDF5:
             assert b0.attrs["energy_kcal"] == -120.5
 
     def test_topos_crusher_full_ensemble_pipeline(self, tmp_path: Path) -> None:
-        """Full end-to-end ensemble deduplication with GOAT + CREST union."""
+        """Actual legacy ASE exploration plus native CREST ensemble integration."""
+        if shutil.which("crest") is None or shutil.which("xtb") is None:
+            pytest.skip("Native CREST ensemble integration requires installed CREST and xTB executables")
         h5_path = tmp_path / "ensemble_landscape.h5"
         crusher = TopologyCrusher(
             rot_tol=0.015,
@@ -708,6 +711,7 @@ class TestStateSerializationAndHDF5:
         )
 
         seed_atoms = Atoms(symbols=WATER_SYMBOLS, positions=WATER_COORDS)
+        seed_atoms.calc = PhysicalCascadeCalculator()
         report = crusher.deduplicate_ensemble_union(
             seed_atoms=seed_atoms,
             num_goat_variants=4,

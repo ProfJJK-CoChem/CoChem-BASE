@@ -253,17 +253,23 @@ def save_uploaded_geometries(uploaded_files: Any, target_dir: Path) -> List[Path
     return saved_paths
 
 
-if not HAS_WATCHDOG:
-    class FileSystemEventHandler:  # type: ignore
-        pass
-
-
-class IngestionWatchdog(FileSystemEventHandler):
+class IngestionWatchdog:
     """Monitors the active Project directory for new .xyz submissions."""
 
     def __init__(self, ui_callback: Any) -> None:
-        super().__init__()
+        if not HAS_WATCHDOG:
+            raise ImportError("Filesystem monitoring requires the watchdog package")
         self.ui_callback = ui_callback
+
+    def dispatch(self, event: Any) -> None:
+        """Implement the observer event-handler interface using the current dependency state.
+
+        Resolving the dependency at construction supports installation after the
+        notebook initially imports this module. Only file creation is relevant
+        to ingestion; modification and directory events do not enqueue work.
+        """
+        if event.event_type == "created":
+            self.on_created(event)
 
     def on_created(self, event: Any) -> None:
         if not getattr(event, "is_directory", False) and str(event.src_path).endswith(".xyz"):
@@ -433,4 +439,3 @@ class CoChemMIntUI:
 if __name__ == "__main__":
     logger.info("CoChem-MInt Backend initialized.")
     logger.info("To launch the GUI, import CoChemMIntUI into a Jupyter Notebook cell and call .display()")
-

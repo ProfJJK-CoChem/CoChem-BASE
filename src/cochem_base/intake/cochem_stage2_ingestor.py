@@ -809,6 +809,7 @@ class JiggleQuenchDeduplicator:
         conformers: Sequence[np.ndarray],
         symbols: Sequence[str] | Sequence[Sequence[str]],
         names: Optional[Sequence[str]] = None,
+        energies_kcal: Optional[Sequence[float]] = None,
     ) -> ConformerClusterResult:
         """Clusters and deduplicates a list of conformer coordinates."""
         n_confs = len(conformers)
@@ -829,32 +830,29 @@ class JiggleQuenchDeduplicator:
         else:
             symbols_list = [symbols] * n_confs  # type: ignore
 
-        unique_indices: List[int] = [0]
-        cluster_assignments: Dict[int, int] = {0: 0}
-
-        for i in range(1, n_confs):
-            target = np.asarray(conformers[i], dtype=np.float64)
-            matched_cluster: Optional[int] = None
-
+        from cochem_base.intake.conformer_deduplication import are_duplicate_conformers
+        if energies_kcal is not None:
+            if len(energies_kcal) != n_confs or not np.all(np.isfinite(energies_kcal)):
+                raise ValueError("Energies must be finite and match the conformer count")
+            order = sorted(range(n_confs), key=lambda i: (energies_kcal[i], i))
+        else:
+            order = range(n_confs)
+        unique_indices: List[int] = []
+        cluster_assignments: Dict[int, int] = {}
+        for i in order:
+            matched_cluster = None
             for u_idx in unique_indices:
-                ref = np.asarray(conformers[u_idx], dtype=np.float64)
-                align_res = self.aligner.align(
-                    target_coords=target,
-                    ref_coords=ref,
-                    symbols=symbols_list[i],
-                    ref_symbols=symbols_list[u_idx],
-                    allow_permutation=True,
-                )
-
-                if align_res.rmsd < self.rmsd_threshold:
+                if are_duplicate_conformers(
+                    np.asarray(conformers[i], dtype=float), symbols_list[i],
+                    np.asarray(conformers[u_idx], dtype=float), symbols_list[u_idx],
+                    rmsd_threshold=self.rmsd_threshold,
+                ):
                     matched_cluster = u_idx
                     break
-
-            if matched_cluster is not None:
-                cluster_assignments[i] = matched_cluster
-            else:
+            if matched_cluster is None:
                 unique_indices.append(i)
-                cluster_assignments[i] = i
+                matched_cluster = i
+            cluster_assignments[i] = matched_cluster
 
         rep_names = [conf_names[idx] for idx in unique_indices]
 

@@ -6,8 +6,8 @@ Compliant with Method Matrix v4 §4.4, §8B, and Anti-Spoofing Directives.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Union
-from pydantic import BaseModel
+from typing import ClassVar, Literal, Union
+from pydantic import BaseModel, ConfigDict
 
 
 class WorkflowPhase(str, Enum):
@@ -27,14 +27,16 @@ class GridPolicy(BaseModel):
     Deprecated ORCA 'Grid3'/'Grid5' terminology is unconditionally prohibited.
     """
 
-    preopt_grid: str = "defgrid1"
-    finalopt_grid: str = "defgrid3"
-    freq_grid: str = "defgrid3"
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    preopt_grid: Literal["defgrid1", "defgrid2", "defgrid3"] = "defgrid1"
+    finalopt_grid: Literal["defgrid3"] = "defgrid3"
+    freq_grid: Literal["defgrid3"] = "defgrid3"
 
     # Class-level phase aliases for direct attribute access
-    PHASE_PREOPT: str = "defgrid1"
-    PHASE_FINALOPT: str = "defgrid3"
-    PHASE_NUMFREQ: str = "defgrid3"
+    PHASE_PREOPT: ClassVar[str] = "defgrid1"
+    PHASE_FINALOPT: ClassVar[str] = "defgrid3"
+    PHASE_NUMFREQ: ClassVar[str] = "defgrid3"
 
     @classmethod
     def validate_grid(cls, phase: Union[WorkflowPhase, str], grid: str) -> bool:
@@ -52,26 +54,17 @@ class GridPolicy(BaseModel):
         bool
             True if grid meets the threshold for the phase, False otherwise.
         """
-        clean_grid = grid.strip().lower()
-        clean_phase = str(phase).strip().lower()
-        if clean_phase.startswith("workflowphase."):
-            clean_phase = clean_phase.split(".", 1)[1]
-
-        # Strictly reject deprecated Grid3 / Grid5 nomenclature
-        if clean_grid in {"grid1", "grid2", "grid3", "grid4", "grid5"}:
+        if not isinstance(grid, str) or not isinstance(phase, str):
             return False
-
-        if "preopt" in clean_phase:
-            # defgrid1 and defgrid3 are acceptable for preopt
+        clean_grid = grid.strip().lower()
+        clean_phase = phase.value if isinstance(phase, WorkflowPhase) else phase.strip().lower()
+        if clean_phase.startswith("phase_"):
+            clean_phase = clean_phase[len("phase_"):]
+        if clean_phase == "preopt":
             return clean_grid in {"defgrid1", "defgrid2", "defgrid3"}
-        elif "finalopt" in clean_phase or "numfreq" in clean_phase:
-            # defgrid1 is strictly forbidden for final optimization and second derivatives
-            if clean_grid == "defgrid1":
-                return False
-            return clean_grid in {"defgrid2", "defgrid3"}
-        else:
-            # Default conservative validation
-            return clean_grid in {"defgrid2", "defgrid3"}
+        if clean_phase in {"finalopt", "numfreq"}:
+            return clean_grid == "defgrid3"
+        return False
 
 
 __all__ = ["WorkflowPhase", "GridPolicy"]

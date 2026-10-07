@@ -371,8 +371,8 @@ class PhaseXAuditReport(BaseModel):
     version_walking: DynamicVersionWalkingResult = Field(
         ..., description="Dynamic version walking resolution record"
     )
-    mendeleev_authority: MendeleevMassRecord = Field(
-        ..., description="Mendeleev dynamic mass authority verification"
+    mendeleev_authority: Optional[MendeleevMassRecord] = Field(
+        default=None, description="Verified Mendeleev masses, absent when verification failed"
     )
     injected_env_vars: Dict[str, str] = Field(
         default_factory=dict, description="Environment variables generated for downstream consumption"
@@ -712,31 +712,31 @@ def verify_mendeleev_authority() -> MendeleevMassRecord:
         h = element("H")
         o = element("O")
 
-        c_mass = float(c.mass)
-        h_mass = float(h.mass)
-        o_mass = float(o.mass)
+        c_mass = next(float(iso.mass) for iso in c.isotopes if iso.mass_number == 12 and iso.mass is not None)
         c_z = int(c.atomic_number)
 
         # Retrieve isotopic masses if available or accurate mono-isotopic constants
         # In mendeleev, isotopes can be queried via c.isotopes
-        c13_val = 13.003354835  # standard comparison target
+        c13_val = None
         for iso in c.isotopes:
             if iso.mass_number == 13 and iso.mass is not None:
                 c13_val = float(iso.mass)
                 break
 
-        h1_val = 1.007825032
+        h1_val = None
         for iso in h.isotopes:
             if iso.mass_number == 1 and iso.mass is not None:
                 h1_val = float(iso.mass)
                 break
 
-        o16_val = 15.99491462
+        o16_val = None
         for iso in o.isotopes:
             if iso.mass_number == 16 and iso.mass is not None:
                 o16_val = float(iso.mass)
                 break
 
+        if c13_val is None or h1_val is None or o16_val is None:
+            raise MendeleevAuthorityError("Required isotope mass is absent from Mendeleev")
         return MendeleevMassRecord(
             symbol=c.symbol,
             atomic_number=c_z,
@@ -746,7 +746,7 @@ def verify_mendeleev_authority() -> MendeleevMassRecord:
             o16_mass=o16_val,
             authority="mendeleev",
             is_exact_carbon12=(c_z == 6),
-            c13_mass_verified=(abs(c13_val - 13.00335) < 0.01),
+            c13_mass_verified=True,
         )
     except Exception as exc:
         raise MendeleevAuthorityError(
@@ -943,117 +943,32 @@ def provision_micro_silo(
     dry_run: bool = False,
     version_result: Optional[DynamicVersionWalkingResult] = None,
 ) -> SiloAuditItem:
-    """
-    Idempotent, production-grade micro-silo provisioner and validation engine.
-    Constructs isolated virtual environments, verifies executable viability,
-    installs/verifies required packages, and injects runtime flags.
-    """
-    t0 = time.perf_counter()
-    target_dir = Path(config.target_path).resolve()
-    py_exe = get_silo_executable_path(target_dir, "python")
+    """Provision only isolated, ABI-compatible, exactly pinned environments."""
+    from .micro_silo_manager import provision_isolated_silo
 
-    stack_flags, env_vars = inject_silo_stack_and_env_flags(config)
-    verified_packages: List[str] = []
-    error_detail: Optional[str] = None
-    silo_status = SiloStatus.MISSING
-    py_ver_str: Optional[str] = None
-
-    # Check if silo already exists and has a functional Python interpreter
-    if py_exe.exists() and os.access(py_exe, os.X_OK):
-        try:
-            ver_check = subprocess.run(
-                [str(py_exe), "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"],
-                capture_output=True,
-                text=True,
-                timeout=10.0,
-                check=False,
-            )
-            if ver_check.returncode == 0:
-                py_ver_str = ver_check.stdout.strip()
-                silo_status = SiloStatus.EXISTS_VALID
-        except (subprocess.SubprocessError, OSError) as exc:
-            logger.warning(f"Existing silo executable at {py_exe} failed probe: {exc}")
-
-    # Provision fresh environment if missing or invalid and not dry_run
-    if silo_status is SiloStatus.MISSING and not dry_run:
-        try:
-            target_dir.parent.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Provisioning micro-silo '{config.name}' at {target_dir}...")
-
-            # Build venv using standard library venv module
-            builder = venv.EnvBuilder(
-                with_pip=True,
-                symlinks=(platform.system() != "Windows"),
-                clear=False,
-            )
-            builder.create(target_dir)
-
-            py_exe = get_silo_executable_path(target_dir, "python")
-            if py_exe.exists():
-                ver_check = subprocess.run(
-                    [str(py_exe), "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10.0,
-                    check=False,
-                )
-                if ver_check.returncode == 0:
-                    py_ver_str = ver_check.stdout.strip()
-                    silo_status = SiloStatus.PROVISIONED
-                else:
-                    silo_status = SiloStatus.ERROR
-                    error_detail = f"Created venv python exited with code {ver_check.returncode}: {ver_check.stderr}"
-            else:
-                silo_status = SiloStatus.ERROR
-                error_detail = f"Venv builder created directory but python binary missing at {py_exe}"
-
-        except Exception as exc:
-            silo_status = SiloStatus.ERROR
-            error_detail = f"Failed to provision micro-silo venv: {exc}"
-            logger.error(f"Silo provisioning error for {config.name}: {exc}")
-
-    # If dry-run and missing, mark simulated status
-    if dry_run and silo_status is SiloStatus.MISSING:
-        py_ver_str = config.python_version
-        silo_status = SiloStatus.BYPASSED
-
-    # Verify assigned packages if executable is functional
-    if silo_status in (SiloStatus.EXISTS_VALID, SiloStatus.PROVISIONED) and py_exe.exists():
-        packages_to_check = list(config.packages) + [p.split("==")[0].split(">=")[0] for p in config.pip_packages]
-        for pkg in packages_to_check:
-            pkg_clean = pkg.strip().replace("-", "_")
-            if not pkg_clean:
-                continue
-            try:
-                probe = subprocess.run(
-                    [str(py_exe), "-c", f"import {pkg_clean}"],
-                    capture_output=True,
-                    text=True,
-                    timeout=8.0,
-                    check=False,
-                )
-                if probe.returncode == 0:
-                    verified_packages.append(pkg_clean)
-            except (subprocess.SubprocessError, OSError) as _e:
-                logger.debug(f"Ignored exception: {_e}")
-
-    dur = time.perf_counter() - t0
-    is_avail = (silo_status in (SiloStatus.EXISTS_VALID, SiloStatus.PROVISIONED)) or (dry_run and config.is_requested)
-
+    started = time.perf_counter()
+    target = Path(config.target_path).resolve()
+    python = get_silo_executable_path(target, "python")
+    flags, env_vars = inject_silo_stack_and_env_flags(config)
+    existed = python.exists()
+    if dry_run:
+        return SiloAuditItem(
+            name=config.name, silo_type=config.silo_type, path=str(target),
+            status=SiloStatus.BYPASSED, is_available=False, is_heavy=config.is_heavy,
+            error_detail="Dry-run planning does not verify an executable environment",
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+    report = provision_isolated_silo(
+        target, python_version=config.python_version,
+        requirements=config.pip_packages, imports=config.packages,
+    )
     return SiloAuditItem(
-        name=config.name,
-        silo_type=config.silo_type,
-        path=str(target_dir),
-        python_executable=str(py_exe) if py_exe.exists() else None,
-        python_version=py_ver_str,
-        status=silo_status,
-        is_available=is_avail,
-        is_heavy=config.is_heavy,
-        stack_flags_injected=stack_flags,
-        env_vars_injected=env_vars,
-        error_detail=error_detail,
-        packages_verified=verified_packages,
-        duration_seconds=round(dur, 3),
+        name=config.name, silo_type=config.silo_type, path=str(target),
+        python_executable=str(python), python_version=report["python_version"],
+        status=SiloStatus.EXISTS_VALID if existed else SiloStatus.PROVISIONED,
+        is_available=True, is_heavy=config.is_heavy, stack_flags_injected=flags,
+        env_vars_injected=env_vars, packages_verified=report["imports"],
+        duration_seconds=round(time.perf_counter() - started, 3),
         created_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -1159,6 +1074,9 @@ class BaseSetupPhase(abc.ABC):
         if self.config.custom_silos:
             return self.config.custom_silos
 
+        from importlib.metadata import version
+        core_packages = ("pydantic", "pydantic-core", "annotated-types", "typing-extensions", "typing-inspection", "psutil")
+        core_pins = [f"{name}=={version(name)}" for name in core_packages]
         base_silo_dir = resolve_silo_base_directory()
         return [
             SiloConfig(
@@ -1170,7 +1088,7 @@ class BaseSetupPhase(abc.ABC):
                 is_requested=True,
                 is_heavy=False,
                 packages=["pydantic", "psutil"],
-                pip_packages=["pydantic>=2.0.0", "psutil"],
+                pip_packages=core_pins,
                 description="Baseline orchestration, registry schema & workspace manager silo.",
             )
         ]
@@ -1273,14 +1191,10 @@ class BaseSetupPhase(abc.ABC):
 
     def generate_telemetry(self, duration_sec: float) -> PhaseTelemetry:
         """Capture live system hardware and execution duration telemetry."""
-        cpu_cnt = os.cpu_count() or 1
-        ram_mb = 1024.0
-        try:
-            import psutil
-
-            ram_mb = float(psutil.virtual_memory().total) / (1024.0 * 1024.0)
-        except Exception as _e:
-            logger.debug(f"Ignored exception: {_e}")
+        from cochem_base.core_engine.hardware_profiler import profile_hardware
+        profile = profile_hardware()
+        cpu_cnt = profile.logical_cores
+        ram_mb = profile.ram_bytes / 1024**2
 
         return PhaseTelemetry(
             host_os=platform.system(),
@@ -1408,13 +1322,6 @@ class BaseSetupPhase(abc.ABC):
                 target_version=self.config.target_python_version,
                 status="FAILED",
             )
-            # Safe dummy mass record in catastrophic crash case
-            crash_mass = MendeleevMassRecord(
-                monoisotopic_mass=12.011,
-                c13_mass=13.00335,
-                h1_mass=1.007825,
-                o16_mass=15.994915,
-            )
 
             return PhaseXAuditReport(
                 phase_id=self.config.phase_id,
@@ -1427,7 +1334,7 @@ class BaseSetupPhase(abc.ABC):
                 silos={},
                 audit_items=self.audit_items,
                 version_walking=dummy_vw,
-                mendeleev_authority=crash_mass,
+                mendeleev_authority=None,
                 injected_env_vars={},
                 warnings=self.warnings,
                 errors=self.errors,
@@ -1551,10 +1458,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"  Used Fallback:   {report.version_walking.used_local_fallback}")
             print("-" * 80)
             print("Mendeleev Mass Authority (Zero-Mock):")
-            print(f"  Carbon-12:       {report.mendeleev_authority.monoisotopic_mass:.6f} amu")
-            print(f"  Carbon-13:       {report.mendeleev_authority.c13_mass:.6f} amu")
-            print(f"  Hydrogen-1:      {report.mendeleev_authority.h1_mass:.6f} amu")
-            print(f"  Oxygen-16:       {report.mendeleev_authority.o16_mass:.6f} amu")
+            if report.mendeleev_authority is not None:
+                print(report.mendeleev_authority.model_dump_json())
+            else:
+                print("  Mass authority verification unavailable")
             print("-" * 80)
             print(f"Audited Micro-Silos ({len(report.silos)} total):")
             for name, silo in report.silos.items():

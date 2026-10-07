@@ -175,7 +175,7 @@ def test_sweep_zombie_processes_execution() -> None:
 
 
 def test_sweep_zombie_processes_terminates_active_child() -> None:
-    """Verify sweep_zombie_processes locates and terminates real active child processes."""
+    """Verify sweep_zombie_processes terminates only explicitly supplied active child processes."""
     # Spawn a physical background child process with sleep
     child_proc = subprocess.Popen(
         [sys.executable, "-c", "import time; time.sleep(20)"],
@@ -186,7 +186,7 @@ def test_sweep_zombie_processes_terminates_active_child() -> None:
 
     try:
         # Execute zombie sweep
-        terminated_count = sweep_zombie_processes()
+        terminated_count = sweep_zombie_processes([child_proc])
         assert terminated_count >= 1, "sweep_zombie_processes did not report terminating child process"
         time.sleep(0.5)
         assert child_proc.poll() is not None, "Child process was not terminated by sweep_zombie_processes"

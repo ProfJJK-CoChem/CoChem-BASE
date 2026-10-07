@@ -133,15 +133,16 @@ class ProcessTreeManager:
             except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
                 logger.debug("Process %d kill error: %s", p.pid, exc)
 
+        # A successful signal is not evidence that the process has exited.
+        killed, survivors = psutil.wait_procs(alive, timeout=timeout)
+        terminated_pids = {p.pid for p in gone + killed}
+
         with self._lock:
-            if pid is not None:
-                self._tracked.discard(pid)
-            else:
-                self._tracked.clear()
+            self._tracked.difference_update(terminated_pids)
 
         return {
-            "terminated_count": len(gone) + len(alive),
-            "surviving_count": 0,
+            "terminated_count": len(terminated_pids),
+            "surviving_count": len(survivors),
         }
 
 

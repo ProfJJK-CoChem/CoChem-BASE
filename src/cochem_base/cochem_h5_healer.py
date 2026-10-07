@@ -56,11 +56,11 @@ def get_lease_metadata_path(h5_path: Union[str, Path]) -> Path:
     return Path(f"{p}.lease.json")
 
 
-def get_ipc_filelock(h5_path: Union[str, Path], timeout: float = 60.0) -> FileLock:
-    """Returns cross-platform filelock.FileLock located dynamically via COCH_STORE_DIR (§8C) [M]."""
-    lock_dir = Path(os.environ.get("COCH_STORE_DIR", Path.home() / ".cochem" / "locks"))
-    lock_dir.mkdir(parents=True, exist_ok=True)
-    return FileLock(str(lock_dir / f"{Path(h5_path).name}.lock"), timeout=timeout)
+def get_ipc_filelock(h5_path: Union[str, Path], timeout: float = 10.0) -> FileLock:
+    """Use one persistent lock beside the shared database on every host."""
+    target = Path(h5_path).resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return FileLock(f"{get_lock_file_path(target)}.ipc.lock", timeout=timeout)
 
 
 def create_swmr_lock(
@@ -77,7 +77,7 @@ def create_swmr_lock(
     target_h5 = Path(h5_path).resolve()
     lock_file = get_lock_file_path(target_h5)
     lease_file = get_lease_metadata_path(target_h5)
-    ipc_lock = get_ipc_filelock(target_h5, timeout=60.0)
+    ipc_lock = get_ipc_filelock(target_h5)
 
     current_pid = pid if pid is not None else os.getpid()
     now_ts = time.time()
@@ -124,7 +124,7 @@ def remove_swmr_lock(h5_path: Union[str, Path]) -> bool:
     target_h5 = Path(h5_path).resolve()
     lock_file = get_lock_file_path(target_h5)
     lease_file = get_lease_metadata_path(target_h5)
-    ipc_lock = get_ipc_filelock(target_h5, timeout=60.0)
+    ipc_lock = get_ipc_filelock(target_h5)
 
     with _IN_PROCESS_LOCK:
         with ipc_lock:
@@ -146,18 +146,15 @@ def remove_swmr_lock(h5_path: Union[str, Path]) -> bool:
 def detect_zombie_pids(h5_path: Union[str, Path]) -> List[int]:
     """Inspects companion lock and lease metadata files for the specified HDF5 path.
 
-    Enforces strict host-identity gating:
-    - If hostname == platform.node(): checks local PID liveness via psutil.pid_exists.
-      If PID is dead, evicts stale lock immediately.
-    - If hostname != platform.node(): NEVER calls local psutil.pid_exists.
-      Enforces a 60.0-second lease expiration timeout: if time.time() - lease["timestamp"] > 60.0,
-      logs [SWMR-LEASE-EVICTION] and breaks expired lock.
+    Only a confirmed dead process on the current host is eligible for reaping.
+    A remote, unreadable, or malformed lease is not evidence that its owner died.
+    Lease age alone cannot safely establish this: a writer may be paused or busy.
     """
     target = Path(h5_path).resolve()
     lock_file = get_lock_file_path(target)
     lease_file = get_lease_metadata_path(target)
 
-    active_file = lease_file if lease_file.exists() else (lock_file if lock_file.exists() else None)
+    active_file = lock_file if lock_file.exists() else (lease_file if lease_file.exists() else None)
     if active_file is None:
         return []
 
@@ -168,8 +165,9 @@ def detect_zombie_pids(h5_path: Union[str, Path]) -> List[int]:
 
         lock_pid = data.get("pid")
         lock_host = data.get("hostname")
-        now_ts = time.time()
-        lease_ts = float(data.get("timestamp", data.get("timestamp_utc", now_ts)))
+        if not isinstance(lock_pid, int) or isinstance(lock_pid, bool) or lock_pid <= 0:
+            logger.warning("Invalid owner PID in %s; preserving lock", active_file)
+            return []
 
         if lock_host == platform.node():
             # Local host: inspect local PID liveness
@@ -194,26 +192,10 @@ def detect_zombie_pids(h5_path: Union[str, Path]) -> List[int]:
                     except psutil.AccessDenied as _e:
                         logger.debug(f"Ignored exception: {_e}")
         else:
-            # Remote host: NEVER call local psutil.pid_exists!
-            # Enforce 60.0-second lease expiration timeout (§8C) [M]
-            if (now_ts - lease_ts) > 60.0:
-                logger.warning(
-                    "[SWMR-LEASE-EVICTION] Remote SWMR lease on host %s (PID %s) expired (age %.1fs > 60.0s); evicting stale lock.",
-                    lock_host,
-                    lock_pid,
-                    now_ts - lease_ts,
-                )
-                zombie_pids.append(lock_pid if lock_pid is not None else -1)
-            else:
-                logger.debug(
-                    "Remote SWMR lock from %s is active (lease preserved); skipped.", lock_host
-                )
+            logger.debug("Remote or unknown owner %s for %s; preserving lock", lock_host, active_file)
 
-    except (json.JSONDecodeError, OSError) as err:
-        logger.warning(
-            "Corrupt or unreadable lock file %s: %s; treating as orphan lock", active_file, err
-        )
-        zombie_pids.append(-1)
+    except (json.JSONDecodeError, OSError, AttributeError) as err:
+        logger.warning("Cannot establish lock owner for %s: %s; preserving lock", active_file, err)
 
     return zombie_pids
 
@@ -309,9 +291,9 @@ def force_release_swmr(
     """
     target = Path(h5_path).resolve()
     lock_file = get_lock_file_path(target)
-    ipc_lock = FileLock(f"{lock_file}.ipc.lock", timeout=60)
+    ipc_lock = get_ipc_filelock(target)
 
-    with ipc_lock:
+    with _IN_PROCESS_LOCK, ipc_lock:
         if not lock_file.exists():
             healthy = inspect_h5_integrity(target)
             return {
@@ -325,16 +307,6 @@ def force_release_swmr(
         zombies = detect_zombie_pids(target)
         should_release = force or len(zombies) > 0
 
-        if not should_release:
-            # Check if the lock is held by the current process on this host
-            try:
-                with open(lock_file, "r", encoding="utf-8") as fp:
-                    data = json.load(fp)
-                if data.get("hostname") == platform.node() and data.get("pid") == os.getpid():
-                    should_release = True
-            except (json.JSONDecodeError, OSError, KeyError) as _e:
-                logger.debug(f"Ignored exception: {_e}")
-
         reaped_pids: List[int] = []
         released = False
 
@@ -342,6 +314,7 @@ def force_release_swmr(
             reaped_pids = list(zombies)
             try:
                 lock_file.unlink(missing_ok=True)
+                get_lease_metadata_path(target).unlink(missing_ok=True)
                 released = True
                 logger.info("Successfully reaped lock %s (reaped PIDs: %s)", lock_file, reaped_pids)
             except OSError as err:

@@ -91,7 +91,7 @@ def test_extra_fields_strictly_forbidden() -> None:
         )
 
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        HardwareProfile(ram_gb=16.0, physical_cpu_cores=4, rogue_hw="bad")
+        HardwareProfile(ram_gb=16.0, physical_cpu_cores=4, logical_cpu_cores=8, rogue_hw="bad")
 
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         GPUComputeSchema(gpu_profile="NVIDIA", rogue_gpu="bad")
@@ -111,7 +111,7 @@ def test_extra_fields_strictly_forbidden() -> None:
 
 def test_schema_assignment_validation() -> None:
     """Verify that property assignment triggers strict Pydantic validation."""
-    hw = HardwareProfile(ram_gb=32.0, physical_cpu_cores=8)
+    hw = HardwareProfile(ram_gb=32.0, physical_cpu_cores=8, logical_cpu_cores=16)
     hw.ram_gb = 64.0
     assert hw.ram_gb == 64.0
 
@@ -252,7 +252,7 @@ def test_storage_topology_airgap_violation(tmp_path: Path, monkeypatch: pytest.M
 
 def test_cochem_system_config_checksum_lifecycle(tmp_path: Path) -> None:
     """Test SHA-256 checksum calculation, verification, and file persistence."""
-    hw = HardwareProfile(ram_gb=16.0, physical_cpu_cores=4)
+    hw = HardwareProfile(ram_gb=16.0, physical_cpu_cores=4, logical_cpu_cores=8)
     cfg = CoChemSystemConfig(hardware=hw)
 
     checksum1 = cfg.compute_checksum()
@@ -496,4 +496,3 @@ def test_quantum_settings_and_environment_schema(tmp_path: Path) -> None:
     )
     assert env.isotopic_mass_locking is True
     assert "C" in env.isotopic_masses
-

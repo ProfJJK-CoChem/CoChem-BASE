@@ -6,6 +6,7 @@ Manages the lifecycle of computational chemistry jobs with temporal tiers and ha
 
 import asyncio
 import logging
+import os
 import signal
 import sys
 import time
@@ -76,11 +77,17 @@ class JobManager:
         self.active_processes: Dict[str, Dict[str, Any]] = {}
         self.max_job_history = max_job_history
         self.poll_interval = poll_interval
+        self._terminated_descendants: Dict[int, psutil.Process] = {}
+        if sys.platform.startswith("linux"):
+            import ctypes
+            libc = ctypes.CDLL(None, use_errno=True)
+            if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+                raise OSError(ctypes.get_errno(), "Cannot establish job descendant reaping")
         atexit.register(self._cleanup_all_processes)
 
     def _cleanup_all_processes(self) -> None:
         """Atexit handler to ensure all running subprocesses are terminated upon exit."""
-        for job_id, process_info in self.active_processes.items():
+        for job_id, process_info in list(self.active_processes.items()):
             process = process_info.get('process')
             if process and process.pid:
                 self._kill_process_tree(process.pid)
@@ -92,6 +99,7 @@ class JobManager:
             parent = psutil.Process(pid)
             children = parent.children(recursive=True)
             for child in children:
+                self._terminated_descendants[child.pid] = child
                 try:
                     child.kill()
                 except psutil.NoSuchProcess as _e:
@@ -102,6 +110,18 @@ class JobManager:
                 logger.debug(f"Ignored exception: {_e}")
         except psutil.NoSuchProcess as _e:
             logger.debug(f"Ignored exception: {_e}")
+
+    def _reap_terminated_descendants(self) -> None:
+        """Reap only this manager's adopted, terminated descendants."""
+        for pid, child in list(self._terminated_descendants.items()):
+            try:
+                if not child.is_running():
+                    self._terminated_descendants.pop(pid, None)
+                elif child.ppid() == os.getpid() and child.status() == psutil.STATUS_ZOMBIE:
+                    os.waitpid(pid, os.WNOHANG)
+                    self._terminated_descendants.pop(pid, None)
+            except (psutil.NoSuchProcess, ChildProcessError):
+                self._terminated_descendants.pop(pid, None)
 
     async def submit_job(self, job_config_input: Union[Dict[str, Any], JobConfig]) -> str:
         """Submit a new job to the system with temporal tier assignment."""
@@ -234,15 +254,23 @@ class JobManager:
                 return job
             await asyncio.sleep(0.05)
 
-    async def run_job(self, job_id: str, timeout: Optional[float] = None) -> Optional[JobInfo]:
-        """Run a job asynchronously and wait for its completion."""
+    async def run_job(
+        self, job_id: Union[str, Dict[str, Any], JobConfig],
+        timeout: Optional[float] = None,
+    ) -> Optional[JobInfo]:
+        """Run a submitted job or submit a configuration and wait for completion."""
+        if not isinstance(job_id, str):
+            job_id = await self.submit_job(job_id)
         if job_id not in self.jobs:
             logger.warning(f"Job {job_id} not found")
             return None
 
         job = self.jobs[job_id]
         if timeout is not None:
-            job.max_duration = int(timeout)
+            if timeout <= 0:
+                raise ValueError("Job timeout must be positive")
+            # A caller deadline must never relax an existing temporal budget.
+            job.max_duration = min(job.max_duration, max(1, int(timeout)))
         if job_id not in self.active_processes:
             await self.start_job(job_id)
 
@@ -286,7 +314,8 @@ class JobManager:
                 cwd=job.config.cwd,
                 env=merged_env,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                start_new_session=(os.name != "nt"),
             )
 
             job.status = 'running'
@@ -340,11 +369,21 @@ class JobManager:
                 self.jobs[job_id].return_code = -1
             self._complete_job(job_id, -1, timed_out=True)
             return "", f"Job {job_id} exceeded temporal maximum duration ({timeout}s)", -1
+        except asyncio.CancelledError:
+            # asyncio.run() cancels pending tasks at shutdown. Finish owned
+            # process/pipe cleanup before allowing the event loop to close.
+            if process.returncode is None:
+                self._kill_process_tree(process.pid)
+            await process.communicate()
+            if job_id in self.jobs:
+                self.jobs[job_id].status = "cancelled"
+            raise
         except Exception as e:
             logger.error(f"Error in unified reader for job {job_id}: {e}")
             self._complete_job(job_id, -1)
             return "", str(e), -1
         finally:
+            self._reap_terminated_descendants()
             if job_id in self.jobs:
                 self.jobs[job_id].completed_at = time.time()
                 self.jobs[job_id].duration = self.jobs[job_id].completed_at - (self.jobs[job_id].started_at or self.jobs[job_id].created_at)

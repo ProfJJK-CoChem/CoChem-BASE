@@ -31,7 +31,9 @@ def get_covalent_radius_angstrom(symbol_or_atomic_number: Union[str, int]) -> fl
     """Retrieves covalent radius in Angstroms dynamically via mendeleev. [M]"""
     el = element(symbol_or_atomic_number)
     # mendeleev reports covalent_radius in picometers (pm), convert to Angstroms
-    r_pm = el.covalent_radius_pyykko or el.covalent_radius or 75.0
+    r_pm = el.covalent_radius_pyykko or el.covalent_radius
+    if r_pm is None:
+        raise ValueError(f"No covalent radius available for {symbol_or_atomic_number}.")
     return float(r_pm) / 100.0
 
 
@@ -52,8 +54,10 @@ def detect_molecular_fragments(
     """
     coords = np.array(coordinates_angstrom, dtype=np.float64)
     n_atoms = len(atomic_numbers_or_symbols)
-    if coords.shape != (n_atoms, 3):
+    if n_atoms == 0 or coords.shape != (n_atoms, 3) or not np.all(np.isfinite(coords)):
         raise ValueError(f"Coordinate shape {coords.shape} does not match atom count {n_atoms}")
+    if not math.isfinite(cov_scale) or cov_scale <= 0:
+        raise ValueError("Covalent-radius scale must be finite and positive.")
 
     radii = [get_covalent_radius_angstrom(s) for s in atomic_numbers_or_symbols]
 
@@ -96,7 +100,8 @@ def validate_no_calc_hess(deck_content: str) -> None:
     """Scans deck content and raises MethodologyViolationError if 'Calc_Hess true' is detected. [M]"""
     if not deck_content:
         return
-    if re.search(r"(?i)calc_hess\s+true", deck_content) or re.search(r"(?i)calchess\s+true", deck_content):
+    uncommented = "\n".join(line.split("#", 1)[0] for line in deck_content.splitlines())
+    if re.search(r"(?i)\bcalc_?hess\s+(?:true|1)\b", uncommented):
         raise MethodologyViolationError(
             "Method Matrix §8B.3 & §9A.5 Violation: 'Calc_Hess true' is strictly prohibited for geometry optimizations. "
             "Calculating exact initial Hessians wastes excessive computational wall time. "
@@ -124,6 +129,25 @@ def generate_frozen_monomer_orca_block(
     # 1. Method Matrix §8B.3 & §9A.5 Audit: Prohibition of Calc_Hess true
     if input_deck_to_validate:
         validate_no_calc_hess(input_deck_to_validate)
+    if initial_hessian not in ("XTB2", "Lindh"):
+        raise MethodologyViolationError("Initial Hessian must be XTB2 or Lindh; use the input generator for READ checkpoints.")
+    if symbols is None or coordinates_angstrom is None:
+        raise ValueError("Atomic symbols and coordinates are required; monomer topology cannot be inferred from indices.")
+    coords = np.asarray(coordinates_angstrom, dtype=float)
+    if coords.shape != (len(symbols), 3) or not np.all(np.isfinite(coords)):
+        raise ValueError("Monomer coordinates must be finite and match the symbols.")
+    all_indices = [i for fragment in fragments for i in fragment]
+    if not fragments or any(not fragment for fragment in fragments) or len(set(all_indices)) != len(all_indices) or any(
+        isinstance(i, bool) or not isinstance(i, (int, np.integer)) or i < 0 or i >= len(symbols) for i in all_indices
+    ):
+        raise ValueError("Monomer fragments must be nonempty, disjoint and contain valid atom indices.")
+    if set(all_indices) != set(range(len(symbols))):
+        raise MethodologyViolationError("Frozen-monomer fragments must cover every atom.")
+    for fragment in fragments:
+        if len(detect_molecular_fragments([symbols[i] for i in fragment], coords[list(fragment)], cov_scale=1.30)) != 1:
+            raise MethodologyViolationError("Each monomer fragment must be covalently connected.")
+    if not freeze_all_monomers:
+        raise MethodologyViolationError("Frozen-monomer recipes require every monomer to be constrained.")
 
     constraints: List[str] = []
 
@@ -160,21 +184,14 @@ def generate_frozen_monomer_orca_block(
                         for j_idx in range(i_idx + 1, len(neighbors)):
                             a1, a2 = neighbors[i_idx], neighbors[j_idx]
                             constraints.append(f"      {{ A {a1} {center} {a2} C }}")
-        else:
-            # Standard connectivity for 2-3 atom monomers (e.g. CO2, H2O)
-            if k == 2:
-                constraints.append(f"      {{ B {frag[0]} {frag[1]} C }}")
-            elif k == 3:
-                # Typically central atom is frag[0] or connected to 1 and 2
-                constraints.append(f"      {{ B {frag[0]} {frag[1]} C }}")
-                constraints.append(f"      {{ B {frag[0]} {frag[2]} C }}")
-                constraints.append(f"      {{ A {frag[1]} {frag[0]} {frag[2]} C }}")
-            else:
-                for i in range(k - 1):
-                    constraints.append(f"      {{ B {frag[i]} {frag[i+1]} C }}")
-                for i in range(k - 2):
-                    constraints.append(f"      {{ A {frag[i]} {frag[i+1]} {frag[i+2]} C }}")
-
+            torsions = set()
+            for j, k in monomer_bonds:
+                for i in bond_map[j]:
+                    for l in bond_map[k]:
+                        if len({i, j, k, l}) == 4:
+                            torsions.add(min((i, j, k, l), (l, k, j, i)))
+            for i, j, k, l in sorted(torsions):
+                constraints.append(f"      {{ D {i} {j} {k} {l} C }}")
     # 3. Assemble full tightened %geom block
     lines = [
         "%geom",
@@ -183,6 +200,7 @@ def generate_frozen_monomer_orca_block(
         "   TolMaxD 1e-4",
         "   TolRMSD 5e-5",
         "   TolE    1e-7",
+        "   MaxIter 200",
         f"   InHess  {initial_hessian}",
         "   Constraints",
     ]

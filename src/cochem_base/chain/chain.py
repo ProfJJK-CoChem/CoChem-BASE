@@ -41,14 +41,17 @@ Core Architectural Directives:
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
+import hashlib
 import json
 import logging
 import math
+import re
 import shutil
-import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+import threading
+from dataclasses import asdict, dataclass, field
 from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
@@ -56,7 +59,22 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 import h5py
 import numpy as np
 from filelock import FileLock
-from mendeleev import element
+from cochem.core.context import assert_writable_path
+from cochem_base.analysis.electronic_sanitizer import SpinContaminationStreamValidator
+from cochem_base.calc.cochem_calc_output_parser import QuantumParser
+from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+from cochem_base.spectroscopy.isotopologue import get_nuclide_mass, projected_harmonic_frequencies
+from cochem_base.core.cochem_constants import (
+    PLANCK_CONSTANT_J_S, SPEED_OF_LIGHT_CM_S, SPEED_OF_LIGHT_M_S,
+    ATOMIC_MASS_UNIT_KG, ANGSTROM_TO_METER, BOHR_TO_ANGSTROM, BOHR_TO_METER,
+    HARTREE_TO_JOULE, HARTREE_TO_EV, HARTREE_TO_CM_INV, C_ROT_MHZ_U_ANG2,
+)
+from cochem_base.calc.cochem_calc_input_generator import MoleculeInput
+from cochem_base.core_engine.execution_authority import authorize_engine_execution
+from cochem_base.core_engine.scientific_telemetry import append_scientific_result
+from cochem_base.core_engine.trajectory_telemetry import XYZTrajectoryFollower
+from cochem_base.physics.eckart_aligner import align_coordinates
+from cochem_base.theory_matrix import canonical_tier_for_method
 
 # ---------------------------------------------------------------------------
 # Logging Setup
@@ -71,24 +89,9 @@ if not logger.handlers:
 # ---------------------------------------------------------------------------
 # Physical Constants & Convergence Standards (Method Matrix §4.4, §5, §8B)
 # ---------------------------------------------------------------------------
-# CODATA 2018 / 2022 recommended constants
-PLANCK_CONSTANT_J_S = 6.62607015e-34       # J*s (exact)
-SPEED_OF_LIGHT_CM_S = 2.99792458e10       # cm/s (exact)
-SPEED_OF_LIGHT_M_S = 2.99792458e8         # m/s (exact)
-ATOMIC_MASS_UNIT_KG = 1.66053906660e-27   # kg/u
-ANGSTROM_TO_METER = 1.0e-10               # m / Angstrom
-BOHR_TO_ANGSTROM = 0.529177210903         # Angstrom / Bohr
-BOHR_TO_METER = 0.529177210903e-10        # m / Bohr
-HARTREE_TO_JOULE = 4.3597447222071e-18    # J / Hartree
-HARTREE_TO_EV = 27.211386245988           # eV / Hartree
-HARTREE_TO_CM_INV = 219474.63136320       # cm^-1 / Hartree
-
 # Conversion factor from Inertia (u * Angstrom^2) to Rotational Constant (MHz):
 # B = h / (8 * pi^2 * I) * 1e-6 (Hz -> MHz)
-INERTIA_TO_MHZ_FACTOR = (
-    PLANCK_CONSTANT_J_S
-    / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_KG * (ANGSTROM_TO_METER ** 2))
-) * 1.0e-6  # ~505379.0091414361 MHz * u * Angstrom^2
+INERTIA_TO_MHZ_FACTOR = C_ROT_MHZ_U_ANG2
 
 # Conversion factor for Hessian eigenvalue (Hartree / (Bohr^2 * u)) to wavenumber (cm^-1):
 # f_lambda = HARTREE_TO_JOULE / (BOHR_TO_METER^2 * ATOMIC_MASS_UNIT_KG)
@@ -246,7 +249,7 @@ class ArrowState:
     """Method Matrix §8B.4 canonical execution arrow state snapshot."""
     arrow_id: int = 1
     stage_name: str = "s1"
-    converged: bool = True
+    converged: bool = False
     energy_hartree: Optional[float] = None
     geometry: Optional[np.ndarray] = None
     gradient: Optional[np.ndarray] = None
@@ -269,6 +272,13 @@ class Stage:
     guess_mode: str = "FMatrix"                # ORCA MO projection mode: 'FMatrix' or 'CMatrix'
     counterpoise: str = "none"                 # Counterpoise state: 'none', 'half', 'full'
     is_restartable: bool = True                # Wall-clock restartability tag (§8B.6)
+    recipe: Optional[str] = None
+    product_class: Optional[str] = None
+    implicit_solvation: Optional[str] = None
+    geometry_source: str = "electronic_structure"
+    ab_initio_relaxed: bool = False
+    cbs_cardinal_pair: Optional[Tuple[int, int]] = None
+    scientific_config: Optional[Dict[str, Any]] = None
 
 
 # Canonical alias mandated by Suggestion #157 (Deliverable 7)
@@ -308,37 +318,23 @@ class StateRecord:
     produced_files: List[str] = field(default_factory=list)
     arrow_index: Optional[int] = None
     arrow_desc: str = ""
-    converged: bool = True
-    exit_status: str = "SUCCESS"
+    converged: bool = False
+    exit_status: str = "NOT_EXECUTED"
     warnings: List[str] = field(default_factory=list)
+
+
+@dataclass
+class PendingStateRecord(StateRecord):
+    """A durable input package awaiting a scientific adapter, never a state result."""
+    handoff_manifest: str = ""
 
 
 # ---------------------------------------------------------------------------
 # Mendeleev Dynamic Atomic Mass Retrieval (Mendeleev Library Mandate)
 # ---------------------------------------------------------------------------
 def get_atomic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
-    """
-    Dynamically retrieves atomic or isotopic mass from the `mendeleev` library.
-    Strictly forbids hardcoding masses or manual CODATA constants.
-    """
-    clean_sym = symbol.strip().capitalize()
-    if clean_sym in ("D", "H2"):
-        clean_sym = "H"
-        mass_number = 2
-    elif clean_sym in ("T", "H3"):
-        clean_sym = "H"
-        mass_number = 3
-
-    el = element(clean_sym)
-    if mass_number is not None:
-        for iso in el.isotopes:
-            if iso.mass_number == mass_number:
-                if iso.mass is not None:
-                    return float(iso.mass)
-                break
-    if el.mass is not None:
-        return float(el.mass)
-    raise ValueError(f"Could not retrieve dynamic mass for element '{symbol}' (mass_number={mass_number})")
+    """Resolve an exact isotope; bare elements mean their principal isotope."""
+    return get_nuclide_mass(symbol, mass_number)
 
 
 def get_isotopic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
@@ -351,6 +347,8 @@ def get_atomic_masses_for_symbols(
     mass_numbers: Optional[Sequence[Optional[int]]] = None,
 ) -> np.ndarray:
     """Returns array of atomic masses in unified atomic mass units (u) for a sequence of symbols."""
+    if mass_numbers is not None and len(mass_numbers) != len(symbols):
+        raise ValueError("Isotope assignments must match the atom count.")
     masses: List[float] = []
     for i, s in enumerate(symbols):
         iso_num = mass_numbers[i] if mass_numbers is not None and i < len(mass_numbers) else None
@@ -501,11 +499,15 @@ def diagonalize_mass_weighted_hessian(
     Imaginary frequencies are reported with negative values.
     """
     natoms = len(symbols)
-    assert cart_hessian.shape == (3 * natoms, 3 * natoms), (
-        f"Hessian shape {cart_hessian.shape} does not match 3N x 3N for N={natoms} atoms."
-    )
+    cart_hessian = np.asarray(cart_hessian, dtype=float)
+    if (cart_hessian.shape != (3 * natoms, 3 * natoms) or not natoms
+            or not np.isfinite(cart_hessian).all()
+            or not np.allclose(cart_hessian, cart_hessian.T, rtol=1e-8, atol=1e-10)):
+        raise ValueError("Hessian must be a complete finite symmetric 3N matrix.")
 
     masses = get_atomic_masses_for_symbols(symbols, mass_numbers)
+    if not np.isfinite(masses).all() or np.any(masses <= 0):
+        raise ValueError("Hessian analysis requires positive finite nuclear masses.")
     # Construct 3N 1D mass vector (mx, my, mz for each atom)
     m3n = np.repeat(masses, 3)
 
@@ -549,15 +551,15 @@ def reanalyze_isotopologue(
     freqs, modes = diagonalize_mass_weighted_hessian(cart_hessian, symbols, substituted_mass_numbers)
     rot = compute_rotational_constants(symbols, coords, substituted_mass_numbers)
 
-    # Filter out 5 or 6 translational/rotational near-zero modes (<20 cm^-1)
-    vib_freqs = [f for f in freqs if abs(f) > 20.0]
+    masses = get_atomic_masses_for_symbols(symbols, substituted_mass_numbers)
+    vib_freqs, _ = projected_harmonic_frequencies(cart_hessian, np.asarray(coords, dtype=float), masses)
 
     return {
         "iso_label": iso_label,
         "substituted_mass_numbers": list(substituted_mass_numbers),
         "frequencies_cm_inv": freqs.tolist(),
         "vibrational_frequencies_cm_inv": vib_freqs,
-        "lowest_harmonic_mode_cm_inv": float(vib_freqs[0]) if vib_freqs else 0.0,
+        "lowest_harmonic_mode_cm_inv": float(vib_freqs[0]) if vib_freqs else None,
         "A_MHz": rot["A_MHz"],
         "B_MHz": rot["B_MHz"],
         "C_MHz": rot["C_MHz"],
@@ -577,7 +579,7 @@ def read_xyz(path: Union[str, Path]) -> Tuple[List[str], np.ndarray, str]:
     if not p.exists():
         raise FileNotFoundError(f"XYZ file not found: {p.resolve()}")
 
-    lines = [ln.strip() for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    lines = p.read_text(encoding="utf-8").splitlines()
     if not lines:
         raise ValueError(f"XYZ file is empty: {p.resolve()}")
 
@@ -586,7 +588,9 @@ def read_xyz(path: Union[str, Path]) -> Tuple[List[str], np.ndarray, str]:
     except Exception as exc:
         raise ValueError(f"Invalid atom count line in XYZ file {p.resolve()}: {lines[0]}") from exc
 
-    comment = lines[1] if len(lines) > 1 else ""
+    if num_atoms < 1 or len(lines) < 2 or any(line.strip() for line in lines[2 + num_atoms:]):
+        raise ValueError("XYZ must contain one complete, nonempty geometry.")
+    comment = lines[1]
     symbols: List[str] = []
     coords: List[List[float]] = []
 
@@ -600,7 +604,10 @@ def read_xyz(path: Union[str, Path]) -> Tuple[List[str], np.ndarray, str]:
     if len(symbols) != num_atoms:
         raise ValueError(f"Header declared {num_atoms} atoms but found {len(symbols)} in {p.resolve()}")
 
-    return symbols, np.array(coords, dtype=float), comment
+    coordinates = np.array(coords, dtype=float)
+    if coordinates.shape != (num_atoms, 3) or not np.isfinite(coordinates).all():
+        raise ValueError("XYZ coordinates must be finite and have shape (N, 3).")
+    return symbols, coordinates, comment
 
 
 def write_xyz(
@@ -611,6 +618,7 @@ def write_xyz(
 ) -> None:
     """Writes standard XYZ coordinate file."""
     p = Path(path)
+    assert_writable_path(p)
     p.parent.mkdir(parents=True, exist_ok=True)
     coords_arr = np.array(coords, dtype=float)
     assert len(symbols) == coords_arr.shape[0], "Atom count mismatch between symbols and coords."
@@ -618,128 +626,131 @@ def write_xyz(
     lines = [str(len(symbols)), comment]
     for i, sym in enumerate(symbols):
         x, y, z = coords_arr[i, 0], coords_arr[i, 1], coords_arr[i, 2]
-        lines.append(f"{sym:<4} {x:18.10f} {y:18.10f} {z:18.10f}")
+        lines.append(f"{sym:<4} {x:24.16f} {y:24.16f} {z:24.16f}")
 
     p.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _finite_number(token: str) -> float:
+    value = float(token.replace("D", "E").replace("d", "e"))
+    if not math.isfinite(value):
+        raise ValueError("Nonfinite numeric evidence is not admissible.")
+    return value
+
+
+def _indexed_matrix(lines: List[str], dimension: int) -> np.ndarray:
+    """Read every cell exactly once from ORCA's column-block representation."""
+    if len(lines) < dimension + 1:
+        raise ValueError("Truncated matrix block.")
+    matrix = np.empty((dimension, dimension), dtype=np.float64)
+    columns_seen: Set[int] = set()
+    index = 0
+    while index < len(lines):
+        columns = [int(value) for value in lines[index].split()]
+        index += 1
+        if (not columns or len(set(columns)) != len(columns)
+                or any(column < 0 or column >= dimension or column in columns_seen for column in columns)):
+            raise ValueError("Duplicate, missing, or invalid matrix column index.")
+        rows_seen: Set[int] = set()
+        for _ in range(dimension):
+            if index >= len(lines):
+                raise ValueError("Truncated matrix block.")
+            values = lines[index].split()
+            index += 1
+            if len(values) != len(columns) + 1:
+                raise ValueError("Matrix row length does not match its column header.")
+            row = int(values[0])
+            if row < 0 or row >= dimension or row in rows_seen:
+                raise ValueError("Duplicate or invalid matrix row index.")
+            rows_seen.add(row)
+            matrix[row, columns] = [_finite_number(value) for value in values[1:]]
+        columns_seen.update(columns)
+    if columns_seen != set(range(dimension)):
+        raise ValueError("Incomplete matrix: not every column was supplied.")
+    return matrix
+
+
 def parse_orca_hessian(path: Union[str, Path]) -> Optional[Dict[str, Any]]:
-    """
-    Exhaustive reader for ORCA .hess files.
-    Parses $hessian block (3N x 3N Cartesian matrix in Hartree/Bohr^2),
-    $vibrational_frequencies, $normal_modes, and $atoms.
-    """
+    """Parse complete finite ORCA Hessian evidence, rejecting partial blocks."""
     p = Path(path)
     if not p.exists():
         return None
-
-    raw_text = p.read_text(encoding="utf-8")
-    lines = raw_text.splitlines()
-
-    hessian_matrix: Optional[np.ndarray] = None
-    frequencies: List[float] = []
-    atoms_data: List[Dict[str, Any]] = []
-
-    i = 0
-    n_lines = len(lines)
-    while i < n_lines:
-        line = lines[i].strip()
-
-        # Parse $hessian block
-        if line == "$hessian":
-            i += 1
-            dim = int(lines[i].strip().split()[0])
-            hessian_matrix = np.zeros((dim, dim), dtype=np.float64)
-            i += 1
-            col_offset = 0
-            while col_offset < dim and i < n_lines:
-                col_headers = [int(c) for c in lines[i].strip().split()]
-                i += 1
-                num_cols = len(col_headers)
-                for _r in range(dim):
-                    row_tokens = lines[i].strip().split()
-                    row_idx = int(row_tokens[0])
-                    for k, col_idx in enumerate(col_headers):
-                        hessian_matrix[row_idx, col_idx] = float(row_tokens[k + 1])
-                    i += 1
-                col_offset += num_cols
-            continue
-
-        # Parse $vibrational_frequencies
-        if line == "$vibrational_frequencies":
-            i += 1
-            n_freqs = int(lines[i].strip().split()[0])
-            i += 1
-            for _ in range(n_freqs):
-                if i < n_lines:
-                    tokens = lines[i].strip().split()
-                    if len(tokens) >= 2:
-                        frequencies.append(float(tokens[1]))
-                    i += 1
-            continue
-
-        # Parse $atoms
-        if line == "$atoms":
-            i += 1
-            n_atoms = int(lines[i].strip().split()[0])
-            i += 1
-            for _ in range(n_atoms):
-                if i < n_lines:
-                    tokens = lines[i].strip().split()
-                    if len(tokens) >= 5:
-                        atoms_data.append({
-                            "symbol": tokens[0],
-                            "mass": float(tokens[1]),
-                            "coords": [float(tokens[2]), float(tokens[3]), float(tokens[4])],
-                        })
-                    i += 1
-            continue
-
-        i += 1
-
-    if hessian_matrix is None:
-        return None
-
-    return {
-        "hessian": hessian_matrix,
-        "frequencies": np.array(frequencies, dtype=float) if frequencies else None,
-        "atoms": atoms_data,
-    }
+    blocks: Dict[str, List[str]] = {}
+    current = None
+    for raw_line in p.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if line.startswith("$"):
+            current = line
+            if current in blocks:
+                raise CorruptOutputError(f"Duplicate ORCA Hessian block {current}.")
+            blocks[current] = []
+        elif line and current is not None:
+            blocks[current].append(line)
+    try:
+        data = blocks["$hessian"]
+        if len(data[0].split()) != 1:
+            raise ValueError("Invalid Hessian dimension header.")
+        dimension = int(data[0])
+        if dimension <= 0 or dimension % 3:
+            raise ValueError("Hessian dimension must be a positive multiple of three.")
+        hessian = _indexed_matrix(data[1:], dimension)
+        if not np.allclose(hessian, hessian.T, rtol=1e-8, atol=1e-10):
+            raise ValueError("Cartesian Hessian must be symmetric.")
+        frequencies = None
+        if "$vibrational_frequencies" in blocks:
+            data = blocks["$vibrational_frequencies"]
+            if int(data[0]) != dimension or len(data) != dimension + 1:
+                raise ValueError("Frequency block does not match the Hessian dimension.")
+            frequencies = np.empty(dimension, dtype=float)
+            seen = set()
+            for row in data[1:]:
+                tokens = row.split()
+                if len(tokens) != 2:
+                    raise ValueError("Invalid frequency row.")
+                index = int(tokens[0])
+                if index < 0 or index >= dimension or index in seen:
+                    raise ValueError("Duplicate or invalid frequency index.")
+                seen.add(index)
+                frequencies[index] = _finite_number(tokens[1])
+        atoms = []
+        if "$atoms" in blocks:
+            data = blocks["$atoms"]
+            count = int(data[0])
+            if count * 3 != dimension or len(data) != count + 1:
+                raise ValueError("Atom block does not match the Hessian dimension.")
+            for row in data[1:]:
+                tokens = row.split()
+                if len(tokens) != 5:
+                    raise ValueError("Invalid atom row.")
+                mass = _finite_number(tokens[1])
+                if mass <= 0:
+                    raise ValueError("Hessian atom masses must be positive.")
+                atoms.append({"symbol": tokens[0], "mass": mass,
+                              "coords": [_finite_number(value) for value in tokens[2:]]})
+        modes = None
+        if "$normal_modes" in blocks:
+            data = blocks["$normal_modes"]
+            if [int(value) for value in data[0].split()] != [dimension, dimension]:
+                raise ValueError("Normal-mode dimensions do not match the Hessian.")
+            modes = _indexed_matrix(data[1:], dimension)
+        return {"hessian": hessian, "frequencies": frequencies, "atoms": atoms, "normal_modes": modes}
+    except (KeyError, IndexError, ValueError, OverflowError) as exc:
+        raise CorruptOutputError(f"Invalid ORCA Hessian {p}: {exc}") from exc
 
 
 def parse_orca_energy(path: Union[str, Path]) -> Optional[float]:
-    """Extracts the final electronic energy in Hartree from an ORCA output file."""
+    """Return final finite energy; never reuse earlier energy after invalid evidence."""
     p = Path(path)
     if not p.exists():
         return None
-
-    final_e: Optional[float] = None
-    lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
-
-    for ln in reversed(lines):
-        if "FINAL SINGLE POINT ENERGY" in ln:
-            parts = ln.split()
+    for line in reversed(p.read_text(encoding="utf-8").splitlines()):
+        match = re.search(r"(?:FINAL SINGLE POINT ENERGY|FINAL ENERGY|Total Energy\s*:)\s*(\S+)", line, re.I)
+        if match:
             try:
-                final_e = float(parts[-1])
-                return final_e
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-        elif "FINAL ENERGY" in ln:
-            parts = ln.split()
-            try:
-                final_e = float(parts[-1])
-                return final_e
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-        elif "Total Energy       :" in ln:
-            parts = ln.split()
-            try:
-                final_e = float(parts[3])
-                return final_e
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-
-    return final_e
+                return _finite_number(match.group(1))
+            except ValueError as exc:
+                raise CorruptOutputError("Invalid final ORCA energy.") from exc
+    return None
 
 
 def parse_orca_convergence(path: Union[str, Path]) -> Dict[str, Any]:
@@ -777,20 +788,23 @@ def parse_xtb_output(path: Union[str, Path]) -> Dict[str, Any]:
         return {"normal_termination": False, "energy_hartree": None, "converged": False}
 
     content = p.read_text(encoding="utf-8", errors="ignore")
-    normal_term = "normal termination of xtb" in content or "finished run on" in content
-    converged = "GEOMETRY OPTIMIZATION CONVERGED" in content or normal_term
+    # Native xTB sends the normal-termination marker to stderr. Require that
+    # marker, rather than accepting an informational timestamp as success.
+    error_path = p.with_suffix(".err")
+    diagnostic = error_path.read_text(encoding="utf-8", errors="replace") if error_path.is_file() else ""
+    normal_term = "normal termination of xtb" in (content + "\n" + diagnostic).lower()
+    converged = "GEOMETRY OPTIMIZATION CONVERGED" in content
 
     final_e: Optional[float] = None
     for ln in content.splitlines():
-        if "TOTAL ENERGY" in ln or "total energy" in ln:
-            parts = ln.split()
-            for k, tok in enumerate(parts):
-                if tok in ("energy", "ENERGY"):
-                    try:
-                        final_e = float(parts[k + 1])
-                        break
-                    except Exception as _e:
-                        logger.debug(f"Ignored exception: {_e}")
+        # Only the final summary's delimited Hartree field is authoritative;
+        # intermediate 'total energy : ... change' and 'energy gain' are not.
+        match = re.search(r"\|\s*TOTAL ENERGY\s+(\S+)\s+Eh\s*\|", ln)
+        if match:
+            try:
+                final_e = _finite_number(match.group(1))
+            except ValueError as exc:
+                raise CorruptOutputError("Invalid final xTB energy.") from exc
 
     return {
         "normal_termination": normal_term,
@@ -940,13 +954,22 @@ class Chain:
         complex_name: str = "complex",
         charge: int = 0,
         mult: int = 1,
-        nproc: int = 7,
-        maxcore: int = 3400,
+        nproc: int = 1,
+        maxcore: int = 1024,
         orca_cmd: str = "orca",
         xtb_cmd: str = "xtb",
         strict_guards: bool = True,
+        registry_path: Optional[Union[str, Path]] = None,
+        telemetry_path: Optional[Union[str, Path]] = None,
+        t9_fallback: Optional[Dict[str, Any]] = None,
     ) -> None:
-        self.workdir = Path(workdir).resolve()
+        if isinstance(charge, bool) or not isinstance(charge, int):
+            raise ValueError("Charge must be an integer.")
+        for name, value in (("multiplicity", mult), ("nproc", nproc), ("maxcore", maxcore)):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(f"{name} must be a positive integer.")
+        self.workdir = Path(workdir).expanduser().resolve()
+        assert_writable_path(self.workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
         h5_target = h5_path if h5_path is not None else (h5 if h5 is not None else "campaign.h5")
         h5_p = Path(h5_target)
@@ -956,6 +979,7 @@ class Chain:
             self.h5_path = h5_p.resolve()
         else:
             self.h5_path = (self.workdir / h5_p).resolve()
+        assert_writable_path(self.h5_path)
         self.h5_path.parent.mkdir(parents=True, exist_ok=True)
         self.complex_name = complex_name
         self.charge = charge
@@ -965,6 +989,13 @@ class Chain:
         self.orca_cmd = orca_cmd
         self.xtb_cmd = xtb_cmd
         self.strict_guards = strict_guards
+        self.registry_path = registry_path
+        self.telemetry_path = telemetry_path
+        self._planning_geometry: Optional[Tuple[List[str], np.ndarray]] = None
+        self.t9_fallback = None
+        if t9_fallback is not None:
+            from cochem_base.calc.t9_fallback import T9FallbackConfig
+            self.t9_fallback = T9FallbackConfig.model_validate(t9_fallback)
         self.stage_records: Dict[str, StateRecord] = {}
 
         # Initialize HDF5 metadata store
@@ -972,7 +1003,7 @@ class Chain:
 
     def _init_hdf5_store(self) -> None:
         """Initializes the HDF5 metadata header and schema groups."""
-        lock = FileLock(Path(f"{self.h5_path}.lock"), timeout=30.0)
+        lock = FileLock(Path(f"{self.h5_path}.lock"), timeout=10.0)
         with lock:
             with h5py.File(self.h5_path, "a", libver="latest") as f:
                 meta = f.require_group("meta")
@@ -986,7 +1017,7 @@ class Chain:
                 f.require_group("isotopologues")
                 f.require_group("lineage")
 
-    def build_stage_input(self, stage: Stage, geom_file: str) -> str:
+    def build_stage_input(self, stage: Stage, geom_file: str, *, allow_planned_checkpoints: bool = False) -> str:
         """
         Synthesizes the complete ORCA input deck for a stage, encoding:
         - Unique %base name (Rule D5)
@@ -995,7 +1026,70 @@ class Chain:
         - Initial Hessian configuration (InHess XTB2 / InHess Read)
         - Tight convergence threshold block (%geom)
         """
-        route_tokens = [f"! {stage.level}"]
+        for name in (stage.name, stage.geom_from, stage.mo_from, stage.hess_from):
+            if name is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name):
+                raise ValueError("Stage identifiers must be safe filename components.")
+        if stage.engine.lower() != "orca":
+            raise ValueError("ORCA deck builder requires an ORCA stage.")
+        if stage.name in (stage.geom_from, stage.mo_from, stage.hess_from):
+            raise ValueError("Stage output cannot overwrite its input checkpoint.")
+        if any(char in geom_file for char in '\r\n"*') or Path(geom_file).name != geom_file:
+            raise ValueError("Geometry input must be a safe local filename.")
+        if stage.guess_mode not in {"FMatrix", "CMatrix", ""}:
+            raise ValueError("Unsupported ORCA guess projection mode.")
+        # Raw blocks must not override validated geometry, dispersion, resource,
+        # grid or checkpoint policy. The existing high-level stage only needs MDCI.
+        if stage.blocks and not re.fullmatch(r"\s*%mdci\s+[^%!*#]*\bend\s*", stage.blocks, re.I):
+            raise ValueError("Only a single MDCI block is supported; use structured stage policy fields.")
+        if stage.counterpoise != "none":
+            raise ValueError("A Chain stage cannot certify counterpoise without all executed reference legs.")
+        source = self.workdir / geom_file
+        if source.is_file():
+            symbols, coords, _ = read_xyz(source)
+        elif self._planning_geometry is not None:
+            # The original real geometry validates a planned deck. It is never
+            # stored as an optimized result or supplied to a live missing stage.
+            symbols, coords = self._planning_geometry
+        else:
+            raise ValueError("A real input geometry is required to validate stage policy.")
+        from cochem_base.geometry.fragment_partitioner import detect_molecular_fragments
+        fragments = detect_molecular_fragments(symbols, coords.tolist())
+        weak_complex = len(fragments) > 1
+        checkpoint = None
+        if stage.hess_from:
+            choices = [self.workdir / f"{stage.hess_from}.{suffix}" for suffix in ("opt", "hess")]
+            checkpoint = next((path for path in choices if path.is_file()), None)
+            if checkpoint is None and not allow_planned_checkpoints:
+                raise CorruptOutputError("InHess READ requires an existing Hessian checkpoint.")
+            if checkpoint is not None and checkpoint.stat().st_size == 0:
+                raise CorruptOutputError("InHess READ checkpoint is empty.")
+        if stage.mo_from:
+            orbital = self.workdir / f"{stage.mo_from}.gbw"
+            if orbital.is_file() and orbital.stat().st_size == 0 or not orbital.is_file() and not allow_planned_checkpoints:
+                raise CorruptOutputError("MORead requires an existing nonempty orbital checkpoint.")
+        policy = MoleculeInput(
+            basin_id=stage.name, elements=symbols, coordinates=coords.tolist(),
+            theory_level=stage.level, charge=self.charge, multiplicity=self.mult,
+            is_opt=bool(re.search(r"(?i)\b(?:tightopt|verytightopt|opt)\b", stage.level)),
+            is_freq=bool(re.search(r"(?i)\b(?:freq|numfreq|anfreq)\b", stage.level)),
+            tier=int(canonical_tier_for_method(stage.level)[1:]),
+            recipe=stage.recipe, product_class=stage.product_class,
+            is_weak_complex=weak_complex,
+            frozen_monomer_indices=list(range(len(symbols))) if weak_complex and "opt" in stage.level.lower() else None,
+            implicit_solvation=stage.implicit_solvation,
+            geometry_source=stage.geometry_source, ab_initio_relaxed=stage.ab_initio_relaxed,
+            cbs_cardinal_pair=stage.cbs_cardinal_pair,
+            initial_hessian="READ" if checkpoint is not None else "XTB2",
+            hessian_file=checkpoint,
+        )
+        from cochem_base.analysis.electronic_sanitizer import ElectronicSanitizer
+        dispersion = ElectronicSanitizer.sanitize_dft_dispersion(
+            stage.level, is_complex=len(fragments) > 1, num_monomers=len(fragments),
+        )
+        route = re.sub(r"(?i)\bDEFGRID\d+\b", "", stage.level).strip()
+        route_tokens = [f"! {route} {policy.resolved_grid()} NoSym"]
+        if stage.implicit_solvation:
+            route_tokens.append(stage.implicit_solvation)
         if stage.mo_from:
             route_tokens.append("MORead")
 
@@ -1016,15 +1110,25 @@ class Chain:
             geom_block_lines = [TIGHT_GEOM_BLOCK.rstrip("\n")]
             if stage.hess_from:
                 opt_file = self.workdir / f"{stage.hess_from}.opt"
-                src_name = f"{stage.hess_from}.opt" if opt_file.exists() else f"{stage.hess_from}.hess"
+                src_name = f"{stage.hess_from}.hess" if (self.workdir / f"{stage.hess_from}.hess").exists() and not opt_file.exists() else f"{stage.hess_from}.opt"
                 geom_block_lines.extend(["  InHess Read", f'  InHessName "{src_name}"'])
             else:
                 geom_block_lines.append("  InHess XTB2")  # Cheap model Hessian default (§8B.3)
+
+            if policy.frozen_monomer_indices:
+                from cochem_base.calc.cochem_calc_input_generator import build_internal_coordinate_constraints
+                from cochem_base.geometry.fragment_partitioner import detect_molecular_fragments
+                if len(detect_molecular_fragments(symbols, coords.tolist())) < 2:
+                    raise ValueError("Frozen-monomer recipes require at least two molecular fragments.")
+                constraints = build_internal_coordinate_constraints(symbols, coords.tolist(), policy.frozen_monomer_indices)
+                geom_block_lines.extend(["  Constraints", *[f"    {line}" for line in constraints], "  end"])
 
             input_lines.append("%geom\n" + "\n".join(geom_block_lines) + "\nend")
 
         if stage.blocks:
             input_lines.append(stage.blocks)
+        if dispersion.get("requires_atm_3body") and "D3" in dispersion.get("dispersion", ""):
+            input_lines.append("%method\n  D3S9 1.0\nend")
 
         input_lines.append(f"* xyzfile {self.charge} {self.mult} {geom_file}")
         return "\n".join(input_lines) + "\n"
@@ -1034,9 +1138,36 @@ class Chain:
         Persists an execution record into the HDF5 store with chunking,
         gzip level 4 compression, shuffle filter, and fletcher32 checksums.
         """
-        lock = FileLock(Path(f"{self.h5_path}.lock"), timeout=30.0)
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", rec.stage):
+            raise ValueError("Invalid stage name.")
+        planned = rec.exit_status in {"DECK_GENERATED", "PENDING_INTEGRATION"}
+        if planned:
+            if rec.converged or rec.energy_hartree is not None or np.asarray(rec.geometry).size:
+                raise ValueError("A generated deck or pending integration cannot contain a converged physical result.")
+            if rec.exit_status == "PENDING_INTEGRATION":
+                from cochem_base.interfaces.scientific_jobs import load_calculation_handoff
+                if not isinstance(rec, PendingStateRecord) or not rec.handoff_manifest:
+                    raise ValueError("Pending stages require an actual validated scientific job handoff")
+                load_calculation_handoff(rec.handoff_manifest)
+        elif (not rec.converged or rec.exit_status != "SUCCESS" or rec.energy_hartree is None
+              or not math.isfinite(rec.energy_hartree)
+              or np.asarray(rec.geometry).shape != (len(rec.symbols), 3)
+              or not rec.symbols or not np.isfinite(rec.geometry).all()):
+            raise ValueError("Only verified finite physical records may be published.")
+        for name, value, shape in (
+            ("hessian", rec.hessian, (3 * len(rec.symbols), 3 * len(rec.symbols))),
+            ("gradient", rec.gradient, (len(rec.symbols), 3)),
+        ):
+            if value is not None and (planned or np.asarray(value).shape != shape or not np.isfinite(value).all()):
+                raise ValueError(f"Invalid {name} evidence.")
+        if rec.frequencies_cm_inv is not None and (planned or not np.isfinite(rec.frequencies_cm_inv).all()):
+            raise ValueError("Invalid frequency evidence.")
+        assert_writable_path(self.h5_path)
+        lock = FileLock(Path(f"{self.h5_path}.lock"), timeout=10.0)
         with lock:
             with h5py.File(self.h5_path, "a", libver="latest") as f:
+                if f"chain/{rec.stage}" in f:
+                    raise ValueError("Stage already exists in this campaign; use a new basename.")
                 grp = f.require_group(f"chain/{rec.stage}")
                 grp.attrs["level"] = rec.level
                 grp.attrs["wall_s"] = rec.wall_s
@@ -1045,6 +1176,9 @@ class Chain:
                 grp.attrs["written_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 grp.attrs["converged"] = rec.converged
                 grp.attrs["exit_status"] = rec.exit_status
+                if isinstance(rec, PendingStateRecord):
+                    grp.attrs["handoff_manifest"] = rec.handoff_manifest
+                    grp.attrs["handoff_manifest_sha256"] = hashlib.sha256(Path(rec.handoff_manifest).read_bytes()).hexdigest()
                 grp.attrs["symbols"] = json.dumps(rec.symbols)
                 grp.attrs["n_atoms"] = len(rec.symbols)
 
@@ -1067,6 +1201,9 @@ class Chain:
                 if rec.warnings:
                     grp.attrs["warnings"] = json.dumps(rec.warnings)
 
+                if planned:
+                    return
+
                 # Persist Geometry Dataset
                 if "geometry" in grp:
                     del grp["geometry"]
@@ -1076,6 +1213,7 @@ class Chain:
                     compression="gzip",
                     compression_opts=4,
                     shuffle=True,
+                    fletcher32=True,
                 )
 
                 # Persist Hessian Dataset if available
@@ -1088,6 +1226,7 @@ class Chain:
                         compression="gzip",
                         compression_opts=4,
                         shuffle=True,
+                        fletcher32=True,
                     )
 
                 # Persist Gradient Dataset if available
@@ -1100,6 +1239,7 @@ class Chain:
                         compression="gzip",
                         compression_opts=4,
                         shuffle=True,
+                        fletcher32=True,
                     )
 
                 # Persist Frequencies Dataset if available
@@ -1112,7 +1252,109 @@ class Chain:
                         compression="gzip",
                         compression_opts=4,
                         shuffle=True,
+                        fletcher32=True,
                     )
+        if not planned:
+            campaign_id = hashlib.sha256(str(self.workdir).encode("utf-8")).hexdigest()[:16]
+            append_scientific_result(
+                f"chain_{campaign_id}_{rec.stage}", rec.symbols, rec.geometry,
+                rec.energy_hartree, gradients=rec.gradient,
+                metadata={"source": "Chain", "stage": rec.stage, "level": rec.level,
+                          "wall_seconds": rec.wall_s, "campaign_metadata": str(self.h5_path)},
+                store_path=self.telemetry_path,
+            )
+
+    def prepare_scientific_stage(
+        self, stage: Stage, calculation_config: Any,
+        seed_xyz: Optional[Union[str, Path]] = None,
+    ) -> PendingStateRecord:
+        """Preserve structured future-module inputs and all checkpoint bytes.
+
+        Raw route/blocks remain verbatim provider options. They are not silently
+        translated into another engine's grammar or accepted as a physical result.
+        """
+        from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry
+        from cochem_base.interfaces.scientific_jobs import (
+            calculation_capability, prepare_calculation_handoff, validate_job_configuration,
+        )
+        config = (calculation_config if isinstance(calculation_config, CalculationMatrixConfig)
+                  else CalculationMatrixConfig.model_validate(calculation_config))
+        validate_job_configuration(config)
+        if calculation_capability(config).adapter_status != "pending_integration":
+            raise ValueError("This operation has a native adapter; use run_calculation or run_stage to execute it")
+        for name in (stage.name, stage.geom_from, stage.mo_from, stage.hess_from):
+            if name is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name):
+                raise ValueError("Stage identifiers must be safe filename components.")
+        if stage.name in (stage.geom_from, stage.mo_from, stage.hess_from) or stage.name in self.stage_records:
+            raise ValueError("Every stage must own a unique output basename.")
+        if (config.engine != stage.engine.lower() or config.charge != self.charge
+                or config.multiplicity != self.mult):
+            raise ValueError("Structured job engine, charge and multiplicity must match its Chain stage")
+        route = stage.level.lower().split()
+        if (config.method.lower() not in route or config.basis_set and config.basis_set.lower() not in route
+                or bool(re.search(r"(?i)\bVPT2\b", stage.level)) != config.is_vpt2):
+            raise ValueError("Structured method, basis and VPT2 request must agree with the preserved stage route")
+        if config.engine == "orca":
+            MoleculeInput(
+                basin_id=stage.name, elements=parse_run_geometry(config.geometry)[0],
+                coordinates=parse_run_geometry(config.geometry)[1], theory_level=stage.level,
+                charge=config.charge, multiplicity=config.multiplicity, is_opt=config.is_opt,
+                is_freq=config.is_freq, is_vpt2=config.is_vpt2, grid_stage=config.grid_stage,
+                product_class=config.product_class, recipe=config.recipe,
+            )
+        dependencies: Dict[str, Path] = {}
+        for source in (stage.geom_from, stage.mo_from, stage.hess_from):
+            if source in self.stage_records and not self.stage_records[source].converged:
+                raise ConvergenceFailureError(f"Source stage {source!r} has not converged.")
+        if stage.geom_from:
+            seed_xyz = self.workdir / f"{stage.geom_from}.xyz"
+        if seed_xyz is not None:
+            seed = Path(seed_xyz).expanduser()
+            if not seed.is_absolute() and not seed.is_file():
+                seed = self.workdir / seed
+            if parse_run_geometry(seed.read_text()) != parse_run_geometry(config.geometry):
+                raise ValueError("Structured job geometry differs from the supplied Chain input")
+            dependencies["source_geometry.xyz"] = seed
+        if stage.mo_from:
+            dependencies[f"{stage.mo_from}.gbw"] = self.workdir / f"{stage.mo_from}.gbw"
+        if stage.hess_from:
+            candidates = [self.workdir / f"{stage.hess_from}.{suffix}" for suffix in ("opt", "hess")]
+            checkpoint = next((path for path in candidates if path.is_file()), None)
+            if checkpoint is None:
+                raise CorruptOutputError("A pending Hessian reuse job requires its actual checkpoint bytes")
+            dependencies[checkpoint.name] = checkpoint
+        for name in ("hessian_file", "r2_reference_manifest"):
+            source = getattr(config, name)
+            if source is not None:
+                source = source if source.is_absolute() else self.workdir / source
+                dependencies[name + source.suffix] = source
+        input_geometry = self.workdir / f"{stage.name}.request.xyz"
+        if input_geometry.exists():
+            raise CorruptOutputError("Pending stage input already exists; use a new basename")
+        symbols, coordinates = parse_run_geometry(config.geometry)
+        geometry = "\n".join([str(len(symbols)), "Pending Chain scientific job"] +
+                             [symbol + " " + " ".join(format(float(value), ".17g") for value in xyz)
+                              for symbol, xyz in zip(symbols, coordinates)]) + "\n"
+        input_geometry.write_text(geometry, encoding="utf-8")
+        destination = self.workdir / f"{stage.name}.handoff"
+        prepare_calculation_handoff(
+            config, input_geometry, destination, dependency_files=dependencies,
+            provider_options={"chain_stage": asdict(stage), "requested_cores": self.nproc,
+                              "requested_maxcore_mb": self.maxcore,
+                              "raw_route_requires_provider_validation": True},
+        )
+        record = PendingStateRecord(
+            stage=stage.name, level=stage.level, wall_s=0.0, energy_hartree=None,
+            symbols=[], geometry=np.empty((0, 3)), converged=False, exit_status="PENDING_INTEGRATION",
+            consumed_files=list(dependencies),
+            produced_files=[str(path.relative_to(self.workdir)) for path in destination.rglob("*") if path.is_file()],
+            arrow_index=stage.arrow_index, arrow_desc=stage.arrow_desc,
+            handoff_manifest=str(destination / "handoff.json"),
+            warnings=["Input structure and integrity validated; scientific execution has not occurred."],
+        )
+        self.record_to_hdf5(record)
+        self.stage_records[stage.name] = record
+        return record
 
     def run_stage(
         self,
@@ -1120,153 +1362,188 @@ class Chain:
         seed_xyz: Optional[Union[str, Path]] = None,
         dry_run: bool = False,
     ) -> StateRecord:
-        """
-        Executes a single pipeline stage, validates outputs against Rules D1–D5,
-        computes rotational observables, and records all artifacts to HDF5.
-        """
-        logger.info(f"=== [Stage: {stage.name}] (Level: {stage.level}) ===")
-
-        # Determine geometry source file
+        """Publish a stage only after real process and scientific evidence succeed."""
+        for name in (stage.name, stage.geom_from, stage.mo_from, stage.hess_from):
+            if name is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name):
+                raise ValueError("Stage identifiers must be safe filename components.")
+        if stage.name in (stage.geom_from, stage.mo_from, stage.hess_from) or stage.name in self.stage_records:
+            raise ValueError("Every stage must own a unique output basename.")
+        if stage.scientific_config is not None:
+            return self.prepare_scientific_stage(stage, stage.scientific_config, seed_xyz)
+        if re.search(r"(?i)\bVPT2\b", stage.level) and not dry_run:
+            raise ValueError("VPT2 Chain jobs require Stage.scientific_config or prepare_scientific_stage with an explicit CalculationMatrixConfig; BASE will preserve the input for pending adapter integration.")
+        if stage.engine.lower() != "orca":
+            raise ValueError(f"run_stage does not implement engine {stage.engine!r}.")
+        if stage.recipe == "R2" and not dry_run:
+            raise ValueError("R2 production requires authenticated CCSD(T)/CBS monomer references and all counterpoise legs; this Chain path cannot certify them.")
+        assert_writable_path(self.workdir)
         if stage.geom_from:
             geom_source = f"{stage.geom_from}.xyz"
-        elif seed_xyz:
-            seed_p = Path(seed_xyz)
-            geom_source = seed_p.name
-            target_dest = self.workdir / geom_source
-            if seed_p.exists() and seed_p.resolve() != target_dest.resolve():
-                shutil.copy(seed_p, target_dest)
+        elif seed_xyz is not None:
+            seed = Path(seed_xyz)
+            if not seed.is_absolute() and not seed.exists():
+                seed = self.workdir / seed
+            symbols, coords, _ = read_xyz(seed)
+            normalized, rotation, rmsd = align_coordinates(
+                coords, coords, masses=get_atomic_masses_for_symbols(symbols),
+            )
+            self._planning_geometry = (symbols, normalized)
+            source_digest = hashlib.sha256(seed.read_bytes()).hexdigest()
+            geom_source = f"{stage.name}_input.xyz"
+            target = self.workdir / geom_source
+            assert_writable_path(target)
+            write_xyz(target, symbols, normalized, "COM/Eckart normalized Chain input")
+            (self.workdir / f"{stage.name}.ingress.json").write_text(json.dumps({
+                "source_sha256": source_digest,
+                "rotation": rotation.tolist(), "mass_weighted_rmsd_angstrom": rmsd,
+                "principal_isotope_masses_u": get_atomic_masses_for_symbols(symbols).tolist(),
+            }), encoding="utf-8")
         else:
-            raise ValueError(f"Stage '{stage.name}' requires either 'geom_from' or 'seed_xyz'.")
-
-        inp_path = self.workdir / f"{stage.name}.inp"
-        out_path = self.workdir / f"{stage.name}.out"
-        err_path = self.workdir / f"{stage.name}.err"
-
-        # Generate stage input deck
-        input_deck = self.build_stage_input(stage, geom_source)
-        inp_path.write_text(input_deck, encoding="utf-8")
-
-        wall_s = 0.0
-        exit_status = "SUCCESS"
-
-        if not dry_run:
-            bin_path = shutil.which(self.orca_cmd)
-            if bin_path is None and not Path(self.orca_cmd).is_file():
-                raise MissingBinaryError(
-                    f"ORCA executable '{self.orca_cmd}' is missing or not executable on PATH."
-                )
-
-            t0 = time.time()
-            with out_path.open("w", encoding="utf-8") as out_fh, err_path.open("w", encoding="utf-8") as err_fh:
-                try:
-                    res = subprocess.run(
-                        [self.orca_cmd, inp_path.name],
-                        cwd=self.workdir,
-                        stdout=out_fh,
-                        stderr=err_fh,
-                        check=False,
-                    )
-                    wall_s = time.time() - t0
-                    if res.returncode != 0:
-                        exit_status = f"FAILED_EXIT_{res.returncode}"
-                except FileNotFoundError as exc:
-                    wall_s = time.time() - t0
-                    raise MissingBinaryError(
-                        f"ORCA executable '{self.orca_cmd}' could not be executed: {exc}"
-                    ) from exc
-        else:
-            logger.info(f"[Dry Run] Generated input deck at {inp_path.name}")
-
-        # Post-Execution Ingestion & Parsing
-        conv_info = parse_orca_convergence(out_path)
-        energy = parse_orca_energy(out_path)
-
-        # Ingest output geometry
-        stage_xyz_path = self.workdir / f"{stage.name}.xyz"
-        if not stage_xyz_path.exists():
-            # Single-points or unwritten xyz: copy input geometry forward
-            if (self.workdir / geom_source).exists():
-                shutil.copy(self.workdir / geom_source, stage_xyz_path)
-
-        symbols: List[str] = []
-        coords: np.ndarray = np.empty((0, 3))
-        if stage_xyz_path.exists():
-            symbols, coords, _ = read_xyz(stage_xyz_path)
-
-        # Ingest Hessian if generated
-        hess_path = self.workdir / f"{stage.name}.hess"
-        hess_dict = parse_orca_hessian(hess_path)
-        hessian_arr = hess_dict["hessian"] if hess_dict is not None else None
-        freqs_arr = hess_dict["frequencies"] if hess_dict is not None else None
-
-        # Compute Rotational Observables
-        rot_constants: Optional[Tuple[float, float, float]] = None
-        inertial_defect: Optional[float] = None
-        planar_moments: Optional[Tuple[float, float, float]] = None
-        if len(symbols) > 0 and coords.shape[0] > 0:
-            rot_dict = compute_rotational_constants(symbols, coords)
-            rot_constants = (rot_dict["A_MHz"], rot_dict["B_MHz"], rot_dict["C_MHz"])
-            inertial_defect = rot_dict["inertial_defect_amu_A2"]
-            planar_moments = (rot_dict["Paa_u_A2"], rot_dict["Pbb_u_A2"], rot_dict["Pcc_u_A2"])
-
-        # Determine consumed and produced files
-        consumed: List[str] = [geom_source]
+            raise ValueError("A stage requires a geometry source.")
+        if geom_source == f"{stage.name}.xyz":
+            raise ValueError("Stage output geometry cannot overwrite its input geometry.")
+        consumed = [geom_source]
         if stage.mo_from:
             consumed.append(f"{stage.mo_from}.gbw")
         if stage.hess_from:
-            consumed.append(f"{stage.hess_from}.opt")
-
-        produced: List[str] = [p.name for p in self.workdir.glob(f"{stage.name}.*")]
-
-        # Run Dangerous Reuse Guards (Rules D1–D5)
-        warnings: List[str] = []
-        prev_rec = self.stage_records.get(stage.geom_from) if stage.geom_from else None
-        if self.strict_guards and len(symbols) > 0:
-            warnings.extend(
-                validate_rule_d1_geometry_stationarity(
-                    stage,
-                    StateRecord(
-                        stage=stage.name,
-                        level=stage.level,
-                        wall_s=wall_s,
-                        energy_hartree=energy,
-                        symbols=symbols,
-                        geometry=coords,
-                    ),
-                    prev_rec,
-                )
+            suffix = "hess" if (self.workdir / f"{stage.hess_from}.hess").exists() and not (self.workdir / f"{stage.hess_from}.opt").exists() else "opt"
+            consumed.append(f"{stage.hess_from}.{suffix}")
+        if not dry_run:
+            for source in (stage.geom_from, stage.mo_from, stage.hess_from):
+                if source in self.stage_records and not self.stage_records[source].converged:
+                    raise ConvergenceFailureError(f"Source stage {source!r} has not converged.")
+            for name in consumed:
+                if not (self.workdir / name).is_file() or (self.workdir / name).stat().st_size == 0:
+                    raise CorruptOutputError(f"Required stage input is missing: {name}")
+            for suffix in ("xyz", "hess", "gbw", "opt"):
+                if (self.workdir / f"{stage.name}.{suffix}").exists():
+                    raise CorruptOutputError(f"Refusing stale stage output {stage.name}.{suffix}; use a new basename.")
+        inp_path = self.workdir / f"{stage.name}.inp"
+        for output in (inp_path, self.workdir / f"{stage.name}.out", self.workdir / f"{stage.name}.err"):
+            assert_writable_path(output)
+        inp_path.write_text(self.build_stage_input(stage, geom_source, allow_planned_checkpoints=dry_run), encoding="utf-8")
+        if dry_run:
+            record = StateRecord(
+                stage=stage.name, level=stage.level, wall_s=0.0,
+                energy_hartree=None, symbols=[], geometry=np.empty((0, 3)),
+                consumed_files=consumed, produced_files=[inp_path.name],
+                arrow_index=stage.arrow_index, arrow_desc=stage.arrow_desc,
+                converged=False, exit_status="DECK_GENERATED",
             )
-            if hessian_arr is not None:
-                warnings.extend(
-                    validate_rule_d2_hessian_reuse(stage, hessian_arr, symbols, coords)
-                )
-            warnings.extend(validate_rule_d3_scf_stability(stage, out_path))
-            warnings.extend(validate_rule_d4_counterpoise_ghosts(stage, symbols))
-
-        # Assemble StateRecord
-        record = StateRecord(
-            stage=stage.name,
-            level=stage.level,
-            wall_s=wall_s,
-            energy_hartree=energy,
-            symbols=symbols,
-            geometry=coords,
-            hessian=hessian_arr,
-            frequencies_cm_inv=freqs_arr,
-            rotational_constants_mhz=rot_constants,
-            inertial_defect_amu_a2=inertial_defect,
-            planar_moments_amu_a2=planar_moments,
-            consumed_files=consumed,
-            produced_files=produced,
-            arrow_index=stage.arrow_index,
-            arrow_desc=stage.arrow_desc,
-            converged=conv_info["opt_converged"] if "opt" in stage.level.lower() else conv_info["normal_termination"],
-            exit_status=exit_status,
-            warnings=warnings,
+            self.record_to_hdf5(record)
+            self.stage_records[stage.name] = record
+            return record
+        binary = shutil.which(self.orca_cmd)
+        if binary is None:
+            raise MissingBinaryError(f"ORCA executable {self.orca_cmd!r} is missing or not executable.")
+        authorization = authorize_engine_execution(
+            "orca", registry_path=self.registry_path, executable=binary,
+            cores=self.nproc, maxcore_mb=self.maxcore,
         )
-
-        self.stage_records[stage.name] = record
+        input_symbols, input_coords, _ = read_xyz(self.workdir / geom_source)
+        ghost_warnings = validate_rule_d4_counterpoise_ghosts(stage, input_symbols)
+        if ghost_warnings:
+            raise ValueError("; ".join(ghost_warnings))
+        out_path = self.workdir / f"{stage.name}.out"
+        started = time.monotonic()
+        parser = QuantumParser(str(self.workdir))
+        def execute_primary() -> None:
+            telemetry_cancel = threading.Event()
+            campaign_id = hashlib.sha256(str(self.workdir).encode()).hexdigest()[:16]
+            trajectory = XYZTrajectoryFollower(
+                self.workdir / f"{stage.name}_trj.xyz", f"chain_{campaign_id}_{stage.name}_trajectory",
+                input_symbols, source_format="orca", store_path=self.telemetry_path,
+                metadata={"engine": "orca", "stage": stage.name}, required=True,
+                on_error=lambda error: telemetry_cancel.set(),
+            ) if "opt" in stage.level.lower() else nullcontext()
+            with trajectory:
+                result = safe_subprocess_run(
+                    authorization.command([inp_path.name]), cwd=self.workdir, check=False,
+                    capture_output=True, text=True, required_disk_gb=0.1,
+                    cpu_affinity=list(authorization.cpu_affinity) or None,
+                    cancellation_event=telemetry_cancel,
+                    on_stdout_line=SpinContaminationStreamValidator(self.mult), load_full_stdout=True,
+                )
+            out_path.write_text(result.stdout or "", encoding="utf-8")
+            (self.workdir / f"{stage.name}.err").write_text(result.stderr or "", encoding="utf-8")
+            if result.returncode:
+                raise ConvergenceFailureError(f"ORCA exited {result.returncode}; diagnostics retained at {out_path}.")
+            if not parser.verify_scf_convergence(out_path):
+                raise ConvergenceFailureError(f"Missing or failed SCF convergence evidence in {out_path}.")
+            parser.check_spin_contamination(out_path, multiplicity=self.mult)
+        from cochem_base.calc.t9_fallback import execute_with_t9_fallback
+        fallback = execute_with_t9_fallback(
+            execute_primary, self.t9_fallback, elements=input_symbols, coordinates=input_coords.tolist(),
+            charge=self.charge, multiplicity=self.mult, directory=self.workdir / f"{stage.name}_t9",
+            registry_path=self.registry_path,
+        )
+        wall_s = time.monotonic() - started
+        if fallback is not None:
+            # Never pass a recovered single-point geometry/wavefunction onward
+            # as the originally requested optimized state or harmonic Hessian.
+            raise ConvergenceFailureError(
+                f"Contaminated stage {stage.name} was halted; real T9 single-point recovery is retained "
+                f"at {self.workdir / (stage.name + '_t9')}. The requested Chain stage is incomplete."
+            )
+        is_optimization = "opt" in stage.level.lower()
+        if is_optimization:
+            parser.verify_geometry_convergence(out_path)
+        energy = parse_orca_energy(out_path)
+        if energy is None:
+            raise CorruptOutputError("A converged stage must supply a finite final electronic energy.")
+        stage_xyz_path = self.workdir / f"{stage.name}.xyz"
+        if is_optimization and not stage_xyz_path.is_file():
+            raise CorruptOutputError("Optimization did not produce its own final XYZ geometry.")
+        if stage_xyz_path.is_file():
+            symbols, coords, _ = read_xyz(stage_xyz_path)
+            if symbols != input_symbols:
+                raise CorruptOutputError("Stage output atom identities/order differ from the input geometry.")
+        else:
+            # Single-point and frequency calculations keep the accepted input geometry.
+            symbols, coords = input_symbols, input_coords
+        from cochem_base.geometry.fragment_partitioner import detect_molecular_fragments
+        if is_optimization and len(detect_molecular_fragments(input_symbols, input_coords.tolist())) > 1:
+            from cochem_base.calc.calculation_service import validate_frozen_monomer_trajectory
+            drift = validate_frozen_monomer_trajectory(
+                self.workdir / f"{stage.name}_trj.xyz", input_symbols,
+                input_coords.tolist(), coords.tolist(),
+            )
+            (self.workdir / f"{stage.name}.monomer_integrity.json").write_text(json.dumps(drift), encoding="utf-8")
+        hess_data = parse_orca_hessian(self.workdir / f"{stage.name}.hess")
+        if "freq" in stage.level.lower() and hess_data is None:
+            raise CorruptOutputError("Frequency stage did not produce its Cartesian Hessian.")
+        hessian = hess_data["hessian"] if hess_data else None
+        if hessian is not None and hessian.shape != (3 * len(symbols), 3 * len(symbols)):
+            raise CorruptOutputError("Hessian dimension differs from the stage geometry.")
+        if hess_data and hess_data["atoms"] and [atom["symbol"] for atom in hess_data["atoms"]] != symbols:
+            raise CorruptOutputError("Hessian atoms differ from the stage geometry.")
+        if hess_data:
+            if not hess_data["atoms"]:
+                raise CorruptOutputError("A published Hessian requires its complete geometry-bearing $atoms block.")
+            hessian_coordinates = np.asarray([atom["coords"] for atom in hess_data["atoms"]]) * BOHR_TO_ANGSTROM
+            if not np.allclose(hessian_coordinates, coords, atol=1e-6, rtol=0):
+                raise CorruptOutputError("Hessian coordinates do not match the accepted stage geometry.")
+        rot = compute_rotational_constants(symbols, coords)
+        record = StateRecord(
+            stage=stage.name, level=stage.level, wall_s=wall_s,
+            energy_hartree=energy, symbols=symbols, geometry=coords,
+            hessian=hessian, frequencies_cm_inv=hess_data["frequencies"] if hess_data else None,
+            rotational_constants_mhz=(rot["A_MHz"], rot["B_MHz"], rot["C_MHz"]),
+            inertial_defect_amu_a2=rot["inertial_defect_amu_A2"],
+            planar_moments_amu_a2=(rot["Paa_u_A2"], rot["Pbb_u_A2"], rot["Pcc_u_A2"]),
+            consumed_files=consumed, arrow_index=stage.arrow_index, arrow_desc=stage.arrow_desc,
+            converged=True, exit_status="SUCCESS",
+        )
+        if self.strict_guards:
+            record.warnings.extend(validate_rule_d1_geometry_stationarity(
+                stage, record, self.stage_records.get(stage.geom_from)))
+            if hessian is not None:
+                record.warnings.extend(validate_rule_d2_hessian_reuse(stage, hessian, symbols, coords))
+        if not stage_xyz_path.exists():
+            write_xyz(stage_xyz_path, symbols, coords, "Unchanged input geometry of a verified non-optimization stage")
+        record.produced_files = [path.name for path in self.workdir.glob(f"{stage.name}.*")]
         self.record_to_hdf5(record)
+        self.stage_records[stage.name] = record
         return record
 
     def run_canonical_pipeline(
@@ -1293,54 +1570,110 @@ class Chain:
             raise FileNotFoundError(f"Seed coordinate file not found: {seed_p}")
 
         logger.info(f"Launching Canonical State-Chaining Pipeline for seed: {seed_p.name}")
-        shutil.copy(seed_p, self.workdir / seed_p.name)
+        seed_symbols, seed_coordinates, _ = read_xyz(seed_p)
+        seed_coordinates, _, _ = align_coordinates(
+            seed_coordinates, seed_coordinates, masses=get_atomic_masses_for_symbols(seed_symbols),
+        )
+        self._planning_geometry = (seed_symbols, seed_coordinates)
+        from cochem_base.geometry.fragment_partitioner import detect_molecular_fragments
+        weak_complex = len(detect_molecular_fragments(seed_symbols, seed_coordinates.tolist())) > 1
+        seed_digest = hashlib.sha256(seed_p.read_bytes()).hexdigest()
+        ingress_path = self.workdir / f"chain_input_{seed_digest[:16]}.xyz"
+        if ingress_path.exists():
+            raise ValueError("Canonical input already exists; use a fresh campaign directory.")
+        assert_writable_path(ingress_path)
+        write_xyz(ingress_path, seed_symbols, seed_coordinates, "COM/Eckart normalized Chain input")
+        (self.workdir / "chain_ingress.json").write_text(json.dumps({
+            "source_sha256": seed_digest, "original_source": str(seed_p),
+            "normalized_input": ingress_path.name,
+        }), encoding="utf-8")
 
         records: List[StateRecord] = []
-        active_seed = seed_p.name
+        active_seed = ingress_path.name
 
-        # Stage 1: xTB Pre-optimization if requested
+        # An explicitly requested xTB stage must succeed; no raw-seed fallback.
         if include_xtb:
+            command = [self.xtb_cmd, ingress_path.name, "--opt", "vtight", "--strict",
+                       "--chrg", str(self.charge), "--uhf", str(self.mult - 1)]
             s1_out = self.workdir / "s1_xtb.out"
             s1_xyz = self.workdir / "s1.xyz"
-            if not dry_run:
-                try:
-                    with s1_out.open("w", encoding="utf-8") as fh:
-                        subprocess.run(
-                            [
-                                self.xtb_cmd,
-                                seed_p.name,
-                                "--opt",
-                                "vtight",
-                                "--strict",
-                                "--chrg",
-                                str(self.charge),
-                                "--uhf",
-                                str(self.mult - 1),
-                            ],
-                            cwd=self.workdir,
-                            stdout=fh,
-                            stderr=subprocess.STDOUT,
-                            check=False,
-                        )
-                    xtbopt = self.workdir / "xtbopt.xyz"
-                    if xtbopt.exists():
-                        shutil.copy(xtbopt, s1_xyz)
-                        active_seed = "s1.xyz"
-                except FileNotFoundError:
-                    logger.warning(f"xTB binary '{self.xtb_cmd}' not found. Falling back to raw seed.")
-                    shutil.copy(seed_p, s1_xyz)
-                    active_seed = "s1.xyz"
+            for output in (s1_out, s1_xyz, self.workdir / "s1_xtb.err", self.workdir / "s1_xtb.command.json"):
+                assert_writable_path(output)
+            if dry_run:
+                deck = self.workdir / "s1_xtb.command.json"
+                deck.write_text(json.dumps({"status": "DECK_GENERATED", "command": command}), encoding="utf-8")
+                first = StateRecord(
+                    stage="s1", level="GFN2-xTB --opt vtight --strict", wall_s=0.0,
+                    energy_hartree=None, symbols=[], geometry=np.empty((0, 3)),
+                    consumed_files=[ingress_path.name], produced_files=[deck.name], arrow_index=2,
+                    converged=False, exit_status="DECK_GENERATED",
+                )
+            else:
+                binary = shutil.which(self.xtb_cmd)
+                if binary is None:
+                    raise MissingBinaryError(f"Requested xTB executable {self.xtb_cmd!r} is unavailable.")
+                authorization = authorize_engine_execution(
+                    "xtb", registry_path=self.registry_path, executable=binary,
+                    cores=self.nproc, maxcore_mb=self.maxcore,
+                )
+                if self.mult != 1:
+                    raise ValueError("xTB Chain adapter lacks auditable open-shell S² trajectory diagnostics.")
+                xtbopt = self.workdir / "xtbopt.xyz"
+                if xtbopt.exists() or s1_xyz.exists():
+                    raise CorruptOutputError("Refusing stale xTB geometry; use a fresh campaign directory.")
+                command[0] = binary
+                started = time.monotonic()
+                telemetry_cancel = threading.Event()
+                campaign_id = hashlib.sha256(str(self.workdir).encode()).hexdigest()[:16]
+                with XYZTrajectoryFollower(
+                    self.workdir / "xtbopt.log", f"chain_{campaign_id}_s1_trajectory",
+                    seed_symbols, source_format="xtb", store_path=self.telemetry_path,
+                    metadata={"engine": "xtb", "stage": "s1"}, required=True,
+                    on_error=lambda error: telemetry_cancel.set(),
+                ):
+                    result = safe_subprocess_run(
+                        command, cwd=self.workdir, check=False, capture_output=True, text=True,
+                        required_disk_gb=0.1, on_stdout_line=SpinContaminationStreamValidator(self.mult),
+                        cpu_affinity=list(authorization.cpu_affinity) or None,
+                        cancellation_event=telemetry_cancel, load_full_stdout=True,
+                    )
+                wall_s = time.monotonic() - started
+                s1_out.write_text(result.stdout or "", encoding="utf-8")
+                (self.workdir / "s1_xtb.err").write_text(result.stderr or "", encoding="utf-8")
+                if result.returncode:
+                    raise ConvergenceFailureError(f"xTB exited {result.returncode}; diagnostics retained at {s1_out}.")
+                info = parse_xtb_output(s1_out)
+                if not info["normal_termination"] or not info["converged"] or info["energy_hartree"] is None:
+                    raise ConvergenceFailureError("xTB lacks explicit convergence, termination, or finite energy evidence.")
+                if not xtbopt.is_file():
+                    raise CorruptOutputError("xTB did not produce its optimized XYZ geometry.")
+                symbols, coordinates, _ = read_xyz(xtbopt)
+                if symbols != read_xyz(seed_p)[0]:
+                    raise CorruptOutputError("xTB atom identities/order differ from the seed geometry.")
+                shutil.copyfile(xtbopt, s1_xyz)
+                first = StateRecord(
+                    stage="s1", level="GFN2-xTB --opt vtight --strict", wall_s=wall_s,
+                    energy_hartree=info["energy_hartree"], symbols=symbols, geometry=coordinates,
+                    consumed_files=[ingress_path.name], produced_files=[s1_out.name, s1_xyz.name],
+                    arrow_index=2, converged=True, exit_status="SUCCESS",
+                )
+            self.record_to_hdf5(first)
+            self.stage_records["s1"] = first
+            records.append(first)
+            active_seed = "s1.xyz"
 
         # Define Canonical Stages
         s2 = Stage(
             name="s2",
-            level="r2SCAN-3c TightOpt TightSCF DefGrid3",
+            geom_from="s1" if include_xtb else None,
+            level="r2SCAN-3c TightOpt TightSCF DEFGRID1",
             arrow_index=3,
             arrow_desc="GFN2-xTB -> r2SCAN-3c with InHess XTB2 model Hessian",
+            recipe="R1" if weak_complex else None,
         )
         s3 = Stage(
             name="s3",
-            level="wB97X-V def2-TZVPP def2/J RIJCOSX TightOpt TightSCF DefGrid3",
+            level="wB97X-V def2-TZVPP def2/J RIJCOSX TightOpt TightSCF DEFGRID2",
             geom_from="s2",
             mo_from="s2",
             hess_from="s2",
@@ -1355,6 +1688,7 @@ class Chain:
             hess_from="s3",
             arrow_index=5,
             arrow_desc="wB97X-V/TZ -> wB97M-V/def2-QZVPP tight optimization (MO cascade)",
+            recipe="R2" if weak_complex else None,
         )
         s5 = Stage(
             name="s5",
@@ -1363,10 +1697,11 @@ class Chain:
             mo_from="s4",
             arrow_index=6,
             arrow_desc="Tight optimization -> analytic DFT Hessian",
+            recipe="R2" if weak_complex else None,
         )
         s6 = Stage(
             name="s6",
-            level="DLPNO-CCSD(T1) TightPNO cc-pVDZ-F12 (paired with CABS) cc-pVDZ-F12 (paired with CABS)/C TightSCF",
+            level="DLPNO-CCSD(T1) TightPNO cc-pVQZ cc-pVQZ/C TightSCF DEFGRID3",
             geom_from="s4",
             mo_from="s4",
             blocks="%mdci TCutPNO 1e-7 DoLED true StorageType Shared end",
@@ -1405,16 +1740,16 @@ class Chain:
             r6 = self.run_stage(s6, dry_run=dry_run)
             records.append(r6)
 
-        logger.info(f"Canonical pipeline complete. Database: {self.h5_path}")
+        logger.info("Canonical pipeline %s. Database: %s", "decks generated" if dry_run else "verified", self.h5_path)
         return records
 
     def run_standard_isotopologue_campaign(self, parent_stage: str) -> Dict[str, Dict[str, Any]]:
         """
-        Executes standard isotopologue substitution campaign for 13C, 18O, and 2H (D)
+        Executes standard isotopologue substitution campaign for 13C, 15N, 18O, and 2H (D)
         using the saved Cartesian Hessian from `parent_stage` at zero electronic structure cost.
         """
         rec = self.stage_records.get(parent_stage)
-        if rec is None or rec.hessian is None:
+        if rec is None or not rec.converged or rec.exit_status != "SUCCESS" or rec.hessian is None:
             logger.warning(f"Cannot run isotopologue campaign: Stage '{parent_stage}' has no saved Hessian.")
             return {}
 
@@ -1423,6 +1758,15 @@ class Chain:
         hess = rec.hessian
 
         results: Dict[str, Dict[str, Any]] = {}
+
+        for idx, sym in enumerate(symbols):
+            if sym.strip().capitalize() == "N":
+                iso_masses = [None] * len(symbols)
+                iso_masses[idx] = 15
+                label = f"iso_15N_{idx+1}"
+                res = reanalyze_isotopologue(hess, coords, symbols, iso_masses, label)
+                results[label] = res
+                self._record_isotopologue_to_hdf5(label, parent_stage, res)
 
         # 1. 13C substitution on each Carbon atom
         for idx, sym in enumerate(symbols):
@@ -1464,28 +1808,31 @@ class Chain:
         iso_data: Dict[str, Any],
     ) -> None:
         """Records isotopologue rotational and vibrational properties into /isotopologues group."""
-        with h5py.File(self.h5_path, "a") as f:
-            grp = f.require_group(f"isotopologues/{iso_label}")
-            grp.attrs["parent_stage"] = parent_stage
-            grp.attrs["substituted_masses"] = json.dumps(iso_data["substituted_mass_numbers"])
-            grp.attrs["A_MHz"] = iso_data["A_MHz"]
-            grp.attrs["B_MHz"] = iso_data["B_MHz"]
-            grp.attrs["C_MHz"] = iso_data["C_MHz"]
-            grp.attrs["inertial_defect_amu_A2"] = iso_data["inertial_defect_amu_A2"]
-            grp.attrs["Paa_u_A2"] = iso_data["Paa_u_A2"]
-            grp.attrs["Pbb_u_A2"] = iso_data["Pbb_u_A2"]
-            grp.attrs["Pcc_u_A2"] = iso_data["Pcc_u_A2"]
-            grp.attrs["lowest_harmonic_mode_cm_inv"] = iso_data["lowest_harmonic_mode_cm_inv"]
+        assert_writable_path(self.h5_path)
+        with FileLock(str(self.h5_path) + ".lock", timeout=10.0):
+            with h5py.File(self.h5_path, "a") as f:
+                grp = f.require_group(f"isotopologues/{iso_label}")
+                grp.attrs["parent_stage"] = parent_stage
+                grp.attrs["substituted_masses"] = json.dumps(iso_data["substituted_mass_numbers"])
+                grp.attrs["A_MHz"] = iso_data["A_MHz"]
+                grp.attrs["B_MHz"] = iso_data["B_MHz"]
+                grp.attrs["C_MHz"] = iso_data["C_MHz"]
+                grp.attrs["inertial_defect_amu_A2"] = iso_data["inertial_defect_amu_A2"]
+                grp.attrs["Paa_u_A2"] = iso_data["Paa_u_A2"]
+                grp.attrs["Pbb_u_A2"] = iso_data["Pbb_u_A2"]
+                grp.attrs["Pcc_u_A2"] = iso_data["Pcc_u_A2"]
+                if iso_data["lowest_harmonic_mode_cm_inv"] is not None:
+                    grp.attrs["lowest_harmonic_mode_cm_inv"] = iso_data["lowest_harmonic_mode_cm_inv"]
 
-            if "frequencies" in grp:
-                del grp["frequencies"]
-            grp.create_dataset(
-                "frequencies",
-                data=np.asarray(iso_data["frequencies_cm_inv"], dtype=np.float64),
-                compression="gzip",
-                compression_opts=4,
-                shuffle=True,
-            )
+                if "frequencies" in grp:
+                    del grp["frequencies"]
+                grp.create_dataset(
+                    "frequencies",
+                    data=np.asarray(iso_data["frequencies_cm_inv"], dtype=np.float64),
+                    compression="gzip",
+                    compression_opts=4,
+                    shuffle=True,
+                )
 
     def generate_compound_script(
         self,
@@ -1498,39 +1845,33 @@ class Chain:
         Generates a multi-step ORCA compound script (New_Step ... Step_End)
         eliminating intermediate file plumbing when the entire chain fits one job window.
         """
-        seed_p = Path(seed_xyz).name
-        lines: List[str] = [
-            "# Multi-step compound state-chaining script (Method Matrix Arrow 11)",
-            f"%pal nprocs {self.nproc} end",
-            f"%maxcore {self.maxcore}",
-            "",
-        ]
+        source = Path(seed_xyz).resolve()
+        symbols, coordinates, _ = read_xyz(source)
+        coordinates, _, _ = align_coordinates(coordinates, coordinates, masses=get_atomic_masses_for_symbols(symbols))
+        self._planning_geometry = (symbols, coordinates)
+        seed_p = "compound_input_" + hashlib.sha256(source.read_bytes()).hexdigest()[:16] + ".xyz"
+        write_xyz(self.workdir / seed_p, symbols, coordinates, "COM/Eckart normalized compound input")
+        warnings = validate_rule_d5_naming_hygiene(stages)
+        if warnings:
+            raise ValueError("; ".join(warnings))
+        lines: List[str] = ["# Planned ORCA compound deck; physical execution has not been verified", ""]
+        previous = set()
 
         for step_idx, st in enumerate(stages, start=1):
             lines.append(f"# Step {step_idx}: {st.name} ({st.level})")
             lines.append("New_Step")
-            lines.append(f"  ! {st.level}")
-            if st.mo_from:
-                lines.append(f'  %moinp "{st.mo_from}.gbw"')
-            if "opt" in st.level.lower():
-                lines.append("  %geom")
-                lines.append(TIGHT_GEOM_BLOCK.rstrip("\n"))
-                if st.hess_from:
-                    lines.append("    InHess Read")
-                    lines.append(f'    InHessName "{st.hess_from}.opt"')
-                else:
-                    lines.append("    InHess XTB2")
-                lines.append("  end")
-            if st.blocks:
-                lines.append(f"  {st.blocks}")
-
+            if any(name not in previous for name in (st.geom_from, st.mo_from, st.hess_from) if name is not None):
+                raise ValueError("Compound stage references must point to an earlier stage.")
             geom_target = f"{st.geom_from}.xyz" if st.geom_from else seed_p
-            lines.append(f"  * xyzfile {self.charge} {self.mult} {geom_target}")
+            deck_lines = self.build_stage_input(st, geom_target, allow_planned_checkpoints=True).splitlines()
+            lines.extend("  " + line for line in deck_lines)
             lines.append("Step_End")
             lines.append("")
+            previous.add(st.name)
 
         deck = "\n".join(lines)
         if output_path is not None:
+            assert_writable_path(output_path)
             Path(output_path).write_text(deck, encoding="utf-8")
         return deck
 
@@ -1693,7 +2034,7 @@ def main() -> int:
             include_ccsd=args.with_ccsd,
             dry_run=args.dry_run,
         )
-        print(f"Pipeline executed successfully -> {c.h5_path}")
+        print(f"{'Decks generated' if args.dry_run else 'Pipeline verified'} -> {c.h5_path}")
         return 0
 
     elif args.command == "inspect":

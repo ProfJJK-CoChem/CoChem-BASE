@@ -239,22 +239,75 @@ def test_qc_deck_formatting():
 
 
 def test_provenance_and_results():
-    """Verify Method Matrix v4 §15 and §20 scientific provenance tracking."""
-    prov = ProvenanceRecord(tag_type=ProvenanceTag.METHOD, software_version="CoChem-GEOM v4.0")
+    """Serialize a genuine ASE energy and measured runtime with explicit provenance."""
+    import time
+    import ase
+    from ase import units
+    from ase.build import molecule
+    from ase.calculators.emt import EMT
+
+    atoms = molecule("H2O")
+    atoms.calc = EMT()
+    start = time.perf_counter()
+    energy = atoms.get_potential_energy() / units.Hartree
+    elapsed = time.perf_counter() - start
+    prov = ProvenanceRecord(tag_type=ProvenanceTag.METHOD,
+                            software_version=f"ASE {ase.__version__}",
+                            codata_version=f"ASE CODATA {units.__codata_version__}")
     tag = prov.to_provenance_tag()
     assert "[M]" in tag
-    assert "CoChem-GEOM v4.0" in tag
-    assert "CODATA 2026" in tag
+    assert prov.software_version in tag
+    assert prov.codata_version in tag
+    result = QuantumCalculationResult(engine="ASE/EMT", task_type=TaskType.ENERGY,
+                                      method="EMT", energy_hartree=energy,
+                                      wall_time_seconds=elapsed)
+    assert result.final_energy_hartree == energy
+    assert result.calculation_type == TaskType.ENERGY
+    assert result.wall_time_seconds == elapsed
+    assert result.convergence_achieved is None
 
-    res = QuantumCalculationResult(
-        engine=EngineType.ORCA,
-        task_type=TaskType.OPT,
-        method="wB97X-V",
-        basis="def2-TZVP",
-        energy_hartree=-76.4321,
-        converged=True,
-        wall_time_seconds=124.5
-    )
-    assert res.final_energy_hartree == -76.4321
-    assert res.calculation_type == TaskType.OPT
-    assert res.wall_time_seconds == 124.5
+
+def test_unreported_results_and_provenance_remain_unknown():
+    result = QuantumCalculationResult()
+    assert result.success is None
+    assert result.converged is None
+    assert result.engine is None
+    assert result.task_type is None
+    assert result.wall_time_seconds is None
+    assert result.total_steps is None
+    state = ChainedStateSchema()
+    assert state.total_energy_hartree is None
+    assert state.gradient_norm is None
+    provenance = ProvenanceRecord()
+    assert provenance.software_version is None
+    assert provenance.codata_version is None
+    assert "unreported" in provenance.to_provenance_tag()
+
+
+@pytest.mark.parametrize("field", ["converged", "success"])
+def test_result_success_flags_require_actual_booleans(field):
+    with pytest.raises(ValidationError):
+        QuantumCalculationResult(**{field: "true"})
+    with pytest.raises(ValidationError):
+        QuantumCalculationResult(**{field: 1})
+
+
+@pytest.mark.parametrize("field", ["energy_hartree", "nuclear_repulsion_hartree", "zero_point_energy_hartree",
+                                  "wall_time_seconds", "t1_diagnostic", "d1_diagnostic", "spin_contamination_pct"])
+def test_nonfinite_result_evidence_is_rejected(field):
+    for value in (float("nan"), float("inf")):
+        with pytest.raises(ValidationError):
+            QuantumCalculationResult(**{field: value})
+
+
+def test_result_alias_validation_preserves_caller_data():
+    values = {"final_energy_hartree": None, "convergence_achieved": False}
+    result = QuantumCalculationResult.model_validate(values)
+    assert result.converged is False
+    assert values == {"final_energy_hartree": None, "convergence_achieved": False}
+    with pytest.raises(ValidationError):
+        ChainedStateSchema(gradient_norm=-1)
+    with pytest.raises(ValidationError):
+        ChainedStateSchema(total_energy_hartree=float("nan"))
+    with pytest.raises(ValidationError):
+        QuantumCalculationResult(harmonic_frequencies_cm1=[float("inf")])

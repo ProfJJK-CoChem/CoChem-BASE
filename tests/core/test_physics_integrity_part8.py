@@ -86,6 +86,7 @@ def test_pes_store_normalized_provenance_and_swmr(tmp_path):
             coordinates=coords[b*batch_size : (b+1)*batch_size],
             energies=energies[b*batch_size : (b+1)*batch_size],
             provenance=prov_dict,
+            converged=False,  # Serialization fixture, not a converged solver result.
         )
 
     # Add additional batch with default provenance (provenance=None) to test automatic signing/fingerprinting
@@ -93,6 +94,7 @@ def test_pes_store_normalized_provenance_and_swmr(tmp_path):
         method_id="ccsdt_f12",
         coordinates=coords[:10],
         energies=energies[:10],
+        converged=False,
     )
 
     # Inspect HDF5 structure directly

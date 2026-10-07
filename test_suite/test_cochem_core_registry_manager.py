@@ -1,5 +1,5 @@
 """
-Physical Unit and Integration Test Suite for CoChem Core Registry Manager.
+Filesystem and process integration tests for CoChem Core Registry Manager.
 Verifies HDF5 state registry, filelock-based atomic locking, fcntl eradication,
 NFS-resilient directory-level staging, metadata server integration with filesystem fallback,
 Pydantic validation checkpoints, Mendeleev dynamic queries, lineage UUID tracking,
@@ -14,8 +14,11 @@ import inspect
 import json
 import os
 import socket
+import subprocess
+import sys
 import threading
 import time
+import textwrap
 from pathlib import Path
 from typing import Any, List
 
@@ -71,13 +74,40 @@ class PhysicalJobRecord(BaseModel):
     command: list[str] = Field(default_factory=lambda: ["echo", "test"])
     product_class: str = "Product_A"
     atom_count: int = 12
-    converged: bool = True
+    converged: bool | None = None
 
 
 class HardwareSpecificationModel(BaseModel):
     cpu_cores: int = 8
     ram_gb: float = 32.0
     gpu_profile: str = "RTX_4090"
+
+
+def _run_registry_process(
+    source: str,
+    *arguments: object,
+    environment: dict[str, str] | None = None,
+    preserve_slurm: bool = False,
+) -> None:
+    """Execute actual registry operations with a fresh process environment."""
+    child_environment = os.environ.copy()
+    for name in (
+        "COCHEM_IS_MASTER", "OMPI_COMM_WORLD_RANK", "PMI_RANK", "RANK",
+        "MV2_COMM_WORLD_RANK",
+    ):
+        child_environment.pop(name, None)
+    if not preserve_slurm:
+        child_environment.pop("SLURM_PROCID", None)
+    child_environment.update(environment or {})
+    completed = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(source), *(str(arg) for arg in arguments)],
+        env=child_environment,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 # =============================================================================
@@ -102,7 +132,7 @@ def test_atomic_file_lock_lifecycle(tmp_path: Path) -> None:
         assert lock._filelock is not None
         assert isinstance(lock._filelock, (filelock.FileLock, filelock.SoftFileLock, filelock.BaseFileLock))
 
-    assert not lock_file.exists()
+    assert lock_file.exists()  # Preserve the inode shared by all lock waiters.
     assert lock._is_locked is False
 
 
@@ -117,7 +147,7 @@ def test_atomic_file_lock_reentrancy_and_multithreading(tmp_path: Path) -> None:
         with l1:
             assert lock_file.exists()
         assert lock_file.exists()
-    assert not lock_file.exists()
+    assert lock_file.exists()  # Preserve the inode shared by all lock waiters.
 
     # Nested acquisition on distinct instances on same thread
     l_a = AtomicFileLock(lock_file, timeout=2.0)
@@ -127,7 +157,7 @@ def test_atomic_file_lock_reentrancy_and_multithreading(tmp_path: Path) -> None:
         with l_b:
             assert lock_file.exists()
         assert lock_file.exists()
-    assert not lock_file.exists()
+    assert lock_file.exists()  # Preserve the inode shared by all lock waiters.
 
 
 def test_atomic_file_lock_contention_and_timeout(tmp_path: Path) -> None:
@@ -167,7 +197,7 @@ def test_atomic_file_lock_contention_and_timeout(tmp_path: Path) -> None:
 
 
 def test_atomic_file_lock_stale_reaping(tmp_path: Path) -> None:
-    """Tests that stale lock files past stale_timeout are safely reaped."""
+    """Tests that unowned persistent lock files can be reacquired safely."""
     lock_file = tmp_path / "stale.lock"
     lock_file.write_text("99999:0\n", encoding="utf-8")
 
@@ -213,30 +243,35 @@ def test_nfs_atomic_directory_rename_lifecycle(tmp_path: Path) -> None:
         nfs_atomic_directory_rename(tmp_path / "non_existent_dir", tmp_path / "any_dst")
 
 
-def test_atomic_write_json_directory_staging(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_atomic_write_json_directory_staging(tmp_path: Path) -> None:
     """Tests directory-level staging and environment variable expansion in atomic_write_json."""
-    monkeypatch.setenv("COCHEM_STAGE_VAR", "staged_value")
-
     out_file = tmp_path / "config.json"
-    data = {
-        "path": "${COCHEM_STAGE_VAR}/subdir",
-        "nested": {"val": "%COCHEM_STAGE_VAR%"},
-        "count": 42,
-    }
-
-    atomic_write_json(out_file, data)
+    _run_registry_process(
+        """
+        import json
+        import sys
+        from pathlib import Path
+        from cochem_base.core.cochem_core_registry_manager import (
+            atomic_write_json, interpolate_env_vars,
+        )
+        out_file = Path(sys.argv[1])
+        data = {
+            "path": "${COCHEM_STAGE_VAR}/subdir",
+            "nested": {"val": "%COCHEM_STAGE_VAR%"},
+            "count": 42,
+        }
+        atomic_write_json(out_file, data)
+        parsed = json.loads(interpolate_env_vars(out_file.read_text(encoding="utf-8")))
+        assert parsed["path"] == "staged_value/subdir"
+        assert parsed["nested"]["val"] == "staged_value"
+        assert parsed["count"] == 42
+        assert not list(out_file.parent.glob(".staging_*"))
+        """,
+        out_file,
+        environment={"COCHEM_STAGE_VAR": "staged_value"},
+    )
     assert out_file.exists()
-
-    # Staging temporary directories must be cleanly reaped
-    staging_dirs = list(tmp_path.glob(".staging_*"))
-    assert len(staging_dirs) == 0
-
-    raw_text = out_file.read_text(encoding="utf-8")
-    interpolated = interpolate_env_vars(raw_text)
-    parsed = json.loads(interpolated)
-    assert parsed["path"] == "staged_value/subdir"
-    assert parsed["nested"]["val"] == "staged_value"
-    assert parsed["count"] == 42
+    assert not list(tmp_path.glob(".staging_*"))
 
 
 # =============================================================================
@@ -534,7 +569,7 @@ def test_job_registration_and_lifecycle(tmp_path: Path) -> None:
     assert rec2 is not None
     assert rec2["product_class"] == "Product_C"
     assert rec2["atom_count"] == 24
-    assert rec2["converged"] is True
+    assert rec2["converged"] is None
 
     rm.update_job_status("job_001", "completed", return_code=0, energy=-154.234)
     updated = rm.get_job("job_001")
@@ -839,31 +874,33 @@ def test_migrate_schema_json_upgrade() -> None:
     assert cfg.registry_checksum is not None
 
 
-def test_is_master_node_detection(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("COCHEM_IS_MASTER", raising=False)
-    monkeypatch.delenv("RANK", raising=False)
-    # Removing SLURM_PROCID mock
-
-    monkeypatch.setenv("COCHEM_IS_MASTER", "0")
-    assert is_master_node() is False
-
-    monkeypatch.setenv("COCHEM_IS_MASTER", "1")
-    assert is_master_node() is True
-
-    monkeypatch.delenv("COCHEM_IS_MASTER", raising=False)
-
-    monkeypatch.setenv("RANK", "0")
-    assert is_master_node() is True
-    monkeypatch.setenv("RANK", "1")
-    assert is_master_node() is False
+def test_is_master_node_detection() -> None:
+    for environment, expected in (
+        ({"COCHEM_IS_MASTER": "0"}, False),
+        ({"COCHEM_IS_MASTER": "1"}, True),
+        ({"RANK": "0"}, True),
+        ({"RANK": "1"}, False),
+    ):
+        _run_registry_process(
+            """
+            import sys
+            from cochem_base.core.cochem_core_registry_manager import is_master_node
+            assert is_master_node() is (sys.argv[1] == "True")
+            """,
+            expected,
+            environment=environment,
+        )
 
 @pytest.mark.skipif(not os.environ.get("SLURM_PROCID"), reason="Requires physical SLURM node")
-def test_is_master_node_detection_slurm(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("COCHEM_IS_MASTER", raising=False)
-    monkeypatch.delenv("RANK", raising=False)
-    
-    expected = (os.environ.get("SLURM_PROCID") == "0")
-    assert is_master_node() is expected
+def test_is_master_node_detection_slurm() -> None:
+    _run_registry_process(
+        """
+        import os
+        from cochem_base.core.cochem_core_registry_manager import is_master_node
+        assert is_master_node() is (os.environ["SLURM_PROCID"] == "0")
+        """,
+        preserve_slurm=True,
+    )
 
 
 def test_system_config_load_save_update_lifecycle(tmp_path: Path) -> None:

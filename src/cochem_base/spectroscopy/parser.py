@@ -43,14 +43,14 @@ class SpectroscopicTelemetryResult(BaseModel):
     c_e: float = Field(..., description="Equilibrium rotational constant C_e (MHz) [M]")
 
     # Vibrational zero-point corrections [M]
-    delta_a_vib: float = Field(default=0.0, description="Vibrational correction Delta A_vib (MHz) [M]")
-    delta_b_vib: float = Field(default=0.0, description="Vibrational correction Delta B_vib (MHz) [M]")
-    delta_c_vib: float = Field(default=0.0, description="Vibrational correction Delta C_vib (MHz) [M]")
+    delta_a_vib: Optional[float] = Field(default=None, description="Vibrational correction Delta A_vib (MHz) [M]")
+    delta_b_vib: Optional[float] = Field(default=None, description="Vibrational correction Delta B_vib (MHz) [M]")
+    delta_c_vib: Optional[float] = Field(default=None, description="Vibrational correction Delta C_vib (MHz) [M]")
 
     # Effective vibrational ground-state constants [D]
-    a_0: float = Field(..., description="Ground-state rotational constant A_0 = A_e + Delta A_vib (MHz) [D]")
-    b_0: float = Field(..., description="Ground-state rotational constant B_0 = B_e + Delta B_vib (MHz) [D]")
-    c_0: float = Field(..., description="Ground-state rotational constant C_0 = C_e + Delta C_vib (MHz) [D]")
+    a_0: Optional[float] = Field(default=None, description="Ground-state rotational constant A_0 = A_e + Delta A_vib (MHz) [D]")
+    b_0: Optional[float] = Field(default=None, description="Ground-state rotational constant B_0 = B_e + Delta B_vib (MHz) [D]")
+    c_0: Optional[float] = Field(default=None, description="Ground-state rotational constant C_0 = C_e + Delta C_vib (MHz) [D]")
 
     # Principal moments of inertia (amu * Angstrom^2) [D]
     i_a: float = Field(..., description="Principal moment of inertia I_a (amu*Angstrom^2) [D]")
@@ -61,8 +61,8 @@ class SpectroscopicTelemetryResult(BaseModel):
     inertial_defect: float = Field(..., description="Inertial defect Delta = I_c - I_a - I_b [D]")
 
     # Dipole moments (Debye) [M]
-    dipole_components: Tuple[float, float, float] = Field(default=(0.0, 0.0, 0.0), description="Dipole components (mu_a, mu_b, mu_c) in Debye [M]")
-    total_dipole: float = Field(default=0.0, description="Total dipole moment magnitude in Debye [M]")
+    dipole_components: Optional[Tuple[float, float, float]] = Field(default=None, description="Dipole components (mu_a, mu_b, mu_c) in Debye [M]")
+    total_dipole: Optional[float] = Field(default=None, description="Total dipole moment magnitude in Debye [M]")
 
     provenance_banner: str = Field(
         default="Method Matrix §3.0: Equilibrium B_e is purely theoretical at the PES minimum; ground-state B_0 is the observable measured in rotational spectroscopy.",
@@ -105,9 +105,9 @@ class SpectroscopyTelemetryParser:
     def parse_log_content(self, content: str, engine_hint: Optional[str] = None) -> SpectroscopyTelemetryResult:
         """Parses output text and extracts spectroscopic observables."""
         a_e, b_e, c_e = 0.0, 0.0, 0.0
-        delta_a, delta_b, delta_c = 0.0, 0.0, 0.0
-        dipole_x, dipole_y, dipole_z = 0.0, 0.0, 0.0
-        total_dipole = 0.0
+        delta_a = delta_b = delta_c = None
+        dipole_components = None
+        total_dipole = None
         detected_engine = engine_hint or "orca"
 
         # Try ORCA standard pattern
@@ -151,21 +151,21 @@ class SpectroscopyTelemetryParser:
             dipole_x = float(match_dip_xyz.group(1))
             dipole_y = float(match_dip_xyz.group(2))
             dipole_z = float(match_dip_xyz.group(3))
-            if total_dipole == 0.0:
+            dipole_components = (dipole_x, dipole_y, dipole_z)
+            if total_dipole is None:
                 total_dipole = math.sqrt(dipole_x**2 + dipole_y**2 + dipole_z**2)
 
-        # Ensure ordered rotational constants A >= B >= C
+        # Axis labels also index vibrational corrections: never silently reorder.
         if a_e < b_e or b_e < c_e:
-            vals = sorted([a_e, b_e, c_e], reverse=True)
-            a_e, b_e, c_e = vals[0], vals[1], vals[2]
+            raise ValueError("Rotational constants must preserve their reported A >= B >= C axis labels.")
 
         if a_e <= 0.0 or b_e <= 0.0 or c_e <= 0.0:
             raise ValueError("Failed to extract positive equilibrium rotational constants from output log.")
 
         # Compute ground-state effective constants B_0 = B_e + Delta B_vib
-        a_0 = a_e + delta_a
-        b_0 = b_e + delta_b
-        c_0 = c_e + delta_c
+        a_0 = a_e + delta_a if delta_a is not None else None
+        b_0 = b_e + delta_b if delta_b is not None else None
+        c_0 = c_e + delta_c if delta_c is not None else None
 
         # Compute principal moments of inertia I = conversion / B
         i_a = INERTIA_CONVERSION_MHZ_AMU_ANG2 / a_e
@@ -190,7 +190,7 @@ class SpectroscopyTelemetryParser:
             i_b=i_b,
             i_c=i_c,
             inertial_defect=inertial_defect,
-            dipole_components=(dipole_x, dipole_y, dipole_z),
+            dipole_components=dipole_components,
             total_dipole=total_dipole,
         )
 
@@ -213,7 +213,7 @@ def read_hdf5_swmr_telemetry(h5_path: Union[str, Path]) -> Dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"HDF5 store not found: {path}")
 
-    lock_file = path.with_suffix(".lock")
+    lock_file = Path(str(path.resolve()) + ".lock")
     lock = filelock.FileLock(str(lock_file), timeout=10.0)
 
     with lock:
@@ -236,3 +236,49 @@ def read_hdf5_swmr_telemetry(h5_path: Union[str, Path]) -> Dict[str, Any]:
                 data[f"attr_{attr_k}"] = attr_v
 
     return data
+
+
+def read_hdf5_dataset_previews(h5_path: Union[str, Path], *, limit: int = 500) -> List[Dict[str, Any]]:
+    """Read bounded nested dataset previews with shape, units and source attributes.
+
+    The numerical store remains authoritative; previews never synthesize missing
+    arrays and never materialize an unbounded trajectory into the browser kernel.
+    """
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
+        raise ValueError("HDF5 preview limit must be an integer from 1 to 500")
+    if h5py is None:
+        raise ImportError("h5py is required for the HDF5 inspector")
+    path = Path(h5_path).resolve(strict=True)
+    rows = []
+    with filelock.FileLock(str(path) + ".lock", timeout=10.0):
+        with h5py.File(path, "r", swmr=True, libver="latest") as handle:
+            def visit(name, item):
+                if not isinstance(item, h5py.Dataset):
+                    return None
+                if len(rows) >= 100:
+                    return "dataset-preview-limit"
+                item.refresh()
+                if not item.shape:
+                    values = item[()]
+                    count = 1
+                elif item.size == 0:
+                    values = []
+                    count = 0
+                else:
+                    # A bounded hyper-rectangle supports scalar through tensor datasets.
+                    remaining = limit
+                    slices = []
+                    for dimension in reversed(item.shape):
+                        size = min(dimension, remaining)
+                        slices.insert(0, slice(0, size))
+                        remaining = max(1, remaining // max(size, 1))
+                    values = item[tuple(slices)]
+                    count = int(values.size)
+                rows.append({"name": name, "shape": item.shape, "dtype": str(item.dtype),
+                             "units": item.attrs.get("units", item.attrs.get("unit", "[MISSING DATA]")),
+                             "source": item.attrs.get("source", "[MISSING DATA]"),
+                             "values": values, "shown": count, "total": item.size})
+                return None
+
+            handle.visititems(visit)
+    return rows

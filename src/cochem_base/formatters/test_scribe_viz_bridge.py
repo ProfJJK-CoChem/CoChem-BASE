@@ -12,6 +12,7 @@ Strictly adheres to:
 from __future__ import annotations
 
 import os
+import json
 import pathlib
 import subprocess
 import sys
@@ -176,30 +177,24 @@ def configured_bridge(tmp_path: pathlib.Path) -> VisualAssetBridge:
 # ==============================================================================
 
 
-def test_visual_asset_bridge_initialization_and_dynamic_pathing(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Test Case 1: VisualAssetBridge Initialization & Dynamic Pathing.
-
-    Covers Tasks 75 & 78.
-    """
-    # 1. Default initialization without parameters or environment variables
-    monkeypatch.delenv("COCHEM_ARTIFACTS_DIR", raising=False)
-    monkeypatch.delenv("COCHEM_REPORT_ARCHIVE_DIR", raising=False)
-    monkeypatch.delenv("COCHEM_USER_GUIDE_PATH", raising=False)
-
-    bridge_default = VisualAssetBridge()
-    expected_default_art = pathlib.Path.home() / "CoChem_Artifacts"
-    expected_default_rep = expected_default_art / "Report_Archive"
-    expected_default_guide = expected_default_rep / "CoChem_User_Guide.md"
-
-    assert bridge_default.artifacts_dir == expected_default_art
-    assert bridge_default.report_archive_dir == expected_default_rep
-    assert bridge_default.user_guide_path == expected_default_guide
-    assert bridge_default.compression_threshold_bytes == DEFAULT_50MB_THRESHOLD
-    assert bridge_default.compression_threshold_bytes == 52428800
-    assert bridge_default.compression_level == DEFAULT_COMPRESSION_LEVEL
-    assert bridge_default.compression_level == 19
+def test_visual_asset_bridge_initialization_and_dynamic_pathing(tmp_path: pathlib.Path) -> None:
+    """Default, explicit and environment paths use actual independently started processes."""
+    environment = dict(os.environ)
+    for key in ("COCHEM_ARTIFACTS_DIR", "COCHEM_REPORT_ARCHIVE_DIR", "COCHEM_USER_GUIDE_PATH"):
+        environment.pop(key, None)
+    environment["PYTHONPATH"] = str(pathlib.Path(__file__).resolve().parents[1])
+    script = (
+        "import json; from formatters.scribe_viz_bridge import VisualAssetBridge; "
+        "b = VisualAssetBridge(); "
+        "print(json.dumps([str(b.artifacts_dir),str(b.report_archive_dir),str(b.user_guide_path),"
+        "b.compression_threshold_bytes,b.compression_level]))"
+    )
+    result = subprocess.run([sys.executable, "-c", script], env=environment, capture_output=True,
+                            text=True, check=True, timeout=30)
+    default_art = pathlib.Path.home() / "CoChem_Artifacts"
+    default_report = default_art / "Report_Archive"
+    assert json.loads(result.stdout) == [str(default_art), str(default_report),
+                                       str(default_report / "CoChem_User_Guide.md"), 52428800, 19]
 
     # 2. Custom path initialization
     custom_art = tmp_path / "custom_artifacts"
@@ -223,19 +218,14 @@ def test_visual_asset_bridge_initialization_and_dynamic_pathing(
     assert bridge_custom.compression_threshold_bytes == 1048576
     assert bridge_custom.compression_level == 12
 
-    # 3. Dynamic pathing via environment variables
     env_art = tmp_path / "env_artifacts"
     env_rep = tmp_path / "env_reports"
     env_guide = tmp_path / "env_guide.md"
-
-    monkeypatch.setenv("COCHEM_ARTIFACTS_DIR", str(env_art))
-    monkeypatch.setenv("COCHEM_REPORT_ARCHIVE_DIR", str(env_rep))
-    monkeypatch.setenv("COCHEM_USER_GUIDE_PATH", str(env_guide))
-
-    bridge_env = VisualAssetBridge()
-    assert bridge_env.artifacts_dir == env_art
-    assert bridge_env.report_archive_dir == env_rep
-    assert bridge_env.user_guide_path == env_guide
+    environment.update(COCHEM_ARTIFACTS_DIR=str(env_art), COCHEM_REPORT_ARCHIVE_DIR=str(env_rep),
+                       COCHEM_USER_GUIDE_PATH=str(env_guide))
+    result = subprocess.run([sys.executable, "-c", script], env=environment, capture_output=True,
+                            text=True, check=True, timeout=30)
+    assert json.loads(result.stdout)[:3] == [str(env_art), str(env_rep), str(env_guide)]
 
 
 def test_volumetric_artifact_discovery(

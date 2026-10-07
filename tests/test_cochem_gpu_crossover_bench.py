@@ -12,6 +12,8 @@ import numpy as np
 import pytest
 
 from orchestrator.cochem_gpu_crossover_bench import (
+    BenchmarkUnavailableError,
+    _detect_engine_availability,
     BenchmarkSystem,
     BenchmarkTask,
     ComparisonMode,
@@ -110,6 +112,10 @@ def test_standard_benchmark_systems():
 def test_calculate_basis_function_count():
     """Verify basis function counting logic across different basis sets."""
     water_symbols = ["O", "H", "H"]
+    if not _detect_engine_availability()[1]:
+        with pytest.raises(BenchmarkUnavailableError, match="PySCF basis library"):
+            calculate_basis_function_count(water_symbols, "def2-svp")
+        return
     # def2-SVP: 14 for O + 2*5 for H = 24 bf
     n_svp = calculate_basis_function_count(water_symbols, "def2-svp")
     assert n_svp == 24
@@ -136,37 +142,23 @@ def test_interrogate_hardware():
 
 
 def test_analytical_physics_point():
-    """Verify analytical physics execution engine for CPU and GPU models."""
-    systems = get_standard_benchmark_systems()
-    sys_obj = systems["water_dimer"]
-
-    # CPU point
-    cpu_run = run_analytical_physics_point(
-        system=sys_obj, task=BenchmarkTask.ENERGY, mode=ComparisonMode.MATCHED, is_gpu=False
-    )
-    assert isinstance(cpu_run, SingleRunResult)
-    assert cpu_run.engine == ExecutionEngine.PYSCF_CPU
-    assert cpu_run.basis_function_count == 118
-    assert np.isfinite(cpu_run.energy_hartree)
-    assert cpu_run.scf_wall_seconds > 0.0
-    assert cpu_run.converged is True
-
-    # GPU point
-    gpu_run = run_analytical_physics_point(
-        system=sys_obj, task=BenchmarkTask.ENERGY, mode=ComparisonMode.MATCHED, is_gpu=True
-    )
-    assert isinstance(gpu_run, SingleRunResult)
-    assert gpu_run.engine == ExecutionEngine.GPU4PYSCF
-    assert gpu_run.basis_function_count == 118
-    assert np.isfinite(gpu_run.energy_hartree)
-    assert gpu_run.scf_wall_seconds > 0.0
-    assert gpu_run.converged is True
+    """Retired surrogates must never be mislabeled as measured CPU/GPU work."""
+    system = get_standard_benchmark_systems()["water_dimer"]
+    for is_gpu in (False, True):
+        with pytest.raises(BenchmarkUnavailableError, match="genuine PySCF/ORCA"):
+            run_analytical_physics_point(system, is_gpu=is_gpu)
 
 
 def test_evaluate_crossover_pair():
     """Verify pair evaluation between CPU and GPU with acceptance gate verification."""
     systems = get_standard_benchmark_systems()
     sys_obj = systems["water_dimer"]
+
+    has_gpu, has_cpu, _ = _detect_engine_availability()
+    if not has_gpu or not has_cpu:
+        with pytest.raises(BenchmarkUnavailableError):
+            evaluate_crossover_pair(sys_obj, allow_analytical_fallback=True)
+        return
 
     cpu_res, gpu_res, eval_res = evaluate_crossover_pair(
         system=sys_obj,
@@ -259,6 +251,13 @@ def test_run_crossover_benchmark_suite_and_artifacts():
         json_out = tmp_path / "bench_results.json"
         md_out = tmp_path / "bench_report.md"
         calib_out = tmp_path / "crossover_calib.json"
+
+        has_gpu, has_cpu, _ = _detect_engine_availability()
+        if not has_gpu or not has_cpu:
+            with pytest.raises(BenchmarkUnavailableError):
+                run_crossover_benchmark_suite(system_ids=["water_dimer"], allow_analytical_fallback=True)
+            assert not any(tmp_path.iterdir())
+            return
 
         report = run_crossover_benchmark_suite(
             system_ids=["water_dimer", "water_trimer"],

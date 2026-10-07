@@ -7,6 +7,8 @@ Strictly adheres to Method Matrix §4.4, §5, §8B, §9A and authoritative CODAT
 
 from __future__ import annotations
 
+from cochem_base.core import cochem_constants as _constants
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import Final
@@ -57,17 +59,17 @@ class CalculationFidelity(str, Enum):
 class _UnitConversionConstants:
     """Authoritative physical constants at full IEEE-754 double precision."""
 
-    HARTREE_TO_EV: float = 27.211386245981
-    HARTREE_TO_JOULE: float = 4.359744722206e-18
-    HARTREE_TO_KCAL_MOL: float = 627.5094740631
-    KCAL_MOL_TO_HARTREE: float = 1.0 / 627.5094740631
-    HARTREE_TO_CM_INV: float = 219474.63136320
-    BOHR_TO_ANGSTROM: float = 0.529177210903
-    ANGSTROM_TO_BOHR: float = 1.0 / 0.529177210903
-    AMU_TO_KG: float = 1.66053906660e-27
-    PLANCK_CONSTANT: float = 6.62607015e-34
-    SPEED_OF_LIGHT_CM_S: float = 29979245800.0
-    ROTATIONAL_INERTIA_CONVERSION: float = 505379.0084350172
+    HARTREE_TO_EV: float = _constants.HARTREE_TO_EV
+    HARTREE_TO_JOULE: float = _constants.HARTREE_TO_JOULE
+    HARTREE_TO_KCAL_MOL: float = _constants.HARTREE_TO_KCAL_MOL
+    KCAL_MOL_TO_HARTREE: float = _constants.KCAL_MOL_TO_HARTREE
+    HARTREE_TO_CM_INV: float = _constants.HARTREE_TO_CM_INV
+    BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+    ANGSTROM_TO_BOHR: float = _constants.ANGSTROM_TO_BOHR
+    AMU_TO_KG: float = _constants.ATOMIC_MASS_UNIT_KG
+    PLANCK_CONSTANT: float = _constants.PLANCK_CONSTANT_J_S
+    SPEED_OF_LIGHT_CM_S: float = _constants.SPEED_OF_LIGHT_CM_S
+    ROTATIONAL_INERTIA_CONVERSION: float = _constants.C_ROT_MHZ_U_ANG2
 
 
 UnitConversionConstants: Final[_UnitConversionConstants] = _UnitConversionConstants()

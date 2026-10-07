@@ -35,7 +35,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 if platform.system() == "Windows":
     from ctypes import wintypes
@@ -107,8 +107,8 @@ _GLOBAL_TRACKING_LOCK = threading.RLock()
 
 # Comprehensive cross-platform segmentation fault, abort, access violation, and fatal crash return codes
 CRITICAL_SEGFAULT_EXIT_CODES = {
-    139, 134, 135, 136,                   # POSIX SIGSEGV, SIGABRT, SIGBUS, SIGFPE (128 + signal)
-    -11, -6, -7, -8,                       # Subprocess negative signal numbers
+    139, 134, 135, 136, 137,             # POSIX fatal signals (128 + signal)
+    -11, -6, -7, -8, -9,                 # Subprocess negative signal numbers
     0xC0000005, -1073741819,  # Windows STATUS_ACCESS_VIOLATION (unsigned & signed 32-bit)
     0xC00000FD, -1073741571,  # Windows STATUS_STACK_OVERFLOW
     0xC000001D, -1073741795,  # Windows STATUS_ILLEGAL_INSTRUCTION
@@ -159,7 +159,7 @@ def extract_segfault_hex_dump(
 
     raw_bytes: bytes
     if stderr_buffer is None:
-        raw_bytes = b"Segmentation fault / Access violation (core dumped)\n"
+        raw_bytes = b""
     elif isinstance(stderr_buffer, (bytes, bytearray)):
         raw_bytes = bytes(stderr_buffer)
     elif isinstance(stderr_buffer, str):
@@ -169,9 +169,6 @@ def extract_segfault_hex_dump(
         raw_bytes = joined_str.encode("utf-8", errors="replace")
     else:
         raw_bytes = str(stderr_buffer).encode("utf-8", errors="replace")
-
-    if not raw_bytes:
-        raw_bytes = b"Segmentation fault / Access violation (core dumped)\n"
 
     target_bytes = raw_bytes[-max_bytes:] if len(raw_bytes) >= max_bytes else raw_bytes
     raw_hex = target_bytes.hex()
@@ -1186,6 +1183,10 @@ class DeadMansSwitchWatchdog:
 # Safe Subprocess Execution
 # =====================================================================
 
+class SubprocessCancelledError(RuntimeError):
+    """The caller cancelled an operation and its owned process tree was reaped."""
+
+
 def safe_subprocess_run(
     cmd: Union[List[str], str],
     cwd: Optional[Union[str, Path]] = None,
@@ -1203,6 +1204,7 @@ def safe_subprocess_run(
     on_stderr_line: Optional[Callable[[str], None]] = None,
     tail_buffer_lines: int = 500,
     load_full_stdout: bool = False,
+    cancellation_event: Optional[threading.Event] = None,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess:
     """Executes a subprocess safely with cross-platform process isolation.
@@ -1212,6 +1214,16 @@ def safe_subprocess_run(
     10-second grace period recursive tree termination upon timeout, and Segfault & Access Violation
     256-byte stderr hex-dump extraction.
     """
+    if cancellation_event is not None and cancellation_event.is_set():
+        raise SubprocessCancelledError("Calculation cancelled before process launch.")
+    if on_stdout_line is not None or on_stderr_line is not None or cancellation_event is not None:
+        if not capture_output or not text:
+            raise ValueError("Live line callbacks require capture_output=True and text=True.")
+        if platform.system() != "Windows" and kwargs.get("start_new_session") is False:
+            raise ValueError("Live integrity callbacks require an isolated process session.")
+        if platform.system() == "Windows" and not use_job_object:
+            raise ValueError("Live integrity callbacks require an owned Windows Job Object.")
+        stream_to_disk = True
     if cwd is not None:
         cwd_path = Path(cwd)
         if not cwd_path.exists():
@@ -1249,6 +1261,9 @@ def safe_subprocess_run(
         popen_args["stdout"] = subprocess.PIPE
         popen_args["stderr"] = subprocess.PIPE
 
+    if platform.system() == "Windows":
+        popen_args["creationflags"] = popen_args.get("creationflags", 0) | subprocess.CREATE_NEW_PROCESS_GROUP
+
     job_obj = WindowsJobObject() if (use_job_object and platform.system() == "Windows") else None
 
     if job_obj is not None and platform.system() == "Windows":
@@ -1264,18 +1279,6 @@ def safe_subprocess_run(
     else:
         if platform.system() != "Windows":
             popen_args.setdefault("start_new_session", True)
-            if platform.system() == "Linux":
-                def _posix_pdeathsig() -> None:
-                    try:
-                        import ctypes
-                        libc = ctypes.CDLL("libc.so.6")
-                        PR_SET_PDEATHSIG = 1
-                        SIGKILL = 9
-                        libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
-                    except Exception as _e:
-                        logger.debug(f"Ignored exception: {_e}")
-                popen_args.setdefault("preexec_fn", _posix_pdeathsig)
-
         proc = subprocess.Popen(parsed_cmd, **popen_args)
         register_popen_process(proc)
 
@@ -1294,6 +1297,8 @@ def safe_subprocess_run(
 
             stdout_tail: deque[str] = deque(maxlen=tail_buffer_lines)
             stderr_tail: deque[str] = deque(maxlen=tail_buffer_lines)
+            stream_errors: list[Exception] = []
+            stream_failed = threading.Event()
 
             def _stream_reader(
                 pipe: Any,
@@ -1308,12 +1313,10 @@ def safe_subprocess_run(
                             f.flush()
                             tail_buf.append(line)
                             if on_line_cb is not None:
-                                try:
-                                    on_line_cb(line)
-                                except Exception as exc:
-                                    logger.warning("Error in stream line callback: %s", exc)
+                                on_line_cb(line)
                 except Exception as exc:
-                    logger.warning("Error in stream reader thread: %s", exc)
+                    stream_errors.append(exc)
+                    stream_failed.set()
                 finally:
                     try:
                         pipe.close()
@@ -1333,9 +1336,33 @@ def safe_subprocess_run(
             t_stdout.start()
             t_stderr.start()
 
-            ret = proc.wait(timeout=timeout)
+            deadline = time.monotonic() + timeout
+            # A launcher may exit while its workers still hold inherited pipes.
+            # Keep supervising until both the process and output readers finish.
+            while (proc.poll() is None or t_stdout.is_alive() or t_stderr.is_alive()) and not stream_failed.is_set():
+                if cancellation_event is not None and cancellation_event.is_set():
+                    stream_errors.append(SubprocessCancelledError("Calculation cancelled by the user."))
+                    stream_failed.set()
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(cmd, timeout)
+                stream_failed.wait(timeout=min(0.05, remaining))
+            if stream_failed.is_set():
+                # A failed integrity callback invalidates the live trajectory.
+                # Kill descendants discovered through psutil, then any remaining
+                # members of our isolated POSIX group even if the launcher exited.
+                kill_process_tree(proc.pid, timeout=0.1)
+                if platform.system() != "Windows" and popen_args.get("start_new_session"):
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+            ret = proc.wait(timeout=max(0.1, deadline - time.monotonic()))
             t_stdout.join(timeout=5.0)
             t_stderr.join(timeout=5.0)
+            if stream_errors:
+                raise stream_errors[0]
 
             if load_full_stdout:
                 stdout_data = stdout_log_path.read_text(encoding="utf-8")
@@ -1685,6 +1712,10 @@ class SubprocessBroker:
             "stderr": subprocess.PIPE,
             "text": True,
         }
+        if platform.system() == "Windows":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            popen_kwargs["start_new_session"] = True
 
         process: Optional[subprocess.Popen] = None
         job_obj = WindowsJobObject() if platform.system() == "Windows" else None

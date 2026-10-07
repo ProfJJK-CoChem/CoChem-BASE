@@ -11,7 +11,6 @@ and emits telemetry markers for cluster schedulers.
 
 from __future__ import annotations
 
-import atexit
 import datetime
 import hashlib
 import logging
@@ -34,25 +33,9 @@ DEFAULT_TIMEOUT_SECONDS: int = 60
 CHUNK_SIZE_BYTES: int = 65536
 
 
-def _sweep_zombies() -> None:
-    """Terminates orphaned LaTeX/BibTeX compiler processes upon interpreter exit."""
-    for p in psutil.process_iter(["pid", "name"]):
-        try:
-            proc_name = p.name().lower()
-            if proc_name in (
-                "pdflatex",
-                "bibtex",
-                "xelatex",
-                "pdflatex.exe",
-                "bibtex.exe",
-                "xelatex.exe",
-            ):
-                p.terminate()
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as _e:
-            logger.debug(f"Ignored exception: {_e}")
+# Process handles remain under their launching broker/library ownership.
+from cochem_base.process_cleanup import reap_owned_children as _sweep_zombies
 
-
-atexit.register(_sweep_zombies)
 
 
 @dataclass

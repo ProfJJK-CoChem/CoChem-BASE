@@ -48,17 +48,8 @@ import atexit
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-def sweep_zombies() -> None:
-    if psutil is None:
-        return
-    for p in psutil.process_iter(['pid', 'status']):
-        try:
-            if p.info['status'] == psutil.STATUS_ZOMBIE:
-                p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
-            logger.debug(f"Ignored exception: {_e}")
+from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
 
-atexit.register(sweep_zombies)
 
 # =============================================================================
 # 1. EXCEPTIONS
@@ -788,7 +779,13 @@ def run_phase_6_audit(
             f"Disk quota insufficient: {free_gb:.1f} GB available, minimum {min_disk_space_gb:.1f} GB required."
         )
 
-    fs_type = "NTFS" if platform.system() == "Windows" else "ext4"
+    # Resolve the containing mount instead of assuming every POSIX disk is ext4.
+    try:
+        mounts = [entry for entry in psutil.disk_partitions(all=True)
+                  if resolved_db_dir.is_relative_to(Path(entry.mountpoint).resolve())]
+        fs_type = max(mounts, key=lambda entry: len(entry.mountpoint)).fstype if mounts else "unknown"
+    except (OSError, ValueError):
+        fs_type = "unknown"
 
     storage_paths = StoragePathProfile(
         databases_directory=str(resolved_db_dir),
@@ -828,8 +825,8 @@ def run_phase_6_audit(
         resolved_scratch_dir.mkdir(parents=True, exist_ok=True)
         swmr_supported, lock_passed, probe_detail = probe_swmr_locking_capabilities(resolved_db_dir)
     else:
-        swmr_supported = True
-        lock_passed = True
+        swmr_supported = False
+        lock_passed = False
         probe_detail = "Dry-run: SWMR probe execution bypassed for dry run."
 
     if not lock_passed:

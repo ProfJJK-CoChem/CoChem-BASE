@@ -126,13 +126,14 @@ def test_method_matrix_tier_catalog_and_dispersion_gate():
     # 3. Anti-dispersion gatekeeper: Bare B3LYP on 2-fragment complex must raise MethodologyViolationError
     with pytest.raises(MethodologyViolationError) as excinfo:
         validate_method_matrix_compliance(method="B3LYP", num_fragments=2, unphysical_override=False)
-    assert "Dispersion-free" in str(excinfo.value) or "dispersion-free" in str(excinfo.value)
+    assert "DISPERSION_MISSING" in str(excinfo.value)
 
     # 4. Modern functional with dispersion passes cleanly
     assert validate_method_matrix_compliance(method="wB97M-V", num_fragments=2) is True
 
-    # 5. Unphysical override bypasses gate when explicitly toggled
-    assert validate_method_matrix_compliance(method="B3LYP", num_fragments=2, unphysical_override=True) is True
+    # Mandatory scientific gates cannot be waived by the UI.
+    with pytest.raises(MethodologyViolationError):
+        validate_method_matrix_compliance(method="B3LYP", num_fragments=2, unphysical_override=True)
 
 
 def test_step_0_product_class_gate_specs_and_spend_priority():
@@ -143,8 +144,9 @@ def test_step_0_product_class_gate_specs_and_spend_priority():
     assert spec_a["conformer_search_required"] is True
 
     spec_b = PRODUCT_CLASS_SPECS[ProductClass.PRODUCT_B]
-    assert "0.03%" in spec_b["target_accuracy"]
-    assert spec_b["frozen_monomers_allowed"] is True
+    assert "bandgap <= 0.1 eV" in spec_b["target_accuracy"]
+    assert spec_b["periodic_basis"] == "plane_wave"
+    assert spec_b["frozen_monomers_allowed"] is False
 
     spec_c = PRODUCT_CLASS_SPECS[ProductClass.PRODUCT_C]
     assert "0.02%" in spec_c["target_accuracy"]
@@ -199,8 +201,13 @@ def test_gui_interactive_wiring():
         "H 0.0000 -0.7572 -0.4692"
     )
     gui._on_run_isotope_reanalysis_clicked(None)
-    assert "Dynamic Mendeleev Isotopologue Re-analysis Verified" in gui.isotope_results_table.value
+    assert "Dynamic Mendeleev Isotopologue Re-analysis" in gui.isotope_results_table.value
     assert "Parent (OHH)" in gui.isotope_results_table.value
     assert "Substituted (18OHH)" in gui.isotope_results_table.value
-    assert "18.015" in gui.isotope_results_table.value
-    assert "20.015" in gui.isotope_results_table.value
+    from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
+    parent_mass = get_nuclide_mass("O") + 2 * get_nuclide_mass("H")
+    isotope_mass = get_nuclide_mass("18O") + 2 * get_nuclide_mass("H")
+    assert f"{parent_mass:.4f}" in gui.isotope_results_table.value
+    assert f"{isotope_mass:.4f}" in gui.isotope_results_table.value
+    assert "[MISSING DATA]" in gui.isotope_results_table.value
+    assert "Verified (<100ms)" not in gui.isotope_results_table.value

@@ -22,6 +22,7 @@ from .chain import (
     MissingBinaryError,
     Stage,
     StateRecord,
+    PendingStateRecord,
     get_atomic_mass,
     get_isotopic_mass,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "ArrowState",
     "ExecutionArrow",
     "StateRecord",
+    "PendingStateRecord",
     "CanonicalArrow",
     "CounterpoiseType",
     "CANONICAL_ARROWS",

@@ -1,10 +1,12 @@
-"""Physical Zero-Mock Test for Delta-Learning PES with Dense DFT Baseline KRR Anchoring.
+"""Numerical regression test for Delta-Learning PES with Dense DFT Baseline KRR Anchoring.
 
 Validates Suggestion #50:
 - Baseline KRR (low_krr) trained on complete dense low-level DFT dataset (N = 1000).
 - Delta KRR (delta_krr) trained strictly on sparse high-level CCSD(T) active learning residuals.
 - Bounded extrapolation behavior preventing wild unanchored excursions.
 - Process-safe HDF5 datastore dual-locking (filelock.FileLock and h5py SWMR mode).
+The helper supplies empirical EMT and an artificial affine target. Historical
+DFT/CCSD labels below name datastore roles, not quantum-engine provenance.
 """
 
 import math
@@ -44,8 +46,8 @@ def test_delta_pes_dense_dft_krr_anchoring_and_extrapolation():
     )
     orchestrator = AutoPESOrchestrator(
         symbols=symbols,
-        low_method="dft_pbe0",
-        high_method="ccsd_t",
+        low_method="ase_emt",
+        high_method="numerical_affine_emt_target",
         fit_config=fit_config,
     )
 
@@ -78,7 +80,7 @@ def test_delta_pes_dense_dft_krr_anchoring_and_extrapolation():
     ], dtype=np.float64)
 
     delta_extrap = float(model.predict_delta(extrap_geom)[0])
-    total_extrap = float(model.predict_total_energy(extrap_geom)[0])
+    total_extrap = float(model.predict_total_energy(extrap_geom, allow_unvalidated_baseline=True)[0])
 
     # Delta correction should decay toward zero in distant extrapolation region
     assert abs(delta_extrap) < 0.5, f"Delta correction {delta_extrap:.4f} Eh diverged in extrapolation."
@@ -105,8 +107,8 @@ def test_delta_pes_hdf5_dual_locking(tmp_path: Path):
 
     orchestrator = AutoPESOrchestrator(
         symbols=symbols,
-        low_method="dft_pbe0",
-        high_method="ccsd_t",
+        low_method="ase_emt",
+        high_method="numerical_affine_emt_target",
     )
 
     # Execute fit from store under FileLock

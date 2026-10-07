@@ -326,6 +326,9 @@ STANDARD_MONITORED_ENGINES: List[Tuple[str, EngineTrack]] = [
     # Semi-Empirical & Conformational Engines
     ("xtb", EngineTrack.XTB_CREST),
     ("crest", EngineTrack.XTB_CREST),
+    ("gxtb", EngineTrack.XTB_CREST),
+    ("mopac", EngineTrack.GENERAL),
+    ("qe", EngineTrack.GENERAL),
     # Container & GPU tools
     ("apptainer", EngineTrack.GENERAL),
     ("singularity", EngineTrack.GENERAL),
@@ -346,9 +349,12 @@ def resolve_binary_search_paths(
     candidates: List[Path] = []
     is_win = platform.system() == "Windows"
     raw_name = engine_name.lower()
+    binary_name = "pw.x" if raw_name == "qe" else engine_name
 
     # Tier 1: Environment variable overrides
     env_keys = [
+        f"COCHEM_{raw_name.upper()}_BIN",
+        f"{raw_name.upper()}_CMD",
         f"COCHEM_{raw_name.upper()}_PATH",
         f"COCHEM_{raw_name.upper()}_DIR",
         f"{raw_name.upper()}_PATH",
@@ -369,14 +375,14 @@ def resolve_binary_search_paths(
             if p.is_file():
                 candidates.append(p)
             elif p.is_dir():
-                candidates.append(p / engine_name)
+                candidates.append(p / binary_name)
                 if is_win:
                     candidates.append(p / f"{engine_name}.exe")
                     candidates.append(p / f"{engine_name}.bat")
                     candidates.append(p / f"{engine_name}.cmd")
 
     # Tier 2: System $PATH
-    which_found = shutil.which(engine_name)
+    which_found = shutil.which(binary_name)
     if which_found:
         candidates.append(Path(which_found).resolve())
 
@@ -400,7 +406,7 @@ def resolve_binary_search_paths(
 
     for d in known_dirs:
         if d.exists() and d.is_dir():
-            candidates.append(d / engine_name)
+            candidates.append(d / binary_name)
             if is_win:
                 candidates.append(d / f"{engine_name}.exe")
                 candidates.append(d / f"{engine_name}.bat")
@@ -413,7 +419,7 @@ def resolve_binary_search_paths(
             if p_cp.is_file():
                 candidates.append(p_cp)
             elif p_cp.is_dir():
-                candidates.append(p_cp / engine_name)
+                candidates.append(p_cp / binary_name)
                 if is_win:
                     candidates.append(p_cp / f"{engine_name}.exe")
                     candidates.append(p_cp / f"{engine_name}.bat")
@@ -692,6 +698,10 @@ def extract_semantic_version(output_text: str, engine_name: str) -> Optional[str
     text = output_text.strip()
     raw = engine_name.lower()
 
+    if raw == "qe":
+        match = re.search(r"Program\s+PWSCF\s+v\.?\s*([0-9]+\.[0-9]+(?:\.[0-9]+)?(?:[A-Za-z]+)?)", text, re.I)
+        return match.group(1) if match else None
+
     if "orca" in raw:
         # e.g., "Program Version 6.0.0", "* O   R   C   A * Version 5.0.4", "ORCA-Version 5.0.3", "Program Version 6.1.1"
         m = re.search(
@@ -786,6 +796,9 @@ def interrogate_binary_version(
         cmd.append("--version")
     elif raw in ("xtb", "crest"):
         cmd.append("--version")
+    elif raw == "qe":
+        # pw.x emits its authoritative PWSCF banner before rejecting empty input.
+        cmd.append("--help")
     elif raw in ("xcfour", "c4init", "c4cleanup") or "cfour" in raw:
         cmd.append("-v")
     elif raw in ("apptainer", "singularity"):
@@ -810,10 +823,7 @@ def interrogate_binary_version(
         version = extract_semantic_version(combined_output, engine_name)
         if version:
             return version, None
-        elif combined_output:
-            first_line = combined_output.splitlines()[0][:80]
-            return first_line, None
-        return "Unknown Version (No Output)", None
+        return None, "No recognized version was returned by the executable"
 
     except subprocess.TimeoutExpired:
         return None, f"Execution timed out after {timeout}s"
@@ -885,7 +895,7 @@ def audit_single_binary(
         version=version,
         sha256_hash=sha256_hash,
         file_size_bytes=file_size,
-        is_available=True,
+        is_available=status == EngineStatus.FOUND_VALID,
         is_container=False,
         container_flags=[],
         error_detail=ver_err,
@@ -1162,7 +1172,7 @@ def run_phase_3_audit(
         status = PhaseStatus.DEGRADED
     elif not orca_avail:
         warnings.append(
-            "ORCA binary not found in local paths. DFT/ab initio tasks requiring ORCA will be routed to remote workers."
+            "ORCA binary not found in local paths; ORCA calculations are unavailable until an audited backend is configured."
         )
         status = PhaseStatus.DEGRADED
     else:

@@ -3,7 +3,7 @@
 Validates Suggestions #53, #57, #58, and #59.
 Adheres strictly to Method Matrix v4 and Zero-Mock Anti-Spoofing Protocol v2.
 Real physical execution: authentic JSON-LD local schemas, genuine NVML hardware checks,
-real HDF5 SWMR files, and node-local scratch locking.
+real HDF5 SWMR files, and shared datastore locking.
 """
 
 from __future__ import annotations
@@ -121,13 +121,13 @@ def test_strictly_non_initializing_gpu_telemetry() -> None:
         assert not torch.cuda.is_initialized(), "torch.cuda was initialized during hardware metadata collection!"
 
 
-def test_pes_store_swmr_concurrency_and_local_locking(tmp_path: pathlib.Path) -> None:
-    """Validate thread-safe SWMR HDF5 execution and node-local scratch FileLock enforcement (Suggestion #59)."""
+def test_pes_store_swmr_concurrency_and_shared_locking(tmp_path: pathlib.Path) -> None:
+    """Chunk 17: shared datastore writers use one lock visible to every node."""
     h5_file = tmp_path / "pes_swmr_test.h5"
     scratch_dir = tmp_path / "node_local_scratch"
     scratch_dir.mkdir(parents=True, exist_ok=True)
 
-    # Set SLURM_TMPDIR to test local scratch lockfile redirection
+    # Node-local scratch must not split ownership of a shared HDF5 datastore.
     os.environ["SLURM_TMPDIR"] = str(scratch_dir.resolve())
     try:
         # 1. Initialize PESStore in SWMR mode
@@ -138,9 +138,9 @@ def test_pes_store_swmr_concurrency_and_local_locking(tmp_path: pathlib.Path) ->
             swmr_mode=True,
         )
 
-        # 2. Verify lockfile directory is placed in node-local scratch, not shared storage
-        assert store.lock_dir.resolve() == scratch_dir.resolve()
-        assert str(scratch_dir.resolve()) in str(store.lock_path.resolve())
+        # 2. The lock follows the protected datastore, regardless of SLURM_TMPDIR.
+        assert store.lock_dir.resolve() == h5_file.parent.resolve()
+        assert store.lock_path.resolve() == pathlib.Path(str(h5_file.resolve()) + ".lock")
 
         # 3. Concurrent read and write execution
         symbols = ["C", "O", "H", "H", "O"]

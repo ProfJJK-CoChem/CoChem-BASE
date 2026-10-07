@@ -175,7 +175,7 @@ def test_vr01_two_stage_conformer_deduplication():
 
     confs = [
         ConformerCandidate(conformer_id="basin_0", symbols=CO2_H2O_SYMBOLS, coordinates=c1, energy=-264.120),
-        ConformerCandidate(conformer_id="basin_1", symbols=CO2_H2O_SYMBOLS, coordinates=c2, energy=-264.119),
+        ConformerCandidate(conformer_id="basin_1", symbols=CO2_H2O_SYMBOLS, coordinates=c2, energy=-264.11999),
         ConformerCandidate(conformer_id="basin_spectro", symbols=CO2_H2O_SYMBOLS, coordinates=c_spectro, energy=-264.118),
         ConformerCandidate(conformer_id="basin_2", symbols=CO2_H2O_SYMBOLS, coordinates=c3, energy=-264.105),
     ]
@@ -309,18 +309,27 @@ def test_vr03_input_generator_rejects_coarse_frequency_grids():
 # VR-04: Quintuple Stationary Block & Initial Model Hessian Discipline
 # ==============================================================================
 
-def test_vr04_quintuple_stationary_block_and_model_hessian():
+def test_vr04_quintuple_stationary_block_and_model_hessian(configured_registry):
     """VR-04: Inject TolMaxG 1e-5, MaxIter 200, ban Calc_Hess true, and mandate InHess XTB2."""
     mol_in = MoleculeInput(
         basin_id="co2_h2o_opt",
         elements=CO2_H2O_SYMBOLS,
         coordinates=[tuple(c) for c in CO2_H2O_COORDS],
-        theory_level="r2SCAN-3c Calc_Hess true",
+        theory_level="r2SCAN-3c",
         is_opt=True,
         is_weak_complex=True,
     )
 
-    # Model validator must strip 'Calc_Hess true'
+    # Invalid exact-Hessian requests fail closed, rather than being silently rewritten.
+    with pytest.raises(ValueError, match="Calc_Hess true"):
+        MoleculeInput(
+            basin_id="forbidden_initial_hessian",
+            elements=CO2_H2O_SYMBOLS,
+            coordinates=[tuple(c) for c in CO2_H2O_COORDS],
+            theory_level="r2SCAN-3c Calc_Hess true",
+            is_opt=True,
+            is_weak_complex=True,
+        )
     assert "CALC_HESS TRUE" not in mol_in.theory_level.upper()
 
     out_path = generate_orca_input(mol_in)

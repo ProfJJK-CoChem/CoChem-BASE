@@ -14,6 +14,12 @@ It covers private binary setup, correct GitHub permissions, each student's
 assignment repository, GUI job export, calculations and retrieval of results.
 Students using the instructor's provisioned route do not enter tokens in CoChem.
 
+For private module downloads, isolated installations and TOPOS/TORQ geometry
+handoffs, follow the [ecosystem modules guide](.docs/Ecosystem_Modules_Setup.md).
+It explains `COCHEM_SOURCE_READ_TOKEN`, student-owned Codespaces, the
+organization's shared Actions allowance, and which modules currently support
+installation or execution.
+
 Version **1.0.0 validates the supported Classroom50 / GitHub Actions route**,
 including real ORCA optimization and harmonic calculations. The complete local
 BASE profile passed 1,532 tests with two declared physical Slurm deferrals;

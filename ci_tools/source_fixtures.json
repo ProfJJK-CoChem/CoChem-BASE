@@ -119,6 +119,13 @@
       "purpose": "Exact selected native output lines for stationary-restart parser regression; not complete physical acceptance evidence",
       "provenance_status": "recorded_engine_output",
       "provenance": "Verbatim ORCA 6.1.1 HF/STO-3G restart output excerpt. Full-output digest, selected line ranges and excerpt digest are recorded in tests/fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.json."
+    },
+    {
+      "path": "examples/jobs/water.xyz",
+      "sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af",
+      "purpose": "Student module geometry ingestion and rigid-geometry interface example; not an accuracy reference",
+      "provenance_status": "constructed_geometry_input",
+      "provenance": "Explicit O/H coordinates chosen for an asymmetric water-shaped geometry. No geometry optimization, energy or experimental accuracy is asserted; used for actual TOPOS connectivity and TORQ geometry API acceptance."
     }
   ]
 }

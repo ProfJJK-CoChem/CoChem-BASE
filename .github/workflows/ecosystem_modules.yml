@@ -98,23 +98,10 @@ jobs:
         env:
           COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
         run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          from scripts.manage_modules import fetch_module, install_module, load_manifest, default_root
-          if not os.environ.get('COCHEM_SOURCE_READ_TOKEN'):
-              raise SystemExit('Configure COCHEM_SOURCE_READ_TOKEN for this repository with Contents read access to selected module sources.')
-          catalog = load_manifest()['modules']
-          action = fetch_module if os.environ['MODULE_ACTION'] == 'fetch' else install_module
-          receipts = [action(name, catalog[name], default_root()) for name in dict.fromkeys(os.environ['MODULE_IDS'].split())]
-          report_dir = Path(os.environ['COCHEM_ARTIFACT_DIR']) / 'evidence'
-          report_dir.mkdir(parents=True, exist_ok=True)
-          report = {'modules': receipts, 'scientific_accuracy_established': False}
-          (report_dir / 'installations.json').write_text(json.dumps(report, indent=2) + '\n')
-          (report_dir / 'module-distribution.json').write_text(Path('scripts/module-distribution.json').read_text())
-          for receipt in receipts:
-              print(json.dumps({'module': receipt['module_id'], 'status': receipt['status'], 'revision': receipt['revision']}))
-          PY
+          python -m scripts.run_module_installation \
+            --action "$MODULE_ACTION" \
+            --output "$COCHEM_ARTIFACT_DIR/evidence" \
+            --require-source-token
       - name: Install BASE for validated artifact handoffs
         if: env.MODULE_ACTION == 'geometry_analysis'
         run: |

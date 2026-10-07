@@ -248,6 +248,22 @@ necessarily that environment's Python.
    A green source download alone does not establish an installed module or a
    successful scientific handoff.
 
+The installation step attempts every selected module even if one fails. Its
+artifact includes the exact `module-distribution.json` used and
+`installations.json`: successful receipts appear in `modules`, while
+`failures` identifies each failed repository, revision and error. The workflow
+fails overall if any selected module fails and does not proceed to geometry
+execution. `completed: true` means the batch finished attempting its selection;
+check `success` and the failure list to determine whether it passed.
+
+Once the batch helper starts, it retains these reports even after a partial
+failure; the workflow attempts artifact upload on failed runs too. A missing
+source token is recorded as `configuration_error`. A failure before the helper
+starts may have no installation report. Keep the artifact from a failed run
+instead of treating its successful module receipts as success for the whole
+selection. The catalog's 21 supported source entries do not imply that every
+assignment's credential has successfully fetched all 21 through Actions.
+
 This workflow receives the source-read credential for its reviewed manual run.
 It does not require enabling secret delivery to fork pull requests. Downloading
 module code and executing it within this job also does not require Actions
@@ -349,6 +365,7 @@ Python environment does not submit a Slurm job or choose an engine allocation.
 | --- | --- |
 | Module source token exists in BASE but an assignment cannot download | Add the assignment repository to the organization secret's selected repositories; template copies do not inherit access. |
 | Token is selected for every module but download returns 404 | Check token owner, Contents read access, expiry, organization approval and the saved secret value. Private resources can return 404 when access is missing. |
+| One repository returns HTTP 403 or `Write access to repository not granted` during source fetch | This fetch is read-only; that error does not mean the token needs write permission. Check that the saved token selects this repository, has Contents read access, is approved and unexpired, and that its owner can read the repository. Check whether a same-name repository secret is overriding the organization secret. Use the per-module report to identify the failing repository. |
 | Actions works but Codespaces does not | Actions and Codespaces use separate credentials. Check student team membership, declared same-owner repository permissions and creation of a new Codespace. |
 | Permission was added and a rebuild did not help | Create a new Codespace after committing the changed permissions. |
 | Organization is shown as Codespaces payer | Check User ownership in the organization settings before course rollout; inspect the payer shown for the individual Codespace. |

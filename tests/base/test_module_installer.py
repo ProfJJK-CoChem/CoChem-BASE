@@ -317,3 +317,91 @@ def test_cli_explicit_selection_and_list_do_not_install(repository, tmp_path, ca
         installer.main(["install", "--manifest", str(path), "--root", str(root)])
     assert installer.main(["verify", "--manifest", str(path), "--root", str(root), "--json"]) == 0
     assert json.loads(capsys.readouterr().out) == {"modules": []}
+
+
+@pytest.mark.parametrize("action", ["fetch", "install"])
+def test_batch_retains_success_after_failed_module_and_returns_failure(repository, tmp_path, action):
+    origin, spec, root = repository
+    manifest = tmp_path / "batch-manifest.json"
+    bad = dict(spec, revision="f" * 40)
+    entries = {"unavailable": bad}
+    config = origin.parent / "offline-git.conf"
+    for name in ("before", "after"):
+        independent_origin = tmp_path / f"origin-{name}"
+        git(origin, "clone", "--no-hardlinks", str(origin), str(independent_origin))
+        repository_name = spec["repository"] + "-" + name
+        with config.open("a") as stream:
+            stream.write(f'[url "{independent_origin.as_uri()}"]\n\tinsteadOf = https://github.com/{repository_name}.git\n')
+        entries[name] = dict(spec, repository=repository_name)
+    manifest.write_text(json.dumps({"schema_version": installer.MANIFEST_SCHEMA,
+                                    "modules": entries}))
+    output = tmp_path / "batch-evidence"
+    result = subprocess.run([sys.executable, "-m", "scripts.run_module_installation",
+                             "--action", action, "--modules", "before", "unavailable", "after",
+                             "--manifest", str(manifest), "--root", str(root), "--output", str(output)],
+                            env=offline_environment(origin), cwd=installer.REPOSITORY_ROOT,
+                            capture_output=True, text=True)
+    assert result.returncode == 1, result.stdout + result.stderr
+    report = json.loads((output / "installations.json").read_text())
+    assert report["completed"] is True
+    assert report["success"] is False
+    assert report["scientific_accuracy_established"] is False
+    assert report["selected_modules"] == ["before", "unavailable", "after"]
+    assert [receipt["module_id"] for receipt in report["modules"]] == ["before", "after"]
+    assert report["modules"][0]["status"] == ("downloaded" if action == "fetch" else "installed")
+    assert report["failures"][0]["module_id"] == "unavailable"
+    assert report["failures"][0]["revision"] == "f" * 40
+    assert "Fetch pinned module source failed" in report["failures"][0]["message"]
+    assert (output / "module-distribution.json").read_bytes() == manifest.read_bytes()
+    assert '"module": "before"' in result.stdout
+    assert '"module": "after"' in result.stdout
+    assert "2 succeeded, 1 failed" in result.stdout
+    assert (root / "before/source.json").exists()
+    assert (root / "after/source.json").exists()
+    assert not (root / "unavailable/source.json").exists()
+
+
+def test_batch_successful_fetch_returns_success_and_reports_every_module(repository, tmp_path):
+    origin, spec, root = repository
+    manifest = tmp_path / "batch-manifest.json"
+    manifest.write_text(json.dumps({"schema_version": installer.MANIFEST_SCHEMA,
+                                    "modules": {"first": spec, "second": spec}}))
+    output = tmp_path / "batch-evidence"
+    output.mkdir()
+    env = offline_environment(origin)
+    env["MODULE_IDS"] = "first second first"
+    result = subprocess.run([sys.executable, "-m", "scripts.run_module_installation", "--action", "fetch",
+                             "--manifest", str(manifest), "--root", str(root), "--output", str(output)],
+                            env=env, cwd=installer.REPOSITORY_ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads((output / "installations.json").read_text())
+    assert report["success"] is True
+    assert report["completed"] is True
+    assert report["failures"] == []
+    assert [receipt["module_id"] for receipt in report["modules"]] == ["first", "second"]
+    original_report = (output / "installations.json").read_bytes()
+    repeated = subprocess.run([sys.executable, "-m", "scripts.run_module_installation", "--action", "fetch",
+                               "--manifest", str(manifest), "--root", str(root), "--output", str(output)],
+                              env=env, cwd=installer.REPOSITORY_ROOT, capture_output=True, text=True)
+    assert repeated.returncode == 1
+    assert "choose a fresh output directory" in repeated.stdout
+    assert (output / "installations.json").read_bytes() == original_report
+
+
+def test_batch_missing_required_token_preserves_manifest_and_configuration_report(repository, tmp_path):
+    origin, spec, root = repository
+    manifest = tmp_path / "batch-manifest.json"
+    manifest.write_text(json.dumps({"schema_version": installer.MANIFEST_SCHEMA, "modules": {"fixture": spec}}))
+    output = tmp_path / "batch-evidence"
+    result = subprocess.run([sys.executable, "-m", "scripts.run_module_installation", "--action", "fetch",
+                             "--modules", "fixture", "--manifest", str(manifest), "--root", str(root),
+                             "--output", str(output), "--require-source-token"], env=offline_environment(origin),
+                            cwd=installer.REPOSITORY_ROOT, capture_output=True, text=True)
+    assert result.returncode == 1
+    report = json.loads((output / "installations.json").read_text())
+    assert report["success"] is False
+    assert report["completed"] is False
+    assert report["modules"] == []
+    assert "Configure COCHEM_SOURCE_READ_TOKEN" in report["configuration_error"]
+    assert (output / "module-distribution.json").read_bytes() == manifest.read_bytes()
+    assert not root.exists()

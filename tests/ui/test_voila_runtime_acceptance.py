@@ -258,7 +258,7 @@ def test_actions_selection_never_falls_back_to_local_engine(tmp_path):
     assert gui.btn_execute.disabled
     assert gui.btn_execute.description == "Prepare GitHub Actions job"
     gui._execute_pipeline(None)
-    assert "ORCA jobs only" in gui.state.error_message
+    assert "ORCA or CFOUR jobs only" in gui.state.error_message
     assert not gui._pipeline_running and not (tmp_path / "local-results").exists()
     gui._execute_periodic_pipeline(None)
     gui._start_topos_search(None)

@@ -136,6 +136,64 @@ def test_actual_interpreter_cannot_be_misidentified_as_orca():
     assert error == "No recognized version was returned by the executable"
 
 
+@pytest.mark.parametrize("metadata,expected", [
+    ("CFOUR version 2.1", "2.1"),
+    ("* CFOUR Coupled-Cluster techniques for Computational Chemistry *\n* Version 2.1 *", "2.1"),
+    ("CFOUR 2.0\nLibrary version 0.3.20", "2.0"),
+    ("GFortran 11.4.0\nOpenBLAS 0.3.20", None),
+    ("Version 2.1", None),
+    ("CFOUR version 2.1\nCFOUR version 2.0", None),
+    ("CFOUR version 2.1rc1", None),
+])
+def test_cfour_version_requires_unambiguous_native_engine_identity(metadata, expected):
+    assert extract_semantic_version(metadata, "xcfour") == expected
+
+
+def test_actual_interpreter_cannot_be_misidentified_as_cfour():
+    version, error = interrogate_binary_version(sys.executable, "xcfour")
+    assert version is None
+    assert error == "No recognized version was returned by the executable"
+
+
+def test_optional_runtime_defaults_preserve_existing_registry_checksums(tmp_path):
+    path = _python_registry(tmp_path)
+    raw = json.loads(path.read_text())
+    for record in raw["engines"].values():
+        record.pop("runtime_seal_sha256", None)
+        record.pop("runtime_metadata", None)
+    payload = {key: value for key, value in raw.items() if key not in {"registry_checksum", "last_updated"}}
+    historical = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
+    assert raw["registry_checksum"] == historical
+    assert CoChemSystemConfig.model_validate(raw).verify_checksum()
+
+
+def test_nonempty_runtime_metadata_is_authenticated_in_registry(tmp_path):
+    path = _python_registry(tmp_path)
+    config = CoChemSystemConfig.model_validate_json(path.read_text())
+    config.engines["python"].runtime_metadata = {"executable": str(Path(sys.executable).absolute())}
+    config.update_checksum()
+    assert config.verify_checksum()
+    config.engines["python"].runtime_metadata["executable"] = str(tmp_path / "another-interpreter")
+    assert not config.verify_checksum()
+
+
+def test_cfour_child_runtime_preserves_audited_threads_without_nested_blas(tmp_path):
+    inherited = {**os.environ, "OMP_NUM_THREADS": "2", "OPENBLAS_NUM_THREADS": "8"}
+    before = inherited.copy()
+    environment = engine_runtime_environment("cfour", inherited, executable=sys.executable)
+    completed = subprocess.run([
+        sys.executable, "-I", "-c",
+        "import json,os; print(json.dumps({key:os.environ.get(key) for key in "
+        "['OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','OMP_DYNAMIC','PATH']}))",
+    ], env=environment, check=True, text=True, capture_output=True, timeout=15)
+    observed = json.loads(completed.stdout)
+    assert observed["OMP_NUM_THREADS"] == "2"
+    assert observed["OPENBLAS_NUM_THREADS"] == "1"
+    assert observed["OMP_DYNAMIC"] == "FALSE"
+    assert observed["PATH"].split(os.pathsep)[0] == str(Path(sys.executable).resolve().parent)
+    assert inherited == before
+
+
 @pytest.mark.parametrize("engine", ["orca", "qe", "crest", "pyscf"])
 def test_native_runtime_selection_reaches_only_its_own_child(engine, tmp_path):
     """A real interpreter observes environment transport, not chemistry output."""

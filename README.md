@@ -14,6 +14,11 @@ It covers private binary setup, correct GitHub permissions, each student's
 assignment repository, GUI job export, calculations and retrieval of results.
 Students using the instructor's provisioned route do not enter tokens in CoChem.
 
+For CFOUR runtime access, classroom setup and host compatibility, follow the
+[CFOUR setup guide](.docs/CFOUR_Actions_Setup.md). **ORCA and CFOUR are optional,
+strongly recommended engines.** BASE remains usable when either is absent or
+its optional installation fails; only dependent calculations are unavailable.
+
 For private module downloads, isolated installations and TOPOS/TORQ geometry
 handoffs, follow the [ecosystem modules guide](.docs/Ecosystem_Modules_Setup.md).
 It explains `COCHEM_SOURCE_READ_TOKEN`, student-owned Codespaces, the
@@ -141,8 +146,10 @@ external scratch storage. The source gate checks this boundary and retained
 scientific fixture provenance.
 
 Connected pathways include xTB, CREST, PySCF, ORCA and periodic Quantum ESPRESSO,
-each subject to its installed capabilities and supported operations. CFOUR/VPT2
-and other incomplete domain capabilities remain explicit pending handoffs.
+each subject to its installed capabilities and supported operations. The
+[CFOUR guide](.docs/CFOUR_Actions_Setup.md) describes its bounded molecular
+runtime and calculation pathway. VPT2 and other incomplete domain capabilities
+remain explicit pending handoffs.
 TOPOS and TORQ domain development belongs to their respective repositories.
 BASE does not manufacture results for absent modules.
 

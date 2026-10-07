@@ -84,20 +84,22 @@ are not summed into a fabricated final suite count.
 
 ## Current canonical result — 2026-10-07
 
-The complete 1.0.0 profile passed **1,477 tests**, with **2 physical Slurm skips**,
-**0 failures**, **1,479 collected** and no source mutation in 931.49 seconds.
+The complete 1.0.0 profile passed **1,532 tests**, with **2 physical Slurm skips**,
+**0 failures**, **1,534 collected** and no source mutation in 950.50 seconds.
 All 10,672 warnings are retained. Actual R2 and CREST/GOAT acceptance executed;
 the two remaining deferrals require physical Slurm allocation. Evidence:
-`/workspace/cochem-runtime/evidence/base-1.0.0-final-v3/`.
+`/workspace/cochem-runtime/evidence/base-1.0.0-final-v4/`.
 
 [Hosted ORCA serial/parallel acceptance](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613653904)
 passed separately. [Student optimization/frequency run 37616684042](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37616684042)
 also passed, with actual two-process ORCA calculation and accepted publication.
-[Bounded hosted CI run 37617769942](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37617769942)
-passed all Ubuntu/macOS/Windows controls and clean wheel checks, native launcher
-diagnostics, real Linux xTB/PySCF calculations, Stage 0 and dashboard lifecycle.
-The complete local profile also passed on that final code revision `190e5c5`;
-the preceding 1,469-pass v2 run remains historical. Consult
+[Bounded hosted CI run 37624167721](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37624167721)
+passed 164 controls per operating system, all three clean wheel checks, 537
+bounded regressions, native launcher diagnostics, real Linux xTB/PySCF
+calculations, Stage 0 and dashboard lifecycle. The actual GitHub merge checkout
+`a438644d` has exactly the same source tree as `e2aaca60`, which independently
+passed the complete local profile. The preceding 1,469-pass v2 and 1,477-pass
+v3 (`190e5c5`) runs remain historical. Consult
 the [release record](Release_1_0_0.md) for evidence and publication boundaries. Neither the complete canonical
 profile nor the bounded hosted selection claims execution of every retained
 historical test or unavailable platform.

@@ -56,7 +56,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: ProfJJK-CoChem/CoChem-TOPOS
-          ref: 6264cf08e76c37b04f111023161bf46f22c6e98b
+          ref: 4ed689a309d868bdfcb2ffec26ea257ca1788db4
           token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
           path: .cochem-dependencies/topos
           persist-credentials: false
@@ -74,7 +74,7 @@ jobs:
       - name: Validate and restrict the request before provisioning
         working-directory: .cochem-dependencies/topos
         run: |
-          python -m pip install 'pydantic>=2.4'
+          python -m pip install 'pydantic>=2.4' 'numpy>=1.24' 'networkx>=3.1' 'mendeleev>=0.20'
           python - <<'PY'
           import base64
           import json

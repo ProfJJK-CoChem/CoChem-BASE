@@ -16,3 +16,4 @@ tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVQZ.out -text -whitespace
 tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVTZ.inp -text -whitespace
 tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVTZ.out -text -whitespace
 tests/fixtures/trajectories/xtb-6.7.1-water-optimization.xyz -text -whitespace
+tests/fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.out -text -whitespace

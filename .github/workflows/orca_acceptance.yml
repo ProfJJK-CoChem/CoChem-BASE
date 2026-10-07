@@ -84,6 +84,16 @@ jobs:
             [[ "$TOPOS_REF" =~ ^[0-9a-f]{40}$ ]]
             [[ "$TORQ_REF" =~ ^[0-9a-f]{40}$ ]]
           fi
+      - name: Validate configured downstream source credential
+        if: inputs.topos_ref != ''
+        env:
+          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          BASE_SOURCE_READ_TOKEN: ${{ secrets.BASE_SOURCE_READ_TOKEN }}
+        run: |
+          if [[ -z "$COCHEM_SOURCE_READ_TOKEN" && -z "$BASE_SOURCE_READ_TOKEN" ]]; then
+            echo '::error::TOPOS acceptance requires COCHEM_SOURCE_READ_TOKEN or BASE_SOURCE_READ_TOKEN exposed to this BASE workflow with private TOPOS/TORQ Contents read access.'
+            exit 1
+          fi
       - name: Validate a reusable caller's BASE revision
         env:
           BASE_REF: ${{ inputs.base_ref }}
@@ -179,7 +189,7 @@ jobs:
         with:
           repository: ProfJJK-CoChem/CoChem-TOPOS
           ref: ${{ inputs.topos_ref }}
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
           path: .cochem-ecosystem/topos
           persist-credentials: false
       - name: Check out the mandatory TORQ source
@@ -188,7 +198,7 @@ jobs:
         with:
           repository: ProfJJK-CoChem/CoChem-TORQ
           ref: ${{ inputs.torq_ref }}
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
           path: .cochem-ecosystem/torq
           persist-credentials: false
       - name: Isolate and identify all mandatory source checkouts
@@ -206,6 +216,7 @@ jobs:
           git -C "$RUNNER_TEMP/cochem-sources/topos" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/topos-commit.txt"
           git -C "$RUNNER_TEMP/cochem-sources/torq" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/torq-commit.txt"
       - name: Complete mandatory package setup using the audited BASE installation
+        id: mandatory
         if: inputs.topos_ref != ''
         run: |
           python "$RUNNER_TEMP/cochem-sources/topos/scripts/setup_ecosystem.py" \
@@ -218,6 +229,12 @@ jobs:
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_topos.py" \
             --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence" \
             --threads 2 --memory-mb 2048 --budget-seconds 10800 --include-counterpoise --include-goat
+      - name: Execute native correlated and anharmonic acceptance
+        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_extended.py" \
+            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-extended" \
+            --threads 2 --memory-mb 4096 --budget-seconds 7200
       - name: Retain TOPOS native calculation and setup evidence
         if: always() && inputs.topos_ref != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -225,6 +242,7 @@ jobs:
           name: topos-orca-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/topos-orca-evidence/
+            ${{ runner.temp }}/topos-orca-extended/
             ${{ runner.temp }}/cochem-artifacts/setup-logs/
             ${{ runner.temp }}/cochem-artifacts/setup-receipt.json
             ${{ runner.temp }}/cochem-artifacts/mandatory-validation.json

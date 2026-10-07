@@ -12,6 +12,7 @@ import psutil
 
 from .environment_detector import EnvironmentProfile, detect_environment
 from .preflight import PreflightValidationError
+from .cpu_allocation import CPUAllocationPolicy, cpu_allocation_policy
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,14 @@ class HardwareProfile:
     gpu_device_count: int | None
     gpu_probe_status: str
     elapsed_seconds: float
+    cpu_allocation_policy: CPUAllocationPolicy = CPUAllocationPolicy.PHYSICAL_CORES
+
+    @property
+    def allocatable_compute_cores(self) -> int:
+        """Audited process slots, with the allocation unit recorded separately."""
+        capacity = (self.logical_cores if self.cpu_allocation_policy is CPUAllocationPolicy.GITHUB_HOSTED_VCPUS
+                    else self.physical_cores)
+        return min(capacity, len(self.available_cpu_ids))
 
 
 def _memory_budget(total: int, available: int) -> tuple[int, int]:
@@ -79,6 +88,7 @@ def profile_hardware(timeout: float = 1.0) -> HardwareProfile:
     if timeout <= 0 or timeout > 1.5:
         raise ValueError("Hardware ingress timeout must be in (0, 1.5] seconds")
     started = time.monotonic()
+    allocation_policy = cpu_allocation_policy()
     environment = detect_environment()
     physical = psutil.cpu_count(logical=False)
     logical = psutil.cpu_count(logical=True)
@@ -138,5 +148,5 @@ def profile_hardware(timeout: float = 1.0) -> HardwareProfile:
         raise PreflightValidationError(f"Hardware ingress exceeded {timeout:g}s deadline")
     return HardwareProfile(
         environment, physical, logical, allowed, memory.total, allocatable_ram, available_ram,
-        avx512, vram, gpu_count, gpu_status, elapsed,
+        avx512, vram, gpu_count, gpu_status, elapsed, allocation_policy,
     )

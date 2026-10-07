@@ -46,6 +46,10 @@ class ResidualGradientWarning(UserWarning):
     """The frozen CCSD(T)/CBS geometry has significant strain on the R2 surface."""
 
 
+class CounterpoiseOrderingWarning(UserWarning):
+    """Approximate integration reverses the expected variational CP ordering."""
+
+
 class ReferenceArtifact(BaseModel):
     model_config = ConfigDict(extra="forbid")
     path: Path
@@ -76,6 +80,7 @@ class MonomerReference(BaseModel):
     # Retain the two actual benchmark outputs supporting the CBS provenance.
     lower_cardinal_output: ReferenceArtifact
     upper_cardinal_output: ReferenceArtifact
+    geometry_optimization_evidence: ReferenceArtifact | None = None
 
     @field_validator("basis_cardinal_pair")
     @classmethod
@@ -168,17 +173,21 @@ def validate_reference_output(path: Path, basis_name: str) -> dict[str, Any]:
     """Accept explicit ORCA canonical CCSD(T) benchmark completion evidence.
 
     Supported text must contain ORCA normal termination, explicit CCSD(T) and
-    SCF total energies, SCF convergence, and the requested correlation-consistent
+    SCF total energies, SCF/CC convergence, and the requested correlation-consistent
     basis. Unknown/CFOUR formats require a dedicated parser before acceptance.
     """
     text = path.read_text(encoding="utf-8")
     if text.count("ORCA TERMINATED NORMALLY") != 1 or not re.search(r"\bORCA\b", text):
         raise R2ReferenceError(
             f"Unsupported or incomplete benchmark output {path}: currently accepted format is "
-            "normally completed ORCA canonical CCSD(T), with E(CCSD(T)), E(SCF), and explicit basis"
+            "normally completed ORCA canonical CCSD(T), with CCSD(T)/SCF energies and explicit basis"
         )
+    # ORCA's contributor banner names DLPNO developers even in canonical jobs.
+    # Restrict method checks to the actual input/results, after that banner.
+    calculation = re.split(r"^\s*INPUT FILE\s*$", text, maxsplit=1, flags=re.M)[-1]
     if re.search(
-        r"DLPNO|PNO-LCCSD|SCF NOT CONVERGED|SCF DID NOT CONVERGE|ERROR TERMINATION", text, re.I
+        r"DLPNO|PNO-LCCSD|SCF NOT CONVERGED|SCF DID NOT CONVERGE|ERROR TERMINATION",
+        calculation, re.I,
     ):
         raise R2ReferenceError(
             "Benchmark must be converged canonical CCSD(T), not a local approximation"
@@ -187,14 +196,31 @@ def validate_reference_output(path: Path, basis_name: str) -> dict[str, Any]:
         raise R2ReferenceError(f"Benchmark output does not establish requested basis {basis_name}")
     if not re.search(r"SCF CONVERGED AFTER\s+\d+\s+CYCLES", text, re.I):
         raise R2ReferenceError("Benchmark output omits explicit successful SCF convergence")
+    if not re.search(r"The Coupled-Cluster iterations have converged", calculation, re.I):
+        raise R2ReferenceError("Benchmark output omits successful coupled-cluster convergence")
+    if not re.search(r"^\s*Correlation treatment\s+\.{2,}\s+CCSD\s*$", calculation, re.M):
+        raise R2ReferenceError("Benchmark output does not establish canonical CCSD treatment")
+    if not re.search(r"^\s*Perturbative triple excitations\s+\.{2,}\s+ON\s*$", calculation, re.M):
+        raise R2ReferenceError("Benchmark output does not establish perturbative triples")
     number = r"([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][-+]?\d+)?)"
-    cc = re.findall(r"E\s*\(\s*CCSD\(T\)\s*\)\s*(?:=|:|\.{2,})?\s*" + number, text, re.I)
-    hf = re.findall(r"E\s*\(\s*SCF\s*\)\s*(?:=|:|\.{2,})?\s*" + number, text, re.I)
+    cc = re.findall(r"E\s*\(\s*CCSD\(T\)\s*\)\s*(?:=|:|\.{2,})?\s*" + number, calculation, re.I)
+    hf = re.findall(r"E\s*\(\s*SCF\s*\)\s*(?:=|:|\.{2,})?\s*" + number, calculation, re.I)
+    # ORCA 6.1.1 prints the SCF energy in its TOTAL SCF ENERGY block,
+    # and E(0), not E(SCF), in its coupled-cluster summary.
+    if not hf:
+        hf = re.findall(r"TOTAL SCF ENERGY\s*\n[-\s]*\n\s*Total Energy\s*:\s*" + number + r"\s+Eh", calculation, re.I)
     if not cc or not hf:
         raise R2ReferenceError(
-            "Benchmark output requires explicit E(CCSD(T)) and E(SCF), not a generic final energy"
+            "Benchmark output requires explicit CCSD(T) and SCF energy records, not a generic final energy"
         )
     values = [float(value.replace("D", "E").replace("d", "e")) for value in (cc[-1], hf[-1])]
+    final = re.findall(r"FINAL SINGLE POINT ENERGY\s+" + number, calculation)
+    if len(final) != 1:
+        raise R2ReferenceError("Reference output requires one completed single-point energy")
+    final_energy = float(final[0].replace("D", "E").replace("d", "e"))
+    if not math.isfinite(final_energy) or abs(final_energy - values[0]) > 1e-8:
+        raise R2ReferenceError("Final energy does not agree with canonical CCSD(T) energy")
+    values[0] = final_energy  # Preserve the more precise final-energy record.
     if not all(math.isfinite(value) for value in values):
         raise R2ReferenceError("Benchmark energies must be finite")
     return {
@@ -287,6 +313,13 @@ def load_r2_references(
                 "initial_internal_drift_angstrom": drift,
                 "benchmark_output_checks": benchmarks,
                 "helgaker_cbs_correlation_energy_hartree": cbs_correlation,
+                "geometry_optimization_protocol": (
+                    validate_h2_cbs_optimization_evidence(
+                        monomer.geometry_optimization_evidence.verify(source.parent),
+                        reference_symbols, reference_xyz,
+                    )
+                    if monomer.geometry_optimization_evidence is not None else None
+                ),
             }
         )
     return manifest, {
@@ -295,8 +328,82 @@ def load_r2_references(
         "monomers": evidence,
         "reference_method": "CCSD(T)/CBS",
         "reference_scientific_provenance": "UNVERIFIED",
+        "bounded_geometry_protocols_verified": all(
+            item["geometry_optimization_protocol"] is not None for item in evidence
+        ),
         "verified_reference_evidence": "source hashes, canonical method, basis pair, normal completion, coordinates, charge and multiplicity",
         "unverified_reference_claim": "The external supplier's assertion that the monomer geometry is optimized at the CCSD(T)/CBS limit requires independent benchmark review; two single-point energies alone do not establish it.",
+    }
+
+
+def validate_h2_cbs_optimization_evidence(
+    path: Path, symbols: Sequence[str], reference_xyz: np.ndarray,
+) -> dict[str, Any]:
+    """Verify a bounded H2 reference minimum against every genuine point output.
+
+    This validates an explicit computational protocol, not exact-CBS or
+    experimental geometry accuracy. Other molecular protocols need their own
+    validators; a label or two single-point outputs cannot certify a minimum.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("schema_version") != "cochem.bounded-cbs-reference/1" or data.get("status") != "passed":
+        raise R2ReferenceError("Unsupported or incomplete geometry optimization evidence")
+    if list(symbols) != ["H", "H"] or reference_xyz.shape != (2, 3):
+        raise R2ReferenceError("The bounded scalar CBS reference validator supports only H2")
+    distance = float(np.linalg.norm(reference_xyz[1] - reference_xyz[0]))
+    declared = data.get("distance_angstrom")
+    if not isinstance(declared, (int, float)) or not math.isfinite(declared) or abs(distance - declared) > 1e-7:
+        raise R2ReferenceError("Geometry optimization evidence does not belong to the reference geometry")
+    if not 0.70 < distance < 0.79 or data.get("optimizer_success") is not True:
+        raise R2ReferenceError("Bounded H2 reference optimizer did not establish an interior minimum")
+    points = []
+    for point in data.get("evaluations", []):
+        r = float(point["distance_angstrom"])
+        if not math.isfinite(r) or not 0.65 < r < 0.85:
+            raise R2ReferenceError("CBS optimization point is outside the bounded H2 domain")
+        energies = []
+        for basis in ("cc-pVTZ", "cc-pVQZ"):
+            record = point["basis_results"][basis]
+            artifact = ReferenceArtifact(path=record["output_path"], sha256=record["output_sha256"])
+            observed = validate_reference_output(artifact.verify(path.parent), basis)
+            xyz = np.asarray(observed["coordinates_angstrom"])
+            if observed["elements"] != ["H", "H"] or observed["charge"] != 0 or observed["multiplicity"] != 1:
+                raise R2ReferenceError("CBS optimization output is not neutral singlet H2")
+            if abs(float(np.linalg.norm(xyz[1] - xyz[0])) - r) > 2e-6:
+                raise R2ReferenceError("CBS optimization output geometry differs from its declared point")
+            energies.append(observed)
+        energy = energies[1]["scf_energy_hartree"] + (
+            64 * energies[1]["correlation_energy_hartree"] - 27 * energies[0]["correlation_energy_hartree"]
+        ) / 37
+        if not math.isfinite(point["cbs_energy_hartree"]) or abs(energy - point["cbs_energy_hartree"]) > 1e-10:
+            raise R2ReferenceError("CBS optimization energy disagrees with genuine source outputs")
+        points.append((r, energy))
+
+    def observed_energy(r: float) -> float:
+        matches = [energy for position, energy in points if abs(position - r) < 1e-9]
+        if not matches or max(matches) - min(matches) > 1e-10:
+            raise R2ReferenceError("CBS minimum requires consistent independent energy brackets")
+        return matches[-1]
+
+    central = observed_energy(distance)
+    checks = []
+    for step in (0.002, 0.001):
+        low, high = observed_energy(distance - step), observed_energy(distance + step)
+        derivative = (high - low) / (2 * step)
+        curvature = (high - 2 * central + low) / step ** 2
+        if not low > central or not high > central or curvature <= 0 or abs(derivative) >= 2e-5:
+            raise R2ReferenceError("Physical CBS energy brackets do not establish a local minimum")
+        checks.append({"step_angstrom": step, "derivative_hartree_per_angstrom": derivative,
+                       "curvature_hartree_per_angstrom2": curvature})
+    if abs(checks[0]["curvature_hartree_per_angstrom2"] / checks[1]["curvature_hartree_per_angstrom2"] - 1) >= 0.005:
+        raise R2ReferenceError("CBS minimum curvature is inconsistent between displacement sizes")
+    return {
+        "status": "bounded_computational_protocol_verified",
+        "evidence_path": str(path), "evidence_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "distance_angstrom": distance, "evaluated_point_count": len(points),
+        "energy_protocol": "HF/QZ plus Helgaker T,Q canonical CCSD(T) correlation estimate",
+        "finite_difference_checks": checks,
+        "independent_exact_cbs_or_experimental_accuracy_verified": False,
     }
 
 
@@ -333,7 +440,12 @@ def build_r2_leg_deck(
             symbols=symbols,
             coordinates=xyz,
         )
-        geom = format_orca_frozen_monomer_constraints_block(constraints) + "\n"
+        # ORCA can declare an optimization converged with one displacement
+        # criterion slightly unmet. Request a tenfold displacement margin while
+        # retaining independent checks of all five original SRS limits.
+        geom = format_orca_frozen_monomer_constraints_block(
+            constraints, {"TolRMSD": "5e-6", "TolMaxD": "1e-5"},
+        ) + "\n"
     else:
         reference = references.monomers[0 if leg.endswith("a") else 1]
         charge, multiplicity = reference.charge, reference.multiplicity
@@ -351,7 +463,9 @@ def build_r2_leg_deck(
         + (" TightOpt" if leg == "dimer" else "")
         + "\n"
         + f"%pal nprocs {cores} end\n%maxcore {maxcore_mb}\n"
-        + "%scf\n TolE 1.0e-8\n Thresh 1.0e-11\n MaxIter 150\nend\n"
+        # Independently accepted SCF energy changes remain <= 1e-8 Eh. ORCA
+        # may stop slightly above a requested value, so request a real margin.
+        + "%scf\n TolE 1.0e-10\n Thresh 1.0e-12\n ConvCheckMode 0\n ConvForced true\n MaxIter 150\nend\n"
         + geom
         + f"* xyz {charge} {multiplicity}\n"
         + "\n".join(
@@ -362,7 +476,9 @@ def build_r2_leg_deck(
     return deck, current_symbols, current_xyz, multiplicity
 
 
-def counterpoise_bracket(energies: dict[str, float], tolerance: float = 1e-7) -> dict[str, float]:
+def counterpoise_bracket(
+    energies: dict[str, float], tolerance: float = 1e-7, *, require_variational_order: bool = True,
+) -> dict[str, Any]:
     names = {"dimer", "monomer_a", "monomer_b", "ghost_a", "ghost_b"}
     if set(energies) != names or any(
         isinstance(v, bool) or not math.isfinite(v) for v in energies.values()
@@ -371,7 +487,8 @@ def counterpoise_bracket(energies: dict[str, float], tolerance: float = 1e-7) ->
     raw = energies["dimer"] - energies["monomer_a"] - energies["monomer_b"]
     cp = energies["dimer"] - energies["ghost_a"] - energies["ghost_b"]
     correction = cp - raw
-    if correction < -tolerance:
+    reversed_order = correction < -tolerance
+    if reversed_order and require_variational_order:
         raise ValueError("Counterpoise correction reverses the variational BSSE bracket")
     return {
         "uncorrected_interaction_hartree": raw,
@@ -379,6 +496,10 @@ def counterpoise_bracket(energies: dict[str, float], tolerance: float = 1e-7) ->
         "bsse_correction_hartree": correction,
         "bracket_lower_hartree": min(raw, cp),
         "bracket_upper_hartree": max(raw, cp),
+        "variational_order_consistent": not reversed_order,
+        "ordering_tolerance_hartree": tolerance,
+        "interval_is_rigorous_physical_bound": False,
+        "interval_semantics": "ordered measured uncorrected and counterpoise interaction energies",
     }
 
 
@@ -400,7 +521,10 @@ def read_dimer_gradient(
     if any(len(row) != 4 for row in nuclei):
         raise ValueError("Invalid engrad nuclear coordinates")
     expected_z = [get_element_mass_and_abundance(symbol)[2] for symbol in symbols]
-    if [int(float(row[0])) for row in nuclei] != expected_z:
+    observed_z = [numeric(row[0]) for row in nuclei]
+    if any(not math.isfinite(value) or not value.is_integer() for value in observed_z):
+        raise ValueError("ORCA engrad nuclear identities must be finite integers")
+    if [int(value) for value in observed_z] != expected_z:
         raise ValueError("ORCA engrad atom identities/order differ from the final geometry")
     bohr_angstrom = physical_constants["Bohr radius"][0] * 1e10
     observed_xyz = np.asarray([[numeric(v) for v in row[1:]] for row in nuclei]) * bohr_angstrom
@@ -612,6 +736,18 @@ def execute_recipe_r2(
             f"Frozen-coordinate residual gradient {norm:.6g} Eh/bohr exceeds 1e-4",
             ResidualGradientWarning,
         )
+    # Finite RI/COSX quadratures and post-SCF VV10 correction do not guarantee
+    # variational monotonicity on adding ghost basis functions. Preserve the
+    # signed measurement and explicitly deny a certified conservative bound.
+    counterpoise = counterpoise_bracket(energies, require_variational_order=False)
+    ordering_warning = not counterpoise["variational_order_consistent"]
+    if ordering_warning:
+        warnings.warn(
+            "Measured RIJCOSX/post-SCF VV10 counterpoise correction reverses variational ordering: "
+            f"{counterpoise['bsse_correction_hartree']:.12g} Eh. "
+            "The raw/CP interval is not a verified conservative physical bound.",
+            CounterpoiseOrderingWarning,
+        )
     evidence = {
         "engine": "orca",
         "method": "wB97M-V",
@@ -624,7 +760,8 @@ def execute_recipe_r2(
         "elements": list(symbols),
         "coordinates_angstrom": final_xyz.tolist(),
         "gradients_hartree_per_bohr": dimer_gradient.tolist(),
-        "counterpoise": counterpoise_bracket(energies),
+        "counterpoise": counterpoise,
+        "counterpoise_ordering_warning": ordering_warning,
         "legs": legs,
         "reference_evidence": reference_evidence,
         "frozen_monomer_integrity": drift,
@@ -632,6 +769,7 @@ def execute_recipe_r2(
         "residual_gradient_warning": strained,
         "residual_gradient_threshold": 1e-4,
         "scientific_acceptance": (
+            "execution_verified_counterpoise_ordering_warning_accuracy_unverified" if ordering_warning else
             "strain_warning_reference_geometry_quality_unverified"
             if strained else "execution_checks_passed_reference_geometry_quality_unverified"
         ),
@@ -645,8 +783,9 @@ def execute_recipe_r2(
             if leg == "dimer"
             else manifest.monomers[0 if leg.endswith("a") else 1].atom_indices
         )
-        append_scientific_result(
-            f"{identity}_{leg}",
+        telemetry_job_id = f"{identity}_{leg}"
+        archive = append_scientific_result(
+            telemetry_job_id,
             [symbols[i] for i in active],
             final_xyz[active],
             energies[leg],
@@ -659,6 +798,8 @@ def execute_recipe_r2(
                 "reference_manifest_sha256": reference_evidence["manifest_sha256"],
             },
         )
+        details["telemetry_job_id"] = telemetry_job_id
+        details["telemetry_path"] = str(archive)
     (root / "r2_result.json").write_text(
         json.dumps(evidence, indent=2, allow_nan=False), encoding="utf-8"
     )

@@ -24,7 +24,7 @@ def _run_setup(
     if separately provisioned. It does not accept or infer third-party licenses.
     A partial phase selection never replaces the Golden Registry.
     """
-    from cli import action_setup
+    from cochem_base.cli import action_setup
 
     if min_disk_space_gb <= 0:
         raise ValueError("A positive workload storage requirement is required")

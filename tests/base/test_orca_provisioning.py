@@ -20,6 +20,7 @@ from scripts.provision_orca import (
     extract_verified_archive,
     github_environment,
     installation_space_requirement,
+    load_distribution_manifest,
     native_executable,
     require_platform,
     sha256_file,
@@ -50,6 +51,31 @@ def test_reviewed_distribution_is_pinned():
     assert manifest["sha256"] == "a0bc1d6d2c3c00620367bbc5dbf2b3a7018abc92d1ff65f06cec46f75350b9be"
     assert manifest["orca_version"] == "6.1.1"
     assert manifest["openmpi_version"] == "4.1.8"
+
+
+def test_instructor_asset_location_can_change_without_changing_the_supported_build(tmp_path):
+    manifest = load_distribution_manifest()
+    manifest.update(repository="Course-Organization/Private-Engines", release_tag="course-orca-6.1.1")
+    path = tmp_path / "distribution.json"
+    path.write_text(json.dumps(manifest))
+    assert load_distribution_manifest(path) == manifest
+
+
+@pytest.mark.parametrize("field,value", [
+    ("repository", "https://github.com/course/engines"),
+    ("release_tag", "orca\nINJECTED=yes"),
+    ("archive_name", "../../unreviewed.tar.xz"),
+    ("sha256", "not-a-checksum"),
+    ("openmpi_version", "5.0.0"),
+    ("architecture", "aarch64"),
+])
+def test_distribution_identity_rejects_unsafe_or_unsupported_settings(tmp_path, field, value):
+    manifest = load_distribution_manifest()
+    manifest[field] = value
+    path = tmp_path / "distribution.json"
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError):
+        load_distribution_manifest(path)
 
 
 def test_disk_preflight_accounts_for_actual_expansion_and_job_reserve():

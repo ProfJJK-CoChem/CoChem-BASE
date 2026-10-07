@@ -4,6 +4,12 @@ Geometry checks exercise actual molecular internal-coordinate derivatives. Text
 cases exercise parser grammar and rejection paths, not simulated quantum results.
 """
 
+import json
+import hashlib
+import os
+from pathlib import Path
+import subprocess
+import sys
 import numpy as np
 import pytest
 
@@ -85,6 +91,96 @@ def test_explicit_grid_stage_written_once(stage, tmp_path, configured_registry):
     deck = generate_orca_input(molecule(grid_stage=stage), tmp_path).read_text()
     assert deck.upper().count("DEFGRID") == 1
     assert f"DEFGRID{stage}" in deck
+    assert "ConvCheckMode 0" in deck and "ConvForced true" in deck
+    assert "TolE 1.0e-10" in deck and "Thresh 1.0e-12" in deck
+
+
+@pytest.mark.parametrize("method", ("B3LYP-D4", "b3lyp-d3bj", "PBE0-D4", "PBE0-D3BJ",
+                                   "PBE-D4", "PWPB95-D4", "B2PLYP-D3"))
+def test_additive_dispersion_alias_renders_native_orca_keywords(method, tmp_path, configured_registry):
+    original = f"{method} def2-SVP"
+    model = molecule(theory_level=original, is_opt=False)
+    deck = generate_orca_input(model, tmp_path).read_text()
+    keywords = next(line.split() for line in deck.splitlines() if line.startswith("!"))
+    functional, correction = method.split("-")
+    assert functional in keywords and correction in keywords
+    assert method not in keywords
+    assert model.theory_level == original
+
+
+@pytest.mark.parametrize("method", ("PWPB95-D4", "B2PLYP-D3", "RI-MP2", "DLPNO-CCSD(T)", "DLPNO-CCSD(T1)"))
+@pytest.mark.parametrize("auxiliary", ("", "def2-SVP/C", "AutoAux"))
+def test_ri_correlation_requires_fitting_basis(method, auxiliary, tmp_path, configured_registry):
+    deck = generate_orca_input(
+        molecule(theory_level=f"{method} def2-SVP {auxiliary}".strip(), is_opt=False), tmp_path,
+    ).read_text()
+    keywords = next(line.split() for line in deck.splitlines() if line.startswith("!"))
+    if auxiliary == "def2-SVP/C":
+        assert "def2-SVP/C" in keywords and "AutoAux" not in keywords
+    else:
+        assert keywords.count("AutoAux") == 1
+    assert ("generated AutoAux" in deck) == (not auxiliary)
+
+
+@pytest.mark.parametrize("method", ("MP2", "SCS-MP2", "HF", "PBE-D4"))
+def test_method_without_ri_correlation_keeps_its_auxiliary_policy(method, tmp_path, configured_registry):
+    deck = generate_orca_input(molecule(theory_level=f"{method} def2-SVP", is_opt=False), tmp_path).read_text()
+    assert "AutoAux" not in deck
+
+
+@pytest.mark.parametrize("method", ("r2SCAN-3c", "wB97M-V", "wB97X-D4", "revDSD-PBEP86-D4"))
+def test_native_hyphenated_functional_is_not_split(method, tmp_path, configured_registry):
+    basis = "" if method == "r2SCAN-3c" else " def2-SVP"
+    deck = generate_orca_input(molecule(theory_level=method + basis, is_opt=False), tmp_path).read_text()
+    keywords = next(line.split() for line in deck.splitlines() if line.startswith("!"))
+    assert method in keywords
+
+
+def test_explicit_deck_registry_overrides_unrelated_global_binding(tmp_path):
+    registry = tmp_path / "selected_registry.json"
+    registry.write_text(json.dumps({"hardware": {"physical_cpu_cores": 1, "maxcore_mb": 321}}))
+    program = (
+        "import sys; from pathlib import Path; "
+        "from cochem_base.calc.cochem_calc_input_generator import MoleculeInput, generate_orca_input; "
+        "model=MoleculeInput(basin_id='explicit-registry',elements=['H','H'],coordinates=[(0,0,0),(0,0,.74)],"
+        "theory_level='HF STO-3G',nprocs=1,is_opt=False); "
+        "print(generate_orca_input(model,Path(sys.argv[1]),registry_path=Path(sys.argv[2])).read_text())"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", program, str(tmp_path), str(registry)],
+        env={**os.environ, "COCHEM_CONFIG": str(tmp_path / "unrelated_absent_registry.json")},
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    deck = completed.stdout
+    assert "%maxcore 321" in deck
+    assert "nprocs 1" in deck
+
+
+def test_actual_stationary_restart_uses_measured_initial_final_energy_difference():
+    path = Path(__file__).parents[1] / "fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.out"
+    provenance = json.loads(path.with_suffix(".json").read_text())
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == provenance["excerpt_sha256"]
+    result = QuantumParser(str(path.parent)).verify_geometry_convergence(path)
+    assert result["Energy change"] == pytest.approx(1e-12, abs=2e-14)
+    assert len(result) == 5
+
+
+@pytest.mark.parametrize("change", ["ambiguous-energy", "second-cycle", "large-change", "missing-termination"])
+def test_stationary_restart_cannot_invent_missing_or_ambiguous_energy_evidence(tmp_path, change):
+    path = Path(__file__).parents[1] / "fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.out"
+    content = path.read_text()
+    if change == "ambiguous-energy":
+        content += "FINAL SINGLE POINT ENERGY -74.965901192194\n"
+    elif change == "second-cycle":
+        content = content.replace("CYCLE   1", "CYCLE   2")
+    elif change == "large-change":
+        content = content.replace("-74.965901192194", "-74.966901192194")
+    else:
+        content = content.replace("ORCA TERMINATED NORMALLY", "interrupted")
+    altered = tmp_path / "altered-native-excerpt.out"
+    altered.write_text(content)
+    with pytest.raises(GeometryConvergenceError):
+        QuantumParser(str(tmp_path)).verify_geometry_convergence(altered)
 
 
 @pytest.mark.parametrize("keyword", ("DEFGRID1 Freq", "DEFGRID2 VPT2", "DEFGRID2 AnFreq", "DEFGRID4", "GRID4", "DEFGRID1 DEFGRID3"))
@@ -143,10 +239,19 @@ def test_standard_hybrids_require_mandated_damping(functional):
         ElectronicSanitizer.sanitize_dft_dispersion(functional, is_complex=True)
 
 
-@pytest.mark.parametrize("method", ("MP2 cc-pVTZ", "DLPNO-CCSD(T) cc-pVQZ", "GFN2-xTB", "CASSCF NEVPT2"))
+@pytest.mark.parametrize("method", (
+    "MP2 cc-pVTZ", "DLPNO-CCSD(T) cc-pVQZ", "GFN2-xTB", "CASSCF NEVPT2",
+    "HF STO-3G", "RHF def2-SVP", "UHF 6-31G", "ROHF cc-pVDZ",
+))
 def test_dft_dispersion_gate_does_not_inject_d4_into_other_methods(method):
     result = ElectronicSanitizer.sanitize_dft_dispersion(method, is_complex=True)
     assert result["has_empirical_dispersion"] is False
+
+
+@pytest.mark.parametrize("method", ("UHF PBE def2-SVP", "RHF TPSS def2-SVP", "ROHF M06-2X def2-SVP"))
+def test_hf_spin_reference_does_not_waive_functional_dispersion(method):
+    with pytest.raises(MissingDispersionError):
+        ElectronicSanitizer.sanitize_dft_dispersion(method, is_complex=True)
 
 
 def test_declared_product_policy_reaches_input_boundary():

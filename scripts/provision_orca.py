@@ -26,6 +26,31 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 INSTALLATION_RESERVE_BYTES = 4 * 1024**3
 
 
+def load_distribution_manifest(path: Path = DEFAULT_MANIFEST) -> dict:
+    """Validate the instructor-reviewed identity shared by every Actions route."""
+    manifest = json.loads(path.read_text())
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+        raise ValueError("ORCA distribution manifest requires schema_version 1.")
+    required = ("repository", "release_tag", "archive_name", "sha256", "orca_version",
+                "openmpi_version", "platform", "architecture")
+    if any(not isinstance(manifest.get(key), str) or not manifest[key]
+           or any(char in manifest[key] for char in "\r\n\x00") for key in required):
+        raise ValueError("ORCA distribution identity fields must be nonempty single-line strings.")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*", manifest["repository"]):
+        raise ValueError("ORCA asset repository must be OWNER/REPOSITORY.")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", manifest["release_tag"]):
+        raise ValueError("Use a release tag such as orca-6.1.1.")
+    if not re.fullmatch(r"[0-9a-f]{64}", manifest["sha256"]):
+        raise ValueError("ORCA archive SHA-256 must contain 64 lowercase hexadecimal characters.")
+    supported = {"archive_name": "orca_6_1_1_linux_x86-64_shared_openmpi418.tar.xz",
+                 "orca_version": "6.1.1", "openmpi_version": "4.1.8",
+                 "platform": "Linux", "architecture": "x86_64"}
+    for key, expected in supported.items():
+        if manifest[key] != expected:
+            raise ValueError(f"This Actions installer requires {key}={expected!r}.")
+    return manifest
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -215,7 +240,7 @@ def _external_path(path: Path) -> Path:
 
 
 def provision(archive: Path, install_root: Path, mpi_prefix: Path, manifest_path: Path) -> dict:
-    manifest = json.loads(manifest_path.read_text())
+    manifest = load_distribution_manifest(manifest_path)
     require_platform(platform.system(), platform.machine(), manifest)
     if archive.name != manifest["archive_name"]:
         raise ValueError(f"Expected archive filename {manifest['archive_name']!r}")

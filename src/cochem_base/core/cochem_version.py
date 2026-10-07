@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from cochem_base._version import __version__
+
 
 def _find_git_root(start_path: Path) -> Optional[Path]:
     """Traverse directory parents to locate genuine .git directory or file."""
@@ -152,7 +154,7 @@ def get_vcs_provenance(root_path: Optional[Path] = None) -> Dict[str, Any]:
     # 4. Clean Fallback for Untracked Environments
     return {
         "vcs_type": "untracked",
-        "version": "0.1.0-untracked",
+        "version": f"{__version__}-untracked",
         "status": "UNTRACKED_BUILD",
         "platform": platform.platform(),
         "python_version": platform.python_version(),

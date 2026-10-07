@@ -1,0 +1,27 @@
+{
+  "scope": "Exact native output excerpt for parser regression; not a complete physical acceptance artifact",
+  "engine": "ORCA 6.1.1",
+  "method": "HF/STO-3G",
+  "full_output_sha256": "b0989de335711647e26477afdeb89d207fccde43d5fa6ed4df73cc1dea2421d6",
+  "excerpt_sha256": "12483ef0d8c8b94d7b1a8fa3dcf6eb09eb41d9593f7a067c4acc5f0fe65c8519",
+  "source_lines_one_based_inclusive": [
+    [
+      279,
+      279
+    ],
+    [
+      691,
+      691
+    ],
+    [
+      771,
+      789
+    ],
+    [
+      1227,
+      1227
+    ]
+  ],
+  "additional_exact_line": "ORCA TERMINATED NORMALLY",
+  "actual_run_evidence": "orca-state-transfer-diagnostic-v2/checkpoint/checkpoint_read.out"
+}

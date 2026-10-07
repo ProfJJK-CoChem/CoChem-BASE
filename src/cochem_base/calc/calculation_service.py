@@ -84,6 +84,15 @@ class CalculationMatrixConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_recovery_and_reference_scope(self) -> "CalculationMatrixConfig":
+        if self.engine == "orca":
+            import re
+            keywords = " ".join(value for value in (self.method, self.basis_set) if value)
+            if re.search(r"\b(?:VPT2|ANFREQ)\b", keywords, re.I) and not self.is_vpt2:
+                raise ValueError("ORCA anharmonic keywords require is_vpt2=true and its pending downstream contract")
+            if re.search(r"\b(?:FREQ|NUMFREQ)\b", keywords, re.I) and not (self.is_freq or self.is_vpt2):
+                raise ValueError("ORCA frequency keywords require is_freq=true and harmonic artifact validation")
+            if re.search(r"\b(?:OPT|TIGHTOPT|VERYTIGHTOPT|LOOSEOPT|OPTTS|COPT)\b", keywords, re.I) and not self.is_opt:
+                raise ValueError("ORCA optimization keywords require is_opt=true and geometry validation")
         if self.method.strip().lower() == "r2scan-3c":
             if "basis_set" not in self.model_fields_set:
                 object.__setattr__(self, "basis_set", None)
@@ -220,6 +229,7 @@ def validate_frozen_monomer_trajectory(
 def run_calculation(
     config_path: str | Path, *, scratch: str | Path | None = None,
     output: str | Path | None = None, threads: int | None = None,
+    maxcore_mb: int | None = None,
     device: str = "auto", dry_run: bool = False, keep_scratch: bool = False,
     engine: str | None = None, cancellation_event: Any = None,
     on_event: Callable[[dict[str, Any]], None] | None = None,
@@ -227,11 +237,11 @@ def run_calculation(
 ) -> dict[str, Any]:
     """Execute native capabilities, or preserve a pending job for future integration."""
 
-    from cochem_base.calc.cochem_calc_input_generator import MoleculeInput, generate_orca_input, generate_pyscf_input
+    from cochem_base.calc.cochem_calc_input_generator import generate_orca_input, generate_pyscf_input
+    from cochem_base.calc.molecular_input import build_molecular_input, canonical_theory_tier
     from cochem_base.analysis.electronic_sanitizer import SpinContaminationStreamValidator
     from cochem_base.config_loader import get_artifact_dir, resolve_executable
     from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
-    from cochem_base.geometry.fragment_partitioner import detect_molecular_fragments
     from cochem_base.theory_matrix import ProductClass
     from cochem_base.calc.xtb_execution import accept_xtb_result, validate_xtb_config, write_xtb_input
     from cochem_base.core_engine.execution_authority import authorize_engine_execution
@@ -262,6 +272,8 @@ def run_calculation(
             raise ValueError("The native CPU adapters do not support --device cuda")
         if threads is not None and (isinstance(threads, bool) or threads < 1):
             raise ValueError("--threads must be a positive integer")
+        if maxcore_mb is not None and (isinstance(maxcore_mb, bool) or not isinstance(maxcore_mb, int) or maxcore_mb < 1):
+            raise ValueError("maxcore_mb must be a positive integer per process")
         if threads is None and config.engine in {"xtb", "pyscf", "qe"}:
             threads = 1
         elements, coordinates = parse_run_geometry(config.geometry)
@@ -290,23 +302,11 @@ def run_calculation(
                 original_coordinates, original_coordinates, symbols=elements,
             )
             coordinates = normalized_coordinates.tolist()
-        tier = None
-        if config.theory_tier:
-            tier_text = config.theory_tier.strip().upper().removeprefix("T")
-            if tier_text not in {str(value) for value in range(10)}:
-                raise ValueError("theory_tier must identify a canonical T0--T9 tier")
-            tier = int(tier_text)
-        model_data = config.model_dump(exclude={"geometry", "engine", "method", "basis_set", "product_class", "theory_tier", "timeout_seconds", "t9_fallback", "r2_reference_manifest", "pyscf_version", "periodic"})
+        canonical_theory_tier(config.theory_tier)
         basin_id = f"job_{uuid.uuid4().hex}"
-        model_data.update(
-            basin_id=basin_id, elements=elements, coordinates=coordinates,
-            theory_level=" ".join(part for part in (config.method, config.basis_set) if part and part.lower() not in {"built-in", "default"}),
-            product_class=product, tier=tier,
-            is_weak_complex=len(detect_molecular_fragments(elements, coordinates)) > 1,
-        )
-        if threads is not None:
-            model_data["nprocs"] = threads
-        molecule = MoleculeInput.model_validate(model_data) if config.engine in {"orca", "pyscf"} else None
+        molecule = build_molecular_input(
+            config, basin_id=basin_id, coordinates=coordinates, nprocs=threads, maxcore_mb=maxcore_mb,
+        ) if config.engine in {"orca", "pyscf"} else None
         xtb_config = config.model_copy(update={"is_freq": False, "is_vpt2": False}) if pending else config
         xtb_arguments = validate_xtb_config(xtb_config, elements) if config.engine == "xtb" else []
         engine_path = None
@@ -317,7 +317,10 @@ def run_calculation(
             if override and engine_path is None:
                 raise BinaryNotFoundError(f"A real {config.engine.upper()} executable is required; "
                                           f"configure {config.engine.upper()}_CMD or PATH")
-            authorization = authorize_engine_execution(config.engine, registry_path=registry_path, executable=engine_path, cores=threads)
+            authorization = authorize_engine_execution(
+                config.engine, registry_path=registry_path, executable=engine_path,
+                cores=threads, maxcore_mb=maxcore_mb,
+            )
             engine_path, threads = authorization.executable, authorization.cores
             if molecule is not None:
                 molecule = molecule.model_copy(update={"nprocs": threads, "maxcore_mb": authorization.maxcore_mb})
@@ -350,6 +353,7 @@ def run_calculation(
             handoff = prepare_calculation_handoff(
                 handoff_config, geometry_path, sandbox_dir / "handoff", dependency_files=dependencies,
                 provider_options={"requested_threads": threads, "requested_device": device,
+                                  "requested_maxcore_mb": maxcore_mb,
                                   "dependency_fields": list(dependencies)},
             )
             payload = {
@@ -379,7 +383,7 @@ def run_calculation(
         elif config.engine == "pyscf":
             deck = generate_pyscf_input(molecule, output_dir=sandbox_dir, expected_version=config.pyscf_version)
         elif molecule is not None:
-            deck = generate_orca_input(molecule, output_dir=sandbox_dir)
+            deck = generate_orca_input(molecule, output_dir=sandbox_dir, registry_path=registry_path)
         else:
             deck = write_xtb_input(sandbox_dir, elements, coordinates)
         fallback = None
@@ -480,7 +484,25 @@ def run_calculation(
                             )
                     accepted = {"engine": "orca", "method": config.method, "converged": True,
                                 "energy_hartree": schema["properties"]["return_energy"],
-                                "elements": result_elements, "coordinates_angstrom": result_coordinates}
+                                "elements": result_elements, "coordinates_angstrom": result_coordinates,
+                                "operation": capability.operation, "optimization_performed": config.is_opt}
+                    from cochem_base.calc.orca_derivatives import accept_gradient, accept_harmonic_hessian
+                    import re
+                    accepted.update(accept_gradient(
+                        sandbox_dir / f"{basin_id}_job.engrad", result_elements, result_coordinates,
+                        accepted["energy_hartree"], required=config.is_opt or bool(re.search(
+                            r"\bENGRAD\b", " ".join(value for value in (config.method, config.basis_set) if value), re.I,
+                        )),
+                    ))
+                    if config.is_freq:
+                        accepted.update(accept_harmonic_hessian(
+                            sandbox_dir / f"{basin_id}_job.hess", sandbox_dir / f"{basin_id}_job.out",
+                            result_elements, result_coordinates, optimized=config.is_opt,
+                        ))
+                    accepted["metadata"] = {key: accepted[key] for key in (
+                        "gradient_artifact", "hessian_artifact", "harmonic_frequencies_cm1",
+                        "principal_isotope_masses_u", "harmonic_frequency_provenance",
+                    ) if key in accepted}
                 elif config.engine == "xtb":
                     accepted = accept_xtb_result(result, sandbox_dir, config, elements, parse_run_geometry)
                 else:
@@ -520,6 +542,7 @@ def run_calculation(
         status = "DECK_GENERATED" if dry_run else "T9_FALLBACK_VERIFIED" if fallback else "EXECUTION_VERIFIED"
         payload = {"status": status, "config_file": str(cfg_path), "engine": config.engine, "method": config.method,
                    "basis_set": config.basis_set, "dry_run": dry_run, "scratch_dir": str(sandbox_dir),
+                   "operation": capability.operation,
                    "output_dir": str(output) if output is not None else None,
                    "timestamp": datetime.now(timezone.utc).isoformat()}
         if fallback is not None:

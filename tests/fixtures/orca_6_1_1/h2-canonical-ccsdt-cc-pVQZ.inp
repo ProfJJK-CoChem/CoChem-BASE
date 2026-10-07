@@ -1,0 +1,9 @@
+! CCSD(T) cc-pVQZ VeryTightSCF
+%pal nprocs 1 end
+%maxcore 1000
+%scf TolE 1e-11 MaxIter 200 end
+%mdci STol 1e-9 MaxIter 100 end
+* xyz 0 1
+H 0 0 -0.370901000000000
+H 0 0 0.370901000000000
+*

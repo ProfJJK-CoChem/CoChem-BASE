@@ -39,7 +39,7 @@ def calculation_capability(config: Any) -> CalculationCapability:
     """Describe a request's adapter, separately from audited binary availability."""
     operation: Operation = ("vpt2" if config.is_vpt2 else "harmonic_frequencies" if config.is_freq
                             else "optimization" if config.is_opt else "single_point")
-    native = {"orca": {"single_point", "optimization"}, "xtb": {"single_point", "optimization"},
+    native = {"orca": {"single_point", "optimization", "harmonic_frequencies"}, "xtb": {"single_point", "optimization"},
               "pyscf": {"single_point"}, "qe": {"single_point"}, "cfour": set()}
     connected = operation in native[config.engine]
     return CalculationCapability(

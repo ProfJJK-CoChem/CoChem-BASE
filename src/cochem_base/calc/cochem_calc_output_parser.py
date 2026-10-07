@@ -177,8 +177,21 @@ class QuantumParser:
         for label, limit in limits.items():
             values = re.findall(rf"^\s*{label}\s*(?::|=)?\s*({_NUMBER})\b", table, re.I | re.M)
             if not values:
-                raise GeometryConvergenceError(f"Missing final {label} convergence evidence.")
-            value = abs(_number(values[-1]))
+                # A stationary restart can finish on its first optimization
+                # cycle. ORCA then omits the table's energy-change row but
+                # evaluates both the initial and final geometry. Use those two
+                # actual energies only when their one-cycle ordering is clear.
+                cycles = re.findall(r"GEOMETRY OPTIMIZATION CYCLE\s+(\d+)\b", content, re.I)
+                energies = list(re.finditer(rf"FINAL SINGLE POINT ENERGY\s+({_NUMBER})", content, re.I))
+                table_start = content.lower().rfind("geometry convergence")
+                converged = re.search(r"OPTIMIZATION (?:HAS )?CONVERGED", content, re.I)
+                if (label != "Energy change" or len(tables) != 2 or cycles != ["1"] or len(energies) != 2
+                        or "ORCA TERMINATED NORMALLY" not in content
+                        or not energies[0].start() < table_start < converged.start() < energies[1].start()):
+                    raise GeometryConvergenceError(f"Missing final {label} convergence evidence.")
+                value = abs(_number(energies[1][1]) - _number(energies[0][1]))
+            else:
+                value = abs(_number(values[-1]))
             if not math.isfinite(value) or value > limit:
                 raise GeometryConvergenceError(f"Final {label} {value:g} exceeds required {limit:g}.")
             final[label] = value

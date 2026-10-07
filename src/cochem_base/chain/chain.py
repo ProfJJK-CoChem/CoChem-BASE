@@ -48,6 +48,7 @@ import logging
 import math
 import re
 import shutil
+import stat
 import sys
 import time
 import threading
@@ -70,7 +71,7 @@ from cochem_base.core.cochem_constants import (
     ATOMIC_MASS_UNIT_KG, ANGSTROM_TO_METER, BOHR_TO_ANGSTROM, BOHR_TO_METER,
     HARTREE_TO_JOULE, HARTREE_TO_EV, HARTREE_TO_CM_INV, C_ROT_MHZ_U_ANG2,
 )
-from cochem_base.calc.cochem_calc_input_generator import MoleculeInput
+from cochem_base.calc.cochem_calc_input_generator import MoleculeInput, ORCA_SCF_BLOCK, _orca_method_keywords
 from cochem_base.core_engine.execution_authority import authorize_engine_execution
 from cochem_base.core_engine.scientific_telemetry import append_scientific_result
 from cochem_base.core_engine.trajectory_telemetry import XYZTrajectoryFollower
@@ -680,6 +681,10 @@ def parse_orca_hessian(path: Union[str, Path]) -> Optional[Dict[str, Any]]:
     current = None
     for raw_line in p.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
+        # Native ORCA 6.x writes descriptive comments between numeric sections
+        # (including after the normal-mode matrix). They are not matrix rows.
+        if line.startswith("#"):
+            continue
         if line.startswith("$"):
             current = line
             if current in blocks:
@@ -1018,7 +1023,10 @@ class Chain:
                 f.require_group("isotopologues")
                 f.require_group("lineage")
 
-    def build_stage_input(self, stage: Stage, geom_file: str, *, allow_planned_checkpoints: bool = False) -> str:
+    def build_stage_input(
+        self, stage: Stage, geom_file: str, *, allow_planned_checkpoints: bool = False,
+        mo_input_file: Optional[str] = None,
+    ) -> str:
         """
         Synthesizes the complete ORCA input deck for a stage, encoding:
         - Unique %base name (Rule D5)
@@ -1038,6 +1046,8 @@ class Chain:
             raise ValueError("Geometry input must be a safe local filename.")
         if stage.guess_mode not in {"FMatrix", "CMatrix", ""}:
             raise ValueError("Unsupported ORCA guess projection mode.")
+        if mo_input_file is not None and (not stage.mo_from or mo_input_file != f"{stage.name}.moinp.gbw"):
+            raise ValueError("An orbital snapshot must use the current stage's dedicated input filename.")
         # Raw blocks must not override validated geometry, dispersion, resource,
         # grid or checkpoint policy. The existing high-level stage only needs MDCI.
         if stage.blocks and not re.fullmatch(r"\s*%mdci\s+[^%!*#]*\bend\s*", stage.blocks, re.I):
@@ -1087,7 +1097,7 @@ class Chain:
         dispersion = ElectronicSanitizer.sanitize_dft_dispersion(
             stage.level, is_complex=len(fragments) > 1, num_monomers=len(fragments),
         )
-        route = re.sub(r"(?i)\bDEFGRID\d+\b", "", stage.level).strip()
+        route = _orca_method_keywords(re.sub(r"(?i)\bDEFGRID\d+\b", "", stage.level).strip())
         route_tokens = [f"! {route} {policy.resolved_grid()} NoSym"]
         if stage.implicit_solvation:
             route_tokens.append(stage.implicit_solvation)
@@ -1102,9 +1112,11 @@ class Chain:
         ]
 
         if stage.mo_from:
-            input_lines.append(f'%moinp "{stage.mo_from}.gbw"')
-            if stage.guess_mode:
-                input_lines.append(f"%scf GuessMode {stage.guess_mode} end")
+            input_lines.append(f'%moinp "{mo_input_file or stage.mo_from + ".gbw"}"')
+        scf_block = ORCA_SCF_BLOCK
+        if stage.mo_from and stage.guess_mode:
+            scf_block = scf_block.removesuffix("end") + f" GuessMode {stage.guess_mode}\nend"
+        input_lines.append(scf_block)
 
         # Configure geometry and initial Hessian block if optimization is requested
         if "opt" in stage.level.lower():
@@ -1419,10 +1431,35 @@ class Chain:
             for suffix in ("xyz", "hess", "gbw", "opt"):
                 if (self.workdir / f"{stage.name}.{suffix}").exists():
                     raise CorruptOutputError(f"Refusing stale stage output {stage.name}.{suffix}; use a new basename.")
+        orbital_snapshot = None
+        orbital_source_hash = None
+        if stage.mo_from and (self.workdir / f"{stage.mo_from}.gbw").is_file():
+            # Native orca_guess opens its input GBW read/write. A dedicated
+            # writable consumer copy protects the prior verified state, which
+            # can legitimately be archived with read-only permissions.
+            source_orbital = self.workdir / f"{stage.mo_from}.gbw"
+            orbital_snapshot = self.workdir / f"{stage.name}.moinp.gbw"
+            if orbital_snapshot.exists():
+                raise CorruptOutputError("Refusing to overwrite an existing orbital input snapshot.")
+            orbital_source_hash = hashlib.sha256(source_orbital.read_bytes()).hexdigest()
+            shutil.copyfile(source_orbital, orbital_snapshot)
+            orbital_snapshot.chmod(orbital_snapshot.stat().st_mode | stat.S_IWUSR)
+            if hashlib.sha256(orbital_snapshot.read_bytes()).hexdigest() != orbital_source_hash:
+                raise CorruptOutputError("Orbital input snapshot differs from its source checkpoint.")
+            (self.workdir / f"{stage.name}.checkpoint_inputs.json").write_text(json.dumps({
+                "orbital_source": source_orbital.name,
+                "orbital_source_sha256": orbital_source_hash,
+                "orbital_consumer": orbital_snapshot.name,
+                "orbital_consumer_initial_sha256": orbital_source_hash,
+                "consumer_writable_for_native_guess": True,
+            }, indent=2), encoding="utf-8")
         inp_path = self.workdir / f"{stage.name}.inp"
         for output in (inp_path, self.workdir / f"{stage.name}.out", self.workdir / f"{stage.name}.err"):
             assert_writable_path(output)
-        inp_path.write_text(self.build_stage_input(stage, geom_source, allow_planned_checkpoints=dry_run), encoding="utf-8")
+        inp_path.write_text(self.build_stage_input(
+            stage, geom_source, allow_planned_checkpoints=dry_run,
+            mo_input_file=orbital_snapshot.name if orbital_snapshot is not None else None,
+        ), encoding="utf-8")
         if dry_run:
             record = StateRecord(
                 stage=stage.name, level=stage.level, wall_s=0.0,
@@ -1480,6 +1517,8 @@ class Chain:
             registry_path=self.registry_path,
         )
         wall_s = time.monotonic() - started
+        if orbital_source_hash is not None and hashlib.sha256(source_orbital.read_bytes()).hexdigest() != orbital_source_hash:
+            raise CorruptOutputError("The source orbital checkpoint changed during native execution.")
         if fallback is not None:
             # Never pass a recovered single-point geometry/wavefunction onward
             # as the originally requested optimized state or harmonic Hessian.
@@ -1857,7 +1896,12 @@ class Chain:
         warnings = validate_rule_d5_naming_hygiene(stages)
         if warnings:
             raise ValueError("; ".join(warnings))
-        lines: List[str] = ["# Planned ORCA compound deck; physical execution has not been verified", ""]
+        # ORCA ignores per-step PAL/MaxCore declarations in compound jobs.
+        # Bind the campaign resources once, outside the compound program.
+        lines: List[str] = [
+            "# Planned ORCA compound deck; physical execution has not been verified",
+            f"%pal nprocs {self.nproc} end", f"%maxcore {self.maxcore}", "%compound", "",
+        ]
         previous = set()
 
         for step_idx, st in enumerate(stages, start=1):
@@ -1867,11 +1911,12 @@ class Chain:
                 raise ValueError("Compound stage references must point to an earlier stage.")
             geom_target = f"{st.geom_from}.xyz" if st.geom_from else seed_p
             deck_lines = self.build_stage_input(st, geom_target, allow_planned_checkpoints=True).splitlines()
-            lines.extend("  " + line for line in deck_lines)
+            lines.extend("  " + line for line in deck_lines if not line.startswith(("%pal ", "%maxcore ")))
             lines.append("Step_End")
             lines.append("")
             previous.add(st.name)
 
+        lines.append("end")
         deck = "\n".join(lines)
         if output_path is not None:
             assert_writable_path(output_path)

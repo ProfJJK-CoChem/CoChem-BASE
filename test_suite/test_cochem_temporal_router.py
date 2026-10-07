@@ -706,15 +706,17 @@ def test_cc_tier_3_mpqc_psi4_prompt_and_options() -> None:
 # 11. Method Matrix v4 §8.5 Authoritative route() Execution Tests
 # =====================================================================
 
-def test_route_setup_1_orca_eula_rejection() -> None:
-    """Setup 1 (GitHub): Asserts ORCA is strictly rejected due to EULA restrictions."""
-    with pytest.raises(PermissionError, match="EULA VIOLATION: ORCA is strictly forbidden"):
-        route(
-            observable="dft_energy",
-            method="B3LYP",
-            setup="Setup1_github",
-            has_gpu=False,
-        )
+def test_route_setup_1_orca_requires_private_provisioning_and_runtime_authority() -> None:
+    """A hosted routing plan must not imply licensing or execution authority."""
+    decision = route(
+        observable="dft_energy", method="B3LYP", setup="Setup1_github", has_gpu=False,
+    )
+    assert decision.engine == "orca" and decision.device == "cpu"
+    assert any("private ORCA provisioning" in item for item in decision.execution_requirements)
+    assert any("registry authorization" in item for item in decision.execution_requirements)
+    assert "does not authorize execution or verify license entitlement" in decision.explanation
+    workstation = route(observable="dft_energy", method="B3LYP", setup="Setup2_workstation", has_gpu=False)
+    assert workstation.engine == "orca" and workstation.execution_requirements == ()
 
 
 def test_route_setup_2_heterogeneous_coscheduling() -> None:

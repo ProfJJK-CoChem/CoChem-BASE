@@ -27,7 +27,6 @@ def cfour_config(**updates):
     ("cfour", "CCSD(T)", "cc-pVTZ", False, False),
     ("cfour", "CCSD(T)", "cc-pVTZ", True, True),
     ("orca", "wB97M-V", "def2-QZVPP", True, True),
-    ("orca", "wB97M-V", "def2-QZVPP", True, False),
 ])
 def test_native_pending_job_produces_handoff_without_scientific_result(tmp_path, engine, method, basis, is_freq, is_vpt2):
     config = CalculationMatrixConfig(geometry=GEOMETRY, engine=engine, method=method,

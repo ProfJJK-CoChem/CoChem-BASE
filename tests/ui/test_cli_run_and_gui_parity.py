@@ -126,32 +126,31 @@ def test_cli_run_subcommand_validation_failure():
         assert "Unknown engine" in combined_out
 
 
-def test_slurm_script_synthesis_valid():
-    """Validates authentic Slurm script synthesis per Method Matrix §8A."""
+def test_slurm_script_synthesis_valid(tmp_path: Path):
+    """Stage declared allocation and real scientific input without claiming execution."""
+    config_path = tmp_path / "water.json"
+    config_path.write_text(json.dumps({
+        "geometry": "O 0 0 0\nH 0 -0.757 0.587\nH 0 0.757 0.587\n",
+        "engine": "xtb", "method": "GFN2-xTB", "basis_set": "built-in", "is_opt": True,
+    }))
+    staged = tmp_path / "planned job with spaces"
     script = generate_slurm_script(
-        job_name="h2o_dimer_opt",
-        partition="standard",
-        nodes=2,
-        ntasks_per_node=16,
-        cpus_per_task=2,
-        mem="64GB",
-        walltime="08:00:00",
-        engine="orca",
-        input_deck_path="orca_calc.inp",
+        config_path=config_path, staging_dir=staged,
+        job_name="water_opt", partition="standard", nodes=1,
+        ntasks_per_node=2, cpus_per_task=1, mem="1GB", walltime="08:00:00",
         email="researcher@chem.univ.edu",
     )
-
-    assert "#!/bin/bash" in script
-    assert "#SBATCH --job-name=h2o_dimer_opt" in script
-    assert "#SBATCH --partition=standard" in script
-    assert "#SBATCH --nodes=2" in script
-    assert "#SBATCH --ntasks-per-node=16" in script
-    assert "#SBATCH --cpus-per-task=2" in script
-    assert "#SBATCH --time=08:00:00" in script
-    assert "#SBATCH --mem=64GB" in script
+    assert "#SBATCH --nodes=1" in script and "#SBATCH --ntasks=1" in script
+    assert "#SBATCH --cpus-per-task=2" in script and "#SBATCH --mem=1024M" in script
     assert "#SBATCH --mail-user=researcher@chem.univ.edu" in script
-    assert "module load orca" in script
-    assert "orca orca_calc.inp > orca.out 2>&1" in script
+    assert "module load" not in script and "matrix_input.inp" not in script
+    manifest = json.loads((staged / "job_manifest.json").read_text())
+    assert manifest["status"] == "STAGED_INPUT_ONLY"
+    assert manifest["scientific_execution_performed"] is False
+    assert manifest["allocation_authority"].startswith("declared_request_only")
+    assert json.loads((staged / "calculation.json").read_text())["geometry"] == json.loads(config_path.read_text())["geometry"]
+    checked = subprocess.run(["bash", "-n", str(staged / "submit.sh")], capture_output=True, text=True, timeout=15)
+    assert checked.returncode == 0, checked.stderr
 
 
 @pytest.mark.parametrize(
@@ -208,27 +207,23 @@ def test_slurm_walltime_validation():
         validate_slurm_walltime("not_a_time")
 
 
-def test_slurm_controller_staging_and_dispatch():
-    """Validates SlurmSubmissionController staging and non-crashing execution on local environment."""
-    controller = SlurmSubmissionController(default_partition="gpu")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        script_content = controller.validate_and_generate(
-            job_name="h2o_test",
-            partition="gpu",
-            nodes=1,
-            ntasks_per_node=4,
-            mem="16GB",
-            walltime="01:00:00",
-            engine="xtb",
-            input_deck_path="coord",
-        )
-        script_path = Path(tmpdir) / "submit.sh"
-        with open(script_path, "w", encoding="utf-8") as f:
-            f.write(script_content)
-
-        status = controller.dispatch(script_path)
-        assert isinstance(status, str)
-        assert len(status) > 0
-        # If running in environment without sbatch, must state staged / sbatch unavailable
-        if shutil.which("sbatch") is None:
-            assert "PENDING_LOCAL_STAGED" in status
+def test_slurm_controller_staging_and_dispatch(tmp_path: Path):
+    """Missing cluster configuration stays pending; changed scientific inputs fail."""
+    controller = SlurmSubmissionController(default_partition="compute")
+    config_path = tmp_path / "water.json"
+    config_path.write_text(json.dumps({
+        "geometry": "O 0 0 0\nH 0 -0.757 0.587\nH 0 0.757 0.587\n",
+        "engine": "xtb", "method": "GFN2-xTB", "basis_set": "built-in", "is_opt": True,
+    }))
+    staged = tmp_path / "submission"
+    script = controller.validate_and_generate(config_path=config_path, staging_dir=staged,
+                job_name="water", partition="compute", nodes=1, ntasks_per_node=1,
+                mem="512MB", walltime="01:00:00")
+    assert (staged / "submit.sh").read_text() == script
+    status = controller.dispatch(staged / "submit.sh")
+    assert status.startswith("PENDING_CLUSTER_CONFIGURATION")
+    assert controller.last_submitted_job_id is None
+    assert not (staged / "submission.json").exists()
+    (staged / "calculation.json").write_text(config_path.read_text() + " ")
+    with pytest.raises(ValueError, match="altered"):
+        controller.dispatch(staged / "submit.sh")

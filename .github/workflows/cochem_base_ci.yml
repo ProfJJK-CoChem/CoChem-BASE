@@ -1,17 +1,19 @@
-name: CoChem BASE alpha acceptance
+name: CoChem BASE 1.0.0 bounded CI
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, codex/orca-6.1.1-actions]
+    paths-ignore: ['**/*.md', '.docs/**']
   pull_request:
     branches: [main]
+    paths-ignore: ['**/*.md', '.docs/**']
 
 permissions:
   contents: read
 
 concurrency:
-  group: base-alpha-${{ github.ref }}
+  group: base-release-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -57,7 +59,53 @@ jobs:
           path: ${{ runner.temp }}/ci-controls
           if-no-files-found: error
 
+  installed-wheel:
+    name: Installed 1.0.0 wheel (${{ matrix.os }})
+    needs: source-integrity
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated build frontend
+        run: python -m pip install build
+      - name: Build reviewed source outside checkout and exercise fresh wheel installation
+        run: python -m scripts.verify_release_ci wheel --output "${{ runner.temp }}/wheel-acceptance"
+      - name: Preserve wheel, dependency resolution and standalone CLI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-wheel-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/wheel-acceptance/acceptance.json
+            ${{ runner.temp }}/wheel-acceptance/*.log
+            ${{ runner.temp }}/wheel-acceptance/*.json
+            ${{ runner.temp }}/wheel-acceptance/installed-dependencies.txt
+            ${{ runner.temp }}/wheel-acceptance/dist/
+            ${{ runner.temp }}/wheel-acceptance/generated-deck/
+          if-no-files-found: error
+          retention-days: 14
+
   bounded-physical-acceptance:
-    name: Free-engine and dashboard acceptance
+    name: Bounded free-engine, derivative replay and dashboard acceptance
     needs: [source-integrity, ci-plane-contract]
     uses: ./.github/workflows/low_compute_acceptance.yml
+
+  public-ci-scope:
+    name: Bounded public CI complete
+    needs: [source-integrity, ci-plane-contract, installed-wheel, bounded-physical-acceptance]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Record the precise validation scope
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          Public CI verified source integrity, cross-platform CI controls and clean wheel CLI installations, plus the bounded Linux xTB/PySCF and dashboard regression set.
+
+          This is not the full canonical release-candidate gate. Licensed ORCA calculations run separately through the authorized ORCA acceptance workflow. Full live-engine, ML-model, QE, Slurm, GPU and native scientific readiness requires its own recorded acceptance evidence. No licensed archive token is available to these public pull-request jobs.
+          SUMMARY

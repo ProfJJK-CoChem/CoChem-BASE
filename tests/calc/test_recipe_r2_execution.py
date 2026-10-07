@@ -21,6 +21,8 @@ from cochem_base.calc.recipe_r2_execution import (
     load_r2_references,
     parse_reference_geometry_state,
     read_dimer_gradient,
+    validate_reference_output,
+    validate_h2_cbs_optimization_evidence,
 )
 
 
@@ -98,6 +100,16 @@ def test_counterpoise_algebra_requires_all_five_values_and_orders_bracket():
         counterpoise_bracket({**energies, "ghost_a": float("nan")})
 
 
+def test_approximate_counterpoise_reporting_preserves_negative_correction_without_certifying_a_bound():
+    # Definition-only arithmetic, explicitly not physical engine evidence.
+    energies = {"dimer": -2.1, "monomer_a": -1., "monomer_b": -1., "ghost_a": -0.99, "ghost_b": -1.}
+    result = counterpoise_bracket(energies, require_variational_order=False)
+    assert result["bsse_correction_hartree"] == pytest.approx(-0.01)
+    assert result["variational_order_consistent"] is False
+    assert result["interval_is_rigorous_physical_bound"] is False
+    assert result["bracket_lower_hartree"] <= result["bracket_upper_hartree"]
+
+
 def test_reference_contract_rejects_wrong_level_cardinals_and_overlapping_atoms():
     data = _deck_contract().model_dump(mode="json")
     data["monomers"][0]["basis_cardinal_pair"] = [2, 3]
@@ -146,6 +158,15 @@ def test_incomplete_or_unmatched_gradient_checkpoint_cannot_certify_residuals(tm
         read_dimer_gradient(path, SYMBOLS, COORDINATES)
 
 
+@pytest.mark.parametrize("invalid_identity", ["1.5", "nan", "inf"])
+def test_gradient_checkpoint_rejects_noninteger_or_nonfinite_nuclear_identity(tmp_path, invalid_identity):
+    # Deliberately invalid checkpoint grammar is rejection input, not science evidence.
+    path = tmp_path / "invalid.engrad"
+    path.write_text("2\n-1\n0\n0\n0\n0\n0\n0\n" + invalid_identity + " 0 0 0\n1 0 0 1\n")
+    with pytest.raises(ValueError, match="finite integers"):
+        read_dimer_gradient(path, ["H", "H"], np.asarray([[0., 0., 0.], [0., 0., 1.]]))
+
+
 @pytest.mark.skipif(
     not os.environ.get("COCHEM_R2_REFERENCE_MANIFEST"),
     reason="Actual ORCA and supplied validated CCSD(T)/CBS reference artifacts are required",
@@ -170,7 +191,14 @@ def test_actual_recipe_r2_orca_five_leg_acceptance(tmp_path):
         result["counterpoise"]["bracket_lower_hartree"]
         <= result["counterpoise"]["bracket_upper_hartree"]
     )
-    assert not result["residual_gradient_warning"]
+    # Frozen high-level monomers need not be stationary on the DFT surface.
+    # Acceptance requires truthful strain reporting, not suppressing that physics.
+    assert result["residual_gradient_warning"] == (
+        result["residual_gradient_norm_hartree_per_bohr"] > result["residual_gradient_threshold"]
+    )
+    assert result["counterpoise_ordering_warning"] == (not result["counterpoise"]["variational_order_consistent"])
+    from scripts.verify_r2 import validate_r2_publication
+    validate_r2_publication(result)
 
 
 def test_method_label_and_checksum_alone_cannot_certify_benchmark_output(tmp_path):
@@ -180,6 +208,36 @@ def test_method_label_and_checksum_alone_cannot_certify_benchmark_output(tmp_pat
     declaration.write_text(json.dumps({"method": "CCSD(T)/CBS", "basis": "cc-pVTZ"}))
     with pytest.raises(R2ReferenceError, match="Unsupported or incomplete"):
         validate_reference_output(declaration, "cc-pVTZ")
+
+
+@pytest.mark.parametrize("basis", ["cc-pVTZ", "cc-pVQZ"])
+def test_genuine_orca_611_canonical_reference_ignores_contributor_banner(basis):
+    directory = Path(__file__).resolve().parents[1] / "fixtures" / "orca_6_1_1"
+    output = directory / f"h2-canonical-ccsdt-{basis}.out"
+    provenance = json.loads((directory / "provenance.json").read_text())
+    result = validate_reference_output(output, basis)
+    assert result["elements"] == ["H", "H"]
+    assert result["method"] == "canonical CCSD(T)"
+    assert result["normal_completion"] is True
+    assert result["ccsdt_energy_hartree"] == provenance["independent_pyscf"][basis]["orca_ccsdt_energy_hartree"]
+    assert abs(result["ccsdt_energy_hartree"] - provenance["independent_pyscf"][basis]["ccsdt_energy_hartree"]) < 1e-7
+
+
+def test_native_canonical_reference_cannot_be_relabelled_as_different_basis():
+    output = Path(__file__).resolve().parents[1] / "fixtures" / "orca_6_1_1" / "h2-canonical-ccsdt-cc-pVTZ.out"
+    with pytest.raises(R2ReferenceError, match="requested basis"):
+        validate_reference_output(output, "cc-pVQZ")
+
+
+def test_optimization_declaration_without_real_energy_brackets_cannot_certify_geometry(tmp_path):
+    # An unsupported scientific assertion is negative input, not a physical fixture.
+    claim = tmp_path / "unsupported-optimization-claim.json"
+    claim.write_text(json.dumps({
+        "schema_version": "cochem.bounded-cbs-reference/1", "status": "passed",
+        "distance_angstrom": 0.74, "optimizer_success": True, "evaluations": [],
+    }))
+    with pytest.raises(R2ReferenceError, match="independent energy brackets"):
+        validate_h2_cbs_optimization_evidence(claim, ["H", "H"], np.asarray([[0., 0., 0.], [0., 0., 0.74]]))
 
 
 def test_reference_coordinate_parser_preserves_identity_and_requires_electronic_state():

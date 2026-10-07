@@ -34,7 +34,12 @@ def test_canonical_workflow_and_reusable_physical_acceptance():
     triggers = workflow.get("on", workflow.get(True))
     assert {"push", "pull_request", "workflow_dispatch"} <= triggers.keys()
     jobs = workflow["jobs"]
-    assert set(jobs) == {"source-integrity", "ci-plane-contract", "bounded-physical-acceptance"}
+    assert set(jobs) == {"source-integrity", "ci-plane-contract", "bounded-physical-acceptance", "installed-wheel", "public-ci-scope"}
+    assert jobs["installed-wheel"]["needs"] == "source-integrity"
+    assert set(jobs["installed-wheel"]["strategy"]["matrix"]["os"]) == {"ubuntu-24.04", "macos-latest", "windows-latest"}
+    wheel_commands = "\n".join(step.get("run", "") for step in jobs["installed-wheel"]["steps"])
+    assert "scripts.verify_release_ci wheel" in wheel_commands
+    assert set(jobs["public-ci-scope"]["needs"]) == set(jobs) - {"public-ci-scope"}
     assert set(jobs["ci-plane-contract"]["strategy"]["matrix"]["os"]) == {"ubuntu-24.04", "macos-latest", "windows-latest"}
     assert jobs["ci-plane-contract"]["strategy"]["fail-fast"] is False
     assert jobs["ci-plane-contract"]["needs"] == "source-integrity"
@@ -51,6 +56,8 @@ def test_canonical_workflow_and_reusable_physical_acceptance():
     assert "continue-on-error" not in data.decode()
     physical = yaml.safe_load((ROOT / ".github/workflows/low_compute_acceptance.yml").read_text())
     assert "workflow_call" in physical.get("on", physical.get(True))
+    physical_commands = "\n".join(step.get("run", "") for step in physical["jobs"]["physical-acceptance"]["steps"])
+    assert "scripts.verify_release_ci regressions" in physical_commands
     for obsolete in ("ci_scribe.yml", "scribe_ci_cd.yml", "cochem_bench_ci.yml"):
         assert not (ROOT / ".github/workflows" / obsolete).exists()
 

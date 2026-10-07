@@ -52,6 +52,60 @@ def test_no_unmeasured_default_registry():
         CoChemSystemConfig.create_default()
 
 
+@pytest.mark.parametrize("hosted,restrict_affinity", [(False, False), (True, False), (True, True)])
+def test_cpu_policy_uses_real_child_topology_and_affinity(hosted, restrict_affinity):
+    """Exercise policy selection on measured CPUs; this is not hosted acceptance."""
+    environment = {**os.environ, "COCHEM_CPU_ALLOCATION_POLICY": "github_hosted_vcpus" if hosted else "physical_cores",
+                   "GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted"}
+    script = '''
+import json, os, psutil
+from cochem_base.core_engine.hardware_profiler import profile_hardware
+from cochem_base.core_engine.engine_environment import engine_runtime_environment
+if os.environ['RESTRICT_TEST_AFFINITY'] == '1':
+    available = sorted(os.sched_getaffinity(0))
+    os.sched_setaffinity(0, [available[0]])
+profile = profile_hardware()
+child = engine_runtime_environment('orca')
+print(json.dumps({'physical': profile.physical_cores, 'observed_physical': psutil.cpu_count(logical=False),
+  'logical': profile.logical_cores, 'observed_logical': psutil.cpu_count(logical=True),
+  'available': list(profile.available_cpu_ids), 'affinity': sorted(os.sched_getaffinity(0)),
+  'budget': profile.allocatable_compute_cores, 'unit': profile.cpu_allocation_policy.budget_unit,
+  'mapping': child.get('OMPI_MCA_rmaps_base_mapping_policy'),
+  'binding': child.get('OMPI_MCA_hwloc_base_binding_policy'),
+  'oversubscribe': child.get('OMPI_MCA_rmaps_base_oversubscribe')}))
+'''
+    if not hasattr(os, "sched_getaffinity"):
+        pytest.skip("This hosted Linux policy boundary requires kernel CPU affinity")
+    environment["RESTRICT_TEST_AFFINITY"] = "1" if restrict_affinity else "0"
+    completed = subprocess.run([sys.executable, "-c", script], env=environment, check=True,
+                               text=True, capture_output=True, timeout=15)
+    measured = json.loads(completed.stdout)
+    assert measured["physical"] == measured["observed_physical"]
+    assert measured["logical"] == measured["observed_logical"]
+    assert set(measured["available"]).issubset(measured["affinity"])
+    assert 1 <= measured["budget"] <= len(measured["available"])
+    if hosted:
+        assert measured["unit"] == "virtual_cpu"
+        assert measured["budget"] == len(measured["available"])
+        assert measured["mapping"] == "hwthread:NOOVERSUBSCRIBE"
+        assert measured["binding"] == "hwthread" and measured["oversubscribe"] == "0"
+    else:
+        assert measured["unit"] == "physical_core"
+        assert measured["budget"] <= measured["physical"]
+    if restrict_affinity:
+        assert measured["budget"] == 1
+
+
+def test_hosted_cpu_policy_cannot_silently_enable_smt_on_a_self_hosted_machine():
+    environment = {**os.environ, "COCHEM_CPU_ALLOCATION_POLICY": "github_hosted_vcpus",
+                   "GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "self-hosted"}
+    completed = subprocess.run([sys.executable, "-c",
+                               "from cochem_base.core_engine.hardware_profiler import profile_hardware; profile_hardware()"],
+                               env=environment, capture_output=True, text=True, timeout=15)
+    assert completed.returncode != 0
+    assert "requires a GitHub-hosted Linux Actions job" in completed.stderr
+
+
 @pytest.mark.parametrize("metadata,expected", [
     ("Program Version 6.1.1  -  RELEASE   -", "6.1.1"),
     ("Program Version 4.2.1 - RELEASE", "4.2.1"),

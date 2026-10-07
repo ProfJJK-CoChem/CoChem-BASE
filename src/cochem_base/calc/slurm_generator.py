@@ -82,9 +82,13 @@ class SlurmGenerator:
         spec: SlurmSubmissionSpec,
         input_file: str = "calc.inp",
         payload_command: Optional[str] = None,
+        *, configure_fabric: bool = True, copy_scratch: bool = True,
+        clamp_to_host: bool = True,
     ) -> str:
         """Generates an SBATCH script with single-node shared-memory directives."""
-        physical_limit = self.get_physical_core_limit()
+        # A queued allocation is a declaration; its compute node is audited at
+        # execution. Direct callers retain the existing measured-host clamp.
+        physical_limit = self.get_physical_core_limit() if clamp_to_host else spec.cores
         requested_cores = spec.cores
         effective_cores = requested_cores
 
@@ -136,6 +140,10 @@ class SlurmGenerator:
             "cd \"$COCHEM_SCRATCH\"",
         ]
 
+        if not configure_fabric:
+            # Registered native runtimes choose their supported MPI transport.
+            exec_lines = [line for line in exec_lines if not line.startswith("export OMPI_MCA_")]
+
         if solver_lower == "orca":
             exec_lines.extend([
                 "export VECLIB_MAXIMUM_THREADS=1",
@@ -165,6 +173,7 @@ class SlurmGenerator:
         else:
             exec_lines.append(f"{shlex.quote(spec.solver)} {shlex.quote(input_file)}")
 
-        exec_lines.append("cp -r \"$COCHEM_SCRATCH\"/* \"$COCHEM_ARTIFACTS\"/")
+        if copy_scratch:
+            exec_lines.append("cp -r \"$COCHEM_SCRATCH\"/* \"$COCHEM_ARTIFACTS\"/")
 
         return "\n".join(header) + "\n\n" + "\n".join(exec_lines) + "\n"

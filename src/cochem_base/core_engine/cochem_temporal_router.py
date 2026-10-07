@@ -424,6 +424,7 @@ class RoutingDecision:
     conformal_half_width_mhz: float = 60.0
     slowdown_factor: float = 1.0
     heterogeneous_companion: Optional[Dict[str, Any]] = None
+    execution_requirements: tuple[str, ...] = ()
     explanation: str = ""
 
 
@@ -1127,10 +1128,17 @@ def route(
     n_ranks = 8
     maxcore_mb = 3000
     slowdown = 1.0
+    execution_requirements = ()
 
     if setup_enum == SetupEnvironment.SETUP_1_GITHUB:
         if engine == "orca":
-            raise PermissionError("EULA VIOLATION: ORCA is strictly forbidden from shared / public GitHub Actions runner images (Method Matrix §8.4b, §11.1).")
+            # Routing is a plan, never evidence of licensing or permission to
+            # execute. The trusted workflow provisions the approved private
+            # archive and the calculation service verifies its fresh registry.
+            execution_requirements = (
+                "Instructor-approved private ORCA provisioning in a trusted workflow",
+                "Fresh runner Stage 0 registry authorization before execution",
+            )
         n_ranks = min(n_cores, 4)
         maxcore_mb = 3000
         device = "cpu"  # No GPU on standard public runners
@@ -1220,7 +1228,12 @@ def route(
             if (device == "cpu" and setup_enum == SetupEnvironment.SETUP_2_WORKSTATION and (has_gpu_companion or has_gpu))
             else None
         ),
-        explanation=f"Routed to {engine.upper()} ({device.upper()}) under {setup_enum.value}. Tier {tier.value}, Conformal window \u00b1{half_width_mhz:.1f} MHz (\u00b1{half_width_pct:.2f}%).",
+        execution_requirements=execution_requirements,
+        explanation=(
+            f"Routed to {engine.upper()} ({device.upper()}) under {setup_enum.value}. Tier {tier.value}, Conformal window \u00b1{half_width_mhz:.1f} MHz (\u00b1{half_width_pct:.2f}%)."
+            + (" This routing plan does not authorize execution or verify license entitlement. "
+               + "; ".join(execution_requirements) + "." if execution_requirements else "")
+        ),
     )
 
 

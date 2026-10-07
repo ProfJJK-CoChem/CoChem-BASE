@@ -19,9 +19,14 @@ def inspect_crest_source_distribution(binary: Path, environment: dict[str, str])
     never a claim that a scientific search was performed during discovery.
     """
     manifest_path = binary.parent / 'installation.json'
-    if not manifest_path.is_file():
+    result = subprocess.run([str(binary), '--version'], capture_output=True, text=True,
+                            env=environment, timeout=10, check=True)
+    banner = result.stdout + result.stderr
+    metadata = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {}
+    if 'TOPOS patch:' not in banner and not metadata.get('build_id'):
+        # The ordinary pinned installer also writes installation.json, with
+        # archive/binary digests but no source-repair build_id.
         return None, {}
-    metadata = json.loads(manifest_path.read_text())
     if metadata.get('build_id') != BUILD_ID:
         raise ValueError('Unknown declared CREST source distribution')
     patch = binary.parent / 'source.patch'
@@ -35,9 +40,7 @@ def inspect_crest_source_distribution(binary: Path, environment: dict[str, str])
             or not patch.is_file() or patch.is_symlink() or digest(patch) != PATCH_SHA256
             or metadata.get('binary_sha256') != digest(binary)):
         raise ValueError('CREST binary/source-patch identity differs from the reviewed distribution')
-    result = subprocess.run([str(binary), '--version'], capture_output=True, text=True,
-                            env=environment, timeout=10, check=True)
-    if f'TOPOS patch: {BUILD_ID}' not in result.stdout + result.stderr:
+    if f'TOPOS patch: {BUILD_ID}' not in banner:
         raise ValueError('CREST source patch marker is absent from the actual executable')
     components = {str(manifest_path): digest(manifest_path), str(patch): digest(patch)}
     for item in metadata.get('shared_libraries', []):

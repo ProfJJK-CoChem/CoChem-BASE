@@ -24,7 +24,7 @@ def cfour_config(**updates):
 
 
 @pytest.mark.parametrize("engine,method,basis,is_freq,is_vpt2", [
-    ("cfour", "CCSD(T)", "cc-pVTZ", False, False),
+    ("cfour", "CC3", "cc-pVTZ", False, False),
     ("cfour", "CCSD(T)", "cc-pVTZ", True, True),
     ("orca", "wB97M-V", "def2-QZVPP", True, True),
 ])

@@ -1,0 +1,140 @@
+name: CFOUR calculation
+
+on:
+  # The reviewed pilot runs an HF optimization and harmonic calculation.
+  # Classroom assignment branches and pull requests do not auto-run licensed jobs.
+  push:
+    branches: [codex/cfour-optional-integration]
+    paths:
+      - '.github/workflows/cfour_calculation.yml'
+      - 'examples/jobs/cfour-water-*.json'
+      - 'scripts/run_actions_calculation.py'
+      - 'src/cochem_base/interfaces/actions_jobs.py'
+  workflow_dispatch:
+    inputs:
+      job_file:
+        description: Repository-relative path to the exported CFOUR calculation JSON
+        required: true
+        default: examples/jobs/cfour-water-single-point.json
+        type: string
+      cores:
+        description: CFOUR OpenMP threads (this approved build has no MPI)
+        required: true
+        default: '2'
+        type: choice
+        options: ['1', '2']
+      maxcore_mb:
+        description: Memory budget in MB per allocated thread (1–1024; CFOUR uses the combined budget)
+        required: true
+        default: '512'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cfour-calculation-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  calculate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      COCHEM_HEADLESS: '1'
+      COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
+      QT_QPA_PLATFORM: offscreen
+      JOB_FILE: ${{ github.event_name == 'push' && 'examples/jobs/cfour-water-harmonic.json' || inputs.job_file || 'examples/jobs/cfour-water-single-point.json' }}
+      JOB_CORES: ${{ inputs.cores || '2' }}
+      JOB_MAXCORE_MB: ${{ inputs.maxcore_mb || '512' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare external evidence and a fresh Stage 0 registry
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cfour-evidence"
+          echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
+          echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
+          git rev-parse HEAD > "$RUNNER_TEMP/cfour-evidence/source-commit.txt"
+      - name: Check the submitted file and Classroom resource limits
+        run: |
+          python scripts/run_actions_calculation.py --engine cfour --preflight-only \
+            --job-file "$JOB_FILE" --cores "$JOB_CORES" --maxcore-mb "$JOB_MAXCORE_MB"
+      - name: Audit the checked-out BASE source
+        run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/cfour-evidence/source-audit"
+      - name: Install the approved runtime's native prerequisite
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libgfortran5
+      - name: Install the checksum-pinned private CFOUR runtime
+        uses: ./.github/actions/setup-cfour
+        with:
+          asset-token: ${{ secrets.PRIVATE_CFOUR_ASSET_CREDENTIAL }}
+          required: 'true'
+      - name: Install BASE and execute all eleven Stage 0 phases
+        run: |
+          set -euo pipefail
+          if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
+            > "$RUNNER_TEMP/cfour-evidence/stage0-setup.log" 2>&1; then
+            tail -n 30 "$RUNNER_TEMP/cfour-evidence/stage0-setup.log"
+          else
+            status=$?
+            tail -n 100 "$RUNNER_TEMP/cfour-evidence/stage0-setup.log"
+            exit "$status"
+          fi
+      - name: Record audited hosted CPU allocation
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          registry = json.loads(Path(os.environ['COCHEM_CONFIG']).read_text())
+          report = json.dumps({'hardware': registry['hardware'],
+              'cpu_allocation': (registry.get('execution') or {}).get('cpu_allocation')}, indent=2)
+          (Path(os.environ['RUNNER_TEMP']) / 'cfour-evidence/cpu-allocation.json').write_text(report + '\n')
+          print(report)
+          PY
+      - name: Validate and run the requested real CFOUR calculation
+        run: |
+          set -euo pipefail
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/run_actions_calculation.py --engine cfour \
+            --job-file "$JOB_FILE" --cores "$JOB_CORES" --maxcore-mb "$JOB_MAXCORE_MB" \
+            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/cfour-evidence/student-job"
+      - name: Retain scientific results and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfour-calculation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/cfour-evidence/**/*.json
+            ${{ runner.temp }}/cfour-evidence/**/*.txt
+            ${{ runner.temp }}/cfour-evidence/**/*.log
+            ${{ runner.temp }}/cfour-evidence/**/*.xyz
+            ${{ runner.temp }}/cfour-evidence/**/*.dat
+            ${{ runner.temp }}/cfour-evidence/**/*.sha256
+            ${{ runner.temp }}/cfour-evidence/**/*.h5
+            ${{ runner.temp }}/cfour-evidence/**/*.npz
+            ${{ runner.temp }}/cfour-evidence/**/ZMAT
+            ${{ runner.temp }}/cfour-evidence/**/GRD
+            ${{ runner.temp }}/cfour-evidence/**/FCMFINAL
+            ${{ runner.temp }}/cfour-evidence/**/JOBARC
+            ${{ runner.temp }}/cfour-evidence/**/JAINDX
+            ${{ runner.temp }}/cfour-evidence/**/OPTARC
+            ${{ runner.temp }}/cochem-artifacts/Registry/*.json
+            ${{ runner.temp }}/cochem-artifacts/Registry/*.sha256
+            !${{ runner.temp }}/cfour-evidence/**/GENBAS
+            !${{ runner.temp }}/cfour-evidence/**/ECPDATA
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove the job-local licensed CFOUR installation and download
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/cochem-cfour-install" "$RUNNER_TEMP/cochem-cfour-download"

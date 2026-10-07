@@ -19,6 +19,9 @@ import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
 HOSTED_TESTS = (
+    "tests/ui/test_optional_licensed_engines.py",
+    "tests/calc/test_cfour_execution_contract.py",
+    "tests/base/test_cfour_provisioning.py",
     "tests/base/test_context_compression_contract.py",
     "tests/base/test_scribe_missing_observations.py",
     "tests/base/test_srs_runtime_foundations.py::test_crash_tail_preserves_exact_physical_stderr",

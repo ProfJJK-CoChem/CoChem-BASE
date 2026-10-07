@@ -77,11 +77,12 @@ def _environment() -> dict[str, str]:
 
 def _run(command: list[str], directory: Path, environment: dict[str, str], log: Path,
          timeout: int = 1800) -> str:
-    with log.open("w", encoding="utf-8") as stream:
+    stderr_log = log.with_name(log.name + ".stderr.log")
+    with log.open("w", encoding="utf-8") as stream, stderr_log.open("w", encoding="utf-8") as errors:
         result = subprocess.run(command, cwd=directory, env=environment, stdin=subprocess.DEVNULL,
-                                stdout=stream, stderr=subprocess.STDOUT, timeout=timeout, check=False)
+                                stdout=stream, stderr=errors, timeout=timeout, check=False)
     if result.returncode:
-        raise RuntimeError(f"{Path(command[0]).name} exited {result.returncode}; inspect {log}")
+        raise RuntimeError(f"{Path(command[0]).name} exited {result.returncode}; inspect {log} and {stderr_log}")
     return log.read_text(encoding="utf-8")
 
 

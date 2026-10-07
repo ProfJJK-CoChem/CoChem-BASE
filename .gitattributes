@@ -24,3 +24,19 @@ tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVTZ.inp -text -whitespace
 tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVTZ.out -text -whitespace
 tests/fixtures/trajectories/xtb-6.7.1-water-optimization.xyz -text -whitespace
 tests/fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.out -text -whitespace
+
+tests/data/xtb_6_7_1_native_gradients/gfn2/gradient -text -whitespace
+tests/data/xtb_6_7_1_native_gradients/gfn2/input.xyz -text -whitespace
+tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json -text -whitespace
+tests/data/xtb_6_7_1_native_gradients/gfn2/stderr.txt -text -whitespace
+tests/data/xtb_6_7_1_native_gradients/gfn2/stdout.txt -text -whitespace
+tests/data/xtb_6_7_1_native_gradients/gfnff/gradient -text -whitespace
+tests/data/xtb_6_7_1_native_gradients/gfnff/input.xyz -text -whitespace
+tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json -text -whitespace
+tests/data/xtb_6_7_1_native_gradients/gfnff/stderr.txt -text -whitespace
+tests/data/xtb_6_7_1_native_gradients/gfnff/stdout.txt -text -whitespace
+tests/data/orca_6_1_1_stationary_trah_dft/provenance.json -text -whitespace
+tests/data/orca_6_1_1_stationary_trah_dft/stationary.engrad -text -whitespace
+tests/data/orca_6_1_1_stationary_trah_dft/stationary.inp -text -whitespace
+tests/data/orca_6_1_1_stationary_trah_dft/stationary.out.txt -text -whitespace
+tests/data/orca_6_1_1_stationary_trah_dft/stationary.xyz -text -whitespace

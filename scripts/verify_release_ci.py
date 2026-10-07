@@ -156,11 +156,13 @@ import cochem_base
 from cochem_base import _version
 from cochem_base.core_engine.hardware_profiler import profile_hardware
 from cochem_base.calc.calculation_service import CalculationMatrixConfig
+from cochem_base.core_engine import cfour_runtime
 assert importlib.metadata.version('CoChem-BASE') == '1.0.0'
 installation = Path(sys.prefix).resolve()
 package_roots = [Path(path).resolve() for path in cochem_base.__path__]
 assert package_roots and all(path.is_relative_to(installation) for path in package_roots)
 assert Path(_version.__file__).resolve().is_relative_to(installation)
+assert Path(cfour_runtime.__file__).resolve().is_relative_to(installation)
 hardware = profile_hardware()
 root = Path(sys.argv[1])
 (root / 'hardware.json').write_text(json.dumps({'hardware': {
@@ -169,6 +171,9 @@ root = Path(sys.argv[1])
 config = CalculationMatrixConfig(geometry='H 0 0 0\\nH 0 0 0.74', engine='orca',
                                  method='HF', basis_set='STO-3G', is_opt=False)
 (root / 'input.json').write_text(config.model_dump_json())
+cfour = CalculationMatrixConfig(geometry='H 0 0 0\\nH 0 0 0.74', engine='cfour',
+                               method='HF', basis_set='STO-3G', is_opt=False)
+(root / 'cfour-input.json').write_text(cfour.model_dump_json())
 print(json.dumps({'installed_module': str(Path(_version.__file__).resolve()),
                   'namespace_roots': list(map(str, package_roots)), 'version': '1.0.0'}))
 """
@@ -188,6 +193,16 @@ print(json.dumps({'installed_module': str(Path(_version.__file__).resolve()),
             or not any(line.split() == ["%maxcore", "128"] for line in deck.splitlines())
             or not any(line.split() == ["nprocs", "1"] for line in deck.splitlines())):
         raise RuntimeError("Installed ORCA dry-run deck changed the requested method or resource limits")
+    _run([str(command), "run", "--config", str(output / "cfour-input.json"), "--threads", "1",
+          "--maxcore-mb", "128", "--dry-run", "--scratch", str(output / "cfour-scratch"),
+          "--output", str(output / "cfour-generated-deck"), "--json"],
+         output, environment, output / "cfour-deck-generation.json", 90)
+    cfour_execution = json.loads((output / "cfour-generated-deck/execution.json").read_text())
+    cfour_deck = (output / "cfour-generated-deck/ZMAT").read_text()
+    if (cfour_execution["status"] != "DECK_GENERATED"
+            or not all(keyword in cfour_deck for keyword in
+                       ("CALC=HF", "BASIS=STO-3G", "UNITS=BOHR", "MEMORY_SIZE=128", "MEM_UNIT=MB"))):
+        raise RuntimeError("Installed CFOUR dry-run deck changed its method, units or resource limits")
     _run([str(python), "-m", "pip", "freeze"], output, environment, output / "installed-dependencies.txt", 60)
     return {"passed": True, "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
             "source_revision": revision, "version": "1.0.0", "wheel": wheels[0].name,

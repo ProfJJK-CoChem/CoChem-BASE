@@ -171,6 +171,17 @@ Use the activated BASE environment's Python. The output report must be a fresh
 path outside the checkout. A failed attempt retains its genuine diagnostics and
 failed report; it does not publish an accepted scientific result.
 
+Harmonic results also include `harmonic-hessian.npz`, containing the measured
+Hessian, its ordered atomic identities, native Cartesian geometry and source
+hashes. This bundle supports BASE's Data Inspector and isotope re-analysis
+without requiring ORCA or CFOUR to be installed on the inspection machine.
+
+For Python callers, `cochem_base.calc.calculation_service.run_calculation` is
+the validated native execution API. The historical `CFOURBridge.dispatch_cfour_job`
+preserves its broader provider options as a pending handoff; it does not execute
+them or publish an accepted scientific result. Use the canonical service for
+the connected operations and downstream modules for additional protocols.
+
 ## Students: run a CFOUR assignment calculation
 
 1. Accept the instructor's Classroom50 assignment and organization invitation,

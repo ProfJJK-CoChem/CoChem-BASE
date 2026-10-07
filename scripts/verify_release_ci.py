@@ -19,6 +19,14 @@ import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
 HOSTED_TESTS = (
+    "tests/base/test_context_compression_contract.py",
+    "tests/base/test_scribe_missing_observations.py",
+    "tests/base/test_srs_runtime_foundations.py::test_crash_tail_preserves_exact_physical_stderr",
+    "tests/base/test_srs_runtime_foundations.py::test_canonical_broker_persists_exact_crash_provenance",
+    "tests/base/test_srs_runtime_foundations.py::test_optional_git_failure_preserves_real_broker_crash",
+    "tests/base/test_srs_runtime_foundations.py::test_source_layout_git_failures_preserve_real_crash",
+    "tests/base/test_srs_runtime_foundations.py::test_crash_source_identity_ignores_foreign_git_repository",
+    "tests/base/test_srs_runtime_foundations.py::test_crash_source_identity_follows_linked_worktree",
     "tests/base/test_actions_calculation_contract.py",
     "tests/base/test_cli_memory_budget.py",
     "tests/base/test_stage0_authority_completion.py",

@@ -105,7 +105,7 @@ For development in a separate virtual environment:
 ```bash
 python3.12 -m venv /path/outside/checkout/cochem-env
 source /path/outside/checkout/cochem-env/bin/activate
-python -m pip install -e '.[dev,ui]'
+python -m pip install -e '.[dev,ui,catalog,symmetry,scribe]'
 cochem-cli --version
 cochem-cli --help
 ```

@@ -2,9 +2,11 @@
 
 **Validation complete for the supported BASE 1.0.0 scope.** Publication status
 and final distribution digests belong to the
-[GitHub `v1.0.0` release](https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/tag/v1.0.0)
-and its `SHA256SUMS` asset. This validation record does not itself create a tag
-or publish distributions.
+[GitHub `v1.0.0` release notes](https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/tag/v1.0.0).
+Only files actually listed there are published attachments; a source-only
+release does not imply that a wheel, built source distribution or checksum file
+was uploaded. This validation record does not itself create a tag or publish
+files.
 
 ## Scope
 
@@ -114,9 +116,11 @@ warnings; no sign or tolerance was changed to create acceptance.
 
 Clean wheel installation on Ubuntu, macOS and Windows passed package-origin,
 CLI/module entry-point, isotope database, dependency and actual dry-run deck
-checks. These packaging checks do not claim an engine calculation. The final
-wheel and source archive are built outside the checkout; their release digests
-are recorded in `SHA256SUMS`, avoiding a self-referential hash in this document.
+checks. These packaging checks do not claim an engine calculation. Wheels and
+source distributions are built for validation outside the checkout. Their
+exact SHA-256 digests and upload status can be recorded directly in the release
+notes; an attached `SHA256SUMS` file is optional. If attachment upload is
+unavailable, validated builds remain local and publication is source-only.
 Earlier package-validation evidence remains under
 `/workspace/cochem-runtime/evidence/release-packaging-1.0.0/` and
 `/workspace/cochem-runtime/evidence/release-ci-01cca5b-wheel/`; these historical
@@ -129,8 +133,13 @@ version without importing scientific dependencies; installed wheels read their
 distribution metadata. `cochem-cli` and `python -m cochem_base.cli` invoke the
 same CLI as `python cli.py` in a checkout.
 
-The wheel provides Python packages and CLI entry points. The complete source
-distribution also includes `Start_Here.ipynb`, platform launchers, setup scripts,
+For a source-only release, use the tagged repository checkout or GitHub's
+automatically generated **Source code** ZIP/tar.gz. Those downloads contain the
+tagged source tree; they are distinct from a separately built Python source
+distribution. Classroom50 students should use their accepted assignment copy.
+
+When a wheel is supplied, it provides Python packages and CLI entry points.
+The source checkout and built source distribution include `Start_Here.ipynb`, platform launchers, setup scripts,
 workflow definitions, requirements, examples and guides. Use the source checkout
 or unpacked source distribution for the full Voilà launch/setup pathway:
 
@@ -158,8 +167,10 @@ must remain outside the source directory.
   commits, verify and record equivalence of production, CI, test and immutable
   input bytes to the tested code; preserve external deferrals explicitly.
 - Record final evidence, review the release commit, then create the 1.0.0 tag
-  and publish only intended source/wheel assets. Licensed ORCA files are never
-  release assets of CoChem-BASE.
+  and publish its source release. Attach validated wheel/source-distribution
+  files only when upload succeeds, and state which builds remain local.
+  Record exact digests in the release notes without promising an attachment.
+  Licensed ORCA files are never release assets of CoChem-BASE.
 
 Before rolling the course out to students, the instructor should pilot a real
 Classroom50 assignment account, confirm its repository receives approved

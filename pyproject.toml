@@ -51,7 +51,7 @@ dev = [
 hpc = ["parsl"]
 catalog = ["pyarrow", "pandas"]
 symmetry = ["MolSym==1.2.0"]
-scribe = ["google-genai>=2.28.0", "zstandard>=0.25.0"]
+scribe = ["google-genai>=2.28.0", "zstandard>=0.25.0", "tiktoken"]
 ui = ["ase", "ipykernel", "ipywidgets", "jinja2", "matplotlib", "py3Dmol", "pynacl", "requests", "voila", "watchdog>=6.0.0"]
 
 [tool.setuptools]

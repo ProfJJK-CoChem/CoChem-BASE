@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 
 import numpy as np
@@ -15,6 +16,7 @@ import pytest
 from scipy.spatial.transform import Rotation
 
 from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry
+from cochem_base.calc.cochem_calc_output_parser import GeometryConvergenceError, QuantumParser
 from cochem_base.calc.orca_derivatives import accept_gradient, accept_harmonic_hessian
 from cochem_base.chain.chain import CorruptOutputError, parse_orca_hessian
 from cochem_base.interfaces.scientific_jobs import calculation_capability
@@ -44,6 +46,32 @@ def test_native_orca_hessian_comments_are_not_parsed_as_numeric_rows(native):
     assert parsed["hessian"].shape == parsed["normal_modes"].shape == (9, 9)
     assert [atom["symbol"] for atom in parsed["atoms"]] == ["O", "H", "H"]
     assert len(parsed["frequencies"]) == 9
+
+
+def test_convergence_banner_cannot_override_oversized_final_rms_gradient(native):
+    """Replay real output, then reject an explicitly corrupted private copy.
+
+    The replacement value is the actual two-rank water failure observed in
+    hosted run 37613654179 and reproduced locally. All other native evidence,
+    including the optimization convergence banner, remains unchanged.
+    """
+    path, _, _ = native
+    output = path / "water.out.txt"
+    parser = QuantumParser(path)
+    assert parser.verify_geometry_convergence(output)["RMS gradient"] <= 3e-6
+    prefix, separator, final_table = output.read_text().rpartition("Geometry convergence")
+    assert separator
+    final_table, replacements = re.subn(
+        r"(^\s*RMS gradient\s+)[-+\d.eE]+",
+        r"\g<1>0.0000030759",
+        final_table,
+        count=1,
+        flags=re.M,
+    )
+    assert replacements == 1
+    output.write_text(prefix + separator + final_table)
+    with pytest.raises(GeometryConvergenceError, match="Final RMS gradient .* exceeds required 3e-06"):
+        parser.verify_geometry_convergence(output)
 
 
 def test_genuine_harmonic_artifact_retains_native_and_principal_mass_results(native):

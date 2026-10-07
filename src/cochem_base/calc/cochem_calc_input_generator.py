@@ -382,12 +382,16 @@ def generate_orca_input(
     if data.is_opt or data.frozen_monomer_indices:
         geom_block_lines.append("%geom")
         if data.is_opt:
-            # 5-parameter tightened convergence block mandated by Method Matrix v4 §4.4 (Task 8)
-            geom_block_lines.append("  TolE 1e-7")
-            geom_block_lines.append("  TolMaxG 1e-5")
-            geom_block_lines.append("  TolRMSG 3e-6")
-            geom_block_lines.append("  TolMaxD 1e-4")
-            geom_block_lines.append("  TolRMSD 5e-5")
+            # ORCA can declare convergence with one table criterion slightly
+            # unmet (observed for the two-process HF/STO-3G water Opt+Freq job).
+            # Request a tenfold margin below all five Method Matrix §4.4
+            # acceptance limits. The output parser independently enforces those
+            # original limits; the engine's convergence banner is insufficient.
+            geom_block_lines.append("  TolE 1e-8")
+            geom_block_lines.append("  TolMaxG 1e-6")
+            geom_block_lines.append("  TolRMSG 3e-7")
+            geom_block_lines.append("  TolMaxD 1e-5")
+            geom_block_lines.append("  TolRMSD 5e-6")
             geom_block_lines.append("  MaxIter 200")
         if data.is_opt:
             geom_block_lines.append(f"  InHess {data.initial_hessian}")

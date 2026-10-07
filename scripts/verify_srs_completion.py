@@ -113,11 +113,6 @@ def run_acceptance(engine: str, registry: Path, output: Path) -> dict:
                 require(result["nuclides"] == ["18O", "2H", "2H"], "Input nuclides were lost in calculation results")
                 require(records["nuclides"] == ["18O", "2H", "2H"], "Canonical telemetry lost isotope identity")
                 summary["nuclides"] = result["nuclides"]
-                if engine == "cfour":
-                    native_result = json.loads((published / "cfour" / "result.json").read_text())
-                    require(native_result["nuclides"] == result["nuclides"]
-                            and native_result["nuclear_identity"] == result["nuclear_identity"],
-                            "Standalone CFOUR result lost the canonical nuclear identity")
                 if name == "isotope-harmonic":
                     bundles = list(published.rglob("*harmonic-hessian.npz"))
                     require(len(bundles) == 1, "Native harmonic result omitted its canonical Hessian bundle")

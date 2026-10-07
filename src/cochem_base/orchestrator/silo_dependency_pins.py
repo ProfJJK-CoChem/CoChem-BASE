@@ -203,3 +203,10 @@ DEFAULT_PINS = {'calc': ['ase==3.29.0',
         'websocket-client==1.9.2',
         'websockets==17.2',
         'widgetsnbextension==4.0.16']}
+
+# CUDA is a separately requested lock, never an implicit CPU-environment repair.
+from cochem_base.orchestrator.ml_cuda_sources import CUDA128_SOURCES
+
+DEFAULT_PINS["mace_cuda128"] = [pin for pin in DEFAULT_PINS["mace"] if not pin.startswith("torch==")] + [
+    f"{name}=={source['version']}" for name, source in CUDA128_SOURCES["packages"].items()
+]

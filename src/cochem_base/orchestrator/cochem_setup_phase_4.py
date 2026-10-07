@@ -153,6 +153,7 @@ class SiloAuditItem(BaseModel):
     env_vars_injected: Dict[str, str] = Field(default_factory=dict, description="Environment variables injected")
     error_detail: Optional[str] = Field(default=None, description="Diagnostic error or failure reason")
     packages_verified: List[str] = Field(default_factory=list, description="Verified packages inside silo")
+    dependency_profile: Optional[str] = Field(default=None, description="Explicit ML dependency profile actually verified")
     created_at: Optional[str] = Field(default=None, description="Timestamp of silo creation/verification")
 
 
@@ -991,6 +992,8 @@ def get_default_silo_configs(
         manifest_filter.heavy_silos_requested
         and SiloType.MACE.value not in manifest_filter.skipped_silos
     )
+    from cochem_base.orchestrator.ml_silo_manager import mace_profile_lock
+    mace_lock = mace_profile_lock(os.environ.get("COCHEM_ML_TORCH_PROFILE", "cpu"))
     mace_config = SiloConfig(
         name=SiloType.MACE.value,
         silo_type=SiloType.MACE,
@@ -1000,7 +1003,7 @@ def get_default_silo_configs(
         is_requested=mace_requested,
         is_heavy=True,
         packages=["mace-torch", "torch", "e3nn"],
-        pip_packages=DEFAULT_PINS["mace"],
+        pip_packages=DEFAULT_PINS[mace_lock],
         env_vars=env_vars,
         stack_flags=stack_flags,
         description="Isolated GPU-accelerated machine learning force field (MLFF) operations silo.",
@@ -1111,8 +1114,12 @@ def provision_micro_silo(
     try:
         imports = [_silo_import_name(package) for package in silo_config.packages]
         if silo_config.silo_type == SiloType.MACE:
-            from cochem_base.orchestrator.ml_silo_manager import provision_mace_silo
-            evidence = provision_mace_silo(silo_path)
+            from cochem_base.orchestrator.ml_silo_manager import mace_profile_lock, provision_mace_silo
+            from cochem_base.orchestrator.micro_silo_manager import validate_pins
+            profile = os.environ.get("COCHEM_ML_TORCH_PROFILE", "cpu")
+            if validate_pins(silo_config.pip_packages) != validate_pins(DEFAULT_PINS[mace_profile_lock(profile)]):
+                raise MicroSiloValidationError("Custom MACE dependencies differ from the explicit reviewed profile")
+            evidence = provision_mace_silo(silo_path, profile=profile)
         else:
             evidence = provision_isolated_silo(
                 silo_path, python_version=silo_config.python_version,
@@ -1124,6 +1131,7 @@ def provision_micro_silo(
             status=SiloStatus.EXISTS_VALID if existed else SiloStatus.PROVISIONED,
             is_available=True, stack_flags_injected=silo_config.stack_flags,
             env_vars_injected=silo_config.env_vars, packages_verified=silo_config.packages,
+            dependency_profile=evidence.get("dependency_profile"),
             created_at=datetime.now(timezone.utc).isoformat(),
         )
     except (Exception, MicroSiloValidationError) as exc:

@@ -8,6 +8,26 @@ on:
         required: false
         default: ''
         type: string
+      skip_baseline:
+        description: Diagnostic only; retain the focused extended evidence separately.
+        required: false
+        default: false
+        type: boolean
+      skip_pytest:
+        description: Diagnostic only; named licensed pytest remains separate.
+        required: false
+        default: false
+        type: boolean
+      property_probe:
+        description: Isolate the initial native Pickett writer; no VPT2 acceptance claim.
+        required: false
+        default: false
+        type: boolean
+      focused_cases:
+        description: Comma-separated exact extended case names; empty means all.
+        required: false
+        default: ''
+        type: string
       torq_ref:
         description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
         required: false
@@ -17,6 +37,26 @@ on:
     inputs:
       topos_ref:
         description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
+        required: false
+        default: ''
+        type: string
+      skip_baseline:
+        description: Diagnostic only; retain the focused extended evidence separately.
+        required: false
+        default: false
+        type: boolean
+      skip_pytest:
+        description: Diagnostic only; named licensed pytest remains separate.
+        required: false
+        default: false
+        type: boolean
+      property_probe:
+        description: Isolate the initial native Pickett writer; no VPT2 acceptance claim.
+        required: false
+        default: false
+        type: boolean
+      focused_cases:
+        description: Comma-separated exact extended case names; empty means all.
         required: false
         default: ''
         type: string
@@ -224,19 +264,41 @@ jobs:
             --torq-root "$RUNNER_TEMP/cochem-sources/torq" \
             --artifacts "$COCHEM_ARTIFACT_DIR" --min-disk-space-gb 1 --existing-environment
       - name: Require genuine TOPOS ORCA scientific acceptance
-        if: inputs.topos_ref != ''
+        if: inputs.topos_ref != '' && inputs.skip_baseline != true
         run: |
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_topos.py" \
             --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence" \
             --threads 2 --memory-mb 2048 --budget-seconds 10800 --include-counterpoise --include-goat
+      - name: Retain the genuine serial and MPI Pickett property diagnostic
+        if: always() && inputs.property_probe == true && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/probe_orca_pickett.py" \
+            --topos-root "$RUNNER_TEMP/cochem-sources/topos" --registry "$COCHEM_CONFIG" \
+            --output "$RUNNER_TEMP/topos-pickett-diagnostic" --budget-seconds-per-case 90
       - name: Execute native correlated and anharmonic acceptance
         if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
+        env:
+          TOPOS_FOCUSED_CASES: ${{ inputs.focused_cases }}
         run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_extended.py" \
-            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-extended" \
-            --threads 2 --memory-mb 4096 --budget-seconds 7200
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" - <<'PYCODE'
+          import os, pathlib, subprocess, sys
+          source = pathlib.Path(os.environ['RUNNER_TEMP']) / 'cochem-sources/topos/scripts'
+          sys.path.insert(0, str(source))
+          from accept_orca_extended import CASES
+          selected = os.environ.get('TOPOS_FOCUSED_CASES', '').split(',')
+          selected = [value.strip() for value in selected if value.strip()]
+          if len(selected) != len(set(selected)) or set(selected) - set(CASES):
+              raise ValueError('Focused diagnostic cases must be exact distinct supported names')
+          command = [sys.executable, str(source / 'accept_orca_extended.py'),
+              '--registry', os.environ['COCHEM_CONFIG'], '--output',
+              str(pathlib.Path(os.environ['RUNNER_TEMP']) / 'topos-orca-extended'),
+              '--threads', '2', '--memory-mb', '4096', '--budget-seconds', '7200']
+          for case in selected:
+              command += ['--case', case]
+          raise SystemExit(subprocess.run(command, check=False).returncode)
+          PYCODE
       - name: Retain source-bound licensed pytest results
-        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
+        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success' && inputs.skip_pytest != true
         run: |
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_pytest.py" \
             --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence"
@@ -248,6 +310,7 @@ jobs:
           path: |
             ${{ runner.temp }}/topos-orca-evidence/
             ${{ runner.temp }}/topos-orca-extended/
+            ${{ runner.temp }}/topos-pickett-diagnostic/
             ${{ runner.temp }}/cochem-artifacts/setup-logs/
             ${{ runner.temp }}/cochem-artifacts/setup-receipt.json
             ${{ runner.temp }}/cochem-artifacts/mandatory-validation.json

@@ -69,18 +69,29 @@ def run_process(
         encoding, errors = locale.getencoding(), "strict"
     codecs.lookup_error(errors)
     configure_utf8_streams()
-    return subprocess.run(
+    # On Windows, subprocess text-mode readers decode in background threads.
+    # A decoding exception there may only emit a warning instead of reaching
+    # the caller. Capture bytes and decode here so invalid output always fails.
+    captured = subprocess.run(
         command,
         cwd=cwd,
         timeout=timeout,
-        check=check,
+        check=False,
         capture_output=capture_output,
-        text=True,
-        encoding=encoding,
-        errors=errors,
         env=_environment(env),
         shell=False,
     )
+    result = subprocess.CompletedProcess(
+        command,
+        captured.returncode,
+        (captured.stdout.decode(encoding, errors).replace("\r\n", "\n").replace("\r", "\n")
+         if captured.stdout is not None else None),
+        (captured.stderr.decode(encoding, errors).replace("\r\n", "\n").replace("\r", "\n")
+         if captured.stderr is not None else None),
+    )
+    if check:
+        result.check_returncode()
+    return result
 
 
 async def async_run_process(

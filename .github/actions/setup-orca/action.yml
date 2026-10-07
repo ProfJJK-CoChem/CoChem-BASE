@@ -15,10 +15,12 @@ runs:
         set -euo pipefail
         mkdir -p "$RUNNER_TEMP/orca-evidence"
         python - <<'PY'
-        import json, os
+        import os, sys
         from pathlib import Path
         scripts = Path(os.environ['COCHEM_ACTION_PATH']).resolve().parents[2] / 'scripts'
-        manifest = json.loads((scripts / 'orca-distribution.json').read_text())
+        sys.path.insert(0, str(scripts))
+        from provision_orca import load_distribution_manifest
+        manifest = load_distribution_manifest(scripts / 'orca-distribution.json')
         fields = {
             'COCHEM_ORCA_SCRIPTS': str(scripts),
             'COCHEM_ORCA_ASSET_REPOSITORY': manifest['repository'],
@@ -38,7 +40,7 @@ runs:
       run: |
         set -euo pipefail
         if [[ -z "$GH_TOKEN" ]]; then
-          echo '::error::ORCA_ASSET_READ_TOKEN must have read access to ProfJJK-CoChem/CoChem-ORCA.'
+          echo "::error::ORCA_ASSET_READ_TOKEN must have read access to $COCHEM_ORCA_ASSET_REPOSITORY."
           exit 1
         fi
         mkdir -p "$RUNNER_TEMP/cochem-orca-download"

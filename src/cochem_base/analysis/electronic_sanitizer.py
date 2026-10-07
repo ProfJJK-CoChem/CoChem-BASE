@@ -68,6 +68,15 @@ class ElectronicSanitizer:
         composite = any(token in fn_clean.split() for token in ("R2SCAN-3C", "B97-3C", "HF-3C", "PBEH-3C"))
         correlated = bool(re.search(r"\b(?:MP[234]|CCSD|CC2|CC3|CASSCF|NEVPT2|CASPT2)\b", fn_clean))
         tight_binding = bool(re.search(r"\bGFN[012]-?XTB\b", fn_clean))
+        # HF and its spin variants are wavefunction methods, not dispersion-free
+        # density functionals. A spin-reference keyword alongside an explicit
+        # DFT functional must not waive that functional's dispersion policy.
+        tokens = fn_clean.split()
+        explicit_dft = any(
+            re.search(rf"(?<![A-Z0-9]){re.escape(name)}(?![A-Z0-9])", fn_clean)
+            for name in HYBRID_DISPERSION_REQUIRING | NON_LOCAL_VV10_FUNCTIONALS
+        )
+        hartree_fock = bool(tokens and tokens[0] in {"HF", "RHF", "UHF", "ROHF"} and not explicit_dft)
 
         if is_vv10 and has_empirical:
             raise RedundantDispersionError(
@@ -79,7 +88,7 @@ class ElectronicSanitizer:
             raise MissingDispersionError("B3LYP/PBE0 require D3BJ or D4 dispersion; undamped D3 is insufficient.")
 
         # Check for missing dispersion on intermolecular complexes
-        if is_complex and not any((is_vv10, has_empirical, composite, correlated, tight_binding)):
+        if is_complex and not any((is_vv10, has_empirical, composite, correlated, tight_binding, hartree_fock)):
             raise MissingDispersionError(
                 f"[DISPERSION_MISSING] Standard functional '{functional}' lacks required empirical "
                 f"dispersion (D3BJ/D4) for non-covalent complex calculation [M]."

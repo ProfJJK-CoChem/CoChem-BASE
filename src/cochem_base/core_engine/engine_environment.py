@@ -59,6 +59,17 @@ def engine_runtime_environment(
         _append_paths(environment, "PATH", adjacent)
 
     if orca_runtime:
+        from .cpu_allocation import CPUAllocationPolicy, cpu_allocation_policy
+        if cpu_allocation_policy(environment) is CPUAllocationPolicy.GITHUB_HOSTED_VCPUS:
+            # A hosted virtual CPU is an allocated hardware thread. Match MPI
+            # mapping to the audited unit and forbid oversubscription explicitly.
+            environment.update(
+                OMPI_MCA_hwloc_base_use_hwthreads_as_cpus="1",
+                OMPI_MCA_rmaps_base_mapping_policy="hwthread:NOOVERSUBSCRIBE",
+                OMPI_MCA_hwloc_base_binding_policy="hwthread",
+                OMPI_MCA_rmaps_base_no_oversubscribe="1",
+                OMPI_MCA_rmaps_base_oversubscribe="0",
+            )
         # ORCA manages MPI ranks itself; math libraries remain serial per rank.
         for variable in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
                          "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "BLIS_NUM_THREADS"):

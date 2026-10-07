@@ -4,6 +4,11 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
+      base_repository:
+        description: Repository containing the reviewed BASE source for a reusable call.
+        required: false
+        default: ProfJJK-CoChem/CoChem-BASE
+        type: string
       base_ref:
         description: Full CoChem-BASE commit SHA providing the shared installer and BASE acceptance.
         required: true
@@ -11,6 +16,9 @@ on:
     secrets:
       ORCA_ASSET_READ_TOKEN:
         required: true
+      BASE_SOURCE_READ_TOKEN:
+        description: Optional read-only access when a reusable caller cannot read the private BASE source.
+        required: false
   push:
     branches: [codex/orca-6.1.1-actions]
     paths:
@@ -39,6 +47,7 @@ jobs:
       MKL_NUM_THREADS: '1'
       QT_QPA_PLATFORM: offscreen
       COCHEM_HEADLESS: '1'
+      COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
     steps:
       - name: Validate a reusable caller's BASE revision
         env:
@@ -50,12 +59,28 @@ jobs:
           fi
       - uses: actions/checkout@v4
         with:
-          repository: ProfJJK-CoChem/CoChem-BASE
+          repository: ${{ inputs.base_repository || github.repository }}
           ref: ${{ inputs.base_ref || github.sha }}
+          token: ${{ secrets.BASE_SOURCE_READ_TOKEN || github.token }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Record the real runner CPU topology and scheduling limits
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          limits = {}
+          for name in ('cpu.max', 'cpuset.cpus.effective'):
+              path = Path('/sys/fs/cgroup') / name
+              limits[name] = path.read_text().strip() if path.is_file() else None
+          topology = subprocess.run(['lscpu', '--json'], capture_output=True, text=True, check=True, timeout=10)
+          print(json.dumps({'runner_environment': os.environ.get('RUNNER_ENVIRONMENT'),
+              'cpu_allocation_policy': os.environ.get('COCHEM_CPU_ALLOCATION_POLICY'),
+              'logical_cpus': os.cpu_count(), 'affinity_cpu_ids': sorted(os.sched_getaffinity(0)),
+              'kernel_limits': limits, 'lscpu': json.loads(topology.stdout)}, indent=2))
+          PY
       - name: Prepare external evidence and registry locations
         run: |
           mkdir -p "$RUNNER_TEMP/orca-evidence"
@@ -86,8 +111,23 @@ jobs:
           asset-token: ${{ secrets.ORCA_ASSET_READ_TOKEN }}
       - name: Install BASE and execute all eleven Stage 0 phases
         run: |
-          python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
-            > "$RUNNER_TEMP/orca-evidence/stage0-setup.log" 2>&1
+          if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
+              > "$RUNNER_TEMP/orca-evidence/stage0-setup.log" 2>&1; then
+            tail -n 20 "$RUNNER_TEMP/orca-evidence/stage0-setup.log"
+          else
+            status=$?
+            tail -n 100 "$RUNNER_TEMP/orca-evidence/stage0-setup.log"
+            exit "$status"
+          fi
+      - name: Record the fresh registry CPU allocation evidence
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          registry = json.loads(Path(os.environ['COCHEM_CONFIG']).read_text())
+          print(json.dumps({'hardware': registry['hardware'],
+              'cpu_allocation': (registry.get('execution') or {}).get('cpu_allocation')}, indent=2))
+          PY
       - name: Run actual serial and parallel ORCA calculations through BASE
         env:
           # These CLI tests use pytest itself; unrelated installed GUI plugins

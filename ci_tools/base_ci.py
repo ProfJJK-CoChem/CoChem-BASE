@@ -95,7 +95,8 @@ def source_snapshot(root: Path) -> dict[str, str]:
     """Record actual audited source bytes before and after test execution."""
     selected_tests(root)
     candidates = [root / name for name in SOURCE_TARGETS]
-    candidates += [root / ".github", root / "pytest.ini", root / "pytest-srs.ini", root / "pyproject.toml"]
+    candidates += [root / ".github", root / ".gitattributes", root / ".gitignore",
+                   root / "pytest.ini", root / "pytest-srs.ini", root / "pyproject.toml"]
     # Hash all test sources, even legacy inventory, so imported helpers cannot
     # mutate silently merely because their tests are outside this profile.
     candidates += [root / "tests", root / "test_suite"]

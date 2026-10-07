@@ -26,6 +26,7 @@ class ExecutionAuthorization:
     registry_path: str
     binary_sha256: str
     cpu_affinity: tuple[int, ...] = ()
+    cpu_budget_unit: str = "physical_core"
 
     def command(self, arguments: Sequence[str] = ()) -> list[str]:
         return [self.executable, *arguments]
@@ -95,7 +96,8 @@ def authorize_engine_execution(
             ):
                 raise ValueError(f"Command executable contradicts audited {name} binary")
         hardware = config.hardware
-        limit = hardware.allocatable_compute_cores
+        from .cpu_allocation import audited_cpu_capacity
+        limit, budget_unit = audited_cpu_capacity(hardware.model_dump(), config.execution)
         if not isinstance(limit, int) or limit < 1:
             raise ValueError("No audited CPU allocation is available")
         requested_cores = limit if cores is None else cores
@@ -149,6 +151,7 @@ def authorize_engine_execution(
             str(path),
             digest,
             affinity,
+            budget_unit,
         )
     except Exception as exc:
         if isinstance(exc, RegistryAuthorityViolationError):

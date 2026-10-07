@@ -1,0 +1,28 @@
+# =====================================================================
+# CoChem-CORE Cryptographic Provenance Stamp: 7a5a6870d5cb8fa3063dd7a08d84b3dba91c225946fdf433e35239e84d18ea5f
+# Basin ID: job_3533bd18439b45c494f2b96ac5c76c18 | Engine Target: ORCA 6.1.1
+# =====================================================================
+! HF STO-3G Freq Opt DEFGRID3  NoSym TightSCF
+
+%pal
+ nprocs 1
+end
+
+%maxcore 512
+
+%geom
+  TolE 1e-7
+  TolMaxG 1e-5
+  TolRMSG 3e-6
+  TolMaxD 1e-4
+  TolRMSD 5e-5
+  MaxIter 200
+  InHess Lindh
+end
+
+
+* xyz 0 1
+  O    0 -3.1732536231343559e-18 -0.065689258950874269
+  H    0 -0.75700000000000001 0.52131074104912567
+  H    0 0.75700000000000001 0.52131074104912567
+*

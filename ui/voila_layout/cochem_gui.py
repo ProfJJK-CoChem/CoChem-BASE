@@ -3,11 +3,13 @@ import html
 import json
 import logging
 import os
+import re
 import sys
 import threading
 from collections import deque
 from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple
+from urllib.parse import quote
 
 import ipywidgets as widgets
 from pydantic import BaseModel, Field
@@ -174,127 +176,44 @@ class CoChemGUI:
 
         # 3.1 Seamless Install View
         
-        self.gh_pat_input = widgets.Password(description="GitHub PAT:", placeholder="ghp_...", style={'description_width': 'initial'}, layout=widgets.Layout(width='60%'))
-        self.gh_repo_input = widgets.Text(description="Repository:", placeholder="username/CoChem-BASE", style={'description_width': 'initial'}, layout=widgets.Layout(width='60%'))
-        self.gh_orca_link = widgets.Text(description="ORCA Link:", placeholder="e.g., https://dropbox.com/s/...", style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'))
-        self.gh_cfour_link = widgets.Text(description="CFOUR Link:", placeholder="e.g., https://dropbox.com/s/...", style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'))
-        self.btn_gh_setup = widgets.Button(description="Provision GitHub Secrets", button_style="success", icon="cloud", layout=widgets.Layout(width='auto', margin='10px 0'))
-        self.gh_setup_output = widgets.Output(layout=widgets.Layout(border='1px solid #ccc', padding='5px'))
-
-        def _on_gh_setup_clicked(b):
-            import requests
-            from base64 import b64encode
-            from nacl import encoding, public
-            self.gh_setup_output.clear_output()
-            with self.gh_setup_output:
-                pat = self.gh_pat_input.value.strip()
-                repo = self.gh_repo_input.value.strip()
-                orca_url = self.gh_orca_link.value.strip()
-                cfour_url = self.gh_cfour_link.value.strip()
-                if not pat or not repo:
-                    print("Error: GitHub PAT and Repository name are required.")
-                    return
-                print(f"Connecting to GitHub API for {repo}...")
-                headers = {"Accept": "application/vnd.github+json", "Authorization": f"Bearer {pat}", "X-GitHub-Api-Version": "2022-11-28"}
-                r = requests.get(f"https://api.github.com/repos/{repo}/actions/secrets/public-key", headers=headers, timeout=30)
-                if r.status_code != 200:
-                    print(f"Error fetching public key: {r.text}")
-                    return
-                key_data = r.json()
-                public_key = public.PublicKey(key_data['key'].encode("utf-8"), encoding.Base64Encoder())
-
-                def encrypt(public_key, secret_value):
-                    return b64encode(public.SealedBox(public_key).encrypt(secret_value.encode("utf-8"))).decode("utf-8")
-
-                secrets_to_put = []
-                if orca_url: secrets_to_put.append(('ORCA_DOWNLOAD_LINK', orca_url))
-                if cfour_url: secrets_to_put.append(('CFOUR_DOWNLOAD_LINK', cfour_url))
-
-                for s_name, s_val in secrets_to_put:
-                    data = {"encrypted_value": encrypt(public_key, s_val), "key_id": key_data['key_id']}
-                    r = requests.put(f"https://api.github.com/repos/{repo}/actions/secrets/{s_name}", headers=headers, json=data, timeout=30)
-                    print(f"Provisioned {s_name}: {'Success' if r.status_code in (201, 204) else 'Failed'}")
-
-
-        guidance_html = """
-        <h4>GitHub Actions Provisioning (Strictly Guided)</h4>
-        <div style='background-color:#fff3cd; padding:10px; border-left:4px solid #ffeeba;'>
-        <b>Why do we need this?</b><br/>
-        CREST, SPFIT, and SPCAT are open-source and will be automatically installed. However, <b>ORCA and CFOUR have strict academic EULAs</b>. We legally cannot distribute them in the CoChem repository. 
-        <br/><br/><b>How to provision them for the Cloud:</b>
-        <ol>
-            <li>Register at the ORCA Forum and CFOUR site and download the <b>Linux (x86_64)</b> versions of the binaries.</li>
-            <li>Upload these Linux archives to a private cloud drive (Google Drive, Dropbox, or OneDrive).</li>
-            <li>Generate a <b>Direct Download Link</b> (For Dropbox, change <code>dl=0</code> to <code>dl=1</code>).</li>
-            <li>Paste the links below.</li>
-            <li><b>What is a GitHub PAT?</b> A Personal Access Token (PAT) is a secure password that allows this interface to upload your secret links directly to GitHub for you. To get one: Go to GitHub.com &rarr; Settings &rarr; Developer Settings &rarr; Personal Access Tokens (Classic) &rarr; Generate new token. Check the <b>'repo'</b> box, click generate, and paste it below!</li>
-        </ol>
-        </div>
-"""
+        self.gh_repo_input = widgets.Text(
+            description="Course repository:", value=os.environ.get("GITHUB_REPOSITORY", ""),
+            placeholder="course-organization/student-repository", style={'description_width': 'initial'},
+            layout=widgets.Layout(width='90%'),
+        )
+        self.gh_branch_input = widgets.Text(
+            description="Approved branch:", value=os.environ.get("GITHUB_REF_NAME", "main"),
+            style={'description_width': 'initial'},
+        )
+        self.gh_guidance = widgets.HTML()
         self.gh_setup_box = widgets.VBox([
-            widgets.HTML(guidance_html),
-            self.gh_pat_input, self.gh_repo_input, self.gh_orca_link, self.gh_cfour_link, self.btn_gh_setup, self.gh_setup_output
+            self.gh_repo_input, self.gh_branch_input, self.gh_guidance,
         ], layout=widgets.Layout(border='1px solid #0056b3', padding='15px', margin='10px 0'))
-        self.gh_setup_output = widgets.Output(layout=widgets.Layout(border='1px solid #ccc', padding='5px'))
-
-        def _on_gh_setup_clicked(b):
-            import requests
-            from base64 import b64encode
-            from nacl import encoding, public
-            self.gh_setup_output.clear_output()
-            with self.gh_setup_output:
-                pat = self.gh_pat_input.value.strip()
-                repo = self.gh_repo_input.value.strip()
-                orca_url = self.gh_orca_link.value.strip()
-                cfour_url = self.gh_cfour_link.value.strip()
-                if not pat or not repo:
-                    print("Error: GitHub PAT and Repository name are required.")
-                    return
-                print(f"Connecting to GitHub API for {repo}...")
-                headers = {
-                    "Accept": "application/vnd.github+json",
-                    "Authorization": f"Bearer {pat}",
-                    "X-GitHub-Api-Version": "2022-11-28"
-                }
-                # Get public key
-                r = requests.get(f"https://api.github.com/repos/{repo}/actions/secrets/public-key", headers=headers, timeout=30)
-                if r.status_code != 200:
-                    print(f"Error fetching public key: {r.text}")
-                    return
-                key_data = r.json()
-                key_id = key_data['key_id']
-                public_key = public.PublicKey(key_data['key'].encode("utf-8"), encoding.Base64Encoder())
-
-                def encrypt(public_key, secret_value):
-                    sealed_box = public.SealedBox(public_key)
-                    encrypted = sealed_box.encrypt(secret_value.encode("utf-8"))
-                    return b64encode(encrypted).decode("utf-8")
-
-                secrets_to_put = []
-                if orca_url: secrets_to_put.append(('ORCA_DOWNLOAD_LINK', orca_url))
-                if cfour_url: secrets_to_put.append(('CFOUR_DOWNLOAD_LINK', cfour_url))
-
-                if not secrets_to_put:
-                    print("No download links provided. Nothing to do.")
-                    return
-
-                for s_name, s_val in secrets_to_put:
-                    enc_val = encrypt(public_key, s_val)
-                    data = {"encrypted_value": enc_val, "key_id": key_id}
-                    r = requests.put(f"https://api.github.com/repos/{repo}/actions/secrets/{s_name}", headers=headers, json=data, timeout=30)
-                    if r.status_code in (201, 204):
-                        print(f"Successfully provisioned secret: {s_name}")
-                    else:
-                        print(f"Failed to provision {s_name}: {r.status_code} {r.text}")
-                print("GitHub Actions configuration complete!")
-
-        self.btn_gh_setup.on_click(_on_gh_setup_clicked)
-
-        self.gh_setup_box = widgets.VBox([
-            widgets.HTML("<h4>GitHub Actions Provisioning</h4>"),
-            widgets.HTML("<p>Because ORCA and CFOUR have academic licenses, they cannot be checked into the repository. Configure a private download link here, and we will securely inject it into your GitHub Actions Secrets.</p>"),
-            self.gh_pat_input, self.gh_repo_input, self.gh_orca_link, self.gh_cfour_link, self.btn_gh_setup, self.gh_setup_output
-        ], layout=widgets.Layout(border='1px solid #0056b3', padding='15px', margin='10px 0'))
+        self.gh_repo_input.observe(self._refresh_actions_guidance, names='value')
+        self.gh_branch_input.observe(self._refresh_actions_guidance, names='value')
+        self.actions_job_download = widgets.HTML()
+        self._last_actions_job = None
+        self.actions_operation = widgets.Dropdown(
+            options=[("Single point", "single_point"), ("Optimization", "optimization"),
+                     ("Harmonic frequencies", "harmonic_frequencies"),
+                     ("Optimize + harmonic frequencies", "optimization_frequencies")],
+            value="single_point", description="Actions operation:", style={'description_width': 'initial'},
+        )
+        self.actions_timeout = widgets.BoundedIntText(
+            value=300, min=30, max=1800, description="Calculation timeout (s):",
+            style={'description_width': 'initial'},
+        )
+        self.actions_job_options = widgets.VBox([
+            self.actions_operation, self.actions_timeout,
+            widgets.HTML("<p>Course profile: ORCA, up to 50 atoms, one or two cores, "
+                         "512 MB per core by default (maximum 1024 MB), and at most 1800 seconds per calculation. "
+                         "Choose cores and memory on GitHub when starting the workflow.</p>"
+                         "<p>Harmonic frequencies at supplied coordinates do not certify a stationary structure. "
+                         "Choose <b>Optimize + harmonic frequencies</b> to optimize first. VPT2 remains a separate module integration.</p>"),
+        ], layout=widgets.Layout(display='none'))
+        self.actions_operation.observe(self._invalidate_actions_job, names='value')
+        self.actions_timeout.observe(self._invalidate_actions_job, names='value')
+        self.calculation_environment_status = widgets.HTML()
 
         self.calc_env_dropdown = widgets.Dropdown(
             options=[
@@ -434,6 +353,15 @@ class CoChemGUI:
                 self.dynamic_setup_container.children = [self.local_setup_box]
             else:
                 self.dynamic_setup_container.children = []
+            self._invalidate_actions_job()
+            self._refresh_actions_guidance()
+            self.run_install_btn.description = "Review Actions setup" if env == "github-actions" else "Run Installation"
+            self.run_install_btn.disabled = self._installation_running or (env != "github-actions" and self._install_input_artifact is None)
+            if hasattr(self, 'local_install_options'):
+                self.local_install_options.layout.display = 'none' if env == 'github-actions' else ''
+            if hasattr(self, 'btn_execute'):
+                self._check_dispersion_gate()
+                self._refresh_topos_capabilities()
                 
         self.calc_env_dropdown.observe(_on_calc_env_change, names='value')
         _on_calc_env_change({'new': self.calc_env_dropdown.value})
@@ -441,22 +369,24 @@ class CoChemGUI:
         self.run_install_btn.on_click(self._run_installation)
 
         self.install_output = BoundedTelemetryOutput(layout=widgets.Layout(border='1px solid #ccc', height='300px', overflow='auto'))
-
+        self.local_install_options = widgets.VBox([
+            self.license_mode,
+            widgets.HTML("<p>Free dependencies are installed or audited. ORCA/CFOUR are only discovered; provide separately installed licensed binaries. "
+                         "The selected licensed engine must pass its audit before this setup is accepted.</p>"),
+            self.install_data_path, self.btn_validate_install_data, self.install_data_status,
+            self.install_min_disk,
+            widgets.HTML("<p>Set the required disk space to the measured needs of your workload. The default reserves 50 GB.</p>"),
+            widgets.HTML("<h4>Installation Logs</h4>"),
+            self.install_output,
+        ], layout=widgets.Layout(display='none' if self.calc_env_dropdown.value == 'github-actions' else ''))
         self.view_install = widgets.VBox([
             widgets.HTML("<h3>Seamless Install Wizard</h3>"),
             widgets.HTML("<p>Setup pipeline and real physical data ingestion.</p>"),
             self.calc_env_dropdown,
             self.interact_env_dropdown,
-            self.license_mode,
-            widgets.HTML("<p>Free dependencies are installed or audited. ORCA/CFOUR are only discovered; provide separately installed licensed binaries. "
-                         "The selected licensed engine must pass its audit before this setup is accepted.</p>"),
             self.dynamic_setup_container,
-            self.install_data_path, self.btn_validate_install_data, self.install_data_status,
-            self.install_min_disk,
-            widgets.HTML("<p>Set the required disk space to the measured needs of your workload. The default reserves 50 GB.</p>"),
+            self.local_install_options,
             self.run_install_btn,
-            widgets.HTML("<h4>Installation Logs</h4>"),
-            self.install_output
         ], layout=widgets.Layout(padding='20px'))
 
         # 3.2 Step 0: Product Class Gate & No Code Matrix View
@@ -507,6 +437,7 @@ class CoChemGUI:
             except (ValueError, RuntimeError, OSError):
                 label += " [Not authorized: complete setup]"
             engine_options.append((label, name))
+        self._local_engine_options = tuple(engine_options)
 
         self.matrix_engine = widgets.Dropdown(
             options=engine_options,
@@ -666,6 +597,7 @@ class CoChemGUI:
         )
 
         def update_preview(*args):
+            self._invalidate_actions_job()
             try:
                 self.live_preview.value = json.dumps(self._collect_run_config(), indent=2)
             except (ValueError, RuntimeError, OSError, MethodologyViolationError) as exc:
@@ -674,6 +606,9 @@ class CoChemGUI:
         self.matrix_geometry.observe(self._check_dispersion_gate, 'value')
 
         self.matrix_engine.observe(update_preview, 'value')
+        self.actions_operation.observe(update_preview, 'value')
+        self.actions_timeout.observe(update_preview, 'value')
+        self.calc_env_dropdown.observe(update_preview, 'value')
         self.cb_recipe_r1.observe(self._check_dispersion_gate, 'value')
         self.cb_recipe_r2.observe(self._check_dispersion_gate, 'value')
         self.cb_recipe_r1.observe(update_preview, 'value')
@@ -687,6 +622,7 @@ class CoChemGUI:
         self.matrix_method.observe(update_preview, 'value')
         self.matrix_basis.observe(update_preview, 'value')
         self.matrix_geometry.observe(update_preview, 'value')
+        self.product_class_selector.observe(update_preview, 'value')
         self.topos_heuristic.observe(update_preview, 'value')
         self.topos_dedup.observe(update_preview, 'value')
         self.torq_dihedrals.observe(update_preview, 'value')
@@ -705,6 +641,7 @@ class CoChemGUI:
         self.matrix_output = widgets.Output()
         self.artifact_output_path = widgets.Text(description="Output Dir:", placeholder="e.g. D:\\MyProjects", layout=widgets.Layout(width='60%'))
         self.project_name = widgets.Text(description="Project Name:", placeholder="e.g. CCO", layout=widgets.Layout(width='30%'))
+        self.project_name.observe(self._invalidate_actions_job, names='value')
         self.output_config_box = widgets.HBox([self.artifact_output_path, self.project_name], layout=widgets.Layout(margin='10px 0'))
 
 
@@ -849,15 +786,19 @@ class CoChemGUI:
         self.config_tabs.set_title(4, 'Fragments / Frozen')
         
 
+        self.output_destination_guidance = widgets.HTML()
         self.matrix_config_panel = widgets.VBox([
             widgets.HTML("<h4>Simulation Parameters</h4>"),
+            self.calculation_environment_status,
+            self.actions_job_options,
             self.config_tabs,
-            widgets.HTML("<h4>Artifact Output Configuration</h4><i>Saved configurations use &lt;Output Dir&gt;/&lt;Project Name&gt;/. Each calculation writes logs and results below &lt;Output Dir&gt;/GUI/run_…/.</i>"),
+            self.output_destination_guidance,
             self.output_config_box,
             widgets.HTML("<h4>Saved Run Configuration Preview</h4>"),
             self.live_preview,
             self.btn_save_matrix,
-            self.matrix_output
+            self.matrix_output,
+            self.actions_job_download,
         ], layout=widgets.Layout(border='1px solid #ccc', padding='10px', margin='10px 0'))
 
         # Task 3: Connected HPC / Slurm Panel
@@ -899,10 +840,11 @@ class CoChemGUI:
         self.btn_cancel.on_click(self._cancel_pipeline)
         self.telemetry_output = BoundedTelemetryOutput(layout=widgets.Layout(border='1px solid #ccc', height='400px', overflow='auto', padding='5px'))
         self.calculation_result = widgets.HTML("<i>No accepted calculation result yet.</i>")
+        self.execution_description = widgets.HTML()
 
         self.telemetry_panel = widgets.VBox([
             widgets.HTML("<h4>Live Telemetry & Execution</h4>"),
-            widgets.HTML("<p>Optimize the selected molecular geometry with ORCA or run closed-shell GFN2-xTB / GFN-FF screening. Screening carries no product accuracy certification. TOPOS searches and TORQ scans use their separate runners.</p>"),
+            self.execution_description,
             widgets.HBox([self.btn_execute, self.btn_cancel]),
             self.calculation_result,
             self.telemetry_output
@@ -1104,7 +1046,83 @@ class CoChemGUI:
         self.state.observe(self._on_status_change, names='system_status')
         self.state.observe(self._on_error_change, names='error_message')
         self.state.observe(self._on_environment_change, names='environment')
+        self._refresh_actions_guidance()
         self._check_dispersion_gate()
+
+    def _invalidate_actions_job(self, change: Any = None) -> None:
+        self._last_actions_job = None
+        if hasattr(self, 'actions_job_download'):
+            self.actions_job_download.value = ""
+
+    def _actions_repository(self) -> str:
+        repository = self.gh_repo_input.value.strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*", repository):
+            raise ValueError("Enter your instructor-provided course repository as OWNER/REPOSITORY.")
+        return repository
+
+    def _refresh_actions_guidance(self, change: Any = None) -> None:
+        repository = self.gh_repo_input.value.strip()
+        valid_repository = bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*", repository))
+        guide_repository = repository if valid_repository else "ProfJJK-CoChem/CoChem-BASE"
+        branch = self.gh_branch_input.value.strip() or "main"
+        guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/GitHub_Classroom_ORCA_Setup.md"
+        self.gh_guidance.value = (
+            "<h4>GitHub Actions: Classroom50 course setup</h4>"
+            "<p>Use the GitHub course repository provided by your Classroom50 instructor. "
+            "Your instructor prepares approved private ORCA access and the course workflows. "
+            "Students do not enter tokens or binary download links in this interface.</p>"
+            "<ol><li>Enter the course repository and branch provided by your instructor.</li>"
+            "<li>Ask the instructor to confirm <b>ORCA 6.1.1 calculation acceptance</b> passed for this repository.</li>"
+            "<li>Open <b>No Code Matrix</b>, enter your molecule and ORCA method, then choose "
+            "<b>Prepare GitHub Actions job</b>.</li>"
+            "<li>Download the JSON, upload it to the stated <code>jobs/</code> path on the approved branch, "
+            "then open <b>Actions → ORCA calculation → Run workflow</b>. Enter that path as <code>job_file</code>.</li>"
+            "<li>Wait for the calculation to finish. Download its result artifact and retain the run URL. "
+            "A prepared file or an archive-access check is not a completed calculation.</li></ol>"
+            f"<p><a href='{guide}#student-quick-start' target='_blank' rel='noopener'>Student quick start</a> · "
+            f"<a href='{guide}#instructor-setup' target='_blank' rel='noopener'>Instructor setup</a> · "
+            f"<a href='{guide}#troubleshooting' target='_blank' rel='noopener'>Troubleshooting</a></p>"
+        )
+        remote = hasattr(self, 'calc_env_dropdown') and self.calc_env_dropdown.value == "github-actions"
+        if hasattr(self, 'matrix_engine'):
+            selected_engine = self.matrix_engine.value
+            self.matrix_engine.options = (
+                (("ORCA (course Actions workflow)", "ORCA"),
+                 ("xTB (local/HPC only)", "XTB"),
+                 ("PySCF (local/HPC only)", "PYSCF"))
+                if remote else self._local_engine_options
+            )
+            self.matrix_engine.value = selected_engine
+            self.matrix_engine.tooltip = (
+                "Prepare an ORCA request without a local engine. The approved workflow provisions and authorizes its own engine."
+                if remote else "Native execution requires the complete eleven-phase setup audit on the configured host."
+            )
+        self.actions_job_options.layout.display = '' if remote else 'none'
+        if hasattr(self, 'artifact_output_path'):
+            self.artifact_output_path.layout.display = 'none' if remote else ''
+        if hasattr(self, 'output_destination_guidance'):
+            self.output_destination_guidance.value = (
+                "<h4>Actions job download</h4><p>The project name determines the downloaded JSON filename. "
+                "Upload that file to the course repository's <code>jobs/</code> directory.</p>"
+                if remote else "<h4>Artifact Output Configuration</h4><p>Saved configurations use &lt;Output Dir&gt;/&lt;Project Name&gt;/. "
+                "Each calculation writes logs and results below &lt;Output Dir&gt;/GUI/run_…/.</p>"
+            )
+        if hasattr(self, 'execution_description'):
+            self.execution_description.value = (
+                "<p>Prepare the selected ORCA operation for the course Actions workflow. "
+                "Its calculation logs and validated results are available in the GitHub run artifact after execution.</p>"
+                if remote else "<p>Run ORCA or closed-shell xTB optimization, or a PySCF RHF single point on the configured host. "
+                "Screening carries no product accuracy certification. TOPOS and TORQ use their separate runners.</p>"
+            )
+        self.calculation_environment_status.value = (
+            "<p><b>Calculation target: GitHub Actions.</b> This interface prepares a job file; "
+            "the approved workflow runs the calculation after you submit it on GitHub. "
+            f"<a href='{guide}#student-quick-start' target='_blank' rel='noopener'>Course instructions</a></p>"
+            if remote else "<p>Calculation target: the configured local or HPC execution host.</p>"
+        )
+        self._invalidate_actions_job()
+        if hasattr(self, 'btn_execute'):
+            self._refresh_execution_gate()
 
     def _detect_environment(self) -> Tuple[bool, str, bool, bool]:
         """Display measured, signed registry state; individual phase files are insufficient."""
@@ -1188,6 +1206,9 @@ class CoChemGUI:
             self.periodic_structure_status.value += f"<p role='alert'>Periodic request was not saved: {html.escape(str(exc))}</p>"
 
     def _execute_periodic_pipeline(self, b: Any = None) -> None:
+        if self.calc_env_dropdown.value == "github-actions":
+            self.state.error_message = "The course Actions workflow accepts molecular ORCA jobs. Choose a configured local/HPC host for periodic QE execution."
+            return
         if self._pipeline_running or self._topos_running or self._installation_running:
             self.state.error_message = "Wait for the active operation before starting a periodic calculation"
             return
@@ -1300,7 +1321,7 @@ class CoChemGUI:
 
     def _invalidate_installation_data(self, change: Any = None) -> None:
         self._install_input_artifact = None
-        self.run_install_btn.disabled = True
+        self.run_install_btn.disabled = self.calc_env_dropdown.value != "github-actions"
         self.install_data_status.value = "<p>[MISSING DATA] Validate the selected scientific bundle.</p>"
 
     def _validate_installation_data(self, b: Any = None) -> bool:
@@ -1325,13 +1346,15 @@ class CoChemGUI:
             return False
 
     def _run_installation(self, b: Any) -> None:
+        if self.calc_env_dropdown.value == "github-actions":
+            self._refresh_actions_guidance()
+            self.state.system_status = "Actions setup instructions"
+            self.state.error_message = ""
+            return
         if self._installation_running or not self._validate_installation_data():
             return
         if self._topos_running or self._pipeline_running:
             self.state.error_message = "Wait for the active calculation before changing the execution environment."
-            return
-        if self.calc_env_dropdown.value == "github-actions":
-            self.state.error_message = "Run the Low Compute Acceptance workflow in GitHub Actions for hosted setup. The local dashboard cannot claim a hosted installation."
             return
         self._installation_running = True
         self.run_install_btn.disabled = True
@@ -1497,7 +1520,17 @@ class CoChemGUI:
     def _refresh_execution_gate(self) -> None:
         from cochem_base.core_engine.execution_authority import authorize_engine_execution
         reason = ""
-        if self.matrix_engine.value not in {"ORCA", "XTB", "PYSCF"}:
+        remote = self.calc_env_dropdown.value == "github-actions"
+        if remote:
+            self.btn_execute.description = "Prepare GitHub Actions job"
+            if self.matrix_engine.value != "ORCA":
+                reason = "The course Actions workflow accepts ORCA jobs. Choose ORCA or return to the configured local/HPC host."
+            else:
+                try:
+                    self._actions_repository()
+                except ValueError as exc:
+                    reason = str(exc)
+        elif self.matrix_engine.value not in {"ORCA", "XTB", "PYSCF"}:
             reason = "This launcher supports ORCA/xTB optimization and PySCF RHF single points; CFOUR requires its dedicated adapter."
         else:
             engine = self.matrix_engine.value.lower()
@@ -1505,6 +1538,8 @@ class CoChemGUI:
                 authorize_engine_execution(engine, cores=1)
             except (ValueError, RuntimeError, OSError) as exc:
                 reason = f"{self.matrix_engine.value} execution is unavailable: {exc}"
+        if not remote:
+            self.btn_execute.description = {"XTB": "Run xTB optimization", "PYSCF": "Run PySCF single point"}.get(self.matrix_engine.value, "Run ORCA optimization")
         self.engine_warning.value = f"<b>{html.escape(reason)}</b>" if reason else ""
         self.btn_execute.disabled = bool(reason or self.dispersion_warning.value or self._pipeline_running
                                          or self._topos_running or self._installation_running)
@@ -1542,28 +1577,30 @@ class CoChemGUI:
         return self._on_slurm_submit_clicked(b)
 
     def _on_slurm_submit_clicked(self, b: Any) -> None:
+        import uuid
+
+        if self.calc_env_dropdown.value == "github-actions":
+            self.slurm_status_output.value = "<p role='alert'>GitHub Actions is selected. Prepare the course job JSON and submit it through ORCA calculation on GitHub.</p>"
+            return
         try:
             controller = SlurmSubmissionController()
-            script_content = controller.validate_and_generate(
+            destination = self._run_artifact_root() / "SlurmStaging" / ("job_" + uuid.uuid4().hex)
+            script_path = controller.stage_calculation(
+                self._collect_run_config(), destination,
                 job_name=self.job_name_input.value,
                 partition=self.partition_input.value,
                 nodes=self.nodes_input.value,
                 ntasks_per_node=self.tasks_per_node_input.value,
                 mem=self.mem_input.value,
                 walltime=self.walltime_input.value,
-                engine=self.matrix_engine.value.lower(),
-                input_deck_path="matrix_input.inp",
                 email=self.email_input.value if self.email_input.value.strip() else None,
             )
-            scratch_dir = Path.home() / "CoChem_Artifacts" / "SlurmStaging"
-            scratch_dir.mkdir(parents=True, exist_ok=True)
-            script_path = scratch_dir / f"{self.job_name_input.value}.sh"
-            with open(script_path, "w", encoding="utf-8") as f:
-                f.write(script_content)
             status = controller.dispatch(script_path)
-            self.slurm_status_output.value = f"<b>Slurm Submission:</b> {status} [M]"
+            message = (f"Submitted Slurm job {status}; scientific results remain pending."
+                       if status.isdigit() else status)
+            self.slurm_status_output.value = f"<p role='status'>{html.escape(message)}</p>"
         except Exception as err:
-            self.slurm_status_output.value = f"<b style='color:red;'>Slurm Error:</b> {err}"
+            self.slurm_status_output.value = f"<p role='alert'>Slurm job was not submitted: {html.escape(str(err))}</p>"
 
     def _on_parse_inspector_clicked(self, b: Any) -> None:
         file_path_str = self.inspector_file_input.value.strip()
@@ -1795,6 +1832,10 @@ class CoChemGUI:
 
         if self._topos_running:
             return
+        if self.calc_env_dropdown.value == "github-actions":
+            self.btn_topos_submit.disabled = True
+            self.topos_capabilities.value = "<p>Conformer search is not submitted by the molecular ORCA course workflow. Choose a configured local/HPC host to use this panel.</p>"
+            return
         available = {}
         missing = []
         for engine in ("crest", "orca"):
@@ -1833,6 +1874,9 @@ class CoChemGUI:
         import uuid
 
         if self._topos_running:
+            return
+        if self.calc_env_dropdown.value == "github-actions":
+            self.topos_status.value = "<p role='alert'>No conformer calculation was started. The selected Actions route uses the exported molecular ORCA job and its approved workflow.</p>"
             return
         try:
             if self._pipeline_running or self._installation_running:
@@ -1947,6 +1991,9 @@ class CoChemGUI:
             return self._pyscf_run_config()
         if self.matrix_engine.value != "ORCA":
             raise MethodologyViolationError("This action supports ORCA; select a dedicated adapter for CFOUR or xTB.")
+        remote = self.calc_env_dropdown.value == "github-actions"
+        if remote and (self.cb_recipe_r2.value or self.t9_config_path.value.strip()):
+            raise MethodologyViolationError("The course Actions job must be self-contained; R2 reference files and T9 checkpoints require a separate approved workflow.")
         self._check_dispersion_gate()
         if self.dispersion_warning.value:
             raise MethodologyViolationError("Resolve the methodology validation message before running or saving.")
@@ -1962,7 +2009,8 @@ class CoChemGUI:
             references = Path(self.r2_reference_manifest.value).expanduser().resolve(strict=True)
         config = CalculationMatrixConfig(
             geometry=self.matrix_geometry.value, engine="orca",
-            method=self.matrix_method.value, basis_set=self.matrix_basis.value,
+            method="HF" if self.matrix_method.value in {"HF/MINI", "HF/STO-3G"} else self.matrix_method.value,
+            basis_set=self.matrix_basis.value,
             product_class=None if self.product_class_selector.value == "Screening (no product accuracy claim)" else self.product_class_selector.value,
             theory_tier=self._selected_canonical_tier(),
             charge=self.charge_input.value, multiplicity=self.multiplicity_input.value,
@@ -1971,7 +2019,12 @@ class CoChemGUI:
             frozen_monomer_indices=list(range(len(elements))) if (self.cb_recipe_r1.value or self.cb_recipe_r2.value) and len(fragments) > 1 else None,
             recipe="R2" if self.cb_recipe_r2.value else "R1" if self.cb_recipe_r1.value and len(fragments) > 1 else None,
             r2_reference_manifest=references, t9_fallback=fallback,
-            grid_stage=3 if self.product_class_selector.value == ProductClass.PRODUCT_C.value else 2,
+            grid_stage=3 if (self.product_class_selector.value == ProductClass.PRODUCT_C.value
+                             or self.cb_recipe_r2.value
+                             or remote and self.actions_operation.value in {"harmonic_frequencies", "optimization_frequencies"}) else 2,
+            **({"is_opt": self.actions_operation.value in {"optimization", "optimization_frequencies"},
+                "is_freq": self.actions_operation.value in {"harmonic_frequencies", "optimization_frequencies"},
+                "is_vpt2": False, "timeout_seconds": float(self.actions_timeout.value)} if remote else {}),
         )
         return config.model_dump(mode="json")
 
@@ -2023,6 +2076,8 @@ class CoChemGUI:
 
     def _build_pipeline_command(self) -> list[str]:
         """Export an equivalent CLI invocation for reproducibility."""
+        if self.calc_env_dropdown.value == "github-actions":
+            raise ValueError("Prepare the Actions job JSON and submit it through the course workflow.")
         config_path = self._prepare_pipeline()
         runtime = config_path.parent
         cli_path = Path(__file__).resolve().parents[2] / "cli.py"
@@ -2041,6 +2096,9 @@ class CoChemGUI:
         return config_path
 
     def _save_matrix_config(self, b: Any) -> None:
+        if self.calc_env_dropdown.value == "github-actions":
+            self._prepare_actions_job()
+            return
         self.btn_save_matrix.disabled = True
         self.matrix_output.clear_output()
         try:
@@ -2058,6 +2116,9 @@ class CoChemGUI:
 
     def _execute_pipeline(self, b: Any) -> None:
         if self._pipeline_running:
+            return
+        if self.calc_env_dropdown.value == "github-actions":
+            self._prepare_actions_job()
             return
         self._check_dispersion_gate()
         if self.btn_execute.disabled:
@@ -2078,6 +2139,55 @@ class CoChemGUI:
         self.calculation_result.value = "<i>Calculation is running.</i>"
         self._pipeline_worker = threading.Thread(target=self._pipeline_thread, args=(config_path,), daemon=True)
         self._pipeline_worker.start()
+
+    def _prepare_actions_job(self) -> None:
+        """Export a validated portable request; submission happens in GitHub."""
+        import base64
+        import hashlib
+        from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry
+        from cochem_base.interfaces.actions_jobs import validate_configuration
+
+        self._invalidate_actions_job()
+        try:
+            repository = self._actions_repository()
+            if self.matrix_engine.value != "ORCA":
+                raise ValueError("The course workflow accepts molecular ORCA jobs only.")
+            if self.cb_recipe_r2.value or self.t9_config_path.value.strip():
+                raise ValueError("The course job must be self-contained; R2 reference files and T9 checkpoints require a separate approved workflow.")
+            if len(parse_run_geometry(self.matrix_geometry.value)[0]) > 50:
+                raise ValueError("The course Actions profile accepts at most 50 atoms per job.")
+            config = self._collect_run_config()
+            model = CalculationMatrixConfig.model_validate(config)
+            if any(getattr(model, name) is not None for name in ("hessian_file", "r2_reference_manifest", "t9_fallback", "periodic")):
+                raise ValueError("The course job cannot reference files on this computer or a separate calculation environment.")
+            payload = model.model_dump_json(indent=2).encode("utf-8") + b"\n"
+            if len(payload) > 256 * 1024:
+                raise ValueError("The course job JSON must be at most 256 KiB.")
+            validate_configuration(payload, model.model_dump(mode="json"))
+            project = re.sub(r"[^A-Za-z0-9_-]", "_", self.project_name.value).strip("_")[:64] or "molecule"
+            filename = f"{project}-orca-job.json"
+            job_file = f"jobs/{filename}"
+            digest = hashlib.sha256(payload).hexdigest()
+            self._last_actions_job = {"job_file": job_file, "config": model.model_dump(mode="json"), "sha256": digest}
+            encoded = base64.b64encode(payload).decode("ascii")
+            workflow = f"https://github.com/{repository}/actions/workflows/orca_calculation.yml"
+            self.actions_job_download.value = (
+                "<p role='status'><b>Actions job prepared.</b> No calculation has been submitted or run.</p>"
+                f"<p><a download='{filename}' href='data:application/json;base64,{encoded}'>Download ORCA job JSON</a></p>"
+                f"<ol><li>Upload this file as <code>{job_file}</code> in <code>{html.escape(repository)}</code> "
+                f"on the instructor-approved <code>{html.escape(self.gh_branch_input.value.strip() or 'main')}</code> branch.</li>"
+                f"<li>Open <a href='{workflow}' target='_blank' rel='noopener'>ORCA calculation</a>, select "
+                f"<b>Run workflow</b>, and set <code>job_file</code> to <code>{job_file}</code>.</li>"
+                "<li>Select one or two cores and your instructor's memory allowance. After completion, download "
+                "the calculation artifact and retain its run URL.</li></ol>"
+                f"<p>Input SHA-256: <code>{digest}</code>. Calculation timeout: {self.actions_timeout.value} seconds.</p>"
+            )
+            self.state.system_status = "Actions job prepared"
+            self.state.error_message = ""
+            self.calculation_result.value = "<p>Remote request prepared; awaiting submission and verified results from GitHub Actions.</p>"
+        except (ValueError, RuntimeError, OSError, MethodologyViolationError) as exc:
+            self.state.error_message = str(exc)
+            self.actions_job_download.value = f"<p role='alert'>Actions job was not prepared: {html.escape(str(exc))}</p>"
 
     def _cancel_pipeline(self, b: Any = None) -> None:
         if self._pipeline_running:

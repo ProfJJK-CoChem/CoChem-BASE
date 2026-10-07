@@ -3,7 +3,8 @@ name: ORCA private archive access
 on:
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   verify-archive:
@@ -11,36 +12,33 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read the shared instructor-reviewed distribution identity
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from scripts.provision_orca import load_distribution_manifest
+          manifest = load_distribution_manifest()
+          fields = {
+              'ORCA_ASSET_REPOSITORY': manifest['repository'],
+              'ORCA_RELEASE_TAG': manifest['release_tag'],
+              'ORCA_ARCHIVE_NAME': manifest['archive_name'],
+              'ORCA_ARCHIVE_SHA256': manifest['sha256'],
+          }
+          with Path(os.environ['GITHUB_ENV']).open('a') as stream:
+              stream.writelines(f'{key}={value}\n' for key, value in fields.items())
+          PY
       - name: Check private access and the independently recorded checksum
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.ORCA_ASSET_READ_TOKEN }}
-          ORCA_ASSET_REPOSITORY: ${{ vars.ORCA_ASSET_REPOSITORY || 'ProfJJK-CoChem/CoChem-ORCA' }}
-          ORCA_RELEASE_TAG: ${{ vars.ORCA_RELEASE_TAG || 'orca-6.1.1' }}
-          ORCA_ARCHIVE_NAME: ${{ vars.ORCA_ARCHIVE_NAME || 'orca_6_1_1_linux_x86-64_shared_openmpi418.tar.xz' }}
-          ORCA_ARCHIVE_SHA256: ${{ vars.ORCA_ARCHIVE_SHA256 || 'a0bc1d6d2c3c00620367bbc5dbf2b3a7018abc92d1ff65f06cec46f75350b9be' }}
         run: |
           set -euo pipefail
-          for name in GH_TOKEN ORCA_ASSET_REPOSITORY ORCA_RELEASE_TAG ORCA_ARCHIVE_NAME ORCA_ARCHIVE_SHA256; do
-            if [[ -z "${!name}" ]]; then
-              echo "::error::Missing required Actions setting: $name"
-              exit 1
-            fi
-          done
-          if [[ ! "$ORCA_ASSET_REPOSITORY" =~ ^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-            echo "::error::ORCA_ASSET_REPOSITORY must be OWNER/REPOSITORY."
-            exit 1
-          fi
-          if [[ ! "$ORCA_RELEASE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-            echo "::error::Use a release tag such as orca-6.1.1."
-            exit 1
-          fi
-          if [[ "$ORCA_ARCHIVE_NAME" != "orca_6_1_1_linux_x86-64_shared_openmpi418.tar.xz" ]]; then
-            echo "::error::This access check expects the selected ORCA 6.1.1 Linux/Open MPI 4.1.8 archive."
-            exit 1
-          fi
-          if [[ ! "$ORCA_ARCHIVE_SHA256" =~ ^[[:xdigit:]]{64}$ ]]; then
-            echo "::error::ORCA_ARCHIVE_SHA256 must contain exactly 64 hexadecimal characters."
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::ORCA_ASSET_READ_TOKEN needs Contents read access to $ORCA_ASSET_REPOSITORY."
             exit 1
           fi
 

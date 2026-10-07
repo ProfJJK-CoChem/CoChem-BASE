@@ -44,6 +44,11 @@ def main(input_path: Path) -> None:
     # admits multiple total spins. Acceptance still checks measured <S^2>.
     target_s2 = (mol.spin / 2) * (mol.spin / 2 + 1)
     calculation.fix_spin_(ss=target_s2)
+    # Resolve the inner CI problem more tightly than the outer orbital-gradient
+    # target. The loose CI default can leave a residual gradient above 1e-6
+    # even when successive macro energies no longer change numerically.
+    calculation.fcisolver.conv_tol = 1e-12
+    calculation.fcisolver.max_cycle = config["max_cycle"]
     calculation.kernel(calculation.sort_mo(selected, base=0))
     if not calculation.converged or not math.isfinite(float(calculation.e_tot)):
         raise RuntimeError("T9 CASSCF did not converge")
@@ -58,6 +63,12 @@ def main(input_path: Path) -> None:
         "engine": "PySCF", "pyscf_version": pyscf.__version__, "method": config["method"],
         "basis": config["basis"], "scf_converged": bool(reference.converged),
         "casscf_converged": bool(calculation.converged),
+        "convergence_settings": {
+            "scf_energy_hartree": reference.conv_tol,
+            "casscf_energy_hartree": calculation.conv_tol,
+            "casscf_orbital_gradient": calculation.conv_tol_grad,
+            "ci_solver_tolerance": calculation.fcisolver.conv_tol,
+        },
         "energy_hartree": energy, "casscf_energy_hartree": float(calculation.e_tot),
         "nevpt2_correction_hartree": correction, "spin_square": float(spin_square),
         "observed_multiplicity": float(observed_multiplicity),

@@ -41,10 +41,43 @@ from cochem_base.geometry.constraints import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+ORCA_SCF_BLOCK = """%scf
+ TolE 1.0e-10
+ Thresh 1.0e-12
+ ConvCheckMode 0
+ ConvForced true
+ MaxIter 200
+end"""
+
 
 @lru_cache(maxsize=128)
 def _nuclear_charge(symbol: str) -> int:
     return int(element(symbol).atomic_number)
+
+
+def _orca_method_keywords(theory_level: str) -> str:
+    """Render supported presentation aliases without altering native composites.
+
+    ORCA takes these displayed functionals and empirical corrections as
+    separate keywords. Hyphens in native names such as wB97X-D4, wB97M-V,
+    r2SCAN-3c and revDSD-PBEP86-D4 have different semantics and stay intact.
+    RI-MP2, DLPNO coupled cluster and the displayed double hybrids require an
+    auxiliary correlation basis. AutoAux supplies it when the user has not given
+    one; an explicit /C basis or AutoAux choice takes precedence. The caller
+    retains the original method string for result provenance.
+    """
+    rendered = re.sub(
+        r"(?i)(?<!\S)(?:(?:B3LYP|PBE0)-(?:D3BJ|D4)|PBE-D4|PWPB95-D4|B2PLYP-D3)(?!\S)",
+        lambda match: match[0].replace("-", " "),
+        theory_level,
+    )
+    keywords = {keyword.upper() for keyword in rendered.split()}
+    if keywords.intersection({"PWPB95", "B2PLYP", "RI-MP2", "DLPNO-CCSD(T)", "DLPNO-CCSD(T1)"}) and not any(
+        keyword == "AUTOAUX" or keyword.endswith("/C") for keyword in keywords
+    ):
+        rendered += " AutoAux"
+    return rendered
+
 
 class MoleculeInput(BaseModel):
     basin_id: str = Field(..., description="Unique Basin ID")
@@ -166,10 +199,10 @@ def get_artifact_base() -> Path:
     artifact_dir.mkdir(parents=True, exist_ok=True)
     return artifact_dir
 
-def load_system_config() -> Dict[str, Any]:
+def load_system_config(config_path: str | Path | None = None) -> Dict[str, Any]:
     """Loads authoritative hardware and execution parameters from cochem_system_config.json."""
     try:
-        return load_system_config_dict()
+        return load_system_config_dict(config_path)
     except Exception as e:
         raise RuntimeError(f"[MISSING DATA] Could not load system config: {e}")
 
@@ -271,7 +304,9 @@ def build_internal_coordinate_constraints(
     return constraint_lines
 
 
-def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) -> Path:
+def generate_orca_input(
+    data: MoleculeInput, output_dir: Optional[Path] = None, *, registry_path: str | Path | None = None,
+) -> Path:
     """
     Compiles an ORCA 6.1.1 input file incorporating:
     - defgrid_tight enforcement for transition metals / diffuse functions
@@ -282,22 +317,26 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
     """
     # Revalidate at the write boundary, including models built/copied without validation.
     data = MoleculeInput.model_validate(data.model_dump())
-    config = load_system_config()
+    config = load_system_config(registry_path)
     hw = config.get("hardware", {})
     if not hw or not any(key in hw for key in ("maxcore_mb", "ram_mb", "ram_gb")) or "physical_cpu_cores" not in hw:
         raise RuntimeError("[MISSING DATA] Hardware configuration missing maxcore_mb/ram_mb or physical_cpu_cores.")
-    physical_cores = int(hw["physical_cpu_cores"])
-    nprocs = data.nprocs or physical_cores
-    if physical_cores < 1 or nprocs > physical_cores:
-        raise HardwareAllocationError("Requested CPU count exceeds audited physical-core capacity.")
+    from cochem_base.core_engine.cpu_allocation import audited_cpu_capacity
+    try:
+        process_slots, _ = audited_cpu_capacity(hw, config.get("execution"))
+    except (ValueError, TypeError, KeyError) as error:
+        raise HardwareAllocationError(str(error)) from error
+    nprocs = data.nprocs or process_slots
+    if nprocs > process_slots:
+        raise HardwareAllocationError("Requested CPU count exceeds audited allocation capacity.")
     ram_mb = hw.get("ram_mb", float(hw.get("ram_gb", 0)) * 1024)
     if "maxcore_mb" in hw:
         maxcore = int(hw["maxcore_mb"])
-        memory_budget = maxcore * physical_cores
+        memory_budget = maxcore * process_slots
         if ram_mb:
             memory_budget = min(memory_budget, int(0.75 * ram_mb))
     else:
-        # Standard 75% memory ceiling divided among physical CPU cores
+        # Standard 75% memory ceiling divided among authorized MPI processes
         memory_budget = int(0.75 * ram_mb)
         maxcore = memory_budget // nprocs
     maxcore = data.maxcore_mb or maxcore
@@ -311,7 +350,9 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
     needs_tight_grid = any(el in data.elements for el in transition_metals)
     # 2. Dynamic Grid Tightening: defgrid3 mandated for frequency/Hessian tasks
     grid_keyword = "DEFGRID3" if needs_tight_grid else data.resolved_grid()
-    theory_level = re.sub(r"(?i)\bDEFGRID\d+\b", "", data.theory_level).strip()
+    theory_level = _orca_method_keywords(
+        re.sub(r"(?i)\bDEFGRID\d+\b", "", data.theory_level).strip()
+    )
     if data.is_freq and not re.search(r"(?i)\b(?:NUMFREQ|FREQ)\b", theory_level):
         theory_level += " Freq"
     if data.is_vpt2 and not re.search(r"(?i)\bVPT2\b", theory_level):
@@ -375,7 +416,8 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
     template_str = """# =====================================================================
 # CoChem-CORE Cryptographic Provenance Stamp: {{ sha256 }}
 # Basin ID: {{ basin_id }} | Engine Target: ORCA 6.1.1
-# =====================================================================
+{% if automatic_auxiliary %}# Correlation fitting basis: generated AutoAux (no explicit /C basis supplied)
+{% endif %}# =====================================================================
 ! {{ theory_level }} {{ opt_keyword }} {{ grid_keyword }} {{ solvation_keyword }} NoSym TightSCF
 
 %pal
@@ -383,6 +425,8 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
 end
 
 %maxcore {{ maxcore }}
+
+{{ scf_block }}
 
 {{ geom_block }}
 {% if requires_atm %}
@@ -401,11 +445,13 @@ end
         sha256=coord_hash,
         basin_id=data.basin_id,
         theory_level=theory_level,
+        automatic_auxiliary="AUTOAUX" in theory_level.upper().split() and "AUTOAUX" not in data.theory_level.upper().split(),
         opt_keyword=opt_keyword,
         grid_keyword=grid_keyword,
         solvation_keyword=solvation_keyword,
         nprocs=nprocs,
         maxcore=maxcore,
+        scf_block=ORCA_SCF_BLOCK,
         charge=data.charge,
         multiplicity=data.multiplicity,
         coord_block=coord_str,

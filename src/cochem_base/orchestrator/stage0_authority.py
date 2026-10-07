@@ -65,7 +65,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
     profile = profile_hardware()
     p2, p11 = reports[2], reports[11]
     quota = p2.get("cpu", {}).get("cgroup_effective_cpus")
-    cores = min(profile.physical_cores, len(profile.available_cpu_ids))
+    cores = profile.allocatable_compute_cores
     if quota is not None:
         if not math.isfinite(float(quota)) or float(quota) <= 0:
             raise Stage0AuthorityError("Invalid CPU quota observation")
@@ -195,6 +195,15 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
         if unavailable or any(e.status == "DEGRADED" for e in evidence)
         else "LOCKED",
         hardware=hardware,
+        execution={"cpu_allocation": {
+            "policy": profile.cpu_allocation_policy.value,
+            "budget_unit": profile.cpu_allocation_policy.budget_unit,
+            "allocatable_process_slots": cores,
+            "physical_cores": profile.physical_cores,
+            "logical_cores": profile.logical_cores,
+            "audited_cpu_ids": list(profile.available_cpu_ids),
+            "cgroup_effective_cpus": quota,
+        }},
         engines=engines,
         orca_version=engines.get("orca").version if engines.get("orca") else None,
         environment=EnvironmentSchema(

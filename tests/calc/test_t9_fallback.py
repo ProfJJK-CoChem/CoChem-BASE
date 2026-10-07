@@ -90,7 +90,11 @@ def test_charge_and_active_spin_must_be_compatible(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("method", ["CASSCF", "NEVPT2"])
-def test_actual_h3_recovery_after_live_contamination(method: str, tmp_path: Path, audited_pyscf_registry: Path) -> None:
+@pytest.mark.parametrize("coordinates", [
+    [[0, 0, 0], [0, 0, 0.9], [0.7, 0, 1.4]],
+    [[0, 0, -2], [0, 0, 0], [0, 0, 2.1]],
+], ids=["bent-h3", "stretched-linear-h3"])
+def test_actual_h3_recovery_after_live_contamination(method: str, coordinates, tmp_path: Path, audited_pyscf_registry: Path) -> None:
     """A telemetry transport fixture triggers a real H3 CAS(3,3) calculation.
 
     The diagnostic emitter is not an ORCA substitute or quantum benchmark; all
@@ -108,7 +112,7 @@ def test_actual_h3_recovery_after_live_contamination(method: str, tmp_path: Path
 
     result = execute_with_t9_fallback(
         primary, config(method=method), elements=["H", "H", "H"],
-        coordinates=[[0, 0, 0], [0, 0, 0.9], [0.7, 0, 1.4]],
+        coordinates=coordinates,
         charge=0, multiplicity=2, directory=tmp_path / "t9",
         registry_path=audited_pyscf_registry,
     )
@@ -120,6 +124,8 @@ def test_actual_h3_recovery_after_live_contamination(method: str, tmp_path: Path
     if method == "NEVPT2":
         assert result["nevpt2_correction_hartree"] < 0
     assert result["scf_converged"] is True and result["casscf_converged"] is True
+    assert result["convergence_settings"]["ci_solver_tolerance"] == 1e-12
+    assert result["convergence_settings"]["casscf_orbital_gradient"] == 1e-6
     assert result["operation"] == "single_point"
     rejected = json.loads((tmp_path / "t9/rejected_single_reference.json").read_text())
     assert rejected["status"] == "REJECTED"
@@ -142,30 +148,36 @@ def test_wrong_engine_version_fails_without_verified_result(tmp_path: Path, audi
     assert "version drift" in (tmp_path / "t9/stderr.log").read_text()
 
 
-@pytest.mark.skipif(os.name == "nt", reason="Telemetry transport uses a POSIX executable script")
-def test_native_service_routes_live_failure_and_publishes_real_t9(tmp_path: Path, audited_pyscf_registry: Path) -> None:
-    require_pyscf()
-    from cochem_base.calc.calculation_service import run_calculation
-    from cochem_base.cochem_core_registry_schema import CoChemSystemConfig, EngineInfo
-    from cochem_base.core_engine.scientific_telemetry import read_scientific_results
+def test_native_service_routes_live_failure_and_publishes_real_t9(tmp_path: Path) -> None:
+    """Real ORCA UHF contamination must trigger real CAS(3,3)/NEVPT2 recovery.
 
-    probe = tmp_path / "spin-transport-probe"
-    probe.write_text(f"#!{sys.executable}\nimport time\nprint('Expectation value of <S**2> : 0.825', flush=True)\ntime.sleep(30)\n")
-    probe.chmod(0o700)
-    registry_path = audited_pyscf_registry
-    registry = CoChemSystemConfig.model_validate_json(registry_path.read_text())
-    registry.engines["orca"] = EngineInfo(status="found", path=str(probe), hash=hashlib.sha256(probe.read_bytes()).hexdigest()).model_dump()
-    registry.update_checksum()
-    registry_path.write_text(registry.model_dump_json())
+    Free-only CI reports the licensed-engine prerequisite explicitly. The
+    separately named transport tests above exercise early cancellation without
+    registering their diagnostic emitter as a scientific engine.
+    """
+    from cochem_base.calc.calculation_service import run_calculation
+    from cochem_base.core_engine.scientific_telemetry import read_scientific_results
+    from scripts.verify_orca_scientific import verify_t9
+
+    prerequisite = "Real licensed ORCA and an audited ORCA/PySCF registry are required for end-to-end T9 acceptance"
+    binding = os.environ.get("COCHEM_CONFIG")
+    if not binding or not Path(binding).is_file():
+        pytest.skip(prerequisite)
+    registry_path = Path(binding)
+    engines = json.loads(registry_path.read_text()).get("engines", {})
+    if any(engines.get(name, {}).get("status") not in {"found", "ready"} for name in ("orca", "pyscf")):
+        pytest.skip(prerequisite)
+    # Once installations are declared available, missing files, changed hashes,
+    # invalid authority and scientific failures must fail rather than skip.
     config_path = tmp_path / "calculation.json"
     config_path.write_text(json.dumps({
-        "geometry": "H 0 0 0\nH 0 0 0.9\nH 0.7 0 1.4", "method": "B3LYP-D4",
-        "basis_set": "6-31g", "multiplicity": 2, "is_opt": False,
-        "t9_fallback": config().model_dump(mode="json"),
+        "geometry": "H 0 0 -2\nH 0 0 0\nH 0 0 2.1", "engine": "orca", "method": "UHF",
+        "basis_set": "6-31g", "multiplicity": 2, "is_opt": False, "timeout_seconds": 180,
+        "t9_fallback": config(python_executable=engines["pyscf"]["path"]).model_dump(mode="json"),
     }))
     events = []
-    result = run_calculation(config_path, scratch=tmp_path / "scratch", output=tmp_path / "published", threads=1,
-                             on_event=events.append, registry_path=registry_path)
+    result = run_calculation(config_path, scratch=tmp_path / "scratch", output=tmp_path / "published",
+                             threads=1, maxcore_mb=1024, on_event=events.append, registry_path=registry_path)
     assert result["status"] == "T9_FALLBACK_VERIFIED"
     assert result["engine"] == "pyscf" and result["requested_engine"] == "orca"
     assert result["original_single_reference_rejected"] is True
@@ -173,6 +185,9 @@ def test_native_service_routes_live_failure_and_publishes_real_t9(tmp_path: Path
     assert not list((tmp_path / "published").glob("*_qcschema.json"))
     assert any(event.get("status") == "RUNNING" for event in events)
     assert any(event.get("status") == "T9_FALLBACK_VERIFIED" for event in events)
+    evidence = verify_t9(tmp_path / "published", engines["orca"]["hash"], engines["pyscf"]["hash"])
+    assert evidence["primary_rejected"] is True
+    assert evidence["recovery"]["spin_square"] == pytest.approx(0.75, abs=1e-6)
     fallback = result["fallback"]
     telemetry = read_scientific_results(fallback["telemetry_job_id"], store_path=fallback["telemetry_path"])
     assert telemetry["energy_hartree"][0] == fallback["energy_hartree"]

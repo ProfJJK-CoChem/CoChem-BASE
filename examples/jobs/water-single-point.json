@@ -1,0 +1,12 @@
+{
+  "geometry": "O 0 0 0\nH 0 -0.757 0.587\nH 0 0.757 0.587\n",
+  "engine": "orca",
+  "method": "HF",
+  "basis_set": "STO-3G",
+  "charge": 0,
+  "multiplicity": 1,
+  "is_opt": false,
+  "is_freq": false,
+  "is_vpt2": false,
+  "timeout_seconds": 180
+}

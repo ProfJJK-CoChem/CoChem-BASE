@@ -1,4 +1,4 @@
-# BASE alpha installation and low-compute readiness
+# BASE installation and low-compute readiness
 
 The current acceptance boundary is BASE ingestion, setup, GUI and validated integration. The governing specification remains Chunk 17 plus proposal additions, with the user's clarified module ownership and deferred host acceptance. See [scope](BASE_Alpha_Scope.md) and [requirement traceability](SRS_Implementation_Status.md).
 
@@ -13,8 +13,10 @@ The current acceptance boundary is BASE ingestion, setup, GUI and validated inte
 | Quantum ESPRESSO PAW | Pinned binary/dependencies and official Ga/As PAWs. Actual GaAs SCF energy −226.8926158164 Hartree; shared-service execution and periodic-input validation tested. |
 | Stage 0 | All eleven phases completed with actual package, interpreter, I/O and hardware evidence. Golden Registry is checksummed, not independently signed. Status truthfully records `DEGRADED_OPERATIONAL` and an explicit 1 GB free-disk workload profile on this small workspace. The default production policy remains 50 GB. |
 | Voilà | Actual browser interactions exercised native calculations, CREST, cancellation, telemetry, Hessian isotope inspection and scientific exports. Newly added module-handoff and periodic ingestion flows have separate current-pass checks. |
+| ORCA 6.1.1 / Open MPI 4.1.8 | Approved archive hash/version and real MPI execution; actual serial/parallel, R1, DFT grid-series, harmonic and contaminated-spin recovery calculations. See [scientific evidence](ORCA_Scientific_Acceptance.md) and reports below. |
+| Classroom50 Actions interface | Guide based on official Classroom50 documentation; real browser JSON export uses shared workflow validation. Actual student backend single-point and optimization/frequency jobs executed locally. Each hosted run has separate evidence. |
 
-No installation is described as “perfect.” These are measured configurations on the current CPU/Linux machine. ORCA/CFOUR licensing, accelerator variants, additional platforms and independent physical accuracy targets require their own evidence.
+These are measured configurations on the current CPU/Linux machine. ORCA is now available and has run real calculations. CFOUR, accelerator variants, additional platforms and independent physical accuracy targets retain their own requirements.
 
 ## Reproduce local acceptance
 
@@ -36,12 +38,30 @@ The historical saved water Hessian had wrong unit interpretation. It is replaced
 
 ## Hosted and future-module acceptance
 
-Codespaces and the bounded GitHub Actions calculation workflow share the tested installer/dashboard lifecycle. The local equivalent completed setup twice, 27 native CLI/lifecycle checks and actual Chromium calculations against the audited registry. This is local evidence, not an actual hosted run. The revised canonical workflow uses the common source gate and retains real bounded calculation acceptance.
+Codespaces and Actions share the tested installer/dashboard lifecycle. Historical local setup/lifecycle evidence remains separate from hosted execution. The ORCA workflows now provide private archive access, full physical acceptance and submitted student calculations using one reviewed manifest. They check out the approved course revision, provision a fresh host-specific registry and retain scientific evidence. Follow the [Classroom50 guide](GitHub_Classroom_ORCA_Setup.md); workflow implementation alone is not a hosted pass.
 
-The user has now authorized the ORCA 6.1.1 GitHub Actions pathway; see [ORCA Actions setup](ORCA_Actions_Setup.md). Codespaces, CFOUR, GPU, Slurm, native platforms and deployment-filesystem acceptance remain deferred until a stable alpha and a supplied host. TOPOS/TORQ domain workflows and multidimensional PES exploration are future repository work. BASE prepares validated handoffs and shows capability state; it does not invent their outputs.
+ORCA 6.1.1 local physical acceptance has expanded beyond archive access; hosted outcomes are in [ORCA Actions setup](ORCA_Actions_Setup.md). Codespaces, CFOUR, GPU, Slurm, native platforms and deployment-filesystem acceptance remain deferred pending suitable hosts/providers. TOPOS/TORQ domain workflows and multidimensional PES exploration belong to those repositories. BASE prepares validated handoffs and shows capability state.
 
 The reusable cloud installation and startup draft is retained in environment settings. Saving that draft does not publish or validate a fresh restored environment. Current-pass final counts and evidence paths are recorded in the main implementation report.
 
-## Current measured result
+## Historical measured result — 2026-10-06
 
 Canonical BASE acceptance: **1,189 passed, 4 user-deferred external checks, 0 failures**; source gate passed with no blocking findings and unchanged audited source. Actual Chromium: **30 checks passed**, no page/request errors. The complete saved installation script completed successfully after explicit four-silo deployment selection was added. Evidence: `/workspace/cochem-runtime/evidence/base-alpha-2026-10-06/`. These results do not certify all historical tests or deferred host/scientific domains.
+
+## Additional measured evidence — 2026-10-07
+
+The strict local scientific report
+`/workspace/cochem-runtime/evidence/orca-scientific-acceptance-strict.json`
+passed actual R1 frozen optimization, B3LYP-D4/wB97M-V DEFGRID1/2/3 calculations
+and explicit ORCA spin-rejection to PySCF CAS(3,3)/NEVPT2 recovery. It records
+`scientific_accuracy_established=false`; these bounded checks validate their
+execution and ingestion contracts.
+
+Real CREST plus ORCA GOAT water union passed with durable HDF5 publication.
+The actual ORCA Cartesian Hessian passed parent/18O-D2 isotope GUI parity
+without an electronic rerun in
+`/workspace/cochem-runtime/evidence/orca-hessian-gui-parity/acceptance.json`.
+Classroom50 browser export passed independently of hosted execution. Installed
+1.0.0 wheel checks and the final release evidence are described in
+[the release record](Release_1_0_0.md). Historical and overlapping selections
+are not summed into a fabricated final suite count.

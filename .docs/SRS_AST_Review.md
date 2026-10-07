@@ -1,6 +1,6 @@
-# BASE alpha source integrity and CI review
+# BASE source integrity and CI review
 
-The baseline is **SRS Chunk 17 plus proposal additions**, with the user's clarified scope: BASE alpha supplies working core services, setup, routing, interfaces and honest module handoffs; complete future TOPOS/TORQ/CFOUR ecosystem solvers and unavailable host acceptance are not represented as completed BASE calculations.
+The baseline is **SRS Chunk 17 plus proposal additions**, with the user's clarified scope: BASE supplies core services, setup, routing, interfaces and validated module handoffs. Future TOPOS/TORQ/CFOUR solvers and unavailable hosts are not represented as completed BASE calculations. Historical counts below retain their dates; current 1.0.0 evidence is tracked in the [release record](Release_1_0_0.md).
 
 The canonical BASE source gate passes. **The inventory still flags retained test sources. Deleted legacy items are resolved.** These are distinct scopes, and neither static inspection nor a passing selected test profile proves arbitrary scientific accuracy.
 
@@ -20,7 +20,7 @@ python ci_tools/base_ci.py all --output /tmp/cochem-alpha-evidence
 
 Actual per-node pytest evidence must cover every collected node exactly once with complete execution phases. Empty collection, failures, xfails, deselection, incomplete reporting and unexpected skips fail. Inherited `PYTEST_ADDOPTS` and `PYTEST_PLUGINS` cannot silently alter the run; plugin autoload is disabled and required plugins are explicitly selected. Source snapshots cover production, CI, configuration, all test sources and the exact immutable source inputs before and after execution. Changed source/input bytes fail acceptance. Snapshots are change-detection evidence, not external signatures.
 
-Four precise external deferrals are defined in [`ci_tools/deferred_acceptance.json`](../ci_tools/deferred_acceptance.json): ORCA R2 with authentic reference artifacts, ORCA/CREST union acceptance, and two physical Slurm checks. Node IDs and skip reasons must match. These outcomes are reported as **pending external acceptance**, never counted as passed. Conditional skip sites remain visible in the source report; runtime outcomes decide whether an authorized deferral actually occurred.
+[`ci_tools/deferred_acceptance.json`](../ci_tools/deferred_acceptance.json) names exact licensed/reference and physical Slurm prerequisites. A free-only environment may report an authorized missing prerequisite as an external omission, never a pass. Once actual engines/references are supplied, their physical tests must execute; the policy is not permission to skip available acceptance. Genuine ORCA/CREST union and other licensed local calculations have now run separately, as recorded in [scientific acceptance](ORCA_Scientific_Acceptance.md). Node IDs and skip reasons remain exact, and runtime outcomes determine which omissions actually occurred.
 
 ## Verified snapshot
 
@@ -58,7 +58,7 @@ These are source-pattern findings, **not 559 proven runtime fabrications**. Reta
 
 [`.github/workflows/cochem_base_ci.yml`](../.github/workflows/cochem_base_ci.yml) now owns the source gate, actual cross-OS CI-control tests and the reusable bounded free-engine/dashboard acceptance workflow. The source gate runs in a Python `-I -S` process. The physical workflow retains real eleven-phase Stage 0 setup, isolated xTB/PySCF installation/calculations, CLI publication and rendered dashboard lifecycle checks.
 
-GitHub's configured scope is bounded: it does **not** claim the entire silo-dependent local profile has run on hosted hardware. Local command verification does not establish a completed GitHub-hosted execution. Actual hosted/native-platform/GPU/Slurm/licensed-engine acceptance remains separately identified.
+GitHub's free-engine scope is bounded: it does **not** claim that the entire silo-dependent local profile ran on hosted hardware. Separate ORCA access, physical acceptance and student calculation workflows use the reviewed private distribution manifest. Actual licensed local calculations, browser export and installed-wheel checks now supply additional evidence; a hosted run must still establish its own setup/execution result. Native-platform/GPU/Slurm acceptance remains separately identified. See [ORCA Actions evidence](ORCA_Actions_Setup.md) for run-specific outcomes.
 
 [`ci_tools/ci_migration.json`](../ci_tools/ci_migration.json) records the retired duplicate BENCH/SCRIBE workflows, orphaned historical linter patch, misleading uncalled log “sanitizer”, stale self-issued hashrings, and duplicate tests of the old inline workflow logic. Meaningful format/configuration/entropy checks now call the canonical implementation instead of reproducing scanner algorithms inside tests. `verify_core_integrity.py` remains a compatibility entrypoint to the canonical audit; it cannot generate an accepting baseline. Administrative cleanup/classification utilities and the older extension-only scanner are explicitly supplementary, not additional scientific acceptance pipelines.
 

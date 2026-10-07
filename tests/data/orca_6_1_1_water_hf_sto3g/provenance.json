@@ -1,0 +1,39 @@
+{
+  "scope": "Unmodified files from an actual accepted ORCA 6.1.1 HF/STO-3G water optimization and analytic frequency calculation. Replaying these fixtures tests parser and artifact acceptance; it is not a fresh engine execution or an experimental accuracy benchmark.",
+  "engine": "ORCA",
+  "version": "6.1.1",
+  "method": "HF",
+  "basis": "STO-3G",
+  "charge": 0,
+  "multiplicity": 1,
+  "operation": "optimization_and_harmonic_frequencies",
+  "initial_hessian": "Lindh",
+  "engine_sha256": "335aef8bacd939620522d757016dcdb3107a9f0f4e71faad9e7764aa95bdc4ea",
+  "cores": 1,
+  "maxcore_mb": 512,
+  "source_job_id": "job_3533bd18439b45c494f2b96ac5c76c18",
+  "source_run_directory": "/workspace/cochem-runtime/evidence/orca-frequency-acceptance/water-opt-freq",
+  "native_execution_status": "EXECUTION_VERIFIED",
+  "files": {
+    "water.hess": {
+      "sha256": "9e17edda4c10cb8edffcf08e854dea501d25f7e40af77ec40addc01a58145eeb",
+      "bytes": 5932
+    },
+    "water.engrad": {
+      "sha256": "1caccb3dfcaaf6d21488731e5bf3732e4707f07afe315189dec349d87a79e860",
+      "bytes": 514
+    },
+    "water.xyz": {
+      "sha256": "0c9cd1dd134b2918fc169fa8a84125a30548718c44179b6d08bbf707d0a1373f",
+      "bytes": 313
+    },
+    "water.inp": {
+      "sha256": "b01e385c4092d3c4a5425a92508ac3e84966ddc587ed673c4f7e29d46c491470",
+      "bytes": 691
+    },
+    "water.out.txt": {
+      "sha256": "4056716d0fafa3cdf4e3c591f6d23712f2738a89a9c11c7bd9228ab08d1895da",
+      "bytes": 154353
+    }
+  }
+}

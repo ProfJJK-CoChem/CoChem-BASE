@@ -1,4 +1,4 @@
-# BASE GUI and integration conformance — 2026-10-06
+# BASE GUI and integration conformance
 
 The current scope is **BASE ingestion, environment setup, execution infrastructure and GUI**. TOPOS and TORQ are subsequent repository integrations. Their future scientific solvers are not substituted with BASE widgets or synthetic results. The baseline remains Chunk 17 plus BASE proposal additions and the [GUI Architecture Charter](improvements/GUI_Architecture_Charter.md).
 
@@ -13,6 +13,8 @@ The current scope is **BASE ingestion, environment setup, execution infrastructu
 | Validated module handoff | `interfaces.artifact_handoff` copies a real XYZ geometry, Hessian, converged result JSON or periodic structure into a package with schema, recipient, requested operation, units and SHA-256. The receiver rechecks contents, metadata and directory boundaries. The GUI can download the complete ZIP package. | Status remains `pending_integration`; no downstream job is dispatched. Altered artifacts, inconsistent metadata and elevated verification claims are rejected. |
 | Accessibility | Text labels, keyboard actions, live status/error roles and button contrast are exercised in real Chromium. | Full WCAG 2.1 AA, screen-reader and responsive-layout certification still requires broader acceptance. |
 | Hosted lifecycle | The Codespaces/Actions setup uses complete UI dependencies, isolated pinned core/UI environments, verified xTB and all eleven actual Stage 0 phases. | Local lifecycle/browser acceptance is distinct from an actual hosted Codespace rebuild or Actions run. |
+| Classroom50 Actions jobs | Selecting Actions displays the complete instructor/student setup guide, accepts the course repository/branch and exports portable validated ORCA JSON. The GUI shares the workflow's resource and scientific input policy. Real Chromium download/export acceptance passed without page/request errors. | Preparing a file does not run local chemistry or dispatch a hosted calculation. Students submit to the approved repository's `ORCA calculation` workflow; no instructor PAT is requested by the GUI. |
+| ORCA harmonic ingestion | Genuine ORCA optimization/Hessian output is accepted and published. Real parent/18O-D2 isotope transformations match the GUI/library outputs while preserving the source Hessian and rejecting changed geometry. | Harmonic reweighting performs no new SCF; anharmonic `B0` remains unknown without its provider. |
 
 ## Legacy migration
 
@@ -27,10 +29,22 @@ The obsolete `dock_main.py` and `fast_pass.py` bodies advertised symbols and wor
 
 ## Reproducible checks
 
+The 2026-10-07 Classroom50 export/browser record is
+`/workspace/cochem-runtime/evidence/classroom-actions-ui/browser/browser-summary.json`:
+`UI_EXPORT_VERIFIED`, no page errors and no failed requests. It explicitly
+records `hosted_execution_performed=false`. The real ORCA Hessian/GUI isotope
+parity report is
+`/workspace/cochem-runtime/evidence/orca-hessian-gui-parity/acceptance.json`:
+passed for the parent and simultaneous 18O/D2 substitution, unchanged Hessian,
+geometry mismatch rejection and absent unsupported anharmonic corrections.
+These are local acceptance facts, not final hosted run results or a universal
+chemical accuracy certificate. The [Classroom50 guide](GitHub_Classroom_ORCA_Setup.md)
+and [release record](Release_1_0_0.md) describe the current student route.
+
 `tests/base/test_module_handoff_contract.py` verifies copied input, tamper detection, invalid geometry, source-tree write rejection, destination preservation, GUI handoff, raw/exported periodic structures and rejection of false verification claims. Legacy boundary tests prepare and revalidate actual geometry packages. The physical UI tests start real child processes with explicit configuration environments; they do not replace imported functions or use environment monkeypatches.
 
 `tests/ui/voila_browser_acceptance.py` supports `--module-handoff`, `--periodic-input` and `--periodic-settings`, in addition to the established native xTB/PySCF/CREST and Hessian flows. It validates downloaded handoff contents and can run actual periodic PBE/PAW science. Real ASE/EMT finite-difference Hessians test transport and isotope reweighting; they are not ab-initio accuracy references.
 
 The hosted launcher was validated twice through all eleven phases in `/workspace/cochem-runtime/hosted-authority-final`; its CLI/lifecycle selection passed 27 cases, actual render/start/reuse passed, and all workflow files passed `actionlint`. Its explicit 1 GB workload budget applies to bounded small-molecule acceptance; the setup GUI and command retain their 50 GB defaults. Current alpha browser and focused-regression evidence is recorded separately in the main implementation report.
 
-The final focused GUI/contract selection passed **52 tests** in **42.34 seconds** (`/tmp/gui-alpha-frozen-regression.log`). Final real Chromium evidence is `/workspace/cochem-runtime/gui-alpha-final/browser-final/browser-evidence.json`: actual xTB optimization, PySCF RHF, CREST publication/cancellation, isotope/Hessian exports, verified future-module ZIP download, periodic CIF ingestion and native Quantum ESPRESSO PBE/PAW execution all passed, with zero page errors and zero failed requests. The GUI reads the canonical service result, preserving engine-private supporting evidence separately. The owned acceptance server was stopped afterward.
+The historical 2026-10-06 focused GUI/contract selection passed **52 tests** in **42.34 seconds** (`/tmp/gui-alpha-frozen-regression.log`). Its Chromium evidence is `/workspace/cochem-runtime/gui-alpha-final/browser-final/browser-evidence.json`: actual xTB optimization, PySCF RHF, CREST publication/cancellation, isotope/Hessian exports, verified future-module ZIP download, periodic CIF ingestion and native Quantum ESPRESSO PBE/PAW execution all passed, with zero page errors and zero failed requests. The GUI reads the canonical service result, preserving engine-private supporting evidence separately. The owned acceptance server was stopped afterward. Those historical counts are not the final 1.0.0 regression count.

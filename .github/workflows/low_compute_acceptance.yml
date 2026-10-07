@@ -1,4 +1,4 @@
-name: Free-engine low-compute acceptance
+name: BASE 1.0.0 bounded free-engine acceptance
 
 on:
   workflow_dispatch:
@@ -13,13 +13,16 @@ concurrency:
 
 jobs:
   physical-acceptance:
-    name: Small xTB and PySCF CPU calculations
+    name: Small xTB/PySCF calculations and bounded BASE regressions
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
       OMP_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
       MKL_NUM_THREADS: '1'
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+      QT_QPA_PLATFORM: offscreen
+      COCHEM_HEADLESS: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,6 +32,11 @@ jobs:
         run: |
           echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
           echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
+          echo "COCHEM_PYSCF_PYTHON=$RUNNER_TEMP/cochem-free-engines/pyscf/bin/python" >> "$GITHUB_ENV"
+      - name: Install headless Qt runtime libraries required by the packaged dashboard
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libegl1 libopengl0 libgl1 libxkbcommon-x11-0 libxcb-cursor0
       - name: Install dashboard and audit all eleven Stage 0 phases
         run: >-
           python scripts/hosted_dashboard.py setup
@@ -45,13 +53,14 @@ jobs:
           --root "${{ runner.temp }}/cochem-free-engines"
           --engines xtb pyscf
           --output "${{ runner.temp }}/cochem-evidence/verification.json"
-      - name: Verify native CLI calculations and result publication
+      - name: Verify bounded regressions with actual outcomes and unchanged source
         env:
           XTB_CMD: ${{ runner.temp }}/cochem-artifacts/free-engines/xtb/xtb-dist/bin/xtb
           XTBPATH: ${{ runner.temp }}/cochem-artifacts/free-engines/xtb/xtb-dist/share/xtb
         run: |
           test -x "$XTB_CMD"
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -m pytest -c pytest-srs.ini tests/calc/test_xtb_cli_execution.py tests/base/test_hosted_dashboard_runtime.py --junitxml="${{ runner.temp }}/cochem-evidence/cli-results.xml" -q
+          test -x "$COCHEM_PYSCF_PYTHON"
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -m scripts.verify_release_ci regressions --output "${{ runner.temp }}/cochem-evidence/bounded-regressions"
       - name: Verify rendered dashboard lifecycle with the audited registry
         run: |
           python scripts/hosted_dashboard.py start

@@ -173,10 +173,36 @@ def test_compound_deck_uses_identical_stage_policy(tmp_path, seed):
     ], seed)
     assert "DEFGRID1" in deck and "DEFGRID2" in deck
     assert '%base "s2"' in deck and '%base "s3"' in deck
+    assert deck.count("%compound") == 1 and deck.rstrip().endswith("end")
+    assert deck.count("%pal ") == deck.count("%maxcore ") == 1
+    assert deck.index("%pal ") < deck.index("%compound") and deck.index("%maxcore ") < deck.index("%compound")
+    assert deck.count("ConvCheckMode 0") == 2 and deck.count("ConvForced true") == 2
     for invalid in (Stage("bad", "B3LYP def2-SVP"),
                     Stage("bad", "r2SCAN-3c", blocks="%geom Calc_Hess true end")):
         with pytest.raises(Exception):
             chain.generate_compound_script([invalid], seed)
+
+
+def test_chain_prepares_private_writable_copy_of_readonly_checkpoint(tmp_path, seed):
+    """Opaque file transport only: this is not an electronic-structure fixture."""
+    import hashlib
+    import json
+    import stat
+
+    chain = Chain(workdir=tmp_path / "campaign")
+    source = chain.workdir / "prior.gbw"
+    original = b"Opaque bytes for the checkpoint copy/permission boundary only."
+    source.write_bytes(original)
+    source.chmod(0o444)
+    chain.run_stage(Stage("consumer", "HF STO-3G TightSCF", mo_from="prior"), seed, dry_run=True)
+    snapshot = chain.workdir / "consumer.moinp.gbw"
+    assert source.read_bytes() == snapshot.read_bytes() == original
+    assert not source.stat().st_mode & stat.S_IWUSR
+    assert snapshot.stat().st_mode & stat.S_IWUSR
+    assert '%moinp "consumer.moinp.gbw"' in (chain.workdir / "consumer.inp").read_text()
+    evidence = json.loads((chain.workdir / "consumer.checkpoint_inputs.json").read_text())
+    assert evidence["orbital_source_sha256"] == evidence["orbital_consumer_initial_sha256"] == hashlib.sha256(original).hexdigest()
+    assert chain.stage_records["consumer"].converged is False
 
 
 def test_direct_deck_builder_rejects_injected_and_empty_checkpoints(tmp_path, seed):

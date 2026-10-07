@@ -54,7 +54,7 @@ def test_cli_generates_real_orca_deck_and_marks_only_generation(tmp_path: Path) 
     decks = list((tmp_path / "results").glob("*_job.inp"))
     assert len(decks) == 1
     text = decks[0].read_text()
-    assert "! B3LYP-D4 def2-SVP Opt" in text
+    assert "! B3LYP D4 def2-SVP Opt" in text
     assert "CPCM(Water)" in text
     assert "nprocs 1" in text
     assert "TolMaxG 1e-5" in text

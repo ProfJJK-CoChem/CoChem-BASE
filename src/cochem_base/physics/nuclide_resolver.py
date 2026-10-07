@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import functools
 import re
+from numbers import Integral
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -123,7 +124,9 @@ class NuclideToken:
     raw_token: str = field(default="", compare=False)
 
     def __post_init__(self) -> None:
-        if self.mass_number is not None and self.mass_number <= 0:
+        if self.mass_number is not None and (
+            isinstance(self.mass_number, bool) or not isinstance(self.mass_number, Integral) or self.mass_number <= 0
+        ):
             raise InvalidNuclideSymbolError(
                 f"{self.mass_number}{self.symbol}",
                 "Mass number must be a positive non-zero integer",

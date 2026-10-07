@@ -27,6 +27,7 @@ import importlib
 import importlib.metadata
 import json
 import math
+import mmap
 import os
 import platform
 import shutil
@@ -54,17 +55,8 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-def sweep_zombies() -> None:
-    if psutil is None:
-        return
-    for p in psutil.process_iter(['pid', 'status']):
-        try:
-            if p.info['status'] == psutil.STATUS_ZOMBIE:
-                p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
-            logger.debug(f"Ignored exception: {_e}")
+from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
 
-atexit.register(sweep_zombies)
 
 # Try importing h5py for PySCF .chk validation
 try:
@@ -172,6 +164,7 @@ class CheckpointStatus(str, Enum):
 class IOPSBenchmarkStatus(str, Enum):
     """Classification of unbuffered IOPS storage performance."""
 
+    NOT_RUN = "NOT_RUN"
     OPTIMAL = "OPTIMAL"
     ACCEPTABLE = "ACCEPTABLE"
     DEGRADED = "DEGRADED"
@@ -190,6 +183,7 @@ class MolSymSiloStatus(str, Enum):
 class EckartVerificationStatus(str, Enum):
     """Verification status of theoretical Eckart condition tests."""
 
+    NOT_RUN = "NOT_RUN"
     VERIFIED = "VERIFIED"
     FAILED = "FAILED"
     DEGRADED = "DEGRADED"
@@ -244,25 +238,25 @@ class IOPSBenchmarkProfile(BaseModel):
         default=65536, ge=512, description="Direct I/O block size in bytes (default: 64 KB)"
     )
     total_blocks: int = Field(..., ge=1, description="Total number of I/O blocks processed")
-    write_duration_seconds: float = Field(
+    write_duration_seconds: Optional[float] = Field(
         ..., ge=0.0, description="Elapsed wall-clock time for unbuffered sequential write in seconds"
     )
-    write_throughput_mb_s: float = Field(
+    write_throughput_mb_s: Optional[float] = Field(
         ..., ge=0.0, description="Measured write throughput in Megabytes per second [M]"
     )
-    write_iops: float = Field(
+    write_iops: Optional[float] = Field(
         ..., ge=0.0, description="Measured write I/O operations per second [M]"
     )
-    read_duration_seconds: float = Field(
+    read_duration_seconds: Optional[float] = Field(
         ..., ge=0.0, description="Elapsed wall-clock time for unbuffered sequential read in seconds"
     )
-    read_throughput_mb_s: float = Field(
+    read_throughput_mb_s: Optional[float] = Field(
         ..., ge=0.0, description="Measured read throughput in Megabytes per second [M]"
     )
-    read_iops: float = Field(
+    read_iops: Optional[float] = Field(
         ..., ge=0.0, description="Measured read I/O operations per second [M]"
     )
-    sync_latency_ms: float = Field(
+    sync_latency_ms: Optional[float] = Field(
         ..., ge=0.0, description="Measured fsync flush barrier latency in milliseconds [M]"
     )
     status: IOPSBenchmarkStatus = Field(
@@ -1452,7 +1446,9 @@ def run_unbuffered_iops_benchmark(
     total_blocks = max(1, total_bytes // block_bytes)
     actual_file_size = total_blocks * block_bytes
 
-    pattern = bytearray((i % 251) ^ 0xA5 for i in range(block_bytes))
+    # mmap supplies page-aligned buffers required by Linux O_DIRECT.
+    pattern = mmap.mmap(-1, block_bytes)
+    pattern[:] = bytes((i % 251) ^ 0xA5 for i in range(block_bytes))
     test_filename = f".iops_benchmark_{uuid.uuid4().hex[:8]}.bin"
     test_filepath = target_path / test_filename
 
@@ -1476,13 +1472,15 @@ def run_unbuffered_iops_benchmark(
             except OSError:
                 use_direct = False
 
+        is_unbuffered = use_direct
         if use_direct and hasattr(os, "O_DIRECT"):
             open_flags |= getattr(os, "O_DIRECT", 0)
 
         fd = os.open(str(test_filepath), open_flags, 0o600)
         try:
             for _ in range(total_blocks):
-                os.write(fd, pattern)
+                if os.write(fd, pattern) != block_bytes:
+                    raise IOPSBenchmarkError("Incomplete benchmark write")
 
             t_sync0 = time.perf_counter()
             os.fsync(fd)
@@ -1504,10 +1502,13 @@ def run_unbuffered_iops_benchmark(
         try:
             bytes_read_total = 0
             while bytes_read_total < actual_file_size:
-                chunk = os.read(fd_read, block_bytes)
-                if not chunk:
-                    break
-                bytes_read_total += len(chunk)
+                if use_direct:
+                    count = os.readv(fd_read, [pattern])
+                else:
+                    count = len(os.read(fd_read, block_bytes))
+                if count <= 0:
+                    raise IOPSBenchmarkError("Incomplete benchmark read")
+                bytes_read_total += count
         finally:
             os.close(fd_read)
         t_r1 = time.perf_counter()
@@ -1518,6 +1519,7 @@ def run_unbuffered_iops_benchmark(
             f"10 MB unbuffered IOPS benchmark execution failed at {target_path}: {exc}"
         ) from exc
     finally:
+        pattern.close()
         if test_filepath.exists():
             try:
                 test_filepath.unlink()
@@ -2042,17 +2044,17 @@ def generate_environment_injection_dict(
     Generate environment variable dictionary for runtime quantum calculation execution.
     Provides backward compatibility for 4-argument calls with smart defaults.
     """
-    silo_status = molsym_silo.silo_status.value if molsym_silo else "AVAILABLE"
-    eckart_status = eckart_report.overall_status.value if eckart_report else "VERIFIED"
-    ready_flag = "1" if (alignment_ready is not False) else "0"
+    silo_status = molsym_silo.silo_status.value if molsym_silo else "NOT_FOUND"
+    eckart_status = eckart_report.overall_status.value if eckart_report else "NOT_RUN"
+    ready_flag = "1" if alignment_ready is True else "0"
 
     return {
         "COCHEM_EPHEMERAL_SANDBOX": sandbox.sandbox_path,
         "COCHEM_SANDBOX_UUID": sandbox.sandbox_uuid,
         "COCHEM_SANDBOX_BASE": sandbox.base_directory,
-        "COCHEM_IOPS_WRITE_MBPS": str(iops.write_throughput_mb_s),
-        "COCHEM_IOPS_READ_MBPS": str(iops.read_throughput_mb_s),
-        "COCHEM_IOPS_WRITE_IOPS": str(iops.write_iops),
+        **({"COCHEM_IOPS_WRITE_MBPS": str(iops.write_throughput_mb_s)} if iops.write_throughput_mb_s is not None else {}),
+        **({"COCHEM_IOPS_READ_MBPS": str(iops.read_throughput_mb_s)} if iops.read_throughput_mb_s is not None else {}),
+        **({"COCHEM_IOPS_WRITE_IOPS": str(iops.write_iops)} if iops.write_iops is not None else {}),
         "COCHEM_IOPS_STATUS": iops.status.value,
         "COCHEM_CHECKPOINT_VALIDATION_ACTIVE": "1" if chk.validation_enabled else "0",
         "COCHEM_CHECKPOINT_VALID_COUNT": str(chk.valid_count),
@@ -2168,16 +2170,16 @@ def run_phase_10_audit(
             file_size_bytes=int(benchmark_size_mb * 1024 * 1024),
             block_size_bytes=65536,
             total_blocks=max(1, int(benchmark_size_mb * 1024 * 1024) // 65536),
-            write_duration_seconds=0.01,
-            write_throughput_mb_s=1000.0,
-            write_iops=15000.0,
-            read_duration_seconds=0.01,
-            read_throughput_mb_s=1000.0,
-            read_iops=15000.0,
-            sync_latency_ms=0.5,
-            status=IOPSBenchmarkStatus.OPTIMAL,
-            is_unbuffered=True,
-            is_performance_sufficient=True,
+            write_duration_seconds=None,
+            write_throughput_mb_s=None,
+            write_iops=None,
+            read_duration_seconds=None,
+            read_throughput_mb_s=None,
+            read_iops=None,
+            sync_latency_ms=None,
+            status=IOPSBenchmarkStatus.NOT_RUN,
+            is_unbuffered=False,
+            is_performance_sufficient=False,
         )
     else:
         try:
@@ -2261,7 +2263,7 @@ def run_phase_10_audit(
     try:
         molsym_profile = audit_or_provision_molsym_silo(silo_path=silo_dir, env=target_env)
         if molsym_profile.silo_status == MolSymSiloStatus.NOT_FOUND:
-            warnings.append("MolSym dependency not found in isolated silos or environment; fallback symmetry active.")
+            warnings.append("MolSym dependency not found in isolated silos or environment; symmetry capability unavailable.")
         elif molsym_profile.silo_status == MolSymSiloStatus.DEGRADED:
             warnings.append("MolSym library is partially degraded; point group inspection restricted.")
     except Exception as exc:
@@ -2284,7 +2286,7 @@ def run_phase_10_audit(
             total_benchmarks=0,
             passed_benchmarks=0,
             failed_benchmarks=0,
-            overall_status=EckartVerificationStatus.VERIFIED,
+            overall_status=EckartVerificationStatus.NOT_RUN,
             max_translational_residual=0.0,
             max_rotational_residual=0.0,
             items=[],
@@ -2325,7 +2327,8 @@ def run_phase_10_audit(
     if errors or not sandbox_profile.is_created or not sandbox_profile.is_writable or eckart_report.overall_status == EckartVerificationStatus.FAILED:
         status = PhaseStatus.FAILED
     elif (
-        iops_profile.status == IOPSBenchmarkStatus.DEGRADED
+        iops_profile.status in (IOPSBenchmarkStatus.DEGRADED, IOPSBenchmarkStatus.NOT_RUN)
+        or eckart_report.overall_status == EckartVerificationStatus.NOT_RUN
         or not state_chain_profile.chain_intact
         or checkpoint_report.corrupt_count > 0
         or molsym_profile.silo_status in (MolSymSiloStatus.DEGRADED, MolSymSiloStatus.NOT_FOUND)

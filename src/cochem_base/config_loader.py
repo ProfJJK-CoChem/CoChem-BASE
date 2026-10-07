@@ -11,6 +11,8 @@ import os
 import platform
 import shutil
 import tempfile
+
+from filelock import FileLock
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
@@ -61,26 +63,27 @@ def get_runtime_dir() -> Path:
     """Returns runtime directory."""
     return get_scratch_dir()
 
+def _writable_runtime_path(path: Union[str, Path]) -> Path:
+    """Resolve a writable runtime destination outside all configured source roots."""
+    from cochem.core.context import AirGapViolationError, assert_writable_path
+    target = Path(path).expanduser().resolve()
+    assert_writable_path(target)
+    checkout = Path(__file__).resolve().parents[2]
+    roots = [checkout] if (checkout / "pyproject.toml").is_file() else []
+    for name in ("COCHEM_ROOT", "COCHEM_REPO_DIR", "COCH_SRC"):
+        if os.environ.get(name):
+            roots.append(Path(os.environ[name]).expanduser().resolve())
+    if any(target.is_relative_to(root) for root in roots):
+        raise AirGapViolationError(f"Runtime destination must be outside the codebase: {target}")
+    return target
+
+
 def get_artifact_dir(override: Optional[Union[str, Path]] = None) -> Path:
-    """Returns the path to the artifacts directory."""
-    if override:
-        p = Path(override).resolve()
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-    if "COCHEM_ARTIFACTS" in os.environ:
-        p = Path(os.environ["COCHEM_ARTIFACTS"]).resolve()
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-    if "COCHEM_ARTIFACT_DIR" in os.environ:
-        p = Path(os.environ["COCHEM_ARTIFACT_DIR"]).resolve()
-        p.mkdir(parents=True, exist_ok=True)
-        return p
-    root = get_cochem_root()
-    art_dir = root / "artifacts"
-    if not art_dir.exists():
-        art_dir = root.parent / "CoChem_Artifacts"
-    art_dir.mkdir(parents=True, exist_ok=True)
-    return art_dir
+    """Resolve the persistent data tier without writing into source checkouts."""
+    target = override or os.environ.get("COCHEM_ARTIFACTS") or os.environ.get("COCHEM_ARTIFACT_DIR") or (Path.home() / "CoChem_Artifacts")
+    path = _writable_runtime_path(target)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 def get_scratch_dir() -> Path:
     """Returns the fast local scratch directory."""
@@ -99,29 +102,15 @@ def get_ramdisk_dir() -> Optional[Path]:
 
 def get_state_file_path() -> Path:
     """Returns the global swarm state file path."""
-    return get_cochem_root() / "swarm_state.json"
+    return get_artifact_dir() / "Registry" / "swarm_state.json"
 
 def resolve_config_path(target: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves cochem_system_config.json location."""
-    if target:
-        p = Path(target).resolve()
-        if p.exists():
-            return p
-    if "COCHEM_CONFIG" in os.environ:
-        p = Path(os.environ["COCHEM_CONFIG"]).resolve()
-        if p.exists():
-            return p
-    root = get_cochem_root()
-    candidates = [
-        root / "cochem_system_config.json",
-        root / "CoChem-BASE" / "cochem_system_config.json",
-        root / "CoChem-SEED" / "cochem_system_config.json",
-        Path.cwd() / "cochem_system_config.json",
-    ]
-    for c in candidates:
-        if c.exists():
-            return c
-    return candidates[0]
+    """Resolve one authority; an explicitly missing path must never select another file."""
+    chosen = target or os.environ.get("COCHEM_CONFIG")
+    if chosen:
+        path = Path(chosen).expanduser().resolve()
+        return path / "cochem_system_config.json" if path.is_dir() else path
+    return get_artifact_dir() / "Registry" / "cochem_system_config.json"
 
 def load_system_config_dict(config_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
     """Loads system configuration dictionary from disk."""
@@ -229,9 +218,35 @@ def prepend_executable_directory(exe_path: str) -> None:
             os.environ["PATH"] = f"{d}{os.pathsep}{cur}"
 
 def update_config(key: str, value: Any, config_path: Optional[Union[str, Path]] = None) -> None:
-    """Updates key in cochem_system_config.json."""
-    cfg = load_system_config_dict(config_path)
-    cfg[key] = value
-    target = resolve_config_path(config_path)
-    with open(target, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+    """Atomically update existing configuration under its shared 10-second lock."""
+    target = _writable_runtime_path(resolve_config_path(config_path))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with FileLock(str(target) + ".lock", timeout=10.0):
+        if target.exists():
+            cfg = json.loads(target.read_text(encoding="utf-8"))
+            if not isinstance(cfg, dict):
+                raise ValueError("System configuration must be a JSON object")
+        else:
+            cfg = {}
+        signed = bool(cfg.get("registry_checksum"))
+        if signed:
+            from cochem_base.orchestrator.cochem_system_config import CoChemSystemConfig
+            previous = CoChemSystemConfig.model_validate(cfg)
+            if not previous.verify_checksum():
+                raise ValueError("Cannot update a Golden Registry with an invalid checksum")
+        cfg[key] = value
+        if signed:
+            updated = CoChemSystemConfig.model_validate(cfg)
+            updated.update_checksum()
+            cfg = updated.model_dump(mode="json")
+        payload = json.dumps(cfg, indent=2, allow_nan=False)
+        descriptor, temporary_name = tempfile.mkstemp(prefix=".cochem-config-", dir=target.parent)
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)

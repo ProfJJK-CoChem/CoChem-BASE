@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CoChem-BASE"
-version = "0.1.0"
-description = "Core shell and hardware orchestrator for CoChem-Studio"
+version = "1.0.0"
+description = "CoChem ingestion, environment setup, validated calculation execution and student interface"
 authors = [
     {name = "CoChem Team"}
 ]
@@ -15,29 +15,67 @@ dependencies = [
     "PySide6",
     "cryptography>=50.0.1",
     "filelock>=3.32.5",
+    "h5py>=3.9.0",
+    "jinja2",
     "mendeleev>=1.2.0",
     "mmh3>=5.3.0",
+    "msgpack>=1.0",
     "networkx>=3.6.1",
+    "numpy",
     "pluggy",
+    "psutil",
     "pydantic>=2",
+    "pyzmq>=25.1.0",
     "pyqtgraph",
     "pyvista",
     "pyvistaqt",
     "rdkit>=2026.3.5",
     "scipy>=1.17.1",
+    "tenacity>=8.2",
     "vtk",
 ]
 
+[project.scripts]
+cochem-cli = "cochem_base.cli:entrypoint"
+
 [project.optional-dependencies]
 dev = [
+    "parsl",
+    "qcelemental>=0.29",
     "pytest",
     "pytest-qt",
+    "pytest-asyncio",
     "ruff>=0.1.0",
     "mypy>=1.8.0"
 ]
+hpc = ["parsl"]
+catalog = ["pyarrow", "pandas"]
+symmetry = ["MolSym==1.2.0"]
+scribe = ["google-genai>=2.28.0", "zstandard>=0.25.0", "tiktoken"]
+ui = ["ase", "ipykernel", "ipywidgets", "jinja2", "matplotlib", "py3Dmol", "pynacl", "requests", "voila", "watchdog>=6.0.0"]
+
+[tool.setuptools]
+py-modules = ["cli"]
+
+[tool.setuptools.package-dir]
+cochem = "src/cochem"
+"cochem.torq" = "cochem/torq"
+"cochem.ml.models" = "cochem/ml/models"
+cochem_base = "src/cochem_base"
+cochem_topos = "cochem_topos"
+cochem_geom = "src/cochem_geom"
+cochem_ml = "src/cochem_ml"
+cochem_mobile = "src/cochem_mobile"
+cochem_torq = "src/cochem_torq"
+frontend = "frontend"
+ui = "ui"
+scripts = "scripts"
+Libraries = "Libraries"
 
 [tool.setuptools.packages.find]
-include = ["cochem_base*", "cochem_topos*"]
+where = [".", "src"]
+include = ["cochem", "cochem.*", "cochem_base*", "cochem_topos*", "cochem_geom*", "cochem_ml*", "cochem_mobile*", "cochem_torq*", "frontend", "frontend.*", "ui", "ui.*", "scripts", "scripts.*", "Libraries", "Libraries.*"]
+exclude = ["*.egg-info*"]
 
 [tool.pytest.ini_options]
 testpaths = ["test_suite", "tests"]

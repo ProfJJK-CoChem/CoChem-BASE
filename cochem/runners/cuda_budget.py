@@ -7,6 +7,7 @@ with automatic headless/CPU fallback and exponential backoff polling.
 import asyncio
 import logging
 import os
+import sys
 from pathlib import Path
 import time
 from typing import Dict, Optional, Union

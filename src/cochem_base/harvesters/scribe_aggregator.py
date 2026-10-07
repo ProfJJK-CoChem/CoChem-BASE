@@ -52,7 +52,75 @@ class ScribeAggregationError(Exception):
     pass
 
 
-def compress_tensors_for_llm(array: Union[np.ndarray, List[float], Sequence[float]]) -> Dict[str, float]:
+def _finite_observation(value: Any) -> Optional[float]:
+    """Keep unavailable observations distinct from a measured numerical zero."""
+    if value is None or value is pd.NA:
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _dipole_magnitude(mu_a: Optional[float], mu_b: Optional[float], mu_c: Optional[float]) -> Optional[float]:
+    """Derive a magnitude only when all three components were observed."""
+    if mu_a is None or mu_b is None or mu_c is None:
+        return None
+    return _finite_observation(math.hypot(mu_a, mu_b, mu_c))
+
+
+def _conformer_energy_order(record: Dict[str, Any]) -> tuple[bool, float]:
+    energy = _finite_observation(record.get("relative_energy_kcal_mol"))
+    return energy is None, energy if energy is not None else math.inf
+
+
+def _hdf_energy_kcal(
+    group: Union[h5py.Group, h5py.File],
+    kcal_keys: Sequence[str],
+    hartree_keys: Sequence[str],
+    legacy_keys: Sequence[str],
+) -> Optional[float]:
+    """Convert observed energies only when field names or metadata declare units."""
+    for keys, factor in ((kcal_keys, 1.0), (hartree_keys, HARTREE_TO_KCAL_MOL), (legacy_keys, None)):
+        for key in keys:
+            dataset = None
+            if key in group.attrs:
+                value = group.attrs[key]
+            elif key in group and isinstance(group[key], h5py.Dataset):
+                dataset = group[key]
+                value = dataset[()]
+            else:
+                continue
+            number = _finite_observation(value)
+            if number is None:
+                return None
+            unit = None
+            if dataset is not None:
+                unit = dataset.attrs.get("units", dataset.attrs.get("unit"))
+            if unit is None:
+                for unit_key in (f"{key}_units", f"{key}_unit", "energy_units", "energy_unit", "units", "unit"):
+                    if unit_key in group.attrs:
+                        unit = group.attrs[unit_key]
+                        break
+            if isinstance(unit, bytes):
+                unit = unit.decode("utf-8")
+            conversion = factor
+            if unit is not None:
+                normalized = str(unit).strip().lower().replace(" ", "")
+                if normalized in {"hartree", "hartrees", "eh", "ha", "a.u.", "au"}:
+                    declared_factor = HARTREE_TO_KCAL_MOL
+                elif normalized in {"kcal/mol", "kcalmol-1", "kcalmol^-1"}:
+                    declared_factor = 1.0
+                else:
+                    return None
+                if conversion is not None and conversion != declared_factor:
+                    return None
+                conversion = declared_factor
+            if conversion is None:
+                return None
+            return _finite_observation(number * conversion)
+    return None
+
+
+def compress_tensors_for_llm(array: Union[np.ndarray, List[float], Sequence[float]]) -> Dict[str, Optional[float]]:
     """Reduces dense 1D/2D numerical arrays to 4 static statistical bounds (Min, Max, Mean, StdDev).
 
     Guarantee: Arbitrary-length numerical arrays consume a fixed, bounded token budget.
@@ -61,15 +129,16 @@ def compress_tensors_for_llm(array: Union[np.ndarray, List[float], Sequence[floa
         array: 1D or 2D array of numerical values.
 
     Returns:
-        Dictionary with keys 'Min', 'Max', 'Mean', 'StdDev'.
+        Finite-observation statistics, or four nulls when no observation exists.
     """
     if isinstance(array, np.ndarray):
         arr = array.astype(np.float64)
     else:
         arr = np.array(list(array), dtype=np.float64)
 
+    arr = arr[np.isfinite(arr)]
     if arr.size == 0:
-        return {"Min": 0.0, "Max": 0.0, "Mean": 0.0, "StdDev": 0.0}
+        return {"Min": None, "Max": None, "Mean": None, "StdDev": None}
 
     return {
         "Min": float(np.min(arr)),
@@ -89,16 +158,16 @@ def flatten_conformers_to_df(data: Any) -> pd.DataFrame:
         Standardized pandas.DataFrame with conformer identifiers, relative energies, and symmetries.
     """
     if isinstance(data, pd.DataFrame):
-        return data
-
-    records = data if isinstance(data, list) else (data.get("conformers", [data]) if isinstance(data, dict) else [])
-    df = pd.DataFrame(records)
+        df = data.copy()
+    else:
+        records = data if isinstance(data, list) else (data.get("conformers", [data]) if isinstance(data, dict) else [])
+        df = pd.DataFrame(records)
     expected_cols = ["conformer_id", "relative_energy_kcal_mol", "point_group_symmetry"]
     for col in expected_cols:
         if col not in df.columns:
-            df[col] = "" if col == "point_group_symmetry" else 0.0
+            df[col] = np.nan if col == "relative_energy_kcal_mol" else ""
 
-    df["relative_energy_kcal_mol"] = df["relative_energy_kcal_mol"].astype(float)
+    df["relative_energy_kcal_mol"] = df["relative_energy_kcal_mol"].map(_finite_observation).astype(float)
     df["conformer_id"] = df["conformer_id"].astype(str)
     df["point_group_symmetry"] = df["point_group_symmetry"].astype(str)
     return df[expected_cols]
@@ -114,7 +183,10 @@ def flatten_spectroscopy_to_df(data: Any) -> pd.DataFrame:
         Standardized pandas.DataFrame ready for tabular rendering.
     """
     if isinstance(data, pd.DataFrame):
-        return data
+        frame = data.copy()
+        if "Value" in frame:
+            frame["Value"] = frame["Value"].map(_finite_observation).astype(float)
+        return frame
 
     spec_data = data if isinstance(data, dict) else {}
     rot = spec_data.get("rotational_constants", {}) if isinstance(spec_data.get("rotational_constants"), dict) else {}
@@ -122,20 +194,15 @@ def flatten_spectroscopy_to_df(data: Any) -> pd.DataFrame:
     cent = spec_data.get("centrifugal_distortion", {}) if isinstance(spec_data.get("centrifugal_distortion"), dict) else {}
 
     rows = [
-        {"Parameter": "A", "Value": float(rot.get("A", 0.0)), "Unit": "MHz"},
-        {"Parameter": "B", "Value": float(rot.get("B", 0.0)), "Unit": "MHz"},
-        {"Parameter": "C", "Value": float(rot.get("C", 0.0)), "Unit": "MHz"},
-        {"Parameter": "mu_a", "Value": float(dip.get("mu_a", 0.0)), "Unit": "Debye"},
-        {"Parameter": "mu_b", "Value": float(dip.get("mu_b", 0.0)), "Unit": "Debye"},
-        {"Parameter": "mu_c", "Value": float(dip.get("mu_c", 0.0)), "Unit": "Debye"},
-        {"Parameter": "|mu|", "Value": float(dip.get("total", 0.0)), "Unit": "Debye"},
-        {"Parameter": "Delta_J", "Value": float(cent.get("Delta_J", 0.0)), "Unit": "MHz"},
-        {"Parameter": "Delta_JK", "Value": float(cent.get("Delta_JK", 0.0)), "Unit": "MHz"},
-        {"Parameter": "Delta_K", "Value": float(cent.get("Delta_K", 0.0)), "Unit": "MHz"},
-        {"Parameter": "delta_J", "Value": float(cent.get("delta_J", 0.0)), "Unit": "MHz"},
-        {"Parameter": "delta_K", "Value": float(cent.get("delta_K", 0.0)), "Unit": "MHz"},
+        {"Parameter": name, "Value": _finite_observation(source.get(key)), "Unit": unit}
+        for source, names, unit in (
+            (rot, ((key, key) for key in ("A", "B", "C")), "MHz"),
+            (dip, (("mu_a", "mu_a"), ("mu_b", "mu_b"), ("mu_c", "mu_c"), ("|mu|", "total")), "Debye"),
+            (cent, ((key, key) for key in ("Delta_J", "Delta_JK", "Delta_K", "delta_J", "delta_K")), "MHz"),
+        )
+        for name, key in names
     ]
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows).astype({"Value": float})
 
 
 def flatten_thermodynamics_to_df(data: Any) -> pd.DataFrame:
@@ -148,19 +215,22 @@ def flatten_thermodynamics_to_df(data: Any) -> pd.DataFrame:
         Standardized pandas.DataFrame ready for tabular rendering.
     """
     if isinstance(data, pd.DataFrame):
-        return data
+        frame = data.copy()
+        if "Value" in frame:
+            frame["Value"] = frame["Value"].map(_finite_observation).astype(float)
+        return frame
 
     therm_data = data if isinstance(data, dict) else {}
-    zpe = float(therm_data.get("zpe_kcal_mol", therm_data.get("zero_point_energy_kcal_mol", 0.0)))
-    h = float(therm_data.get("enthalpy_kcal_mol", therm_data.get("enthalpy", 0.0)))
-    g = float(therm_data.get("gibbs_free_energy_kcal_mol", therm_data.get("gibbs_free_energy", 0.0)))
+    zpe = _finite_observation(therm_data.get("zpe_kcal_mol", therm_data.get("zero_point_energy_kcal_mol")))
+    h = _finite_observation(therm_data.get("enthalpy_kcal_mol", therm_data.get("enthalpy")))
+    g = _finite_observation(therm_data.get("gibbs_free_energy_kcal_mol", therm_data.get("gibbs_free_energy")))
 
     rows = [
         {"Property": "Zero-Point Vibrational Energy (ZPE)", "Value": zpe, "Unit": "kcal/mol"},
         {"Property": "Enthalpy (H_298)", "Value": h, "Unit": "kcal/mol"},
         {"Property": "Gibbs Free Energy (G_298)", "Value": g, "Unit": "kcal/mol"},
     ]
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows).astype({"Value": float})
 
 
 def flatten_telemetry_to_df(data: Any) -> pd.DataFrame:
@@ -176,12 +246,12 @@ def flatten_telemetry_to_df(data: Any) -> pd.DataFrame:
         return data
 
     telem_data = data if isinstance(data, dict) else {}
-    wall_sec = telem_data.get("wall_clock_time_seconds", telem_data.get("wall_clock_seconds", "0.0"))
-    vram_mb = telem_data.get("peak_gpu_vram_mb", telem_data.get("gpu_vram_peak_mb", "0.0"))
+    wall_sec = _finite_observation(telem_data.get("wall_clock_time_seconds", telem_data.get("wall_clock_seconds")))
+    vram_mb = _finite_observation(telem_data.get("peak_gpu_vram_mb", telem_data.get("gpu_vram_peak_mb")))
 
     rows = [
-        {"Metric": "Wall-Clock Time (s)", "Value": str(wall_sec)},
-        {"Metric": "Peak GPU VRAM (MB)", "Value": str(vram_mb)},
+        {"Metric": "Wall-Clock Time (s)", "Value": wall_sec if wall_sec is not None else np.nan},
+        {"Metric": "Peak GPU VRAM (MB)", "Value": vram_mb if vram_mb is not None else np.nan},
     ]
     node_arch = telem_data.get("node_architecture", {})
     if isinstance(node_arch, dict):
@@ -412,27 +482,27 @@ class DataAggregator:
                 if not raw_conformers:
                     raise ScribeAggregationError(f"No conformer records found in HDF5 file '{self.h5_path}'.")
 
-                has_raw_energies = any(c["raw_energy_hartree"] is not None for c in raw_conformers)
-                if has_raw_energies:
-                    valid_raw = [float(c["raw_energy_hartree"]) for c in raw_conformers if c["raw_energy_hartree"] is not None]
+                for c in raw_conformers:
+                    c["raw_energy_hartree"] = _finite_observation(c["raw_energy_hartree"])
+                    c["relative_energy_kcal_mol"] = _finite_observation(c["relative_energy_kcal_mol"])
+                valid_raw = [c["raw_energy_hartree"] for c in raw_conformers if c["raw_energy_hartree"] is not None]
+                if valid_raw:
                     min_hartree = min(valid_raw)
                     for c in raw_conformers:
                         if c["relative_energy_kcal_mol"] is None and c["raw_energy_hartree"] is not None:
-                            c["relative_energy_kcal_mol"] = float((float(c["raw_energy_hartree"]) - min_hartree) * HARTREE_TO_KCAL_MOL)
+                            c["relative_energy_kcal_mol"] = _finite_observation((c["raw_energy_hartree"] - min_hartree) * HARTREE_TO_KCAL_MOL)
 
                 formatted: List[Dict[str, Any]] = []
                 for c in raw_conformers:
                     rel_val = c.get("relative_energy_kcal_mol")
-                    if rel_val is None:
-                        rel_val = 0.0
                     formatted.append({
                         "conformer_id": str(c["conformer_id"]),
-                        "relative_energy_kcal_mol": float(rel_val),
-                        "relative_energy": float(rel_val),
+                        "relative_energy_kcal_mol": rel_val,
+                        "relative_energy": rel_val,
                         "point_group_symmetry": str(c["point_group_symmetry"]),
                     })
 
-                formatted.sort(key=lambda x: float(x["relative_energy_kcal_mol"]))
+                formatted.sort(key=_conformer_energy_order)
                 return formatted[:top_n]
 
         except Exception as e:
@@ -441,7 +511,7 @@ class DataAggregator:
                 pq_data = self._parse_parquet_fallback()
                 if "conformers" in pq_data and pq_data["conformers"]:
                     conformers = cast(List[Dict[str, Any]], pq_data["conformers"])
-                    conformers.sort(key=lambda x: float(x.get("relative_energy_kcal_mol", 0.0)))
+                    conformers.sort(key=_conformer_energy_order)
                     return conformers[:top_n]
             except Exception as pq_err:
                 raise ScribeAggregationError(
@@ -468,80 +538,80 @@ class DataAggregator:
                         break
 
                 # 1. Rotational Constants
-                rot_consts: Dict[str, float] = {}
+                rot_consts: Dict[str, Optional[float]] = {}
                 if "rotational_constants" in spec_grp and isinstance(spec_grp["rotational_constants"], h5py.Group):
                     rg = cast(h5py.Group, spec_grp["rotational_constants"])
                     rot_consts = {
-                        "A": float(rg.attrs.get("A", rg.get("A", 0.0)[()] if "A" in rg else 0.0)),
-                        "B": float(rg.attrs.get("B", rg.get("B", 0.0)[()] if "B" in rg else 0.0)),
-                        "C": float(rg.attrs.get("C", rg.get("C", 0.0)[()] if "C" in rg else 0.0)),
+                        "A": _finite_observation(rg.attrs.get("A", rg.get("A", None)[()] if "A" in rg else None)),
+                        "B": _finite_observation(rg.attrs.get("B", rg.get("B", None)[()] if "B" in rg else None)),
+                        "C": _finite_observation(rg.attrs.get("C", rg.get("C", None)[()] if "C" in rg else None)),
                     }
                 elif "rotational_constants" in spec_grp and isinstance(spec_grp["rotational_constants"], h5py.Dataset):
                     arr = np.asarray(spec_grp["rotational_constants"][()], dtype=np.float64).flatten()
                     rot_consts = {
-                        "A": float(arr[0]) if len(arr) > 0 else 0.0,
-                        "B": float(arr[1]) if len(arr) > 1 else 0.0,
-                        "C": float(arr[2]) if len(arr) > 2 else 0.0,
+                        "A": _finite_observation(arr[0]) if len(arr) > 0 else None,
+                        "B": _finite_observation(arr[1]) if len(arr) > 1 else None,
+                        "C": _finite_observation(arr[2]) if len(arr) > 2 else None,
                     }
                 else:
-                    a_val = spec_grp.attrs.get("A", spec_grp.attrs.get("A_MHz", 0.0))
-                    b_val = spec_grp.attrs.get("B", spec_grp.attrs.get("B_MHz", 0.0))
-                    c_val = spec_grp.attrs.get("C", spec_grp.attrs.get("C_MHz", 0.0))
-                    rot_consts = {"A": float(cast(Any, a_val)), "B": float(cast(Any, b_val)), "C": float(cast(Any, c_val))}
+                    a_val = spec_grp.attrs.get("A", spec_grp.attrs.get("A_MHz", None))
+                    b_val = spec_grp.attrs.get("B", spec_grp.attrs.get("B_MHz", None))
+                    c_val = spec_grp.attrs.get("C", spec_grp.attrs.get("C_MHz", None))
+                    rot_consts = {"A": _finite_observation(cast(Any, a_val)), "B": _finite_observation(cast(Any, b_val)), "C": _finite_observation(cast(Any, c_val))}
 
                 # 2. Dipole Moments
-                dipole_moments: Dict[str, float] = {}
+                dipole_moments: Dict[str, Optional[float]] = {}
                 if "dipole_moments" in spec_grp and isinstance(spec_grp["dipole_moments"], h5py.Group):
                     dg = cast(h5py.Group, spec_grp["dipole_moments"])
-                    mu_a = float(dg.attrs.get("mu_a", dg.get("mu_a", 0.0)[()] if "mu_a" in dg else 0.0))
-                    mu_b = float(dg.attrs.get("mu_b", dg.get("mu_b", 0.0)[()] if "mu_b" in dg else 0.0))
-                    mu_c = float(dg.attrs.get("mu_c", dg.get("mu_c", 0.0)[()] if "mu_c" in dg else 0.0))
-                    tot = float(dg.attrs.get("total", dg.attrs.get("dipole_total", math.sqrt(mu_a**2 + mu_b**2 + mu_c**2))))
+                    mu_a = _finite_observation(dg.attrs.get("mu_a", dg.get("mu_a", None)[()] if "mu_a" in dg else None))
+                    mu_b = _finite_observation(dg.attrs.get("mu_b", dg.get("mu_b", None)[()] if "mu_b" in dg else None))
+                    mu_c = _finite_observation(dg.attrs.get("mu_c", dg.get("mu_c", None)[()] if "mu_c" in dg else None))
+                    tot = _finite_observation(dg.attrs.get("total", dg.attrs.get("dipole_total", dg["total"][()] if "total" in dg and isinstance(dg["total"], h5py.Dataset) else _dipole_magnitude(mu_a, mu_b, mu_c))))
                     dipole_moments = {"mu_a": mu_a, "mu_b": mu_b, "mu_c": mu_c, "total": tot}
                 elif "dipole_moments" in spec_grp and isinstance(spec_grp["dipole_moments"], h5py.Dataset):
                     d_arr = np.asarray(spec_grp["dipole_moments"][()], dtype=np.float64).flatten()
-                    mu_a = float(d_arr[0]) if len(d_arr) > 0 else 0.0
-                    mu_b = float(d_arr[1]) if len(d_arr) > 1 else 0.0
-                    mu_c = float(d_arr[2]) if len(d_arr) > 2 else 0.0
+                    mu_a = _finite_observation(d_arr[0]) if len(d_arr) > 0 else None
+                    mu_b = _finite_observation(d_arr[1]) if len(d_arr) > 1 else None
+                    mu_c = _finite_observation(d_arr[2]) if len(d_arr) > 2 else None
                     if len(d_arr) > 3:
-                        tot = float(d_arr[3])
+                        tot = _finite_observation(d_arr[3])
                     else:
-                        tot = float(spec_grp.attrs.get("total", spec_grp.attrs.get("dipole_total", math.sqrt(mu_a**2 + mu_b**2 + mu_c**2))))
+                        tot = _finite_observation(spec_grp.attrs.get("total", spec_grp.attrs.get("dipole_total", _dipole_magnitude(mu_a, mu_b, mu_c))))
                     dipole_moments = {"mu_a": mu_a, "mu_b": mu_b, "mu_c": mu_c, "total": tot}
                 else:
-                    mu_a = float(cast(Any, spec_grp.attrs.get("mu_a", spec_grp.attrs.get("MuA", 0.0))))
-                    mu_b = float(cast(Any, spec_grp.attrs.get("mu_b", spec_grp.attrs.get("MuB", 0.0))))
-                    mu_c = float(cast(Any, spec_grp.attrs.get("mu_c", spec_grp.attrs.get("MuC", 0.0))))
-                    tot = float(cast(Any, spec_grp.attrs.get("dipole_total", spec_grp.attrs.get("total", math.sqrt(mu_a**2 + mu_b**2 + mu_c**2)))))
+                    mu_a = _finite_observation(cast(Any, spec_grp.attrs.get("mu_a", spec_grp.attrs.get("MuA", None))))
+                    mu_b = _finite_observation(cast(Any, spec_grp.attrs.get("mu_b", spec_grp.attrs.get("MuB", None))))
+                    mu_c = _finite_observation(cast(Any, spec_grp.attrs.get("mu_c", spec_grp.attrs.get("MuC", None))))
+                    tot = _finite_observation(cast(Any, spec_grp.attrs.get("dipole_total", spec_grp.attrs.get("total", _dipole_magnitude(mu_a, mu_b, mu_c)))))
                     dipole_moments = {"mu_a": mu_a, "mu_b": mu_b, "mu_c": mu_c, "total": tot}
 
                 # 3. Quartic Centrifugal Distortion Parameters
-                centrifugal: Dict[str, float] = {}
+                centrifugal: Dict[str, Optional[float]] = {}
                 if "centrifugal_distortion" in spec_grp and isinstance(spec_grp["centrifugal_distortion"], h5py.Group):
                     cg = cast(h5py.Group, spec_grp["centrifugal_distortion"])
                     centrifugal = {
-                        "Delta_J": float(cg.attrs.get("Delta_J", cg.attrs.get("DJ", cg.get("Delta_J", 0.0)[()] if "Delta_J" in cg else 0.0))),
-                        "Delta_JK": float(cg.attrs.get("Delta_JK", cg.attrs.get("DJK", cg.get("Delta_JK", 0.0)[()] if "Delta_JK" in cg else 0.0))),
-                        "Delta_K": float(cg.attrs.get("Delta_K", cg.attrs.get("DK", cg.get("Delta_K", 0.0)[()] if "Delta_K" in cg else 0.0))),
-                        "delta_J": float(cg.attrs.get("delta_J", cg.attrs.get("dJ", cg.get("delta_J", 0.0)[()] if "delta_J" in cg else 0.0))),
-                        "delta_K": float(cg.attrs.get("delta_K", cg.attrs.get("dK", cg.get("delta_K", 0.0)[()] if "delta_K" in cg else 0.0))),
+                        "Delta_J": _finite_observation(cg.attrs.get("Delta_J", cg.attrs.get("DJ", cg.get("Delta_J", None)[()] if "Delta_J" in cg else None))),
+                        "Delta_JK": _finite_observation(cg.attrs.get("Delta_JK", cg.attrs.get("DJK", cg.get("Delta_JK", None)[()] if "Delta_JK" in cg else None))),
+                        "Delta_K": _finite_observation(cg.attrs.get("Delta_K", cg.attrs.get("DK", cg.get("Delta_K", None)[()] if "Delta_K" in cg else None))),
+                        "delta_J": _finite_observation(cg.attrs.get("delta_J", cg.attrs.get("dJ", cg.get("delta_J", None)[()] if "delta_J" in cg else None))),
+                        "delta_K": _finite_observation(cg.attrs.get("delta_K", cg.attrs.get("dK", cg.get("delta_K", None)[()] if "delta_K" in cg else None))),
                     }
                 elif "centrifugal_distortion" in spec_grp and isinstance(spec_grp["centrifugal_distortion"], h5py.Dataset):
                     c_arr = np.asarray(spec_grp["centrifugal_distortion"][()], dtype=np.float64).flatten()
                     centrifugal = {
-                        "Delta_J": float(c_arr[0]) if len(c_arr) > 0 else 0.0,
-                        "Delta_JK": float(c_arr[1]) if len(c_arr) > 1 else 0.0,
-                        "Delta_K": float(c_arr[2]) if len(c_arr) > 2 else 0.0,
-                        "delta_J": float(c_arr[3]) if len(c_arr) > 3 else 0.0,
-                        "delta_K": float(c_arr[4]) if len(c_arr) > 4 else 0.0,
+                        "Delta_J": _finite_observation(c_arr[0]) if len(c_arr) > 0 else None,
+                        "Delta_JK": _finite_observation(c_arr[1]) if len(c_arr) > 1 else None,
+                        "Delta_K": _finite_observation(c_arr[2]) if len(c_arr) > 2 else None,
+                        "delta_J": _finite_observation(c_arr[3]) if len(c_arr) > 3 else None,
+                        "delta_K": _finite_observation(c_arr[4]) if len(c_arr) > 4 else None,
                     }
                 else:
                     centrifugal = {
-                        "Delta_J": float(cast(Any, spec_grp.attrs.get("Delta_J", spec_grp.attrs.get("DJ", 0.0)))),
-                        "Delta_JK": float(cast(Any, spec_grp.attrs.get("Delta_JK", spec_grp.attrs.get("DJK", 0.0)))),
-                        "Delta_K": float(cast(Any, spec_grp.attrs.get("Delta_K", spec_grp.attrs.get("DK", 0.0)))),
-                        "delta_J": float(cast(Any, spec_grp.attrs.get("delta_J", spec_grp.attrs.get("dJ", 0.0)))),
-                        "delta_K": float(cast(Any, spec_grp.attrs.get("delta_K", spec_grp.attrs.get("dK", 0.0)))),
+                        "Delta_J": _finite_observation(cast(Any, spec_grp.attrs.get("Delta_J", spec_grp.attrs.get("DJ", None)))),
+                        "Delta_JK": _finite_observation(cast(Any, spec_grp.attrs.get("Delta_JK", spec_grp.attrs.get("DJK", None)))),
+                        "Delta_K": _finite_observation(cast(Any, spec_grp.attrs.get("Delta_K", spec_grp.attrs.get("DK", None)))),
+                        "delta_J": _finite_observation(cast(Any, spec_grp.attrs.get("delta_J", spec_grp.attrs.get("dJ", None)))),
+                        "delta_K": _finite_observation(cast(Any, spec_grp.attrs.get("delta_K", spec_grp.attrs.get("dK", None)))),
                     }
 
                 return {
@@ -580,95 +650,48 @@ class DataAggregator:
                         therm_grp = cast(h5py.Group, f[c])
                         break
 
-                # 1. Zero-Point Energy
-                if "zpe_kcal_mol" in therm_grp.attrs:
-                    zpe_kcal = float(cast(Any, therm_grp.attrs["zpe_kcal_mol"]))
-                elif "zero_point_energy_kcal_mol" in therm_grp.attrs:
-                    zpe_kcal = float(cast(Any, therm_grp.attrs["zero_point_energy_kcal_mol"]))
-                elif "zpe_hartree" in therm_grp.attrs:
-                    zpe_kcal = float(cast(Any, therm_grp.attrs["zpe_hartree"])) * HARTREE_TO_KCAL_MOL
-                elif "zero_point_energy_hartree" in therm_grp.attrs:
-                    zpe_kcal = float(cast(Any, therm_grp.attrs["zero_point_energy_hartree"])) * HARTREE_TO_KCAL_MOL
-                elif "zero_point_energy" in therm_grp.attrs:
-                    zpe_raw = float(cast(Any, therm_grp.attrs["zero_point_energy"]))
-                    zpe_kcal = zpe_raw * HARTREE_TO_KCAL_MOL if abs(zpe_raw) < 50.0 else zpe_raw
-                elif "zero_point_energy" in therm_grp and isinstance(therm_grp["zero_point_energy"], h5py.Dataset):
-                    zpe_raw = float(therm_grp["zero_point_energy"][()])
-                    zpe_kcal = zpe_raw * HARTREE_TO_KCAL_MOL if abs(zpe_raw) < 50.0 else zpe_raw
-                elif "zpe" in therm_grp.attrs:
-                    zpe_raw = float(cast(Any, therm_grp.attrs["zpe"]))
-                    zpe_kcal = zpe_raw * HARTREE_TO_KCAL_MOL if abs(zpe_raw) < 50.0 else zpe_raw
-                elif "zpve" in therm_grp.attrs:
-                    zpve_raw = float(cast(Any, therm_grp.attrs["zpve"]))
-                    zpe_kcal = zpve_raw * HARTREE_TO_KCAL_MOL if abs(zpve_raw) < 50.0 else zpve_raw
-                else:
-                    zpe_kcal = 0.0
-
-                # 2. Enthalpy
-                if "enthalpy_kcal_mol" in therm_grp.attrs:
-                    h_kcal = float(cast(Any, therm_grp.attrs["enthalpy_kcal_mol"]))
-                elif "enthalpy_hartree" in therm_grp.attrs:
-                    h_kcal = float(cast(Any, therm_grp.attrs["enthalpy_hartree"])) * HARTREE_TO_KCAL_MOL
-                elif "enthalpy" in therm_grp.attrs:
-                    h_raw = float(cast(Any, therm_grp.attrs["enthalpy"]))
-                    h_kcal = h_raw * HARTREE_TO_KCAL_MOL
-                elif "enthalpy" in therm_grp and isinstance(therm_grp["enthalpy"], h5py.Dataset):
-                    h_raw = float(therm_grp["enthalpy"][()])
-                    h_kcal = h_raw * HARTREE_TO_KCAL_MOL
-                elif "enthalpy_298" in therm_grp.attrs:
-                    h_raw = float(cast(Any, therm_grp.attrs["enthalpy_298"]))
-                    h_kcal = h_raw * HARTREE_TO_KCAL_MOL
-                else:
-                    h_kcal = 0.0
-
-                # 3. Gibbs Free Energy
-                if "gibbs_free_energy_kcal_mol" in therm_grp.attrs:
-                    g_kcal = float(cast(Any, therm_grp.attrs["gibbs_free_energy_kcal_mol"]))
-                elif "gibbs_hartree" in therm_grp.attrs:
-                    g_kcal = float(cast(Any, therm_grp.attrs["gibbs_hartree"])) * HARTREE_TO_KCAL_MOL
-                elif "gibbs_free_energy" in therm_grp.attrs:
-                    g_raw = float(cast(Any, therm_grp.attrs["gibbs_free_energy"]))
-                    g_kcal = g_raw * HARTREE_TO_KCAL_MOL
-                elif "gibbs_free_energy" in therm_grp and isinstance(therm_grp["gibbs_free_energy"], h5py.Dataset):
-                    g_raw = float(therm_grp["gibbs_free_energy"][()])
-                    g_kcal = g_raw * HARTREE_TO_KCAL_MOL
-                elif "gibbs_298" in therm_grp.attrs:
-                    g_raw = float(cast(Any, therm_grp.attrs["gibbs_298"]))
-                    g_kcal = g_raw * HARTREE_TO_KCAL_MOL
-                elif "gibbs" in therm_grp.attrs:
-                    g_raw = float(cast(Any, therm_grp.attrs["gibbs"]))
-                    g_kcal = g_raw * HARTREE_TO_KCAL_MOL
-                else:
-                    g_kcal = 0.0
+                zpe_kcal = _hdf_energy_kcal(
+                    therm_grp, ("zpe_kcal_mol", "zero_point_energy_kcal_mol"),
+                    ("zpe_hartree", "zero_point_energy_hartree"),
+                    ("zero_point_energy", "zpe", "zpve"),
+                )
+                h_kcal = _hdf_energy_kcal(
+                    therm_grp, ("enthalpy_kcal_mol",), ("enthalpy_hartree",),
+                    ("enthalpy", "enthalpy_298"),
+                )
+                g_kcal = _hdf_energy_kcal(
+                    therm_grp, ("gibbs_free_energy_kcal_mol",), ("gibbs_hartree",),
+                    ("gibbs_free_energy", "gibbs_298", "gibbs"),
+                )
 
                 # 4. VPT2 Vibrational Frequencies
-                vpt2_freqs: List[float] = []
+                vpt2_freqs: List[Optional[float]] = []
                 for freq_key in ["vpt2_frequencies", "frequencies", "vpt2_frequencies_cm1", "anharmonic_frequencies", "vibrational_frequencies"]:
                     if freq_key in therm_grp and isinstance(therm_grp[freq_key], h5py.Dataset):
                         arr = np.asarray(therm_grp[freq_key][()], dtype=np.float64).flatten()
-                        vpt2_freqs = [float(x) for x in arr]
+                        vpt2_freqs = [_finite_observation(x) for x in arr]
                         break
                     elif freq_key in therm_grp.attrs:
                         raw_attr = therm_grp.attrs[freq_key]
                         if isinstance(raw_attr, (list, tuple, np.ndarray)):
-                            vpt2_freqs = [float(x) for x in raw_attr]
+                            vpt2_freqs = [_finite_observation(x) for x in raw_attr]
                         elif isinstance(raw_attr, str):
                             try:
                                 parsed = json.loads(raw_attr)
                                 if isinstance(parsed, list):
-                                    vpt2_freqs = [float(x) for x in parsed]
+                                    vpt2_freqs = [_finite_observation(x) for x in parsed]
                             except Exception as _e:
                                 logger.debug(f"Ignored exception: {_e}")
                         break
 
                 return {
-                    "zpe_kcal_mol": float(zpe_kcal),
-                    "zero_point_energy_kcal_mol": float(zpe_kcal),
-                    "zero_point_energy": float(zpe_kcal),
-                    "enthalpy_kcal_mol": float(h_kcal),
-                    "enthalpy": float(h_kcal),
-                    "gibbs_free_energy_kcal_mol": float(g_kcal),
-                    "gibbs_free_energy": float(g_kcal),
+                    "zpe_kcal_mol": zpe_kcal,
+                    "zero_point_energy_kcal_mol": zpe_kcal,
+                    "zero_point_energy": zpe_kcal,
+                    "enthalpy_kcal_mol": h_kcal,
+                    "enthalpy": h_kcal,
+                    "gibbs_free_energy_kcal_mol": g_kcal,
+                    "gibbs_free_energy": g_kcal,
                     "vpt2_frequencies_cm1": vpt2_freqs,
                     "vpt2_frequencies": vpt2_freqs,
                 }
@@ -723,14 +746,17 @@ class DataAggregator:
                 lines = content.splitlines()
                 data = json.loads(lines[-1])
 
-            wall_time = float(data.get(
+            wall_time = _finite_observation(data.get(
                 "wall_clock_seconds",
-                data.get("wall_clock_time_seconds", data.get("wall_clock_time", data.get("total_time_seconds", data.get("duration_seconds", 0.0))))
+                data.get("wall_clock_time_seconds", data.get("wall_clock_time", data.get("total_time_seconds", data.get("duration_seconds"))))
             ))
-            peak_vram = float(data.get(
-                "gpu_vram_peak_mb",
-                data.get("peak_gpu_vram_mb", data.get("peak_vram_mb", data.get("peak_vram_gb", 0.0) * 1024.0))
-            ))
+            peak_vram = None
+            for key in ("gpu_vram_peak_mb", "peak_gpu_vram_mb", "peak_vram_mb", "peak_vram_gb"):
+                if key in data:
+                    peak_vram = _finite_observation(data[key])
+                    if key == "peak_vram_gb" and peak_vram is not None:
+                        peak_vram = _finite_observation(peak_vram * 1024.0)
+                    break
 
             node_arch_raw = data.get("node_architecture", {})
             if isinstance(node_arch_raw, dict):
@@ -865,7 +891,7 @@ class DataAggregator:
             clean_records: List[Dict[str, Any]] = []
             for r in records:
                 conf_id = str(r.get("conformer_id", r.get("id", r.get("name", "conf"))))
-                rel_e = float(r.get("relative_energy_kcal_mol", r.get("relative_energy", r.get("energy_kcal_mol", 0.0))))
+                rel_e = _finite_observation(r.get("relative_energy_kcal_mol", r.get("relative_energy", r.get("energy_kcal_mol", None))))
                 sym = str(r.get("point_group_symmetry", r.get("symmetry", r.get("symmetry_group", "C1"))))
                 clean_records.append({
                     "conformer_id": conf_id,
@@ -873,7 +899,7 @@ class DataAggregator:
                     "relative_energy": rel_e,
                     "point_group_symmetry": sym,
                 })
-            clean_records.sort(key=lambda x: float(x["relative_energy_kcal_mol"]))
+            clean_records.sort(key=_conformer_energy_order)
             fallback_data["conformers"] = clean_records
 
         # 2. Spectroscopy Parquet Table
@@ -884,14 +910,14 @@ class DataAggregator:
             if spec_dict:
                 row = spec_dict[0]
                 rot = {
-                    "A": float(row.get("A", row.get("rot_A", 0.0))),
-                    "B": float(row.get("B", row.get("rot_B", 0.0))),
-                    "C": float(row.get("C", row.get("rot_C", 0.0))),
+                    "A": _finite_observation(row.get("A", row.get("rot_A", None))),
+                    "B": _finite_observation(row.get("B", row.get("rot_B", None))),
+                    "C": _finite_observation(row.get("C", row.get("rot_C", None))),
                 }
-                mu_a = float(row.get("mu_a", 0.0))
-                mu_b = float(row.get("mu_b", 0.0))
-                mu_c = float(row.get("mu_c", 0.0))
-                total_dip = float(row.get("total", row.get("dipole_total", math.sqrt(mu_a**2 + mu_b**2 + mu_c**2))))
+                mu_a = _finite_observation(row.get("mu_a", None))
+                mu_b = _finite_observation(row.get("mu_b", None))
+                mu_c = _finite_observation(row.get("mu_c", None))
+                total_dip = _finite_observation(row.get("total", row.get("dipole_total", _dipole_magnitude(mu_a, mu_b, mu_c))))
                 dip = {
                     "mu_a": mu_a,
                     "mu_b": mu_b,
@@ -899,11 +925,11 @@ class DataAggregator:
                     "total": total_dip,
                 }
                 cent = {
-                    "Delta_J": float(row.get("Delta_J", row.get("DJ", 0.0))),
-                    "Delta_JK": float(row.get("Delta_JK", row.get("DJK", 0.0))),
-                    "Delta_K": float(row.get("Delta_K", row.get("DK", 0.0))),
-                    "delta_J": float(row.get("delta_J", row.get("dJ", 0.0))),
-                    "delta_K": float(row.get("delta_K", row.get("dK", 0.0))),
+                    "Delta_J": _finite_observation(row.get("Delta_J", row.get("DJ", None))),
+                    "Delta_JK": _finite_observation(row.get("Delta_JK", row.get("DJK", None))),
+                    "Delta_K": _finite_observation(row.get("Delta_K", row.get("DK", None))),
+                    "delta_J": _finite_observation(row.get("delta_J", row.get("dJ", None))),
+                    "delta_K": _finite_observation(row.get("delta_K", row.get("dK", None))),
                 }
                 fallback_data["spectroscopy"] = {
                     "rotational_constants": rot,
@@ -918,14 +944,14 @@ class DataAggregator:
             therm_dict = df_therm.to_dict(orient="records")
             if therm_dict:
                 trow = therm_dict[0]
-                zpe = float(trow.get("zpe_kcal_mol", trow.get("zero_point_energy_kcal_mol", trow.get("zpe", 0.0))))
-                h = float(trow.get("enthalpy_kcal_mol", trow.get("enthalpy", 0.0)))
-                g = float(trow.get("gibbs_free_energy_kcal_mol", trow.get("gibbs_free_energy", 0.0)))
+                zpe = _finite_observation(trow.get("zpe_kcal_mol", trow.get("zero_point_energy_kcal_mol")))
+                h = _finite_observation(trow.get("enthalpy_kcal_mol"))
+                g = _finite_observation(trow.get("gibbs_free_energy_kcal_mol"))
                 freqs_raw = trow.get("vpt2_frequencies_cm1", trow.get("vpt2_frequencies", trow.get("frequencies", [])))
                 if isinstance(freqs_raw, np.ndarray):
-                    freqs = [float(x) for x in freqs_raw.flatten()]
+                    freqs = [_finite_observation(x) for x in freqs_raw.flatten()]
                 elif isinstance(freqs_raw, (list, tuple)):
-                    freqs = [float(x) for x in freqs_raw]
+                    freqs = [_finite_observation(x) for x in freqs_raw]
                 else:
                     freqs = []
                 fallback_data["thermodynamics"] = {
@@ -961,9 +987,6 @@ class DataAggregator:
         Returns:
             Clean, formatted pandas.DataFrame ready for tabular rendering.
         """
-        if isinstance(data, pd.DataFrame):
-            return data
-
         t_type = table_type.lower()
         if t_type == "conformers":
             return flatten_conformers_to_df(data)
@@ -1038,11 +1061,11 @@ class DataAggregator:
         except Exception as e_telem:
             logger.warning("Telemetry harvesting failed (%s); returning minimal record.", e_telem)
             payload["telemetry"] = {
-                "wall_clock_time_seconds": 0.0,
-                "wall_clock_seconds": 0.0,
-                "peak_gpu_vram_mb": 0.0,
-                "gpu_vram_peak_mb": 0.0,
-                "node_architecture": {"cpu_cores": 1, "gpu_model": "N/A", "hostname": "local"},
+                "wall_clock_time_seconds": None,
+                "wall_clock_seconds": None,
+                "peak_gpu_vram_mb": None,
+                "gpu_vram_peak_mb": None,
+                "node_architecture": {},
                 "log_source": "N/A",
             }
 

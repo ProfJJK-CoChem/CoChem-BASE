@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "scope": "BASE acceptance with explicitly reported external prerequisites",
+  "authorization": "The user authorized licensed ORCA and hosted Actions acceptance. Licensed tests run when their authentic engines and reference artifacts are supplied; free-only CI reports their missing prerequisites as external omissions, never passes. GPU, physical Slurm and native-platform acceptance remain deferred until a supplied host. Release evidence must include separate genuine licensed acceptance.",
+  "deferred_tests": [
+    {
+      "nodeid": "tests/calc/test_recipe_r2_execution.py::test_actual_recipe_r2_orca_five_leg_acceptance",
+      "expected_skip_reason": "Actual ORCA and supplied validated CCSD(T)/CBS reference artifacts are required",
+      "prerequisites": [
+        "Licensed ORCA installation",
+        "Authentic validated CCSD(T)/CBS reference artifacts"
+      ],
+      "category": "licensed_engine_and_reference",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "tests/srs/test_topos_physical_runner.py::test_physical_crest_goat_union",
+      "expected_skip_reason": "Real licensed ORCA and CREST engines are required for union acceptance",
+      "prerequisites": [
+        "Licensed ORCA GOAT installation",
+        "CREST installation"
+      ],
+      "category": "licensed_engine",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "tests/calc/test_t9_fallback.py::test_native_service_routes_live_failure_and_publishes_real_t9",
+      "expected_skip_reason": "Real licensed ORCA and an audited ORCA/PySCF registry are required for end-to-end T9 acceptance",
+      "prerequisites": [
+        "Licensed ORCA installation",
+        "Genuine audited ORCA and PySCF registry"
+      ],
+      "category": "licensed_engine",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "test_suite/test_cochem_core_hdf5_manager.py::test_is_master_node_detection_slurm",
+      "expected_skip_reason": "Requires physical SLURM node",
+      "prerequisites": [
+        "Execution on a physical Slurm allocation"
+      ],
+      "category": "host",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "test_suite/test_cochem_core_registry_manager.py::test_is_master_node_detection_slurm",
+      "expected_skip_reason": "Requires physical SLURM node",
+      "prerequisites": [
+        "Execution on a physical Slurm allocation"
+      ],
+      "category": "host",
+      "status": "pending_external_acceptance"
+    }
+  ]
+}

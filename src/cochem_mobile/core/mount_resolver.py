@@ -161,7 +161,6 @@ class HostToContainerMountResolver:
 
         # Normalize host path
         resolved_host = Path(host_path).resolve()
-        resolved_str = str(resolved_host)
 
         # Check explicit mount registrations with longest-prefix match
         for mapping in mappings:
@@ -173,7 +172,9 @@ class HostToContainerMountResolver:
                 continue
 
         # Handle implicit Windows to WSL / Linux translation
-        drive_match = re.match(r"^([a-zA-Z]):[\\/](.*)", resolved_str)
+        # Foreign Windows paths must retain their drive prefix on a POSIX host.
+        # Path.resolve() otherwise treats C:/... as a relative POSIX filename.
+        drive_match = re.match(r"^([a-zA-Z]):[\\/](.*)", str(host_path))
         if drive_match:
             drive_letter = drive_match.group(1).lower()
             rest = drive_match.group(2).replace("\\", "/")

@@ -994,6 +994,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     Returns:
         0 if repository is clean, 1 if violations are detected or on error.
     """
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 

@@ -1,35 +1,17 @@
-#!/usr/bin/env python3
-"""CoChem-SpycFit: Snapshot & Publication Export Interface.
+"""Spectroscopy snapshot handoff contract.
 
-Re-exports canonical symbols from cochem_base.interfaces.cochem_vibspyc_snap.
+This compatibility entrypoint prepares validated artifacts for integration.
+It does not execute the former advertised solver or service API.
 """
+from .integration_boundary import IntegrationBoundary
 
-from __future__ import annotations
+boundary = IntegrationBoundary(interface='cochem_vibspyc_snap', module_id='spycfit',
+                               operation='spectroscopy_snapshot', description='Spectroscopy snapshot handoff contract')
+get_capability = boundary.capability
+prepare_handoff = boundary.prepare_handoff
+main = boundary.main
 
-from cochem_base.interfaces.cochem_vibspyc_snap import (
-    FitProvenancePayload,
-    evaluate_compression_strategy,
-    export_spycfit_snapshot,
-    format_citations_to_bib,
-    generate_aastex_longtables,
-    get_required_dois,
-    get_spycfit_processed_dir,
-    hash_dataset_iteratively,
-    package_fit_artifacts,
-    resolve_processed_workspace_dir,
-    seal_artifact_read_only,
-)
+__all__ = ["boundary", "get_capability", "prepare_handoff", "main"]
 
-__all__ = [
-    "FitProvenancePayload",
-    "get_spycfit_processed_dir",
-    "resolve_processed_workspace_dir",
-    "hash_dataset_iteratively",
-    "generate_aastex_longtables",
-    "get_required_dois",
-    "format_citations_to_bib",
-    "evaluate_compression_strategy",
-    "package_fit_artifacts",
-    "seal_artifact_read_only",
-    "export_spycfit_snapshot",
-]
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -89,14 +89,27 @@ def assert_writable_path(
     """Validate that target_path does not violate read-only Air-Gap boundaries ($COCH_SRC, $COCH_DATA, COCHEM_REPO_DIR)."""
     resolved_target = pathlib.Path(target_path).resolve()
 
-    # Check COCHEM_REPO_DIR or COCH_SRC
-    repo_env = os.environ.get("COCHEM_REPO_DIR") or os.environ.get("COCH_SRC")
-    if repo_env:
-        resolved_repo = pathlib.Path(repo_env).resolve()
+    # Every configured source boundary applies; aliases do not override one another.
+    source_roots = {
+        pathlib.Path(os.environ[name]).expanduser().resolve()
+        for name in ("COCHEM_REPO_DIR", "COCH_SRC", "COCHEM_ROOT")
+        if os.environ.get(name)
+    }
+    for ancestor in pathlib.Path(__file__).resolve().parents:
+        if (ancestor / ".git").exists() and (ancestor / "pyproject.toml").is_file():
+            source_roots.add(ancestor)
+            break
+    for resolved_repo in source_roots:
         if resolved_target == resolved_repo or resolved_repo in resolved_target.parents:
             raise AirGapViolationError(
-                f"Air-Gap Violation: Target path '{resolved_target}' falls within read-only codebase tier (COCHEM_REPO_DIR='{resolved_repo}')."
+                f"Air-Gap Violation: Target path '{resolved_target}' falls within read-only codebase tier ('{resolved_repo}')."
             )
+
+    data_env = os.environ.get("COCH_DATA")
+    if data_env:
+        data_root = pathlib.Path(data_env).resolve()
+        if resolved_target == data_root or data_root in resolved_target.parents:
+            raise AirGapViolationError(f"Target path '{resolved_target}' is in immutable baseline data '{data_root}'")
 
     active_ctx = ctx or _CURRENT_CONTEXT.get()
     if active_ctx is not None:
@@ -193,8 +206,8 @@ class AtomicWrite:
 class FileLock:
     """Cross-process and cross-thread file locking for Local/Cloud tiers (Tier 1-4) with strict HPC tier prohibition.
 
-    Features adaptive exponential backoff with random jitter, stale lock resolution (>300s),
-    and cross-platform low-latency primitives.
+    Features adaptive exponential backoff with random jitter and kernel-managed
+    ownership recovery after process death. Active locks are never removed by age.
     """
 
     def __init__(
@@ -230,19 +243,6 @@ class FileLock:
         assert_writable_path(self.lock_path)
         self._target_file.parent.mkdir(parents=True, exist_ok=True)
 
-        # Stale lock resolution: if older than 300s, clear lock file
-        if self._target_file.exists():
-            try:
-                mtime = self._target_file.stat().st_mtime
-                if time.time() - mtime > 300.0:
-                    logger.warning("Detected stale lock file (>300s) at %s; clearing.", self._target_file)
-                    try:
-                        self._target_file.unlink(missing_ok=True)
-                    except OSError as e:
-                        logger.debug("Ignored OSError during lock cleanup: %s", e)
-            except OSError as e:
-                logger.debug("Ignored OSError during lock cleanup: %s", e)
-
         start_time = time.perf_counter()
         current_delay = initial_delay_sec
 
@@ -269,7 +269,9 @@ class FileLock:
 
                 elapsed = time.perf_counter() - start_time
                 if elapsed >= self.timeout_sec:
-                    return False
+                    raise TimeoutError(
+                        f"Timed out after {self.timeout_sec}s acquiring lock on {self.lock_path}"
+                    )
 
                 jitter_mult = 0.5 + ((time.perf_counter_ns() % 1000) / 1000.0)
                 sleep_time = (current_delay * jitter_mult) if jitter else current_delay

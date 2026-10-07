@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import platform
+import sys
 from pathlib import Path
 
 import pytest
@@ -427,10 +428,9 @@ def test_load_deployment_manifest_real_file(tmp_path: Path) -> None:
 
 
 def test_load_deployment_manifest_missing_file() -> None:
-    """Test load_deployment_manifest handles non-existent manifest gracefully."""
-    loaded, path_str = load_deployment_manifest(manifest_path="/nonexistent/manifest.json")
-    # Returns empty dict if not found
-    assert isinstance(loaded, dict)
+    """An explicitly selected missing manifest cannot fall back to another scope."""
+    with pytest.raises(Phase4AuditError, match="Invalid deployment manifest"):
+        load_deployment_manifest(manifest_path="/nonexistent/manifest.json")
 
 
 def test_filter_silos_by_manifest_heavy_requested() -> None:
@@ -502,38 +502,39 @@ def test_scan_local_fallback_binaries_with_fixtures(tmp_path: Path) -> None:
 
 
 def test_dynamic_version_walking_chain_progression() -> None:
-    """Test execute_dynamic_version_walking steps down versions gracefully."""
-    # Force failure on 3.11 to test stepping down to 3.10
+    """Only a real interpreter probe can establish an available version."""
+    current = f"{sys.version_info.major}.{sys.version_info.minor}"
     result = execute_dynamic_version_walking(
-        target_version="3.11",
-        version_chain=["3.11", "3.10", "3.9"],
-        force_failure_for_version="3.11",
+        target_version=current,
+        version_chain=["0.0", current],
     )
-    assert result.initial_version == "3.11"
-    assert result.resolved_version == "3.10"
+    assert result.initial_version == current
+    assert result.resolved_version == current
     assert len(result.steps) == 2
-    assert result.steps[0].attempted_version == "3.11"
+    assert result.steps[0].attempted_version == "0.0"
     assert result.steps[0].success is False
-    assert result.steps[1].attempted_version == "3.10"
+    assert result.steps[1].attempted_version == current
     assert result.steps[1].success is True
+    with pytest.raises(ValueError, match="Synthetic compiler failures"):
+        execute_dynamic_version_walking(force_failure_for_version=current)
 
 
 def test_dynamic_version_walking_with_fallback_wheel(tmp_path: Path) -> None:
-    """Test execute_dynamic_version_walking locates and binds local fallback wheel."""
+    """An archive name does not establish a working Python interpreter."""
     wheel_dir = tmp_path / "wheelhouse"
     wheel_dir.mkdir()
     wheel_file = wheel_dir / "pyscf-2.4.0-cp310-cp310-win_amd64.whl"
     wheel_file.write_bytes(b"PK\x03\x04binary_wheel_data")
 
     result = execute_dynamic_version_walking(
-        target_version="3.11",
-        version_chain=["3.11", "3.10", "3.9"],
+        target_version="0.0",
+        version_chain=["0.0"],
         fallback_search_dirs=[wheel_dir],
-        force_failure_for_version="3.11",
     )
-    assert result.resolved_version == "3.10"
-    assert result.used_local_fallback is True
-    assert result.fallback_binary_path == str(wheel_file)
+    assert result.resolved_version is None
+    assert result.used_local_fallback is False
+    assert result.fallback_binary_path is None
+    assert result.status == "FAILED"
 
 
 # =============================================================================
@@ -622,12 +623,17 @@ def test_verify_mendeleev_authority_carbon13_standard() -> None:
 # =============================================================================
 
 
-def test_audit_ipc_and_mps_security_clean_environment() -> None:
-    """Test audit_ipc_and_mps_security in clean environment without active MPS."""
-    audit = audit_ipc_and_mps_security()
+def test_audit_ipc_and_mps_security_clean_environment(tmp_path: Path) -> None:
+    """Absent sockets cannot establish IPC shielding or namespace separation."""
+    audit = audit_ipc_and_mps_security(tmp_path / "no-service")
     assert audit.is_permission_secure is True
-    assert audit.pid_namespace_isolated is True
-    assert audit.ipc_spoofing_shielded is True
+    self_ns, init_ns = Path("/proc/self/ns/pid"), Path("/proc/1/ns/pid")
+    try:
+        distinct = self_ns.stat().st_ino != init_ns.stat().st_ino
+    except OSError:
+        distinct = False
+    assert audit.pid_namespace_isolated is distinct
+    assert audit.ipc_spoofing_shielded is False
 
 
 def test_audit_ipc_and_mps_security_with_fixture_socket_dir(tmp_path: Path) -> None:
@@ -666,11 +672,12 @@ def test_provision_micro_silo_real_venv_creation(tmp_path: Path) -> None:
         name="cochem_core_silo",
         silo_type=SiloType.CORE,
         target_path=str(target_silo),
-        python_version="3.11",
+        python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
         is_mandatory=True,
         is_requested=True,
         is_heavy=False,
-        packages=["pydantic", "h5py"],
+        packages=["filelock"],
+        pip_packages=["filelock==3.32.7"],
         env_vars={"OMP_STACKSIZE": "64M"},
         stack_flags=get_native_stack_flags(),
         description="Test core silo",
@@ -686,6 +693,7 @@ def test_provision_micro_silo_real_venv_creation(tmp_path: Path) -> None:
     assert item.python_executable is not None
     assert Path(item.python_executable).exists()
     assert (target_silo / "cochem_silo_env.json").exists()
+    assert item.packages_verified == ["filelock"]
 
 
 def test_provision_micro_silo_idempotency_existing_venv(tmp_path: Path) -> None:
@@ -695,7 +703,7 @@ def test_provision_micro_silo_idempotency_existing_venv(tmp_path: Path) -> None:
         name="cochem_ui_silo",
         silo_type=SiloType.UI,
         target_path=str(target_silo),
-        python_version="3.11",
+        python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
         is_mandatory=False,
         is_requested=True,
         is_heavy=False,
@@ -731,7 +739,7 @@ def test_provision_micro_silo_bypassed_unrequested(tmp_path: Path) -> None:
 
 
 def test_audit_micro_silos_full_suite(tmp_path: Path) -> None:
-    """Test audit_micro_silos provisions and audits all 4 silos correctly."""
+    """Exercise fresh isolated lifecycle with one pinned lightweight dependency."""
     silos_dir = tmp_path / "silos"
     manifest_filter = ManifestFilterAudit(
         manifest_loaded=True,
@@ -740,7 +748,13 @@ def test_audit_micro_silos_full_suite(tmp_path: Path) -> None:
         disk_space_saved_estimated_mb=9000.0,
     )
 
-    silos = audit_micro_silos(silos_dir, manifest_filter=manifest_filter, dry_run=False)
+    configs = get_default_silo_configs(silos_dir, manifest_filter)
+    for name, config in configs.items():
+        config.target_path = str(silos_dir / name)
+        config.python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        config.packages = ["filelock"]
+        config.pip_packages = ["filelock==3.32.7"]
+    silos = audit_micro_silos(silos_dir, manifest_filter=manifest_filter, custom_configs=configs, dry_run=False)
     assert len(silos) == 4
     assert silos["cochem_core_silo"].is_available is True
     assert silos["cochem_core_silo"].status is SiloStatus.PROVISIONED

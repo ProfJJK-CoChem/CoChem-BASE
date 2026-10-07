@@ -1,0 +1,135 @@
+name: ORCA calculation
+
+on:
+  # Temporary integration pilot: register and exercise this workflow before it
+  # reaches the default branch. Classroom assignment branches do not auto-run.
+  push:
+    branches: [codex/orca-6.1.1-actions]
+    paths:
+      - '.github/workflows/orca_calculation.yml'
+      - 'src/cochem_base/calc/cochem_calc_input_generator.py'
+  workflow_dispatch:
+    inputs:
+      job_file:
+        description: Repository-relative path to the exported calculation JSON
+        required: true
+        default: examples/jobs/water-single-point.json
+        type: string
+      cores:
+        description: ORCA CPU processes (each uses one thread)
+        required: true
+        default: '2'
+        type: choice
+        options: ['1', '2']
+      maxcore_mb:
+        description: Memory in MB per ORCA process (1–1024)
+        required: true
+        default: '512'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: orca-calculation-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  calculate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      COCHEM_HEADLESS: '1'
+      COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
+      QT_QPA_PLATFORM: offscreen
+      # A push pilot checks two-process optimization plus harmonic frequencies.
+      # Dispatch keeps the user's selected file and the form's single-point default.
+      JOB_FILE: ${{ github.event_name == 'push' && 'examples/jobs/water-harmonic.json' || inputs.job_file || 'examples/jobs/water-single-point.json' }}
+      JOB_CORES: ${{ inputs.cores || '2' }}
+      JOB_MAXCORE_MB: ${{ inputs.maxcore_mb || '512' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare external evidence and a fresh Stage 0 registry
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/orca-evidence"
+          echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
+          echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
+          git rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/source-commit.txt"
+      - name: Check the submitted file and Classroom resource limits
+        run: |
+          python scripts/run_actions_calculation.py --preflight-only \
+            --job-file "$JOB_FILE" --cores "$JOB_CORES" --maxcore-mb "$JOB_MAXCORE_MB"
+      - name: Audit the checked-out BASE source
+        run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/orca-evidence/source-audit"
+      - name: Install native prerequisites and reserve distribution disk space
+        env:
+          RUNNER_HOST_KIND: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_HOST_KIND" != "github-hosted" || "$RUNNER_OS" != "Linux" ]]; then
+            echo '::error::SDK cleanup is restricted to this disposable GitHub-hosted Linux job.'
+            exit 1
+          fi
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/ghc
+          sudo apt-get update
+          sudo apt-get install --yes build-essential libgfortran5
+          df -h "$RUNNER_TEMP"
+      - name: Install the checksum-pinned private ORCA distribution
+        uses: ./.github/actions/setup-orca
+        with:
+          asset-token: ${{ secrets.ORCA_ASSET_READ_TOKEN }}
+      - name: Install BASE and execute all eleven Stage 0 phases
+        run: |
+          set -euo pipefail
+          if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
+            > "$RUNNER_TEMP/orca-evidence/stage0-setup.log" 2>&1; then
+            tail -n 30 "$RUNNER_TEMP/orca-evidence/stage0-setup.log"
+          else
+            status=$?
+            tail -n 100 "$RUNNER_TEMP/orca-evidence/stage0-setup.log"
+            exit "$status"
+          fi
+      - name: Record audited hosted CPU allocation
+        run: |
+          python - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          registry = json.loads(Path(os.environ['COCHEM_CONFIG']).read_text())
+          evidence = {'hardware': registry['hardware'],
+              'cpu_allocation': (registry.get('execution') or {}).get('cpu_allocation')}
+          report = json.dumps(evidence, indent=2)
+          (Path(os.environ['RUNNER_TEMP']) / 'orca-evidence/cpu-allocation.json').write_text(report + '\n')
+          print(report)
+          PYCODE
+      - name: Validate and run the requested real ORCA calculation
+        run: |
+          set -euo pipefail
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/run_actions_calculation.py \
+            --job-file "$JOB_FILE" --cores "$JOB_CORES" --maxcore-mb "$JOB_MAXCORE_MB" \
+            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/orca-evidence/student-job"
+      - name: Retain scientific results and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orca-calculation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/orca-evidence/
+            ${{ runner.temp }}/cochem-artifacts/Registry/*.json
+            ${{ runner.temp }}/cochem-artifacts/Registry/*.sha256
+            ${{ runner.temp }}/cochem-openmpi-build/**/*.log
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove the job-local licensed installation
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/cochem-orca-install" "$RUNNER_TEMP/cochem-orca-download"

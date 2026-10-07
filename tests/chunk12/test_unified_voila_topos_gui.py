@@ -7,12 +7,12 @@ Strict Zero-Mock Mandate: Conformer generation protocols and CUDA pooling.
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 
-import pytest
 from frontend.cochem_topos_ui import (
     CochemToposUI,
     clamp_vram_ceiling,
-    discover_cuda_devices,
     get_conformer_search_protocol,
 )
 
@@ -35,10 +35,9 @@ def test_cuda_device_pooling_and_vram_ceiling():
     assert clamp_vram_ceiling(vram_free_gb=10.0) == 8.0
     assert clamp_vram_ceiling(vram_free_gb=0.0) == 0.0
 
-def test_cuda_discovery_and_cpu_fallback(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
-    devices = discover_cuda_devices()
-    assert isinstance(devices, list)
-    if len(devices) == 0:
-        threads = int(os.environ.get("OMP_NUM_THREADS", "4"))
-        assert threads >= 1
+def test_cuda_discovery_and_cpu_fallback():
+    completed = subprocess.run(
+        [sys.executable, "-c", "from frontend.cochem_topos_ui import discover_cuda_devices; assert discover_cuda_devices() == []"],
+        env=dict(os.environ, CUDA_VISIBLE_DEVICES=""), capture_output=True, text=True, timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr

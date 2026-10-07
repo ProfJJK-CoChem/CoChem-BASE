@@ -452,9 +452,9 @@ class SCFResult(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     point_idx: int
-    energy_hartree: float
-    converged: bool = True
-    vram_used_mb: float = 0.0
+    energy_hartree: float = Field(..., allow_inf_nan=False)
+    converged: Optional[bool] = Field(default=None, strict=True)
+    vram_used_mb: Optional[float] = Field(default=None, ge=0.0, allow_inf_nan=False)
     coordinates: np.ndarray
 
 
@@ -580,10 +580,10 @@ class ORCAStepResult(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     step_idx: int = 0
-    energy: float = 0.0
+    energy: float = Field(..., allow_inf_nan=False)
     coordinates: np.ndarray
     gradient: Optional[np.ndarray] = None
-    converged: bool = True
+    converged: Optional[bool] = Field(default=None, strict=True)
     mo_coefficients: Optional[np.ndarray] = None
     fock_matrix: Optional[np.ndarray] = None
     density_matrix: Optional[np.ndarray] = None
@@ -1019,23 +1019,14 @@ def dynamic_wavefunction_propagation(
     shm_dir = context.get_shm_dir()
     seed_file = shm_dir / f"seed_{context.session_id[:8]}.gbw"
 
-    if previous_result.gbw_bytes:
-        with open(seed_file, "wb") as f:
-            f.write(previous_result.gbw_bytes)
-    else:
-        h5_seed = shm_dir / f"seed_{context.session_id[:8]}.chk"
-        with h5py.File(h5_seed, "w") as h5f:
-            if previous_result.mo_coefficients is not None:
-                h5f.create_dataset("mo_coefficients", data=previous_result.mo_coefficients)
-            if previous_result.fock_matrix is not None:
-                h5f.create_dataset("fock_matrix", data=previous_result.fock_matrix)
-            if previous_result.density_matrix is not None:
-                h5f.create_dataset("density_matrix", data=previous_result.density_matrix)
-            h5f.attrs["energy"] = previous_result.energy
-            h5f.attrs["step_idx"] = previous_result.step_idx
-
-        with open(seed_file, "wb") as f:
-            f.write(b"ORCA_GBW_CHECKPOINT_SEED_V61\n" + h5_seed.read_bytes())
+    checkpoint = previous_result.gbw_bytes
+    if checkpoint is None and previous_result.gbw_path is not None:
+        checkpoint = previous_result.gbw_path.read_bytes()
+    if not checkpoint:
+        raise ValueError("Wavefunction propagation requires a nonempty ORCA GBW checkpoint")
+    if checkpoint.startswith((b"ORCA_GBW_CHECKPOINT_SEED_V61", b"\x89HDF")):
+        raise ValueError("An HDF5 tensor archive is not an ORCA GBW checkpoint")
+    seed_file.write_bytes(checkpoint)
 
     updated_payload = next_payload.model_copy(deep=True)
     updated_payload.use_moread = True
@@ -1055,57 +1046,55 @@ def dynamic_wavefunction_propagation(
 def _parse_orca_engrad_or_output(
     engrad_path: Path,
     out_content: str,
-    n_atoms: int
+    n_atoms: int,
 ) -> Tuple[float, np.ndarray, bool]:
-    """
-    Parses exact energy, gradient, and convergence flag from ORCA .engrad file and stdout.
-    """
-    energy = 0.0
-    gradient = np.full((n_atoms, 3), 0.0, dtype=np.float64)
-    converged = "ORCA TERMINATED NORMALLY" in out_content
-
-    # Try .engrad first for highest precision
-    if engrad_path.exists():
+    """Read complete, finite energy/gradient evidence; absence never means zero."""
+    if isinstance(n_atoms, bool) or n_atoms < 1:
+        raise ValueError("A positive atom count is required")
+    number = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][-+]?\d+)?"
+    energy: Optional[float] = None
+    gradient: Optional[np.ndarray] = None
+    if engrad_path.is_file():
+        # ORCA's ENGRAD layout is atom count, energy, 3N gradient components,
+        # followed by atomic numbers/coordinates. Section comments are not data.
+        fields = [line.strip() for line in engrad_path.read_text(encoding="utf-8").splitlines()
+                  if line.strip() and not line.lstrip().startswith("#")]
         try:
-            lines = engrad_path.read_text(encoding="utf-8").splitlines()
-            for i, line in enumerate(lines):
-                if "total energy in Eh" in line.lower() and i + 1 < len(lines):
-                    energy = float(lines[i + 1].strip())
-                if "gradient in Eh/bohr" in line.lower():
-                    grad_vals = []
-                    for j in range(i + 1, len(lines)):
-                        val_str = lines[j].strip()
-                        if val_str and not val_str.startswith("#"):
-                            grad_vals.append(float(val_str))
-                            if len(grad_vals) == n_atoms * 3:
-                                break
-                    if len(grad_vals) == n_atoms * 3:
-                        gradient = np.array(grad_vals, dtype=np.float64).reshape((n_atoms, 3))
-        except Exception as e:
-            logger.debug(f"Could not parse .engrad: {e}")
-
-    # Fallback to stdout if energy not found
-    if energy == 0.0:
-        e_match = re.search(r"(?:FINAL SINGLE POINT ENERGY|TOTAL ENERGY)\s+(-?\d+\.\d+)", out_content)
-        if e_match:
-            energy = float(e_match.group(1))
-
-    # Fallback gradient from stdout
-    if np.all(gradient == 0.0):
-        grad_match = re.search(r"CARTESIAN GRADIENT.*?\n\n(.*?)(?=\n\n|\n[A-Z]|\Z)", out_content, re.DOTALL)
-        if grad_match:
-            parsed_grad = []
-            for line in grad_match.group(1).strip().splitlines():
-                parts = line.split()
-                if len(parts) >= 6 and not line.startswith("-"):
-                    try:
-                        parsed_grad.append([float(parts[3]), float(parts[4]), float(parts[5])])
-                    except ValueError:
-                        pass
-            if len(parsed_grad) == n_atoms:
-                gradient = np.array(parsed_grad, dtype=np.float64)
-
-    return energy, gradient, converged
+            if int(fields[0]) != n_atoms:
+                raise ValueError("ENGRAD atom count disagrees with the geometry")
+            energy = float(fields[1].replace("D", "E").replace("d", "e"))
+            components = [float(value.replace("D", "E").replace("d", "e"))
+                          for value in fields[2:2 + 3 * n_atoms]]
+            if len(components) != 3 * n_atoms:
+                raise ValueError("ENGRAD gradient is incomplete")
+            gradient = np.asarray(components, dtype=np.float64).reshape(n_atoms, 3)
+        except (IndexError, TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid ORCA ENGRAD evidence: {exc}") from exc
+    else:
+        energies = re.findall(r"(?:FINAL SINGLE POINT ENERGY|TOTAL ENERGY)\s+(" + number + r")", out_content)
+        if energies:
+            energy = float(energies[-1].replace("D", "E").replace("d", "e"))
+        headings = list(re.finditer(r"CARTESIAN GRADIENT[^\n]*\n", out_content))
+        if headings:
+            rows = []
+            row_pattern = re.compile(r"\s*(\d+)\s+[A-Za-z]+\s*:?\s*(" + number + r")\s+(" + number + r")\s+(" + number + r")\s*$")
+            for line in out_content[headings[-1].end():].splitlines():
+                match = row_pattern.fullmatch(line)
+                if match:
+                    if int(match[1]) != len(rows):
+                        raise ValueError("ORCA gradient indices are incomplete or duplicated")
+                    rows.append([float(value.replace("D", "E").replace("d", "e")) for value in match.groups()[1:]])
+                elif rows:
+                    break
+            if len(rows) == n_atoms:
+                gradient = np.asarray(rows, dtype=np.float64)
+    if energy is None or gradient is None:
+        raise ValueError("ORCA output lacks complete energy and gradient evidence")
+    if not np.isfinite(energy) or not np.isfinite(gradient).all():
+        raise ValueError("ORCA energy and gradient evidence must be finite")
+    converged = ("ORCA TERMINATED NORMALLY" in out_content
+                 and not re.search(r"SCF\s+(?:NOT\s+CONVERGED|DID\s+NOT\s+CONVERGE)", out_content, re.I))
+    return energy, gradient, bool(converged)
 
 
 def opi_persistent_threading(
@@ -1160,10 +1149,12 @@ def opi_persistent_threading(
 
         logger.info(f"[OPI Thread] Executing ORCA step {idx} (n_procs={safe_n_procs}) at {inp_path}")
         try:
+            from cochem_base.core_engine.engine_environment import engine_runtime_environment
             stdout, stderr, ret_code = execute_subprocess_safe(
                 cmd=[orca_bin, str(inp_path)],
                 cwd=scratch_dir,
-                timeout=3600.0
+                timeout=3600.0,
+                env=engine_runtime_environment("orca", executable=orca_bin),
             )
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(stdout)
@@ -1350,14 +1341,21 @@ def safe_process_tree_teardown(parent_pid: int, timeout_sec: float = 5.0) -> Non
 
 
 _SPAWNED_PIDS: set[int] = set()
+_SPAWNED_HANDLES: Dict[int, subprocess.Popen] = {}
 
 
-def register_spawned_process(pid: int) -> None:
+def register_spawned_process(pid: int, process: Optional[subprocess.Popen] = None) -> None:
+    if process is None:
+        raise ValueError("Process ownership requires its Popen handle, not a bare PID")
+    if process.pid != pid:
+        raise ValueError("Owned process handle and PID disagree")
     _SPAWNED_PIDS.add(pid)
+    _SPAWNED_HANDLES[pid] = process
 
 
 def unregister_spawned_process(pid: int) -> None:
     _SPAWNED_PIDS.discard(pid)
+    _SPAWNED_HANDLES.pop(pid, None)
 
 
 def execute_subprocess_safe(
@@ -1387,7 +1385,7 @@ def execute_subprocess_safe(
             env=run_env
         )
         if proc.pid:
-            register_spawned_process(proc.pid)
+            register_spawned_process(proc.pid, proc)
 
         stdout, stderr = proc.communicate(input=stdin_data, timeout=timeout)
         ret_code = proc.returncode
@@ -1426,19 +1424,16 @@ def execute_subprocess_safe(
 
 
 def cleanup_all_cochem_processes() -> None:
-    """
-    Registered atexit handler to ensure no orphaned child orca, xtb, or mpi processes remain.
-    """
-    current_pid = os.getpid()
-    try:
-        current_proc = psutil.Process(current_pid)
-        for child in current_proc.children(recursive=True):
-            try:
-                child.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
-        pass
+    """Reap only subprocess handles created by this engine, never other callers' children."""
+    for pid, process in tuple(_SPAWNED_HANDLES.items()):
+        try:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            logger.warning("Could not reap owned engine process %s: %s", pid, exc)
+        finally:
+            unregister_spawned_process(pid)
 
 
 # Register clean process teardown at program exit

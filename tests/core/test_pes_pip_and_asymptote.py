@@ -71,7 +71,7 @@ def test_pes_pip_feature_and_energy_invariance() -> None:
         _build_water_dimer(3.10),
         _build_water_dimer(3.50),
     ], dtype=np.float64)
-    # Authentic physical interaction energies in kcal/mol
+    # Supplied numerical interaction-energy targets in kcal/mol; no quantum provenance is claimed.
     train_energies = np.array([-2.10, -4.85, -5.02, -4.31, -2.15], dtype=np.float64)
     train_feats = featurizer.compute_morse_features(train_geoms)
 
@@ -104,7 +104,7 @@ def test_pes_asymptotic_dissociation_baseline() -> None:
     train_geoms_list = [_build_water_dimer(r) for r in r_grid]
     train_geoms = np.array(train_geoms_list, dtype=np.float64)
 
-    # Morse-Lennard-Jones-like authentic water dimer interaction energies in kcal/mol
+    # Analytical Morse/Lennard-Jones-like solver fixture in kcal/mol.
     # Well minimum ~ -5.0 kcal/mol near 2.95 A, decaying to 0.0 kcal/mol at asymptote (Task 6)
     def physical_v_int(r: float) -> float:
         if r >= 15.0:
@@ -132,3 +132,7 @@ def test_pes_asymptotic_dissociation_baseline() -> None:
         f"Asymptotic interaction energy at R=25 A failed baseline gate: {v_asymptote:.6e} kcal/mol "
         f"(expected |V_int| < 1e-4 kcal/mol)"
     )
+    # Unseen larger separations must also respect the same boundary tolerance.
+    for separation in (30.0, 50.0, 100.0):
+        prediction = krr.predict(featurizer.compute_morse_features(_build_water_dimer(separation)))
+        assert abs(prediction) < 1e-4

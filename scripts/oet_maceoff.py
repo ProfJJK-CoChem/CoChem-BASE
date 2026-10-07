@@ -23,7 +23,7 @@ Contract Specifications (Method Matrix v4 §10.1-10.8):
     Output gradient: Eh/bohr = (-Force_eV_per_Angstrom) * 0.529177210903 / 27.211386245988
     Sign flip is mandatory: ASE returns forces F, ORCA requires energy gradients (nabla E = -F).
 - Model & Precision (Method Matrix §10.7 & §4.4):
-    Default model: 'medium' (MACE-OFF23 / MACE-OFF24 suite: small | medium | large)
+    Default model: 'off24-medium' (official MACE-OFF24 release v0.2, pinned checkpoint)
     Default device: 'cuda' (falls back to 'cpu' or 'mps' if specified)
     Default dtype: 'float64' for geometry optimizations (TightOpt / GOAT), 'float32' for MD
 - Physical Domain Constraints (Method Matrix §10.7):
@@ -64,6 +64,10 @@ BOHR_PER_A: float = ANGSTROM_TO_BOHR
 HARTREE_TO_KCAL_MOL: float = 627.5094740631
 HARTREE_TO_KJ_MOL: float = 2625.4996394799
 EV_PER_ANG_TO_EH_PER_BOHR: float = EH_PER_EV / BOHR_PER_A
+MACE_OFF24_MEDIUM_URL = (
+    "https://raw.githubusercontent.com/ACEsuit/mace-off/"
+    "91a78c5a9c300d1104700d9352c8bfe449227737/mace_off24/MACE-OFF24_medium.model"
+)
 
 logger = logging.getLogger("cochem.topos.oet_maceoff")
 
@@ -99,7 +103,7 @@ class EngradResult:
 class MACEOFFConfig:
     """Configuration options for MACE-OFF calculation execution."""
 
-    model: str = "medium"
+    model: str = "off24-medium"
     device: str = "cuda"
     default_dtype: str = "float64"
     model_path: str | None = None
@@ -321,6 +325,15 @@ def write_engrad(
     <g1y>
     ...
     """
+    if isinstance(num_atoms, bool) or not isinstance(num_atoms, int) or num_atoms <= 0:
+        raise ValueError("The engrad atom count must be a positive integer.")
+    if not math.isfinite(float(energy_Eh)):
+        raise ValueError("Cannot write a non-finite MACE energy.")
+    if dograd and (
+        len(gradient_Eh_bohr) != 3 * num_atoms
+        or not all(math.isfinite(float(value)) for value in gradient_Eh_bohr)
+    ):
+        raise ValueError("Cannot write incomplete or non-finite MACE gradients.")
     p = Path(engrad_path).resolve()
     p.parent.mkdir(parents=True, exist_ok=True)
 
@@ -367,253 +380,58 @@ def validate_maceoff_constraints(inp_data: ExtInpData) -> None:
         )
 
 
+class MACEBackendUnavailableError(RuntimeError):
+    """The requested pretrained MACE model cannot produce scientific evidence."""
+
+
 class PhysicalMACEOFFFallbackCalculator:
-    """Physical multi-atom potential calculator fallback when PyTorch MACE model is uninitialized.
-
-    Computes realistic interatomic potential energy and analytical gradients based on
-    Mendeleev dynamic atomic masses, covalent radii, and pair interactions.
-    Enforces Zero-Mock compliance without stub logic.
-    """
-
-    implemented_properties = ["energy", "forces"]
+    """Retired compatibility name; an untrained pair potential is not MACE evidence."""
 
     def __init__(self, charge: int = 0, multiplicity: int = 1) -> None:
-        self.charge = charge
-        self.multiplicity = multiplicity
-        self.results: dict[str, Any] = {}
-
-    def calculate_energy_and_forces(
-        self,
-        symbols: Sequence[str],
-        coordinates_angstrom: Sequence[Sequence[float]],
-    ) -> tuple[float, list[list[float]]]:
-        """Compute potential energy in eV and forces in eV/Angstrom."""
-        coords = [list(c) for c in coordinates_angstrom]
-        n = len(symbols)
-        if n == 0:
-            return 0.0, []
-
-        if n == 1:
-            z = get_element_atomic_number(symbols[0])
-            # Single-atom baseline electronic energy in eV
-            e_atom_ev = -13.6056980659 * (z ** 1.2)
-            return e_atom_ev, [[0.0, 0.0, 0.0]]
-
-        total_energy_ev = 0.0
-        forces_ev_ang: list[list[float]] = [[0.0, 0.0, 0.0] for _ in range(n)]
-
-        # Baseline atomic self-energies using Mendeleev atomic properties
-        for sym in symbols:
-            z = get_element_atomic_number(sym)
-            total_energy_ev += -13.6056980659 * (z ** 1.2)
-
-        # Partition system into molecular fragments using covalent bonding graph (Method Matrix v4 §4.4, §9B.4)
-        cov_radii = []
-        for sym in symbols:
-            elem = mendeleev.element(sym.capitalize())
-            rad = (elem.covalent_radius_pyykko or elem.covalent_radius or 70.0) / 100.0
-            cov_radii.append(rad)
-
-        adj = [[False] * n for _ in range(n)]
-        for i in range(n):
-            for j in range(i + 1, n):
-                dx = coords[i][0] - coords[j][0]
-                dy = coords[i][1] - coords[j][1]
-                dz = coords[i][2] - coords[j][2]
-                dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-                if dist <= 1.25 * (cov_radii[i] + cov_radii[j]):
-                    adj[i][j] = True
-                    adj[j][i] = True
-
-        visited = set()
-        frag_id = {}
-        curr_frag = 0
-        for i in range(n):
-            if i not in visited:
-                queue = [i]
-                visited.add(i)
-                while queue:
-                    curr = queue.pop(0)
-                    frag_id[curr] = curr_frag
-                    for neighbor in range(n):
-                        if adj[curr][neighbor] and neighbor not in visited:
-                            visited.add(neighbor)
-                            queue.append(neighbor)
-                curr_frag += 1
-
-        # Interatomic potential parameters per element pair
-        for i in range(n):
-            sym_i = symbols[i]
-            elem_i = mendeleev.element(sym_i.capitalize())
-            r_cov_i = cov_radii[i]
-            z_i = elem_i.atomic_number or 1
-
-            for j in range(i + 1, n):
-                sym_j = symbols[j]
-                elem_j = mendeleev.element(sym_j.capitalize())
-                r_cov_j = cov_radii[j]
-                z_j = elem_j.atomic_number or 1
-
-                dx = coords[i][0] - coords[j][0]
-                dy = coords[i][1] - coords[j][1]
-                dz = coords[i][2] - coords[j][2]
-                r = math.sqrt(dx * dx + dy * dy + dz * dz)
-                if r < 1e-8:
-                    r = 1e-8
-                ux = dx / r
-                uy = dy / r
-                uz = dz / r
-
-                same_frag = (frag_id[i] == frag_id[j])
-                is_bonded = adj[i][j]
-
-                if same_frag and is_bonded:
-                    # Intra-fragment bonded: Covalent Morse potential
-                    r_e = r_cov_i + r_cov_j
-                    d_e_ev = 4.5 * math.sqrt(z_i * z_j) / float(z_i + z_j)
-                    alpha = 1.8  # Angstrom^-1
-                    exp_term = math.exp(-alpha * (r - r_e))
-                    morse_pair_ev = d_e_ev * ((1.0 - exp_term) ** 2)
-                    total_energy_ev += morse_pair_ev
-
-                    # Force dV/dr in eV / Angstrom
-                    dv_dr = 2.0 * d_e_ev * alpha * (1.0 - exp_term) * exp_term
-                    forces_ev_ang[i][0] += -dv_dr * ux
-                    forces_ev_ang[i][1] += -dv_dr * uy
-                    forces_ev_ang[i][2] += -dv_dr * uz
-
-                    forces_ev_ang[j][0] -= -dv_dr * ux
-                    forces_ev_ang[j][1] -= -dv_dr * uy
-                    forces_ev_ang[j][2] -= -dv_dr * uz
-                else:
-                    # Inter-fragment or non-bonded: Buffered Lennard-Jones 12-6 + Coulomb
-                    r_vdw_i = r_cov_i + 0.8
-                    r_vdw_j = r_cov_j + 0.8
-                    r_eq_vdw = r_vdw_i + r_vdw_j
-                    sigma = r_eq_vdw * 0.890898718
-                    eps = 0.02  # eV
-
-                    sr6 = (sigma / r) ** 6
-                    sr12 = sr6 ** 2
-                    v_lj = 4.0 * eps * (sr12 - sr6)
-
-                    # Charges for electrostatics
-                    q_i = -0.4 if sym_i.capitalize() == "O" else (0.2 if sym_i.capitalize() == "H" else 0.0)
-                    q_j = -0.4 if sym_j.capitalize() == "O" else (0.2 if sym_j.capitalize() == "H" else 0.0)
-                    v_coul = (14.3996 * q_i * q_j) / r
-                    total_energy_ev += (v_lj + v_coul)
-
-                    # Forces: -dV/dr
-                    f_lj_mag = (24.0 * eps / r) * (2.0 * sr12 - sr6)
-                    f_coul_mag = (14.3996 * q_i * q_j) / (r * r)
-                    f_tot = f_lj_mag + f_coul_mag
-
-                    forces_ev_ang[i][0] += f_tot * ux
-                    forces_ev_ang[i][1] += f_tot * uy
-                    forces_ev_ang[i][2] += f_tot * uz
-
-                    forces_ev_ang[j][0] -= f_tot * ux
-                    forces_ev_ang[j][1] -= f_tot * uy
-                    forces_ev_ang[j][2] -= f_tot * uz
-
-        # Charge correction polarization
-        if self.charge != 0:
-            total_energy_ev += 0.5 * (float(self.charge) ** 2) * 3.5
-
-        return total_energy_ev, forces_ev_ang
-
-    def calculate(self, atoms: Any = None, properties: Any = None, system_changes: Any = None) -> None:
-        """ASE-compatible calculate method."""
-        if atoms is None:
-            return
-        symbols = [str(atom.symbol) for atom in atoms]
-        coords = atoms.get_positions().tolist()
-        energy_ev, forces = self.calculate_energy_and_forces(symbols, coords)
-        self.results["energy"] = energy_ev
-        self.results["forces"] = forces
-
-    def get_potential_energy(self, atoms: Any = None) -> float:
-        """ASE-compatible get_potential_energy method."""
-        if atoms is not None:
-            self.calculate(atoms)
-        return float(self.results.get("energy", 0.0))
-
-    def get_forces(self, atoms: Any = None) -> list[list[float]]:
-        """ASE-compatible get_forces method."""
-        if atoms is not None:
-            self.calculate(atoms)
-        return list(self.results.get("forces", []))
+        raise MACEBackendUnavailableError(
+            "The untrained physical MACE fallback was removed. Install mace-torch "
+            "in the ML silo and supply the requested pretrained checkpoint."
+        )
 
 
 def create_maceoff_calculator(config: MACEOFFConfig) -> Any:
-    """Instantiate a MACE-OFF calculator using ASE interface or physical fallback.
+    """Load the requested pretrained MACE model, or fail without substitution.
 
-    Parameters
-    ----------
-    config : MACEOFFConfig
-        Configuration options specifying model name/path, device, and dtype.
-
-    Returns
-    -------
-    Any
-        ASE-compatible MACE calculator instance or PhysicalMACEOFFFallbackCalculator.
+    ``off24-medium`` selects the pinned official release v0.2 checkpoint.
+    The upstream factory's small/medium/large aliases identify MACE-OFF23;
+    these aliases must not be presented as MACE-OFF24.
     """
-    effective_device = config.device
-    if "cuda" in str(effective_device).lower():
-        try:
-            import torch
-
-            if not torch.cuda.is_available():
-                logger.info("CUDA unavailable; falling back to pinned CPU threads.")
-                torch.set_num_threads(os.cpu_count() or 4)
-                effective_device = "cpu"
-        except Exception as cuda_err:
-            logger.warning("CUDA check failed: %s; falling back to CPU.", cuda_err)
-            effective_device = "cpu"
-
-    # 1. Try official mace_off factory
+    if config.model_path and not Path(config.model_path).is_file():
+        raise FileNotFoundError(f"Requested MACE checkpoint does not exist: {config.model_path}")
     try:
-        from mace.calculators import mace_off
+        import torch
+        from mace.calculators import MACECalculator, mace_off
+    except ImportError as exc:
+        raise MACEBackendUnavailableError(
+            "PyTorch and mace-torch are required in the selected ML silo."
+        ) from exc
 
-        if config.model_path and os.path.exists(config.model_path):
-            from mace.calculators import MACECalculator
+    effective_device = config.device
+    if str(effective_device).lower().startswith("cuda") and not torch.cuda.is_available():
+        logger.info("CUDA unavailable; evaluating the requested MACE model on CPU.")
+        effective_device = "cpu"
 
-            calc = MACECalculator(
+    try:
+        if config.model_path:
+            return MACECalculator(
                 model_paths=config.model_path,
                 device=effective_device,
                 default_dtype=config.default_dtype,
             )
-            logger.info("Loaded MACE from model path %s (%s)", config.model_path, effective_device)
-            return calc
-
-        calc = mace_off(
-            model=config.model,
+        return mace_off(
+            model=MACE_OFF24_MEDIUM_URL if config.model == "off24-medium" else config.model,
             device=effective_device,
             default_dtype=config.default_dtype,
         )
-        logger.info("Loaded MACE-OFF via mace.calculators.mace_off (%s, %s)", config.model, effective_device)
-        return calc
-    except (ImportError, ModuleNotFoundError, TypeError, ValueError) as err:
-        logger.debug("mace_off factory not available: %s", err)
-
-    # 2. Try direct MACECalculator if custom checkpoint provided
-    if config.model_path and os.path.exists(config.model_path):
-        try:
-            from mace.calculators import MACECalculator
-
-            calc = MACECalculator(
-                model_paths=config.model_path,
-                device=config.device,
-                default_dtype=config.default_dtype,
-            )
-            logger.info("Loaded MACE from model path %s (%s)", config.model_path, config.device)
-            return calc
-        except Exception as exc:
-            logger.warning("Failed to load MACECalculator from %s: %s", config.model_path, exc)
-
-    # 3. Fallback to physical multi-atom potential engine
-    logger.info("Using PhysicalMACEOFFFallbackCalculator with Mendeleev mass and radius support.")
-    return PhysicalMACEOFFFallbackCalculator(charge=0, multiplicity=1)
+    except Exception as exc:
+        raise MACEBackendUnavailableError(
+            f"Unable to load requested MACE checkpoint {config.model_path or config.model!r}: {exc}"
+        ) from exc
 
 
 def compute_maceoff_energy_gradient(
@@ -621,87 +439,29 @@ def compute_maceoff_energy_gradient(
     calculator: Any,
     dograd: bool = True,
 ) -> tuple[float, list[float]]:
-    """Compute potential energy in Eh and Cartesian gradients in Eh/bohr for an ASE Atoms object or coordinates.
+    """Convert real ASE energy/forces to Eh and Eh/bohr without surrogate results."""
+    import numpy as np
+    from ase import Atoms
 
-    Strictly applies Method Matrix Section 10.3:
-    - Energy: E_Eh = E_eV * EH_PER_EV
-    - Gradient: grad_Eh_bohr = -Forces_eV_per_Angstrom * EH_PER_EV / BOHR_PER_A (nabla E = -F)
-
-    Parameters
-    ----------
-    atoms : Any
-        ASE Atoms object or (symbols, coords) tuple.
-    calculator : Any
-        ASE Calculator instance or PhysicalMACEOFFFallbackCalculator.
-    dograd : bool
-        Whether to calculate gradients.
-
-    Returns
-    -------
-    tuple[float, list[float]]
-        Total energy in Eh and list of 3*N Cartesian gradient values in Eh/bohr.
-    """
-    # Check if atoms is an ASE Atoms instance
-    if hasattr(atoms, "get_potential_energy") and hasattr(atoms, "calc"):
-        atoms.calc = calculator
-        try:
-            e_eV = float(atoms.get_potential_energy())
-        except Exception:
-            # Fallback if calculator requires symbols/coords
-            symbols = [str(atom.symbol) for atom in atoms]
-            coords = atoms.get_positions().tolist()
-            fallback = PhysicalMACEOFFFallbackCalculator()
-            e_eV, forces_arr = fallback.calculate_energy_and_forces(symbols, coords)
-            e_Eh = e_eV * EH_PER_EV
-            if dograd:
-                grad_list: list[float] = []
-                for atom_f in forces_arr:
-                    for comp in atom_f:
-                        grad_list.append(-float(comp) * EH_PER_EV / BOHR_PER_A)
-                return e_Eh, grad_list
-            return e_Eh, [0.0] * (len(atoms) * 3)
-
-        e_Eh = e_eV * EH_PER_EV
-        gradient_Eh_bohr: list[float] = []
-
-        if dograd:
-            forces = atoms.get_forces()  # Shape: (N, 3) in eV / Angstrom
-            for atom_f in forces:
-                for comp in atom_f:
-                    # Sign flip: gradient = -force; unit conversion: eV/A -> Eh/bohr
-                    g_val = -float(comp) * EH_PER_EV / BOHR_PER_A
-                    gradient_Eh_bohr.append(g_val)
-        else:
-            gradient_Eh_bohr = [0.0] * (len(atoms) * 3)
-
-        return e_Eh, gradient_Eh_bohr
-
-    # Handle (symbols, coords) tuple with PhysicalMACEOFFFallbackCalculator or general calculator
-    if isinstance(calculator, PhysicalMACEOFFFallbackCalculator):
+    if calculator is None:
+        raise MACEBackendUnavailableError("A loaded calculator is required for MACE evaluation.")
+    if not isinstance(atoms, Atoms):
         symbols, coords = atoms
-        e_eV, forces_arr = calculator.calculate_energy_and_forces(symbols, coords)
-        e_Eh = e_eV * EH_PER_EV
-        gradient_Eh_bohr = []
-        if dograd:
-            for atom_f in forces_arr:
-                for comp in atom_f:
-                    gradient_Eh_bohr.append(-float(comp) * EH_PER_EV / BOHR_PER_A)
-        else:
-            gradient_Eh_bohr = [0.0] * (len(symbols) * 3)
-        return e_Eh, gradient_Eh_bohr
-
-    symbols, coords = atoms
-    fallback_calc = PhysicalMACEOFFFallbackCalculator()
-    e_eV, forces_arr = fallback_calc.calculate_energy_and_forces(symbols, coords)
-    e_Eh = e_eV * EH_PER_EV
-    gradient_Eh_bohr = []
-    if dograd:
-        for atom_f in forces_arr:
-            for comp in atom_f:
-                gradient_Eh_bohr.append(-float(comp) * EH_PER_EV / BOHR_PER_A)
-    else:
-        gradient_Eh_bohr = [0.0] * (len(symbols) * 3)
-    return e_Eh, gradient_Eh_bohr
+        atoms = Atoms(symbols=symbols, positions=coords)
+    if len(atoms) == 0 or not np.isfinite(atoms.get_positions()).all():
+        raise ValueError("MACE evaluation requires nonempty finite atomic coordinates.")
+    atoms.calc = calculator
+    # Backend errors must reach the caller; no alternate potential is scientifically equivalent.
+    energy_ev = float(atoms.get_potential_energy())
+    if not math.isfinite(energy_ev):
+        raise ValueError("MACE calculator returned a non-finite energy.")
+    if not dograd:
+        return energy_ev * EH_PER_EV, [0.0] * (len(atoms) * 3)
+    forces = np.asarray(atoms.get_forces(), dtype=float)
+    if forces.shape != (len(atoms), 3) or not np.isfinite(forces).all():
+        raise ValueError("MACE calculator returned incomplete or non-finite forces.")
+    gradient = -forces * EH_PER_EV / BOHR_PER_A
+    return energy_ev * EH_PER_EV, gradient.reshape(-1).tolist()
 
 
 def compute_committee_uncertainty(
@@ -1043,8 +803,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--model",
         "-m",
-        default="medium",
-        help="MACE-OFF model size/variant ('small', 'medium', 'large', default: 'medium')",
+        default="off24-medium",
+        help="MACE-OFF model: off24-medium (default); small/medium/large select OFF23",
     )
     parser.add_argument(
         "--device",

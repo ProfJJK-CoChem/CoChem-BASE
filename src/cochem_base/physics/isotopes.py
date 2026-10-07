@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import functools
 import logging
+import math
+from numbers import Integral
 import re
 from typing import Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
 try:
-    from mendeleev import element as _get_mendeleev_element
+    from cochem_base.physics.nuclide_resolver import get_element as _get_mendeleev_element
     HAS_MENDELEEV = True
 except ImportError:
     _get_mendeleev_element = None
@@ -61,6 +63,8 @@ def parse_nuclide_token(token: str) -> Tuple[str, Optional[int]]:
     - Hyphenated notation: 'C-13', 'H-2', 'Cl-35'
     - Suffix notation: 'C13', 'O18'
     """
+    if not isinstance(token, str) or not token.strip():
+        raise ValueError("Nuclide token must be a nonempty string")
     clean = token.strip()
     upper = clean.upper()
 
@@ -126,7 +130,7 @@ def get_atomic_mass(symbol: str) -> float:
 @functools.lru_cache(maxsize=256)
 def get_element_mass_and_abundance(symbol: str) -> Tuple[float, float, int]:
     """Retrieves standard atomic mass, abundance, and atomic number Z dynamically via mendeleev. [M]"""
-    clean_sym, _ = parse_nuclide_token(symbol)
+    clean_sym, mass_number = parse_nuclide_token(symbol)
 
     if clean_sym.upper() in GHOST_ATOMS:
         return 0.0, 1.0, 0
@@ -139,6 +143,13 @@ def get_element_mass_and_abundance(symbol: str) -> Tuple[float, float, int]:
     try:
         el = _get_mendeleev_element(clean_sym)
         if el is not None and el.mass is not None:
+            if mass_number is not None:
+                for isotope in el.isotopes:
+                    if isotope.mass_number == mass_number and isotope.mass is not None:
+                        if isotope.abundance is None:
+                            raise ValueError(f"Natural abundance unavailable for {symbol}")
+                        return float(isotope.mass), float(isotope.abundance) / 100.0, int(el.atomic_number)
+                raise ValueError(f"Isotope {symbol} not found in Mendeleev database")
             return float(el.mass), 1.0, int(el.atomic_number)
     except Exception as exc:
         logger.error("Mendeleev element property query failed for %s: %s", clean_sym, exc)
@@ -149,7 +160,7 @@ def get_element_mass_and_abundance(symbol: str) -> Tuple[float, float, int]:
     raise ValueError(f"Element properties for '{symbol}' not found in Mendeleev database.")
 
 
-@functools.lru_cache(maxsize=512)
+@functools.lru_cache(maxsize=512, typed=True)
 def get_isotope_mass(symbol: str, mass_number: Optional[int] = None) -> float:
     """Retrieves exact isotopic mass in Daltons (amu) dynamically via mendeleev. [M]
 
@@ -161,8 +172,14 @@ def get_isotope_mass(symbol: str, mass_number: Optional[int] = None) -> float:
     if clean_sym.upper() in GHOST_ATOMS:
         return 0.0
 
+    if mass_number is not None and parsed_mass is not None and mass_number != parsed_mass:
+        raise ValueError(f"Contradictory isotope specification: {symbol}, {mass_number}")
     if mass_number is None:
         mass_number = parsed_mass
+    if mass_number is not None and (
+        isinstance(mass_number, bool) or not isinstance(mass_number, Integral) or mass_number <= 0
+    ):
+        raise ValueError("Isotope mass number must be a positive integer")
 
     if mass_number is None:
         return get_atomic_mass(clean_sym)
@@ -178,16 +195,14 @@ def get_isotope_mass(symbol: str, mass_number: Optional[int] = None) -> float:
         if el is not None:
             for iso in el.isotopes:
                 if int(iso.mass_number) == mass_number and iso.mass is not None:
-                    return float(iso.mass)
+                    mass = float(iso.mass)
+                    if not math.isfinite(mass) or mass <= 0:
+                        raise ValueError(f"Nonphysical isotope mass for {clean_sym}-{mass_number}")
+                    return mass
     except Exception as exc:
         logger.error("Mendeleev isotope query failed for %s-%s: %s", clean_sym, mass_number, exc)
         raise ValueError(
             f"Isotopic mass for {clean_sym}-{mass_number} could not be dynamically resolved via Mendeleev: {exc}"
         ) from exc
-
-    # Fallback to standard atomic weight if mass number matches round(standard)
-    std = get_atomic_mass(clean_sym)
-    if round(std) == mass_number:
-        return std
 
     raise ValueError(f"Isotopic mass for {clean_sym}-{mass_number} not found in Mendeleev database.")

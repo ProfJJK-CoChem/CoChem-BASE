@@ -3,7 +3,7 @@
 CoChem-BASE: Distributed IPC and Single-Master HDF5 Data Architecture.
 
 This module provides:
-1. SWMR Eradication: Strict elimination of HDF5 SWMR on NFS/Lustre distributed filesystems.
+1. SWMR telemetry: Preallocated datasets support a single writer and concurrent readers.
 2. Real-Time IPC: Local scratch SQLite Write-Ahead Logging (WAL) and ZeroMQ streaming.
 3. Single Master Node Enforcement: Writes to landscape.h5 are strictly gatekept to Rank 0 / Master.
 4. Rigorous HDF5 Filtering: Mandatory gzip+shuffle+fletcher32 filters on all serialized datasets.
@@ -11,21 +11,21 @@ This module provides:
 6. VRAM Offloading & Tensor Stripping: Automatic detachment and conversion of PyTorch/JAX tensors to pure host-RAM NumPy arrays and Python scalars.
 7. Landscape Database Management: Comprehensive basin, calculation, and trajectory persistence in Databases/landscape.h5.
 
-Zero-Mock Policy: 100% genuine OS processes, genuine atomic file locks, real SQLite WAL, and real HDF5 operations.
+SWMR requires filesystem support for HDF5's ordering guarantees. On filesystems
+without those guarantees, stage data locally through IPC before archiving it.
 """
 
 from __future__ import annotations
 
 import ast
-import hashlib
 import io
 import json
 import logging
 import os
 import sqlite3
-import tempfile
 import threading
 import time
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from enum import Enum
@@ -38,7 +38,7 @@ try:
     import zmq
 except ImportError:
     zmq = None  # type: ignore[assignment]
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 # Optional deep learning & chemistry imports
 try:
@@ -74,7 +74,7 @@ from cochem_base.config_loader import (
     get_scratch_dir,
     resolve_mapped_path,
 )
-from cochem_base.core.cochem_core_registry_manager import AtomicFileLock
+from cochem_base.core.cochem_core_registry_manager import AtomicFileLock, FileLockTimeoutError
 
 logger = logging.getLogger("CoChem-HDF5Manager")
 
@@ -108,11 +108,16 @@ class DatasetNotFoundError(HDF5ManagerError, KeyError):
 
 
 # =============================================================================
-# 1. SWMR ERADICATION & AUDIT VERIFICATION
+# 1. LEGACY NON-SWMR SOURCE AUDIT
 # =============================================================================
 
 def verify_no_swmr_usage(module_or_obj: Any = None) -> bool:
-    """Audits the module AST and runtime flags to ensure HDF5 SWMR mode is completely eradicated."""
+    """Audit legacy non-SWMR source; the current telemetry manager requires SWMR.
+
+    Kept for callers auditing an explicitly selected distributed-storage adapter.
+    Applying this legacy policy to this module raises: Chunk 17 REQ-BASE-003
+    explicitly requires the SWMR writer/reader implementation below.
+    """
     if module_or_obj is None:
         import cochem_base.core.cochem_core_hdf5_manager as current_mod
         module_or_obj = current_mod
@@ -550,6 +555,7 @@ def verify_dataset_filters(dset: h5py.Dataset) -> Tuple[bool, Dict[str, Any]]:
     shuffle = getattr(dset, "shuffle", False)
     fletcher32 = getattr(dset, "fletcher32", False)
     chunks = getattr(dset, "chunks", None)
+    scaleoffset = getattr(dset, "scaleoffset", None)
 
     details = {
         "compression": compression,
@@ -557,6 +563,7 @@ def verify_dataset_filters(dset: h5py.Dataset) -> Tuple[bool, Dict[str, Any]]:
         "shuffle": shuffle,
         "fletcher32": fletcher32,
         "chunks": chunks,
+        "scaleoffset": scaleoffset,
     }
 
     is_valid = (
@@ -564,6 +571,7 @@ def verify_dataset_filters(dset: h5py.Dataset) -> Tuple[bool, Dict[str, Any]]:
         and shuffle is True
         and fletcher32 is True
         and chunks is not None
+        and scaleoffset is None
     )
     return is_valid, details
 
@@ -605,11 +613,14 @@ def write_dataset_filtered(
     chunks: Optional[Any] = True,
     attrs: Optional[Dict[str, Any]] = None,
     strict: bool = True,
+    scaleoffset: Optional[int] = None,
 ) -> h5py.Dataset:
     """Creates or overwrites an HDF5 dataset enforcing mandatory gzip+shuffle+fletcher32 filters.
 
     Raises HDF5FilterViolationError if filters are missing or bypassed when strict=True.
     """
+    if scaleoffset is not None:
+        raise HDF5FilterViolationError("scaleoffset lossy compression filter is strictly banned")
     clean_data = _normalize_dataset_for_filters(data)
 
     if strict:
@@ -626,28 +637,43 @@ def write_dataset_filtered(
                 f"Dataset '{dataset_name}' must have fletcher32=True checksum filter"
             )
 
-    if dataset_name in group:
-        del group[dataset_name]
-
-    dset = group.create_dataset(
-        dataset_name,
-        data=clean_data,
-        compression="gzip" if compression == "gzip" else None,
-        compression_opts=compression_opts if compression == "gzip" else None,
-        shuffle=shuffle,
-        fletcher32=fletcher32,
-        chunks=chunks,
-    )
-
-    if attrs:
-        for k, v in attrs.items():
-            clean_v = strip_tensor_to_numpy(v)
-            if isinstance(clean_v, (int, float, str, bool)):
-                dset.attrs[k] = clean_v
-            else:
-                dset.attrs[k] = json.dumps(clean_v)
-
-    return dset
+    # Fully construct and validate replacement data before retiring the previous
+    # dataset. Callers hold the file's writer lock throughout this metadata edit.
+    parent_name, _, leaf_name = dataset_name.rpartition("/")
+    parent = group.require_group(parent_name) if parent_name else group
+    staging_name = f"__cochem_pending_{uuid.uuid4().hex}"
+    backup_name = f"__cochem_previous_{uuid.uuid4().hex}"
+    try:
+        dset = parent.create_dataset(
+            staging_name,
+            data=clean_data,
+            compression="gzip" if compression == "gzip" else None,
+            compression_opts=compression_opts if compression == "gzip" else None,
+            shuffle=shuffle,
+            fletcher32=fletcher32,
+            chunks=chunks,
+        )
+        if attrs:
+            for k, v in attrs.items():
+                clean_v = strip_tensor_to_numpy(v)
+                if isinstance(clean_v, (int, float, str, bool)):
+                    dset.attrs[k] = clean_v
+                else:
+                    dset.attrs[k] = json.dumps(clean_v)
+        if leaf_name in parent:
+            parent.move(leaf_name, backup_name)
+        try:
+            parent.move(staging_name, leaf_name)
+        except Exception:
+            if backup_name in parent:
+                parent.move(backup_name, leaf_name)
+            raise
+        if backup_name in parent:
+            del parent[backup_name]
+        return dset
+    finally:
+        if staging_name in parent:
+            del parent[staging_name]
 
 
 # =============================================================================
@@ -741,7 +767,7 @@ class QCSchemaAtomicResult(BaseModel):
     provenance: Dict[str, Any] = Field(default_factory=dict, description="Execution provenance metadata")
     stdout: Optional[str] = Field(default=None, description="Captured standard output")
     stderr: Optional[str] = Field(default=None, description="Captured standard error")
-    success: bool = Field(default=True, description="Calculation success status")
+    success: StrictBool = Field(..., description="Explicitly reported calculation success status")
     error: Optional[Dict[str, Any]] = Field(default=None, description="Error details if execution failed")
 
 
@@ -756,7 +782,13 @@ class QCSchemaOptimizationResult(BaseModel):
     trajectory: List[QCSchemaAtomicResult] = Field(default_factory=list, description="Optimization steps")
     energies: List[float] = Field(default_factory=list, description="Energy per optimization step")
     provenance: Dict[str, Any] = Field(default_factory=dict, description="Execution provenance metadata")
-    success: bool = Field(default=True, description="Optimization convergence success status")
+    success: StrictBool = Field(..., description="Explicitly reported optimization success status")
+
+
+def _stored_qcschema_success(group: h5py.Group) -> Any:
+    """Preserve missing/invalid status for validation; normalize HDF5 boolean scalars only."""
+    value = group.attrs.get("success")
+    return bool(value) if isinstance(value, np.bool_) else value
 
 
 # =============================================================================
@@ -784,13 +816,17 @@ class BasinRecord(BaseModel):
 # =============================================================================
 
 def resolve_landscape_h5_path(custom_path: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves the authoritative path to landscape.h5."""
+    """Resolve the single telemetry archive, retaining existing legacy stores.
+
+    Chunk 17 names new stores ``complexes.h5``. Existing ``landscape.h5`` files
+    and the legacy environment override remain supported without copying data.
+    """
     if custom_path is not None:
         p = resolve_mapped_path(custom_path)
         p.parent.mkdir(parents=True, exist_ok=True)
         return p
 
-    env_path = os.environ.get("COCHEM_LANDSCAPE_H5")
+    env_path = os.environ.get("COCHEM_COMPLEXES_H5") or os.environ.get("COCHEM_LANDSCAPE_H5")
     if env_path:
         p = resolve_mapped_path(env_path)
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -799,7 +835,9 @@ def resolve_landscape_h5_path(custom_path: Optional[Union[str, Path]] = None) ->
     artifact_dir = get_artifact_dir()
     db_dir = artifact_dir / "Databases"
     db_dir.mkdir(parents=True, exist_ok=True)
-    return db_dir / "landscape.h5"
+    primary = db_dir / "complexes.h5"
+    legacy = db_dir / "landscape.h5"
+    return legacy if legacy.is_file() and not primary.exists() else primary
 
 
 class MasterWriteGatekeeper:
@@ -813,9 +851,11 @@ class MasterWriteGatekeeper:
         self,
         h5_path: Optional[Union[str, Path]] = None,
         ipc_db_path: Optional[Union[str, Path]] = None,
+        lock_timeout: float = 10.0,
     ) -> None:
         self.h5_path = resolve_landscape_h5_path(h5_path)
         self.lock_path = Path(str(self.h5_path) + ".lock")
+        self.lock_timeout = lock_timeout
         self.ipc_queue = SQLiteWALQueue(db_path=ipc_db_path)
 
     @property
@@ -833,8 +873,8 @@ class MasterWriteGatekeeper:
             record = BasinRecord(**record)
 
         if self.is_master:
-            with AtomicFileLock(self.lock_path, timeout=15.0):
-                with h5py.File(self.h5_path, "a") as f:
+            with AtomicFileLock(self.lock_path, timeout=self.lock_timeout):
+                with h5py.File(self.h5_path, "a", libver="latest") as f:
                     grp = f.require_group(f"basins/{basin_id}")
                     grp.attrs["molecule_name"] = record.molecule_name
                     grp.attrs["energy"] = float(record.energy)
@@ -933,24 +973,22 @@ class CoChemHDF5Manager:
         h5_path: Optional[Union[str, Path]] = None,
         ipc_db_path: Optional[Union[str, Path]] = None,
         strict_filters: bool = True,
+        lock_timeout: float = 10.0,
     ) -> None:
         self.h5_path = resolve_landscape_h5_path(h5_path)
-        scratch_env = (
-            os.environ.get("COCHEM_SCRATCH_DIR")
-            or os.environ.get("SLURM_TMPDIR")
-            or os.environ.get("TMPDIR")
-        )
-        if scratch_env:
-            lock_dir = Path(scratch_env).resolve()
-        else:
-            lock_dir = Path(tempfile.gettempdir()).resolve()
-        lock_dir.mkdir(parents=True, exist_ok=True)
-        file_hash = hashlib.sha256(str(self.h5_path).encode("utf-8")).hexdigest()[:16]
-        self.lock_path = lock_dir / f"cochem_hdf5_{file_hash}.lock"
+        # Every API and process targeting this file must use the same lock.
+        # Node-local scratch locks do not protect a file shared across nodes.
+        self.lock_path = Path(str(self.h5_path) + ".lock")
+        if not np.isfinite(lock_timeout) or lock_timeout < 0:
+            raise ValueError("lock_timeout must be finite and nonnegative")
+        self.lock_timeout = float(lock_timeout)
         self.strict_filters = strict_filters
         self.ipc_queue = SQLiteWALQueue(db_path=ipc_db_path)
-        self.gatekeeper = MasterWriteGatekeeper(h5_path=self.h5_path, ipc_db_path=ipc_db_path)
+        self.gatekeeper = MasterWriteGatekeeper(
+            h5_path=self.h5_path, ipc_db_path=ipc_db_path, lock_timeout=self.lock_timeout
+        )
         self._swmr_write_lock = threading.RLock()
+        self._swmr_local = threading.local()
         self._init_landscape_file()
 
     def _init_landscape_file(self) -> None:
@@ -958,12 +996,22 @@ class CoChemHDF5Manager:
         if not is_master_node():
             return
 
-        with AtomicFileLock(self.lock_path, timeout=15.0):
+        # Opening an already initialized store must not block a new SWMR reader
+        # behind a live writer, nor attempt a second write-open of the file.
+        groups = ("basins", "calculations", "molecules", "trajectories", "physics")
+        if self.h5_path.is_file():
+            try:
+                with h5py.File(self.h5_path, "r", libver="latest", swmr=True) as f:
+                    if "version" in f.attrs and all(name in f for name in groups):
+                        return
+            except OSError:
+                pass  # A concurrent initializer is protected by the lock below.
+        with AtomicFileLock(self.lock_path, timeout=self.lock_timeout):
             with h5py.File(self.h5_path, "a", libver="latest") as f:
                 if "version" not in f.attrs:
                     f.attrs["version"] = self.SCHEMA_VERSION
                     f.attrs["created_at"] = datetime.now(timezone.utc).isoformat()
-                for grp in ["basins", "calculations", "molecules", "trajectories", "physics"]:
+                for grp in groups:
                     if grp not in f:
                         f.create_group(grp)
 
@@ -982,29 +1030,41 @@ class CoChemHDF5Manager:
         group_path: str = "/",
     ) -> None:
         """Pre-allocates an extensible chunked dataset and flushes before SWMR mode."""
-        self.h5_path.parent.mkdir(parents=True, exist_ok=True)
-        with AtomicFileLock(self.lock_path, timeout=15.0):
-            with h5py.File(self.h5_path, "a", libver="latest") as f:
-                grp = f.require_group(group_path) if group_path != "/" else f
-                if dataset_name in grp:
-                    del grp[dataset_name]
-                grp.create_dataset(
-                    dataset_name,
-                    shape=initial_shape,
-                    maxshape=maxshape,
-                    chunks=chunks,
-                    dtype=dtype,
-                    data=initial_data,
-                )
-                f.flush()
+        with self.transaction("a") as f:
+            grp = f.require_group(group_path) if group_path != "/" else f
+            if dataset_name in grp:
+                raise HDF5ManagerError(f"SWMR dataset '{dataset_name}' already exists")
+            grp.create_dataset(
+                dataset_name,
+                shape=initial_shape,
+                maxshape=maxshape,
+                chunks=chunks,
+                dtype=dtype,
+                data=initial_data,
+                compression="gzip",
+                shuffle=True,
+                fletcher32=True,
+            )
+            f.flush()
 
     @contextmanager
     def swmr_writer(self) -> Generator[h5py.File, None, None]:
-        """Context manager opening HDF5 file in SWMR writer mode."""
-        with self._swmr_write_lock:
+        """Hold the shared writer lock for an entire SWMR streaming session.
+
+        Create the complete dataset topology before entering; readers open after
+        the writer has enabled SWMR and refresh to observe each flushed append.
+        """
+        if not is_master_node():
+            raise NonMasterWriteRejectionError("SWMR writes require the master node")
+        with AtomicFileLock(self.lock_path, timeout=self.lock_timeout):
             with h5py.File(self.h5_path, "r+", libver="latest") as f:
                 f.swmr_mode = True
-                yield f
+                self._swmr_local.writer = f
+                try:
+                    yield f
+                finally:
+                    self._swmr_local.writer = None
+                    f.flush()
 
     @contextmanager
     def swmr_reader(self) -> Generator[h5py.File, None, None]:
@@ -1020,19 +1080,30 @@ class CoChemHDF5Manager:
         writer_file: Optional[h5py.File] = None,
     ) -> int:
         """Appends chunk along leading dimension and flushes immediately under SWMR."""
+        if not is_master_node():
+            raise NonMasterWriteRejectionError("SWMR writes require the master node")
         def _do_append(f: h5py.File) -> int:
             dset = f[group_path][dataset_name] if group_path != "/" else f[dataset_name]
+            data = np.asarray(chunk_data)
+            if data.ndim != dset.ndim or data.shape[1:] != dset.shape[1:]:
+                raise ValueError(f"Chunk shape {data.shape} does not match dataset {dset.shape}")
+            # Convert before resize: invalid data must not leave unwritten rows.
+            data = np.asarray(data, dtype=dset.dtype)
             curr_size = dset.shape[0]
-            new_size = curr_size + chunk_data.shape[0]
+            new_size = curr_size + data.shape[0]
+            if dset.maxshape[0] is not None and new_size > dset.maxshape[0]:
+                raise ValueError("Chunk exceeds the dataset's maximum leading dimension")
             new_shape = list(dset.shape)
             new_shape[0] = new_size
             dset.resize(tuple(new_shape))
-            dset[curr_size:new_size] = chunk_data
+            dset[curr_size:new_size] = data
             dset.flush()
             f.flush()
             return new_size
 
         if writer_file is not None:
+            if writer_file is not getattr(self._swmr_local, "writer", None):
+                raise HDF5ManagerError("writer_file must belong to this manager's active swmr_writer context")
             with self._swmr_write_lock:
                 return _do_append(writer_file)
         else:
@@ -1060,13 +1131,13 @@ class CoChemHDF5Manager:
     @contextmanager
     def transaction(self, mode: str = "a") -> Generator[h5py.File, None, None]:
         """Provides an atomic, lock-protected transaction on landscape.h5."""
-        if mode in ("w", "a", "r+") and not is_master_node():
+        if mode != "r" and not is_master_node():
             raise NonMasterWriteRejectionError(
                 f"Write transaction denied: Process is not the master node. Target: {self.h5_path}"
             )
 
-        with AtomicFileLock(self.lock_path, timeout=15.0):
-            with h5py.File(self.h5_path, mode) as f:
+        with AtomicFileLock(self.lock_path, timeout=self.lock_timeout):
+            with h5py.File(self.h5_path, mode, libver="latest") as f:
                 yield f
 
     def write_dataset_filtered(
@@ -1080,6 +1151,7 @@ class CoChemHDF5Manager:
         fletcher32: bool = True,
         chunks: Optional[Any] = True,
         attrs: Optional[Dict[str, Any]] = None,
+        scaleoffset: Optional[int] = None,
     ) -> None:
         """Writes a filtered dataset to the HDF5 store under group_path."""
         with self.transaction("a") as f:
@@ -1095,6 +1167,7 @@ class CoChemHDF5Manager:
                 chunks=chunks,
                 attrs=attrs,
                 strict=self.strict_filters,
+                scaleoffset=scaleoffset,
             )
 
     # -------------------------------------------------------------------------
@@ -1187,7 +1260,7 @@ class CoChemHDF5Manager:
                     return_result=result.get("return_result", 0.0),
                     properties=QCSchemaProperties(**props_dict),
                     provenance=result.get("provenance", {}) if isinstance(result.get("provenance"), dict) else {},
-                    success=bool(result.get("success", True)),
+                    success=result.get("success"),
                 )
             else:
                 atomic_res = QCSchemaAtomicResult.model_validate(result)
@@ -1225,7 +1298,7 @@ class CoChemHDF5Manager:
                 model=model_obj,
                 return_result=getattr(result, "return_result", 0.0),
                 properties=QCSchemaProperties(**props_dict),
-                success=bool(getattr(result, "success", True)),
+                success=getattr(result, "success", None),
             )
         elif QCElAtomicResult is not None and isinstance(result, QCElAtomicResult):
             dumped = result.model_dump() if hasattr(result, "model_dump") else result.dict()
@@ -1338,7 +1411,7 @@ class CoChemHDF5Manager:
             driver_str = str(calc_grp.attrs.get("driver", "energy"))
             method = str(calc_grp.attrs.get("method", ""))
             basis = calc_grp.attrs.get("basis")
-            success = bool(calc_grp.attrs.get("success", True))
+            success = _stored_qcschema_success(calc_grp)
 
             if "return_result" in calc_grp:
                 res_data = calc_grp["return_result"][()]
@@ -1446,7 +1519,7 @@ class CoChemHDF5Manager:
                 trajectory=traj_list,
                 energies=[float(e) for e in energies],
                 provenance=result.get("provenance", {}) if isinstance(result.get("provenance"), dict) else {},
-                success=bool(result.get("success", True)),
+                success=result.get("success"),
             )
         elif hasattr(result, "trajectory") and hasattr(result, "final_molecule"):
             dumped = result.model_dump() if hasattr(result, "model_dump") else result.dict()
@@ -1611,7 +1684,7 @@ class CoChemHDF5Manager:
             opt_grp = f[opt_path]
             schema_name = str(opt_grp.attrs.get("schema_name", "qcschema_optimization_output"))
             schema_version = int(opt_grp.attrs.get("schema_version", 1))
-            success = bool(opt_grp.attrs.get("success", True))
+            success = _stored_qcschema_success(opt_grp)
             raw_prov = opt_grp.attrs.get("provenance", "{}")
             prov = json.loads(raw_prov) if isinstance(raw_prov, str) else (raw_prov or {})
 
@@ -1654,7 +1727,7 @@ class CoChemHDF5Manager:
                     s_driver = str(s_grp.attrs.get("driver", "energy"))
                     s_method = str(s_grp.attrs.get("method", ""))
                     s_basis = s_grp.attrs.get("basis")
-                    s_success = bool(s_grp.attrs.get("success", True))
+                    s_success = _stored_qcschema_success(s_grp)
 
                     if "return_result" in s_grp:
                         s_res_data = s_grp["return_result"][()]

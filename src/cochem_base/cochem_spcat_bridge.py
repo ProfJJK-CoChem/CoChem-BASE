@@ -18,6 +18,8 @@ Key Capabilities:
 
 from __future__ import annotations
 
+from cochem_base.core import cochem_constants as _constants
+
 import hashlib
 import json
 import logging
@@ -63,20 +65,20 @@ class CODATA2022:
     """Exact fundamental physical constants from CODATA 2022 recommended values."""
 
     # Planck constant (exact, SI definition 2019) [J * s]
-    H: float = 6.62607015e-34
+    H: float = _constants.PLANCK_CONSTANT_J_S
     # Boltzmann constant (exact, SI definition 2019) [J * K^-1]
-    K_B: float = 1.380649e-23
+    K_B: float = _constants.BOLTZMANN_CONSTANT_J_K
     # Speed of light in vacuum (exact) [m * s^-1]
-    C_M_S: float = 299792458.0
+    C_M_S: float = _constants.SPEED_OF_LIGHT_M_S
     # Speed of light in vacuum (exact) [cm * s^-1]
-    C_CM_S: float = 29979245800.0
+    C_CM_S: float = _constants.SPEED_OF_LIGHT_CM_S
     # Rotational constant factor C_rot = h / (8 * pi^2) in [MHz * u * Angstrom^2]
     # h / (8 * pi^2 * u * 1e-20) * 1e-6 MHz = 505379.008435
-    C_ROT: float = 505379.008435
+    C_ROT: float = _constants.C_ROT_MHZ_U_ANG2
     # Avogadro constant (exact) [mol^-1]
-    N_A: float = 6.02214076e23
+    N_A: float = _constants.AVOGADRO_CONSTANT
     # Atomic mass constant [kg]
-    AMU_KG: float = 1.66053906660e-27
+    AMU_KG: float = _constants.ATOMIC_MASS_UNIT_KG
     # h * c / k_B conversion factor [K * cm]
     # (6.62607015e-34 * 29979245800.0) / 1.380649e-23 = 1.4387768775039336
     HC_OVER_KB: float = 1.4387768775039336
@@ -93,7 +95,7 @@ BOLTZMANN_CONSTANT_JK: float = CONSTANTS.K_B
 SPEED_OF_LIGHT_CMS: float = CONSTANTS.C_CM_S
 SPEED_OF_LIGHT_MS: float = CONSTANTS.C_M_S
 ROTATIONAL_FACTOR_C_ROT: float = CONSTANTS.C_ROT
-C_ROT: float = CONSTANTS.C_ROT
+C_ROT: float = _constants.C_ROT_MHZ_U_ANG2
 HC_OVER_KB: float = CONSTANTS.HC_OVER_KB
 KB_OVER_H: float = CONSTANTS.KB_OVER_H
 

@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "path": "tests/data/h2co_eq.xyz",
+      "sha256": "fa55aace2bb062798e6a3302aab9c79f3bfcf370221205322f7e47d6988c3a10",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_known_emt_origin",
+      "provenance": "Historical generator ec5c2f8:tests/data/generate_test_files.py performs ASE EMT/BFGS optimization. Species labels corrected to generator Atoms(CH2O) order C,H,H,O. Used only as structural coordinates, not as an ab initio geometry or accuracy reference."
+    },
+    {
+      "path": "tests/data/water.xyz",
+      "sha256": "f8c7756854cb292c025882866920605ae0f62151cfa24deafe5456879c53cc53",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_unverified_origin",
+      "provenance": "Introduced in repository commit 8f9c69c. Coordinate-only parser input; generating method and physical reference provenance are unverified."
+    },
+    {
+      "path": "tests/data/water_dimer.xyz",
+      "sha256": "023ae36bae7e831a2916420768e609381ffa6804fe65b7dc1221f0f45d04e8d6",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_known_emt_origin",
+      "provenance": "Historical generator ec5c2f8:tests/data/generate_test_files.py performs ASE EMT/BFGS optimization. Used only as structural coordinates; not an ab initio geometry or accuracy reference."
+    },
+    {
+      "path": "tests/data/water_eq.xyz",
+      "sha256": "bcb2c64dc3baebf893d9a1a66c8144d710b3b9e2800c303b47403005933ee644",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_known_emt_origin",
+      "provenance": "Historical generator ec5c2f8:tests/data/generate_test_files.py performs ASE EMT/BFGS optimization. Used only as structural coordinates; not an ab initio geometry or accuracy reference."
+    },
+    {
+      "path": "tests/fixtures/trajectories/xtb-6.7.1-water-optimization.xyz",
+      "sha256": "9338f7e83af9c64b32baecab821c42080ea9c88f231a4dbcdb2c1e74c90607de",
+      "purpose": "Recorded trajectory parsing and transport; replay is not live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Native xTB 6.7.1 water optimization; see tests/fixtures/trajectories/README.md and original /workspace/cochem-runtime/chain-pass2-jt1upcd8/campaign/xtbopt.log"
+    },
+    {
+      "path": "examples/product_b/gaas_ordered.cif",
+      "sha256": "49e92a70862833154db267b70f6ff95c3e61b9203a0a4ec61d673a374e94d6c2",
+      "purpose": "Ordered primitive-cell CIF ingestion example; no calculated electronic properties",
+      "provenance_status": "constructed_geometry_input",
+      "provenance": "Explicit GaAs 5.65 angstrom cubic cell represented in primitive vectors; see examples/product_b/README.md. Example coordinates are not a computed reference."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVTZ.inp",
+      "sha256": "dae00852527030114dbd39277bfc672f03da0106cf31746a17be2a05b294f0a5",
+      "purpose": "Authentic canonical CCSD(T) reference output parsing regression; replay is not a fresh calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Genuine ORCA 6.1.1 one-core canonical CCSD(T) H2 reference calculation at 0.741802 angstrom, generated on 2026-10-07 by scripts/verify_r2.py; see tests/fixtures/orca_6_1_1/README.md and provenance.json."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVTZ.out",
+      "sha256": "5a49c7c5f5edfeb202abb3cb6503f2cb5f287da9ab97b5ad5ad526a9dc6a5305",
+      "purpose": "Authentic canonical CCSD(T) reference output parsing regression; replay is not a fresh calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Genuine ORCA 6.1.1 one-core canonical CCSD(T) H2 reference calculation at 0.741802 angstrom, generated on 2026-10-07 by scripts/verify_r2.py; see tests/fixtures/orca_6_1_1/README.md and provenance.json."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVQZ.inp",
+      "sha256": "e9f746a57a63218feddfcaedd05054cb9e0700f98301e450758bccc721557332",
+      "purpose": "Authentic canonical CCSD(T) reference output parsing regression; replay is not a fresh calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Genuine ORCA 6.1.1 one-core canonical CCSD(T) H2 reference calculation at 0.741802 angstrom, generated on 2026-10-07 by scripts/verify_r2.py; see tests/fixtures/orca_6_1_1/README.md and provenance.json."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVQZ.out",
+      "sha256": "be87e83c5137fc4d7492d4ad34cb570c64b26b40b1a816d5df836b9378d9b41f",
+      "purpose": "Authentic canonical CCSD(T) reference output parsing regression; replay is not a fresh calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Genuine ORCA 6.1.1 one-core canonical CCSD(T) H2 reference calculation at 0.741802 angstrom, generated on 2026-10-07 by scripts/verify_r2.py; see tests/fixtures/orca_6_1_1/README.md and provenance.json."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/provenance.json",
+      "sha256": "b3f927fce8ab74d4183f0b20e9b69b5e63777152e8db73a9d1d5a328b4eefebe",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "native_execution_provenance",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/water.engrad",
+      "sha256": "1caccb3dfcaaf6d21488731e5bf3732e4707f07afe315189dec349d87a79e860",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/water.hess",
+      "sha256": "9e17edda4c10cb8edffcf08e854dea501d25f7e40af77ec40addc01a58145eeb",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/water.inp",
+      "sha256": "b01e385c4092d3c4a5425a92508ac3e84966ddc587ed673c4f7e29d46c491470",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/water.out.txt",
+      "sha256": "4056716d0fafa3cdf4e3c591f6d23712f2738a89a9c11c7bd9228ab08d1895da",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/water.xyz",
+      "sha256": "0c9cd1dd134b2918fc169fa8a84125a30548718c44179b6d08bbf707d0a1373f",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.out",
+      "sha256": "12483ef0d8c8b94d7b1a8fa3dcf6eb09eb41d9593f7a067c4acc5f0fe65c8519",
+      "purpose": "Exact selected native output lines for stationary-restart parser regression; not complete physical acceptance evidence",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Verbatim ORCA 6.1.1 HF/STO-3G restart output excerpt. Full-output digest, selected line ranges and excerpt digest are recorded in tests/fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.json."
+    }
+  ]
+}

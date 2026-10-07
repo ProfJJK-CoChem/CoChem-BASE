@@ -344,7 +344,7 @@ def test_jiggle_quench_conformer_deduplication() -> None:
     # Generate an ensemble of 5 conformers:
     # 1. Base water
     # 2. Base water translated and rotated (exact duplicate)
-    # 3. Base water with small numerical noise (0.01 A) -> should be clustered with base
+    # 3. Small coordinate perturbation alters rotational constants -> retained by the spectral gate
     # 4. Stretched water (O-H stretched by 0.3 A) -> unique conformer
     # 5. Stretched water rotated -> clustered with stretched water
     
@@ -383,8 +383,15 @@ def test_jiggle_quench_conformer_deduplication() -> None:
     )
     
     assert result.total_input_conformers == 5
-    assert result.unique_conformer_count == 2, f"Expected 2 unique conformers, got {result.unique_conformer_count}"
-    assert len(result.unique_indices) == 2
+    assert result.unique_conformer_count == 3
+    assert result.unique_indices == [0, 2, 3]
+    assert result.cluster_assignments[1] == 0
+    assert result.cluster_assignments[4] == 3
+    # A small RMSD alone does not prove microwave equivalence.
+    from cochem_base.intake.conformer_deduplication import compute_conformer_rotational_constants
+    base_b = compute_conformer_rotational_constants(WATER_SYMBOLS, conf1)[1]
+    perturbed_b = compute_conformer_rotational_constants(WATER_SYMBOLS, conf3)[1]
+    assert abs(perturbed_b - base_b) / base_b > 0.0005
 
 
 # ==============================================================================

@@ -37,8 +37,8 @@ def test_cfour_serializer_trans_formic_acid_deck():
     deck = serialize_cfour_input(spec)
 
     # 1. Directive validation
-    assert "*CFOUR(CALC=CCSD(T),BASIS=ANO0,COORD=CARTESIAN,EXCITE=NONE" in deck
-    assert "MULT=1,REF=RHF,SYMMETRY=OFF,VPT2=OFF)" in deck
+    assert "*CFOUR(CALC=CCSD(T),BASIS=ANO0,COORD=CARTESIAN,UNITS=ANGSTROM,EXCITE=NONE" in deck
+    assert "MULT=1,REF=RHF,DERIV=ANALYTIC,SYMMETRY=OFF,VPT2=OFF)" in deck
     assert "SYMMETRY=OFF" in deck
 
     # 2. Coordinate preservation: All atoms present in order
@@ -72,7 +72,7 @@ def test_cfour_generate_geom_block_integration():
     )
 
     assert "CFOUR Geometry Parameters (Cartesian SYMMETRY=OFF Frame Alignment) [M]" in deck
-    assert "*CFOUR(CALC=CCSD(T),BASIS=CC-PVTZ,COORD=CARTESIAN,EXCITE=NONE" in deck
+    assert "*CFOUR(CALC=CCSD(T),BASIS=CC-PVTZ,COORD=CARTESIAN,UNITS=ANGSTROM,EXCITE=NONE" in deck
     assert "SYMMETRY=OFF" in deck
     assert "0.00000000     0.00000000     0.00000000" in deck
     assert "0.75700000    -0.46900000" in deck

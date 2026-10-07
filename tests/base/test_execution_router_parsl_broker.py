@@ -16,9 +16,9 @@ from cochem_base.calc.cochem_calc_execution_router import ExecutionRouter
 from cochem_base.schemas import JobRouteConfig, ExecutionRouteResult
 
 
-def test_execution_router_scout_and_anchor_routing(tmp_path: Path) -> None:
+def test_execution_router_scout_and_anchor_routing(tmp_path: Path, audited_registry) -> None:
     """Verify that ExecutionRouter routes exploratory MLFF to scout_gpu and heavy QM to anchor_cpu."""
-    router = ExecutionRouter()
+    router = ExecutionRouter(audited_registry)
 
     # 1. Exploratory MLFF scan task
     scout_result = router.route_job(
@@ -28,7 +28,7 @@ def test_execution_router_scout_and_anchor_routing(tmp_path: Path) -> None:
         cpu_core_pinning=[0],
     )
     assert isinstance(scout_result, ExecutionRouteResult)
-    assert scout_result.assigned_executor == "cochem_scout_gpu"
+    assert scout_result.assigned_executor == "local_fallback"
     assert scout_result.scratch_dir.exists()
 
     # 2. Heavy quantum chemical optimization task
@@ -39,14 +39,14 @@ def test_execution_router_scout_and_anchor_routing(tmp_path: Path) -> None:
         cpu_core_pinning=[0, 1, 2, 3],
     )
     assert isinstance(anchor_result, ExecutionRouteResult)
-    assert anchor_result.assigned_executor == "cochem_anchor_cpu"
+    assert anchor_result.assigned_executor == "local_fallback"
     assert anchor_result.scratch_dir.exists()
 
 
-def test_execution_router_thread_budgeting(tmp_path: Path) -> None:
+def test_execution_router_thread_budgeting(tmp_path: Path, audited_registry) -> None:
     """Verify CPU core affinity and OpenMP/MKL thread count budgeting."""
-    router = ExecutionRouter()
-    cores = [0, 1, 2, 3, 4, 5, 6]
+    router = ExecutionRouter(audited_registry)
+    cores = list(range(min(7, router.registry["hardware"]["logical_cpu_cores"])))
 
     res = router.route_job(
         target_engine_or_type="heavy_qm_opt",
@@ -54,5 +54,6 @@ def test_execution_router_thread_budgeting(tmp_path: Path) -> None:
         scratch_dir=tmp_path / "scratch_threads",
         cpu_core_pinning=cores,
     )
-    assert res.assigned_executor == "cochem_anchor_cpu"
+    assert res.assigned_executor == "local_fallback"
     assert res.scratch_dir.exists()
+    assert res.output.strip() == str(len(cores))

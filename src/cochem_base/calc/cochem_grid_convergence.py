@@ -30,7 +30,7 @@ Authoritative References & Method Matrix Mandates:
     the DEFGRID3 requirement is asserted rather than demonstrated."
 
 5. Method Matrix v4 §4.1, §4.4, §4.5, §12.5 - Rigid-Rotor Observables & Provenance Discipline:
-   Exact moments of inertia (Ia, Ib, Ic), rotational constants (A, B, C) via CONV = 505379.0 MHz*amu*Angstrom^2,
+   Exact moments of inertia (Ia, Ib, Ic), rotational constants (A, B, C) via the shared CoChem rotational conversion factor MHz*amu*Angstrom^2,
    intermolecular distance R and center-of-mass R_cm, inertial defect Delta, planar moments Paa, Pbb, Pcc,
    and Ray's asymmetry parameter kappa, tagged with [M], [D], [E].
 
@@ -39,6 +39,8 @@ Authoritative References & Method Matrix Mandates:
 """
 
 from __future__ import annotations
+
+from cochem_base.core import cochem_constants as _constants
 
 import argparse
 import hashlib
@@ -50,12 +52,14 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import filelock
 import h5py
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
+
+logger = logging.getLogger("cochem.calc.grid_convergence")
 
 # Reconfigure stream encodings for safe cross-platform terminal output
 if hasattr(sys.stdout, "reconfigure"):
@@ -69,14 +73,6 @@ if hasattr(sys.stderr, "reconfigure"):
     except Exception as _e:
         logger.debug(f"Ignored exception: {_e}")
 
-# Dynamic atomic mass retrieval via Mendeleev library
-try:
-    from mendeleev import element as _mendeleev_element
-    _MENDELEEV_AVAILABLE = True
-except ImportError:
-    _mendeleev_element = None  # type: ignore[assignment]
-    _MENDELEEV_AVAILABLE = False
-
 from cochem_base.config_loader import get_artifact_dir, resolve_mapped_path
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -88,17 +84,19 @@ logger = logging.getLogger("cochem.calc.grid_convergence")
 
 # Conversion constant: moment of inertia (amu * Angstrom^2) to rotational constant (MHz)
 # Reference: Groner (2016); NIST CCCBDB; Method Matrix §4.1, §4.5, §5.1
-CONV_MHZ_AMU_ANG2: float = 505379.0
+from cochem_base.core.cochem_constants import C_ROT_MHZ_U_ANG2
+
+CONV_MHZ_AMU_ANG2: float = _constants.C_ROT_MHZ_U_ANG2
 
 # Energy unit conversion constants
-HARTREE_TO_KCAL_MOL: float = 627.509474063
-HARTREE_TO_CM1: float = 219474.6313632
-HARTREE_TO_EV: float = 27.211386245988
-KCAL_MOL_TO_HARTREE: float = 1.0 / HARTREE_TO_KCAL_MOL
+HARTREE_TO_KCAL_MOL: float = _constants.HARTREE_TO_KCAL_MOL
+HARTREE_TO_CM1: float = _constants.HARTREE_TO_CM_INV
+HARTREE_TO_EV: float = _constants.HARTREE_TO_EV
+KCAL_MOL_TO_HARTREE: float = _constants.KCAL_MOL_TO_HARTREE
 
 # Length unit conversion constants
-BOHR_TO_ANGSTROM: float = 0.529177210903
-ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM
+BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_BOHR: float = _constants.ANGSTROM_TO_BOHR
 ANGSTROM_TO_PM: float = 100.0
 PM_TO_ANGSTROM: float = 0.01
 
@@ -126,34 +124,9 @@ def get_dynamic_atomic_mass(symbol: str, mass_number: Optional[int] = None) -> f
     Dynamically retrieves atomic or isotopic mass in unified atomic mass units (u/amu)
     from the `mendeleev` library. Strictly adheres to the Mendeleev Library Mandate.
     """
-    if not _MENDELEEV_AVAILABLE or _mendeleev_element is None:
-        raise RuntimeError(
-            "[MENDELEEV MANDATE ERROR] The 'mendeleev' library is strictly required "
-            "for dynamic atomic mass retrieval but is not available."
-        )
+    from cochem_base.physics.isotopes import get_atomic_mass, get_isotope_mass
 
-    clean_sym = symbol.strip().capitalize()
-    if clean_sym in ("D", "H2"):
-        clean_sym = "H"
-        mass_number = 2
-    elif clean_sym in ("T", "H3"):
-        clean_sym = "H"
-        mass_number = 3
-
-    el = _mendeleev_element(clean_sym)
-    if mass_number is not None:
-        for iso in getattr(el, "isotopes", []):
-            if getattr(iso, "mass_number", None) == mass_number:
-                iso_mass = getattr(iso, "mass", None)
-                if iso_mass is not None:
-                    return float(iso_mass)
-                break
-
-    el_mass = getattr(el, "mass", None) or getattr(el, "atomic_weight", None)
-    if el_mass is not None:
-        return float(el_mass)
-
-    raise ValueError(f"Could not retrieve dynamic mass for element '{symbol}' (mass_number={mass_number})")
+    return get_atomic_mass(symbol) if mass_number is None else get_isotope_mass(symbol, mass_number)
 
 
 def get_element_masses(symbols: Sequence[str]) -> List[float]:
@@ -167,7 +140,7 @@ def get_element_masses(symbols: Sequence[str]) -> List[float]:
 
 class GridCalculationResult(BaseModel):
     """Container for molecular observables computed at a specific DFT integration grid."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     grid_name: str = Field(..., description="DFT integration grid keyword (e.g. DEFGRID1, DEFGRID2, DEFGRID3)")
     energy_hartree: float = Field(..., description="Final single point electronic energy in Hartree (Eh)")
@@ -194,7 +167,8 @@ class GridCalculationResult(BaseModel):
     )
     max_gradient: Optional[float] = Field(default=None, description="Maximum gradient component in Eh/bohr")
     softest_force_constant: Optional[float] = Field(default=None, description="Softest force constant in mdyn/Angstrom")
-    scf_converged: bool = Field(default=True, description="Whether SCF met convergence threshold")
+    scf_converged: Optional[StrictBool] = Field(default=None, description="Explicit SCF convergence evidence; None means unavailable")
+    source_log_sha256: Optional[str] = Field(default=None, description="SHA-256 of the source electronic-structure output")
     harmonic_frequencies_cm1: Optional[List[float]] = Field(
         default=None, description="Harmonic vibrational frequencies in cm^-1"
     )
@@ -379,7 +353,7 @@ def compute_rotational_constants(
         A = CONV / Ia
         B = CONV / Ib
         C = CONV / Ic
-    where CONV = 505379.0 MHz * amu * Angstrom^2.
+    where the shared CoChem rotational conversion factor MHz * amu * Angstrom^2.
     """
     Ia, Ib, Ic = principal_moments
     if Ia <= 1.0e-8 or Ib <= 1.0e-8 or Ic <= 1.0e-8:
@@ -436,58 +410,16 @@ def auto_partition_dimer(
     Partitions a van der Waals or hydrogen-bonded dimer complex into two monomers
     using covalent radius connectivity graph analysis.
     """
-    n_atoms = len(elements)
-    if n_atoms < 2:
-        return [0], []
+    from cochem_base.exceptions import MethodologyViolationError
+    from cochem_base.geometry.fragment_partitioner import detect_molecular_fragments
 
-    covalent_radii: Dict[str, float] = {
-        "H": 0.31, "He": 0.28, "Li": 1.28, "Be": 0.96, "B": 0.84, "C": 0.76,
-        "N": 0.71, "O": 0.66, "F": 0.57, "Ne": 0.58, "Na": 1.66, "Mg": 1.41,
-        "Al": 1.21, "Si": 1.11, "P": 1.07, "S": 1.05, "Cl": 1.02, "Ar": 1.06,
-        "K": 2.03, "Ca": 1.76, "Br": 1.20, "Kr": 1.16, "I": 1.39, "Xe": 1.40
-    }
-
-    adj = np.zeros((n_atoms, n_atoms), dtype=bool)
-    for i in range(n_atoms):
-        r_cov_i = covalent_radii.get(elements[i].capitalize(), 0.80)
-        for j in range(i + 1, n_atoms):
-            r_cov_j = covalent_radii.get(elements[j].capitalize(), 0.80)
-            cutoff = r_cov_i + r_cov_j + 0.45
-            dist = float(np.linalg.norm(coords[i] - coords[j]))
-            if dist <= cutoff:
-                adj[i, j] = True
-                adj[j, i] = True
-
-    visited = set()
-    components: List[List[int]] = []
-
-    for start_node in range(n_atoms):
-        if start_node not in visited:
-            component = []
-            queue = [start_node]
-            visited.add(start_node)
-            while queue:
-                node = queue.pop(0)
-                component.append(node)
-                for neighbor in range(n_atoms):
-                    if adj[node, neighbor] and neighbor not in visited:
-                        visited.add(neighbor)
-                        queue.append(neighbor)
-            components.append(sorted(component))
-
-    if len(components) >= 2:
-        m1 = components[0]
-        m2 = [idx for c in components[1:] for idx in c]
-        return m1, m2
-
-    com = compute_center_of_mass(coords, np.ones(n_atoms))
-    m1 = [i for i in range(n_atoms) if coords[i, 0] <= com[0]]
-    m2 = [i for i in range(n_atoms) if coords[i, 0] > com[0]]
-    if not m1 or not m2:
-        mid = n_atoms // 2
-        m1 = list(range(mid))
-        m2 = list(range(mid, n_atoms))
-    return m1, m2
+    fragments = detect_molecular_fragments(elements, coords)
+    if len(fragments) != 2:
+        raise MethodologyViolationError(
+            "Dimer analysis requires exactly two covalently connected monomers; "
+            f"found {len(fragments)}. Supply a validated dimer geometry."
+        )
+    return fragments[0], fragments[1]
 
 
 def compute_intermolecular_distances(
@@ -742,7 +674,7 @@ class GridConvergenceAnalyzer:
         max_gradient: Optional[float] = None,
         softest_force_constant: Optional[float] = None,
         harmonic_frequencies: Optional[List[float]] = None,
-        scf_converged: bool = True,
+        scf_converged: Optional[bool] = None,
     ) -> GridCalculationResult:
         """
         Computes all rigid-rotor observables, moments of inertia, rotational constants,
@@ -762,9 +694,15 @@ class GridConvergenceAnalyzer:
         planar_moments = compute_planar_moments(principal_moments[0], principal_moments[1], principal_moments[2])
 
         # 2. Intermolecular Distances
-        if monomer1_indices is None or monomer2_indices is None:
-            m1, m2 = auto_partition_dimer(symbols_list, coords_arr)
-        else:
+        m1, m2 = auto_partition_dimer(symbols_list, coords_arr)
+        if monomer1_indices is not None or monomer2_indices is not None:
+            if monomer1_indices is None or monomer2_indices is None:
+                raise ValueError("Both monomer partitions must be supplied together.")
+            supplied = (monomer1_indices, monomer2_indices)
+            if any(isinstance(i, bool) or not isinstance(i, (int, np.integer)) for part in supplied for i in part):
+                raise ValueError("Monomer indices must be integers.")
+            if {tuple(sorted(part)) for part in supplied} != {tuple(m1), tuple(m2)}:
+                raise ValueError("Supplied monomer partitions must match the covalent connectivity.")
             m1, m2 = monomer1_indices, monomer2_indices
 
         R_min, R_cm, _ = compute_intermolecular_distances(coords_arr, masses_arr, m1, m2)
@@ -834,7 +772,7 @@ class GridConvergenceAnalyzer:
         d_defect = float(target_result.inertial_defect - baseline_result.inertial_defect)
 
         pass_energy = abs(dE_hartree) <= GRID_ENERGY_TOLERANCE_EH
-        pass_geom = (dR_ang is None) or (abs(dR_ang) <= GRID_DELTA_R_TOLERANCE_ANGSTROM)
+        pass_geom = dR_ang is not None and abs(dR_ang) <= GRID_DELTA_R_TOLERANCE_ANGSTROM
         pass_rot = abs(dB_pct) <= GRID_DELTA_B_PCT_TOLERANCE
 
         return GridConvergenceStep(
@@ -877,7 +815,10 @@ class GridConvergenceAnalyzer:
         dB_pct = float(abs(dB_mhz / original_result.B) * 100.0)
 
         soft_shifts: Dict[str, float] = {}
-        pass_modes = True
+        pass_modes = bool(
+            original_result.harmonic_frequencies_cm1 and rotated_result.harmonic_frequencies_cm1
+            and len(original_result.harmonic_frequencies_cm1) == len(rotated_result.harmonic_frequencies_cm1)
+        )
 
         if original_result.harmonic_frequencies_cm1 and rotated_result.harmonic_frequencies_cm1:
             orig_freqs = original_result.harmonic_frequencies_cm1
@@ -895,7 +836,10 @@ class GridConvergenceAnalyzer:
 
         pass_energy = abs(dE_hartree) <= ROTATION_ENERGY_TOLERANCE_EH
         pass_rot = dB_pct <= ROTATION_DELTA_B_PCT_TOLERANCE
-        overall_invariant = pass_energy and pass_rot and pass_modes
+        overall_invariant = (
+            pass_energy and pass_rot and pass_modes
+            and original_result.scf_converged is True and rotated_result.scf_converged is True
+        )
 
         return GridRotationInvarianceResult(
             grid_name=original_result.grid_name,
@@ -943,6 +887,15 @@ class GridConvergenceAnalyzer:
 
         findings: List[str] = []
         is_compliant = True
+        if len(calc_dict) != len(grid_calculations):
+            raise ValueError("Each grid level must have exactly one calculation result.")
+        if not {"DEFGRID2", "DEFGRID3"}.issubset(calc_dict):
+            findings.append("[GATE FAIL] Actual DEFGRID2 and DEFGRID3 results are required for convergence.")
+            is_compliant = False
+        for result in grid_calculations:
+            if result.scf_converged is not True:
+                findings.append(f"[GATE FAIL] {result.grid_name} lacks successful SCF convergence evidence.")
+                is_compliant = False
 
         target_step = steps[-1] if steps else None
         for step in steps:
@@ -1160,8 +1113,9 @@ def render_markdown_summary(report: GridConvergenceReport) -> str:
 
 def get_canonical_reference_system(system_name: str) -> Dict[str, Any]:
     """
-    Returns authentic reference Cartesian structures and energies from the Method Matrix §17
-    validation set (Water Dimer (H2O)2, CO2···H2O, Ar···ketene, CH4···H2O).
+    Returns seed geometries for named Method Matrix validation systems.
+
+    These seeds are not evidence of an executed calculation or measured energies.
     """
     name_clean = system_name.strip().lower()
 
@@ -1174,7 +1128,6 @@ def get_canonical_reference_system(system_name: str) -> Dict[str, Any]:
             "monomer2": [3, 4, 5],
             "grids": {
                 "DEFGRID1": {
-                    "energy": -152.8841205,
                     "coords": np.array([
                         [ 1.4870000,  0.0000000, -0.0580000],
                         [ 1.8840000,  0.7580000,  0.4210000],
@@ -1185,7 +1138,6 @@ def get_canonical_reference_system(system_name: str) -> Dict[str, Any]:
                     ], dtype=np.float64),
                 },
                 "DEFGRID2": {
-                    "energy": -152.8845892,
                     "coords": np.array([
                         [ 1.4851000,  0.0000000, -0.0572000],
                         [ 1.8824000,  0.7581000,  0.4213000],
@@ -1196,7 +1148,6 @@ def get_canonical_reference_system(system_name: str) -> Dict[str, Any]:
                     ], dtype=np.float64),
                 },
                 "DEFGRID3": {
-                    "energy": -152.8846014,
                     "coords": np.array([
                         [ 1.4850200,  0.0000000, -0.0571500],
                         [ 1.8823500,  0.7581200,  0.4213500],
@@ -1218,7 +1169,6 @@ def get_canonical_reference_system(system_name: str) -> Dict[str, Any]:
             "monomer2": [3, 4, 5],
             "grids": {
                 "DEFGRID1": {
-                    "energy": -264.4812300,
                     "coords": np.array([
                         [ 0.0000000,  0.0000000,  1.4280000],
                         [-1.1620000,  0.0000000,  1.4280000],
@@ -1229,7 +1179,6 @@ def get_canonical_reference_system(system_name: str) -> Dict[str, Any]:
                     ], dtype=np.float64),
                 },
                 "DEFGRID2": {
-                    "energy": -264.4820150,
                     "coords": np.array([
                         [ 0.0000000,  0.0000000,  1.4230000],
                         [-1.1600000,  0.0000000,  1.4230000],
@@ -1240,7 +1189,6 @@ def get_canonical_reference_system(system_name: str) -> Dict[str, Any]:
                     ], dtype=np.float64),
                 },
                 "DEFGRID3": {
-                    "energy": -264.4820380,
                     "coords": np.array([
                         [ 0.0000000,  0.0000000,  1.4228000],
                         [-1.1599000,  0.0000000,  1.4228000],
@@ -1262,7 +1210,6 @@ def get_canonical_reference_system(system_name: str) -> Dict[str, Any]:
             "monomer2": [5],
             "grids": {
                 "DEFGRID1": {
-                    "energy": -680.1245000,
                     "coords": np.array([
                         [ 0.0000000,  0.0000000, -1.7850000],
                         [ 0.0000000,  0.0000000, -0.4750000],
@@ -1273,7 +1220,6 @@ def get_canonical_reference_system(system_name: str) -> Dict[str, Any]:
                     ], dtype=np.float64),
                 },
                 "DEFGRID2": {
-                    "energy": -680.1251200,
                     "coords": np.array([
                         [ 0.0000000,  0.0000000, -1.7800000],
                         [ 0.0000000,  0.0000000, -0.4700000],
@@ -1284,7 +1230,6 @@ def get_canonical_reference_system(system_name: str) -> Dict[str, Any]:
                     ], dtype=np.float64),
                 },
                 "DEFGRID3": {
-                    "energy": -680.1251380,
                     "coords": np.array([
                         [ 0.0000000,  0.0000000, -1.7798000],
                         [ 0.0000000,  0.0000000, -0.4698000],
@@ -1308,67 +1253,78 @@ def execute_grid_convergence_benchmark(
     system_name: str = "water_dimer",
     output_dir: Optional[Union[str, Path]] = None,
     test_rotation: bool = True,
+    *,
+    grid_outputs: Optional[Mapping[str, Union[str, Path]]] = None,
+    rotated_outputs: Optional[Mapping[str, Union[str, Path]]] = None,
+    rotation_euler_angles_deg: Tuple[float, float, float] = (45.0, 30.0, 60.0),
 ) -> GridConvergenceReport:
-    """
-    Executes a complete, production-grade grid convergence and rotational invariance study
-    for an authentic chemical system from the Method Matrix benchmark repository.
-    """
-    ref_data = get_canonical_reference_system(system_name)
-    analyzer = GridConvergenceAnalyzer(
-        complex_name=ref_data["name"],
-        chemical_formula=ref_data["formula"]
-    )
+    """Audit actual ORCA output files, never substitute reference or rotated energies.
 
-    elements = ref_data["elements"]
-    m1 = ref_data["monomer1"]
-    m2 = ref_data["monomer2"]
-    grid_dict = ref_data["grids"]
+    ``grid_outputs`` must include completed DEFGRID2 and DEFGRID3 optimizations.
+    Rotation auditing additionally requires a separate DEFGRID3 output from
+    coordinates rotated by ``rotation_euler_angles_deg`` about the centroid.
+    This function does not launch an engine or provide electronic benchmark data.
+    """
+    from cochem_base.calc.cochem_calc_output_parser import QuantumParser
+    from cochem_base.exceptions import MissingDataError
 
-    results: List[GridCalculationResult] = []
-    for g_name, g_info in grid_dict.items():
-        res = analyzer.evaluate_grid_point(
-            grid_name=g_name,
-            energy_hartree=g_info["energy"],
-            elements=elements,
-            coordinates=g_info["coords"],
-            monomer1_indices=m1,
-            monomer2_indices=m2,
+    if not grid_outputs or not {"DEFGRID2", "DEFGRID3"}.issubset(grid_outputs):
+        raise MissingDataError("Real ORCA DEFGRID2 and DEFGRID3 output logs are required; seed geometries are not benchmark results.")
+    if set(grid_outputs) - {"DEFGRID1", "DEFGRID2", "DEFGRID3"}:
+        raise ValueError("Grid outputs must use DEFGRID1, DEFGRID2 or DEFGRID3 labels.")
+    if test_rotation and (not rotated_outputs or "DEFGRID3" not in rotated_outputs):
+        raise MissingDataError("Rotational invariance requires separately executed rotated DEFGRID3 output with frequencies.")
+
+    seed = get_canonical_reference_system(system_name)
+    analyzer = GridConvergenceAnalyzer(seed["name"], seed["formula"])
+
+    def read_result(grid: str, source: Union[str, Path], *, rotated: bool = False) -> GridCalculationResult:
+        path = Path(source)
+        content = path.read_text(encoding="utf-8")
+        parser = QuantumParser(str(path.parent))
+        if not parser.verify_scf_convergence(path):
+            raise MissingDataError(f"SCF convergence is not established in {path}.")
+        parser.check_spin_contamination(path)
+        if not rotated:
+            parser.verify_geometry_convergence(path)
+        metrics = parse_orca_output_for_grid_metrics(content)
+        if metrics["harmonic_frequencies"] and grid != "DEFGRID3":
+            raise ValueError("Frequency calculations require DEFGRID3.")
+        schema = parser.parse_to_qcschema(path, "grid-audit", hashlib.sha256(path.read_bytes()).hexdigest())
+        if metrics["optimized_coords"] is None or metrics["elements"] != seed["elements"]:
+            raise MissingDataError(f"Complete coordinates in canonical atom order are required in {path}.")
+        reported_grids = set(re.findall(r"\bDEFGRID[123]\b", content.upper()))
+        if reported_grids != {grid}:
+            raise MissingDataError(f"{path} must identify its single actual integration grid as {grid}.")
+        result = analyzer.evaluate_grid_point(
+            grid + "_ROTATED" if rotated else grid,
+            schema.properties.return_energy,
+            metrics["elements"], metrics["optimized_coords"],
+            max_gradient=metrics["max_gradient"],
+            harmonic_frequencies=metrics["harmonic_frequencies"] or None,
+            scf_converged=True,
         )
-        results.append(res)
+        result.source_log_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+        return result
 
+    results = [read_result(grid, source) for grid, source in grid_outputs.items()]
     rot_audits: List[GridRotationInvarianceResult] = []
     if test_rotation:
-        euler_angles = (45.0, 30.0, 60.0)
-        rot_mat = build_euler_rotation_matrix(*euler_angles)
-
-        for g_name in ("DEFGRID2", "DEFGRID3"):
-            if g_name in grid_dict:
-                orig_res = next(r for r in results if r.grid_name == g_name)
-                rot_coords = apply_rotation_to_coordinates(
-                    np.array(orig_res.coordinates), rot_mat, center_at_com=True
-                )
-                grid_noise_eh = 0.05e-6 if g_name == "DEFGRID3" else 0.40e-6
-                rot_energy = orig_res.energy_hartree + grid_noise_eh
-
-                rot_res = analyzer.evaluate_grid_point(
-                    grid_name=f"{g_name}_ROTATED",
-                    energy_hartree=rot_energy,
-                    elements=elements,
-                    coordinates=rot_coords,
-                    monomer1_indices=m1,
-                    monomer2_indices=m2,
-                )
-
-                rot_audit = analyzer.evaluate_rotational_invariance(
-                    original_result=orig_res,
-                    rotated_result=rot_res,
-                    euler_angles_deg=euler_angles,
-                )
-                rot_audits.append(rot_audit)
+        rotation = build_euler_rotation_matrix(*rotation_euler_angles_deg)
+        for grid in ("DEFGRID3",):
+            original = next(result for result in results if result.grid_name == grid)
+            rotated = read_result(grid, rotated_outputs[grid], rotated=True)
+            expected = apply_rotation_to_coordinates(np.asarray(original.coordinates), rotation, center_at_com=True)
+            actual = np.asarray(rotated.coordinates)
+            if not np.allclose(actual - actual.mean(axis=0), expected - expected.mean(axis=0), rtol=0, atol=1e-5):
+                raise ValueError(f"{grid} rotated coordinates do not match the requested rigid rotation.")
+            rot_audits.append(analyzer.evaluate_rotational_invariance(original, rotated, rotation_euler_angles_deg))
 
     report = analyzer.compile_convergence_report(results, rot_audits)
 
     out_base = Path(resolve_mapped_path(output_dir, get_artifact_dir() / "Scratch")) if output_dir else get_artifact_dir() / "Scratch"
+    from cochem.core.context import assert_writable_path
+    assert_writable_path(out_base)
     out_base.mkdir(parents=True, exist_ok=True)
 
     json_file = out_base / f"{report.complex_name}_grid_convergence.json"
@@ -1409,6 +1365,14 @@ def main() -> int:
         help="Disable 3D rigid-body rotational invariance tests",
     )
     parser.add_argument(
+        "--grid-output", action="append", default=[], metavar="GRID=PATH",
+        help="Completed real ORCA optimization output; supply DEFGRID2 and DEFGRID3",
+    )
+    parser.add_argument(
+        "--rotated-output", action="append", default=[], metavar="GRID=PATH",
+        help="Separate real output at the documented (45,30,60) degree rigid rotation",
+    )
+    parser.add_argument(
         "--audit",
         action="store_true",
         help="Print full Method Matrix compliance report to STDOUT",
@@ -1417,10 +1381,22 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
+        def output_map(values: List[str]) -> Dict[str, str]:
+            result: Dict[str, str] = {}
+            for value in values:
+                grid, separator, path = value.partition("=")
+                grid = grid.upper()
+                if not separator or not path or grid in result:
+                    raise ValueError("Output arguments must be unique GRID=PATH pairs.")
+                result[grid] = path
+            return result
+
         report = execute_grid_convergence_benchmark(
             system_name=args.system,
             output_dir=args.outdir,
             test_rotation=not args.no_rotation,
+            grid_outputs=output_map(args.grid_output),
+            rotated_outputs=output_map(args.rotated_output),
         )
 
         if args.audit or True:

@@ -471,15 +471,16 @@ def test_pes_store_lifecycle_and_provenance() -> None:
             driver="energy",
         )
 
-        coords_low = np.random.randn(5, 3, 3)
+        # Explicit protocol fixtures exercise storage alignment, not solver accuracy.
+        coords_low = np.arange(45, dtype=np.float64).reshape(5, 3, 3) / 10
         energies_low = np.array([-560.1, -560.2, -560.15, -560.18, -560.22])
         point_ids = [f"g2d:{i}" for i in range(5)]
 
-        store.add_points("dft_base", coords_low, energies_low, point_ids=point_ids)
+        store.add_points("dft_base", coords_low, energies_low, point_ids=point_ids, converged=True)
 
         coords_high = coords_low[:3]
         energies_high = np.array([-560.12, -560.23, -560.17])
-        store.add_points("dlpno_avtz", coords_high, energies_high, point_ids=point_ids[:3])
+        store.add_points("dlpno_avtz", coords_high, energies_high, point_ids=point_ids[:3], converged=True)
 
         all_wanted = [f"g2d:{i}" for i in range(5)]
         missing_dlpno = store.todo("dlpno_avtz", all_wanted)
@@ -610,7 +611,7 @@ for _ in range(100):
         state_recovery = daemon.check_thermal_cycle(simulated_temp=72.0)
         assert state_recovery == ThermalState.NORMAL
         time.sleep(0.1)
-        assert p_parent.status() in (psutil.STATUS_RUNNING, "running")
+        assert p_parent.status() in (psutil.STATUS_RUNNING, psutil.STATUS_SLEEPING)
 
     finally:
         daemon.check_thermal_cycle(simulated_temp=60.0)
@@ -705,15 +706,17 @@ def test_cc_tier_3_mpqc_psi4_prompt_and_options() -> None:
 # 11. Method Matrix v4 §8.5 Authoritative route() Execution Tests
 # =====================================================================
 
-def test_route_setup_1_orca_eula_rejection() -> None:
-    """Setup 1 (GitHub): Asserts ORCA is strictly rejected due to EULA restrictions."""
-    with pytest.raises(PermissionError, match="EULA VIOLATION: ORCA is strictly forbidden"):
-        route(
-            observable="dft_energy",
-            method="B3LYP",
-            setup="Setup1_github",
-            has_gpu=False,
-        )
+def test_route_setup_1_orca_requires_private_provisioning_and_runtime_authority() -> None:
+    """A hosted routing plan must not imply licensing or execution authority."""
+    decision = route(
+        observable="dft_energy", method="B3LYP", setup="Setup1_github", has_gpu=False,
+    )
+    assert decision.engine == "orca" and decision.device == "cpu"
+    assert any("private ORCA provisioning" in item for item in decision.execution_requirements)
+    assert any("registry authorization" in item for item in decision.execution_requirements)
+    assert "does not authorize execution or verify license entitlement" in decision.explanation
+    workstation = route(observable="dft_energy", method="B3LYP", setup="Setup2_workstation", has_gpu=False)
+    assert workstation.engine == "orca" and workstation.execution_requirements == ()
 
 
 def test_route_setup_2_heterogeneous_coscheduling() -> None:

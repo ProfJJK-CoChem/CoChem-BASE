@@ -1014,7 +1014,7 @@ def test_execute_workspace_sweep_cleans_ephemeral_preserves_registry(tmp_path: P
 
     # Ephemeral files
     f_tmp1 = ws / "test_module.tmp"
-    f_tmp2 = ws / "staging.tmp.1234"
+    f_tmp2 = ws / "staging.tmp.json"
     f_lock = reg / ".cochem_swmr_lock_probe.lock"
     f_tmp1.write_text("transient", encoding="utf-8")
     f_tmp2.write_text("transient", encoding="utf-8")
@@ -1033,10 +1033,10 @@ def test_execute_workspace_sweep_cleans_ephemeral_preserves_registry(tmp_path: P
         remove_intermediate_json=False,
     )
 
-    assert report.swept_files_count >= 3
+    assert report.swept_files_count == 2
     assert not f_tmp1.exists()
     assert not f_tmp2.exists()
-    assert not f_lock.exists()
+    assert f_lock.exists()  # A lock path alone does not establish an abandoned lock.
     assert f_perm.exists()
     assert f_golden.exists()
 
@@ -1050,6 +1050,7 @@ def test_execute_workspace_sweep_dry_run(tmp_path: Path) -> None:
 
     report = execute_workspace_sweep(
         workspace_dir=ws,
+        registry_dir=tmp_path / "registry",
         dry_run=True,
     )
     assert report.swept_files_count == 1
@@ -1099,5 +1100,3 @@ def test_resolve_golden_config_path_custom_and_default(tmp_path: Path, monkeypat
     monkeypatch.setenv("COCHEM_CONFIG", str(tmp_path / "env_config.json"))
     res2 = resolve_golden_config_path()
     assert res2 == (tmp_path / "env_config.json").resolve()
-
-

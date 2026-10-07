@@ -15,10 +15,10 @@ from cochem_base.calc.cochem_calc_input_generator import (
 )
 
 
-def test_orca_input_tight_convergence_criteria(tmp_path: Path) -> None:
+def test_orca_input_tight_convergence_criteria(tmp_path: Path, configured_registry) -> None:
     """Verifies that generated ORCA inputs for weak complexes contain all five
 
-    tight convergence thresholds in %geom mandated by Method Matrix §4.4.
+    requested tolerances below the independent Method Matrix §4.4 limits.
     """
     # Authentic physical coordinates for water dimer (weak intermolecular complex)
     elements = ["O", "H", "H", "O", "H", "H"]
@@ -45,17 +45,23 @@ def test_orca_input_tight_convergence_criteria(tmp_path: Path) -> None:
 
     content = out_file.read_text(encoding="utf-8")
 
-    # Assert all five Method Matrix §4.4 tight convergence thresholds are present in %geom
-    assert "%geom" in content, "Missing %geom block in optimization input"
-    assert "TolE 1e-7" in content, "Missing TolE 1e-7 tight energy threshold in %geom"
-    assert "TolMaxG 1e-5" in content, "Missing TolMaxG 1e-5 tight gradient threshold in %geom"
-    assert "TolRMSG 3e-6" in content, "Missing TolRMSG 3e-6 tight RMS gradient threshold in %geom"
-    assert "TolMaxD 1e-4" in content, "Missing TolMaxD 1e-4 tight displacement threshold in %geom"
-    assert "TolRMSD 5e-5" in content, "Missing TolRMSD 5e-5 tight RMS displacement threshold in %geom"
+    # Native ORCA can stop with one requested criterion unmet. Each requested
+    # tolerance needs margin; tightening requests must not relax SRS acceptance.
+    geom = content.split("%geom\n", 1)[1].split("\nend", 1)[0]
+    requests = dict(re.findall(r"^\s+(Tol\w+)\s+(\S+)\s*$", geom, re.M))
+    acceptance_limits = {
+        "TolE": 1e-7, "TolMaxG": 1e-5, "TolRMSG": 3e-6,
+        "TolMaxD": 1e-4, "TolRMSD": 5e-5,
+    }
+    assert set(requests) == set(acceptance_limits)
+    for criterion, limit in acceptance_limits.items():
+        assert 0 < float(requests[criterion]) < limit
+        assert float(requests[criterion]) / limit == pytest.approx(0.1)
+    assert "MaxIter 200" in geom
     assert "InHess XTB2" in content, "Missing InHess XTB2 preconditioner in %geom"
 
 
-def test_orca_input_internal_coordinate_constraints_no_cartesian_locks(tmp_path: Path) -> None:
+def test_orca_input_internal_coordinate_constraints_no_cartesian_locks(tmp_path: Path, configured_registry) -> None:
     """Verifies that frozen monomer inputs use internal coordinate {B}, {A}, {D} constraints
 
     and eradicate all Cartesian {C idx C} locks, leaving intermolecular DOFs free to relax.
@@ -76,7 +82,7 @@ def test_orca_input_internal_coordinate_constraints_no_cartesian_locks(tmp_path:
         basin_id="water_dimer_frozen_monomer",
         elements=elements,
         coordinates=coords,
-        theory_level="B3LYP-D3 def2-SVP",
+        theory_level="B3LYP D3BJ def2-SVP",
         is_weak_complex=True,
         is_opt=True,
         frozen_monomer_indices=[0, 1, 2],

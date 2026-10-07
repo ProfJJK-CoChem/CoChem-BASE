@@ -1,44 +1,33 @@
 {
-  "name": "CoChem-BENCH Development Environment",
-  "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
-  "features": {
-    "ghcr.io/devcontainers/features/common-utils:2": {
-      "installZsh": "true",
-      "configureZshAsDefaultShell": "true"
-    }
-  },
+  "name": "CoChem-BASE dashboard",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
   "containerEnv": {
-    "COCHEM_ARTIFACTS_DIR": "/home/vscode/CoChem_Artifacts",
+    "COCHEM_ARTIFACT_DIR": "/home/vscode/CoChem_Artifacts",
     "QT_QPA_PLATFORM": "offscreen",
     "COCHEM_HEADLESS": "1",
-    "OMPI_ALLOW_RUN_AS_ROOT": "1",
-    "OMPI_ALLOW_RUN_AS_ROOT_CONFIRM": "1",
-    "OMPI_MCA_btl_vader_single_copy_mechanism": "none",
-    "OMPI_MCA_rmaps_base_oversubscribe": "1"
-  },
-  "remoteEnv": {
-    "COCHEM_ARTIFACTS_DIR": "/home/vscode/CoChem_Artifacts",
-    "PYTHONPATH": "/workspaces/CoChem-BASE"
+    "OMP_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "2"
   },
   "mounts": [
-    "source=${localEnv:COCHEM_ARTIFACTS_DIR:${localEnv:HOME}/CoChem_Artifacts},target=/home/vscode/CoChem_Artifacts,type=bind,consistency=cached"
+    "source=cochem-base-artifacts,target=/home/vscode/CoChem_Artifacts,type=volume"
   ],
-  "postCreateCommand": "bash .devcontainer/setup_tmpfs.sh",
-  "postStartCommand": "bash .devcontainer/setup_tmpfs.sh",
+  "postCreateCommand": "sudo chown vscode:vscode /home/vscode/CoChem_Artifacts && python3 scripts/hosted_dashboard.py setup --min-disk-space-gb 1",
+  "postStartCommand": "python3 scripts/hosted_dashboard.py start",
+  "forwardPorts": [8866],
+  "portsAttributes": {
+    "8866": {
+      "label": "CoChem Voilà dashboard",
+      "onAutoForward": "notify",
+      "protocol": "http"
+    }
+  },
   "customizations": {
     "vscode": {
-      "extensions": [
-        "ms-python.python",
-        "ms-python.vscode-pylance",
-        "ms-toolsai.jupyter",
-        "charliermarsh.ruff"
-      ],
+      "extensions": ["ms-python.python", "ms-python.vscode-pylance", "ms-toolsai.jupyter", "charliermarsh.ruff"],
       "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.defaultInterpreterPath": "/home/vscode/CoChem_Artifacts/ui-env/bin/python",
         "python.testing.pytestEnabled": true,
-        "python.testing.pytestArgs": [
-          "tests"
-        ]
+        "python.testing.pytestArgs": ["-c", "pytest-srs.ini"]
       }
     }
   }

@@ -18,15 +18,15 @@ import pytest
 from cochem_base.calc.cochem_calc_execution_router import ExecutionRouter
 
 
-def test_dispatch_local_structured_execution_and_stream_isolation() -> None:
+def test_dispatch_local_structured_execution_and_stream_isolation(audited_registry, monkeypatch) -> None:
     """Verify commands with spaces and % execute cleanly without shell=True,
 
     and standard output streams are saved into Ring 2 scratch files.
     """
     with tempfile.TemporaryDirectory() as scratch_td:
         # Set Ring 2 scratch
-        os.environ["COCHEM_SCRATCH"] = scratch_td
-        router = ExecutionRouter()
+        monkeypatch.setenv("COCHEM_SCRATCH", scratch_td)
+        router = ExecutionRouter(audited_registry)
 
         # Command containing spaces and % in arguments
         test_msg = "Hello %VARIABLE% World with Spaces"
@@ -48,14 +48,14 @@ def test_dispatch_local_structured_execution_and_stream_isolation() -> None:
         assert "Hello %VARIABLE% World with Spaces" in content
 
 
-def test_dispatch_local_rejects_shell_injection() -> None:
+def test_dispatch_local_rejects_shell_injection(audited_registry, monkeypatch) -> None:
     """Verify that shell injection vectors (e.g. ; or && or |) are treated as literal arguments
 
     and do not execute arbitrary chained sub-commands.
     """
     with tempfile.TemporaryDirectory() as scratch_td:
-        os.environ["COCHEM_SCRATCH"] = scratch_td
-        router = ExecutionRouter()
+        monkeypatch.setenv("COCHEM_SCRATCH", scratch_td)
+        router = ExecutionRouter(audited_registry)
 
         canary_file = Path(scratch_td) / "injection_canary.txt"
 

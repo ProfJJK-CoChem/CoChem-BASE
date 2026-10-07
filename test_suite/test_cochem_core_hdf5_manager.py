@@ -1,8 +1,8 @@
 """
-Physical Unit and Integration Test Suite for CoChem Core HDF5 Manager and Distributed IPC.
+Storage and process integration tests for CoChem Core HDF5 Manager and Distributed IPC.
 
 Verifies:
-1. SWMR Eradication: Strict elimination of HDF5 SWMR on NFS/Lustre.
+1. Chunk 17 REQ-BASE-003: Live SWMR telemetry on supported filesystems.
 2. Real-Time IPC: Local scratch SQLite WAL queue and ZeroMQ streaming.
 3. Single Master Node Enforcement: Strict gatekeeping delegating HDF5 writes to Rank 0 / Master.
 4. Rigorous HDF5 Filtering: Mandatory gzip+shuffle+fletcher32 filters on all serialized datasets.
@@ -11,13 +11,16 @@ Verifies:
 7. Landscape Database Management: Basin and calculation storage in landscape.h5 with atomic locking.
 
 Zero-Mock Policy: 100% genuine OS processes, genuine filelocks, genuine SQLite WAL, and real HDF5 operations.
+Hand-entered scientific records below are serialization fixtures; they are not
+measured engine outputs or evidence of a quantum method's numerical accuracy.
 """
 
 from __future__ import annotations
 
-import ast
-import inspect
 import os
+import subprocess
+import sys
+import textwrap
 import threading
 import time
 from pathlib import Path
@@ -26,6 +29,7 @@ from typing import Any, Dict, List, Tuple
 import h5py
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
 try:
     import torch
@@ -52,7 +56,6 @@ except ImportError:
     QCElAtomicResult = None
     QCElMolecule = None
 
-import cochem_base.core.cochem_core_hdf5_manager as hdf5_module
 from cochem_base.core.cochem_core_hdf5_manager import (
     BasinRecord,
     CoChemHDF5Manager,
@@ -79,36 +82,151 @@ from cochem_base.core.cochem_core_hdf5_manager import (
     write_dataset_filtered,
 )
 
+
+def _run_storage_process(
+    source: str,
+    *arguments: object,
+    environment: dict[str, str] | None = None,
+    preserve_slurm: bool = False,
+) -> None:
+    """Run the real storage implementation in an independently configured process."""
+    child_environment = os.environ.copy()
+    for name in (
+        "COCHEM_IS_MASTER", "OMPI_COMM_WORLD_RANK", "PMI_RANK", "RANK",
+        "MV2_COMM_WORLD_RANK",
+    ):
+        child_environment.pop(name, None)
+    if not preserve_slurm:
+        child_environment.pop("SLURM_PROCID", None)
+    child_environment.update(environment or {})
+    completed = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(source), *(str(arg) for arg in arguments)],
+        env=child_environment,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def _qcschema_serialization_payloads() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Minimal schema examples; values are not attributed to an executed engine."""
+    molecule = {"symbols": ["He"], "geometry": [0.0, 0.0, 0.0]}
+    atomic = {
+        "molecule": molecule,
+        "driver": "energy",
+        "model": {"method": "serialization_fixture"},
+        "return_result": -1.0,
+        "provenance": {"creator": "serialization_fixture", "physical_reference": False},
+        "success": False,
+    }
+    optimization = {
+        "initial_molecule": molecule,
+        "final_molecule": molecule,
+        "trajectory": [atomic.copy()],
+        "energies": [-1.0],
+        "provenance": {"creator": "serialization_fixture", "physical_reference": False},
+        "success": False,
+    }
+    return atomic, optimization
+
+
+def test_qcschema_models_require_explicit_boolean_success() -> None:
+    atomic, optimization = _qcschema_serialization_payloads()
+    for model, payload in (
+        (QCSchemaAtomicResult, atomic),
+        (QCSchemaOptimizationResult, optimization),
+    ):
+        del payload["success"]
+        with pytest.raises(ValidationError, match="success"):
+            model.model_validate(payload)
+        for invalid_status in (None, "false", 1):
+            with pytest.raises(ValidationError, match="success"):
+                model.model_validate({**payload, "success": invalid_status})
+
+
+@pytest.mark.parametrize("record_format", ["atomic_v1", "atomic_v2", "optimization"])
+@pytest.mark.parametrize("status_case", ["missing", "null", "string", "integer"])
+def test_qcschema_ingestion_rejects_unreported_or_coerced_success(
+    tmp_path: Path, record_format: str, status_case: str,
+) -> None:
+    atomic, optimization = _qcschema_serialization_payloads()
+    payload = optimization if record_format == "optimization" else atomic
+    if record_format == "atomic_v2":
+        payload["input_data"] = {
+            "specification": {"driver": payload.pop("driver"), "model": payload.pop("model")},
+        }
+    del payload["success"]
+    if status_case != "missing":
+        payload["success"] = {"null": None, "string": "false", "integer": 1}[status_case]
+    path = tmp_path / "unreported.h5"
+    manager = CoChemHDF5Manager(h5_path=path)
+    write = (
+        manager.write_qcschema_optimization_result
+        if record_format == "optimization" else manager.write_qcschema_result
+    )
+    with pytest.raises(ValidationError, match="success"):
+        write("unreported", payload)
+    # A rejected status must not publish a calculation or trajectory record.
+    if path.exists():
+        with h5py.File(path, "r") as archive:
+            assert "calculations/unreported" not in archive
+            assert "trajectories/unreported" not in archive
+
+
+@pytest.mark.parametrize("location", ["atomic", "optimization", "step"])
+@pytest.mark.parametrize("status_case", ["missing", "string", "integer"])
+def test_qcschema_archive_rejects_unreported_or_corrupt_success(
+    tmp_path: Path, location: str, status_case: str,
+) -> None:
+    atomic, optimization = _qcschema_serialization_payloads()
+    path = tmp_path / "archive.h5"
+    manager = CoChemHDF5Manager(h5_path=path)
+    manager.write_qcschema_result("atomic", atomic)
+    manager.write_qcschema_optimization_result("optimization", optimization)
+    assert manager.read_qcschema_result("atomic").success is False
+    loaded = manager.read_qcschema_optimization_result("optimization")
+    assert loaded.success is False
+    assert loaded.trajectory[0].success is False
+    with h5py.File(path, "a") as archive:
+        if location == "atomic":
+            group = archive["calculations/atomic"]
+        elif location == "optimization":
+            group = archive["trajectories/optimization"]
+        else:
+            trajectory = archive["trajectories/optimization/steps"]
+            group = trajectory[next(iter(trajectory))]
+        del group.attrs["success"]
+        if status_case != "missing":
+            group.attrs["success"] = "false" if status_case == "string" else 1
+    read = (
+        manager.read_qcschema_result
+        if location == "atomic" else manager.read_qcschema_optimization_result
+    )
+    with pytest.raises(ValidationError, match="success"):
+        read("atomic" if location == "atomic" else "optimization")
+
 # =============================================================================
-# 1. SWMR ERADICATION & AST VERIFICATION
+# 1. SWMR TELEMETRY AND LEGACY ARCHIVE COMPATIBILITY
 # =============================================================================
 
-def test_swmr_eradication_in_source() -> None:
-    """Verifies that HDF5 Single-Writer/Multiple-Reader (SWMR) is completely eradicated from AST calls."""
-    src = inspect.getsource(hdf5_module)
-    parsed = ast.parse(src)
-
-    for node in ast.walk(parsed):
-        if isinstance(node, ast.Call):
-            func_name = ""
-            if isinstance(node.func, ast.Name):
-                func_name = node.func.id
-            elif isinstance(node.func, ast.Attribute):
-                func_name = node.func.attr
-
-            if func_name in ("File", "open"):
-                for kw in node.keywords:
-                    if kw.arg == "swmr":
-                        pytest.fail(f"Illegal swmr keyword argument found in {ast.dump(node)}")
-                    if kw.arg == "libver" and isinstance(kw.value, ast.Constant) and kw.value.value == "latest":
-                        pytest.fail(f"Illegal libver='latest' SWMR activation found in {ast.dump(node)}")
-
-    # Verify runtime assertion helper
-    assert verify_no_swmr_usage(hdf5_module) is True
+def test_chunk17_swmr_reader_observes_flushed_energy(tmp_path: Path) -> None:
+    """Chunk 17 supersedes the legacy blanket SWMR source-code prohibition."""
+    mgr = CoChemHDF5Manager(h5_path=tmp_path / "complexes.h5")
+    mgr.init_swmr_dataset("energies", (0,), (None,), (32,))
+    with mgr.swmr_writer() as writer:
+        assert writer.swmr_mode
+        with mgr.swmr_reader() as reader:
+            assert reader.swmr_mode
+            mgr.append_swmr_chunk("energies", np.array([-76.4]), writer_file=writer)
+            np.testing.assert_array_equal(
+                mgr.read_swmr_dataset("energies", reader_file=reader), [-76.4]
+            )
 
 
-def test_no_swmr_file_open_enforcement(tmp_path: Path) -> None:
-    """Verifies that CoChemHDF5Manager opens files safely without SWMR mode."""
+def test_completed_archive_supports_standard_reader(tmp_path: Path) -> None:
+    """A closed archive remains readable by ordinary HDF5 clients."""
     h5_path = tmp_path / "test_no_swmr.h5"
     mgr = CoChemHDF5Manager(h5_path=h5_path)
 
@@ -117,7 +235,7 @@ def test_no_swmr_file_open_enforcement(tmp_path: Path) -> None:
 
     # Open and verify flags
     with h5py.File(h5_path, "r") as f:
-        assert not getattr(f, "swmr_mode", False), "HDF5 file must not be in SWMR mode"
+        assert not getattr(f, "swmr_mode", False)
 
 
 # =============================================================================
@@ -306,65 +424,85 @@ def test_zeromq_realtime_streamer_push_pull() -> None:
 # 5. SINGLE MASTER NODE GATEKEEPING
 # =============================================================================
 
-def test_is_master_node_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_is_master_node_detection() -> None:
     """Tests environment-aware master node detection."""
-    monkeypatch.setenv("COCHEM_IS_MASTER", "1")
-    assert is_master_node() is True
-
-    monkeypatch.setenv("COCHEM_IS_MASTER", "0")
-    assert is_master_node() is False
-
-    monkeypatch.delenv("COCHEM_IS_MASTER")
-    
-    monkeypatch.setenv("OMPI_COMM_WORLD_RANK", "0")
-    assert is_master_node() is True
-
-    monkeypatch.setenv("OMPI_COMM_WORLD_RANK", "3")
-    assert is_master_node() is False
+    for environment, expected in (
+        ({"COCHEM_IS_MASTER": "1"}, True),
+        ({"COCHEM_IS_MASTER": "0"}, False),
+        ({"OMPI_COMM_WORLD_RANK": "0"}, True),
+        ({"OMPI_COMM_WORLD_RANK": "3"}, False),
+    ):
+        _run_storage_process(
+            """
+            import sys
+            from cochem_base.core.cochem_core_hdf5_manager import is_master_node
+            assert is_master_node() is (sys.argv[1] == "True")
+            """,
+            expected,
+            environment=environment,
+        )
 
 @pytest.mark.skipif(not os.environ.get("SLURM_PROCID"), reason="Requires physical SLURM node")
-def test_is_master_node_detection_slurm(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("COCHEM_IS_MASTER", raising=False)
-    monkeypatch.delenv("OMPI_COMM_WORLD_RANK", raising=False)
-    
-    expected = (os.environ.get("SLURM_PROCID") == "0")
-    assert is_master_node() is expected
+def test_is_master_node_detection_slurm() -> None:
+    _run_storage_process(
+        """
+        import os
+        from cochem_base.core.cochem_core_hdf5_manager import is_master_node
+        assert is_master_node() is (os.environ["SLURM_PROCID"] == "0")
+        """,
+        preserve_slurm=True,
+    )
 
 
-def test_master_write_gatekeeper_rejection_and_forwarding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_master_write_gatekeeper_rejection_and_forwarding(tmp_path: Path) -> None:
     """Verifies that non-master nodes are strictly forbidden from writing to HDF5 directly."""
     h5_path = tmp_path / "gatekeeper_test.h5"
     db_path = tmp_path / "gatekeeper_ipc.db"
 
-    # 1. Master node write succeeds
-    monkeypatch.setenv("COCHEM_IS_MASTER", "1")
-    gatekeeper = MasterWriteGatekeeper(h5_path=h5_path, ipc_db_path=db_path)
-    assert gatekeeper.is_master is True
-
-    basin = BasinRecord(molecule_name="methane", energy=-40.5, symmetry_group="Td")
-    gatekeeper.write_basin("basin_ch4", basin)
+    _run_storage_process(
+        """
+        import sys
+        from cochem_base.core.cochem_core_hdf5_manager import BasinRecord, MasterWriteGatekeeper
+        gatekeeper = MasterWriteGatekeeper(h5_path=sys.argv[1], ipc_db_path=sys.argv[2])
+        assert gatekeeper.is_master is True
+        basin = BasinRecord(molecule_name="serialization_fixture", energy=-40.5, symmetry_group="Td")
+        gatekeeper.write_basin("basin_ch4", basin)
+        """,
+        h5_path, db_path,
+        environment={"COCHEM_IS_MASTER": "1"},
+    )
     assert h5_path.exists()
-
-    # 2. Non-master node direct write is rejected
-    monkeypatch.setenv("COCHEM_IS_MASTER", "0")
-    worker_gatekeeper = MasterWriteGatekeeper(h5_path=h5_path, ipc_db_path=db_path)
-    assert worker_gatekeeper.is_master is False
-
-    with pytest.raises(NonMasterWriteRejectionError):
-        worker_gatekeeper.write_basin("basin_rejected", basin, allow_ipc_forward=False)
-
-    # 3. Non-master node routes to IPC forwarder cleanly
-    routed_record_id = worker_gatekeeper.write_basin("basin_forwarded", basin, allow_ipc_forward=True)
-    assert routed_record_id > 0
-
-    # Master node aggregator consumes IPC forward and serializes to HDF5
-    monkeypatch.setenv("COCHEM_IS_MASTER", "1")
-    aggregator = MasterDataAggregator(h5_path=h5_path, ipc_db_path=db_path)
-    processed = aggregator.aggregate_pending(limit=10)
-    assert processed == 1
+    _run_storage_process(
+        """
+        import sys
+        import pytest
+        from cochem_base.core.cochem_core_hdf5_manager import (
+            BasinRecord, MasterWriteGatekeeper, NonMasterWriteRejectionError,
+        )
+        worker = MasterWriteGatekeeper(h5_path=sys.argv[1], ipc_db_path=sys.argv[2])
+        assert worker.is_master is False
+        basin = BasinRecord(molecule_name="serialization_fixture", energy=-40.5, symmetry_group="Td")
+        with pytest.raises(NonMasterWriteRejectionError):
+            worker.write_basin("basin_rejected", basin, allow_ipc_forward=False)
+        assert worker.write_basin("basin_forwarded", basin, allow_ipc_forward=True) > 0
+        """,
+        h5_path, db_path,
+        environment={"COCHEM_IS_MASTER": "0"},
+    )
+    _run_storage_process(
+        """
+        import sys
+        from cochem_base.core.cochem_core_hdf5_manager import MasterDataAggregator
+        aggregator = MasterDataAggregator(h5_path=sys.argv[1], ipc_db_path=sys.argv[2])
+        assert aggregator.aggregate_pending(limit=10) == 1
+        """,
+        h5_path, db_path,
+        environment={"COCHEM_IS_MASTER": "1"},
+    )
 
     # Verify record in HDF5
     with h5py.File(h5_path, "r") as f:
+        assert "basins/basin_rejected" not in f
         assert "basins/basin_forwarded" in f
         assert f["basins/basin_forwarded"].attrs["energy"] == -40.5
 
@@ -378,7 +516,7 @@ def test_hdf5_mandatory_filter_enforcement(tmp_path: Path) -> None:
     h5_path = tmp_path / "filtered_test.h5"
     mgr = CoChemHDF5Manager(h5_path=h5_path)
 
-    # Authentic physical 10x10 molecular orbital coefficient matrix
+    # Hand-entered 10x10 orbital-shaped matrix for filter serialization
     data_2d = np.array([
         [-0.9942,  0.2338,  0.0000, -0.1088,  0.0000, -0.1243,  0.0000,  0.0512, -0.0123,  0.0045],
         [-0.0267, -0.8444,  0.0000,  0.5381,  0.0000,  0.8197,  0.0000, -0.1245,  0.0345, -0.0089],
@@ -420,7 +558,7 @@ def test_hdf5_filter_violation_rejection(tmp_path: Path) -> None:
     h5_path = tmp_path / "filter_strict.h5"
     mgr = CoChemHDF5Manager(h5_path=h5_path, strict_filters=True)
 
-    # Authentic physical electronic Hamiltonian / Fock matrix sub-block for minimal basis water
+    # Hand-entered symmetric matrix for tensor conversion and serialization
     genuine_fock_matrix = np.array([
         [-20.2512,  -5.1234,   0.0000,  -1.2456,  -1.2456],
         [ -5.1234,  -1.3456,   0.0000,  -0.4567,  -0.4567],
@@ -483,7 +621,7 @@ def test_qcschema_models_and_serialization(tmp_path: Path) -> None:
         molecular_multiplicity=1,
     )
 
-    # Canonical Molecular Orbital coefficient matrix for H2O (7x7 valence basis)
+    # Hand-entered orbital-shaped serialization fixture (7x7)
     orbitals_h2o = np.array([
         [-0.9942,  0.2338,  0.0000, -0.1088,  0.0000, -0.1243,  0.0000],
         [-0.0267, -0.8444,  0.0000,  0.5381,  0.0000,  0.8197,  0.0000],
@@ -496,7 +634,7 @@ def test_qcschema_models_and_serialization(tmp_path: Path) -> None:
 
     occupations_h2o = np.array([2.0, 2.0, 2.0, 2.0, 2.0, 0.0, 0.0], dtype=np.float64)
 
-    # Genuine physical alpha density matrix derived from occupied canonical orbitals: P_alpha = C_occ @ C_occ.T
+    # Numerical density-shaped fixture formed as P_alpha = C_occ @ C_occ.T
     density_h2o_a = orbitals_h2o[:, :5] @ orbitals_h2o[:, :5].T
 
     # Construct QCSchema Wavefunction
@@ -550,64 +688,56 @@ def test_qcschema_models_and_serialization(tmp_path: Path) -> None:
 
 
 def test_qcelemental_interoperability(tmp_path: Path) -> None:
-    """Tests bidirectional conversion with QCElemental models if installed."""
-    if qcel is None:
-        pytest.skip("QCElemental is not installed in current environment")
-
+    """Validate real QCElemental schema conversion using explicit serialization fixtures."""
+    assert qcel is not None, "Install the required QCElemental schema package"
     h5_path = tmp_path / "qcel_interop.h5"
     mgr = CoChemHDF5Manager(h5_path=h5_path)
-
-    # Test QCElemental v2 or v1
     try:
-        try:
-            import qcelemental.models.v2 as v2
-            mol = v2.Molecule(
-                symbols=["C", "O"],
-                geometry=[0.0, 0.0, 0.0, 0.0, 0.0, 2.13],
-                molecular_charge=0,
-                molecular_multiplicity=1,
-            )
-            spec = v2.AtomicSpecification(driver=v2.DriverEnum.energy, model=v2.Model(method="b3lyp", basis="6-31g*"))
-            inp = v2.AtomicInput(molecule=mol, specification=spec)
-            prov = v2.Provenance(creator="CoChem-Test")
-            qcel_res = v2.AtomicResult(
-                molecule=mol,
-                input_data=inp,
-                properties=v2.AtomicProperties(return_energy=-113.123),
-                return_result=-113.123,
-                provenance=prov,
-                success=True,
-            )
-        except Exception:
-            from qcelemental.models import AtomicResult as V1AtomicResult
-            from qcelemental.models import Molecule as V1Molecule
-            mol = V1Molecule(
-                symbols=["C", "O"],
-                geometry=[0.0, 0.0, 0.0, 0.0, 0.0, 2.13],
-                molecular_charge=0,
-                molecular_multiplicity=1,
-            )
-            qcel_res = V1AtomicResult(
-                molecule=mol,
-                driver="energy",
-                model={"method": "b3lyp", "basis": "6-31g*"},
-                return_result=-113.123,
-                properties={"return_energy": -113.123},
-                provenance={"creator": "CoChem-Test"},
-                success=True,
-            )
-
-        calc_id = "calc_co_b3lyp"
-        mgr.write_qcschema_result(calc_id=calc_id, result=qcel_res)
-
-        # Read back
-        retrieved = mgr.read_qcschema_result(calc_id=calc_id)
-        assert retrieved.molecule.symbols == ["C", "O"]
-        assert retrieved.return_result == -113.123
-    except Exception as e:
-        if "pydantic.v1" in str(e):
-            pytest.skip("QCElemental v1 incompatible with current pydantic environment")
-        raise
+        import qcelemental.models.v2 as v2
+    except (ImportError, RuntimeError):
+        from qcelemental.models import AtomicResult as V1AtomicResult
+        from qcelemental.models import Molecule as V1Molecule
+        mol = V1Molecule(
+            symbols=["C", "O"],
+            geometry=[0.0, 0.0, 0.0, 0.0, 0.0, 2.13],
+            molecular_charge=0,
+            molecular_multiplicity=1,
+        )
+        qcel_res = V1AtomicResult(
+            molecule=mol,
+            driver="energy",
+            model={"method": "serialization_fixture", "basis": None},
+            return_result=-113.123,
+            properties={"return_energy": -113.123},
+            provenance={"creator": "CoChem-serialization-fixture"},
+            success=True,
+        )
+    else:
+        mol = v2.Molecule(
+            symbols=["C", "O"],
+            geometry=[0.0, 0.0, 0.0, 0.0, 0.0, 2.13],
+            molecular_charge=0,
+            molecular_multiplicity=1,
+        )
+        spec = v2.AtomicSpecification(
+            driver=v2.DriverEnum.energy,
+            model=v2.Model(method="serialization_fixture", basis=None),
+        )
+        inp = v2.AtomicInput(molecule=mol, specification=spec)
+        qcel_res = v2.AtomicResult(
+            molecule=mol,
+            input_data=inp,
+            properties=v2.AtomicProperties(return_energy=-113.123),
+            return_result=-113.123,
+            provenance=v2.Provenance(creator="CoChem-serialization-fixture"),
+            success=True,
+        )
+    calc_id = "qcel_serialization_fixture"
+    mgr.write_qcschema_result(calc_id=calc_id, result=qcel_res)
+    retrieved = mgr.read_qcschema_result(calc_id=calc_id)
+    assert retrieved.molecule.symbols == ["C", "O"]
+    assert retrieved.return_result == -113.123
+    assert retrieved.success is True
 
 
 
@@ -649,26 +779,38 @@ def test_basin_and_landscape_lifecycle(tmp_path: Path) -> None:
     assert "basin_triatomic" in basins
 
 
-def test_resolve_landscape_h5_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests dynamic resolution of landscape.h5 path."""
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path))
-    resolved = resolve_landscape_h5_path()
-    assert resolved.name == "landscape.h5"
-    assert "Databases" in str(resolved)
+def test_resolve_landscape_h5_path(tmp_path: Path) -> None:
+    """New telemetry stores use the Chunk 17 filename."""
+    _run_storage_process(
+        """
+        import sys
+        from pathlib import Path
+        from cochem_base.core.cochem_core_hdf5_manager import resolve_landscape_h5_path
+        resolved = resolve_landscape_h5_path()
+        assert resolved.name == "complexes.h5"
+        assert "Databases" in resolved.parts
+        assert resolved.is_relative_to(Path(sys.argv[1]))
+        """,
+        tmp_path,
+        environment={"COCHEM_ARTIFACT_DIR": str(tmp_path)},
+    )
 
 
 # =============================================================================
 # 9. ADVERSARIAL META-AUDITOR VALIDATIONS (ZERO-MOCK MANDATE)
 # =============================================================================
 
-def _compute_physical_10atom_geometry_and_hessian() -> Tuple[List[float], List[List[float]]]:
-    """Generates authentic physical Cartesian coordinates (in Bohr) and an exact harmonic force constant
-    Hessian (in Hartree/Bohr^2) for a 10-carbon conjugated alkane chain."""
+def _compute_harmonic_fixture_geometry_and_hessian() -> Tuple[List[float], List[List[float]]]:
+    """Construct a toy chain and finite-difference harmonic Hessian for storage tests.
+
+    Coordinates use Bohr and the chosen toy potential uses Hartree. This is not
+    an ab initio Hessian or a reference for a particular physical molecule.
+    """
     n_atoms = 10
     bond_len = 2.9103  # Bohr (1.54 Angstrom)
     theta_eq = 1.9111  # Rad (109.5 degrees)
 
-    # Physical coordinates in Bohr along standard zigzag chain
+    # Toy zigzag-chain coordinates in Bohr
     coords: List[List[float]] = [[0.0, 0.0, 0.0]]
     for i in range(1, n_atoms):
         prev = coords[-1]
@@ -682,8 +824,8 @@ def _compute_physical_10atom_geometry_and_hessian() -> Tuple[List[float], List[L
 
     def potential(x: np.ndarray) -> float:
         r = x.reshape((n_atoms, 3))
-        kb = 0.450  # Hartree / Bohr^2 (C-C stretch force constant)
-        ka = 0.120  # Hartree / rad^2 (C-C-C bend force constant)
+        kb = 0.450  # Chosen toy-model stretch constant, Hartree / Bohr^2
+        ka = 0.120  # Chosen toy-model bend constant, Hartree / rad^2
         v = 0.0
         for idx in range(n_atoms - 1):
             bond_dist = float(np.linalg.norm(r[idx + 1] - r[idx]))
@@ -732,7 +874,7 @@ def test_qcschema_optimization_result_serialization_and_roundtrip(tmp_path: Path
         molecular_multiplicity=1,
     )
 
-    # Authentic physical alpha density matrices for CO at R=2.50 Bohr and R=2.13 Bohr
+    # Hand-entered density-shaped matrices for the optimization serialization fixture
     density_co_step_0 = np.array([
         [1.9842, 0.1245, 0.0000, 0.0312],
         [0.1245, 1.8756, 0.0000, -0.2145],
@@ -822,10 +964,10 @@ def test_gradient_and_hessian_filtered_dataset_serialization(tmp_path: Path) -> 
     h5_path = tmp_path / "hessian_landscape.h5"
     mgr = CoChemHDF5Manager(h5_path=h5_path)
 
-    # 10-atom carbon backbone -> 30x30 physical analytical Hessian
+    # 10-site toy chain -> 30x30 finite-difference Hessian serialization fixture
     n_atoms = 10
     symbols = ["C"] * n_atoms
-    geom, hessian_matrix = _compute_physical_10atom_geometry_and_hessian()
+    geom, hessian_matrix = _compute_harmonic_fixture_geometry_and_hessian()
 
     res = QCSchemaAtomicResult(
         schema_name="qcschema_output",
@@ -927,53 +1069,66 @@ def test_swmr_eradication_ast_attribute_detection() -> None:
         verify_no_swmr_usage(bad_code_3)
 
 
-def test_master_aggregator_optimization_stream(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests asynchronous SQLite WAL streaming and master node aggregation for optimization results."""
+def test_master_aggregator_optimization_stream(tmp_path: Path) -> None:
+    """Round-trip a declared serialization fixture through actual worker/master processes."""
     h5_path = tmp_path / "stream_landscape.h5"
     db_path = tmp_path / "stream_ipc.db"
-
-    # 1. Non-master worker pushes optimization result to IPC
-    monkeypatch.setenv("COCHEM_IS_MASTER", "0")
-    queue = SQLiteWALQueue(db_path=db_path)
-
-    init_mol = {"symbols": ["H", "F"], "geometry": [0.0, 0.0, 0.0, 0.0, 0.0, 1.2]}
-    final_mol = {"symbols": ["H", "F"], "geometry": [0.0, 0.0, 0.0, 0.0, 0.0, 0.92]}
-    step = {
-        "schema_name": "qcschema_output",
-        "schema_version": 1,
-        "molecule": init_mol,
-        "driver": "energy",
-        "model": {"method": "hf", "basis": "sto-3g"},
-        "return_result": -100.0,
-        "properties": {"return_energy": -100.0},
-        "success": True,
-    }
-    opt_payload = {
-        "opt_id": "opt_hf_stream_01",
-        "data": {
-            "schema_name": "qcschema_optimization_output",
+    _run_storage_process(
+        """
+        import sys
+        from cochem_base.core.cochem_core_hdf5_manager import SQLiteWALQueue, is_master_node
+        assert is_master_node() is False
+        queue = SQLiteWALQueue(db_path=sys.argv[1])
+        init_mol = {"symbols": ["H", "F"], "geometry": [0.0, 0.0, 0.0, 0.0, 0.0, 1.2]}
+        final_mol = {"symbols": ["H", "F"], "geometry": [0.0, 0.0, 0.0, 0.0, 0.0, 0.92]}
+        fixture_provenance = {"creator": "serialization_fixture", "physical_reference": False}
+        step = {
+            "schema_name": "qcschema_output",
             "schema_version": 1,
-            "initial_molecule": init_mol,
-            "final_molecule": final_mol,
-            "trajectory": [step],
-            "energies": [-100.0],
+            "molecule": init_mol,
+            "driver": "energy",
+            "model": {"method": "serialization_fixture", "basis": "not_applicable"},
+            "return_result": -100.0,
+            "properties": {"return_energy": -100.0},
+            "provenance": fixture_provenance,
             "success": True,
-        },
-    }
-
-    queue.push(topic="optimization_stream", payload=opt_payload, sender="worker_node_42")
-    assert queue.count_pending() == 1
-
-    # 2. Master node aggregates IPC stream into HDF5
-    monkeypatch.setenv("COCHEM_IS_MASTER", "1")
-    aggregator = MasterDataAggregator(h5_path=h5_path, ipc_db_path=db_path)
-    processed = aggregator.aggregate_pending(limit=10)
-    assert processed == 1
-    assert queue.count_pending() == 0
-
-    # 3. Verify record in landscape.h5
+        }
+        opt_payload = {
+            "opt_id": "opt_fixture_stream_01",
+            "data": {
+                "schema_name": "qcschema_optimization_output",
+                "schema_version": 1,
+                "initial_molecule": init_mol,
+                "final_molecule": final_mol,
+                "trajectory": [step],
+                "energies": [-100.0],
+                "provenance": fixture_provenance,
+                "success": True,
+            },
+        }
+        queue.push(topic="optimization_stream", payload=opt_payload, sender="worker_node_42")
+        assert queue.count_pending() == 1
+        """,
+        db_path,
+        environment={"COCHEM_IS_MASTER": "0"},
+    )
+    _run_storage_process(
+        """
+        import sys
+        from cochem_base.core.cochem_core_hdf5_manager import (
+            MasterDataAggregator, SQLiteWALQueue, is_master_node,
+        )
+        assert is_master_node() is True
+        aggregator = MasterDataAggregator(h5_path=sys.argv[1], ipc_db_path=sys.argv[2])
+        assert aggregator.aggregate_pending(limit=10) == 1
+        assert SQLiteWALQueue(db_path=sys.argv[2]).count_pending() == 0
+        """,
+        h5_path, db_path,
+        environment={"COCHEM_IS_MASTER": "1"},
+    )
     mgr = CoChemHDF5Manager(h5_path=h5_path, ipc_db_path=db_path)
-    assert "opt_hf_stream_01" in mgr.list_trajectories()
-    loaded = mgr.read_qcschema_optimization_result("opt_hf_stream_01")
+    assert "opt_fixture_stream_01" in mgr.list_trajectories()
+    loaded = mgr.read_qcschema_optimization_result("opt_fixture_stream_01")
     assert loaded.initial_molecule.symbols == ["H", "F"]
     assert loaded.energies == [-100.0]
+    assert loaded.provenance["physical_reference"] is False

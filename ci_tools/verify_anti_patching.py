@@ -214,6 +214,9 @@ def audit_repository(
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="CoChem Root Cause & Anti-Patching Standards Verifier")
     parser.add_argument("target", nargs="?", default=".", help="Root path to scan")
     parser.add_argument("--core-only", action="store_true", help="Audit only core engines")

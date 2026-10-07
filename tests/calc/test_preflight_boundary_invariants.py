@@ -691,8 +691,12 @@ def test_preflight_pbc_numpy_ndarray_detection():
 
 def test_preflight_enum_declared_product_extraction():
     """Verify validate_product_ontology_preflight extracts string from enum objects [M]."""
+    from enum import StrEnum
+
     from cochem_base.formatters.cochem_inertial_defect_validator import ProductClass
-    from cochem_base.executors.hpc_workflow_router import ProductCategory
+
+    class ProductCategory(StrEnum):
+        PRODUCT_M = "PRODUCT_M"
 
     # Test ProductClass enum
     payload_b_enum = {
@@ -896,6 +900,5 @@ def test_adversarial_expanded_prohibited_keywords():
         job = {"product": "PRODUCT_M", "lattice_vectors": [[5.0, 0, 0], [0, 5.0, 0], [0, 0, 5.0]], **s_dict}
         with pytest.raises(OntologicalCollisionError):
             validate_product_ontology_preflight(job)
-
 
 

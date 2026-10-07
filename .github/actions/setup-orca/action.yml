@@ -1,0 +1,86 @@
+name: Provision the approved ORCA distribution
+description: Install checksum-pinned ORCA 6.1.1 and Open MPI 4.1.8 on a Linux x86-64 runner.
+inputs:
+  asset-token:
+    description: Read-only Contents access to the private ORCA release repository.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Read the reviewed distribution identity
+      shell: bash
+      env:
+        COCHEM_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$RUNNER_TEMP/orca-evidence"
+        python - <<'PY'
+        import os, sys
+        from pathlib import Path
+        scripts = Path(os.environ['COCHEM_ACTION_PATH']).resolve().parents[2] / 'scripts'
+        sys.path.insert(0, str(scripts))
+        from provision_orca import load_distribution_manifest
+        manifest = load_distribution_manifest(scripts / 'orca-distribution.json')
+        fields = {
+            'COCHEM_ORCA_SCRIPTS': str(scripts),
+            'COCHEM_ORCA_ASSET_REPOSITORY': manifest['repository'],
+            'COCHEM_ORCA_RELEASE_TAG': manifest['release_tag'],
+            'COCHEM_ORCA_ARCHIVE_NAME': manifest['archive_name'],
+        }
+        with open(os.environ['GITHUB_ENV'], 'a') as output:
+            for key, value in fields.items():
+                if '\n' in value or '\r' in value:
+                    raise ValueError('Invalid multiline distribution setting')
+                output.write(f'{key}={value}\n')
+        PY
+    - name: Download the private release asset
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.asset-token }}
+      run: |
+        set -euo pipefail
+        if [[ -z "$GH_TOKEN" ]]; then
+          echo "::error::ORCA_ASSET_READ_TOKEN must have read access to $COCHEM_ORCA_ASSET_REPOSITORY."
+          exit 1
+        fi
+        mkdir -p "$RUNNER_TEMP/cochem-orca-download"
+        gh release download "$COCHEM_ORCA_RELEASE_TAG" \
+          --repo "$COCHEM_ORCA_ASSET_REPOSITORY" \
+          --pattern "$COCHEM_ORCA_ARCHIVE_NAME" \
+          --dir "$RUNNER_TEMP/cochem-orca-download"
+        python - <<'PY'
+        import hashlib, json, os
+        from pathlib import Path
+        manifest = json.loads((Path(os.environ['COCHEM_ORCA_SCRIPTS']) / 'orca-distribution.json').read_text())
+        archive = Path(os.environ['RUNNER_TEMP']) / 'cochem-orca-download' / manifest['archive_name']
+        with archive.open('rb') as source:
+            digest = hashlib.file_digest(source, 'sha256').hexdigest()
+        if digest != manifest['sha256']:
+            raise SystemExit('ORCA archive SHA-256 mismatch; installation refused.')
+        print('Approved ORCA archive SHA-256 verified.')
+        PY
+    - name: Build and test the pinned Open MPI runtime
+      shell: bash
+      run: |
+        set -euo pipefail
+        python "$COCHEM_ORCA_SCRIPTS/install_openmpi.py" \
+          --prefix "$RUNNER_TEMP/cochem-openmpi-4.1.8" \
+          --build-root "$RUNNER_TEMP/cochem-openmpi-build" \
+          --jobs 2 \
+          --output "$RUNNER_TEMP/orca-evidence/openmpi.json"
+    - name: Install and interrogate the complete ORCA distribution
+      shell: bash
+      run: |
+        set -euo pipefail
+        python "$COCHEM_ORCA_SCRIPTS/provision_orca.py" \
+          --archive "$RUNNER_TEMP/cochem-orca-download/$COCHEM_ORCA_ARCHIVE_NAME" \
+          --install-root "$RUNNER_TEMP/cochem-orca-install" \
+          --mpi-prefix "$RUNNER_TEMP/cochem-openmpi-4.1.8" \
+          --github-env "$GITHUB_ENV" --github-path "$GITHUB_PATH" \
+          > "$RUNNER_TEMP/orca-evidence/installation.json"
+        cp "$RUNNER_TEMP/cochem-orca-install/cochem-orca-provenance.json" \
+          "$RUNNER_TEMP/orca-evidence/distribution-provenance.json"
+    - name: Remove the downloaded licensed archive
+      if: always()
+      shell: bash
+      run: rm -rf -- "$RUNNER_TEMP/cochem-orca-download"

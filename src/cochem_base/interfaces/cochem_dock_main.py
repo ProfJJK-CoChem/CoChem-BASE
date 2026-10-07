@@ -1,58 +1,17 @@
-#!/usr/bin/env python3
-"""CoChem-DOCK: Stage 9.0 - Legacy and Direct Entrypoint for FastAPI Telemetry & Job Bridge.
+"""Remote-service integration contract.
 
-Re-exports canonical symbols from cochem_base.interfaces.cochem_dock_main.
+This compatibility entrypoint prepares validated artifacts for integration.
+It does not execute the former advertised solver or service API.
 """
+from .integration_boundary import IntegrationBoundary
 
-from __future__ import annotations
+boundary = IntegrationBoundary(interface='cochem_dock_main', module_id='dock',
+                               operation='remote_job', description='Remote-service integration contract')
+get_capability = boundary.capability
+prepare_handoff = boundary.prepare_handoff
+main = boundary.main
 
-from cochem_base.interfaces.cochem_dock_main import (
-    DualModeJobQueue,
-    HealthResponse,
-    JobCancelResponse,
-    JobListResponse,
-    JobStatusResponse,
-    JobSubmitRequest,
-    JobSubmitResponse,
-    TelemetryBatchPayload,
-    TelemetryEvent,
-    TelemetryMessage,
-    TelemetryStatsResponse,
-    app,
-    create_app,
-    default_job_queue,
-    health_check,
-    lifespan,
-    logger,
-    lttb_decimate,
-    run_server,
-    telemetry_stats,
-    websocket_telemetry,
-)
-
-__all__ = [
-    "DualModeJobQueue",
-    "HealthResponse",
-    "JobCancelResponse",
-    "JobListResponse",
-    "JobStatusResponse",
-    "JobSubmitRequest",
-    "JobSubmitResponse",
-    "TelemetryBatchPayload",
-    "TelemetryEvent",
-    "TelemetryMessage",
-    "TelemetryStatsResponse",
-    "app",
-    "create_app",
-    "default_job_queue",
-    "health_check",
-    "lifespan",
-    "logger",
-    "lttb_decimate",
-    "run_server",
-    "telemetry_stats",
-    "websocket_telemetry",
-]
+__all__ = ["boundary", "get_capability", "prepare_handoff", "main"]
 
 if __name__ == "__main__":
-    run_server()
+    raise SystemExit(main())

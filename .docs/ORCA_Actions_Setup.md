@@ -170,13 +170,16 @@ failed report on a failed attempt and refuses to overwrite earlier evidence.
 
 ## Current local release validation — 2026-10-07
 
-The complete canonical local 1.0.0 profile passed **1,469 tests**, with **2
-physical Slurm checks deferred**, **0 failures** and **1,471 collected** in
-908.20 seconds. Source and test gates passed with no unexpected skips, omitted
+The complete canonical local 1.0.0 profile passed **1,477 tests**, with **2
+physical Slurm checks deferred**, **0 failures** and **1,479 collected** in
+931.49 seconds. Source and test gates passed with no unexpected skips, omitted
 node outcomes or source mutation. The 10,672 warnings remain in the logs.
 Unlike the preceding 1,241-pass/4-deferral snapshot, actual R2 and CREST/GOAT
 acceptance executed; only the two exact physical Slurm nodes remain skipped.
-Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v2/`.
+Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v3/`, tested
+at `190e5c548b800872626b87a463f0e6d854ba2030`. The preceding v2 run on
+2026-10-07 passed 1,469 tests with the same two physical Slurm deferrals;
+it is retained as historical evidence, not the current count.
 
 The separate 479-test bounded selection and a fresh isolated 1.0.0 wheel install
 passed at `01cca5be1f917af29ce36900c5da4dad30564bed`. The bounded selection is
@@ -206,12 +209,54 @@ and provisioning records. Exact energies and their difference were not printed
 in the pytest log and are not invented here. Sanitized logs and run metadata
 are retained at `/workspace/cochem-runtime/evidence/hosted-orca-37613653904/`.
 
-The separate [student optimization/frequency run 37613654179](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613654179)
-failed and its correction/rerun is pending. Successful serial/parallel acceptance
-does not turn that submission workflow into a pass. The current bounded CI
-rerun has passed Linux/macOS controls and wheel checks; its Windows control
-failure is being corrected. Final release acceptance must record those results
-against the final reviewed revision.
+[Student optimization/frequency run 37616684042](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37616684042)
+**passed** at `0a9effed573816bf3e802684e26097d7b697ea81`. It completed source
+validation, private provisioning, all eleven Stage 0 phases, actual two-process
+ORCA optimization plus harmonic frequencies, result validation and artifact
+upload. It validates the student submission workflow independently of the
+serial/parallel installation acceptance above.
+
+The actual hosted HF/STO-3G water result used **2 processes at 512 MB per
+process** and reported **−74.965901192195 Eh**. Principal-isotope harmonic
+frequencies were **2170.013986, 4139.994538 and 4391.055250 cm⁻¹**. The retained
+9×9 Hessian uses hartree/bohr²; independent spectrum reconstruction differed
+from the native spectrum by at most `0.0002495644403 cm⁻¹`. This verifies the
+optimization/derivative/publication pathway, not experimental frequency accuracy.
+
+Artifact `orca-calculation-37616684042-1` (ID `11480713186`, 861,592 bytes) has
+GitHub's recorded SHA-256 digest
+`0094d54db33765f91b91a88aa79940f90f8f2deb2e0f047e24ffbbe425936cb0`.
+The report extracted from actual hosted logs and run/artifact API metadata is
+`/workspace/cochem-runtime/evidence/student-hosted-37616684042/hosted-acceptance-summary.json`.
+
+The preceding [student run 37613654179](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613654179)
+failed because ORCA reported optimizer completion while its final measured RMS
+gradient exceeded BASE's unchanged acceptance threshold. Canonical generated
+inputs now request a tenfold margin on all five geometry thresholds; the result
+parser's scientific acceptance gates remain unchanged. The successful hosted
+rerun validates the corrected path instead of treating the old partial output
+as a pass.
+
+[Bounded hosted CI run 37617769942](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37617769942)
+**passed** at `190e5c548b800872626b87a463f0e6d854ba2030`: source integrity,
+Ubuntu/macOS/Windows control tests and isolated wheel/CLI checks, including
+actual native launcher diagnostics, all succeeded. The Linux physical job also
+completed all eleven Stage 0 phases, real xTB/PySCF calculations, bounded
+regressions with source-hash verification and rendered dashboard lifecycle.
+Actual logs record **164 control tests passed on each operating system** and
+**480 bounded regression tests passed** in 67.24 seconds, with 116 retained
+deprecation warnings and no unexpected skips, failures or source changes.
+These are separate, overlapping profiles and are not summed into a test total.
+The extracted summary is
+`/workspace/cochem-runtime/evidence/hosted-ci-37617769942/validation-summary.json`.
+Run metadata and exact job/step outcomes are retained at
+`/workspace/cochem-runtime/evidence/hosted-ci-37617769942/latest-run.json`.
+The prior Windows control failures are resolved by this run. This is bounded
+hosted CI, not execution of the entire silo-dependent canonical scientific
+profile on each operating system. Full local acceptance also passed on
+`190e5c5`: 1,477 passed and two physical Slurm deferrals. Publication status and
+the mapping between tested and release revisions remain in the
+[release record](Release_1_0_0.md).
 
 For historical context, the [initial push run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37571459336)
 and [initial dispatched run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37571482477)

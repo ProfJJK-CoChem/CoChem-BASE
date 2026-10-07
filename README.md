@@ -14,10 +14,12 @@ It covers private binary setup, correct GitHub permissions, each student's
 assignment repository, GUI job export, calculations and retrieval of results.
 Students using the instructor's provisioned route do not enter tokens in CoChem.
 
-Version **1.0.0 is being prepared for release validation**. The
-[release record](.docs/Release_1_0_0.md) identifies its scope and publication
-checks. A version number, installed engine or green archive-access check does
-not establish that every scientific or platform requirement passed.
+Version **1.0.0 validates the supported Classroom50 / GitHub Actions route**,
+including real ORCA optimization and harmonic calculations. The complete local
+BASE profile passed 1,477 tests with two declared physical Slurm deferrals;
+Ubuntu, macOS and Windows control and wheel checks also passed. The
+[release record](.docs/Release_1_0_0.md) identifies exact revisions, evidence,
+distribution records and remaining host/scientific boundaries.
 
 ## Choose a calculation environment
 
@@ -66,7 +68,12 @@ geometry; optimize first when appropriate.
 
 ## Launch the interface from source
 
-Use Python 3.12 for the pinned Stage 0 environments. From a checkout:
+Use Python 3.12 for the pinned Stage 0 environments. Classroom50 users should
+clone their **accepted assignment repository**, using its **Code → Local** HTTPS
+URL, and run the launcher inside that checkout. The clone example below is for
+upstream development; it does not create or select your course assignment.
+
+From an upstream development checkout:
 
 ```bash
 git clone https://github.com/ProfJJK-CoChem/CoChem-BASE.git
@@ -74,8 +81,8 @@ cd CoChem-BASE
 ./Launch_CoChem_Mac_Linux.sh
 ```
 
-An unpacked source distribution provides the same launcher. On Windows, use
-`Launch_CoChem_Windows.bat`. The launchers prepare the UI environment and open
+An unpacked source distribution provides the same launcher. In Windows
+PowerShell, use `.\Launch_CoChem_Windows.bat --native`. The launchers prepare the UI environment and open
 `Start_Here.ipynb` with Voilà. To prepare without launching:
 
 ```bash

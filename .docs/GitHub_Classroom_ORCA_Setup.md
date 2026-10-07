@@ -33,12 +33,65 @@ Use the repository you just accepted, unless your instructor specifies a
 separate managed calculation repository. You do not need to download ORCA to
 your laptop for the Actions route.
 
-1. Open the supplied repository while signed into the GitHub account approved
-   for the course. In CoChem's setup screen, choose **GitHub Actions** as the
-   calculation environment, enter your course repository as `OWNER/REPOSITORY`
-   and the instructor-approved branch, and follow the guide link. Codespaces can host the
-   interface; selecting Codespaces as the interaction environment does not
-   install ORCA on a separate Actions runner.
+### Open the CoChem interface
+
+If your instructor enables Codespaces for the course:
+
+1. In **your accepted assignment repository**, select the instructor-approved
+   branch, then **Code → Codespaces → Create codespace on [approved branch]**.
+   Resume the existing course Codespace if you already created one.
+2. Wait for container creation and the terminal setup tasks to finish. The
+   repository's `.devcontainer` configuration installs the dashboard, completes
+   its setup and starts Voilà automatically; the first creation takes longer
+   than reopening an existing environment.
+3. Open the editor's **Ports** tab. Find **8866 — CoChem Voilà dashboard** and
+   select **Open in Browser**. Keep the port's visibility **Private**, and stay
+   signed into your approved GitHub account. Do not make the dashboard public.
+4. If the dashboard did not start after setup completed, open a terminal at the
+   assignment repository root and run:
+
+   ```bash
+   python3 scripts/hosted_dashboard.py start
+   python3 scripts/hosted_dashboard.py check
+   ```
+
+   `start` reuses an already healthy dashboard. `check` verifies that its page
+   rendered; it does not run a chemistry calculation. If setup is missing or a
+   command reports an error, retain that message and contact the instructor
+   before repeating installation. Then return to **Ports → 8866 → Open in
+   Browser**.
+
+Alternatively, open the interface on your own computer. Install Python 3.12,
+then clone **your assignment repository** using the HTTPS URL under its
+**Code → Local** menu. Open a terminal in that checkout. In Windows PowerShell:
+
+```powershell
+.\Launch_CoChem_Windows.bat --native
+```
+
+On Linux or macOS:
+
+```bash
+./Launch_CoChem_Mac_Linux.sh
+```
+
+The launcher installs the interface dependencies and starts Voilà. Follow its
+printed browser address if a browser does not open automatically. The launcher's
+`--check` option only checks prerequisites; it does not install, open or test the
+GUI. See the [source-launch instructions](../README.md#launch-the-interface-from-source)
+for more detail, using the assignment checkout rather than cloning upstream
+BASE. No local ORCA installation is required to export Actions jobs.
+
+Codespaces hosts the interface while Actions hosts the chemistry. The Codespaces
+configuration and lifecycle have local validation; an actual hosted Codespace
+rebuild remains a separate course deployment check.
+
+### Verify the course calculation environment
+
+1. In the open CoChem setup screen, choose **GitHub Actions** as the calculation
+   environment, enter your course repository as `OWNER/REPOSITORY` and the
+   instructor-approved branch, and follow the guide link. This choice exports
+   portable requests; it does not install ORCA on your interface computer.
 2. Check that the repository contains `scripts/orca-distribution.json` and
    `.github/workflows/orca_acceptance.yml` on its default branch. If this is a
    new course copy, wait for the instructor to finish setup before starting it.

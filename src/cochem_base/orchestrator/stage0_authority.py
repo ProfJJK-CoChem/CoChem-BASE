@@ -143,6 +143,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
         "cochem_ui_silo": "ui",
         "cochem_calc_silo": "calc",
         "cochem_mace_silo": "mace",
+        "cochem_aimnet2_silo": "aimnet2",
     }
     for name, record in reports[4].get("silos", {}).items():
         capabilities[name] = record.get("is_available") is True
@@ -174,6 +175,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
     for engine_name, silo_name, package in [
         ("pyscf", "cochem_calc_silo", "pyscf"),
         ("mace", "cochem_mace_silo", "mace-torch"),
+        ("aimnet2", "cochem_aimnet2_silo", "aimnet"),
     ]:
         silo = silos.get(silo_name)
         capabilities[engine_name] = silo is not None

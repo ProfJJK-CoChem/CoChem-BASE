@@ -90,6 +90,7 @@ class SiloType(str, Enum):
     UI = "cochem_ui_silo"
     CALC = "cochem_calc_silo"
     MACE = "cochem_mace_silo"
+    AIMNET2 = "cochem_aimnet2_silo"
 
 
 class SiloStatus(str, Enum):
@@ -595,7 +596,7 @@ def filter_silos_by_manifest(
     }
 
     all_silos = [silo.value for silo in SiloType]
-    heavy_silos = {SiloType.CALC.value, SiloType.MACE.value}
+    heavy_silos = {SiloType.CALC.value, SiloType.MACE.value, SiloType.AIMNET2.value}
     if explicit_silos is not None:
         selected_silos = set(explicit_silos)
     else:
@@ -930,7 +931,7 @@ def get_default_silo_configs(
     manifest_filter: ManifestFilterAudit,
 ) -> Dict[str, SiloConfig]:
     """
-    Generate default configuration specifications for the 4 CoChem Micro-Silos.
+    Generate default configuration specifications for the CoChem Micro-Silos.
     """
     from cochem_base.orchestrator.silo_dependency_pins import DEFAULT_PINS
     stack_flags = get_native_stack_flags()
@@ -1009,11 +1010,28 @@ def get_default_silo_configs(
         description="Isolated GPU-accelerated machine learning force field (MLFF) operations silo.",
     )
 
+    aimnet_config = SiloConfig(
+        name=SiloType.AIMNET2.value,
+        silo_type=SiloType.AIMNET2,
+        target_path=target(SiloType.AIMNET2.value, "COCHEM_AIMNET2_SILO"),
+        python_version="3.12",
+        is_mandatory=False,
+        is_requested=(manifest_filter.heavy_silos_requested
+                      and SiloType.AIMNET2.value not in manifest_filter.skipped_silos),
+        is_heavy=True,
+        packages=["aimnet", "torch", "warp-lang", "nvalchemi-toolkit-ops"],
+        pip_packages=DEFAULT_PINS["aimnet2"],
+        env_vars={**env_vars, "CUDA_VISIBLE_DEVICES": ""},
+        stack_flags=stack_flags,
+        description="Isolated AIMNet2 CPU inference environment; model weights are provisioned separately.",
+    )
+
     return {
         SiloType.CORE.value: core_config,
         SiloType.UI.value: ui_config,
         SiloType.CALC.value: calc_config,
         SiloType.MACE.value: mace_config,
+        SiloType.AIMNET2.value: aimnet_config,
     }
 
 
@@ -1062,7 +1080,8 @@ def interrogate_silo_python_version(silo_path: Union[str, Path]) -> Optional[str
 
 def _silo_import_name(package: str) -> str:
     distribution = re.split(r"[<>=!]", package, maxsplit=1)[0].strip()
-    aliases = {"mace-torch": "mace", "openbabel-wheel": "openbabel", "pyzmq": "zmq"}
+    aliases = {"mace-torch": "mace", "openbabel-wheel": "openbabel", "pyzmq": "zmq",
+               "warp-lang": "warp", "nvalchemi-toolkit-ops": "nvalchemiops"}
     name = aliases.get(distribution, distribution.replace("-", "_"))
     if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*", name):
         raise SiloProvisioningError(f"Invalid import package: {package!r}")
@@ -1120,6 +1139,9 @@ def provision_micro_silo(
             if validate_pins(silo_config.pip_packages) != validate_pins(DEFAULT_PINS[mace_profile_lock(profile)]):
                 raise MicroSiloValidationError("Custom MACE dependencies differ from the explicit reviewed profile")
             evidence = provision_mace_silo(silo_path, profile=profile)
+        elif silo_config.silo_type == SiloType.AIMNET2:
+            from cochem_base.orchestrator.aimnet_silo_manager import provision_aimnet_silo
+            evidence = provision_aimnet_silo(silo_path)
         else:
             evidence = provision_isolated_silo(
                 silo_path, python_version=silo_config.python_version,

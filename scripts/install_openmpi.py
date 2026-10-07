@@ -74,7 +74,14 @@ def bounded_jobs(value: str) -> int:
 
 
 def exact_openmpi_version(output: str) -> str:
-    versions = set(re.findall(r"Open\s+MPI\)?\s*:?\s+v?(\d+\.\d+\.\d+)(?![\w.])", output))
+    # Open MPI 4.1.8's mpiexec identifies its bundled launcher as OpenRTE;
+    # mpirun and ompi_info identify the same build as Open MPI. Accept only
+    # these complete native banner forms, retaining exact-version checks.
+    pattern = (
+        r"^(?:(?:mpirun|mpiexec) \(Open MPI\)|mpiexec \(OpenRTE\)|Open MPI:?)"
+        r"[ \t]+v?(\d+\.\d+\.\d+)[ \t]*$"
+    )
+    versions = set(re.findall(pattern, output, flags=re.MULTILINE))
     if versions != {VERSION}:
         raise ValueError(f"Expected Open MPI {VERSION}, observed {sorted(versions)}.")
     return VERSION

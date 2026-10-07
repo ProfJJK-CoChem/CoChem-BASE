@@ -6,6 +6,7 @@ Authentic ORCA/MPI execution is covered only by the licensed Actions acceptance.
 
 import io
 import json
+import shutil
 import tarfile
 from pathlib import Path
 
@@ -13,9 +14,12 @@ import pytest
 
 from scripts.provision_orca import (
     DEFAULT_MANIFEST,
+    INSTALLATION_RESERVE_BYTES,
+    archive_space_preflight,
     exact_version,
     extract_verified_archive,
     github_environment,
+    installation_space_requirement,
     native_executable,
     require_platform,
     sha256_file,
@@ -46,6 +50,58 @@ def test_reviewed_distribution_is_pinned():
     assert manifest["sha256"] == "a0bc1d6d2c3c00620367bbc5dbf2b3a7018abc92d1ff65f06cec46f75350b9be"
     assert manifest["orca_version"] == "6.1.1"
     assert manifest["openmpi_version"] == "4.1.8"
+
+
+def test_disk_preflight_accounts_for_actual_expansion_and_job_reserve():
+    # The selected 471 MB compressed release expands to about 16.24 GiB.
+    expanded = 17_442_002_115
+    required = expanded + INSTALLATION_RESERVE_BYTES
+    with pytest.raises(ValueError, match="Insufficient installation disk space"):
+        installation_space_requirement(expanded, required - 1)
+    result = installation_space_requirement(expanded, required)
+    assert result == {"uncompressed_archive_bytes": expanded,
+                      "reserve_bytes": 4 * 1024**3,
+                      "required_free_bytes": required, "available_free_bytes": required}
+
+
+@pytest.mark.parametrize("expanded,free", [(-1, 100), (100, -1)])
+def test_disk_preflight_rejects_invalid_byte_counts(expanded, free):
+    with pytest.raises(ValueError, match="nonnegative"):
+        installation_space_requirement(expanded, free)
+
+
+def test_archive_preflight_reads_expanded_bytes_and_existing_ancestor(tmp_path):
+    archive = text_archive(tmp_path / "metadata.tar.xz", [
+        ("distribution", "directory", ""),
+        ("distribution/repeated.txt", "text", "A" * 8192),
+        ("distribution/unicode.txt", "text", "Å\n"),
+        ("distribution/alias", "symlink", "repeated.txt"),
+        ("distribution/hard-alias", "hardlink", "distribution/repeated.txt"),
+    ])
+    # Count UTF-8 file bytes, not compressed bytes, link names or tar padding.
+    expected_bytes = 8195
+    assert archive.stat().st_size < expected_bytes
+    destination = tmp_path / "absent" / "nested" / "installation"
+    digest = sha256_file(archive)
+    if shutil.disk_usage(tmp_path).free < expected_bytes + INSTALLATION_RESERVE_BYTES:
+        # The metadata boundary remains testable on a small local filesystem;
+        # it must report the genuine archive size before refusing installation.
+        with pytest.raises(ValueError, match="archive expands to 8,195 bytes"):
+            archive_space_preflight(archive, destination, digest)
+    else:
+        result = archive_space_preflight(archive, destination, digest)
+        assert result["uncompressed_archive_bytes"] == expected_bytes
+        assert result["available_free_bytes"] >= result["required_free_bytes"]
+    assert not (tmp_path / "absent").exists()
+
+
+def test_archive_preflight_verifies_checksum_before_parsing(tmp_path):
+    archive = tmp_path / "corrupted.tar.xz"
+    archive.write_text("Explicit malformed archive boundary input, not a scientific fixture.")
+    destination = tmp_path / "absent" / "installation"
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        archive_space_preflight(archive, destination, "0" * 64)
+    assert not destination.parent.exists()
 
 
 def test_integrity_is_checked_before_tar_parsing_or_extraction(tmp_path):

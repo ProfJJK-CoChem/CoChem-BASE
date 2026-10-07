@@ -68,6 +68,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes build-essential libgfortran5
+      - name: Reserve disk for the complete licensed distribution
+        env:
+          RUNNER_HOST_KIND: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_HOST_KIND" != "github-hosted" || "$RUNNER_OS" != "Linux" ]]; then
+            echo '::error::Preinstalled SDK cleanup is restricted to this ephemeral GitHub-hosted Linux job.'
+            exit 1
+          fi
+          # The verified 471 MB archive expands to over 16 GiB. These unrelated
+          # SDKs belong to the disposable runner image, never a user workstation.
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/ghc
+          df -h "$RUNNER_TEMP"
       - uses: ./.github/actions/setup-orca
         with:
           asset-token: ${{ secrets.ORCA_ASSET_READ_TOKEN }}

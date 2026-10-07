@@ -112,6 +112,13 @@
       "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
       "provenance_status": "recorded_engine_output",
       "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.out",
+      "sha256": "12483ef0d8c8b94d7b1a8fa3dcf6eb09eb41d9593f7a067c4acc5f0fe65c8519",
+      "purpose": "Exact selected native output lines for stationary-restart parser regression; not complete physical acceptance evidence",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Verbatim ORCA 6.1.1 HF/STO-3G restart output excerpt. Full-output digest, selected line ranges and excerpt digest are recorded in tests/fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.json."
     }
   ]
 }

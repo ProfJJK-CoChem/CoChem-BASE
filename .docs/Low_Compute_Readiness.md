@@ -26,6 +26,14 @@ python -m pip check
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 python ci_tools/base_ci.py all --output /tmp/cochem-base-alpha-evidence
 ```
 
+The canonical reporting tests exercise real Parquet I/O and require the declared
+`catalog` extra; this is a test prerequisite, not an optional skip. The prepared
+main environment and bounded hosted workflow install those dependencies and
+pass `pip check`. For a fresh development environment, use the
+[README installation command](../README.md#python-installation-and-cli), including
+`dev,ui,catalog,symmetry,scribe`. The `scribe` extra declares its tokenizer
+`tiktoken`; configuring it does not establish authenticated remote inference.
+
 The default `python -m pytest` and compatibility `pytest-srs.ini` select the same BASE profile. Canonical CI records actual node outcomes and before/after source hashes. Zero tests, collection failures, unexpected skips and source changes fail. The exact licensed/reference/Slurm deferrals are recorded separately in `ci_tools/deferred_acceptance.json` and never counted as passes.
 
 The previous repository-wide collection attempt found 4,416 tests and 237 collection errors. It included absent sibling APIs, obsolete module paths and heavy-library imports in the BASE interpreter. Those historical tests have not all been executed or certified. The current pipeline retains a wider legacy AST inventory separately from the explicit BASE alpha gate; cleanup of future-module tests must proceed with their repositories.

@@ -107,7 +107,9 @@ rebuild remains a separate course deployment check.
    tens of minutes. Avoid starting duplicate runs.
 5. Open the completed run. The calculation step must pass. At the bottom of the
    run's summary, download the artifact named
-   `orca-6.1.1-acceptance-<run-number>-<attempt>`. Keep the run URL with your lab
+   `orca-6.1.1-acceptance-<run-id>-<attempt>`. The run ID is the number in
+   the run page's URL. Download and retain the evidence promptly: the workflow
+   requests **14 days** of artifact retention. Keep the run URL with your lab
    notes. Archive-access success alone is not a successful chemistry test.
 6. Confirm the calculation evidence reports normal ORCA termination, SCF
    convergence and serial/parallel energy agreement within `1e-8 Eh`. The
@@ -143,10 +145,13 @@ submitted molecular calculation.
    not an ORCA executable, a token, or paths to your laptop's installation.
    Preparing the file does not start a calculation on either your laptop or
    GitHub.
-3. Open the approved course calculation repository in GitHub. Add the exported
-   file under `jobs/`, for example `jobs/water-orca-job.json`, and commit it using
-   the course's review procedure. You can use **Add file → Upload files** when
-   browsing the `jobs` folder. If a review is required, wait for the input to
+3. Open the approved course calculation repository in GitHub. If `jobs/` does
+   not exist yet, select **Add file → Create new file**, enter
+   `jobs/water-orca-job.json` as the complete filename, and paste the complete
+   contents of the downloaded JSON into the editor. GitHub creates the folder
+   when you commit the file. Once `jobs/` exists, you can open that folder and
+   use **Add file → Upload files** for later exported requests. Commit using
+   the course's review procedure. If review is required, wait for the input to
    reach the instructor-approved branch before starting a job.
 4. Select **Actions → ORCA calculation → Run workflow**. Select the approved
    branch containing the committed input. In **job_file**, enter its repository
@@ -158,8 +163,9 @@ submitted molecular calculation.
    a fresh runner, installs the approved ORCA/MPI runtime and creates a registry
    for that runner. A successful calculation must finish the actual engine
    execution and result validation steps.
-6. Download `orca-calculation-<run-number>-<attempt>` from the run's summary.
-   In `student-job/`, inspect `calculation-report.json`, the original
+6. Download `orca-calculation-<run-id>-<attempt>` from the run's summary.
+   Download it promptly and save it with your lab records: this workflow
+   requests **14 days** of artifact retention. In `student-job/`, inspect `calculation-report.json`, the original
    `submitted-job.json`, and the validated settings in `validated-job.json`.
    The `calculation/` directory contains ORCA input/output and `result.json`;
    `complexes.h5` preserves the scientific record. Keep these with the run URL.

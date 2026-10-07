@@ -754,6 +754,7 @@ class EnginePaths(BaseModel):
     pyscf: Optional[EngineInfo] = Field(default=None)
     psi4: Optional[EngineInfo] = Field(default=None)
     crest: Optional[EngineInfo] = Field(default=None)
+    abcluster: Optional[EngineInfo] = Field(default=None, description="ABCluster rigidmol executable")
     gxtb: Optional[EngineInfo] = Field(default=None)
     mopac: Optional[EngineInfo] = Field(default=None)
     qe: Optional[EngineInfo] = Field(default=None)

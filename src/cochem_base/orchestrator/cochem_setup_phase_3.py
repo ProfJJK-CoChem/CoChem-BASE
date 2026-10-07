@@ -330,6 +330,7 @@ STANDARD_MONITORED_ENGINES: List[Tuple[str, EngineTrack]] = [
     # Semi-Empirical & Conformational Engines
     ("xtb", EngineTrack.XTB_CREST),
     ("crest", EngineTrack.XTB_CREST),
+    ("abcluster", EngineTrack.GENERAL),
     ("gxtb", EngineTrack.XTB_CREST),
     ("mopac", EngineTrack.GENERAL),
     ("qe", EngineTrack.GENERAL),
@@ -354,7 +355,7 @@ def resolve_binary_search_paths(
     candidates: List[Path] = []
     is_win = platform.system() == "Windows"
     raw_name = engine_name.lower()
-    binary_name = "pw.x" if raw_name == "qe" else engine_name
+    binary_name = {"qe": "pw.x", "abcluster": "rigidmol"}.get(raw_name, engine_name)
 
     # Tier 1: Environment variable overrides
     env_keys = [
@@ -680,6 +681,11 @@ def extract_semantic_version(output_text: str, engine_name: str) -> Optional[str
     text = output_text.strip()
     raw = engine_name.lower()
 
+    if raw in {"abcluster", "rigidmol"}:
+        # Only the component-qualified native banner identifies ABCluster.
+        versions = set(re.findall(r"^rigidmol\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)\s*$", text, re.M))
+        return next(iter(versions)) if len(versions) == 1 else None
+
     if raw == "qe":
         match = re.search(r"Program\s+PWSCF\s+v\.?\s*([0-9]+\.[0-9]+(?:\.[0-9]+)?(?:[A-Za-z]+)?)", text, re.I)
         return match.group(1) if match else None
@@ -780,6 +786,10 @@ def interrogate_binary_version(
         cmd.append("--version")
     elif raw in ("xtb", "crest"):
         cmd.append("--version")
+    elif raw == "abcluster":
+        # rigidmol 3.4 has no version flag; bare invocation prints its banner
+        # and exits 1 for missing input. This is metadata, not a science test.
+        pass
     elif raw == "qe":
         # pw.x emits its authoritative PWSCF banner before rejecting empty input.
         cmd.append("--help")
@@ -889,6 +899,15 @@ def audit_single_binary(
     else:
         version, ver_err = interrogate_binary_version(discovered, name, timeout_seconds=timeout_seconds)
 
+    if name == "crest" and version and not ver_err:
+        try:
+            from cochem_base.orchestrator.crest_native_probe import inspect_crest_source_distribution
+            patched_version, native_components = inspect_crest_source_distribution(
+                discovered, engine_runtime_environment(name, executable=discovered),
+            )
+            version = patched_version or version
+        except Exception as exc:
+            ver_err = f"CREST source distribution audit failed: {exc}"
     status = EngineStatus.FOUND_VALID if version and not ver_err else EngineStatus.FOUND_UNVERIFIED
 
     return BinaryEngineItem(

@@ -1110,10 +1110,14 @@ def provision_micro_silo(
     existed = exe_path.exists()
     try:
         imports = [_silo_import_name(package) for package in silo_config.packages]
-        evidence = provision_isolated_silo(
-            silo_path, python_version=silo_config.python_version,
-            requirements=silo_config.pip_packages, imports=imports,
-        )
+        if silo_config.silo_type == SiloType.MACE:
+            from cochem_base.orchestrator.ml_silo_manager import provision_mace_silo
+            evidence = provision_mace_silo(silo_path)
+        else:
+            evidence = provision_isolated_silo(
+                silo_path, python_version=silo_config.python_version,
+                requirements=silo_config.pip_packages, imports=imports,
+            )
         inject_silo_stack_and_env_flags(silo_path, silo_config.stack_flags, silo_config.env_vars)
         return SiloAuditItem(
             **common, python_executable=str(exe_path), python_version=evidence["python_version"],

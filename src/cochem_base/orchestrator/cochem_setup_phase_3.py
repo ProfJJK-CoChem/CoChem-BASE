@@ -113,6 +113,7 @@ class BinaryEngineItem(BaseModel):
     )
     file_size_bytes: Optional[int] = Field(default=None, description="Physical binary size in bytes")
     is_available: bool = Field(default=False, description="Whether engine is discovered and executable")
+    native_components: Dict[str, str] = Field(default_factory=dict)
     is_container: bool = Field(default=False, description="Whether engine runs inside an Apptainer/Singularity SIF")
     container_flags: List[str] = Field(
         default_factory=list, description="Container execution flags enforcing network air-gap"
@@ -332,6 +333,7 @@ STANDARD_MONITORED_ENGINES: List[Tuple[str, EngineTrack]] = [
     ("gxtb", EngineTrack.XTB_CREST),
     ("mopac", EngineTrack.GENERAL),
     ("qe", EngineTrack.GENERAL),
+    ("psi4", EngineTrack.GENERAL),
     # Container & GPU tools
     ("apptainer", EngineTrack.GENERAL),
     ("singularity", EngineTrack.GENERAL),
@@ -876,8 +878,16 @@ def audit_single_binary(
             status=EngineStatus.ERROR,
         )
 
-    # Subprocess version interrogation
-    version, ver_err = interrogate_binary_version(discovered, name, timeout_seconds=timeout_seconds)
+    # Psi4 version-only CLI can succeed despite an unloadable compiled core.
+    native_components = {}
+    if name == "psi4":
+        from cochem_base.orchestrator.psi4_native_probe import probe_psi4_native
+        version, native_components, ver_err = probe_psi4_native(
+            discovered, timeout_seconds=max(15.0, timeout_seconds),
+            environment=engine_runtime_environment(name, executable=discovered),
+        )
+    else:
+        version, ver_err = interrogate_binary_version(discovered, name, timeout_seconds=timeout_seconds)
 
     status = EngineStatus.FOUND_VALID if version and not ver_err else EngineStatus.FOUND_UNVERIFIED
 
@@ -889,6 +899,7 @@ def audit_single_binary(
         sha256_hash=sha256_hash,
         file_size_bytes=file_size,
         is_available=status == EngineStatus.FOUND_VALID,
+        native_components=native_components,
         is_container=False,
         container_flags=[],
         error_detail=ver_err,

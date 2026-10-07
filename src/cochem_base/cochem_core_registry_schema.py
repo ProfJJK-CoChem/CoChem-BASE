@@ -717,6 +717,7 @@ class EngineInfo(BaseModel):
     path: Optional[str] = Field(None, description="Absolute path to executable, or 'BYPASSED', or 'Not_Found'")
     version: Optional[str] = Field(None, description="Semantic version of the engine")
     hash: Optional[str] = Field(None, description="SHA-256 binary hash")
+    native_components: Dict[str, str] = Field(default_factory=dict, description="Audited native component absolute paths and SHA-256 digests")
     gpu_support: Optional[bool] = Field(default=False, description="Whether the engine has GPU support enabled")
     track: Optional[str] = Field(default=None, description="Ecosystem execution track or category")
 
@@ -751,6 +752,7 @@ class EnginePaths(BaseModel):
     aimnet2: Optional[EngineInfo] = Field(default=None)
     mace: Optional[EngineInfo] = Field(default=None)
     pyscf: Optional[EngineInfo] = Field(default=None)
+    psi4: Optional[EngineInfo] = Field(default=None)
     crest: Optional[EngineInfo] = Field(default=None)
     gxtb: Optional[EngineInfo] = Field(default=None)
     mopac: Optional[EngineInfo] = Field(default=None)

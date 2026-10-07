@@ -16,6 +16,10 @@ from cochem_base.core_engine.execution_authority import (
     authorize_engine_execution,
 )
 from cochem_base.orchestrator.stage0_authority import Stage0AuthorityError, build_stage0_authority
+from cochem_base.orchestrator.cochem_setup_phase_3 import (
+    extract_semantic_version,
+    interrogate_binary_version,
+)
 
 
 def _python_registry(tmp_path):
@@ -42,6 +46,36 @@ def test_partial_or_preview_run_cannot_publish_stage0_authority(tmp_path):
 def test_no_unmeasured_default_registry():
     with pytest.raises(RegistryAuthorityViolationError, match="measured hardware"):
         CoChemSystemConfig.create_default()
+
+
+@pytest.mark.parametrize("metadata,expected", [
+    ("Program Version 6.1.1  -  RELEASE   -", "6.1.1"),
+    ("Program Version 4.2.1 - RELEASE", "4.2.1"),
+    ("ORCA version 5.0.4, Release", "5.0.4"),
+    ("* O   R   C   A * Version 5.0.4", "5.0.4"),
+    ("An Ab Initio, DFT and Semiempirical Electronic Structure Package\nVersion 6.1.0", "6.1.0"),
+    ("Open MPI 4.1.8\nProgram Version 6.1.1 - RELEASE\nLibrary version 9.9.9", "6.1.1"),
+    ("Startup preamble\n" * 400 + "Program Version 6.1.1 - RELEASE", "6.1.1"),
+    ("Program Version 6.1.1\nProgram Version 6.1.1", "6.1.1"),
+])
+def test_orca_version_metadata_recognizes_qualified_current_and_legacy_headings(metadata, expected):
+    """Parser inputs describe metadata formats, never substituted executables."""
+    assert extract_semantic_version(metadata, "orca") == expected
+
+
+@pytest.mark.parametrize("metadata", [
+    "Python 3.12.9", "Open MPI 4.1.8", "Library Version 6.1.1", "6.1.1",
+    "Program Version 6.1.1rc1", "Program Version 6.1.1.2",
+    "Program Version 6.1.1\nORCA version 6.0.0",
+])
+def test_orca_version_metadata_rejects_unrelated_or_ambiguous_versions(metadata):
+    assert extract_semantic_version(metadata, "orca") is None
+
+
+def test_actual_interpreter_cannot_be_misidentified_as_orca():
+    version, error = interrogate_binary_version(sys.executable, "orca")
+    assert version is None
+    assert error == "No recognized version was returned by the executable"
 
 
 def test_real_audited_interpreter_executes_and_resource_overrides_fail(tmp_path):

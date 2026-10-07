@@ -23,7 +23,9 @@ import stat
 import struct
 import subprocess
 import sys
+import tempfile
 import uuid
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -703,21 +705,18 @@ def extract_semantic_version(output_text: str, engine_name: str) -> Optional[str
         return match.group(1) if match else None
 
     if "orca" in raw:
-        # e.g., "Program Version 6.0.0", "* O   R   C   A * Version 5.0.4", "ORCA-Version 5.0.3", "Program Version 6.1.1"
-        m = re.search(
-            r"(?:Program\s+Version|ORCA[- ]Version|Version)\s+([4-6]\.\d+(?:\.\d+)?)",
-            text,
-            re.IGNORECASE,
+        # Keep recognized historical ORCA headings, but never infer the engine
+        # version from an unrelated library, compiler or unqualified number.
+        qualified_heading = (
+            r"(?:\bProgram\s+Version|\bORCA[- ]Version|"
+            r"\bO\s+R\s+C\s+A\b[\s*]*Version|"
+            r"An Ab Initio, DFT and Semiempirical Electronic Structure Package\s+Version)"
         )
-        if m:
-            return m.group(1)
-        m_gen = re.search(
-            r"(?:Program\s+Version|ORCA[- ]Version|Version)\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)",
-            text,
-            re.IGNORECASE,
-        )
-        if m_gen:
-            return m_gen.group(1)
+        versions = set(re.findall(
+            qualified_heading + r"\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)(?![\w.])",
+            text, re.IGNORECASE,
+        ))
+        return next(iter(versions)) if len(versions) == 1 else None
 
     elif "mpi" in raw:
         # e.g., "mpirun (Open MPI) 4.1.6", "Open MPI: 5.0.2"
@@ -765,7 +764,11 @@ def interrogate_binary_version(
     """Executes binary with sandboxed flags to safely interrogate its version.
 
     Engine-specific interrogation strategies:
-    - ORCA: Non-destructive bare execution (timeout=10, check=False) capturing stdout+stderr banner.
+    - ORCA: An intentionally absent input in a fresh external temporary directory
+      elicits its native version banner without starting a calculation. ORCA
+      6.1.1 returns a nonzero input-error status; this is metadata discovery, not
+      scientific execution acceptance. Bare invocation remains an older-version
+      fallback; helpers retain their existing bare invocation.
     - xTB / CREST: --version flag with check=False.
     - CFOUR: -v flag or banner inspection with check=False.
     - Apptainer / Singularity: --version flag.
@@ -789,8 +792,9 @@ def interrogate_binary_version(
     timeout = timeout_seconds
 
     if "orca" in raw:
-        # Non-destructive ORCA interrogation: bare execution without --version, capturing banner
-        cmd = [str(p)]
+        # --version is not a supported ORCA 6.1.1 flag: it is treated as a
+        # missing input filename. Use that native input-error banner explicitly.
+        cmd = [str(p), "cochem-version-probe.inp"] if raw == "orca" else [str(p)]
         timeout = max(timeout_seconds, 10.0)
     elif raw in ("mpirun", "mpiexec"):
         cmd.append("--version")
@@ -807,22 +811,31 @@ def interrogate_binary_version(
         cmd.append("--version")
 
     try:
-        res = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.DEVNULL,
-            timeout=timeout,
-            check=False,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-        )
-        stdout_str = res.stdout.decode(errors="ignore") if res.stdout else ""
-        stderr_str = res.stderr.decode(errors="ignore") if res.stderr else ""
-        combined_output = (stdout_str + "\n" + stderr_str)[:4096].strip()
-
-        version = extract_semantic_version(combined_output, engine_name)
-        if version:
-            return version, None
+        directory = (tempfile.TemporaryDirectory(prefix="cochem-orca-version-")
+                     if "orca" in raw else nullcontext(None))
+        commands = [cmd, [str(p)]] if raw == "orca" else [cmd]
+        with directory as probe_directory:
+            for command in commands:
+                res = subprocess.run(
+                    command,
+                    cwd=probe_directory,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    stdin=subprocess.DEVNULL,
+                    timeout=timeout,
+                    check=False,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+                )
+                if res.returncode < 0:
+                    return None, f"Version interrogation terminated by signal {-res.returncode}"
+                stdout_str = res.stdout.decode(errors="ignore") if res.stdout else ""
+                stderr_str = res.stderr.decode(errors="ignore") if res.stderr else ""
+                # Native ORCA banners can follow a long startup preamble. Parse
+                # the captured metadata before any presentation truncation.
+                combined_output = (stdout_str + "\n" + stderr_str).strip()
+                version = extract_semantic_version(combined_output, engine_name)
+                if version:
+                    return version, None
         return None, "No recognized version was returned by the executable"
 
     except subprocess.TimeoutExpired:

@@ -35,6 +35,9 @@ on:
         required: true
         type: string
     secrets:
+      COCHEM_SOURCE_READ_TOKEN:
+        description: Read-only access to reviewed TOPOS and TORQ source revisions.
+        required: false
       PRIVATE_ORCA_ASSET_CREDENTIAL:
         required: true
       BASE_SOURCE_READ_TOKEN:
@@ -170,21 +173,38 @@ jobs:
             tests/calc/test_orca_cli_execution.py \
             --basetemp "$RUNNER_TEMP/orca-evidence/pytest" \
             --junitxml "$RUNNER_TEMP/orca-evidence/results.xml" -q
-      - name: Restore reviewed downstream source snapshots
+      - name: Check out the reviewed TOPOS candidate
+        if: inputs.topos_ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ProfJJK-CoChem/CoChem-TOPOS
+          ref: ${{ inputs.topos_ref }}
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          path: .cochem-ecosystem/topos
+          persist-credentials: false
+      - name: Check out the mandatory TORQ source
+        if: inputs.topos_ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ProfJJK-CoChem/CoChem-TORQ
+          ref: ${{ inputs.torq_ref }}
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          path: .cochem-ecosystem/torq
+          persist-credentials: false
+      - name: Isolate and identify all mandatory source checkouts
         if: inputs.topos_ref != ''
         env:
           TOPOS_REF: ${{ inputs.topos_ref }}
           TORQ_REF: ${{ inputs.torq_ref }}
-          GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p "$RUNNER_TEMP/cochem-source-download"
-          cp integration_sources/manifest.json "$RUNNER_TEMP/cochem-source-download/manifest.json"
-          source_tag=$(python -c 'import json;print(json.load(open("integration_sources/manifest.json"))["release_tag"])')
-          gh release download "$source_tag" --repo "$GITHUB_REPOSITORY" \
-            --pattern topos.tar.gz --pattern torq.tar.gz --dir "$RUNNER_TEMP/cochem-source-download"
-          python scripts/restore_ecosystem_sources.py \
-            --bundle "$RUNNER_TEMP/cochem-source-download" --output "$RUNNER_TEMP/cochem-sources" \
-            --topos-ref "$TOPOS_REF" --torq-ref "$TORQ_REF"
+          test "$(git -C .cochem-ecosystem/topos rev-parse HEAD)" = "$TOPOS_REF"
+          test "$(git -C .cochem-ecosystem/torq rev-parse HEAD)" = "$TORQ_REF"
+          test ! -e "$RUNNER_TEMP/cochem-sources"
+          mkdir -p "$RUNNER_TEMP/cochem-sources"
+          mv .cochem-ecosystem/topos "$RUNNER_TEMP/cochem-sources/topos"
+          mv .cochem-ecosystem/torq "$RUNNER_TEMP/cochem-sources/torq"
+          git -C "$RUNNER_TEMP/cochem-sources/topos" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/topos-commit.txt"
+          git -C "$RUNNER_TEMP/cochem-sources/torq" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/torq-commit.txt"
       - name: Complete mandatory package setup using the audited BASE installation
         if: inputs.topos_ref != ''
         run: |
@@ -205,7 +225,6 @@ jobs:
           name: topos-orca-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/topos-orca-evidence/
-            ${{ runner.temp }}/cochem-sources/source-bundle-receipt.json
             ${{ runner.temp }}/cochem-artifacts/setup-logs/
             ${{ runner.temp }}/cochem-artifacts/setup-receipt.json
             ${{ runner.temp }}/cochem-artifacts/mandatory-validation.json

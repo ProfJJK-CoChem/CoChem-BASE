@@ -16,7 +16,7 @@ Students using the instructor's provisioned route do not enter tokens in CoChem.
 
 Version **1.0.0 validates the supported Classroom50 / GitHub Actions route**,
 including real ORCA optimization and harmonic calculations. The complete local
-BASE profile passed 1,477 tests with two declared physical Slurm deferrals;
+BASE profile passed 1,532 tests with two declared physical Slurm deferrals;
 Ubuntu, macOS and Windows control and wheel checks also passed. The
 [release record](.docs/Release_1_0_0.md) identifies exact revisions, evidence,
 distribution records and remaining host/scientific boundaries.

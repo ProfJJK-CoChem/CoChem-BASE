@@ -340,3 +340,61 @@ def test_main_cli_help() -> None:
     with pytest.raises(SystemExit) as exc_info:
         main(["--help"])
     assert exc_info.value.code == 0
+
+
+def test_missing_explicit_checkpoint_is_not_replaced(tmp_path: Path) -> None:
+    from scripts.oet_maceoff import create_maceoff_calculator
+
+    with pytest.raises(FileNotFoundError, match="Requested MACE checkpoint"):
+        create_maceoff_calculator(MACEOFFConfig(model_path=str(tmp_path / "missing.model")))
+
+
+def test_backend_failure_does_not_produce_surrogate_energy() -> None:
+    from ase.calculators.emt import EMT
+
+    # EMT explicitly does not support helium. The wrapper must preserve that error.
+    with pytest.raises(NotImplementedError, match="No EMT-potential for He"):
+        compute_maceoff_energy_gradient(Atoms("He"), EMT())
+
+
+def test_retired_untrained_fallback_fails_closed() -> None:
+    from scripts.oet_maceoff import MACEBackendUnavailableError, PhysicalMACEOFFFallbackCalculator
+
+    with pytest.raises(MACEBackendUnavailableError, match="untrained physical MACE fallback was removed"):
+        PhysicalMACEOFFFallbackCalculator()
+
+
+@pytest.mark.parametrize("energy,forces", [
+    (float("nan"), [[0.0, 0.0, 0.0]]),
+    (0.0, [[0.0, float("inf"), 0.0]]),
+    (0.0, [[0.0, 0.0]]),
+])
+def test_invalid_calculator_results_are_rejected(energy, forces) -> None:
+    from ase.calculators.singlepoint import SinglePointCalculator
+
+    atoms = Atoms("He")
+    calc = SinglePointCalculator(atoms, energy=energy, forces=forces)
+    with pytest.raises(ValueError, match="non-finite|incomplete"):
+        compute_maceoff_energy_gradient(atoms, calc)
+
+
+def test_coordinate_tuple_uses_supplied_calculator() -> None:
+    from ase.calculators.lj import LennardJones
+
+    symbols = ["Ar", "Ar"]
+    coordinates = [[0.0, 0.0, 0.0], [0.0, 0.0, 3.8]]
+    tuple_result = compute_maceoff_energy_gradient((symbols, coordinates), LennardJones())
+    ase_result = compute_maceoff_energy_gradient(Atoms(symbols, positions=coordinates), LennardJones())
+    assert tuple_result == ase_result
+
+
+@pytest.mark.parametrize("energy,gradients", [
+    (float("nan"), [0.0, 0.0, 0.0]),
+    (0.0, []),
+    (0.0, [float("inf"), 0.0, 0.0]),
+])
+def test_engrad_rejects_invalid_remote_or_local_evidence(tmp_path, energy, gradients) -> None:
+    output = tmp_path / "failed.engrad"
+    with pytest.raises(ValueError, match="non-finite|incomplete"):
+        write_engrad(output, 1, energy, gradients)
+    assert not output.exists()

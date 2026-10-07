@@ -7,14 +7,17 @@ from __future__ import annotations
 
 import itertools
 import math
+from functools import lru_cache
 from typing import Any, List, Optional, Sequence, Set, Tuple, Union
 from mendeleev import element as mendeleev_element
 import networkx as nx
 import numpy as np
 
 from cochem_base.schemas import ConstraintPayload
+from cochem_base.exceptions import FrozenMonomerViolationError, TrajectoryDriftViolationError
 
 
+@lru_cache(maxsize=128)
 def get_dynamic_covalent_radius(symbol: str) -> float:
     """Retrieve Pyykkö covalent radius in Angstroms via mendeleev."""
     clean = str(symbol).strip().rstrip(":").capitalize()
@@ -23,7 +26,7 @@ def get_dynamic_covalent_radius(symbol: str) -> float:
         return float(el.covalent_radius_pyykko) / 100.0
     if hasattr(el, "covalent_radius") and el.covalent_radius is not None:
         return float(el.covalent_radius) / 100.0
-    return 1.40
+    raise ValueError(f"No covalent radius available for {symbol}.")
 
 
 def build_molecular_graph_from_geometry(
@@ -37,11 +40,19 @@ def build_molecular_graph_from_geometry(
     to intramolecular connections within each subset, guaranteeing zero intermolecular edges.
     """
     coords = np.asarray(coordinates, dtype=np.float64)
+    if len(symbols) == 0 or coords.shape != (len(symbols), 3) or not np.all(np.isfinite(coords)):
+        raise ValueError("Geometry must contain finite N x 3 coordinates matching the atom symbols.")
     radii = [get_dynamic_covalent_radius(s) for s in symbols]
     G = nx.Graph()
     G.add_nodes_from(range(len(symbols)))
 
     subsets = atom_subsets if atom_subsets is not None else [list(range(len(symbols)))]
+    flattened = [i for subset in subsets for i in subset]
+    if len(flattened) != len(set(flattened)) or any(
+        isinstance(i, bool) or not isinstance(i, (int, np.integer)) or i < 0 or i >= len(symbols)
+        for i in flattened
+    ):
+        raise FrozenMonomerViolationError("Monomer atom subsets must be disjoint, unique and within the geometry.")
     for subset in subsets:
         sub_list = sorted(list(subset))
         for idx_i, i in enumerate(sub_list):
@@ -86,8 +97,12 @@ def generate_frozen_monomer_constraints(
     ConstraintPayload
         Container with intramolecular bonds, valence angles, and proper dihedrals for A and B.
     """
+    if any(isinstance(i, bool) or not isinstance(i, (int, np.integer)) or i < 0 for i in [*atoms_a, *atoms_b]):
+        raise FrozenMonomerViolationError("Monomer indices must be nonnegative integers, not booleans.")
     set_a: Set[int] = set(atoms_a)
     set_b: Set[int] = set(atoms_b)
+    if not set_a or not set_b or set_a & set_b or len(set_a) != len(atoms_a) or len(set_b) != len(atoms_b):
+        raise FrozenMonomerViolationError("Monomer atom subsets must be nonempty, unique and disjoint.")
 
     if molecular_graph is None:
         if symbols is None or coordinates is None:
@@ -109,6 +124,11 @@ def generate_frozen_monomer_constraints(
             raise TypeError(f"Unsupported molecular_graph type: {type(molecular_graph)}")
     else:
         G = molecular_graph
+    if not (set_a | set_b).issubset(G.nodes):
+        raise FrozenMonomerViolationError("The molecular graph does not contain all monomer atoms.")
+    for monomer in (set_a, set_b):
+        if not nx.is_connected(G.subgraph(monomer)):
+            raise FrozenMonomerViolationError("Each monomer must be covalently connected.")
 
     bonds: List[Tuple[int, int]] = []
     angles: List[Tuple[int, int, int]] = []
@@ -173,7 +193,7 @@ def format_orca_frozen_monomer_constraints_block(
     convergence_thresholds: Optional[dict[str, Any]] = None,
 ) -> str:
     """Format complete ORCA %geom Constraints block for frozen-monomer optimization."""
-    thresh = convergence_thresholds or {
+    thresh = {
         "TolE": "1e-7",
         "TolRMSG": "3e-6",
         "TolMaxG": "1e-5",
@@ -181,7 +201,16 @@ def format_orca_frozen_monomer_constraints_block(
         "TolMaxD": "1e-4",
         "MaxIter": "200",
     }
-    lines: list[str] = ["%geom"]
+    if convergence_thresholds is not None:
+        for key, value in convergence_thresholds.items():
+            if key not in thresh or not math.isfinite(float(value)) or float(value) <= 0:
+                raise ValueError(f"Unsupported or invalid convergence threshold: {key}.")
+            if key != "MaxIter" and float(value) > float(thresh[key]):
+                raise ValueError(f"{key} cannot relax the SRS convergence threshold.")
+            if key == "MaxIter" and (float(value) != int(float(value)) or int(float(value)) > 200):
+                raise ValueError("MaxIter must be an integer no greater than 200.")
+            thresh[key] = str(value)
+    lines: list[str] = ["%geom", "  InHess XTB2"]
     for k, v in thresh.items():
         lines.append(f"  {k} {v}")
 
@@ -202,7 +231,9 @@ def format_orca_frozen_monomer_constraints_block(
 def validate_trajectory_monomer_drift(
     trajectory: Sequence[Union[Sequence[Sequence[float]], np.ndarray]],
     monomer_indices: Sequence[int],
-    tolerance: float = 1.0e-5,
+    tolerance: float = 1.0e-6,
+    *,
+    raise_on_violation: bool = False,
 ) -> Tuple[bool, float]:
     """Validate that internal pairwise distances within a frozen monomer remain invariant across a trajectory.
 
@@ -212,7 +243,7 @@ def validate_trajectory_monomer_drift(
         List or array of Cartesian geometries [N_steps, N_atoms, 3].
     monomer_indices : Sequence[int]
         Indices of atoms belonging to the monomer whose internal geometry should be rigid.
-    tolerance : float, default 1.0e-5
+    tolerance : float, default 1.0e-6
         Maximum permissible internal distance deviation in Angstroms.
 
     Returns
@@ -220,12 +251,21 @@ def validate_trajectory_monomer_drift(
     Tuple[bool, float]
         (is_valid, max_drift) where max_drift is the maximum distance variation observed.
     """
-    if not trajectory:
-        return True, 0.0
+    if len(trajectory) == 0:
+        raise ValueError("An empty trajectory cannot establish frozen-monomer integrity.")
+    if not math.isfinite(tolerance) or not 0 < tolerance <= 1.0e-6:
+        raise ValueError("Monomer drift tolerance must be positive and no greater than 1e-6 Angstrom.")
 
     steps = [np.asarray(step, dtype=np.float64) for step in trajectory]
     indices = sorted(list(monomer_indices))
-    if len(indices) < 2:
+    if not indices or len(indices) != len(set(indices)):
+        raise ValueError("Monomer indices must be nonempty and unique.")
+    for step in steps:
+        if step.ndim != 2 or step.shape[1] != 3 or step.shape != steps[0].shape or not np.all(np.isfinite(step)):
+            raise ValueError("Each trajectory frame must be a finite N x 3 geometry of the same shape.")
+    if any(isinstance(i, bool) or not isinstance(i, (int, np.integer)) or i < 0 or i >= len(steps[0]) for i in indices):
+        raise ValueError("Monomer atom index is outside the trajectory geometry.")
+    if len(indices) == 1:
         return True, 0.0
 
     # Reference pairwise distances from step 0
@@ -243,11 +283,94 @@ def validate_trajectory_monomer_drift(
             if drift > max_drift:
                 max_drift = drift
 
-    is_valid = max_drift <= tolerance
+    is_valid = max_drift < tolerance and not math.isclose(max_drift, tolerance, rel_tol=1e-10)
+    if not is_valid and raise_on_violation:
+        raise TrajectoryDriftViolationError(details={"max_drift_angstrom": max_drift, "tolerance_angstrom": tolerance})
     return is_valid, max_drift
 
 
 FrozenConstraintPayload = ConstraintPayload
+
+
+def build_wilson_b_matrix(
+    constraints: ConstraintPayload,
+    coordinates: Union[Sequence[Sequence[float]], np.ndarray],
+    difference_step: float = 1e-6,
+) -> np.ndarray:
+    """Return d(internal coordinates)/d(Cartesians), in Angstrom/radian units.
+
+    Bond and angle derivatives are analytic. Proper torsions use centered
+    differences of their wrapped angles. A linear angle has two independent
+    transverse bending coordinates: a linear monomer has 3N-5 internal modes,
+    not the 3N-6 applicable to a nonlinear monomer.
+    """
+    coords = np.asarray(coordinates, dtype=float)
+    if coords.ndim != 2 or coords.shape[1] != 3 or len(coords) == 0 or not np.all(np.isfinite(coords)):
+        raise ValueError("Wilson coordinates must be a finite N x 3 array.")
+    if not math.isfinite(difference_step) or difference_step <= 0:
+        raise ValueError("Finite-difference step must be finite and positive.")
+    for entry in [*constraints.bonds, *constraints.angles, *constraints.dihedrals]:
+        if len(set(entry)) != len(entry) or any(i < 0 or i >= len(coords) for i in entry):
+            raise FrozenMonomerViolationError("Invalid atom indices in Wilson internal coordinates.")
+    rows: list[np.ndarray] = []
+    for i, j in constraints.bonds:
+        diff = coords[i] - coords[j]
+        norm = np.linalg.norm(diff)
+        if norm < 1e-12:
+            raise FrozenMonomerViolationError("Coincident atoms do not define a bond derivative.")
+        row = np.zeros_like(coords)
+        row[i], row[j] = diff / norm, -diff / norm
+        rows.append(row.ravel())
+    for i, j, k in constraints.angles:
+        a, b = coords[i] - coords[j], coords[k] - coords[j]
+        ra, rb = np.linalg.norm(a), np.linalg.norm(b)
+        if min(ra, rb) < 1e-12:
+            raise FrozenMonomerViolationError("Coincident atoms do not define an angle derivative.")
+        u, v = a / ra, b / rb
+        cosine = float(np.clip(u @ v, -1.0, 1.0))
+        sine = float(np.linalg.norm(np.cross(u, v)))
+        if sine < 1e-8:
+            # Two orthonormal directions perpendicular to the linear bond axis.
+            _, _, vh = np.linalg.svd(u.reshape(1, 3), full_matrices=True)
+            for perpendicular in vh[1:]:
+                row = np.zeros_like(coords)
+                row[i] = perpendicular / ra
+                row[k] = -math.copysign(1.0, cosine) * perpendicular / rb
+                row[j] = -row[i] - row[k]
+                rows.append(row.ravel())
+        else:
+            row = np.zeros_like(coords)
+            row[i] = (cosine * u - v) / (ra * sine)
+            row[k] = (cosine * v - u) / (rb * sine)
+            row[j] = -row[i] - row[k]
+            rows.append(row.ravel())
+
+    def torsion(frame: np.ndarray, indices: Sequence[int]) -> float:
+        i, j, k, l = indices
+        axis = frame[k] - frame[j]
+        length = np.linalg.norm(axis)
+        if length < 1e-12:
+            raise FrozenMonomerViolationError("Coincident torsion axis atoms.")
+        axis /= length
+        left, right = frame[i] - frame[j], frame[l] - frame[k]
+        left -= (left @ axis) * axis
+        right -= (right @ axis) * axis
+        if min(np.linalg.norm(left), np.linalg.norm(right)) < 1e-10:
+            raise FrozenMonomerViolationError("A collinear quartet does not define a torsion.")
+        return math.atan2(float(np.cross(axis, left) @ right), float(left @ right))
+
+    for indices in constraints.dihedrals:
+        torsion(coords, indices)  # Validate the unperturbed coordinate.
+        row = np.zeros_like(coords)
+        for atom in indices:
+            for axis in range(3):
+                plus, minus = coords.copy(), coords.copy()
+                plus[atom, axis] += difference_step
+                minus[atom, axis] -= difference_step
+                delta = torsion(plus, indices) - torsion(minus, indices)
+                row[atom, axis] = math.atan2(math.sin(delta), math.cos(delta)) / (2 * difference_step)
+        rows.append(row.ravel())
+    return np.asarray(rows).reshape(-1, 3 * len(coords))
 
 
 def get_reference_monomer_geometry(monomer: str) -> Tuple[List[str], np.ndarray]:
@@ -336,9 +459,8 @@ __all__ = [
     "format_orca_frozen_monomer_constraints_block",
     "build_molecular_graph_from_geometry",
     "validate_trajectory_monomer_drift",
+    "build_wilson_b_matrix",
     "get_reference_monomer_geometry",
     "build_reference_co2_h2o_complex",
     "formulate_recipe_r2_wilson_constraints",
 ]
-
-

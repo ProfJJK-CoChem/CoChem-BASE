@@ -32,11 +32,13 @@ Operational Scope & Protocol Specifications:
 5. Strict Method Matrix & Anti-Spoofing Protocol Compliance:
    - Dynamic Mendeleev atomic mass retrieval (strictly ZERO hardcoded mass constants).
    - Zero-Mock execution with live ab-initio execution (gpu4pyscf, PySCF, ORCA) and
-     rigorous physical analytical Hamiltonian eigensolvers when binaries are uninstalled.
+     explicit unavailability errors when required binaries or CUDA are absent.
    - Correctness Acceptance Gate: |E_CPU - E_GPU| < 1.0 mHa (Method Matrix §8.4 Acceptance Gate 1).
 """
 
 from __future__ import annotations
+
+from cochem_base.core import cochem_constants as _constants
 
 import argparse
 import atexit
@@ -70,6 +72,8 @@ from typing import (
 import numpy as np
 import psutil
 from mendeleev import element
+from cochem.core.context import assert_writable_path
+from cochem_base.config_loader import get_artifact_dir
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -81,24 +85,21 @@ from pydantic import (
 # ---------------------------------------------------------------------------
 # Physical Constants & Metric Conversion Standards (CODATA exact)
 # ---------------------------------------------------------------------------
-PLANCK_CONSTANT_J_S: float = 6.62607015e-34       # J * s (CODATA exact)
-SPEED_OF_LIGHT_CM_S: float = 2.99792458e10       # cm / s (CODATA exact)
-SPEED_OF_LIGHT_M_S: float = 2.99792458e8         # m / s (CODATA exact)
-ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27   # kg / u
-ANGSTROM_TO_METER: float = 1.0e-10               # m / Angstrom
-BOHR_TO_ANGSTROM: float = 0.529177210903         # Angstrom / Bohr
-ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM # Bohr / Angstrom
-BOHR_TO_METER: float = 0.529177210903e-10        # m / Bohr
-HARTREE_TO_JOULE: float = 4.3597447222071e-18    # J / Hartree
-HARTREE_TO_EV: float = 27.211386245988           # eV / Hartree
-HARTREE_TO_CM_INV: float = 219474.63136320       # cm^-1 / Hartree
-HARTREE_TO_KCAL_MOL: float = 627.5094740631      # kcal/mol / Hartree
+PLANCK_CONSTANT_J_S: float = _constants.PLANCK_CONSTANT_J_S
+SPEED_OF_LIGHT_CM_S: float = _constants.SPEED_OF_LIGHT_CM_S
+SPEED_OF_LIGHT_M_S: float = _constants.SPEED_OF_LIGHT_M_S
+ATOMIC_MASS_UNIT_KG: float = _constants.ATOMIC_MASS_UNIT_KG
+ANGSTROM_TO_METER: float = _constants.ANGSTROM_TO_METER
+BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_BOHR: float = _constants.ANGSTROM_TO_BOHR
+BOHR_TO_METER: float = _constants.BOHR_TO_METER
+HARTREE_TO_JOULE: float = _constants.HARTREE_TO_JOULE
+HARTREE_TO_EV: float = _constants.HARTREE_TO_EV
+HARTREE_TO_CM_INV: float = _constants.HARTREE_TO_CM_INV
+HARTREE_TO_KCAL_MOL: float = _constants.HARTREE_TO_KCAL_MOL
 
 # Inertia (u * Angstrom^2) to Rotational Constant (MHz):
-INERTIA_TO_MHZ_FACTOR: float = (
-    PLANCK_CONSTANT_J_S
-    / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_KG * (ANGSTROM_TO_METER ** 2))
-) * 1.0e-6  # ~505379.0091414361 MHz * u * Angstrom^2
+INERTIA_TO_MHZ_FACTOR: float = _constants.C_ROT_MHZ_U_ANG2
 
 # Hessian eigenvalue (Hartree / (Bohr^2 * u)) to wavenumber (cm^-1):
 HESSIAN_EIG_TO_CM_INV_FACTOR: float = (
@@ -148,7 +149,7 @@ class ExecutionEngine(str, Enum):
 
 class BenchmarkSystem(BaseModel):
     """Molecular geometry specification for crossover benchmarking."""
-    model_config = ConfigDict(extra="allow", validate_assignment=True)
+    model_config = ConfigDict(extra="allow", validate_assignment=True, allow_inf_nan=False)
 
     system_id: str = Field(..., description="Unique identifier for benchmark system")
     name: str = Field(..., description="Descriptive chemical name or formula")
@@ -176,30 +177,36 @@ class BenchmarkSystem(BaseModel):
                 raise ValueError(f"Coordinate entry {row} must have exactly 3 Cartesian components.")
         return v
 
+    @model_validator(mode="after")
+    def validate_geometry(self):
+        if len(self.symbols) != len(self.coordinates_angstrom):
+            raise ValueError("Geometry atom and coordinate counts must match")
+        return self
+
 
 class HardwareTelemetry(BaseModel):
     """Host machine hardware topology, CPU thread counts, and GPU device telemetry."""
-    model_config = ConfigDict(extra="allow", validate_assignment=True)
+    model_config = ConfigDict(extra="allow", validate_assignment=True, allow_inf_nan=False)
 
     host_name: str = Field(default_factory=platform.node, description="Hostname")
     os_platform: str = Field(default_factory=platform.platform, description="Operating system release")
     cpu_model: str = Field(default="Unknown", description="Processor model name")
-    physical_cores: int = Field(default=8, description="Number of physical CPU cores")
-    logical_threads: int = Field(default=16, description="Number of logical execution threads")
-    performance_cores: int = Field(default=8, description="Primary compute / P-cores count")
-    total_ram_gb: float = Field(default=32.0, description="Total physical RAM in GB")
+    physical_cores: int = Field(..., ge=1, description="Number of physical CPU cores")
+    logical_threads: int = Field(..., ge=1, description="Number of logical execution threads")
+    performance_cores: Optional[int] = Field(default=None, ge=1, description="Primary compute / P-cores count")
+    total_ram_gb: float = Field(..., gt=0.0, description="Total physical RAM in GB")
     has_cuda: bool = Field(default=False, description="CUDA GPU availability flag")
     gpu_name: Optional[str] = Field(default=None, description="NVIDIA GPU device name")
     gpu_count: int = Field(default=0, description="Number of detected CUDA GPUs")
     gpu_vram_gb: float = Field(default=0.0, description="Total GPU VRAM in GB")
     gpu_compute_capability: Optional[str] = Field(default=None, description="CUDA compute capability")
     has_mps: bool = Field(default=False, description="NVIDIA Multi-Process Service daemon active")
-    has_avx2: bool = Field(default=True, description="AVX2 SIMD support flag")
+    has_avx2: Optional[bool] = Field(default=None, description="AVX2 SIMD support flag")
 
 
 class SingleRunResult(BaseModel):
     """Execution telemetry and physical output of a single quantum run."""
-    model_config = ConfigDict(extra="allow", validate_assignment=True)
+    model_config = ConfigDict(extra="allow", validate_assignment=True, allow_inf_nan=False)
 
     run_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique execution UUID")
     system_id: str = Field(..., description="Target benchmark system ID")
@@ -212,15 +219,15 @@ class SingleRunResult(BaseModel):
     auxbasis: str = Field(default="def2-universal-jkfit", description="Auxiliary density fitting basis set")
     basis_function_count: int = Field(..., ge=1, description="Total number of AO basis functions (N_bf)")
     energy_hartree: float = Field(..., description="Electronic energy in Hartree")
-    scf_wall_seconds: float = Field(..., ge=0.0, description="Pure SCF wall-clock time in seconds")
+    scf_wall_seconds: float = Field(..., gt=0.0, description="Pure SCF wall-clock time in seconds")
     total_wall_seconds: float = Field(..., ge=0.0, description="Total run wall-clock time in seconds")
-    scf_cycles: int = Field(default=0, ge=0, description="SCF iteration cycles to convergence")
-    converged: bool = Field(default=True, description="Convergence status flag")
+    scf_cycles: Optional[int] = Field(default=None, ge=0, description="SCF iteration cycles to convergence")
+    converged: bool = Field(..., strict=True, description="Convergence status flag")
     gradient_norm: Optional[float] = Field(default=None, description="Frobenius/L2 norm of nuclear gradient")
     lowest_vibrational_freq_cm_inv: Optional[float] = Field(
         default=None, description="Lowest non-zero harmonic frequency in cm^-1"
     )
-    vram_consumed_mb: float = Field(default=0.0, description="GPU VRAM consumed during run in MB")
+    vram_consumed_mb: Optional[float] = Field(default=None, ge=0.0, description="Total device VRAM in use at completion in MB; unknown when unavailable")
     timestamp_utc: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="ISO 8601 UTC timestamp"
     )
@@ -228,7 +235,7 @@ class SingleRunResult(BaseModel):
 
 class SystemCrossoverEvaluation(BaseModel):
     """Comparative evaluation between CPU and GPU execution on a single system."""
-    model_config = ConfigDict(extra="allow", validate_assignment=True)
+    model_config = ConfigDict(extra="allow", validate_assignment=True, allow_inf_nan=False)
 
     system_id: str = Field(..., description="Target system identifier")
     system_name: str = Field(..., description="Descriptive system name")
@@ -239,16 +246,16 @@ class SystemCrossoverEvaluation(BaseModel):
     basis: str = Field(..., description="Primary basis set")
     cpu_engine: ExecutionEngine = Field(..., description="CPU execution engine")
     gpu_engine: ExecutionEngine = Field(..., description="GPU execution engine")
-    cpu_scf_wall_seconds: float = Field(..., ge=0.0, description="CPU SCF execution wall time in seconds")
-    gpu_scf_wall_seconds: float = Field(..., ge=0.0, description="GPU SCF execution wall time in seconds")
-    speedup_ratio: float = Field(..., ge=0.0, description="Measured speedup ratio: T_CPU / T_GPU")
+    cpu_scf_wall_seconds: float = Field(..., gt=0.0, description="CPU SCF execution wall time in seconds")
+    gpu_scf_wall_seconds: float = Field(..., gt=0.0, description="GPU SCF execution wall time in seconds")
+    speedup_ratio: float = Field(..., gt=0.0, description="Measured speedup ratio: T_CPU / T_GPU")
     energy_delta_hartree: float = Field(..., ge=0.0, description="Absolute energy difference |E_CPU - E_GPU| in Hartree")
     energy_delta_mha: float = Field(..., ge=0.0, description="Absolute energy difference in milliHartree (mHa)")
     passes_accuracy_gate: bool = Field(
         ..., description="Acceptance Gate: True if energy delta < 1.0 mHa per Method Matrix §8.4"
     )
-    cpu_scf_cycles: int = Field(default=0, ge=0, description="CPU SCF cycle count")
-    gpu_scf_cycles: int = Field(default=0, ge=0, description="GPU SCF cycle count")
+    cpu_scf_cycles: Optional[int] = Field(default=None, ge=0, description="CPU SCF cycle count")
+    gpu_scf_cycles: Optional[int] = Field(default=None, ge=0, description="GPU SCF cycle count")
     crossover_classification: str = Field(
         ..., description="Crossover classification: 'CPU_FASTER', 'GPU_FASTER', or 'PARITY'"
     )
@@ -256,7 +263,7 @@ class SystemCrossoverEvaluation(BaseModel):
 
 class EmpiricalCrossoverModel(BaseModel):
     """Fitted crossover model predicting the exact basis threshold where GPU starts paying."""
-    model_config = ConfigDict(extra="allow", validate_assignment=True)
+    model_config = ConfigDict(extra="allow", validate_assignment=True, allow_inf_nan=False)
 
     xc_functional: str = Field(..., description="Evaluated functional")
     basis_set: str = Field(..., description="Evaluated basis set")
@@ -286,7 +293,7 @@ class EmpiricalCrossoverModel(BaseModel):
 
 class FullBenchmarkReport(BaseModel):
     """Complete benchmark report artifact capturing full calibration run."""
-    model_config = ConfigDict(extra="allow", validate_assignment=True)
+    model_config = ConfigDict(extra="allow", validate_assignment=True, allow_inf_nan=False)
 
     report_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Report UUID")
     timestamp_utc: str = Field(
@@ -657,56 +664,50 @@ def calculate_basis_function_count(
     basis_name: str = "def2-tzvpp",
     cart: bool = False,
 ) -> int:
+    """Count contracted functions from PySCF's actual basis definitions.
+
+    A heavy-atom multiplier cannot represent arbitrary elements, ECPs, Cartesian
+    shells or basis families; unavailable definitions never yield a guessed count.
     """
-    Computes exact or rigorous analytical AO basis function count N_bf.
-    If PySCF is present, queries mol.nao directly; otherwise uses standard quantum contraction tables.
-    """
-    # 1. Try live PySCF interrogation
     try:
-        from pyscf import gto
-        atom_str = "; ".join(f"{s} 0.0 0.0 {i * 1.5:.4f}" for i, s in enumerate(symbols))
-        mol = gto.M(atom=atom_str, basis=basis_name, cart=cart, verbose=0)
-        return int(mol.nao)
-    except Exception as _e:
-        logger.debug(f"Ignored exception: {_e}")
-
-    # 2. Analytical standard contraction tables
-    b_norm = basis_name.strip().lower()
-    heavy_symbols = [s for s in symbols if s.upper() not in ("H", "HE")]
-    n_heavy = len(heavy_symbols)
-    n_h = len(symbols) - n_heavy
-
-    if "qzvpp" in b_norm or "def2-qzvpp" in b_norm or "cc-pvqz" in b_norm:
-        return n_heavy * 55 + n_h * 28
-    elif "qzvp" in b_norm or "def2-qzvp" in b_norm:
-        return n_heavy * 48 + n_h * 18
-    elif "tzvpp" in b_norm or "def2-tzvpp" in b_norm or "cc-pvtz" in b_norm:
-        # Water monomer: 31 + 2*14 = 59 bf; Water dimer = 118 bf
-        return n_heavy * 31 + n_h * 14
-    elif "tzvp" in b_norm or "def2-tzvp" in b_norm:
-        return n_heavy * 28 + n_h * 8
-    elif "svp" in b_norm or "def2-svp" in b_norm or "cc-pvdz" in b_norm:
-        return n_heavy * 14 + n_h * 5
-    elif "sto" in b_norm or "min" in b_norm:
-        return n_heavy * 5 + n_h * 1
-    else:
-        return n_heavy * 31 + n_h * 14
+        from pyscf.gto import basis as basis_library
+    except ImportError as exc:
+        raise BenchmarkUnavailableError("Exact basis counting requires the PySCF basis library") from exc
+    if not symbols:
+        raise ValueError("Basis count requires at least one atom")
+    count = 0
+    try:
+        for symbol in symbols:
+            shells = basis_library.load(basis_name, symbol)
+            if not shells:
+                raise ValueError(f"No basis definition for {symbol}")
+            for shell in shells:
+                angular_momentum = shell[0]
+                # Relativistic kappa may appear between angular momentum and rows.
+                row = shell[2] if isinstance(shell[1], int) else shell[1]
+                contractions = len(row) - 1
+                degeneracy = ((angular_momentum + 1) * (angular_momentum + 2) // 2
+                              if cart else 2 * angular_momentum + 1)
+                count += contractions * degeneracy
+    except (KeyError, ValueError, RuntimeError, IndexError) as exc:
+        raise BenchmarkUnavailableError(f"Basis definition unavailable for {basis_name}: {exc}") from exc
+    return count
 
 
 def interrogate_hardware() -> HardwareTelemetry:
     """
     Interrogates host CPU topology, memory, and CUDA GPU devices per Method Matrix §8.1-§8.3.
     """
-    p_cores = 8
-    phys_cores = psutil.cpu_count(logical=False) or 8
-    log_threads = psutil.cpu_count(logical=True) or 16
+    phys_cores = psutil.cpu_count(logical=False)
+    log_threads = psutil.cpu_count(logical=True)
+    if not phys_cores or not log_threads or phys_cores > log_threads:
+        raise BenchmarkUnavailableError("Measured CPU topology is unavailable")
     total_ram_gb = round(psutil.virtual_memory().total / (1024 ** 3), 2)
 
-    # Detect P-cores heuristic (Intel 12th/13th/14th Gen or standard core count)
-    if phys_cores >= 8:
-        p_cores = 8
-    else:
-        p_cores = phys_cores
+    # A physical core count does not identify performance/efficiency topology.
+    p_cores = None
+    cpu_flags = Path("/proc/cpuinfo")
+    avx2 = ("avx2" in cpu_flags.read_text().split()) if cpu_flags.is_file() else None
 
     has_cuda = False
     gpu_name: Optional[str] = None
@@ -746,7 +747,7 @@ def interrogate_hardware() -> HardwareTelemetry:
     return HardwareTelemetry(
         host_name=platform.node(),
         os_platform=platform.platform(),
-        cpu_model=platform.processor() or "x86_64",
+        cpu_model=platform.processor() or "Unknown",
         physical_cores=phys_cores,
         logical_threads=log_threads,
         performance_cores=p_cores,
@@ -757,7 +758,7 @@ def interrogate_hardware() -> HardwareTelemetry:
         gpu_vram_gb=gpu_vram_gb,
         gpu_compute_capability=gpu_cc,
         has_mps=has_mps,
-        has_avx2=True,
+        has_avx2=avx2,
     )
 
 
@@ -784,7 +785,7 @@ def run_gpu4pyscf_point(
     - JIT warmup run outside the timer
     """
     import cupy
-    from gpu4pyscf.dft import rks as gpu_rks
+    from gpu4pyscf.dft import rks as gpu_rks, uks as gpu_uks
     from gpu4pyscf.drivers.dft_driver import warmup as gpu_warmup
     from pyscf import gto
 
@@ -796,11 +797,13 @@ def run_gpu4pyscf_point(
         for i in range(n_atoms)
     )
 
+    if device != "cuda:0":
+        raise BenchmarkUnavailableError("This benchmark driver currently measures cuda:0 only")
     if warmup:
         try:
             gpu_warmup()
         except Exception as e:
-            logger.debug("gpu_warmup exception: %s", e)
+            raise BenchmarkUnavailableError(f"GPU warmup failed; timing would include compilation: {e}") from e
 
     mol = gto.M(
         atom=atom_str,
@@ -813,7 +816,8 @@ def run_gpu4pyscf_point(
     )
     n_bf = int(mol.nao)
 
-    mf = gpu_rks.RKS(mol, xc=xc).density_fit(auxbasis=auxbasis)
+    driver = gpu_uks.UKS if system.spin else gpu_rks.RKS
+    mf = driver(mol, xc=xc).density_fit(auxbasis=auxbasis)
 
     if mode == ComparisonMode.MATCHED:
         mf.grids.atom_grid = (99, 590)
@@ -836,45 +840,37 @@ def run_gpu4pyscf_point(
     cupy.cuda.Stream.null.synchronize()
     scf_wall_s = float(time.perf_counter() - t0_scf)
 
-    scf_cycles = int(getattr(mf, "cycles", 0))
-    converged = bool(getattr(mf, "converged", True))
+    scf_cycles = getattr(mf, "cycles", None)
+    converged = getattr(mf, "converged", None)
+    if not isinstance(converged, (bool, np.bool_)) or not converged:
+        raise BenchmarkUnavailableError("Explicit successful SCF convergence is required")
+    converged = bool(converged)
 
     grad_norm: Optional[float] = None
     if task in (BenchmarkTask.GRADIENT, BenchmarkTask.ALL):
         g_scanner = mf.nuc_grad_method()
         g_res = g_scanner.kernel()
         cupy.cuda.Stream.null.synchronize()
-        grad_norm = float(np.linalg.norm(g_res))
+        grad_norm = float(np.linalg.norm(g_res.get() if hasattr(g_res, "get") else g_res))
 
     lowest_freq: Optional[float] = None
     if task in (BenchmarkTask.HESSIAN, BenchmarkTask.ALL):
         h_scanner = mf.Hessian()
         h_res = h_scanner.kernel()
         cupy.cuda.Stream.null.synchronize()
-        h_arr = np.asarray(h_res, dtype=np.float64)
+        h_arr = np.asarray(h_res.get() if hasattr(h_res, "get") else h_res, dtype=np.float64)
         if h_arr.ndim == 4:
             hess_3n = h_arr.transpose(0, 2, 1, 3).reshape(3 * n_atoms, 3 * n_atoms)
         else:
             hess_3n = h_arr
 
-        # Mass-weighted normal mode analysis with Mendeleev masses
-        masses = np.array([get_dynamic_atomic_mass(s) for s in symbols], dtype=np.float64)
-        mass_diag = np.repeat(masses, 3)
-        inv_sqrt_mass = 1.0 / np.sqrt(mass_diag)
-        mw_hess = hess_3n * np.outer(inv_sqrt_mass, inv_sqrt_mass)
-        eigvals, _ = np.linalg.eigh(mw_hess)
-        freqs_cm = []
-        for ev in eigvals:
-            if ev > 1e-6:
-                freqs_cm.append(math.sqrt(ev) * HESSIAN_EIG_TO_CM_INV_FACTOR)
-        if freqs_cm:
-            # Skip translational/rotational zeros (lowest non-zero vibration)
-            vib_freqs = freqs_cm[6:] if len(freqs_cm) > 6 else freqs_cm
-            if vib_freqs:
-                lowest_freq = float(vib_freqs[0])
+        from cochem_base.spectroscopy.isotopologue import get_nuclide_mass, projected_harmonic_frequencies
+        masses = np.array([get_nuclide_mass(symbol) for symbol in symbols])
+        frequencies, _ = projected_harmonic_frequencies(hess_3n, coords, masses)
+        lowest_freq = min(frequencies) if frequencies else None
 
     # Record VRAM consumption
-    vram_mb = 0.0
+    vram_mb = None
     try:
         mem_info = cupy.cuda.Device(0).mem_info
         vram_mb = round((mem_info[1] - mem_info[0]) / (1024 ** 2), 2)
@@ -893,7 +889,7 @@ def run_gpu4pyscf_point(
         basis_function_count=n_bf,
         energy_hartree=energy_hartree,
         scf_wall_seconds=scf_wall_s,
-        total_wall_seconds=scf_wall_s,
+        total_wall_seconds=float(time.perf_counter() - t0_scf),
         scf_cycles=scf_cycles,
         converged=converged,
         gradient_norm=grad_norm,
@@ -915,8 +911,12 @@ def run_pyscf_cpu_point(
     Executes single-point calculation on CPU via multithreaded PySCF.
     Uses identical grid quadrature, basis functions, and convergence tolerances.
     """
-    from pyscf import gto
-    from pyscf.dft import rks as cpu_rks
+    from pyscf import gto, lib
+    from pyscf.dft import rks as cpu_rks, uks as cpu_uks
+
+    if isinstance(n_cores, bool) or not isinstance(n_cores, int) or n_cores <= 0:
+        raise ValueError("CPU thread count must be a positive integer")
+    lib.num_threads(n_cores)
 
     symbols = system.symbols
     coords = np.asarray(system.coordinates_angstrom, dtype=np.float64)
@@ -937,7 +937,8 @@ def run_pyscf_cpu_point(
     )
     n_bf = int(mol.nao)
 
-    mf = cpu_rks.RKS(mol, xc=xc).density_fit(auxbasis=auxbasis)
+    driver = cpu_uks.UKS if system.spin else cpu_rks.RKS
+    mf = driver(mol, xc=xc).density_fit(auxbasis=auxbasis)
 
     if mode == ComparisonMode.MATCHED:
         mf.grids.atom_grid = (99, 590)
@@ -958,38 +959,32 @@ def run_pyscf_cpu_point(
     energy_hartree = float(mf.kernel())
     scf_wall_s = float(time.perf_counter() - t0_scf)
 
-    scf_cycles = int(getattr(mf, "cycles", 0))
-    converged = bool(getattr(mf, "converged", True))
+    scf_cycles = getattr(mf, "cycles", None)
+    converged = getattr(mf, "converged", None)
+    if not isinstance(converged, (bool, np.bool_)) or not converged:
+        raise BenchmarkUnavailableError("Explicit successful SCF convergence is required")
+    converged = bool(converged)
 
     grad_norm: Optional[float] = None
     if task in (BenchmarkTask.GRADIENT, BenchmarkTask.ALL):
         g_scanner = mf.nuc_grad_method()
         g_res = g_scanner.kernel()
-        grad_norm = float(np.linalg.norm(g_res))
+        grad_norm = float(np.linalg.norm(g_res.get() if hasattr(g_res, "get") else g_res))
 
     lowest_freq: Optional[float] = None
     if task in (BenchmarkTask.HESSIAN, BenchmarkTask.ALL):
         h_scanner = mf.Hessian()
         h_res = h_scanner.kernel()
-        h_arr = np.asarray(h_res, dtype=np.float64)
+        h_arr = np.asarray(h_res.get() if hasattr(h_res, "get") else h_res, dtype=np.float64)
         if h_arr.ndim == 4:
             hess_3n = h_arr.transpose(0, 2, 1, 3).reshape(3 * n_atoms, 3 * n_atoms)
         else:
             hess_3n = h_arr
 
-        masses = np.array([get_dynamic_atomic_mass(s) for s in symbols], dtype=np.float64)
-        mass_diag = np.repeat(masses, 3)
-        inv_sqrt_mass = 1.0 / np.sqrt(mass_diag)
-        mw_hess = hess_3n * np.outer(inv_sqrt_mass, inv_sqrt_mass)
-        eigvals, _ = np.linalg.eigh(mw_hess)
-        freqs_cm = []
-        for ev in eigvals:
-            if ev > 1e-6:
-                freqs_cm.append(math.sqrt(ev) * HESSIAN_EIG_TO_CM_INV_FACTOR)
-        if freqs_cm:
-            vib_freqs = freqs_cm[6:] if len(freqs_cm) > 6 else freqs_cm
-            if vib_freqs:
-                lowest_freq = float(vib_freqs[0])
+        from cochem_base.spectroscopy.isotopologue import get_nuclide_mass, projected_harmonic_frequencies
+        masses = np.array([get_nuclide_mass(symbol) for symbol in symbols])
+        frequencies, _ = projected_harmonic_frequencies(hess_3n, coords, masses)
+        lowest_freq = min(frequencies) if frequencies else None
 
     return SingleRunResult(
         system_id=system.system_id,
@@ -1003,7 +998,7 @@ def run_pyscf_cpu_point(
         basis_function_count=n_bf,
         energy_hartree=energy_hartree,
         scf_wall_seconds=scf_wall_s,
-        total_wall_seconds=scf_wall_s,
+        total_wall_seconds=float(time.perf_counter() - t0_scf),
         scf_cycles=scf_cycles,
         converged=converged,
         gradient_norm=grad_norm,
@@ -1028,12 +1023,20 @@ def run_orca_point(
                      %pal nprocs 8 end, %maxcore 3000, TolE 1e-9, Thresh 1e-11
     - Default input: ! B3LYP def2-TZVPP def2/J RIJCOSX DEFGRID2 TightSCF
     """
+    if task != BenchmarkTask.ENERGY:
+        raise BenchmarkUnavailableError("ORCA derivative benchmark parsing is not yet available")
+    if isinstance(n_procs, bool) or not isinstance(n_procs, int) or n_procs <= 0:
+        raise ValueError("ORCA process count must be a positive integer")
+    if any(not re.fullmatch(r"[A-Za-z0-9+_.()/-]+", token) for token in (xc, basis)):
+        raise ValueError("Functional and basis must be single ORCA keywords")
     orca_path = shutil.which(orca_executable)
     if not orca_path:
         raise FileNotFoundError(f"ORCA binary '{orca_executable}' not found in system PATH.")
 
-    work_dir = scratch_dir or Path(tempfile.mkdtemp(prefix="cochem_orca_bench_"))
-    work_dir.mkdir(parents=True, exist_ok=True)
+    scratch_root = Path(scratch_dir).resolve() if scratch_dir else get_artifact_dir() / "Scratch"
+    assert_writable_path(scratch_root)
+    scratch_root.mkdir(parents=True, exist_ok=True)
+    work_dir = Path(tempfile.mkdtemp(prefix="cochem_orca_bench_", dir=scratch_root))
     input_file = work_dir / "bench.inp"
     output_file = work_dir / "bench.out"
 
@@ -1085,47 +1088,29 @@ end
     input_file.write_text(inp_content, encoding="utf-8")
 
     t0 = time.perf_counter()
-    proc = subprocess.run(
+    from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+    from cochem_base.core_engine.engine_environment import engine_runtime_environment
+    proc = safe_subprocess_run(
         [orca_path, str(input_file)],
         cwd=str(work_dir),
+        env=engine_runtime_environment("orca", executable=orca_path),
         capture_output=True,
         text=True,
         check=False,
     )
     total_wall_s = float(time.perf_counter() - t0)
 
-    out_text = ""
-    if output_file.exists():
-        out_text = output_file.read_text(encoding="utf-8", errors="replace")
-    else:
-        out_text = proc.stdout
-
-    # Parse ORCA output
-    energy_hartree = 0.0
-    scf_wall_s = total_wall_s
-    scf_cycles = 0
-    converged = True
-    n_bf = calculate_basis_function_count(symbols, basis)
-
-    # 1. Total Energy
-    e_match = re.search(r"FINAL SINGLE POINT ENERGY\s+([-\d\.]+)", out_text)
-    if e_match:
-        energy_hartree = float(e_match.group(1))
-
-    # 2. Basis functions count
-    bf_match = re.search(r"Number of basis functions\s+\.\.\.\s+(\d+)", out_text)
-    if bf_match:
-        n_bf = int(bf_match.group(1))
-
-    # 3. SCF Cycles
-    scf_iter_match = re.findall(r"iter\s+(\d+)", out_text, re.IGNORECASE)
-    if scf_iter_match:
-        scf_cycles = max(int(x) for x in scf_iter_match)
-
-    # 4. SCF Time
-    time_match = re.search(r"Total SCF time\s*:\s*([\d\.]+) sec", out_text)
-    if time_match:
-        scf_wall_s = float(time_match.group(1))
+    # ORCA writes its log to stdout. Never consume a pre-existing bench.out.
+    out_text = proc.stdout
+    output_file.write_text(out_text, encoding="utf-8")
+    if proc.returncode != 0:
+        raise BenchmarkUnavailableError(f"ORCA benchmark failed with exit code {proc.returncode}: {proc.stderr[-512:]}")
+    parsed = parse_orca_benchmark_output(out_text)
+    energy_hartree = parsed["energy_hartree"]
+    n_bf = parsed["basis_function_count"]
+    scf_wall_s = parsed["scf_wall_seconds"]
+    scf_cycles = parsed["scf_cycles"]
+    converged = True  # Established by the strict output parser below.
 
     return SingleRunResult(
         system_id=system.system_id,
@@ -1146,6 +1131,37 @@ end
     )
 
 
+class BenchmarkUnavailableError(RuntimeError):
+    """A required physical CPU/GPU benchmark backend is unavailable."""
+
+
+def parse_orca_benchmark_output(out_text: str) -> Dict[str, Any]:
+    """Require measured SCF data and explicit successful ORCA termination."""
+    number = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[EeDd][-+]?\d+)?"
+    if "ORCA TERMINATED NORMALLY" not in out_text:
+        raise BenchmarkUnavailableError("ORCA benchmark lacks normal termination evidence")
+    if re.search(r"(?:SCF NOT CONVERGED|SCF CONVERGENCE FAILURE|SCF DID NOT CONVERGE)", out_text, re.I):
+        raise BenchmarkUnavailableError("ORCA benchmark reports SCF convergence failure")
+    convergence = re.findall(r"SCF CONVERGED AFTER\s+(\d+)\s+CYCLES", out_text, re.I)
+    fields = {
+        "energy_hartree": re.findall(r"FINAL SINGLE POINT ENERGY\s+(\S+)", out_text),
+        "basis_function_count": re.findall(r"Number of basis functions\s*(?:\.\.\.|:)\s*(\d+)", out_text, re.I),
+        "scf_wall_seconds": re.findall(r"Total SCF time\s*:\s*(\S+)\s+sec", out_text, re.I),
+    }
+    if not convergence or any(not values for values in fields.values()):
+        raise BenchmarkUnavailableError("ORCA benchmark lacks measured energy, basis size, SCF time or convergence")
+    result = {name: float(values[-1].replace("D", "E").replace("d", "e"))
+              for name, values in fields.items() if name != "basis_function_count"
+              and re.fullmatch(number, values[-1])}
+    if len(result) != 2 or any(not math.isfinite(value) for value in result.values()):
+        raise BenchmarkUnavailableError("ORCA benchmark contains non-finite or malformed measurements")
+    result["basis_function_count"] = int(fields["basis_function_count"][-1])
+    result["scf_cycles"] = int(convergence[-1])
+    if result["basis_function_count"] <= 0 or result["scf_wall_seconds"] <= 0 or result["scf_cycles"] <= 0:
+        raise BenchmarkUnavailableError("ORCA benchmark measurements must have positive size, time and cycle count")
+    return result
+
+
 def run_analytical_physics_point(
     system: BenchmarkSystem,
     task: BenchmarkTask = BenchmarkTask.ENERGY,
@@ -1155,101 +1171,10 @@ def run_analytical_physics_point(
     n_cores: int = 8,
     is_gpu: bool = False,
 ) -> SingleRunResult:
-    """
-    Executes a rigorous physical analytical Hamiltonian / DFT-surrogate matrix calculation
-    when binary engines are unavailable on the host testing platform.
-    Mandates Zero-Mock Protocol: Evaluates genuine pairwise Lennard-Jones + multipole electrostatics,
-    dynamic Mendeleev mass-weighted inertia tensors, and analytical Hessian eigenmodes.
-    """
-    symbols = system.symbols
-    coords = np.asarray(system.coordinates_angstrom, dtype=np.float64)
-    n_atoms = len(symbols)
-    n_bf = calculate_basis_function_count(symbols, basis)
-
-    t0 = time.perf_counter()
-
-    # 1. Nuclear Coulomb & Electrostatic Dispersion Energy
-    masses = np.array([get_dynamic_atomic_mass(s) for s in symbols], dtype=np.float64)
-    z_eff = np.array([
-        1.0 if s.upper() == "H" else (6.0 if s.upper() == "C" else (7.0 if s.upper() == "N" else 8.0))
-        for s in symbols
-    ], dtype=np.float64)
-
-    # Pairwise distance matrix (in Bohr)
-    coords_bohr = coords * ANGSTROM_TO_BOHR
-    diff = coords_bohr[:, np.newaxis, :] - coords_bohr[np.newaxis, :, :]
-    dist_matrix = np.linalg.norm(diff, axis=-1)
-    np.fill_diagonal(dist_matrix, np.inf)
-
-    # Core-core repulsion energy in Hartree
-    e_nuc = 0.5 * np.sum((z_eff[:, np.newaxis] * z_eff[np.newaxis, :]) / dist_matrix)
-
-    # Density-fitted surrogate Fock matrix diagonalization (N_bf x N_bf)
-    # Simulates genuine O(N^3) SCF diagonalization scaling
-    fock_dim = min(n_bf, 600)
-    # Deterministic physical matrix derived from nuclear distances and atomic numbers
-    diag_energies = np.linspace(-15.0, 5.0, fock_dim)
-    fock_matrix = np.diag(diag_energies)
-    coupling_strength = 0.05 / (n_atoms ** 0.5)
-    off_diag = np.sin(np.outer(np.arange(fock_dim), np.arange(fock_dim)) * coupling_strength)
-    fock_matrix += off_diag * 0.1
-
-    # Perform dense symmetric diagonalization
-    eigvals, _ = np.linalg.eigh(fock_matrix)
-
-    # Occupied orbital energy sum (closed-shell)
-    n_elec = int(np.sum(z_eff)) - system.charge
-    n_occ = max(1, n_elec // 2)
-    e_elec = 2.0 * np.sum(eigvals[:min(n_occ, fock_dim)])
-
-    total_energy = float(e_nuc + e_elec - 0.5 * e_elec * 0.15)  # Virial theorem balance
-
-    # Analytic gradient norm (Bohr forces)
-    forces = np.zeros((n_atoms, 3), dtype=np.float64)
-    for i in range(n_atoms):
-        for j in range(n_atoms):
-            if i != j:
-                rij = dist_matrix[i, j]
-                r_vec = diff[i, j]
-                f_mag = (z_eff[i] * z_eff[j]) / (rij ** 3)
-                forces[i] += f_mag * r_vec
-    grad_norm = float(np.linalg.norm(forces))
-
-    # Mass-weighted normal mode analysis
-    _, (rot_a, rot_b, rot_c) = compute_inertial_tensor_and_constants(symbols, coords)
-    lowest_freq = float(max(10.0, rot_c * 0.01))
-
-    # CPU vs GPU empirical scaling calibration per Method Matrix §8.3:
-    # A100 vs 32 Xeon cores: (H2O)2 = 0.182x, (H2O)3 = 1.37x, (H2O)4 = 2.67x, (H2O)10 = 8.03x
-    # Against 8 P-cores, crossover boundary calibrates at ~70-75 basis functions.
-    if is_gpu:
-        # GPU has fixed kernel launch latency overhead but lower asymptotic scaling
-        scf_wall_s = float(0.040 * (1.0 + (n_bf / 72.0) ** 1.15) / 2.0)
-    else:
-        # CPU has minimal launch overhead but steep O(N^2.2) scaling
-        scf_wall_s = float(0.040 * (n_bf / 72.0) ** 2.25)
-
-    engine_type = ExecutionEngine.GPU4PYSCF if is_gpu else ExecutionEngine.PYSCF_CPU
-    device_str = "cuda:0" if is_gpu else f"cpu:{n_cores}_cores"
-
-    return SingleRunResult(
-        system_id=system.system_id,
-        engine=engine_type,
-        device=device_str,
-        mode=mode,
-        task=task,
-        xc=xc,
-        basis=basis,
-        auxbasis="def2-universal-jkfit",
-        basis_function_count=n_bf,
-        energy_hartree=total_energy,
-        scf_wall_seconds=scf_wall_s,
-        total_wall_seconds=scf_wall_s,
-        scf_cycles=12 if is_gpu else 14,
-        converged=True,
-        gradient_norm=grad_norm,
-        lowest_vibrational_freq_cm_inv=lowest_freq,
-        vram_consumed_mb=1200.0 if is_gpu else 0.0,
+    """Reject the retired surrogate: it cannot measure electronic or GPU work."""
+    raise BenchmarkUnavailableError(
+        "Analytical surrogate benchmarking is unavailable: genuine PySCF/ORCA "
+        "CPU and gpu4pyscf CUDA executions are required for crossover calibration."
     )
 
 
@@ -1267,7 +1192,7 @@ def _detect_engine_availability(orca_cmd: Optional[str] = None) -> Tuple[bool, b
         try:
             import cupy  # noqa: F401
             import gpu4pyscf  # noqa: F401
-            _ENGINE_CACHE["has_gpu4pyscf"] = True
+            _ENGINE_CACHE["has_gpu4pyscf"] = cupy.cuda.runtime.getDeviceCount() > 0
         except Exception:
             _ENGINE_CACHE["has_gpu4pyscf"] = False
 
@@ -1290,7 +1215,7 @@ def evaluate_crossover_pair(
     basis: str = "def2-tzvpp",
     n_cores: int = 8,
     orca_cmd: Optional[str] = None,
-    allow_analytical_fallback: bool = True,
+    allow_analytical_fallback: bool = False,
 ) -> Tuple[SingleRunResult, SingleRunResult, SystemCrossoverEvaluation]:
     """
     Executes matched CPU and GPU calculations for a single molecular system,
@@ -1305,12 +1230,12 @@ def evaluate_crossover_pair(
             system=system, task=task, mode=mode, xc=xc, basis=basis
         )
     elif allow_analytical_fallback:
-        logger.info("Executing analytical GPU surrogate for '%s'...", system.name)
+        logger.info("Required GPU backend unavailable for '%s'", system.name)
         gpu_result = run_analytical_physics_point(
             system=system, task=task, mode=mode, xc=xc, basis=basis, is_gpu=True
         )
     else:
-        raise RuntimeError("GPU execution failed: gpu4pyscf is not available and analytical fallback is disabled.")
+        raise BenchmarkUnavailableError("GPU crossover measurement requires an available gpu4pyscf CUDA backend.")
 
     # 2. Execute CPU Point (ORCA if specified and available, else PySCF CPU, else Analytical)
     if has_orca and orca_cmd:
@@ -1324,21 +1249,27 @@ def evaluate_crossover_pair(
             system=system, task=task, mode=mode, xc=xc, basis=basis, n_cores=n_cores
         )
     elif allow_analytical_fallback:
-        logger.info("Executing analytical CPU surrogate for '%s'...", system.name)
+        logger.info("Required CPU backend unavailable for '%s'", system.name)
         cpu_result = run_analytical_physics_point(
             system=system, task=task, mode=mode, xc=xc, basis=basis, n_cores=n_cores, is_gpu=False
         )
     else:
-        raise RuntimeError("CPU execution failed: Neither ORCA nor PySCF CPU is available.")
+        raise BenchmarkUnavailableError("CPU crossover measurement requires ORCA or PySCF.")
 
     # 3. Evaluate Cross-Engine Comparison & Acceptance Gate
+    if not cpu_result.converged or not gpu_result.converged:
+        raise BenchmarkUnavailableError("Unconverged electronic calculations cannot calibrate routing")
+    if cpu_result.basis_function_count != gpu_result.basis_function_count:
+        raise BenchmarkUnavailableError("CPU/GPU basis dimensions differ; matched calibration is invalid")
+    if cpu_result.scf_wall_seconds <= 0 or gpu_result.scf_wall_seconds <= 0:
+        raise BenchmarkUnavailableError("Positive measured CPU/GPU elapsed times are required")
     n_bf = gpu_result.basis_function_count
     e_delta_ha = abs(cpu_result.energy_hartree - gpu_result.energy_hartree)
     e_delta_mha = e_delta_ha * 1000.0
     passes_gate = e_delta_mha < 1.0  # < 1.0 mHa per Method Matrix §8.4 Acceptance Gate 1
 
-    t_cpu = max(1e-6, cpu_result.scf_wall_seconds)
-    t_gpu = max(1e-6, gpu_result.scf_wall_seconds)
+    t_cpu = cpu_result.scf_wall_seconds
+    t_gpu = gpu_result.scf_wall_seconds
     speedup = t_cpu / t_gpu
 
     if speedup > 1.05:
@@ -1385,24 +1316,16 @@ def fit_empirical_crossover_surface(
     and solves for the exact crossover boundary N_crossover where Speedup = 1.0 (ln(Speedup) = 0).
     """
     if len(evaluations) < 2:
-        # Fallback to standard Method Matrix §8.3 theoretical derivation if insufficient points
-        return EmpiricalCrossoverModel(
-            xc_functional=xc,
-            basis_set=basis,
-            task=task,
-            mode=mode,
-            points_measured_count=len(evaluations),
-            calibrated_crossover_basis_functions=70.0,
-            recommended_routing_threshold=70,
-            theoretical_derivation_range_bf=(50, 90),
-            regression_slope_alpha=1.0,
-            regression_intercept_beta=-math.log(70.0),
-            r_squared=1.0,
-            provenance_tag="[D]",
-        )
+        raise BenchmarkUnavailableError("At least two measured CPU/GPU pairs are required for calibration")
+    if any(not ev.passes_accuracy_gate or ev.energy_delta_mha >= 1.0 or ev.speedup_ratio <= 0
+           or not math.isclose(ev.energy_delta_mha, ev.energy_delta_hartree * 1000, rel_tol=1e-6, abs_tol=1e-12)
+           or not math.isclose(ev.speedup_ratio, ev.cpu_scf_wall_seconds / ev.gpu_scf_wall_seconds, rel_tol=1e-3)
+           or (ev.task, ev.mode, ev.xc.lower(), ev.basis.lower()) != (task, mode, xc.lower(), basis.lower())
+           for ev in evaluations):
+        raise BenchmarkUnavailableError("Calibration requires positive timings and passed physical accuracy gates")
 
     x_vals = np.array([math.log(ev.basis_function_count) for ev in evaluations], dtype=np.float64)
-    y_vals = np.array([math.log(max(1e-4, ev.speedup_ratio)) for ev in evaluations], dtype=np.float64)
+    y_vals = np.array([math.log(ev.speedup_ratio) for ev in evaluations], dtype=np.float64)
 
     # Linear regression: y = alpha * x + beta
     n = len(x_vals)
@@ -1411,8 +1334,7 @@ def fit_empirical_crossover_surface(
 
     denom = np.sum((x_vals - x_mean) ** 2)
     if denom < 1e-12:
-        alpha = 1.0
-        beta = y_mean - alpha * x_mean
+        raise BenchmarkUnavailableError("Distinct measured basis sizes are required for crossover regression")
     else:
         alpha = float(np.sum((x_vals - x_mean) * (y_vals - y_mean)) / denom)
         beta = float(y_mean - alpha * x_mean)
@@ -1424,14 +1346,20 @@ def fit_empirical_crossover_surface(
     r2 = float(1.0 - (ss_res / ss_tot)) if ss_tot > 1e-12 else 1.0
 
     # Solve for crossover: alpha * ln(N_crossover) + beta = 0 -> N_crossover = exp(-beta / alpha)
-    if abs(alpha) > 1e-4:
-        crossover_bf = float(math.exp(-beta / alpha))
+    if alpha > 1e-4:
+        try:
+            crossover_bf = float(math.exp(-beta / alpha))
+        except OverflowError as exc:
+            raise BenchmarkUnavailableError("Measured data do not identify a finite crossover") from exc
     else:
-        crossover_bf = 70.0
+        raise BenchmarkUnavailableError("Measured timing slope does not identify a crossover")
 
-    # Clamp to reasonable bounds (20 to 500 bf)
-    crossover_bf_clamped = max(20.0, min(500.0, crossover_bf))
+    if not math.isfinite(crossover_bf) or crossover_bf <= 0:
+        raise BenchmarkUnavailableError("Measured data do not define a finite positive crossover")
+    crossover_bf_clamped = crossover_bf
     rec_thresh = int(round(crossover_bf_clamped))
+    if rec_thresh < 1:
+        raise BenchmarkUnavailableError("Measured crossover lies below a realizable basis size")
 
     return EmpiricalCrossoverModel(
         xc_functional=xc,
@@ -1461,7 +1389,7 @@ def run_crossover_benchmark_suite(
     basis: str = "def2-tzvpp",
     n_cores: int = 8,
     orca_cmd: Optional[str] = None,
-    allow_analytical_fallback: bool = True,
+    allow_analytical_fallback: bool = False,
 ) -> FullBenchmarkReport:
     """
     Runs the comprehensive CPU vs GPU crossover benchmark suite across all requested systems,
@@ -1509,7 +1437,10 @@ def run_crossover_benchmark_suite(
                                 eval_res.cpu_scf_wall_seconds, eval_res.gpu_scf_wall_seconds,
                                 eval_res.speedup_ratio, eval_res.crossover_classification, eval_res.energy_delta_mha)
                 except Exception as e:
-                    logger.error("Error evaluating system '%s': %s", sys_obj.name, e)
+                    raise BenchmarkUnavailableError(f"Benchmark for {sys_obj.name} failed; no calibration was produced: {e}") from e
+
+    if not all_evaluations:
+        raise BenchmarkUnavailableError("No physical CPU/GPU benchmark pairs were measured")
 
     # Fit empirical model for matched energy runs
     matched_energy_evals = [
@@ -1553,7 +1484,7 @@ def generate_markdown_report(
         "",
         "**Authoritative Standard:** Method Matrix v4 §8.3 (The Crossover) & §8.4 (The Fair-Comparison Protocol)",
         f"**Execution Timestamp:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
-        f"**Hardware Platform:** {hw.cpu_model} ({hw.physical_cores} Physical P-Cores, {hw.total_ram_gb:.1f} GB RAM) | "
+        f"**Hardware Platform:** {hw.cpu_model} ({hw.physical_cores} physical cores, {hw.total_ram_gb:.1f} GB RAM) | "
         f"GPU: {hw.gpu_name or 'N/A'} ({hw.gpu_vram_gb:.1f} GB VRAM)",
         f"**Method Chemistry:** DFT/{xc.upper()}/{basis.upper()} with Density Fitting (auxbasis: `def2-universal-jkfit`)",
         "",
@@ -1608,7 +1539,7 @@ def generate_markdown_report(
         "2. **Quadrature Grid:** DEFGRID3 quadrature / atom_grid `(99, 590)` unpruned quadrature matched.",
         "3. **Convergence Thresholds:** `TolE = 1e-9 Eh`, `direct_scf_tol = 1e-11`, `conv_tol_grad = 1e-6`.",
         "4. **Basis Convention:** Spherical harmonic Gaussians (`cart=False`) enforced across CPU and GPU.",
-        "5. **Core Binding:** CPU pinned to physical performance cores.",
+        "5. **CPU allocation:** requested thread/rank counts are recorded per run; performance-core affinity is not asserted.",
         "",
     ])
 
@@ -1629,15 +1560,24 @@ def save_calibration_artifacts(
     Persists benchmark JSON telemetry, Markdown report, and updates the Section 20.1
     crossover calibration registry.
     """
-    base_dir = Path.cwd()
+    if not report.runs or not report.evaluations:
+        raise BenchmarkUnavailableError("Cannot publish a benchmark without measured runs and comparisons")
+    if any(not run.converged for run in report.runs):
+        raise BenchmarkUnavailableError("Cannot publish unconverged benchmark runs")
+    base_dir = get_artifact_dir() / "Benchmarks"
     json_path = Path(output_json_path) if output_json_path else base_dir / "cochem_crossover_benchmark_results.json"
     md_path = Path(output_md_path) if output_md_path else base_dir / "cochem_crossover_benchmark_report.md"
 
+    for target in (json_path, md_path):
+        assert_writable_path(target)
+    if calibration_registry_path is not None:
+        assert_writable_path(Path(calibration_registry_path))
     json_path.parent.mkdir(parents=True, exist_ok=True)
     md_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Write main JSON and MD
-    json_path.write_text(json.dumps(report.model_dump(), indent=2), encoding="utf-8")
+    # Scientific JSON and registry updates share the locked atomic writer.
+    from cochem_base.core.cochem_core_registry_manager import atomic_write_json
+    atomic_write_json(json_path, json.dumps(report.model_dump(), indent=2, allow_nan=False))
     md_path.write_text(report.summary_markdown, encoding="utf-8")
 
     # Update §20.1 Calibration registry if model exists
@@ -1664,7 +1604,7 @@ def save_calibration_artifacts(
             },
             "evaluations_summary": [ev.model_dump() for ev in report.evaluations],
         }
-        calib_path.write_text(json.dumps(calib_payload, indent=2), encoding="utf-8")
+        atomic_write_json(calib_path, json.dumps(calib_payload, indent=2, allow_nan=False))
 
     return json_path, md_path, calib_path
 
@@ -1742,7 +1682,7 @@ def build_cli_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-analytical-fallback",
         action="store_true",
-        help="Disable analytical physics fallback if quantum chemistry binaries are missing",
+        help="Deprecated compatibility flag; analytical fallback is always disabled",
     )
     parser.add_argument(
         "--verbose",
@@ -1794,7 +1734,7 @@ def main() -> int:
         basis=args.basis,
         n_cores=args.cores,
         orca_cmd=args.orca_cmd,
-        allow_analytical_fallback=not args.no_analytical_fallback,
+        allow_analytical_fallback=False,
     )
 
     json_path, md_path, calib_path = save_calibration_artifacts(

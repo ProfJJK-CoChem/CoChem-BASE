@@ -35,17 +35,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-def sweep_zombies() -> None:
-    if psutil is None:
-        return
-    for p in psutil.process_iter(['pid', 'status']):
-        try:
-            if p.info['status'] == psutil.STATUS_ZOMBIE:
-                p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
-            logger.debug(f"Ignored exception: {_e}")
+from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
 
-atexit.register(sweep_zombies)
 
 # =============================================================================
 # 1. EXCEPTIONS
@@ -663,7 +654,7 @@ def get_physical_ram_bytes() -> int:
         try:
             return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
         except Exception:
-            return 8 * 1024 * 1024 * 1024
+            raise HPCMemoryParseError("Physical RAM could not be measured")
 
 
 def parse_cgroup_memory_limit(cgroup_root: Optional[Path] = None) -> Optional[int]:
@@ -1086,15 +1077,7 @@ def run_phase_7_audit(
             cpus_per_task=topology.cpus_per_task,
         )
     except Exception as exc:
-        errors.append(f"HPC memory allocation parsing failed: {exc}")
-        memory = HPCMemoryProfile(
-            mem_per_node_mb=None,
-            mem_per_cpu_mb=None,
-            cgroup_limit_bytes=None,
-            physical_ram_bytes=get_physical_ram_bytes(),
-            effective_usable_memory_mb=8192.0,
-            source="PHYSICAL_RAM",
-        )
+        raise HPCMemoryParseError(f"HPC memory allocation parsing failed: {exc}") from exc
 
     # 4. Resolve scratch directory
     try:

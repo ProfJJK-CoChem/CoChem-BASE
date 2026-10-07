@@ -6,6 +6,7 @@ Governing Standard: IEEE 830-1998 / Method Matrix v4.1 / Anti-Spoofing Protocol 
 """
 import math
 import os
+import re
 import sys
 from pathlib import Path
 import numpy as np
@@ -175,7 +176,7 @@ def test_vr01_two_stage_conformer_deduplication():
 
     confs = [
         ConformerCandidate(conformer_id="basin_0", symbols=CO2_H2O_SYMBOLS, coordinates=c1, energy=-264.120),
-        ConformerCandidate(conformer_id="basin_1", symbols=CO2_H2O_SYMBOLS, coordinates=c2, energy=-264.119),
+        ConformerCandidate(conformer_id="basin_1", symbols=CO2_H2O_SYMBOLS, coordinates=c2, energy=-264.11999),
         ConformerCandidate(conformer_id="basin_spectro", symbols=CO2_H2O_SYMBOLS, coordinates=c_spectro, energy=-264.118),
         ConformerCandidate(conformer_id="basin_2", symbols=CO2_H2O_SYMBOLS, coordinates=c3, energy=-264.105),
     ]
@@ -309,29 +310,40 @@ def test_vr03_input_generator_rejects_coarse_frequency_grids():
 # VR-04: Quintuple Stationary Block & Initial Model Hessian Discipline
 # ==============================================================================
 
-def test_vr04_quintuple_stationary_block_and_model_hessian():
-    """VR-04: Inject TolMaxG 1e-5, MaxIter 200, ban Calc_Hess true, and mandate InHess XTB2."""
+def test_vr04_quintuple_stationary_block_and_model_hessian(configured_registry):
+    """VR-04: Request below all five SRS limits and preserve model-Hessian policy."""
     mol_in = MoleculeInput(
         basin_id="co2_h2o_opt",
         elements=CO2_H2O_SYMBOLS,
         coordinates=[tuple(c) for c in CO2_H2O_COORDS],
-        theory_level="r2SCAN-3c Calc_Hess true",
+        theory_level="r2SCAN-3c",
         is_opt=True,
         is_weak_complex=True,
     )
 
-    # Model validator must strip 'Calc_Hess true'
+    # Invalid exact-Hessian requests fail closed, rather than being silently rewritten.
+    with pytest.raises(ValueError, match="Calc_Hess true"):
+        MoleculeInput(
+            basin_id="forbidden_initial_hessian",
+            elements=CO2_H2O_SYMBOLS,
+            coordinates=[tuple(c) for c in CO2_H2O_COORDS],
+            theory_level="r2SCAN-3c Calc_Hess true",
+            is_opt=True,
+            is_weak_complex=True,
+        )
     assert "CALC_HESS TRUE" not in mol_in.theory_level.upper()
 
     out_path = generate_orca_input(mol_in)
     content = out_path.read_text(encoding="utf-8")
 
-    # Assert mandatory %geom parameters
-    assert "TolE 1e-7" in content
-    assert "TolMaxG 1e-5" in content
-    assert "TolRMSG 3e-6" in content
-    assert "TolMaxD 1e-4" in content
-    assert "TolRMSD 5e-5" in content
+    # The SRS values remain output acceptance limits. ORCA receives stricter
+    # requests because its banner alone does not prove every criterion passed.
+    geom = content.split("%geom\n", 1)[1].split("\nend", 1)[0]
+    requested = dict(re.findall(r"^\s+(Tol\w+)\s+(\S+)\s*$", geom, re.M))
+    limits = {"TolE": 1e-7, "TolMaxG": 1e-5, "TolRMSG": 3e-6,
+              "TolMaxD": 1e-4, "TolRMSD": 5e-5}
+    assert set(requested) == set(limits)
+    assert all(0 < float(requested[key]) < limit for key, limit in limits.items())
     assert "MaxIter 200" in content
     assert "InHess XTB2" in content
     assert "Calc_Hess true" not in content

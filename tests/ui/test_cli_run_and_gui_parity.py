@@ -37,16 +37,11 @@ def test_dual_entry_point_model_parity():
         "engine": "ORCA",
         "method": "wB97M-V",
         "basis_set": "def2-TZVP",
-        "topos_heuristic": "iMTD-GC",
-        "topos_dedup": 0.05,
-        "torq_dihedrals": "",
-        "torq_resolution": 36,
-        "torq_qrrho": False,
     }
 
     # GUI Model validation
     gui_cfg = MatrixConfigModel(**payload)
-    assert gui_cfg.engine == "ORCA"
+    assert gui_cfg.engine == "orca"
     assert gui_cfg.method == "wB97M-V"
 
     # CLI Model validation
@@ -68,8 +63,6 @@ def test_cli_run_subcommand_dry_run_success():
             "engine": "orca",
             "method": "wB97M-V",
             "basis_set": "def2-TZVP",
-            "topos_heuristic": "iMTD-GC",
-            "topos_dedup": 0.05,
         }
         with open(cfg_file, "w", encoding="utf-8") as f:
             json.dump(config_data, f, indent=2)
@@ -81,15 +74,25 @@ def test_cli_run_subcommand_dry_run_success():
             "--config",
             str(cfg_file),
             "--dry-run",
+            "--scratch", str(Path(tmpdir) / "scratch"),
+            "--output", str(Path(tmpdir) / "results"),
             "--json",
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        from cochem_base.core_engine.hardware_profiler import profile_hardware
+        hardware = profile_hardware()
+        authority = Path(tmpdir) / "hardware.json"
+        authority.write_text(json.dumps({"hardware": {
+            "physical_cpu_cores": min(hardware.physical_cores, len(hardware.available_cpu_ids)),
+            "ram_mb": hardware.available_ram_bytes // (1024 * 1024),
+        }}))
+        env = {**os.environ, "COCHEM_CONFIG": str(authority)}
+        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
         assert result.returncode == 0, f"CLI run failed with stderr: {result.stderr}"
 
         # Validate JSON telemetry output
         parsed_out = json.loads(result.stdout)
-        assert parsed_out["status"] == "VALIDATED_SUCCESS"
+        assert parsed_out["status"] == "DECK_GENERATED"
         assert parsed_out["engine"] == "orca"
         assert parsed_out["method"] == "wB97M-V"
         assert parsed_out["dry_run"] is True
@@ -120,35 +123,34 @@ def test_cli_run_subcommand_validation_failure():
         result = subprocess.run(cmd, capture_output=True, text=True)
         assert result.returncode == 1
         combined_out = result.stdout + result.stderr
-        assert "Validation Error" in combined_out or "Unsupported engine" in combined_out
+        assert "Unknown engine" in combined_out
 
 
-def test_slurm_script_synthesis_valid():
-    """Validates authentic Slurm script synthesis per Method Matrix §8A."""
+def test_slurm_script_synthesis_valid(tmp_path: Path):
+    """Stage declared allocation and real scientific input without claiming execution."""
+    config_path = tmp_path / "water.json"
+    config_path.write_text(json.dumps({
+        "geometry": "O 0 0 0\nH 0 -0.757 0.587\nH 0 0.757 0.587\n",
+        "engine": "xtb", "method": "GFN2-xTB", "basis_set": "built-in", "is_opt": True,
+    }))
+    staged = tmp_path / "planned job with spaces"
     script = generate_slurm_script(
-        job_name="h2o_dimer_opt",
-        partition="standard",
-        nodes=2,
-        ntasks_per_node=16,
-        cpus_per_task=2,
-        mem="64GB",
-        walltime="08:00:00",
-        engine="orca",
-        input_deck_path="orca_calc.inp",
+        config_path=config_path, staging_dir=staged,
+        job_name="water_opt", partition="standard", nodes=1,
+        ntasks_per_node=2, cpus_per_task=1, mem="1GB", walltime="08:00:00",
         email="researcher@chem.univ.edu",
     )
-
-    assert "#!/bin/bash" in script
-    assert "#SBATCH --job-name=h2o_dimer_opt" in script
-    assert "#SBATCH --partition=standard" in script
-    assert "#SBATCH --nodes=2" in script
-    assert "#SBATCH --ntasks-per-node=16" in script
-    assert "#SBATCH --cpus-per-task=2" in script
-    assert "#SBATCH --time=08:00:00" in script
-    assert "#SBATCH --mem=64GB" in script
+    assert "#SBATCH --nodes=1" in script and "#SBATCH --ntasks=1" in script
+    assert "#SBATCH --cpus-per-task=2" in script and "#SBATCH --mem=1024M" in script
     assert "#SBATCH --mail-user=researcher@chem.univ.edu" in script
-    assert "module load orca" in script
-    assert "orca orca_calc.inp > orca.out 2>&1" in script
+    assert "module load" not in script and "matrix_input.inp" not in script
+    manifest = json.loads((staged / "job_manifest.json").read_text())
+    assert manifest["status"] == "STAGED_INPUT_ONLY"
+    assert manifest["scientific_execution_performed"] is False
+    assert manifest["allocation_authority"].startswith("declared_request_only")
+    assert json.loads((staged / "calculation.json").read_text())["geometry"] == json.loads(config_path.read_text())["geometry"]
+    checked = subprocess.run(["bash", "-n", str(staged / "submit.sh")], capture_output=True, text=True, timeout=15)
+    assert checked.returncode == 0, checked.stderr
 
 
 @pytest.mark.parametrize(
@@ -205,27 +207,23 @@ def test_slurm_walltime_validation():
         validate_slurm_walltime("not_a_time")
 
 
-def test_slurm_controller_staging_and_dispatch():
-    """Validates SlurmSubmissionController staging and non-crashing execution on local environment."""
-    controller = SlurmSubmissionController(default_partition="gpu")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        script_content = controller.validate_and_generate(
-            job_name="h2o_test",
-            partition="gpu",
-            nodes=1,
-            ntasks_per_node=4,
-            mem="16GB",
-            walltime="01:00:00",
-            engine="xtb",
-            input_deck_path="coord",
-        )
-        script_path = Path(tmpdir) / "submit.sh"
-        with open(script_path, "w", encoding="utf-8") as f:
-            f.write(script_content)
-
-        status = controller.dispatch(script_path)
-        assert isinstance(status, str)
-        assert len(status) > 0
-        # If running in environment without sbatch, must state staged / sbatch unavailable
-        if shutil.which("sbatch") is None:
-            assert "PENDING_LOCAL_STAGED" in status
+def test_slurm_controller_staging_and_dispatch(tmp_path: Path):
+    """Missing cluster configuration stays pending; changed scientific inputs fail."""
+    controller = SlurmSubmissionController(default_partition="compute")
+    config_path = tmp_path / "water.json"
+    config_path.write_text(json.dumps({
+        "geometry": "O 0 0 0\nH 0 -0.757 0.587\nH 0 0.757 0.587\n",
+        "engine": "xtb", "method": "GFN2-xTB", "basis_set": "built-in", "is_opt": True,
+    }))
+    staged = tmp_path / "submission"
+    script = controller.validate_and_generate(config_path=config_path, staging_dir=staged,
+                job_name="water", partition="compute", nodes=1, ntasks_per_node=1,
+                mem="512MB", walltime="01:00:00")
+    assert (staged / "submit.sh").read_text() == script
+    status = controller.dispatch(staged / "submit.sh")
+    assert status.startswith("PENDING_CLUSTER_CONFIGURATION")
+    assert controller.last_submitted_job_id is None
+    assert not (staged / "submission.json").exists()
+    (staged / "calculation.json").write_text(config_path.read_text() + " ")
+    with pytest.raises(ValueError, match="altered"):
+        controller.dispatch(staged / "submit.sh")

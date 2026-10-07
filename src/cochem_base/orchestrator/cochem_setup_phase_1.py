@@ -44,21 +44,8 @@ if not logger.handlers:
     logger.addHandler(ch)
     logger.setLevel(logging.INFO)
 
-def sweep_zombies() -> None:
-    """Sweep zombie processes to prevent resource exhaustion during frequent subprocess calls."""
-    if psutil is None:
-        return
-    try:
-        for p in psutil.process_iter(['pid', 'status']):
-            try:
-                if p.info['status'] == psutil.STATUS_ZOMBIE:
-                    p.wait(timeout=1)
-            except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied) as _e:
-                logger.debug(f"Ignored exception: {_e}")
-    except Exception as e:
-        logger.error(f"Zombie sweep failed: {e}")
+from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
 
-atexit.register(sweep_zombies)
 
 
 # =============================================================================

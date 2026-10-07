@@ -12,7 +12,10 @@ Validates all functionality:
 from __future__ import annotations
 
 import re
-from pathlib import Path
+import os
+import subprocess
+import sys
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
@@ -36,14 +39,16 @@ def test_get_agents_dir_default() -> None:
     assert agents_dir.is_dir()
 
 
-def test_get_agents_dir_with_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_agents_dir_with_override(tmp_path: Path) -> None:
     """Verify get_agents_dir respects COCHEM_AGENTS_DIR environment variable."""
     custom_agents = tmp_path / "custom_agents"
     custom_agents.mkdir()
-    monkeypatch.setenv("COCHEM_AGENTS_DIR", str(custom_agents))
-
-    resolved = get_agents_dir()
-    assert resolved == custom_agents.resolve()
+    completed = subprocess.run(
+        [sys.executable, "-c", "from cochem_base.path_sanitization import get_agents_dir; print(get_agents_dir())"],
+        env=dict(os.environ, COCHEM_AGENTS_DIR=str(custom_agents)), capture_output=True,
+        text=True, check=True, timeout=20,
+    )
+    assert Path(completed.stdout.strip()) == custom_agents.resolve()
 
 
 def test_get_agents_dir_with_base_root_param(tmp_path: Path) -> None:
@@ -62,14 +67,16 @@ def test_get_agent_templates_dir_default() -> None:
     assert str(templates_dir).endswith(str(expected_suffix))
 
 
-def test_get_agent_templates_dir_with_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_agent_templates_dir_with_override(tmp_path: Path) -> None:
     """Verify get_agent_templates_dir respects COCHEM_GEMINI_AGENTS_DIR environment variable."""
     custom_templates = tmp_path / "custom_templates"
     custom_templates.mkdir()
-    monkeypatch.setenv("COCHEM_GEMINI_AGENTS_DIR", str(custom_templates))
-
-    resolved = get_agent_templates_dir()
-    assert resolved == custom_templates.resolve()
+    completed = subprocess.run(
+        [sys.executable, "-c", "from cochem_base.path_sanitization import get_agent_templates_dir; print(get_agent_templates_dir())"],
+        env=dict(os.environ, COCHEM_GEMINI_AGENTS_DIR=str(custom_templates)), capture_output=True,
+        text=True, check=True, timeout=20,
+    )
+    assert Path(completed.stdout.strip()) == custom_templates.resolve()
 
 
 def test_placeholder_values_keys() -> None:
@@ -104,7 +111,7 @@ def test_placeholder_values_custom_mappings(tmp_path: Path) -> None:
 
 def test_path_variants_generation() -> None:
     """Verify path_variants generates native, posix, escaped, and trailing slash forms."""
-    test_path = Path("C:/Users/testuser/workspace/repo")
+    test_path = PureWindowsPath("C:/Users/testuser/workspace/repo")
     variants = path_variants(test_path)
 
     assert isinstance(variants, tuple)

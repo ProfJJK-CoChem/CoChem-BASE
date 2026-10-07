@@ -170,8 +170,8 @@ def test_shared_memory_raii_and_weakref_cleanup() -> None:
     shm_name: str
     with SharedMemoryBuffer.from_array(arr) as shm_buf:
         shm_name = shm_buf.shm.name
-        read_arr = SharedMemoryBuffer.read_from_descriptor(shm_buf.descriptor)
-        np.testing.assert_array_equal(arr, read_arr)
+        with SharedMemoryBuffer.read_from_descriptor(shm_buf.descriptor) as read_arr:
+            np.testing.assert_array_equal(arr, read_arr)
 
     # After exiting context, segment is unlinked
     with pytest.raises((FileNotFoundError, OSError)):

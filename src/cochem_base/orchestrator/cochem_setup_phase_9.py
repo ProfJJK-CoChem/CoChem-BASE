@@ -33,17 +33,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-def sweep_zombies() -> None:
-    if psutil is None:
-        return
-    for p in psutil.process_iter(['pid', 'status']):
-        try:
-            if p.info['status'] == psutil.STATUS_ZOMBIE:
-                p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
-            logger.debug(f"Ignored exception: {_e}")
+from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
 
-atexit.register(sweep_zombies)
 
 # =============================================================================
 # 1. CUSTOM EXCEPTION HIERARCHY
@@ -194,10 +185,10 @@ class ScoutAndAnchorProfile(BaseModel):
     anchor_cores: int = Field(..., ge=1, description="Physical CPU cores allocated to Anchor stream")
     scout_cores: int = Field(..., ge=1, description="Physical CPU cores allocated to Scout stream")
     scout_gpu_workers: int = Field(
-        default=3, ge=1, description="Number of asynchronous GPU Scout workers (e.g. NVIDIA MPS)"
+        default=0, ge=0, description="Number of asynchronous GPU Scout workers (e.g. NVIDIA MPS)"
     )
-    scout_step_latency_ms: float = Field(
-        default=18.1, ge=0.0, description="Measured Scout step host CPU footprint latency in milliseconds [M]"
+    scout_step_latency_ms: Optional[float] = Field(
+        default=None, ge=0.0, description="Measured Scout step host CPU footprint latency in milliseconds [M]"
     )
     anchor_executor: HTEXExecutorConfig = Field(..., description="Parsl HTEX configuration for Anchor pool")
     scout_executor: HTEXExecutorConfig = Field(..., description="Parsl HTEX configuration for Scout pool")
@@ -665,7 +656,7 @@ def construct_parsl_config_object(
     )
 
     return Config(
-        executors=[anchor_exec, scout_exec],
+        executors=[anchor_exec, scout_exec] if scout_anchor_profile.scout_gpu_workers else [anchor_exec],
         strategy=None,
     )
 
@@ -690,7 +681,8 @@ def generate_environment_injection_dict(
         "COCHEM_PARSL_SCOUT_CORES": str(profile.scout_cores),
         "COCHEM_PARSL_SCOUT_WORKERS": str(profile.scout_gpu_workers),
         "COCHEM_PARSL_SCOUT_AFFINITY": profile.scout_affinity.affinity_string,
-        "COCHEM_PARSL_SCOUT_LATENCY_MS": str(profile.scout_step_latency_ms),
+        **({"COCHEM_PARSL_SCOUT_LATENCY_MS": str(profile.scout_step_latency_ms)}
+           if profile.scout_step_latency_ms is not None else {}),
         "COCHEM_PARSL_PROVIDER": profile.anchor_executor.provider.value,
         "COCHEM_PARSL_AMNESTY_VERIFIED": "1" if amnesty.parsl_whitelisted else "0",
         "COCHEM_PARSL_CONFIG_READY": "1" if profile.is_parsl_installed else "0",
@@ -868,8 +860,13 @@ def run_phase_9_audit(
         warnings.append("Parsl library is not installed in the active Python environment. Running in degraded mode.")
 
     # 5. Build HTEX Executor Configurations
-    workers_scout = scout_gpu_workers if scout_gpu_workers is not None else 3
-    if "COCHEM_PARSL_SCOUT_WORKERS" in target_env and target_env["COCHEM_PARSL_SCOUT_WORKERS"].strip():
+    from cochem_base.core_engine.hardware_profiler import profile_hardware
+    hardware = profile_hardware()
+    gpu_available = hardware.gpu_probe_status == "measured" and bool(hardware.gpu_device_count)
+    workers_scout = (scout_gpu_workers if scout_gpu_workers is not None else 3) if gpu_available else 0
+    if not gpu_available:
+        warnings.append("No measured CUDA GPU allocation; GPU Scout executor is disabled")
+    if gpu_available and "COCHEM_PARSL_SCOUT_WORKERS" in target_env and target_env["COCHEM_PARSL_SCOUT_WORKERS"].strip():
         try:
             val = int(target_env["COCHEM_PARSL_SCOUT_WORKERS"].strip())
             if val >= 1:
@@ -903,7 +900,7 @@ def run_phase_9_audit(
         anchor_cores=anchor_map.core_count,
         scout_cores=scout_map.core_count,
         scout_gpu_workers=workers_scout,
-        scout_step_latency_ms=18.1,
+        scout_step_latency_ms=None,
         anchor_executor=anchor_exec,
         scout_executor=scout_exec,
         anchor_affinity=anchor_map,
@@ -924,7 +921,7 @@ def run_phase_9_audit(
 
     if errors:
         status = PhaseStatus.FAILED
-    elif not is_parsl_installed or not is_balanced or anchor_map.strategy == AffinityStrategy.SHARED_DEGRADED:
+    elif not is_parsl_installed or not is_balanced or not gpu_available or anchor_map.strategy == AffinityStrategy.SHARED_DEGRADED:
         status = PhaseStatus.DEGRADED
     else:
         status = PhaseStatus.PASSED

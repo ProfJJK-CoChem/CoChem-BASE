@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-from mendeleev import element as mendeleev_element
+from cochem_base.physics.nuclide_resolver import parse_nuclide, resolve_covalent_radius
 import networkx as nx
 import numpy as np
 
@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 
 def get_covalent_radius_angstrom(symbol: str) -> float:
     """Retrieves Pyykkö covalent radius in Angstroms dynamically via mendeleev."""
-    clean = symbol.strip().capitalize()
-    el = mendeleev_element(clean)
-    r = getattr(el, "covalent_radius_pyykko", None) or getattr(el, "covalent_radius", None)
-    return (float(r) / 100.0) if r is not None else 1.40
+    radius = resolve_covalent_radius(symbol)
+    if radius is None or not np.isfinite(radius) or radius <= 0:
+        raise ValueError(f"No physical covalent radius available for {symbol}")
+    return radius
 
 
 def build_covalent_graph(
@@ -36,11 +36,18 @@ def build_covalent_graph(
     """Constructs covalent molecular connectivity graph using dynamic covalent radii."""
     coords = np.asarray(coordinates, dtype=np.float64)
     n = len(symbols)
+    if n == 0 or coords.shape != (n, 3) or not np.all(np.isfinite(coords)):
+        raise ValueError("Coordinates must be a nonempty finite (N, 3) array matching symbols")
+    if not np.isfinite(tolerance_factor) or tolerance_factor <= 0:
+        raise ValueError("Bond tolerance must be finite and positive")
     radii = [get_covalent_radius_angstrom(s) for s in symbols]
 
     G = nx.Graph()
     for i, s in enumerate(symbols):
-        G.add_node(i, element=s.capitalize())
+        token = parse_nuclide(s)
+        # Nuclide labels prevent isotope swaps from disappearing as permutations.
+        label = f"{token.mass_number or ''}{token.symbol}"
+        G.add_node(i, element=token.symbol, mass_number=token.mass_number, nuclide=label)
 
     for i in range(n):
         for j in range(i + 1, n):
@@ -58,11 +65,11 @@ def compute_weisfeiler_lehman_hash(
 ) -> str:
     """Computes Weisfeiler-Lehman (WL) graph isomorphism hash for topological sieving (Stage 1)."""
     G = build_covalent_graph(symbols, coordinates)
-    wl_hash = nx.weisfeiler_lehman_graph_hash(G, node_attr="element")
+    wl_hash = nx.weisfeiler_lehman_graph_hash(G, node_attr="nuclide")
     return wl_hash
 
 
-from cochem_base.physics.isotopes import get_atomic_mass
+from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
 from cochem_base.intake.cochem_molsym_eckart_aligner import (
     compute_moment_of_inertia_tensor,
     diagonalize_inertia_tensor,
@@ -76,7 +83,7 @@ def compute_conformer_rotational_constants(
 ) -> Tuple[float, float, float]:
     """Calculates equilibrium rotational constants (A, B, C) in MHz using dynamic masses."""
     coords = np.asarray(coordinates, dtype=np.float64)
-    masses = np.array([get_atomic_mass(s) for s in symbols], dtype=np.float64)
+    masses = np.array([get_nuclide_mass(s) for s in symbols], dtype=np.float64)
     total_mass = float(np.sum(masses))
     com = np.sum(coords * masses[:, np.newaxis], axis=0) / total_mass
     centered = coords - com
@@ -101,10 +108,10 @@ def kabsch_quaternion_rmsd(
 
     if P.shape != Q.shape:
         raise ValueError(f"Shape mismatch: {P.shape} vs {Q.shape}")
+    if P.ndim != 2 or P.shape[1] != 3 or not len(P) or not np.all(np.isfinite(P)) or not np.all(np.isfinite(Q)):
+        raise ValueError("RMSD coordinates must be nonempty finite (N, 3) arrays")
 
     n = P.shape[0]
-    if n == 0:
-        return 0.0
 
     # Center both configurations
     p_cent = P - np.mean(P, axis=0)
@@ -222,47 +229,75 @@ def compute_automorphism_orbit_rmsd(
     symbols: Sequence[str],
     graph: Optional[nx.Graph] = None,
     max_exact_permutations: int = 720,
+    *,
+    symbols_b: Optional[Sequence[str]] = None,
+    graph_b: Optional[nx.Graph] = None,
 ) -> Tuple[float, Dict[int, int]]:
-    """Evaluates minimum RMSD over automorphism orbit Aut(G) with Hungarian fallback.
+    """Compare actual isomorphic graphs, including differently ordered atoms.
 
-    - If |Aut(G)| <= 720 (6!), exhaustively enumerates graph automorphisms.
-    - If |Aut(G)| > 720, activates Hungarian algorithm fallback (linear_sum_assignment).
+    WL hashes are only a fast sieve, not proof of graph isomorphism. At the
+    bounded exact-search limit a Hungarian proposal is accepted only if it
+    preserves every labeled bond. An unresolved comparison retains a candidate;
+    an unverified atom assignment must never delete a distinct conformer.
     """
-    g = graph if graph is not None else build_covalent_graph(symbols, coords_a)
+    if max_exact_permutations < 1:
+        raise ValueError("Exact permutation budget must be positive")
+    target_symbols = symbols if symbols_b is None else symbols_b
+    g_a = graph if graph is not None else build_covalent_graph(symbols, coords_a)
+    g_b = graph_b if graph_b is not None else build_covalent_graph(target_symbols, coords_b)
     matcher = nx.algorithms.isomorphism.GraphMatcher(
-        g, g, node_match=lambda n1, n2: n1.get("element") == n2.get("element")
+        g_a, g_b, node_match=lambda left, right: (
+            left.get("element") == right.get("element")
+            and left.get("mass_number") == right.get("mass_number")
+        ),
     )
-
-    # Count or bound isomorphisms
-    perms: List[Dict[int, int]] = []
-    exceeded = False
-    for mapping in matcher.isomorphisms_iter():
-        perms.append(mapping)
-        if len(perms) > max_exact_permutations:
-            exceeded = True
+    P, Q = np.asarray(coords_a, dtype=float), np.asarray(coords_b, dtype=float)
+    minimum, best = float("inf"), {}
+    for count, mapping in enumerate(matcher.isomorphisms_iter()):
+        if count >= max_exact_permutations:
+            if list(symbols) == list(target_symbols):
+                rmsd, proposed = hungarian_assignment_rmsd(P, Q, symbols)
+                preserves_nodes = all(
+                    g_a.nodes[i].get("nuclide") == g_b.nodes[j].get("nuclide")
+                    for i, j in proposed.items()
+                )
+                preserves_edges = {frozenset((proposed[i], proposed[j])) for i, j in g_a.edges} == {
+                    frozenset(edge) for edge in g_b.edges
+                }
+                if preserves_nodes and preserves_edges and rmsd < minimum:
+                    minimum, best = rmsd, proposed
             break
+        rmsd = kabsch_quaternion_rmsd(P, Q[[mapping[i] for i in range(len(symbols))]])
+        if rmsd < minimum:
+            minimum, best = rmsd, dict(mapping)
+        if minimum < 1e-12:
+            break
+    return minimum, best
 
-    if exceeded:
-        # Combinatorial Protection: Hungarian Algorithm Fallback
-        return hungarian_assignment_rmsd(coords_a, coords_b, symbols)
 
-    if not perms:
-        return kabsch_quaternion_rmsd(coords_a, coords_b), {i: i for i in range(len(symbols))}
-
-    # Exhaustive evaluation over orbit
-    min_rmsd = float("inf")
-    best_mapping: Dict[int, int] = {i: i for i in range(len(symbols))}
-    P = np.asarray(coords_a, dtype=np.float64)
-    Q = np.asarray(coords_b, dtype=np.float64)
-
-    for mapping in perms:
-        q_perm = np.array([Q[mapping[i]] for i in range(len(symbols))], dtype=np.float64)
-        rmsd = kabsch_quaternion_rmsd(P, q_perm)
-        if rmsd < min_rmsd:
-            min_rmsd = rmsd
-            best_mapping = dict(mapping)
-
-    return min_rmsd, best_mapping
+def are_duplicate_conformers(
+    coordinates_a: np.ndarray,
+    symbols_a: Sequence[str],
+    coordinates_b: np.ndarray,
+    symbols_b: Sequence[str],
+    rmsd_threshold: float = 0.08,
+    rotational_constant_threshold: float = 0.0005,
+) -> bool:
+    """Apply the labeled graph, proper rotation RMSD, and spectroscopic gates."""
+    graph_a = build_covalent_graph(symbols_a, coordinates_a)
+    graph_b = build_covalent_graph(symbols_b, coordinates_b)
+    if nx.weisfeiler_lehman_graph_hash(graph_a, node_attr="nuclide") != nx.weisfeiler_lehman_graph_hash(graph_b, node_attr="nuclide"):
+        return False
+    rmsd, _ = compute_automorphism_orbit_rmsd(
+        coordinates_a, coordinates_b, symbols_a, graph=graph_a,
+        graph_b=graph_b, symbols_b=symbols_b,
+    )
+    if rmsd >= rmsd_threshold:
+        return False
+    b_a = compute_conformer_rotational_constants(symbols_a, coordinates_a)[1]
+    b_b = compute_conformer_rotational_constants(symbols_b, coordinates_b)[1]
+    return bool(np.isfinite(b_a) and np.isfinite(b_b) and b_b > 0
+                and abs(b_a - b_b) / b_b <= rotational_constant_threshold)
 
 
 @dataclass
@@ -271,9 +306,22 @@ class ConformerCandidate:
     conformer_id: str
     symbols: List[str]
     coordinates: np.ndarray
-    energy: float  # In Hartree or kcal/mol (lower is preferred)
+    energy: float  # Hartree unless energy_unit explicitly says kcal/mol
     wl_hash: Optional[str] = None
     rotational_constants_mhz: Optional[Tuple[float, float, float]] = None
+    energy_unit: str = "hartree"
+    source: Optional[str] = None
+
+    @property
+    def energy_kcal(self) -> float:
+        if not np.isfinite(self.energy):
+            raise ValueError("Conformer energy must be finite")
+        if self.energy_unit == "kcal/mol":
+            return float(self.energy)
+        if self.energy_unit == "hartree":
+            from scipy.constants import physical_constants, Avogadro
+            return float(self.energy) * physical_constants["Hartree energy"][0] * Avogadro / 4184.0
+        raise ValueError("Conformer energy_unit must be hartree or kcal/mol")
 
 
 class ConformerDeduplicator:
@@ -284,10 +332,20 @@ class ConformerDeduplicator:
         rmsd_threshold: float = 0.08,
         rotational_constant_threshold: float = 0.0005,
         energy_window_kcal: float = 12.0,
+        duplicate_energy_threshold_kcal: float = 0.05,
     ) -> None:
+        if not np.isfinite(rmsd_threshold) or rmsd_threshold <= 0:
+            raise ValueError("RMSD threshold must be finite and positive")
+        if not np.isfinite(rotational_constant_threshold) or rotational_constant_threshold < 0:
+            raise ValueError("Rotational threshold must be finite and nonnegative")
+        if not np.isfinite(energy_window_kcal) or energy_window_kcal < 0:
+            raise ValueError("Energy window must be finite and nonnegative")
+        if not np.isfinite(duplicate_energy_threshold_kcal) or not 0 < duplicate_energy_threshold_kcal <= 0.05:
+            raise ValueError("Duplicate energy threshold must be positive and no greater than 0.05 kcal/mol")
         self.rmsd_threshold = rmsd_threshold
         self.rotational_constant_threshold = rotational_constant_threshold
         self.energy_window_kcal = energy_window_kcal
+        self.duplicate_energy_threshold_kcal = duplicate_energy_threshold_kcal
 
     def deduplicate(
         self,
@@ -305,33 +363,42 @@ class ConformerDeduplicator:
             return []
 
         # Sort by energy
-        sorted_confs = sorted(conformers, key=lambda c: c.energy)
+        sorted_confs = sorted(conformers, key=lambda c: (c.energy_kcal, c.conformer_id))
 
-        # Stage 1: Compute WL hashes and rotational constants
+        # Recompute from the geometry: caller-provided cached metadata can be stale.
+        graphs = {}
         for conf in sorted_confs:
-            if conf.wl_hash is None:
-                conf.wl_hash = compute_weisfeiler_lehman_hash(conf.symbols, conf.coordinates)
-            if conf.rotational_constants_mhz is None:
-                conf.rotational_constants_mhz = compute_conformer_rotational_constants(
-                    conf.symbols, conf.coordinates
-                )
+            graph = build_covalent_graph(conf.symbols, conf.coordinates)
+            graphs[id(conf)] = graph
+            conf.wl_hash = nx.weisfeiler_lehman_graph_hash(graph, node_attr="nuclide")
+            conf.rotational_constants_mhz = compute_conformer_rotational_constants(
+                conf.symbols, conf.coordinates
+            )
 
         unique_conformers: List[ConformerCandidate] = []
 
         for candidate in sorted_confs:
             is_duplicate = False
             for accepted in unique_conformers:
+                # Geometric agreement alone cannot establish identical electronic
+                # minima when independent searches report incompatible energies.
+                if abs(candidate.energy_kcal - accepted.energy_kcal) >= self.duplicate_energy_threshold_kcal:
+                    continue
                 # Stage 1: WL Hash must match for identical covalent topology
                 if candidate.wl_hash == accepted.wl_hash:
                     # Stage 2: Kabsch Quaternion RMSD with Automorphism Orbit & Hungarian Fallback
                     dist, _ = compute_automorphism_orbit_rmsd(
-                        candidate.coordinates, accepted.coordinates, candidate.symbols
+                        candidate.coordinates, accepted.coordinates, candidate.symbols,
+                        graph=graphs[id(candidate)], symbols_b=accepted.symbols,
+                        graph_b=graphs[id(accepted)],
                     )
                     if dist < self.rmsd_threshold:
                         # Stage 2: Spectroscopic rotational constant relative variance check (|Delta B / B| <= 0.05%)
                         cand_b = candidate.rotational_constants_mhz[1]
                         acc_b = accepted.rotational_constants_mhz[1]
-                        delta_b_rel = abs(cand_b - acc_b) / acc_b if acc_b > 0.0 else 0.0
+                        if not np.isfinite(cand_b) or not np.isfinite(acc_b) or acc_b <= 0:
+                            continue
+                        delta_b_rel = abs(cand_b - acc_b) / acc_b
                         if delta_b_rel <= self.rotational_constant_threshold:
                             is_duplicate = True
                             logger.debug(
@@ -351,6 +418,7 @@ class ConformerDeduplicator:
 
 
 __all__ = [
+    "are_duplicate_conformers",
     "ConformerCandidate",
     "ConformerDeduplicator",
     "compute_weisfeiler_lehman_hash",

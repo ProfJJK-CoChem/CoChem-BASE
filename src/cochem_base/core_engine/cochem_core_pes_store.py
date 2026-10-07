@@ -79,7 +79,7 @@ from typing import (
 
 import h5py
 import numpy as np
-from filelock import FileLock, Timeout
+from cochem_base.result_evidence import normalize_point_evidence
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -219,7 +219,7 @@ HESSIAN_EIG_TO_CM_INV_FACTOR = (
 # HDF5 Storage Specifications (Method Matrix §8C)
 CHUNK_POINTS = 512
 VLEN_STR = h5py.string_dtype(encoding="utf-8")
-DEFAULT_LOCK_TIMEOUT_S = 30.0
+DEFAULT_LOCK_TIMEOUT_S = 10.0
 
 
 # =============================================================================
@@ -808,12 +808,15 @@ _H5PY_PROCESS_LOCK = threading.RLock()
 class ReadWriteFileLock:
     """Portable cross-platform Reader-Writer Lock backed by FileLock token tracking."""
 
-    def __init__(self, lock_path: Union[str, Path], timeout: float = 30.0) -> None:
+    def __init__(self, lock_path: Union[str, Path], timeout: float = 10.0) -> None:
+        # Lazy import avoids the core namespace's PESStore re-export cycle.
+        from cochem_base.core.cochem_core_registry_manager import AtomicFileLock
+
         self.lock_path = Path(lock_path)
-        self.writer_lock_path = self.lock_path.with_name(self.lock_path.name + ".writer.lock")
+        self.writer_lock_path = self.lock_path
         self.readers_dir = self.lock_path.with_name(self.lock_path.name + ".readers")
         self.timeout = timeout
-        self.writer_lock = FileLock(str(self.writer_lock_path), timeout=timeout)
+        self.writer_lock = AtomicFileLock(self.writer_lock_path, timeout=timeout)
         self.readers_dir.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()
 
@@ -846,17 +849,19 @@ class ReadWriteFileLock:
                 self._set_read_depth(self._get_read_depth() - 1)
             return
 
-        token = self.readers_dir / f"read_{os.getpid()}_{threading.get_ident()}_{uuid.uuid4().hex[:8]}.token"
-        t0 = time.time()
-        while self.writer_lock.is_locked:
-            if time.time() - t0 > self.timeout:
-                raise HDF5LockTimeoutError(
-                    f"Timed out after {self.timeout}s waiting for read lock on {self.lock_path}",
-                    error_code=ProvenanceErrorCode.HDF5_SWMR_LOCK_TIMEOUT,
-                )
-            time.sleep(0.005)
-
-        token.touch(exist_ok=True)
+        host = hashlib.sha256(socket.gethostname().encode()).hexdigest()[:16]
+        token = self.readers_dir / f"read_{os.getpid()}_{host}_{threading.get_ident()}_{uuid.uuid4().hex[:8]}.token"
+        # Registration and writer admission must share a real OS lock. The
+        # FileLock object's is_locked flag only describes its own thread and
+        # cannot reveal a writer in another process.
+        try:
+            with self.writer_lock:
+                token.touch(exist_ok=False)
+        except TimeoutError as exc:
+            raise HDF5LockTimeoutError(
+                f"Timed out after {self.timeout}s waiting for read lock on {self.lock_path}",
+                error_code=ProvenanceErrorCode.HDF5_SWMR_LOCK_TIMEOUT,
+            ) from exc
         self._set_read_depth(1)
         try:
             yield
@@ -877,28 +882,29 @@ class ReadWriteFileLock:
                 self._set_write_depth(self._get_write_depth() - 1)
             return
 
+        t0 = time.monotonic()
         try:
-            self.writer_lock.acquire(timeout=self.timeout)
-        except Timeout as exc:
+            self.writer_lock.acquire()
+        except TimeoutError as exc:
             raise HDF5LockTimeoutError(
                 f"Timed out after {self.timeout}s acquiring writer lock on {self.lock_path}",
                 error_code=ProvenanceErrorCode.HDF5_SWMR_LOCK_TIMEOUT,
             ) from exc
 
         self._set_write_depth(1)
-        t0 = time.time()
+        host = hashlib.sha256(socket.gethostname().encode()).hexdigest()[:16]
         try:
             while any(self.readers_dir.glob("*.token")):
                 # Clean up stale tokens from exited processes
                 for tok in list(self.readers_dir.glob("*.token")):
                     parts = tok.stem.split("_")
-                    if len(parts) >= 2 and parts[1].isdigit():
+                    if len(parts) >= 5 and parts[1].isdigit() and parts[2] == host:
                         r_pid = int(parts[1])
                         if HAS_PSUTIL and not psutil.pid_exists(r_pid):
                             tok.unlink(missing_ok=True)
                 if not any(self.readers_dir.glob("*.token")):
                     break
-                if time.time() - t0 > self.timeout:
+                if time.monotonic() - t0 > self.timeout:
                     raise HDF5LockTimeoutError(
                         f"Timed out after {self.timeout}s waiting for readers to clear on {self.lock_path}",
                         error_code=ProvenanceErrorCode.HDF5_SWMR_LOCK_TIMEOUT,
@@ -907,8 +913,7 @@ class ReadWriteFileLock:
             yield
         finally:
             self._set_write_depth(0)
-            if self.writer_lock.is_locked:
-                self.writer_lock.release()
+            self.writer_lock.release()
 
 
 class PESStore:
@@ -932,8 +937,13 @@ class PESStore:
     ) -> None:
         self.compress: bool = compress
         self.path = validate_airgap_write_path(Path(path).resolve())
-        self.lock_dir = Path(lock_dir).resolve() if lock_dir else get_node_local_scratch_dir()
-        self.lock_path = self.lock_dir / f"{self.path.name}.lock"
+        self.lock_dir = Path(lock_dir).resolve() if lock_dir else self.path.parent
+        # The adjacent lock is shared by every host accessing the datastore.
+        # Explicit custom directories must also be shared between writers.
+        lock_name = f"{self.path.name}.lock"
+        if lock_dir is not None:
+            lock_name = f"{self.path.name}.{hashlib.sha256(str(self.path).encode()).hexdigest()[:16]}.lock"
+        self.lock_path = self.lock_dir / lock_name
         self.lock_timeout = lock_timeout
         self.rw_lock = ReadWriteFileLock(self.lock_path, timeout=self.lock_timeout)
         self.swmr_mode = swmr_mode
@@ -1045,14 +1055,11 @@ class PESStore:
         SWMR-mode exclusive write context with FileLock protection as mandated by Suggestion #159.
         """
         effective_timeout = timeout if timeout is not None else self.lock_timeout
-        lock = FileLock(f"{self.path}.lock", timeout=effective_timeout)
-        with lock:
+        lock = ReadWriteFileLock(self.lock_path, timeout=effective_timeout)
+        with lock.write_lock():
             with h5py.File(self.path, "a", libver="latest") as f:
                 if not getattr(f, "swmr_mode", False):
-                    try:
-                        f.swmr_mode = True
-                    except (RuntimeError, AttributeError):
-                        pass
+                    f.swmr_mode = True
                 yield f
                 f.flush()
 
@@ -1253,8 +1260,8 @@ class PESStore:
             provenance: Optional provenance dict or JSON string
             point_ids: Optional list of unique point IDs
             gradients: Optional gradients array (Npts, Natoms, 3) in Hartree/Bohr
-            converged: Convergence flags (Npts,) or bool
-            wall_s: Wall clock times in seconds
+            converged: Required explicit boolean convergence evidence (Npts,) or bool
+            wall_s: Wall clock seconds; omitted values remain NaN (unmeasured)
             creator: Package name
             version: Package version
             routine: Calculation routine
@@ -1269,6 +1276,8 @@ class PESStore:
         coords_arr = np.asarray(target_coords, dtype=np.float64)
         if coords_arr.ndim == 2:
             coords_arr = coords_arr[None]
+        if coords_arr.ndim != 3 or coords_arr.shape[2] != 3 or not np.all(np.isfinite(coords_arr)):
+            raise ValueError("Coordinates must be a finite array of shape (Npoints, Natoms, 3)")
         npts, natm = coords_arr.shape[0], coords_arr.shape[1]
 
         if energies is None:
@@ -1277,8 +1286,17 @@ class PESStore:
         if energies_arr.ndim == 0:
             energies_arr = energies_arr[None]
 
-        if len(energies_arr) != npts:
-            raise ValueError(f"Number of energies ({len(energies_arr)}) does not match number of points ({npts}).")
+        if energies_arr.shape != (npts,) or not np.all(np.isfinite(energies_arr)):
+            raise ValueError("Provide one finite energy per result point")
+        conv_block, wall_block = normalize_point_evidence(converged, wall_s, npts)
+        if point_ids is not None and len(point_ids) != npts:
+            raise ValueError("Provide one point identifier per result point")
+        if gradients is not None:
+            gradients = np.asarray(gradients, dtype=np.float64)
+            if gradients.ndim == 2:
+                gradients = gradients[None]
+            if gradients.shape != coords_arr.shape or not np.all(np.isfinite(gradients)):
+                raise ValueError("Gradient shape must match coordinates and contain finite values")
 
         # Construct signed provenance record or serialize input provenance
         if provenance is not None:
@@ -1354,16 +1372,12 @@ class PESStore:
                 self._append(self._ds(f, method_id, "energy", (), np.float64, checksum=True), energies_arr)
 
                 # Convergence
-                conv_block = np.full(npts, True, dtype=bool) if converged is None else np.asarray(converged, dtype=bool)
-                if conv_block.ndim == 0:
-                    conv_block = np.full(npts, bool(converged), dtype=bool)
                 self._append(self._ds(f, method_id, "converged", (), np.bool_), conv_block)
 
                 # Wall time
-                wall_block = np.full(npts, 0.0, dtype=np.float64) if wall_s is None else np.asarray(wall_s, dtype=np.float64)
-                if wall_block.ndim == 0:
-                    wall_block = np.full(npts, float(wall_s), dtype=np.float64)
-                self._append(self._ds(f, method_id, "wall_s", (), np.float64), wall_block)
+                elapsed_dataset = self._ds(f, method_id, "wall_s", (), np.float64)
+                elapsed_dataset.attrs["missing_value_policy"] = "NaN means elapsed time was not measured"
+                self._append(elapsed_dataset, wall_block)
 
                 # Write normalized provenance_id block
                 prov_id_block = np.full(npts, prov_id, dtype=np.uint32)
@@ -1429,7 +1443,7 @@ class PESStore:
                 "coordinates": payload["coordinates"][i],
                 "energy": float(payload["energy"][i]),
                 "converged": bool(payload["converged"][i]),
-                "wall_s": float(payload["wall_s"][i]),
+                "wall_s": None if np.isnan(payload["wall_s"][i]) else float(payload["wall_s"][i]),
             }
             if "gradient" in payload and i < len(payload["gradient"]):
                 pt["gradient"] = payload["gradient"][i]
@@ -1882,8 +1896,8 @@ class BifurcatedPESStore:
         *,
         point_id: Optional[str] = None,
         gradient: Optional[Union[Sequence[Any], np.ndarray]] = None,
-        converged: bool = True,
-        wall_s: float = 0.0,
+        converged: Optional[bool] = None,
+        wall_s: Optional[float] = None,
         creator: str = "ORCA",
         version: str = "6.1",
         routine: str = "sp",
@@ -1895,8 +1909,8 @@ class BifurcatedPESStore:
             energies=[energy],
             point_ids=[point_id] if point_id is not None else None,
             gradients=[gradient] if gradient is not None else None,
-            converged=[converged],
-            wall_s=[wall_s],
+            converged=converged,
+            wall_s=wall_s,
             creator=creator,
             version=version,
             routine=routine,
@@ -2117,7 +2131,9 @@ def merge_pes_shards(
             except Exception as exc:
                 logger.debug("Failed extracting metadata from shard %s: %s", s_p, exc)
 
-    target_lock = FileLock(f"{Path(target_store_path).resolve()}.lock", timeout=timeout)
+    from cochem_base.core.cochem_core_registry_manager import AtomicFileLock
+
+    target_lock = AtomicFileLock(f"{Path(target_store_path).resolve()}.lock", timeout=timeout)
     with target_lock:
         target = PESStore(
             path=target_store_path,
@@ -2292,4 +2308,3 @@ def __getattr__(name: str) -> Any:
 
 if __name__ == "__main__":
     main()
-

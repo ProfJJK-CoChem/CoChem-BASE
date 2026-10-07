@@ -4,7 +4,6 @@ Hardware profiler module for CoChem-CORE.
 Provides system information, hardware capability detection, and performance benchmarking.
 """
 
-import atexit
 import logging
 import platform
 import subprocess
@@ -24,19 +23,9 @@ try:
 except ImportError:
     safe_subprocess_run: Any = None  # type: ignore
 
-def _sweep_zombies() -> None:
-    """Sweep zombie processes for robust process safety."""
-    try:
-        for p in psutil.process_iter(['pid', 'status']):
-            if p.info['status'] == psutil.STATUS_ZOMBIE:
-                try:
-                    p.wait(timeout=1)
-                except psutil.TimeoutExpired as _e:
-                    logger.debug(f"Ignored exception: {_e}")
-    except Exception as e:
-        logger.error(f"Zombie sweeping failed: {e}")
+# Process handles remain under their launching broker/library ownership.
+from cochem_base.process_cleanup import reap_owned_children as _sweep_zombies
 
-atexit.register(_sweep_zombies)
 
 
 class HardwareProfiler:

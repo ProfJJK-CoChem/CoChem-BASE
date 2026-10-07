@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """CoChem-INTERFACES: ORCA ExtOpt External Optimizer Wrapper for MACE-OFF (Direct Entrypoint).
 
-Re-exports canonical symbols from cochem_base.interfaces.oet_maceoff.
+Re-exports canonical symbols from scripts.oet_maceoff.
 Method Matrix v4 Section 10.7 Compliant.
 """
 
 from __future__ import annotations
 
 import sys
-from cochem_base.interfaces.oet_maceoff import (
+from scripts.oet_maceoff import (
     ANGSTROM_TO_BOHR,
     BOHR_PER_A,
     BOHR_TO_ANGSTROM,
@@ -20,6 +20,7 @@ from cochem_base.interfaces.oet_maceoff import (
     HARTREE_TO_KJ_MOL,
     EngradResult,
     ExtInpData,
+    MACEBackendUnavailableError,
     MACEOFFConfig,
     compute_committee_uncertainty,
     compute_maceoff_energy_gradient,
@@ -48,6 +49,7 @@ __all__ = [
     "HARTREE_TO_KJ_MOL",
     "EngradResult",
     "ExtInpData",
+    "MACEBackendUnavailableError",
     "MACEOFFConfig",
     "compute_committee_uncertainty",
     "compute_maceoff_energy_gradient",

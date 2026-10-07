@@ -1,6 +1,6 @@
 4
-Formaldehyde equilibrium (EMT)
+ASE EMT coordinate input; original CHHO species order restored; no accuracy-reference claim
 C 0.3708 0.2512 0.0000
-O -0.5184 1.2346 -0.0000
+H -0.5184 1.2346 -0.0000
 H 0.7175 -1.0265 -0.0000
-H -0.5698 -0.2593 -0.0000
+O -0.5698 -0.2593 -0.0000

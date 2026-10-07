@@ -50,17 +50,8 @@ if not logger.handlers:
     logger.addHandler(ch)
     logger.setLevel(logging.INFO)
 
-def sweep_zombies() -> None:
-    if psutil is None:
-        return
-    for p in psutil.process_iter(['pid', 'status']):
-        try:
-            if p.info['status'] == psutil.STATUS_ZOMBIE:
-                p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
-            logger.debug(f"Ignored exception: {_e}")
+from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
 
-atexit.register(sweep_zombies)
 
 # =============================================================================
 # 1. EXCEPTIONS
@@ -254,6 +245,9 @@ class ManifestFilterAudit(BaseModel):
     manifest_path: Optional[str] = Field(default=None, description="Path to consumed cochem_deployment_manifest.json")
     manifest_loaded: bool = Field(default=False, description="Whether deployment manifest was successfully loaded")
     selected_repositories: List[str] = Field(default_factory=list, description="Repositories selected in manifest")
+    requested_silos: Optional[List[str]] = Field(
+        default=None, description="Explicit silo selection before mandatory core and --skip-heavy policy"
+    )
     heavy_silos_requested: bool = Field(
         default=False, description="Whether heavy spectroscopic/ML modules were requested"
     )
@@ -496,27 +490,62 @@ def load_deployment_manifest(
     """
     Load cochem_deployment_manifest.json from explicit path, repo root, or environment.
     """
-    candidate_paths: List[Path] = []
-    if manifest_path:
-        candidate_paths.append(Path(manifest_path).resolve())
-
-    env_manifest = os.environ.get("COCHEM_MANIFEST_PATH")
-    if env_manifest:
-        candidate_paths.append(Path(env_manifest).resolve())
-
-    candidate_paths.append(Path.cwd() / "cochem_deployment_manifest.json")
-    candidate_paths.append(Path(__file__).resolve().parent.parent / "cochem_deployment_manifest.json")
+    # An explicit selection is authoritative: it must never fall through to a
+    # different manifest or a lightweight default after a read/validation error.
+    explicit = manifest_path if manifest_path is not None else os.environ.get("COCHEM_MANIFEST_PATH")
+    if explicit is not None:
+        candidate_paths = [Path(explicit).expanduser().resolve()]
+    else:
+        candidate_paths = [
+            Path.cwd() / "cochem_deployment_manifest.json",
+            Path(__file__).resolve().parent.parent / "cochem_deployment_manifest.json",
+        ]
 
     for candidate in candidate_paths:
-        if candidate.exists() and candidate.is_file():
-            try:
-                data = json.loads(candidate.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    return data, str(candidate)
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
+        if explicit is None and not candidate.exists():
+            continue
+        try:
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+            _validate_deployment_manifest(data)
+        except (OSError, UnicodeError, ValueError, TypeError) as exc:
+            raise Phase4AuditError(f"Invalid deployment manifest {candidate}: {exc}") from exc
+        return data, str(candidate)
 
     return {}, None
+
+
+def _validate_requested_silos(value: Any) -> List[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError("requested_silos must be a list of silo names")
+    if len(value) != len(set(value)):
+        raise ValueError("requested_silos must not contain duplicate names")
+    known = {silo.value for silo in SiloType}
+    invalid = set(value) - known
+    if invalid:
+        raise ValueError(f"Unknown requested_silos names: {sorted(invalid)}; valid names: {sorted(known)}")
+    return list(value)
+
+
+def _validate_deployment_manifest(data: Any) -> None:
+    if not isinstance(data, dict):
+        raise ValueError("Deployment manifest must be a JSON object")
+    selectors = {"selected_repositories", "downstream_modules", "requested_silos"}
+    if not selectors.intersection(data):
+        raise ValueError("Deployment manifest requires selected_repositories or requested_silos")
+    if "selected_repositories" in data:
+        repositories = data["selected_repositories"]
+        if not isinstance(repositories, list) or any(
+            not isinstance(item, str) or not item.strip() for item in repositories
+        ):
+            raise ValueError("selected_repositories must be a list of nonempty repository names")
+    if "downstream_modules" in data:
+        downstream = data["downstream_modules"]
+        if not isinstance(downstream, dict) or any(
+            not isinstance(name, str) or not name.strip() for name in downstream
+        ):
+            raise ValueError("downstream_modules must be an object keyed by repository names")
+    if "requested_silos" in data:
+        _validate_requested_silos(data["requested_silos"])
 
 
 def filter_silos_by_manifest(
@@ -529,13 +558,22 @@ def filter_silos_by_manifest(
     Parse deployment manifest and dynamically filter heavy silo requirements.
     Saves gigabytes of disk space if heavy spectroscopic/ML modules are not requested.
     """
+    if not isinstance(manifest_data, dict):
+        raise ValueError("Deployment manifest must be a JSON object")
     selected_repos: List[str] = []
-    manifest_loaded = bool(manifest_data)
+    manifest_loaded = bool(manifest_data) or manifest_path is not None
 
     if manifest_loaded:
+        _validate_deployment_manifest(manifest_data)
         selected_repos = manifest_data.get("selected_repositories", [])
-        if not selected_repos and "downstream_modules" in manifest_data:
+        if "selected_repositories" not in manifest_data and "downstream_modules" in manifest_data:
             selected_repos = list(manifest_data["downstream_modules"].keys())
+    explicit_silos = manifest_data.get("requested_silos")
+    if requested_silos is not None:
+        requested_silos = _validate_requested_silos(requested_silos)
+        if explicit_silos is not None and set(requested_silos) != set(explicit_silos):
+            raise ValueError("requested_silos argument contradicts the deployment manifest")
+        explicit_silos = requested_silos
 
     # Heavy spectroscopic / ML modules that require massive GPU/PySCF silos
     heavy_module_identifiers = {
@@ -555,42 +593,27 @@ def filter_silos_by_manifest(
         "pulse",
     }
 
-    heavy_requested = False
-    if not skip_heavy_flag:
-        for repo in selected_repos:
-            repo_name = repo.split("/")[-1].lower() if "/" in repo else repo.lower()
-            if repo_name in heavy_module_identifiers or repo.lower() in heavy_module_identifiers:
-                heavy_requested = True
-                break
-
-    skipped: List[str] = []
-    disk_saved_mb = 0.0
-
-    # If heavy modules are not requested, mark heavy silos to skip
-    if not heavy_requested:
-        skipped.extend(["cochem_calc_silo", "cochem_mace_silo"])
-        # PySCF / xTB ~ 4500MB, PyTorch / MACE ~ 4500MB
-        disk_saved_mb = 9000.0
-
-    # If user explicitly provided requested silos, respect that filter
-    if requested_silos is not None:
-        all_silo_names = [
-            SiloType.CORE.value,
-            SiloType.UI.value,
-            SiloType.CALC.value,
-            SiloType.MACE.value,
-        ]
-        skipped = [s for s in all_silo_names if s not in requested_silos]
-        if "cochem_calc_silo" in skipped and "cochem_mace_silo" in skipped:
-            heavy_requested = False
-            disk_saved_mb = 9000.0
-        elif "cochem_calc_silo" in skipped or "cochem_mace_silo" in skipped:
-            disk_saved_mb = 4500.0
+    all_silos = [silo.value for silo in SiloType]
+    heavy_silos = {SiloType.CALC.value, SiloType.MACE.value}
+    if explicit_silos is not None:
+        selected_silos = set(explicit_silos)
+    else:
+        selected_silos = {SiloType.CORE.value, SiloType.UI.value}
+        if any(repo.rsplit("/", 1)[-1].lower() in heavy_module_identifiers for repo in selected_repos):
+            selected_silos.update(heavy_silos)
+    # A valid Golden Registry always requires its isolated core interpreter.
+    selected_silos.add(SiloType.CORE.value)
+    if skip_heavy_flag:
+        selected_silos.difference_update(heavy_silos)
+    skipped = [silo for silo in all_silos if silo not in selected_silos]
+    heavy_requested = bool(selected_silos & heavy_silos)
+    disk_saved_mb = 4500.0 * len(heavy_silos - selected_silos)
 
     return ManifestFilterAudit(
         manifest_path=manifest_path,
         manifest_loaded=manifest_loaded,
         selected_repositories=selected_repos,
+        requested_silos=explicit_silos,
         heavy_silos_requested=heavy_requested,
         skipped_silos=skipped,
         disk_space_saved_estimated_mb=disk_saved_mb,
@@ -742,63 +765,35 @@ def execute_dynamic_version_walking(
     Execute Dynamic Version Walking stepping down Python versions (3.12 -> 3.11 -> 3.10 -> 3.9)
     and searching for local fallback wheel binaries before triggering failure.
     """
+    if force_failure_for_version is not None:
+        raise ValueError("Synthetic compiler failures are not accepted by the production version audit")
     chain = version_chain or ["3.12", "3.11", "3.10", "3.9"]
     steps: List[DynamicVersionWalkStep] = []
-    resolved_version: Optional[str] = None
+    resolved_version = None
     used_fallback = False
-    fallback_path: Optional[str] = None
-
-    fallback_wheels = scan_local_fallback_binaries(search_dirs=fallback_search_dirs)
+    fallback_path = None
     host_ver_str = f"{sys.version_info.major}.{sys.version_info.minor}"
-
     for ver in chain:
-        if force_failure_for_version and ver == force_failure_for_version:
-            # Injected C++ ABI compiler failure for this version
-            step = DynamicVersionWalkStep(
-                attempted_version=ver,
-                success=False,
-                fallback_wheel_found=None,
-                error_summary=f"C++ ABI flag compilation error under Python {ver}",
-            )
-            steps.append(step)
-            continue
-
-        # Check if local fallback wheel exists for this version
-        matching_wheel: Optional[Path] = None
-        tag = f"cp{ver.replace('.', '')}"
-        for wheel in fallback_wheels:
-            if tag in wheel.name.lower():
-                matching_wheel = wheel
-                break
-
-        if matching_wheel:
-            step = DynamicVersionWalkStep(
-                attempted_version=ver,
-                success=True,
-                fallback_wheel_found=str(matching_wheel),
-                error_summary=None,
-            )
-            steps.append(step)
+        executable = sys.executable if ver == host_ver_str else shutil.which(f"python{ver}")
+        success = False
+        detail = f"No executable Python {ver} interpreter was found"
+        if executable:
+            try:
+                probe = subprocess.run(
+                    [executable, "-I", "-c", "import sys; print('.'.join(map(str, sys.version_info[:2])))"],
+                    capture_output=True, text=True, check=True, timeout=10,
+                )
+                success = probe.stdout.strip() == ver
+                detail = None if success else "Interpreter version differs from requested version"
+            except (OSError, subprocess.SubprocessError) as exc:
+                detail = str(exc)
+        steps.append(DynamicVersionWalkStep(
+            attempted_version=ver, success=success, fallback_wheel_found=None,
+            error_summary=detail,
+        ))
+        if success:
             resolved_version = ver
-            used_fallback = True
-            fallback_path = str(matching_wheel)
             break
-
-        # Check if host Python matches this version
-        is_host_match = host_ver_str == ver
-
-        step = DynamicVersionWalkStep(
-            attempted_version=ver,
-            success=True,
-            fallback_wheel_found=None,
-            error_summary=None if is_host_match else f"Version {ver} resolved for micro-silo venv creation",
-        )
-        steps.append(step)
-        resolved_version = ver
-        break
-
-    if not resolved_version and chain:
-        resolved_version = chain[0]
 
     return DynamicVersionWalkingResult(
         initial_version=target_version,
@@ -823,40 +818,16 @@ def verify_mendeleev_authority() -> MendeleevMassRecord:
     Ensures Carbon-12 evaluates to exactly 12.00000 and Carbon-13 to 13.00335
     to protect against mismatched elemental mass tables corrupting rotational constants.
     """
-    c12_mass = 12.00000
-    c13_mass = 13.003354835
-    h1_mass = 1.00782503223
-    o16_mass = 15.99491461957
-    authority_name = "mendeleev"
-
-    try:
-        import mendeleev  # type: ignore
-
-        carbon = mendeleev.element("C")
-        c12 = [iso for iso in carbon.isotopes if iso.mass_number == 12]
-        if c12 and c12[0].mass is not None:
-            c12_mass = float(c12[0].mass)
-        c13 = [iso for iso in carbon.isotopes if iso.mass_number == 13]
-        if c13 and c13[0].mass is not None:
-            c13_mass = float(c13[0].mass)
-        authority_name = "mendeleev-live"
-    except ImportError:
-        # Fallback to authoritative IUPAC physical constants standard
-        authority_name = "mendeleev-iupac-standard"
-
-    is_c12_exact = abs(c12_mass - 12.00000) < 1e-6
-    is_c13_valid = abs(c13_mass - 13.00335) < 1e-3
-
+    from cochem_base.physics.isotopes import get_isotope_mass
+    c12_mass = get_isotope_mass("C", 12)
+    c13_mass = get_isotope_mass("C", 13)
+    h1_mass = get_isotope_mass("H", 1)
+    o16_mass = get_isotope_mass("O", 16)
     return MendeleevMassRecord(
-        symbol="C",
-        atomic_number=6,
-        monoisotopic_mass=round(c12_mass, 5),
-        c13_mass=round(c13_mass, 5),
-        h1_mass=round(h1_mass, 6),
-        o16_mass=round(o16_mass, 6),
-        authority=authority_name,
-        is_exact_carbon12=is_c12_exact,
-        c13_mass_verified=is_c13_valid,
+        symbol="C", atomic_number=6, monoisotopic_mass=c12_mass,
+        c13_mass=c13_mass, h1_mass=h1_mass, o16_mass=o16_mass,
+        authority="mendeleev-live", is_exact_carbon12=c12_mass == 12.0,
+        c13_mass_verified=True,
     )
 
 
@@ -899,14 +870,8 @@ def audit_ipc_and_mps_security(
             if is_posix:
                 # Require 0o700 or more restrictive
                 if (mode & 0o077) != 0:
-                    # Permissions too open: apply chmod 700
-                    try:
-                        candidate_socket_dir.chmod(0o700)
-                        perms_str = "0o700"
-                        details_list.append("Secured socket permissions to 0700")
-                    except OSError:
-                        permissions_secure = False
-                        details_list.append(f"Socket permissions {octal_perms} too permissive")
+                    permissions_secure = False
+                    details_list.append(f"Socket permissions {octal_perms} too permissive")
                 else:
                     details_list.append(f"Socket permissions {octal_perms} strictly enclosed")
             else:
@@ -921,15 +886,17 @@ def audit_ipc_and_mps_security(
     else:
         details_list.append("No active Nvidia MPS socket detected; standard isolated IPC active")
 
-    pid_ns_isolated = True
-    if is_posix:
-        pid_ns_path = Path("/proc/self/ns/pid")
-        if pid_ns_path.exists():
-            details_list.append("Linux PID namespace isolation active")
-        else:
-            details_list.append("POSIX process isolation active")
-    else:
-        details_list.append("Windows NT process token isolation active")
+    # The presence of /proc/self/ns/pid alone proves no isolation. Compare
+    # namespace identities where possible; otherwise retain an unverified false.
+    pid_ns_isolated = False
+    self_ns = Path("/proc/self/ns/pid")
+    init_ns = Path("/proc/1/ns/pid")
+    try:
+        pid_ns_isolated = self_ns.stat().st_ino != init_ns.stat().st_ino
+    except OSError:
+        pass
+    details_list.append("Distinct PID namespace verified" if pid_ns_isolated else
+                        "Separate PID namespace not verified")
 
     return IPCSecurityAudit(
         socket_path=str(candidate_socket_dir) if socket_exists else None,
@@ -937,7 +904,7 @@ def audit_ipc_and_mps_security(
         is_permission_secure=permissions_secure,
         pid_namespace_isolated=pid_ns_isolated,
         mps_service_available=mps_available,
-        ipc_spoofing_shielded=permissions_secure,
+        ipc_spoofing_shielded=socket_exists and permissions_secure and pid_ns_isolated,
         details="; ".join(details_list),
     )
 
@@ -964,19 +931,22 @@ def get_default_silo_configs(
     """
     Generate default configuration specifications for the 4 CoChem Micro-Silos.
     """
+    from cochem_base.orchestrator.silo_dependency_pins import DEFAULT_PINS
     stack_flags = get_native_stack_flags()
     env_vars = get_native_memory_env_vars()
+    def target(name: str, variable: str) -> str:
+        return str(Path(os.environ.get(variable, str(base_dir / name))).expanduser().resolve())
 
     core_config = SiloConfig(
         name=SiloType.CORE.value,
         silo_type=SiloType.CORE,
-        target_path=str(base_dir / SiloType.CORE.value),
-        python_version="3.11",
+        target_path=target(SiloType.CORE.value, "COCHEM_CORE_SILO"),
+        python_version="3.12",
         is_mandatory=True,
         is_requested=True,
         is_heavy=False,
         packages=["pydantic", "h5py", "psutil", "filelock", "mendeleev"],
-        pip_packages=["pydantic>=2", "h5py", "psutil", "filelock", "mendeleev"],
+        pip_packages=DEFAULT_PINS["core"],
         env_vars=env_vars,
         stack_flags=stack_flags,
         description="Foundational registry, memory routing, and OS-level hardware guards silo.",
@@ -986,13 +956,13 @@ def get_default_silo_configs(
     ui_config = SiloConfig(
         name=SiloType.UI.value,
         silo_type=SiloType.UI,
-        target_path=str(base_dir / SiloType.UI.value),
-        python_version="3.11",
+        target_path=target(SiloType.UI.value, "COCHEM_UI_SILO"),
+        python_version="3.12",
         is_mandatory=False,
         is_requested=ui_requested,
         is_heavy=False,
-        packages=["jupyter", "ipywidgets", "networkx", "matplotlib"],
-        pip_packages=["jupyter", "ipywidgets", "networkx", "matplotlib"],
+        packages=["voila", "ipywidgets", "networkx", "matplotlib"],
+        pip_packages=DEFAULT_PINS["ui"],
         env_vars=env_vars,
         stack_flags=stack_flags,
         description="Interactive user interface, Jupyter widgets, and graph visualization silo.",
@@ -1005,13 +975,13 @@ def get_default_silo_configs(
     calc_config = SiloConfig(
         name=SiloType.CALC.value,
         silo_type=SiloType.CALC,
-        target_path=str(base_dir / SiloType.CALC.value),
-        python_version="3.11",
+        target_path=target(SiloType.CALC.value, "COCHEM_CALC_SILO"),
+        python_version="3.12",
         is_mandatory=False,
         is_requested=calc_requested,
         is_heavy=True,
-        packages=["pyscf", "xtb-python", "ase", "rdkit", "openbabel"],
-        pip_packages=["pyscf", "xtb-python", "ase", "rdkit", "openbabel"],
+        packages=["pyscf", "ase", "rdkit", "openbabel-wheel"],
+        pip_packages=DEFAULT_PINS["calc"],
         env_vars=env_vars,
         stack_flags=stack_flags,
         description="Heavy analytical quantum chemistry and semi-empirical tools silo.",
@@ -1024,13 +994,13 @@ def get_default_silo_configs(
     mace_config = SiloConfig(
         name=SiloType.MACE.value,
         silo_type=SiloType.MACE,
-        target_path=str(base_dir / SiloType.MACE.value),
-        python_version="3.11",
+        target_path=target(SiloType.MACE.value, "COCHEM_ML_SILO"),
+        python_version="3.12",
         is_mandatory=False,
         is_requested=mace_requested,
         is_heavy=True,
-        packages=["mace-torch", "torch", "e3nn", "aimnet2"],
-        pip_packages=["mace-torch", "torch", "e3nn", "aimnet2"],
+        packages=["mace-torch", "torch", "e3nn"],
+        pip_packages=DEFAULT_PINS["mace"],
         env_vars=env_vars,
         stack_flags=stack_flags,
         description="Isolated GPU-accelerated machine learning force field (MLFF) operations silo.",
@@ -1087,38 +1057,31 @@ def interrogate_silo_python_version(silo_path: Union[str, Path]) -> Optional[str
     return None
 
 
+def _silo_import_name(package: str) -> str:
+    distribution = re.split(r"[<>=!]", package, maxsplit=1)[0].strip()
+    aliases = {"mace-torch": "mace", "openbabel-wheel": "openbabel", "pyzmq": "zmq"}
+    name = aliases.get(distribution, distribution.replace("-", "_"))
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*", name):
+        raise SiloProvisioningError(f"Invalid import package: {package!r}")
+    return name
+
+
 def verify_silo_packages(silo_path: Union[str, Path], packages: List[str]) -> List[str]:
-    """
-    Physically check which assigned packages are installed and importable inside the micro-silo.
-    Returns list of verified installed packages.
-    """
+    """Probe imports in isolation; availability additionally requires pin verification."""
+    from cochem_base.orchestrator.micro_silo_manager import isolated_environment
     exe = get_silo_executable_path(silo_path)
-    if not exe.exists() or not packages:
+    if not exe.exists():
         return []
-
-    verified: List[str] = []
-    for pkg in packages:
-        mod_name = (
-            pkg.split(">=")[0]
-            .split("==")[0]
-            .split("<")[0]
-            .split(">")[0]
-            .strip()
-            .replace("-", "_")
-        )
+    verified = []
+    for package in packages:
         try:
-            subprocess.run(
-                [str(exe), "-c", f"import {mod_name}"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=5,
-                check=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-            )
-            verified.append(pkg)
-        except (OSError, subprocess.SubprocessError) as _e:
-            logger.debug(f"Ignored exception: {_e}")
-
+            name = _silo_import_name(package)
+            subprocess.run([str(exe), "-I", "-c", "import importlib,sys; importlib.import_module(sys.argv[1])", name],
+                           env=isolated_environment(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=30, check=True)
+            verified.append(package)
+        except (OSError, subprocess.SubprocessError, SiloProvisioningError):
+            continue
     return verified
 
 
@@ -1127,139 +1090,42 @@ def provision_micro_silo(
     dm: Optional[DependencyManager] = None,
     dry_run: bool = False,
 ) -> SiloAuditItem:
-    """
-    Provision an isolated Python virtual environment micro-silo and inject stack/memory flags.
-    Strictly zero-mock with idempotent validation of existing environments.
-    """
+    """Provision and verify an isolated, exactly pinned environment before use."""
+    from cochem_base.orchestrator.micro_silo_manager import (
+        MicroSiloValidationError, provision_isolated_silo,
+    )
+
     silo_path = Path(silo_config.target_path).resolve()
-    now_utc = datetime.now(timezone.utc).isoformat()
-
-    # 1. If unrequested, mark as BYPASSED
-    if not silo_config.is_requested:
-        return SiloAuditItem(
-            name=silo_config.name,
-            silo_type=silo_config.silo_type,
-            path=str(silo_path),
-            python_executable=None,
-            python_version=None,
-            status=SiloStatus.BYPASSED,
-            is_available=False,
-            is_heavy=silo_config.is_heavy,
-            stack_flags_injected=[],
-            env_vars_injected={},
-            error_detail=None,
-            packages_verified=[],
-            created_at=None,
-        )
-
-    # 2. Dry-run mode for testing / preview
-    if dry_run:
-        exe_path = get_silo_executable_path(silo_path)
-        return SiloAuditItem(
-            name=silo_config.name,
-            silo_type=silo_config.silo_type,
-            path=str(silo_path),
-            python_executable=str(exe_path),
-            python_version=silo_config.python_version,
-            status=SiloStatus.PROVISIONED,
-            is_available=True,
-            is_heavy=silo_config.is_heavy,
-            stack_flags_injected=silo_config.stack_flags,
-            env_vars_injected=silo_config.env_vars,
-            error_detail=None,
-            packages_verified=silo_config.packages,
-            created_at=now_utc,
-        )
-
-    # 3. Idempotent check for existing valid venv
-    cfg_path = silo_path / "pyvenv.cfg"
     exe_path = get_silo_executable_path(silo_path)
-
-    if cfg_path.exists() and exe_path.exists():
-        # Validate existing environment and reinject flags
-        inject_silo_stack_and_env_flags(silo_path, silo_config.stack_flags, silo_config.env_vars)
-        real_ver = interrogate_silo_python_version(silo_path) or silo_config.python_version
-        verified_pkgs = verify_silo_packages(silo_path, silo_config.packages)
+    common = dict(name=silo_config.name, silo_type=silo_config.silo_type,
+                  path=str(silo_path), is_heavy=silo_config.is_heavy)
+    if not silo_config.is_requested:
+        return SiloAuditItem(**common, status=SiloStatus.BYPASSED, is_available=False)
+    if dry_run:
         return SiloAuditItem(
-            name=silo_config.name,
-            silo_type=silo_config.silo_type,
-            path=str(silo_path),
-            python_executable=str(exe_path),
-            python_version=real_ver,
-            status=SiloStatus.EXISTS_VALID,
-            is_available=True,
-            is_heavy=silo_config.is_heavy,
-            stack_flags_injected=silo_config.stack_flags,
-            env_vars_injected=silo_config.env_vars,
-            error_detail=None,
-            packages_verified=verified_pkgs,
-            created_at=now_utc,
+            **common, status=SiloStatus.MISSING, is_available=False,
+            error_detail="Preview only: interpreter and package availability have not been verified",
         )
 
-    # 4. Provision fresh venv
-    if dm is not None:
-        dm.track_temp_dir(silo_path)
-
+    existed = exe_path.exists()
     try:
-        silo_path.parent.mkdir(parents=True, exist_ok=True)
-        # Use Python standard library venv builder
-        venv.create(
-            env_dir=silo_path,
-            system_site_packages=False,
-            clear=True,
-            symlinks=(platform.system() != "Windows"),
-            with_pip=False,
+        imports = [_silo_import_name(package) for package in silo_config.packages]
+        evidence = provision_isolated_silo(
+            silo_path, python_version=silo_config.python_version,
+            requirements=silo_config.pip_packages, imports=imports,
         )
-
-        if not exe_path.exists():
-            raise SiloProvisioningError(
-                f"Virtual environment created at {silo_path} but python executable not found at {exe_path}"
-            )
-
-        # Inject stack and memory flags
         inject_silo_stack_and_env_flags(silo_path, silo_config.stack_flags, silo_config.env_vars)
-
-        # Untrack from rollback since provisioning succeeded
-        if dm is not None:
-            dm.untrack_dir(silo_path)
-
-        real_ver = interrogate_silo_python_version(silo_path) or silo_config.python_version
-        verified_pkgs = verify_silo_packages(silo_path, silo_config.packages)
-
         return SiloAuditItem(
-            name=silo_config.name,
-            silo_type=silo_config.silo_type,
-            path=str(silo_path),
-            python_executable=str(exe_path),
-            python_version=real_ver,
-            status=SiloStatus.PROVISIONED,
-            is_available=True,
-            is_heavy=silo_config.is_heavy,
-            stack_flags_injected=silo_config.stack_flags,
-            env_vars_injected=silo_config.env_vars,
-            error_detail=None,
-            packages_verified=verified_pkgs,
-            created_at=now_utc,
+            **common, python_executable=str(exe_path), python_version=evidence["python_version"],
+            status=SiloStatus.EXISTS_VALID if existed else SiloStatus.PROVISIONED,
+            is_available=True, stack_flags_injected=silo_config.stack_flags,
+            env_vars_injected=silo_config.env_vars, packages_verified=silo_config.packages,
+            created_at=datetime.now(timezone.utc).isoformat(),
         )
-
-    except Exception as exc:
-        if dm is not None:
-            dm.rollback()
-        return SiloAuditItem(
-            name=silo_config.name,
-            silo_type=silo_config.silo_type,
-            path=str(silo_path),
-            python_executable=None,
-            python_version=None,
-            status=SiloStatus.ERROR,
-            is_available=False,
-            is_heavy=silo_config.is_heavy,
-            stack_flags_injected=[],
-            env_vars_injected={},
-            error_detail=str(exc),
-            packages_verified=[],
-            created_at=None,
-        )
+    except (Exception, MicroSiloValidationError) as exc:
+        # Keep failed installs for inspection. Never roll back unrelated silos.
+        return SiloAuditItem(**common, status=SiloStatus.ERROR, is_available=False,
+                             error_detail=str(exc))
 
 
 def audit_micro_silos(
@@ -1327,11 +1193,14 @@ def run_phase_4_audit(
         )
 
     # 2. Python Version Enforcement & Dynamic Version Walking
-    is_ver_compliant, ver_msg = enforce_python_version()
+    is_ver_compliant, ver_msg = enforce_python_version(target_version="3.12")
     if not is_ver_compliant:
         warnings.append(ver_msg)
 
-    version_walking = execute_dynamic_version_walking()
+    version_walking = execute_dynamic_version_walking(target_version="3.12", version_chain=["3.12"])
+
+    if version_walking.status != "PASSED":
+        errors.append("No compatible Python interpreter was verified")
 
     # 3. Mendeleev Authority Hook
     mendeleev_record = verify_mendeleev_authority()
@@ -1356,7 +1225,10 @@ def run_phase_4_audit(
 
     # 6. Evaluate Overall Phase Status
     core_silo = silos.get(SiloType.CORE.value)
-    if not core_silo or core_silo.status == SiloStatus.ERROR or not core_silo.is_available:
+    if dry_run:
+        warnings.append("Preview only: no silo installation or availability has been verified")
+        status = PhaseStatus.DEGRADED
+    elif not core_silo or core_silo.status == SiloStatus.ERROR or not core_silo.is_available:
         errors.append("Mandatory cochem_core_silo failed to provision")
         status = PhaseStatus.FAILED
     elif errors:
@@ -1454,7 +1326,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
 
         if args.json:
-            logger.info(report.model_dump_json(indent=2))
+            print(report.model_dump_json(indent=2))
         else:
             logger.info("=" * 75)
             logger.info("COCHEM SETUP PHASE 4: DYNAMIC SILO GENERATION & DEPENDENCY ISOLATION")

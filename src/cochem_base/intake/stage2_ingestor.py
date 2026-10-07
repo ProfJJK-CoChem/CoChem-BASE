@@ -25,6 +25,7 @@ import sys
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
+from cochem_base.intake.conformer_deduplication import are_duplicate_conformers
 from pydantic import BaseModel, ConfigDict, Field
 
 # Ensure parent directory and module path resolution
@@ -354,7 +355,14 @@ class Stage2PreFilter:
         energy_rej = 0
         dup_rej = 0
 
-        for i in range(n_confs):
+        if energies_kcal is not None:
+            if len(energies_kcal) != n_confs or not np.all(np.isfinite(energies_kcal)):
+                raise ValueError("Energies must be finite and match the conformer count")
+            order = sorted(range(n_confs), key=lambda index: (energies_kcal[index], index))
+        else:
+            order = range(n_confs)
+
+        for i in order:
             c_coords = np.asarray(conformers[i], dtype=np.float64)
             c_syms = symbols_list[i]
             c_name = conf_names[i]
@@ -384,20 +392,16 @@ class Stage2PreFilter:
             # Pairwise rapid RMSD duplicate pre-sieve against already accepted geometries
             is_dup = False
             for prev_idx, prev_coords in enumerate(passed_coords):
-                align_res = self.aligner.align(
-                    target_coords=c_coords,
-                    ref_coords=prev_coords,
-                    symbols=c_syms,
-                    ref_symbols=passed_symbols[prev_idx],
-                    allow_permutation=True,
-                )
-                if align_res.rmsd < self.config.rmsd_threshold:
+                if are_duplicate_conformers(
+                    c_coords, c_syms, prev_coords, passed_symbols[prev_idx],
+                    rmsd_threshold=self.config.rmsd_threshold,
+                ):
                     is_dup = True
                     dup_rec = PreFilterRecord(
                         conformer_index=i,
                         conformer_name=c_name,
                         verdict=PreFilterVerdict.DUPLICATE_FILTERED,
-                        details=f"Conformer redundant with accepted {passed_names[prev_idx]} (RMSD={align_res.rmsd:.4f} A < {self.config.rmsd_threshold:.4f} A)",
+                        details=f"Conformer redundant with {passed_names[prev_idx]} under graph, RMSD, and rotational constant gates",
                         min_observed_distance=rec.min_observed_distance,
                         num_clashes=0,
                         passed=False,

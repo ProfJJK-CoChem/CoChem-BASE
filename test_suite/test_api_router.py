@@ -18,8 +18,11 @@ Validates:
 from __future__ import annotations
 
 import ast
+import inspect
 import json
 import os
+import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -27,7 +30,7 @@ from typing import Any, Dict, List, Optional
 import pytest
 from tenacity import RetryError
 
-from cochem_core.ai.api_router import (
+from cochem_base.cochem_core.ai.api_router import (
     AIAPIRouter,
     ApiRouterConfig,
     GeminiApiRouter,
@@ -44,7 +47,7 @@ from cochem_core.ai.api_router import (
     is_transient_api_error,
     truncate_prompt_by_priority,
 )
-from cochem_core.ai.inference_engine import DryRunEngine, EngineResponse
+from cochem_base.cochem_core.ai.inference_engine import DryRunEngine, EngineResponse
 
 
 # =============================================================================
@@ -181,12 +184,20 @@ def test_estimate_tokens_heuristic_positive_integers() -> None:
     assert 40 <= est_paragraph <= 120
 
 
-def test_count_tokens_offline_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verifies that count_tokens falls back gracefully to heuristic estimation when unconfigured."""
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    monkeypatch.delenv("COCHEM_AI_API_KEY", raising=False)
+def _run_offline_router_process(case: str) -> None:
+    environment = {name: value for name, value in os.environ.items()
+                   if name not in {"GEMINI_API_KEY", "GOOGLE_API_KEY", "COCHEM_AI_API_KEY"}}
+    completed = subprocess.run([sys.executable, str(Path(__file__).resolve()), case], env=environment,
+                               capture_output=True, text=True, timeout=30)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
 
+
+def test_count_tokens_offline_fallback() -> None:
+    _run_offline_router_process("offline_tokens")
+
+
+def _exercise_offline_tokens() -> None:
+    """Verifies that count_tokens falls back gracefully to heuristic estimation when unconfigured."""
     text = "Molecular geometry optimization converged in 14 cycles."
     tokens = count_tokens(text)
     assert isinstance(tokens, int)
@@ -495,15 +506,15 @@ def test_ai_api_router_initialization_and_compatibility() -> None:
     assert issubclass(GeminiApiRouter, AIAPIRouter)
 
 
-def test_ai_api_router_unconfigured_falls_back_to_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ai_api_router_unconfigured_falls_back_to_dry_run() -> None:
+    _run_offline_router_process("unconfigured")
+
+
+def _exercise_unconfigured_router() -> None:
     """
     Verifies that when GEMINI_API_KEY is unconfigured, AIAPIRouter automatically falls back
     to Tier 3 DryRunEngine, returning a valid, publication-ready EngineResponse.
     """
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    monkeypatch.delenv("COCHEM_AI_API_KEY", raising=False)
-
     router = AIAPIRouter()
     assert router.is_available() is False
 
@@ -550,10 +561,12 @@ def test_ai_api_router_unresponsive_endpoint_falls_back_to_dry_run() -> None:
     assert response.metadata["router_fallback"] is True
 
 
-def test_ai_api_router_generate_with_priority_sections(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verifies that passing a sequence of PromptSection models to router.generate handles truncation."""
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+def test_ai_api_router_generate_with_priority_sections() -> None:
+    _run_offline_router_process("priority_sections")
 
+
+def _exercise_priority_sections() -> None:
+    """Verifies that passing a sequence of PromptSection models to router.generate handles truncation."""
     router = AIAPIRouter(config=ApiRouterConfig(max_prompt_tokens=50))
 
     sections = [
@@ -586,7 +599,7 @@ def test_ast_zero_mock_mandate_api_router_source() -> None:
     AST Code Quality Audit:
     Enforces that test double libraries are strictly absent from cochem_core/ai/api_router.py.
     """
-    source_file = Path(__file__).resolve().parent.parent / "cochem_core" / "ai" / "api_router.py"
+    source_file = Path(inspect.getfile(AIAPIRouter))
     assert source_file.exists(), f"Target source file {source_file} must exist."
 
     source_code = source_file.read_text(encoding="utf-8")
@@ -626,7 +639,7 @@ def test_ast_prohibited_token_library_absence() -> None:
     AST Code Quality Audit:
     Enforces that external prohibited tokenizer library is strictly absent from both files.
     """
-    api_router_file = Path(__file__).resolve().parent.parent / "cochem_core" / "ai" / "api_router.py"
+    api_router_file = Path(inspect.getfile(AIAPIRouter))
     test_file = Path(__file__).resolve()
 
     banned_token_lib = "tik" + "token"
@@ -641,7 +654,7 @@ def test_ast_no_except_memory_error_in_api_router() -> None:
     AST Code Quality Audit:
     Enforces that 'except MemoryError' is strictly absent from api_router.py.
     """
-    source_file = Path(__file__).resolve().parent.parent / "cochem_core" / "ai" / "api_router.py"
+    source_file = Path(inspect.getfile(AIAPIRouter))
     source_code = source_file.read_text(encoding="utf-8")
     tree = ast.parse(source_code, filename=str(source_file))
 
@@ -658,3 +671,10 @@ def test_ast_no_except_memory_error_in_api_router() -> None:
                             pytest.fail(
                                 f"Found prohibited 'except (... MemoryError ...)' at line {node.lineno} in {source_file}."
                             )
+
+
+if __name__ == "__main__":
+    offline_cases = {"offline_tokens": _exercise_offline_tokens,
+                     "unconfigured": _exercise_unconfigured_router,
+                     "priority_sections": _exercise_priority_sections}
+    offline_cases[sys.argv[1]]()

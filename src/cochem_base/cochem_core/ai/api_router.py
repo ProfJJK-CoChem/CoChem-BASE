@@ -52,7 +52,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from cochem_core.ai.inference_engine import (
+from .inference_engine import (
     DEFAULT_CONTEXT_WINDOW,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,

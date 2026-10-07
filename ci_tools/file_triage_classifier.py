@@ -303,6 +303,9 @@ def print_summary(summary: dict) -> None:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="NFTP Phase 1: Deterministic File Classifier")
     parser.add_argument("--target", required=True, help="Root directory to classify")
     parser.add_argument("--output", default=None, help="Output directory for manifests")

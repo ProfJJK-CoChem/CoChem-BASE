@@ -13,6 +13,8 @@ import json
 import os
 import pathlib
 import socket
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -37,11 +39,23 @@ from cochem.core.ipc.serializer import (
 )
 
 
-def test_hmac_socket_port_contention_recovery(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _run_scratch_process(case: str, root: pathlib.Path, directory_name: str) -> None:
+    scratch = root / directory_name
+    scratch.mkdir(parents=True, exist_ok=True)
+    completed = subprocess.run([sys.executable, str(pathlib.Path(__file__).resolve()), case, str(root)],
+        env={**os.environ, "COCHEM_SCRATCH_DIR": str(scratch.resolve())},
+        capture_output=True, text=True, timeout=60)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_hmac_socket_port_contention_recovery(tmp_path: pathlib.Path) -> None:
+    _run_scratch_process("hmac", tmp_path, "scratch_ipc")
+
+
+def _exercise_hmac_socket_port_contention(tmp_path: pathlib.Path) -> None:
     """Validate dynamic loopback port contention recovery and atomic descriptor publishing (Suggestion #41)."""
     scratch_dir = tmp_path / "scratch_ipc"
     scratch_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_SCRATCH_DIR", str(scratch_dir.resolve()))
 
     # 1. Bind a genuine holding socket to an ephemeral port to create guaranteed contention
     holding_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -99,11 +113,14 @@ def test_hmac_socket_port_contention_recovery(tmp_path: pathlib.Path, monkeypatc
         holding_sock.close()
 
 
-def test_sandbox_context_thread_safety_and_no_atexit_leak(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sandbox_context_thread_safety_and_no_atexit_leak(tmp_path: pathlib.Path) -> None:
+    _run_scratch_process("sandbox", tmp_path, "sandbox_scratch")
+
+
+def _exercise_sandbox_context_thread_safety(tmp_path: pathlib.Path) -> None:
     """Validate that sandboxes in worker threads bypass signal traps and do not leak atexit handlers (Suggestion #42)."""
     scratch_dir = tmp_path / "sandbox_scratch"
     scratch_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_SCRATCH_DIR", str(scratch_dir.resolve()))
 
     # 1. Background worker thread entering SandboxContext must NOT raise ValueError (signal only in main thread)
     worker_error: List[Exception] = []
@@ -209,11 +226,14 @@ def test_memory_guard_scf_plateau_detection() -> None:
     assert dispatched == "cpu"
 
 
-def test_stage0_facade_and_swmr_hdf5_concurrency(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_stage0_facade_and_swmr_hdf5_concurrency(tmp_path: pathlib.Path) -> None:
+    _run_scratch_process("swmr", tmp_path, "scratch_swmr")
+
+
+def _exercise_stage0_facade_and_swmr_concurrency(tmp_path: pathlib.Path) -> None:
     """Validate stage-0 facade imports and Single-Writer-Multiple-Reader (SWMR) HDF5 concurrency (Suggestion #45)."""
     scratch_dir = tmp_path / "scratch_swmr"
     scratch_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_SCRATCH_DIR", str(scratch_dir.resolve()))
 
     # 1. Assert clean stage-0 facade imports
     from cochem_base.core import (
@@ -303,3 +323,10 @@ def test_stage0_facade_and_swmr_hdf5_concurrency(tmp_path: pathlib.Path, monkeyp
     final_data = mgr.read_swmr_dataset("coordinates")
     assert final_data.shape == (101, 3)
     assert final_data[-1, 0] == 100.0
+
+
+if __name__ == "__main__":
+    cases = {"hmac": _exercise_hmac_socket_port_contention,
+             "sandbox": _exercise_sandbox_context_thread_safety,
+             "swmr": _exercise_stage0_facade_and_swmr_concurrency}
+    cases[sys.argv[1]](pathlib.Path(sys.argv[2]))

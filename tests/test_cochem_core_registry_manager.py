@@ -107,7 +107,7 @@ def test_atomic_file_lock_clean_lifecycle(tmp_path: Path) -> None:
     """Test standard atomic lock acquisition, context manager entry, and cleanup on exit."""
     lock_file = tmp_path / "resource.lock"
 
-    assert not lock_file.exists()
+    assert not lock_file.exists()  # File is created on first acquisition.
     with AtomicFileLock(lock_file, timeout=2.0) as lock:
         assert lock_file.exists()
         assert lock._is_locked is True
@@ -115,7 +115,7 @@ def test_atomic_file_lock_clean_lifecycle(tmp_path: Path) -> None:
         content = lock_file.read_text(encoding="utf-8")
         assert f"{os.getpid()}:" in content
 
-    assert not lock_file.exists()
+    assert lock_file.exists()  # Preserve the inode shared by all lock waiters.
     assert lock._is_locked is False
 
 
@@ -133,7 +133,7 @@ def test_atomic_file_lock_reentrancy_same_thread(tmp_path: Path) -> None:
                 assert lock_file.exists()
             assert lock_file.exists()
         assert lock_file.exists()
-    assert not lock_file.exists()
+    assert lock_file.exists()  # Preserve the inode shared by all lock waiters.
 
     # Separate instances targeting same path on same thread
     l1 = AtomicFileLock(lock_file, timeout=2.0)
@@ -143,7 +143,7 @@ def test_atomic_file_lock_reentrancy_same_thread(tmp_path: Path) -> None:
         with l2:
             assert lock_file.exists()
         assert lock_file.exists()
-    assert not lock_file.exists()
+    assert lock_file.exists()  # Preserve the inode shared by all lock waiters.
 
 
 def test_atomic_file_lock_contention_and_timeout(tmp_path: Path) -> None:
@@ -173,7 +173,7 @@ def test_atomic_file_lock_contention_and_timeout(tmp_path: Path) -> None:
 
     # Release first lock, new thread should now succeed
     lock1.release()
-    assert not lock_file.exists()
+    assert lock_file.exists()  # Preserve the inode shared by all lock waiters.
 
     lock3 = AtomicFileLock(lock_file, timeout=1.0)
     assert lock3.acquire() is True
@@ -181,7 +181,7 @@ def test_atomic_file_lock_contention_and_timeout(tmp_path: Path) -> None:
 
 
 def test_atomic_file_lock_stale_lock_auto_reaping(tmp_path: Path) -> None:
-    """Verify stale lock files older than stale_timeout are automatically reaped."""
+    """Verify unowned persistent lock files are immediately reusable."""
     lock_file = tmp_path / "stale.lock"
     lock_file.write_text("99999:000:0\n", encoding="utf-8")
 
@@ -194,7 +194,7 @@ def test_atomic_file_lock_stale_lock_auto_reaping(tmp_path: Path) -> None:
     assert lock.acquire() is True
     assert lock_file.exists()
     lock.release()
-    assert not lock_file.exists()
+    assert lock_file.exists()  # Preserve the inode shared by all lock waiters.
 
 
 # =============================================================================
@@ -216,8 +216,7 @@ def test_atomic_write_json_clean_execution(tmp_path: Path) -> None:
 
     # Verify no tmp files in directory
     files_in_dir = list(tmp_path.iterdir())
-    assert len(files_in_dir) == 1
-    assert files_in_dir[0] == out_file
+    assert {p.name for p in files_in_dir} == {out_file.name, out_file.name + ".lock"}
 
     # Verify JSON content
     read_data = json.loads(out_file.read_text(encoding="utf-8"))

@@ -13,7 +13,11 @@ Validates Suggestion #66:
 
 from __future__ import annotations
 
+import json
 import logging
+import math
+import re
+import shlex
 import os
 import subprocess
 import sys
@@ -24,11 +28,20 @@ from typing import Any, Dict, List, Optional, Union
 
 from cochem.concurrency.subprocess_broker import SubprocessBroker
 from cochem_base.config_loader import (
-    load_system_config_dict,
-    resolve_config_path,
     resolve_executable,
 )
 from cochem_base.schemas import ExecutionRouteResult, JobRouteConfig
+from cochem.core.context import AirGapViolationError, assert_writable_path
+from cochem_base.orchestrator.cochem_system_config import (
+    CoChemSystemConfig, resolve_golden_registry_path,
+)
+from filelock import FileLock
+
+
+from cochem_base.core_engine.execution_authority import (
+    RegistryAuthorityViolationError, authorize_engine_execution,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,43 +68,59 @@ class ExecutionRouter:
         dfk: Optional[Any] = None,
     ) -> None:
         """Initializes the router with Golden Registry and optional Parsl broker/DFK."""
-        if registry_path:
-            self.registry_path = resolve_config_path(Path(registry_path))
-        else:
-            self.registry_path = resolve_config_path()
-
+        self.registry_path = resolve_golden_registry_path(registry_path)
         self.registry = self._load_registry()
         self.broker = broker
         self.dfk = dfk
 
     def _load_registry(self) -> Dict[str, Any]:
-        """Reads the hardware and routing rules."""
+        """Reject missing or invalid authority instead of guessing machine limits."""
         try:
-            return load_system_config_dict(self.registry_path)
-        except Exception as e:
-            logger.error(f"Failed to parse registry at {self.registry_path}: {e}. Defaulting to safe fallback.")
-            return {"execution": {"default_engine": "subprocess"}, "engines": {}}
+            with FileLock(str(self.registry_path) + ".lock", timeout=10.0):
+                raw = json.loads(self.registry_path.read_text(encoding="utf-8"))
+            hardware = raw.get("hardware") if isinstance(raw, dict) else None
+            required = {"physical_cpu_cores", "logical_cpu_cores", "ram_gb"}
+            if not isinstance(hardware, dict) or not required <= hardware.keys():
+                raise ValueError("Registry must contain audited physical_cpu_cores, logical_cpu_cores and ram_gb")
+            if any(isinstance(hardware[k], bool) or not math.isfinite(float(hardware[k])) or float(hardware[k]) <= 0 for k in required):
+                raise ValueError("Audited hardware bounds must be finite and positive")
+            if any(not isinstance(hardware[k], int) for k in ("physical_cpu_cores", "logical_cpu_cores")):
+                raise ValueError("Audited CPU counts must be integers")
+            if hardware["physical_cpu_cores"] > hardware["logical_cpu_cores"]:
+                raise ValueError("Physical CPU cores cannot exceed logical CPU cores")
+            cfg = CoChemSystemConfig.model_validate(raw)
+            if cfg.registry_checksum and not cfg.verify_checksum():
+                raise ValueError("Golden Registry checksum mismatch")
+            return cfg.model_dump(mode="json")
+        except (OSError, ValueError, TypeError) as exc:
+            raise RegistryAuthorityViolationError(f"Invalid Golden Registry at {self.registry_path}: {exc}") from exc
 
     def resolve_execution_path(self, target_engine: str) -> str:
-        """Determines the path for the incoming computational payload."""
-        exec_config = self.registry.get("execution") or {}
-        engines_config = self.registry.get("engines") or {}
+        """Resolve only engines explicitly recorded as available by Stage 0."""
+        engine = (self.registry.get("engines") or {}).get(target_engine)
+        if not isinstance(engine, dict) or engine.get("status") not in ("ready", "found", "AVAILABLE"):
+            raise RegistryAuthorityViolationError(f"Engine {target_engine!r} is not ready in the Golden Registry")
+        return str((self.registry.get("execution") or {}).get("default_engine", "subprocess"))
 
-        default_path = exec_config.get("default_engine", "subprocess")
+    @staticmethod
+    def _scratch_root(path: Union[str, Path]) -> Path:
+        root = Path(path).resolve()
+        assert_writable_path(root)
+        checkout = Path(__file__).resolve().parents[3]
+        if (checkout / "pyproject.toml").is_file() and root.is_relative_to(checkout):
+            raise AirGapViolationError(f"Calculation scratch must be outside the source checkout: {root}")
+        root.mkdir(parents=True, exist_ok=True)
+        return root
 
-        if target_engine in engines_config:
-            engine_info = engines_config[target_engine]
-            engine_status = (
-                engine_info.get("status", "unknown")
-                if isinstance(engine_info, dict)
-                else getattr(engine_info, "status", "unknown")
-            )
-            if engine_status not in ("ready", "found"):
-                logger.warning(f"Engine '{target_engine}' status is '{engine_status}'. Proceeding with caution.")
-        else:
-            logger.warning(f"Engine '{target_engine}' not found in registry. Using default path.")
-
-        return str(default_path)
+    @staticmethod
+    def _command(command: Union[str, List[str], None]) -> List[str]:
+        if isinstance(command, str):
+            command = shlex.split(command, posix=sys.platform != "win32")
+            if sys.platform == "win32":
+                command = [part[1:-1] if len(part) >= 2 and part[0] == part[-1] == '"' else part for part in command]
+        if not command or not isinstance(command, (list, tuple)) or any(not isinstance(part, str) or not part or "\0" in part for part in command):
+            raise ValueError("An explicit nonempty executable argument list is required")
+        return list(command)
 
     def route_job(
         self,
@@ -112,6 +141,18 @@ class ExecutionRouter:
         Primary execution dispatch entrypoint conforming to Method Matrix §8A.2, §8A.6.
         Dispatches computational jobs to Parsl heterogeneous pools with sandbox isolation.
         """
+        cmd = self._command(payload_command if payload_command is not None else kwargs.get("command"))
+        execution_mode = (self.registry.get("execution") or {}).get("default_engine", "subprocess")
+        if execution_mode not in ("subprocess", "local", "parsl"):
+            raise ValueError(f"Unsupported route mode {execution_mode!r}; use the explicit scheduler submission API")
+        known_job_types = {"heavy_qm_opt", "fast_potential_scan", "single_point", "frequency"}
+        if target_engine_or_type is not None and target_engine_or_type not in known_job_types:
+            self.resolve_execution_path(target_engine_or_type)
+            authorize_engine_execution(
+                target_engine_or_type, registry_path=self.registry_path, command=cmd,
+                cores=len(cpu_core_pinning or route_config.cpu_core_pinning)
+                if (cpu_core_pinning or (route_config and route_config.cpu_core_pinning)) else None,
+            )
         # Determine job type
         effective_job_type = job_type
         if effective_job_type is None and target_engine_or_type is not None:
@@ -134,8 +175,8 @@ class ExecutionRouter:
             or os.environ.get("SLURM_TMPDIR")
             or os.environ.get("TEMP")
         )
-        base_scratch = Path(scratch_dir or cwd or scratch_env or tempfile.gettempdir()).resolve()
-        base_scratch.mkdir(parents=True, exist_ok=True)
+        config_scratch = route_config.scratch_dir if route_config is not None else None
+        base_scratch = self._scratch_root(scratch_dir or config_scratch or cwd or scratch_env or tempfile.gettempdir())
 
         task_id = uuid.uuid4().hex
         task_scratch = base_scratch / f"task_{task_id}"
@@ -158,6 +199,13 @@ class ExecutionRouter:
                 timeout_seconds=timeout,
             )
 
+        if route_config.job_type != effective_job_type and (job_type is not None or target_engine_or_type is not None):
+            raise ValueError("route_config.job_type conflicts with the requested job type")
+        if route_config.cpu_core_pinning:
+            pins = route_config.cpu_core_pinning
+            logical = self.registry["hardware"]["logical_cpu_cores"]
+            if len(set(pins)) != len(pins) or any(isinstance(p, bool) or p < 0 or p >= logical for p in pins):
+                raise ValueError("CPU pinning must contain distinct indices within audited logical CPU bounds")
         # Environment configuration and CPU core pinning
         task_env = os.environ.copy()
         if env:
@@ -172,14 +220,23 @@ class ExecutionRouter:
             else:
                 task_env.setdefault("OMP_NUM_THREADS", "1")
 
-        # Command determination
-        cmd = payload_command or kwargs.get("command") or [sys.executable, "-c", "print('cochem-task-complete')"]
+        if target_engine_or_type is not None and target_engine_or_type not in known_job_types:
+            from cochem_base.core_engine.engine_environment import engine_runtime_environment
+            task_env = engine_runtime_environment(target_engine_or_type, task_env, executable=cmd[0])
 
-        # Check if active Parsl DFK exists
-        active_dfk = self.dfk
-        if active_dfk is None and self.broker is not None and hasattr(self.broker, "get_dfk"):
+        # Command determination
+        # cmd has already been validated before creating any task directories.
+
+        expected_pool = "cochem_scout_gpu" if route_config.job_type == "fast_potential_scan" else "cochem_anchor_cpu"
+        if route_config.assigned_executor != expected_pool and not (execution_mode in ("local", "subprocess") and route_config.assigned_executor == "local_fallback"):
+            raise ValueError(f"Job type {route_config.job_type!r} requires {expected_pool!r}")
+        if execution_mode in ("local", "subprocess") and (self.dfk is not None or self.broker is not None):
+            raise RegistryAuthorityViolationError("A Parsl kernel/broker conflicts with the registry's local execution mode")
+        # Probe Parsl only when the authoritative registry requires it.
+        active_dfk = self.dfk if execution_mode == "parsl" else None
+        if execution_mode == "parsl" and active_dfk is None and self.broker is not None and hasattr(self.broker, "get_dfk"):
             active_dfk = self.broker.get_dfk()
-        if active_dfk is None and HAS_PARSL:
+        if execution_mode == "parsl" and active_dfk is None and HAS_PARSL:
             try:
                 active_dfk = parsl.dfk()
             except Exception:
@@ -188,17 +245,18 @@ class ExecutionRouter:
         if active_dfk is not None:
             executors_in_dfk = list(active_dfk.executors.keys())
             target_executor = route_config.assigned_executor
-            if target_executor not in executors_in_dfk and len(executors_in_dfk) > 0:
-                logger.warning(
-                    f"Executor '{target_executor}' not found in Parsl DFK executors {executors_in_dfk}. Routing to '{executors_in_dfk[0]}'"
-                )
-                target_executor = executors_in_dfk[0]
+            if not HAS_PARSL:
+                raise RuntimeError("Parsl is required for the supplied data-flow kernel")
+            if target_executor not in executors_in_dfk:
+                raise RegistryAuthorityViolationError(f"Requested executor {target_executor!r} is absent; refusing a different hardware pool")
 
-            @python_app(executors=[target_executor])
+            @python_app(data_flow_kernel=active_dfk, executors=[target_executor])
             def _parsl_task_runner(cmd_to_run: Union[str, List[str]], work_dir: str, env_vars: Dict[str, str], t_sec: float) -> int:
                 from cochem.concurrency.subprocess_broker import SubprocessBroker
-                b = SubprocessBroker(cwd=work_dir, env=env_vars, timeout_seconds=t_sec)
-                r = b.execute(cmd_to_run)
+                b = SubprocessBroker(cwd=work_dir, base_scratch_dir=work_dir, env=env_vars, timeout_seconds=t_sec, max_retries=1)
+                r = b.execute(cmd_to_run, cwd=work_dir)
+                if not r.success:
+                    raise RuntimeError(f"Computational task failed with exit {r.returncode}: {r.stderr}")
                 return r.returncode
 
             future = _parsl_task_runner(cmd, str(task_scratch), task_env, route_config.timeout_seconds)
@@ -212,12 +270,14 @@ class ExecutionRouter:
                 output=None,
             )
         else:
-            # Fallback to direct SubprocessBroker execution in scratch sandbox
-            broker = SubprocessBroker(cwd=task_scratch, env=task_env, timeout_seconds=route_config.timeout_seconds)
-            res = broker.execute(cmd)
+            if execution_mode == "parsl":
+                raise RegistryAuthorityViolationError("Registry requires Parsl, but no active data-flow kernel is available")
+            # Explicit local execution in an isolated scratch sandbox.
+            broker = SubprocessBroker(cwd=task_scratch, base_scratch_dir=task_scratch, env=task_env, timeout_seconds=route_config.timeout_seconds, max_retries=1)
+            res = broker.execute(cmd, cwd=task_scratch)
             return ExecutionRouteResult(
                 task_id=task_id,
-                assigned_executor=route_config.assigned_executor,
+                assigned_executor="local_fallback",
                 scratch_dir=task_scratch,
                 status="COMPLETED" if res.success else "FAILED",
                 returncode=res.returncode,
@@ -238,67 +298,20 @@ class ExecutionRouter:
         routes execution through SubprocessBroker with stream redirection in Ring 2 scratch,
         and enforces Tripartite air-gap boundary rules.
         """
-        import shlex
-        import shutil
-
-        # Tripartite Air-Gap Resolution (Ring 2 Scratch)
-        scratch_root_env = (
-            os.environ.get("COCHEM_SCRATCH")
-            or os.environ.get("SLURM_TMPDIR")
-            or os.environ.get("TEMP")
-        )
-        base_scratch = Path(scratch_root_env or cwd or tempfile.gettempdir()).resolve()
-        base_scratch.mkdir(parents=True, exist_ok=True)
-
+        command = self._command(payload_command)
+        scratch_root = os.environ.get("COCHEM_SCRATCH") or os.environ.get("SLURM_TMPDIR") or cwd
+        base_scratch = self._scratch_root(scratch_root)
         task_id = uuid.uuid4().hex
         task_scratch = base_scratch / f"task_{task_id}"
-        task_scratch.mkdir(parents=True, exist_ok=True)
-
-        # Parse command into structured arguments without shell=True
-        posix_mode = (sys.platform != "win32")
-        if isinstance(payload_command, str):
-            cmd_args = shlex.split(payload_command, posix=posix_mode)
-            if not posix_mode:
-                cmd_args = [
-                    a[1:-1] if (len(a) >= 2 and a.startswith('"') and a.endswith('"')) else a
-                    for a in cmd_args
-                ]
-        else:
-            cmd_args = list(payload_command)
-
+        task_scratch.mkdir()
         merged_env = os.environ.copy()
         if env:
             merged_env.update(env)
-
-        # Stream isolation: stdout and stderr directed to explicit streams in Ring 2 scratch
-        stdout_path = task_scratch / f"task_{task_id}.out"
-        stderr_path = task_scratch / f"task_{task_id}.err"
-        flat_stdout = base_scratch / f"task_{task_id}.out"
-
-        try:
-            with open(stdout_path, "w", encoding="utf-8") as out_f, open(stderr_path, "w", encoding="utf-8") as err_f:
-                proc = subprocess.run(
-                    cmd_args,
-                    shell=False,
-                    cwd=str(task_scratch),
-                    env=merged_env,
-                    stdout=out_f,
-                    stderr=err_f,
-                    timeout=timeout,
-                    check=False,
-                )
-                try:
-                    if stdout_path.exists():
-                        shutil.copy2(stdout_path, flat_stdout)
-                except Exception:
-                    pass
-                return proc.returncode
-        except subprocess.TimeoutExpired:
-            logger.error(f"Local dispatch timed out after {timeout}s: {cmd_args}")
-            return -124
-        except Exception as e:
-            logger.error(f"Local dispatch failed: {e}")
-            return -1
+        broker = SubprocessBroker(cwd=task_scratch, base_scratch_dir=task_scratch, env=merged_env, timeout_seconds=timeout, max_retries=1)
+        result = broker.execute(command, cwd=task_scratch)
+        (task_scratch / f"task_{task_id}.out").write_text(result.stdout, encoding="utf-8")
+        (task_scratch / f"task_{task_id}.err").write_text(result.stderr, encoding="utf-8")
+        return result.returncode
 
     def _dispatch_hpc(
         self,
@@ -315,6 +328,10 @@ class ExecutionRouter:
         """
         from cochem_base.calc.slurm_generator import SlurmGenerator, SlurmSubmissionSpec
 
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", job_name):
+            raise ValueError("Job name must be a single safe filename component")
+        cwd = str(self._scratch_root(cwd))
+        command = shlex.join(self._command(payload_command))
         spec = SlurmSubmissionSpec(
             job_name=job_name,
             partition="standard",
@@ -328,7 +345,7 @@ class ExecutionRouter:
         generator = SlurmGenerator()
         rendered_script = generator.generate_submission_script(
             spec,
-            payload_command=payload_command,
+            payload_command=command,
         )
 
         target_sbatch = Path(cwd) / f"{job_name}_submit.sbatch"
@@ -372,6 +389,8 @@ def compute_counterpoise_interaction_energy(
     where E_AB^{AB} is complex energy, E_A^{AB} is monomer A with ghost B,
     and E_B^{AB} is monomer B with ghost A.
     """
+    if not all(math.isfinite(value) for value in (e_ab, e_a_ghost, e_b_ghost)):
+        raise ValueError("Counterpoise energies must be finite")
     return float(e_ab - e_a_ghost - e_b_ghost)
 
 
@@ -390,4 +409,3 @@ def validate_counterpoise_request(
             "[ERR_METHOD_MATRIX] Unconstrained counterpoise geometry optimization is strictly prohibited. "
             "Enforce Frozen-Monomer Protocol (Recipe R2) with Cartesian locking on Monomer A."
         )
-

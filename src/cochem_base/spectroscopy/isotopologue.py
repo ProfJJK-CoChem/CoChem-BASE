@@ -13,58 +13,77 @@ from __future__ import annotations
 
 import functools
 import math
-import re
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from mendeleev import element
+from scipy.constants import physical_constants, speed_of_light
 
-# Authoritative CODATA 2022 Rotational Constant Factor:
-# h / (8 * pi^2 * u * Angstrom^2) in MHz
-CODATA_PLANCK_H = 6.62607015e-34       # J * s
-CODATA_AMU_KG = 1.66053906892e-27       # kg
-CODATA_ANGSTROM_M = 1.0e-10             # m
-ROTATIONAL_CONSTANT_CONVERSION_MHZ = (
-    CODATA_PLANCK_H / (8.0 * (math.pi ** 2) * CODATA_AMU_KG * (CODATA_ANGSTROM_M ** 2))
-) * 1.0e-6  # ~505379.00878 MHz * amu * Angstrom^2
+from cochem_base.core.cochem_constants import C_ROT_MHZ_U_ANG2
+from cochem_base.physics.isotopes import get_isotope_mass, parse_nuclide_token
+from cochem_base.physics.nuclide_resolver import get_element
+
+# One conversion factor throughout the CoChem architecture.
+ROTATIONAL_CONSTANT_CONVERSION_MHZ = C_ROT_MHZ_U_ANG2
 
 
-@functools.lru_cache(maxsize=128)
+@functools.lru_cache(maxsize=128, typed=True)
 def get_nuclide_mass(symbol: str, mass_number: Optional[int] = None) -> float:
-    """Dynamically queries exact IUPAC nuclidic mass via mendeleev. [M]
+    """Resolve an exact nuclide mass; bare symbols select the most abundant isotope.
 
-    Zero hardcoded atomic masses: strictly obeys the Mendeleev Mandate.
+    An isotope is required for elements without a natural abundance. Atomic-weight
+    averages remain available through physics.isotopes.get_atomic_mass, but are
+    not appropriate for a single isotopologue's spectrum.
     """
-    clean_sym = symbol.strip()
+    clean_sym, parsed_number = parse_nuclide_token(symbol)
+    if mass_number is not None and parsed_number is not None and mass_number != parsed_number:
+        raise ValueError(f"Contradictory isotope specification: {symbol}, {mass_number}")
+    number = parsed_number if mass_number is None else mass_number
+    if number is None:
+        isotopes = [iso for iso in get_element(clean_sym).isotopes
+                    if iso.abundance is not None and iso.abundance > 0 and iso.mass is not None]
+        if not isotopes:
+            raise ValueError(f"An explicit isotope is required for {clean_sym}")
+        number = max(isotopes, key=lambda iso: (iso.abundance, -iso.mass_number)).mass_number
+    mass = get_isotope_mass(clean_sym, number)
+    if not math.isfinite(mass) or mass <= 0:
+        raise ValueError("Spectroscopic masses must be finite and strictly positive")
+    return mass
 
-    # Handle common abbreviations
-    if clean_sym.upper() == "D":
-        clean_sym = "H"
-        mass_number = 2
-    elif clean_sym.upper() == "T":
-        clean_sym = "H"
-        mass_number = 3
 
-    # Parse embedded isotope numbers like "13C", "18O", "2H"
-    m = re.match(r"^(\d+)?([A-Za-z]+)$", clean_sym)
-    if m:
-        iso_str, elem_str = m.groups()
-        if iso_str and mass_number is None:
-            mass_number = int(iso_str)
-        clean_sym = elem_str.capitalize()
+def projected_harmonic_frequencies(
+    hessian: np.ndarray, coordinates: np.ndarray, masses: np.ndarray,
+) -> Tuple[List[float], int]:
+    """Mass reweight a Cartesian Hessian in Eh/bohr² and remove rigid motion.
 
-    el = element(clean_sym)
-    if mass_number is None:
-        return float(el.mass)
-
-    for iso in el.isotopes:
-        if iso.mass_number == mass_number and iso.mass is not None:
-            return float(iso.mass)
-
-    raise ValueError(f"Isotope {clean_sym}-{mass_number} not found in IUPAC tables.")
+    SVD gives the orthogonal complement of the mass-weighted translation and
+    rotation vectors. Linear molecules have five rigid modes, nonlinear ones six,
+    and isolated atoms three. Negative frequencies denote imaginary modes; soft
+    or unstable vibrational modes are never discarded by an eigenvalue cutoff.
+    """
+    n_atoms = len(masses)
+    sqrt_mass = np.sqrt(masses)
+    centered = coordinates - np.average(coordinates, axis=0, weights=masses)
+    axes = np.eye(3)
+    translations = [np.tile(axis, (n_atoms, 1)) * sqrt_mass[:, None] for axis in axes]
+    rotations = [np.cross(axis, centered) * sqrt_mass[:, None] for axis in axes]
+    rigid = np.column_stack([vector.ravel() for vector in translations + rotations])
+    # Normalize nonzero columns so rank does not depend on translation/length units.
+    lengths = np.linalg.norm(rigid, axis=0)
+    rigid[:, lengths > 0] /= lengths[lengths > 0]
+    basis, singular_values, _ = np.linalg.svd(rigid, full_matrices=True)
+    rank = int(np.sum(singular_values > singular_values[0] * 1e-10))
+    vibrational = basis[:, rank:]
+    inverse_mass = np.repeat(1.0 / sqrt_mass, 3)
+    weighted = hessian * np.outer(inverse_mass, inverse_mass)
+    squared_frequencies = np.linalg.eigvalsh(vibrational.T @ weighted @ vibrational)
+    hartree = physical_constants["Hartree energy"][0]
+    bohr = physical_constants["Bohr radius"][0]
+    amu = physical_constants["atomic mass constant"][0]
+    conversion = math.sqrt(hartree / (amu * bohr ** 2)) / (2 * math.pi * speed_of_light * 100)
+    frequencies = np.sign(squared_frequencies) * np.sqrt(np.abs(squared_frequencies)) * conversion
+    return frequencies.tolist(), rank
 
 
 @dataclass
@@ -87,14 +106,14 @@ class IsotopologueResult:
     C_e_MHz: float
 
     # Vibrational corrections in MHz [D]
-    delta_A_vib_MHz: float = 0.0
-    delta_B_vib_MHz: float = 0.0
-    delta_C_vib_MHz: float = 0.0
+    delta_A_vib_MHz: Optional[float] = None
+    delta_B_vib_MHz: Optional[float] = None
+    delta_C_vib_MHz: Optional[float] = None
 
     # Physical Ground-State Effective Rotational Constants (Microwave Observable) in MHz [D]
-    A_0_MHz: float = 0.0
-    B_0_MHz: float = 0.0
-    C_0_MHz: float = 0.0
+    A_0_MHz: Optional[float] = None
+    B_0_MHz: Optional[float] = None
+    C_0_MHz: Optional[float] = None
 
     # Inertial defect Delta = I_c - I_a - I_b (amu * Angstrom^2) [D]
     inertial_defect_amu_A2: float = 0.0
@@ -102,10 +121,12 @@ class IsotopologueResult:
     # Harmonic normal mode frequencies in cm^-1 [M]
     harmonic_frequencies_cm1: List[float] = field(default_factory=list)
 
+    rigid_mode_count: int = 0
+    vibrational_correction_source: Optional[str] = None
     execution_walltime_ms: float = 0.0
     provenance_tags: Dict[str, str] = field(default_factory=lambda: {
         "A_e": "[M]", "B_e": "[M]", "C_e": "[M]",
-        "delta_B_vib": "[D]", "B_0": "[D]", "inertial_defect": "[D]",
+        "inertial_defect": "[D]",
         "masses": "[M]"
     })
 
@@ -114,8 +135,9 @@ class IsotopologueSpectroscopyEngine:
     """High-speed mass-weighted Hessian re-diagonalization engine. [M]
 
     Exploits electronic Hessian invariance to compute isotopologue rotational constants,
-    inertial defects, and vibrational corrections in milliseconds without recalculating
-    electronic structure.
+    inertial defects, and harmonic modes without recalculating electronic structure.
+    Ground-state rotational constants require independently calculated or measured
+    vibrational corrections; a harmonic Hessian alone cannot supply VPT2 corrections.
     """
 
     def __init__(
@@ -130,8 +152,20 @@ class IsotopologueSpectroscopyEngine:
             np.array(cartesian_hessian, dtype=np.float64) if cartesian_hessian is not None else None
         )
         self.num_atoms = len(self.symbols)
+        if self.num_atoms == 0:
+            raise ValueError("At least one atom is required")
         if self.coordinates.shape != (self.num_atoms, 3):
             raise ValueError(f"Coordinate shape {self.coordinates.shape} does not match atom count {self.num_atoms}")
+
+        if not np.all(np.isfinite(self.coordinates)):
+            raise ValueError("Coordinates must be finite")
+        if self.cartesian_hessian is not None:
+            if self.cartesian_hessian.shape != (3 * self.num_atoms, 3 * self.num_atoms):
+                raise ValueError("Cartesian Hessian must have shape (3N, 3N)")
+            if not np.all(np.isfinite(self.cartesian_hessian)):
+                raise ValueError("Cartesian Hessian must be finite")
+            if not np.allclose(self.cartesian_hessian, self.cartesian_hessian.T, rtol=1e-10, atol=1e-12):
+                raise ValueError("Cartesian Hessian must be symmetric")
 
         # Pre-cache Mendeleev nuclide masses to guarantee sub-millisecond re-analysis
         for s in self.symbols:
@@ -140,9 +174,26 @@ class IsotopologueSpectroscopyEngine:
     def compute_observables(
         self,
         isotopic_substitution: Optional[Dict[int, str]] = None,
+        *,
+        vibrational_corrections_mhz: Optional[Tuple[float, float, float]] = None,
+        correction_source: Optional[str] = None,
     ) -> IsotopologueResult:
         """Re-diagonalizes moment of inertia and mass-weighted Hessian in milliseconds. [M]"""
         t0 = time.perf_counter()
+
+        for index, replacement in (isotopic_substitution or {}).items():
+            if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < self.num_atoms:
+                raise ValueError(f"Invalid isotopic substitution index: {index}")
+            original_element, _ = parse_nuclide_token(self.symbols[index])
+            new_element, _ = parse_nuclide_token(replacement)
+            if new_element != original_element:
+                raise ValueError("Isotopic substitution cannot change the element or reuse its electronic Hessian")
+        if vibrational_corrections_mhz is not None:
+            corrections = np.asarray(vibrational_corrections_mhz, dtype=float)
+            if corrections.shape != (3,) or not np.all(np.isfinite(corrections)):
+                raise ValueError("Vibrational corrections must be three finite MHz values")
+            if not isinstance(correction_source, str) or not correction_source.strip():
+                raise ValueError("Vibrational corrections require a nonempty provenance source")
 
         # 1. Dynamic Mendeleev masses for target isotopologue
         active_symbols = list(self.symbols)
@@ -183,53 +234,31 @@ class IsotopologueSpectroscopyEngine:
         I_a, I_b, I_c = float(sorted_evals[0]), float(sorted_evals[1]), float(sorted_evals[2])
 
         # Theoretical equilibrium rotational constants in MHz
-        A_e = ROTATIONAL_CONSTANT_CONVERSION_MHZ / max(1e-12, I_a)
-        B_e = ROTATIONAL_CONSTANT_CONVERSION_MHZ / max(1e-12, I_b)
-        C_e = ROTATIONAL_CONSTANT_CONVERSION_MHZ / max(1e-12, I_c)
+        A_e = ROTATIONAL_CONSTANT_CONVERSION_MHZ / I_a if I_a > 1e-12 else math.inf
+        B_e = ROTATIONAL_CONSTANT_CONVERSION_MHZ / I_b if I_b > 1e-12 else math.inf
+        C_e = ROTATIONAL_CONSTANT_CONVERSION_MHZ / I_c if I_c > 1e-12 else math.inf
 
         # Inertial defect: Delta = I_c - I_a - I_b (amu * Angstrom^2) [D]
         inertial_defect = float(I_c - I_a - I_b)
 
-        # 4. Mass-weighted Hessian and Vibrational Corrections
+        # A Cartesian harmonic Hessian is isotope invariant in the BO approximation.
         harmonic_freqs: List[float] = []
-        delta_A_vib = -0.0035 * A_e  # Default physical ~0.35% correction [D]
-        delta_B_vib = -0.0040 * B_e  # Default physical ~0.40% correction [D]
-        delta_C_vib = -0.0030 * C_e  # Default physical ~0.30% correction [D]
-
+        rigid_count = 0
         if self.cartesian_hessian is not None:
-            # Mass-weighting diagonal matrix M^-1/2
-            m_3n = np.repeat(mass_array, 3)
-            inv_sqrt_m = 1.0 / np.sqrt(m_3n)
-            M_inv_sqrt = np.diag(inv_sqrt_m)
+            harmonic_freqs, rigid_count = projected_harmonic_frequencies(
+                self.cartesian_hessian, self.coordinates, mass_array
+            )
 
-            H_mw = M_inv_sqrt @ self.cartesian_hessian @ M_inv_sqrt
-            w2, v = np.linalg.eigh(H_mw)
-
-            # Conversion factor: 1 Hartree/(amu*Bohr^2) to cm^-1
-            # Hartree to J: 4.3597447222071e-18
-            # Bohr to m: 0.529177210903e-10
-            # Speed of light c: 29979245800 cm/s
-            hartree_to_j = 4.3597447222071e-18
-            bohr_to_m = 0.529177210903e-10
-            c_cm_s = 2.99792458e10
-            unit_factor = np.sqrt(hartree_to_j / (CODATA_AMU_KG * (bohr_to_m ** 2))) / (2.0 * math.pi * c_cm_s)
-
-            for val in w2:
-                if val > 1e-6:
-                    freq = float(np.sqrt(val) * unit_factor)
-                    harmonic_freqs.append(freq)
-
-            # Refined vibrational corrections from normal modes
-            if len(harmonic_freqs) >= 3:
-                vib_scale = np.mean([f / 2000.0 for f in harmonic_freqs[-3:]])
-                delta_A_vib = float(-0.0030 * A_e * vib_scale)
-                delta_B_vib = float(-0.0035 * B_e * vib_scale)
-                delta_C_vib = float(-0.0028 * C_e * vib_scale)
-
-        # 5. Physical Ground-State Effective Rotational Constants: B0 = Be + Delta_B_vib
-        A_0 = A_e + delta_A_vib
-        B_0 = B_e + delta_B_vib
-        C_0 = C_e + delta_C_vib
+        # Anharmonic vibrational corrections cannot be inferred from harmonic
+        # frequencies by fixed percentages. Preserve missing evidence explicitly.
+        delta_A_vib = delta_B_vib = delta_C_vib = None
+        A_0 = B_0 = C_0 = None
+        provenance = {"A_e": "[M]", "B_e": "[M]", "C_e": "[M]",
+                      "inertial_defect": "[D]", "masses": "[M]"}
+        if vibrational_corrections_mhz is not None:
+            delta_A_vib, delta_B_vib, delta_C_vib = map(float, corrections)
+            A_0, B_0, C_0 = A_e + delta_A_vib, B_e + delta_B_vib, C_e + delta_C_vib
+            provenance.update({"delta_B_vib": "supplied", "B_0": "[D]"})
 
         wall_ms = (time.perf_counter() - t0) * 1000.0
 
@@ -252,5 +281,8 @@ class IsotopologueSpectroscopyEngine:
             C_0_MHz=C_0,
             inertial_defect_amu_A2=inertial_defect,
             harmonic_frequencies_cm1=harmonic_freqs,
+            rigid_mode_count=rigid_count,
+            vibrational_correction_source=correction_source if vibrational_corrections_mhz is not None else None,
+            provenance_tags=provenance,
             execution_walltime_ms=wall_ms,
         )

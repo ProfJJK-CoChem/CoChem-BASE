@@ -35,7 +35,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import jinja2
 from pydantic import BaseModel, ConfigDict, Field
 
-from cochem_core.ai.resource_guard import (
+from .resource_guard import (
     ResourceGuardDecision,
     evaluate_resource_guard,
     probe_host_memory,

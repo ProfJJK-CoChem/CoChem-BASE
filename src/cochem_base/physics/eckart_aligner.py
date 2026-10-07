@@ -244,6 +244,9 @@ def translate_to_center_of_mass(
         COMResidualError: If enforce_residual_gate is True and residual >= tol.
         ValueError or TypeError: If inputs violate dimensional or physical preconditions.
     """
+    if not np.isfinite(tol) or tol <= 0:
+        raise ValueError("Residual tolerance must be finite and positive")
+
     if isinstance(coordinates, np.ndarray) and coordinates.dtype == np.float64:
         coords = coordinates
     else:
@@ -296,6 +299,9 @@ def translate_to_center_of_mass(
 
         if mass_arr.size == 0:
             raise ValueError("Masses array must not be empty.")
+
+    if not np.all(np.isfinite(mass_arr)):
+        raise ValueError("Masses must not contain NaN or Inf values.")
 
     tol_sq = tol * tol
 
@@ -427,6 +433,9 @@ def verify_com_residual(
         COMResidualError: If residual norm >= tol.
         ValueError: If input dimensions are invalid or contain NaN/Inf.
     """
+    if not np.isfinite(tol) or tol <= 0:
+        raise ValueError("Residual tolerance must be finite and positive")
+
     if isinstance(coordinates_centered, np.ndarray) and coordinates_centered.dtype == np.float64:
         coords = coordinates_centered
     else:
@@ -898,6 +907,9 @@ def verify_so3_closure(
     Raises:
         SO3ClosureError: If orthogonality or determinant condition is breached.
     """
+    if not np.isfinite(tol) or tol <= 0:
+        raise ValueError("Residual tolerance must be finite and positive")
+
     if not isinstance(rotation_matrix, np.ndarray):
         r_mat = np.asarray(rotation_matrix, dtype=np.float64)
     else:
@@ -967,6 +979,15 @@ def compute_eckart_angular_momentum_residual(
     target = np.asarray(coords_aligned, dtype=np.float64)
     m_arr = np.asarray(masses, dtype=np.float64)
 
+    if ref.shape != target.shape or ref.ndim not in (2, 3) or ref.shape[-1] != 3:
+        raise ValueError("Eckart coordinates must have matching (N, 3) or (B, N, 3) shapes")
+    if not np.all(np.isfinite(target)):
+        raise ValueError("Aligned coordinates must not contain NaN or Inf values")
+    # Reuse dimensional, positivity, and finite-value validation for mass arrays.
+    compute_center_of_mass(ref, masses=m_arr)
+    if m_arr.ndim == 2 and m_arr.shape in ((ref.shape[-2], 1), (1, ref.shape[-2])):
+        m_arr = m_arr.reshape(-1)
+
     if ref.ndim == 2:
         cross_prod = np.cross(ref, target)  # (N, 3)
         if m_arr.ndim == 2 and m_arr.shape == (ref.shape[0], 1):
@@ -1004,6 +1025,9 @@ def verify_eckart_residual(
     Raises:
         EckartResidualError: If delta_Eckart >= tol.
     """
+    if not np.isfinite(tol) or tol <= 0:
+        raise ValueError("Residual tolerance must be finite and positive")
+
     _, norm_val = compute_eckart_angular_momentum_residual(coords_ref, coords_aligned, masses)
     if isinstance(norm_val, (float, int)):
         res_float = float(norm_val)
@@ -1117,6 +1141,8 @@ def align_coordinates(
             U_matrix: 3x3 proper rotation matrix in SO(3).
             mass_weighted_rmsd: Root-mean-square deviation in Angstroms.
     """
+    if np.ndim(coords_ref) != 2 or np.ndim(coords_target) != 2:
+        raise ValueError("align_coordinates requires individual (N, 3) structures")
     ref_c, _ = translate_to_center_of_mass(coords_ref, masses=masses, symbols=symbols)
     target_c, _ = translate_to_center_of_mass(coords_target, masses=masses, symbols=symbols)
 
@@ -1126,6 +1152,8 @@ def align_coordinates(
         mass_arr = np.asarray([disambiguate_mass(s) for s in symbols], dtype=np.float64)
     else:
         mass_arr = np.asarray(masses, dtype=np.float64)
+
+    mass_arr = mass_arr.reshape(-1)
 
     c_mat = compute_mass_weighted_covariance_matrix(ref_c, target_c, masses=mass_arr, center=False)
     u_mat = compute_svd_rotation_matrix(c_mat, enforce_so3=True)

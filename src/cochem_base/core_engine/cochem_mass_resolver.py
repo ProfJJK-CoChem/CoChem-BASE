@@ -9,13 +9,14 @@ Complies strictly with:
 from __future__ import annotations
 
 from functools import lru_cache
+from numbers import Integral
 from typing import Optional, Union
 
 import mendeleev
 from cochem_base.core.exceptions import CoChemError, IsotopeMassResolutionError
 
 
-@lru_cache(maxsize=256)
+@lru_cache(maxsize=256, typed=True)
 def get_dynamic_atomic_mass(symbol_or_z: Union[str, int]) -> float:
     """Returns standard atomic weight from Mendeleev with LRU memory caching.
 
@@ -39,12 +40,14 @@ def get_dynamic_atomic_mass(symbol_or_z: Union[str, int]) -> float:
     )
 
 
-@lru_cache(maxsize=256)
+@lru_cache(maxsize=256, typed=True)
 def get_dynamic_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
     """Returns exact physical isotopic nuclear mass from Mendeleev with LRU memory caching.
 
     Guarantees zero fallback to terrestrial average atomic weights.
     """
+    if isinstance(mass_number, bool) or not isinstance(mass_number, Integral) or mass_number <= 0:
+        raise IsotopeMassResolutionError("Isotope mass number must be a positive integer.")
     try:
         el = mendeleev.element(symbol_or_z)
     except Exception as exc:

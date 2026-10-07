@@ -68,6 +68,7 @@ from typing import (
     Any,
     Dict,
     List,
+    Literal,
     Optional,
     Sequence,
     Set,
@@ -75,10 +76,10 @@ from typing import (
     Union,
 )
 
-import filelock
 import h5py
 import numpy as np
 import scipy.linalg
+import scipy.optimize
 import scipy.spatial.distance
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -212,16 +213,33 @@ class ActiveLearningConfig(BaseModel):
 
 class DeltaFittingConfig(BaseModel):
     """Configuration for Delta-learning potential energy surface fitting."""
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     backend: FittingBackend = Field(default=FittingBackend.KERNEL_RIDGE, description="Fitting model backend")
     kernel: KernelType = Field(default=KernelType.RBF, description="Kernel function for KRR")
-    regularization_alpha: float = Field(default=1e-6, description="L2 regularization / ridge parameter alpha")
-    gamma: Optional[float] = Field(default=None, description="Kernel lengthscale parameter gamma (1 / (2*sigma^2))")
-    poly_degree: int = Field(default=4, description="Polynomial degree for PIP expansion")
-    morse_lambda: float = Field(default=2.0, description="Morse coordinate decay parameter lambda in Angstroms")
+    regularization_alpha: float = Field(default=1e-6, gt=0.0, description="L2 regularization / ridge parameter alpha")
+    gamma: Optional[float] = Field(default=None, gt=0.0, description="Kernel lengthscale parameter gamma (1 / (2*sigma^2))")
+    poly_degree: int = Field(default=4, ge=1, description="Polynomial degree for PIP expansion")
+    morse_lambda: float = Field(default=2.0, gt=0.0, description="Morse coordinate decay parameter lambda in Angstroms")
     include_secondary: bool = Field(default=False, description="Whether to include degree-2 secondary PIP invariants")
-    target_rms_cm1: float = Field(default=10.0, description="Target spectroscopic held-out RMSE in cm^-1 (QS-3 / T2-12h)")
+    target_rms_cm1: float = Field(default=10.0, gt=0.0, description="Target spectroscopic held-out RMSE in cm^-1 (QS-3 / T2-12h)")
+    energy_reference: Literal["absolute", "interaction_zero_asymptote"] = Field(
+        default="absolute",
+        description="Absolute energy offsets are fitted from training data; zero-asymptote interaction energies retain their declared zero reference",
+    )
+    neural_committee_size: int = Field(default=4, ge=2, le=16)
+    neural_hidden_layers: Tuple[int, ...] = Field(default=(32, 32), min_length=1, max_length=4)
+    neural_max_iterations: int = Field(default=500, ge=1)
+    neural_validation_fraction: float = Field(default=0.15, gt=0.0, lt=0.5)
+    neural_weight_decay: float = Field(default=1e-6, ge=0.0)
+    neural_random_seed: int = Field(default=42, ge=0)
+
+    @field_validator("neural_hidden_layers")
+    @classmethod
+    def validate_neural_widths(cls, widths: Tuple[int, ...]) -> Tuple[int, ...]:
+        if any(width < 1 or width > 512 for width in widths):
+            raise ValueError("Each neural hidden layer must have 1 to 512 units")
+        return widths
 
 
 class CommitteePrediction(BaseModel):
@@ -255,7 +273,11 @@ class ActiveLearningSelectionResult(BaseModel):
 
 
 class PESValidationMetrics(BaseModel):
-    """Comprehensive validation metrics on held-out and training grids."""
+    """Numerical fit metrics against supplied labels, not physical certification.
+
+    ``spectroscopic_grade`` is a legacy field name for the specified numerical
+    threshold. Its scope is identified explicitly by ``validation_scope``.
+    """
     model_config = ConfigDict(extra="forbid")
 
     n_train: int = Field(description="Number of training points")
@@ -269,8 +291,12 @@ class PESValidationMetrics(BaseModel):
     held_out_rmse_kcal_mol: float = Field(description="Held-out validation RMSE in kcal/mol")
     held_out_rmse_hartree: float = Field(description="Held-out validation RMSE in Hartrees")
     spectroscopic_grade: bool = Field(description="True if held_out_rmse_cm1 <= target_rms_cm1")
-    target_rms_cm1: float = Field(description="Spectroscopic threshold in cm^-1")
+    target_rms_cm1: float = Field(description="Requested numerical energy-error threshold in cm^-1; not a predicted frequency")
     timestamp: str = Field(description="ISO 8601 evaluation timestamp")
+    validation_scope: str = "unspecified_legacy"
+    held_out_baseline_rmse_cm1: Optional[float] = None
+    held_out_total_surrogate_rmse_cm1: Optional[float] = None
+    total_surrogate_meets_target: Optional[bool] = None
 
 
 class DeltaSurfaceFitResult(BaseModel):
@@ -282,7 +308,7 @@ class DeltaSurfaceFitResult(BaseModel):
     n_base_dft_points: int = Field(description="Total base DFT points in grid")
     n_delta_points: int = Field(description="Number of high-level Delta training pairs")
     n_held_out_points: int = Field(description="Number of held-out validation points")
-    metrics: PESValidationMetrics = Field(description="Spectroscopic validation metrics")
+    metrics: PESValidationMetrics = Field(description="Numerical validation against supplied targets, with explicit prediction scope")
     backend: str = Field(description="Fitting backend used")
     model_parameters: Dict[str, Any] = Field(description="Fitted model hyper-parameters and dimensions")
     timestamp: str = Field(description="ISO 8601 fit completion timestamp")
@@ -725,6 +751,7 @@ class KernelFunction:
         weights: np.ndarray,
         kernel_type: KernelType = KernelType.RBF,
         gamma: float = 1.0,
+        poly_degree: int = 4,
     ) -> np.ndarray:
         """
         Computes analytical derivative of the fitted KRR function w.r.t input features x_eval:
@@ -743,27 +770,34 @@ class KernelFunction:
             weighted_k = weights * k_vals  # (N_train,)
             grad_features = -2.0 * gamma * np.sum(weighted_k[:, np.newaxis] * diff, axis=0)
             return grad_features
+        if kernel_type == KernelType.POLYNOMIAL:
+            base = gamma * (X_train @ x_eval[0]) + 1.0
+            factors = weights * poly_degree * gamma * base ** (poly_degree - 1)
+            return factors @ X_train
+        diff = x_eval - X_train
+        distance = np.linalg.norm(diff, axis=1)
+        if kernel_type == KernelType.MATERN32:
+            rate = math.sqrt(6.0 * gamma)
+            factors = -(rate ** 2) * np.exp(-rate * distance)
+        elif kernel_type == KernelType.MATERN52:
+            rate = math.sqrt(10.0 * gamma)
+            factors = -(rate ** 2) / 3.0 * (1.0 + rate * distance) * np.exp(-rate * distance)
         else:
-            # Finite difference numerical gradient across feature space for general kernels
-            n_dim = x_eval.shape[1]
-            grad_features = np.full(n_dim, 0.0, dtype=np.float64)
-            eps = 1e-6
-            for d in range(n_dim):
-                x_plus = x_eval.copy()
-                x_minus = x_eval.copy()
-                x_plus[0, d] += eps
-                x_minus[0, d] -= eps
-                k_plus = KernelFunction.compute_kernel_matrix(x_plus, X_train, kernel_type=kernel_type, gamma=gamma)[0]
-                k_minus = KernelFunction.compute_kernel_matrix(x_minus, X_train, kernel_type=kernel_type, gamma=gamma)[0]
-                grad_features[d] = (np.dot(weights, k_plus) - np.dot(weights, k_minus)) / (2.0 * eps)
-            return grad_features
+            raise ValueError(f"Unsupported kernel type: {kernel_type}")
+        return np.sum((weights * factors)[:, np.newaxis] * diff, axis=0)
 
 
 class ExactKernelRidgeEstimator:
     """
     High-performance exact Kernel Ridge Regression estimator solved via
     numerically stable Cholesky decomposition or SVD pseudo-inversion.
-    Enforces asymptotic zero dissociation baseline when asymptotic_zero=True (Task 6).
+    With asymptotic_zero=True, uses a zero mean and constrains a supplied
+    zero-energy boundary. For positive Morse descriptors the zero-energy
+    point with smallest feature norm is the default dissociation anchor;
+    explicit zero_anchor_indices support other boundary definitions.
+    Dissociation of molecular fragments
+    still requires representative anchors; Morse features need not vanish
+    when intrafragment bonds remain intact.
     """
 
     def __init__(
@@ -812,6 +846,7 @@ class ExactKernelRidgeEstimator:
         X: np.ndarray,
         y: np.ndarray,
         sample_alpha: Optional[np.ndarray] = None,
+        zero_anchor_indices: Optional[Sequence[int]] = None,
     ) -> ExactKernelRidgeEstimator:
         """Fits KRR model on training features X (N, D) and target energies y (N,)."""
         X = np.asarray(X, dtype=np.float64)
@@ -823,6 +858,8 @@ class ExactKernelRidgeEstimator:
             raise ValueError(f"Targets shape {y.shape} does not match features shape {X.shape}")
         if X.shape[0] == 0:
             raise ValueError("Cannot fit on empty dataset")
+        if not np.all(np.isfinite(X)) or not np.all(np.isfinite(y)):
+            raise ValueError("Training features and energies must be finite")
 
         self.X_train = X.copy()
         self.y_train = y.copy()
@@ -857,6 +894,8 @@ class ExactKernelRidgeEstimator:
         # Add ridge regularization to diagonal: (K + alpha_diag)
         if sample_alpha is not None:
             alpha_diag = np.asarray(sample_alpha, dtype=np.float64)
+            if alpha_diag.shape != y.shape or not np.all(np.isfinite(alpha_diag)) or np.any(alpha_diag < 0):
+                raise ValueError("sample_alpha must contain one finite nonnegative value per training point")
         else:
             alpha_diag = np.full(X.shape[0], max(self.alpha, self.reg_config.base_alpha), dtype=np.float64)
             if self.asymptotic_zero:
@@ -900,6 +939,40 @@ class ExactKernelRidgeEstimator:
                     f"KRR Gram matrix inversion failed conditioning floor: {exc}"
                 ) from exc
 
+        # Condition the RKHS on a zero-energy dissociation boundary, rather
+        # than making its regularization arbitrarily small. Other zero-valued
+        # observations remain ordinary ridge targets: declaring an interval
+        # of nearby samples an exact zero boundary can force spurious flatness.
+        # The default farthest dissociation point is defined by the smallest
+        # norm of positive Morse features. Callers with general descriptors
+        # can supply their boundary indices explicitly.
+        anchor_indices = np.empty(0, dtype=int)
+        if zero_anchor_indices is not None:
+            raw_indices = np.asarray(zero_anchor_indices)
+            if not self.asymptotic_zero or raw_indices.ndim != 1 or raw_indices.dtype.kind not in "iu":
+                raise ValueError("zero_anchor_indices requires integer indices and asymptotic_zero=True")
+            anchor_indices = np.unique(raw_indices.astype(int))
+            if np.any(anchor_indices < 0) or np.any(anchor_indices >= len(y)) or np.any(y[anchor_indices] != 0.0):
+                raise ValueError("Each boundary index must identify an exact zero training target")
+        elif self.asymptotic_zero:
+            zero_targets = np.flatnonzero(y == 0.0)
+            if zero_targets.size:
+                anchor_indices = zero_targets[[np.argmin(np.linalg.norm(X[zero_targets], axis=1))]]
+        if anchor_indices.size:
+            anchor_kernel = K[np.ix_(anchor_indices, anchor_indices)]
+            anchor_inverse = scipy.linalg.pinvh(anchor_kernel)
+            conditioned_kernel = K - K[:, anchor_indices] @ anchor_inverse @ K[anchor_indices]
+            conditioned_kernel = (conditioned_kernel + conditioned_kernel.T) / 2.0
+            conditioned_weights = scipy.linalg.solve(
+                conditioned_kernel + np.diag(alpha_diag + min(jitter, max_jitter)),
+                y_centered,
+                assume_a="pos",
+            )
+            # Express the conditioned predictor in the original kernel basis
+            # so gradients, batching, and model persistence use the same path.
+            self.weights = conditioned_weights.copy()
+            self.weights[anchor_indices] -= anchor_inverse @ (K[anchor_indices] @ conditioned_weights)
+
         return self
 
     def predict(self, X: np.ndarray, batch_size: int = 2048) -> Union[float, np.ndarray]:
@@ -940,11 +1013,323 @@ class ExactKernelRidgeEstimator:
             weights=self.weights,
             kernel_type=self.kernel_type,
             gamma=self.effective_gamma,
+            poly_degree=self.poly_degree,
         )
 
 
 # =============================================================================
-# Committee Uncertainty Quantification Engine (Method Matrix §10.8)
+# Neural regression and committee uncertainty (NumPy/SciPy CPU backend)
+# =============================================================================
+
+class NeuralCommitteeEstimator:
+    """Independent tanh networks with analytical backpropagation and forces.
+
+    A deterministic internal validation subset is taken only from the supplied
+    training data. Each member uses a distinct initialization and a bootstrap
+    sample of the remaining training rows. Checkpoint selection uses that
+    internal subset; external campaign hold-out labels never enter ``fit``.
+    Ensemble spread measures disagreement, not a calibrated confidence bound.
+    """
+
+    def __init__(self, config: DeltaFittingConfig, *, seed_offset: int = 0) -> None:
+        if config.backend != FittingBackend.NEURAL_COMMITTEE:
+            raise ValueError("NeuralCommitteeEstimator requires backend='neural_committee'")
+        self.config = config.model_copy(deep=True)
+        self.seed_offset = int(seed_offset)
+        self.X_train: Optional[np.ndarray] = None
+        self.y_train: Optional[np.ndarray] = None
+        self.weights: Optional[np.ndarray] = None
+        self.layer_sizes: Tuple[int, ...] = ()
+        self.feature_mean: Optional[np.ndarray] = None
+        self.feature_scale: Optional[np.ndarray] = None
+        self.y_mean = 0.0
+        self.y_scale = 1.0
+        self.training_indices = np.empty(0, dtype=int)
+        self.validation_indices = np.empty(0, dtype=int)
+        self.member_training_indices = np.empty((0, 0), dtype=int)
+        self.training_history: List[Dict[str, Any]] = []
+        self.zero_anchor_features: Optional[np.ndarray] = None
+
+    @property
+    def is_fitted(self) -> bool:
+        return self.weights is not None and self.feature_mean is not None
+
+    def _unpack(self, parameters: np.ndarray) -> List[Tuple[np.ndarray, np.ndarray]]:
+        layers = []
+        offset = 0
+        for n_in, n_out in zip(self.layer_sizes[:-1], self.layer_sizes[1:]):
+            count = n_in * n_out
+            weight = parameters[offset:offset + count].reshape(n_in, n_out)
+            offset += count
+            bias = parameters[offset:offset + n_out]
+            offset += n_out
+            layers.append((weight, bias))
+        if offset != parameters.size:
+            raise ValueError("Neural parameter count does not match the saved architecture")
+        return layers
+
+    def _forward(self, parameters: np.ndarray, features: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
+        activations = [features]
+        layers = self._unpack(parameters)
+        for index, (weight, bias) in enumerate(layers):
+            output = activations[-1] @ weight + bias
+            activations.append(np.tanh(output) if index < len(layers) - 1 else output)
+        return activations[-1][:, 0], activations
+
+    def _predict_normalized(self, parameters: np.ndarray, features: np.ndarray) -> np.ndarray:
+        prediction = self._forward(parameters, features)[0]
+        if self.zero_anchor_features is not None:
+            prediction = prediction - self._forward(parameters, self.zero_anchor_features[np.newaxis, :])[0][0]
+        return prediction
+
+    def _objective(self, parameters: np.ndarray, features: np.ndarray, targets: np.ndarray) -> Tuple[float, np.ndarray]:
+        prediction, activations = self._forward(parameters, features)
+        anchor_activations = None
+        if self.zero_anchor_features is not None:
+            anchor_prediction, anchor_activations = self._forward(parameters, self.zero_anchor_features[np.newaxis, :])
+            prediction = prediction - anchor_prediction[0]
+        residual = prediction - targets
+        loss = 0.5 * float(np.mean(residual ** 2))
+        delta = residual[:, np.newaxis] / len(targets)
+        layers = self._unpack(parameters)
+        gradients = [None] * len(layers)
+        for index in range(len(layers) - 1, -1, -1):
+            weight, _ = layers[index]
+            loss += 0.5 * self.config.neural_weight_decay * float(np.sum(weight ** 2))
+            gradient_weight = activations[index].T @ delta + self.config.neural_weight_decay * weight
+            gradient_bias = np.sum(delta, axis=0)
+            gradients[index] = np.concatenate((gradient_weight.ravel(), gradient_bias))
+            if index:
+                delta = (delta @ weight.T) * (1.0 - activations[index] ** 2)
+        if anchor_activations is not None:
+            # Differentiating NN(x)-NN(anchor) also differentiates the anchor
+            # with respect to network parameters, but not query coordinates.
+            delta = np.asarray([[-float(np.mean(residual))]])
+            for index in range(len(layers) - 1, -1, -1):
+                weight, _ = layers[index]
+                gradients[index] += np.concatenate(((anchor_activations[index].T @ delta).ravel(), np.sum(delta, axis=0)))
+                if index:
+                    delta = (delta @ weight.T) * (1.0 - anchor_activations[index] ** 2)
+        return loss, np.concatenate(gradients)
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> NeuralCommitteeEstimator:
+        X, y = np.asarray(X, dtype=np.float64), np.asarray(y, dtype=np.float64)
+        if X.ndim != 2 or X.shape[0] < 4 or X.shape[1] == 0 or y.shape != (len(X),):
+            raise ValueError("Neural fitting requires at least four aligned feature/energy rows")
+        if not np.all(np.isfinite(X)) or not np.all(np.isfinite(y)):
+            raise ValueError("Neural training features and energies must be finite")
+        self.weights = None
+        self.X_train, self.y_train = X.copy(), y.copy()
+        base_seed = self.config.neural_random_seed + self.seed_offset
+        split_rng = np.random.default_rng(base_seed)
+        order = split_rng.permutation(len(X))
+        n_validation = max(1, int(len(X) * self.config.neural_validation_fraction))
+        self.validation_indices = np.sort(order[:n_validation])
+        self.training_indices = np.sort(order[n_validation:])
+        anchor_index = None
+        if self.config.energy_reference == "interaction_zero_asymptote":
+            anchors = np.flatnonzero(y == 0.0)
+            if not anchors.size:
+                raise MissingDataError("A zero-asymptote neural interaction fit requires a supplied exact zero-energy boundary point")
+            anchor_index = int(anchors[np.argmin(np.linalg.norm(X[anchors], axis=1))])
+            if anchor_index in self.validation_indices:
+                # Boundary conditions belong in training; preserve split sizes.
+                replacement = self.training_indices[0]
+                self.training_indices[0] = anchor_index
+                self.validation_indices[self.validation_indices == anchor_index] = replacement
+                self.training_indices.sort()
+                self.validation_indices.sort()
+        # Fit scaling only on the optimization pool, never on validation rows.
+        self.feature_mean = np.mean(X[self.training_indices], axis=0)
+        scale = np.std(X[self.training_indices], axis=0)
+        self.feature_scale = np.where(scale > 1e-12, scale, 1.0)
+        self.y_mean = float(np.mean(y[self.training_indices])) if anchor_index is None else 0.0
+        target_scale = float(np.std(y[self.training_indices]))
+        self.y_scale = target_scale if target_scale > 1e-12 else 1.0
+        features = (X - self.feature_mean) / self.feature_scale
+        self.zero_anchor_features = None if anchor_index is None else features[anchor_index].copy()
+        targets = (y - self.y_mean) / self.y_scale
+        self.layer_sizes = (X.shape[1], *self.config.neural_hidden_layers, 1)
+        fitted_members, bootstrap_rows = [], []
+        self.training_history = []
+        for member in range(self.config.neural_committee_size):
+            seed = base_seed + 104729 * (member + 1)
+            rng = np.random.default_rng(seed)
+            indices = rng.choice(self.training_indices, size=len(self.training_indices), replace=True)
+            bootstrap_rows.append(indices)
+            initial = []
+            for n_in, n_out in zip(self.layer_sizes[:-1], self.layer_sizes[1:]):
+                limit = math.sqrt(6.0 / (n_in + n_out))
+                initial.append(rng.uniform(-limit, limit, size=n_in * n_out))
+                initial.append(np.full(n_out, 0.0))
+            parameters = np.concatenate(initial)
+            best_parameters = parameters.copy()
+            best_validation = math.inf
+            best_iteration, iteration = 0, 0
+
+            def select_checkpoint(candidate: np.ndarray) -> None:
+                nonlocal best_parameters, best_validation, best_iteration, iteration
+                iteration += 1
+                prediction = self._predict_normalized(candidate, features[self.validation_indices])
+                score = float(np.mean((prediction - targets[self.validation_indices]) ** 2))
+                if np.isfinite(score) and score < best_validation:
+                    best_parameters = candidate.copy()
+                    best_validation = score
+                    best_iteration = iteration
+
+            select_checkpoint(parameters)
+            result = scipy.optimize.minimize(
+                self._objective,
+                parameters,
+                args=(features[indices], targets[indices]),
+                method="L-BFGS-B",
+                jac=True,
+                callback=select_checkpoint,
+                options={"maxiter": self.config.neural_max_iterations, "ftol": 1e-12, "gtol": 1e-8},
+            )
+            select_checkpoint(result.x)
+            if not np.all(np.isfinite(best_parameters)) or not np.isfinite(best_validation):
+                raise NumericalConditioningError("Neural optimization did not produce a finite validation checkpoint")
+            fitted_members.append(best_parameters)
+            training_prediction = self._predict_normalized(best_parameters, features[indices])
+            self.training_history.append({
+                "seed": seed,
+                "optimizer_success": bool(result.success),
+                "optimizer_message": str(result.message),
+                "optimizer_iterations": int(result.nit),
+                "selected_checkpoint": best_iteration,
+                "training_rmse_hartree": self.y_scale * float(np.sqrt(np.mean((training_prediction - targets[indices]) ** 2))),
+                "validation_rmse_hartree": self.y_scale * math.sqrt(best_validation),
+            })
+        self.weights = np.stack(fitted_members)
+        self.member_training_indices = np.stack(bootstrap_rows)
+        return self
+
+    def predict_members(self, X: np.ndarray) -> np.ndarray:
+        if not self.is_fitted:
+            raise RuntimeError("Neural committee is not fitted")
+        X = np.asarray(X, dtype=np.float64)
+        single = X.ndim == 1
+        X = np.atleast_2d(X)
+        if X.shape[1] != self.layer_sizes[0] or not np.all(np.isfinite(X)):
+            raise ValueError("Evaluation features must be finite and match the trained feature dimension")
+        features = (X - self.feature_mean) / self.feature_scale
+        energies = np.stack([self._predict_normalized(member, features) for member in self.weights])
+        energies = self.y_mean + self.y_scale * energies
+        return energies[:, 0] if single else energies
+
+    def predict(self, X: np.ndarray, batch_size: int = 2048) -> Union[float, np.ndarray]:
+        if not self.is_fitted:
+            raise RuntimeError("Neural committee is not fitted")
+        X = np.asarray(X, dtype=np.float64)
+        if X.ndim not in (1, 2):
+            raise ValueError("Prediction requires a feature vector or matrix")
+        if X.ndim == 1:
+            return float(np.mean(self.predict_members(X)))
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive")
+        predictions = np.empty(len(X))
+        for start in range(0, len(X), batch_size):
+            predictions[start:start + batch_size] = np.mean(self.predict_members(X[start:start + batch_size]), axis=0)
+        return predictions
+
+    def predict_with_uncertainty(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        members = self.predict_members(X)
+        return np.mean(members, axis=0), np.std(members, axis=0, ddof=1), members
+
+    def predict_member_gradients_wrt_features(self, x_eval: np.ndarray) -> np.ndarray:
+        if not self.is_fitted:
+            raise RuntimeError("Neural committee is not fitted")
+        x_eval = np.asarray(x_eval, dtype=np.float64)
+        if x_eval.shape != (self.layer_sizes[0],) or not np.all(np.isfinite(x_eval)):
+            raise ValueError("Gradient evaluation requires one finite feature vector")
+        features = ((x_eval - self.feature_mean) / self.feature_scale)[np.newaxis, :]
+        gradients = []
+        for member in self.weights:
+            _, activations = self._forward(member, features)
+            layers = self._unpack(member)
+            derivative = layers[-1][0][:, 0]
+            for index in range(len(layers) - 2, -1, -1):
+                derivative = layers[index][0] @ (derivative * (1.0 - activations[index + 1][0] ** 2))
+            gradients.append(self.y_scale * derivative / self.feature_scale)
+        return np.stack(gradients)
+
+    def predict_gradient_wrt_features(self, x_eval: np.ndarray) -> np.ndarray:
+        return np.mean(self.predict_member_gradients_wrt_features(x_eval), axis=0)
+
+    def to_arrays(self, prefix: str) -> Dict[str, Any]:
+        if not self.is_fitted:
+            raise RuntimeError("Cannot save an unfitted neural committee")
+        metadata = {
+            "config": self.config.model_dump(mode="json"), "seed_offset": self.seed_offset,
+            "layer_sizes": self.layer_sizes, "y_mean": self.y_mean, "y_scale": self.y_scale,
+            "training_history": self.training_history,
+        }
+        arrays = {prefix + "metadata": np.array(json.dumps(metadata))}
+        arrays[prefix + "zero_anchor_features"] = np.empty(0) if self.zero_anchor_features is None else self.zero_anchor_features
+        for name in ("weights", "X_train", "y_train", "feature_mean", "feature_scale", "training_indices", "validation_indices", "member_training_indices"):
+            arrays[prefix + name] = getattr(self, name)
+        return arrays
+
+    @classmethod
+    def from_arrays(cls, arrays: Any, prefix: str) -> NeuralCommitteeEstimator:
+        metadata = json.loads(str(arrays[prefix + "metadata"]))
+        estimator = cls(DeltaFittingConfig(**metadata["config"]), seed_offset=metadata["seed_offset"])
+        estimator.layer_sizes = tuple(metadata["layer_sizes"])
+        estimator.y_mean, estimator.y_scale = float(metadata["y_mean"]), float(metadata["y_scale"])
+        estimator.training_history = metadata["training_history"]
+        anchor = np.asarray(arrays[prefix + "zero_anchor_features"]) if prefix + "zero_anchor_features" in arrays else np.empty(0)
+        estimator.zero_anchor_features = anchor.copy() if anchor.size else None
+        for name in ("weights", "X_train", "y_train", "feature_mean", "feature_scale", "training_indices", "validation_indices", "member_training_indices"):
+            setattr(estimator, name, np.asarray(arrays[prefix + name]).copy())
+        if estimator.weights.ndim != 2 or len(estimator.weights) != estimator.config.neural_committee_size:
+            raise ValueError("Saved neural committee has an invalid member count")
+        if (
+            not np.all(np.isfinite(estimator.weights))
+            or not np.all(np.isfinite(estimator.feature_mean))
+            or not np.all(np.isfinite(estimator.feature_scale))
+            or not np.all(estimator.feature_scale > 0)
+            or not np.isfinite(estimator.y_mean)
+            or not np.isfinite(estimator.y_scale)
+            or estimator.y_scale <= 0
+        ):
+            raise ValueError("Saved neural weights and normalization must be finite and valid")
+        if (
+            estimator.X_train.ndim != 2
+            or estimator.y_train.shape != (len(estimator.X_train),)
+            or not np.all(np.isfinite(estimator.X_train))
+            or not np.all(np.isfinite(estimator.y_train))
+            or estimator.layer_sizes != (estimator.X_train.shape[1], *estimator.config.neural_hidden_layers, 1)
+            or estimator.feature_mean.shape != (estimator.X_train.shape[1],)
+            or estimator.feature_scale.shape != estimator.feature_mean.shape
+        ):
+            raise ValueError("Saved neural dimensions or training data are invalid")
+        training, validation = set(estimator.training_indices), set(estimator.validation_indices)
+        if (
+            estimator.training_indices.dtype.kind not in "iu"
+            or estimator.validation_indices.dtype.kind not in "iu"
+            or estimator.member_training_indices.dtype.kind not in "iu"
+            or estimator.training_indices.ndim != 1
+            or estimator.validation_indices.ndim != 1
+            or not training or not validation or training & validation
+            or training | validation != set(range(len(estimator.X_train)))
+            or estimator.member_training_indices.shape != (estimator.config.neural_committee_size, len(training))
+            or not set(estimator.member_training_indices.ravel()) <= training
+        ):
+            raise ValueError("Saved neural training and validation provenance is inconsistent")
+        for member in estimator.weights:
+            estimator._unpack(member)
+        if estimator.zero_anchor_features is not None and (
+            estimator.zero_anchor_features.shape != estimator.feature_mean.shape or not np.all(np.isfinite(estimator.zero_anchor_features))
+        ):
+            raise ValueError("Saved neural dissociation boundary is invalid")
+        if estimator.config.energy_reference == "interaction_zero_asymptote" and estimator.zero_anchor_features is None:
+            raise ValueError("Saved zero-asymptote neural fit is missing its boundary")
+        return estimator
+
+
+# =============================================================================
+# Kernel committee uncertainty quantification (Method Matrix §10.8)
 # =============================================================================
 
 class CommitteeModel:
@@ -1443,34 +1828,80 @@ class DeltaPESModel:
     def __init__(
         self,
         featurizer: GeometryFeaturizer,
-        krr_estimator: ExactKernelRidgeEstimator,
-        low_level_estimator: Optional[ExactKernelRidgeEstimator] = None,
+        krr_estimator: Union[ExactKernelRidgeEstimator, NeuralCommitteeEstimator],
+        low_level_estimator: Optional[Union[ExactKernelRidgeEstimator, NeuralCommitteeEstimator]] = None,
         low_method: str = "dft_base",
         high_method: str = "dlpno_ccsdt1_avtz",
         validation_metrics: Optional[PESValidationMetrics] = None,
+        energy_reference: str = "unspecified_legacy",
+        delta_target_definition: str = "unspecified_legacy",
     ) -> None:
         self.featurizer: GeometryFeaturizer = featurizer
-        self.krr_estimator: ExactKernelRidgeEstimator = krr_estimator
-        self.low_level_estimator: Optional[ExactKernelRidgeEstimator] = low_level_estimator
+        # Retain the historical attribute name for existing callers; the
+        # selected estimator may be a kernel model or an actual neural ensemble.
+        self.krr_estimator = krr_estimator
+        self.low_level_estimator = low_level_estimator
         self.low_method: str = low_method
         self.high_method: str = high_method
         self.validation_metrics: Optional[PESValidationMetrics] = validation_metrics
+        self.energy_reference = energy_reference
+        self.delta_target_definition = delta_target_definition
 
     def predict_delta(self, geoms: np.ndarray) -> np.ndarray:
         """Evaluates Delta_V(X) in Hartrees for single or batched geometries."""
         features = self.featurizer.compute_morse_features(geoms)
         return self.krr_estimator.predict(features)
 
-    def predict_total_energy(self, geoms: np.ndarray, v_low_eval: Optional[np.ndarray] = None) -> np.ndarray:
+    def predict_delta_with_uncertainty(self, geoms: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return mean, sample standard deviation, and neural member energies.
+
+        Values are in Hartree. Committee disagreement is not a calibrated
+        error bar, and this method does not certify external accuracy.
+        """
+        if not isinstance(self.krr_estimator, NeuralCommitteeEstimator):
+            raise TypeError("Ensemble uncertainty requires a fitted neural committee")
+        return self.krr_estimator.predict_with_uncertainty(self.featurizer.compute_morse_features(geoms))
+
+    def predict_delta_forces_with_uncertainty(self, geom: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Neural delta forces (negative gradients) and spread in Hartree/Angstrom."""
+        if not isinstance(self.krr_estimator, NeuralCommitteeEstimator):
+            raise TypeError("Force uncertainty requires a fitted neural committee")
+        features = self.featurizer.compute_morse_features(geom)
+        jacobian = self.featurizer.compute_morse_jacobian(geom)
+        member_gradients = self.krr_estimator.predict_member_gradients_wrt_features(features)
+        forces = -np.tensordot(member_gradients, jacobian, axes=(1, 0))
+        return np.mean(forces, axis=0), np.std(forces, axis=0, ddof=1), forces
+
+    def predict_forces(self, geom: np.ndarray, grad_low_eval: Optional[np.ndarray] = None) -> np.ndarray:
+        """Total conservative Cartesian force in Hartree/Angstrom."""
+        return -self.predict_gradient(geom, grad_low_eval=grad_low_eval)
+
+    def predict_total_energy(
+        self, geoms: np.ndarray, v_low_eval: Optional[np.ndarray] = None, *,
+        allow_unvalidated_baseline: bool = False,
+    ) -> np.ndarray:
         """
         Evaluates total potential energy V_Delta(X) = V_low(X) + Delta_V(X) in Hartrees.
         If v_low_eval is provided, adds Delta_V directly; otherwise predicts V_low using low_level_estimator.
         """
         delta_v = self.predict_delta(geoms)
         if v_low_eval is not None:
-            return np.asarray(v_low_eval, dtype=np.float64) + delta_v
+            low_values = np.asarray(v_low_eval, dtype=np.float64)
+            if low_values.shape != np.shape(delta_v) or not np.all(np.isfinite(low_values)):
+                raise ValueError("Evaluated low-level energies must be finite and aligned with the requested geometries")
+            return low_values + delta_v
 
         if self.low_level_estimator is not None:
+            if (
+                self.validation_metrics is not None
+                and self.validation_metrics.total_surrogate_meets_target is False
+                and not allow_unvalidated_baseline
+            ):
+                raise MethodMatrixViolationError(
+                    "The fitted low-level baseline fails the standalone total-energy accuracy target; "
+                    "supply independently evaluated v_low_eval energies for the validated paired correction, "
+                    "or explicitly request allow_unvalidated_baseline=True for numerical analysis"
+                )
             features = self.featurizer.compute_morse_features(geoms)
             v_low = self.low_level_estimator.predict(features)
             return v_low + delta_v
@@ -1487,7 +1918,7 @@ class DeltaPESModel:
     ) -> np.ndarray:
         """
         Computes analytical Cartesian gradient grad_X V_Delta(X) = grad_X V_low(X) + grad_X Delta_V(X)
-        in Hartrees/Bohr (or Hartrees/Angstrom converted) for a single geometry (N_atoms, 3).
+        in Hartree/Angstrom for a geometry supplied in Angstrom (N_atoms, 3).
         """
         geom = np.asarray(geom, dtype=np.float64)
         if geom.shape != (self.featurizer.n_atoms, 3):
@@ -1517,21 +1948,39 @@ class DeltaPESModel:
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes DeltaPESModel metadata, kernel weights, and training coordinates."""
-        return {
+        metadata = {
             "low_method": self.low_method,
             "high_method": self.high_method,
             "symbols": self.featurizer.symbols,
             "morse_lambda": self.featurizer.morse_lambda,
             "include_secondary": getattr(self.featurizer, "include_secondary", False),
-            "kernel_type": self.krr_estimator.kernel_type.value,
-            "alpha": self.krr_estimator.alpha,
-            "effective_gamma": self.krr_estimator.effective_gamma,
-            "poly_degree": self.krr_estimator.poly_degree,
+            "energy_reference": self.energy_reference,
+            "delta_target_definition": self.delta_target_definition,
+            "requires_evaluated_low_energy_for_target": bool(
+                self.validation_metrics is not None and self.validation_metrics.total_surrogate_meets_target is False
+            ),
             "y_mean": self.krr_estimator.y_mean,
             "n_train": int(self.krr_estimator.X_train.shape[0]) if self.krr_estimator.X_train is not None else 0,
             "validation_metrics": self.validation_metrics.model_dump() if self.validation_metrics else None,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+        if isinstance(self.krr_estimator, NeuralCommitteeEstimator):
+            metadata.update({
+                "estimator_type": "neural_committee",
+                "neural_config": self.krr_estimator.config.model_dump(mode="json"),
+                "training_history": self.krr_estimator.training_history,
+                "uncertainty_kind": "uncalibrated_ensemble_sample_standard_deviation",
+            })
+        else:
+            metadata.update({
+                "estimator_type": "kernel_ridge",
+                "kernel_type": self.krr_estimator.kernel_type.value,
+                "alpha": self.krr_estimator.alpha,
+                "effective_gamma": self.krr_estimator.effective_gamma,
+                "poly_degree": self.krr_estimator.poly_degree,
+                "asymptotic_zero": self.krr_estimator.asymptotic_zero,
+            })
+        return metadata
 
     def save_npz(self, filepath: Union[str, Path]) -> Path:
         """Saves fitted model tensors and weights to a compressed .npz archive."""
@@ -1539,6 +1988,14 @@ class DeltaPESModel:
         p.parent.mkdir(parents=True, exist_ok=True)
 
         meta_json = json.dumps(self.to_dict(), indent=2)
+        if isinstance(self.krr_estimator, NeuralCommitteeEstimator):
+            arrays = {"meta_json": np.array(meta_json), **self.krr_estimator.to_arrays("neural_delta_")}
+            if self.low_level_estimator is not None:
+                if not isinstance(self.low_level_estimator, NeuralCommitteeEstimator):
+                    raise TypeError("Neural model archives require a neural baseline or an externally evaluated baseline")
+                arrays.update(self.low_level_estimator.to_arrays("neural_low_"))
+            np.savez_compressed(p, **arrays)
+            return p
         arrays_to_save: Dict[str, Any] = {
             "meta_json": np.array(meta_json),
             "krr_weights": self.krr_estimator.weights if self.krr_estimator.weights is not None else np.empty(0),
@@ -1581,11 +2038,23 @@ class DeltaPESModel:
             include_secondary=include_secondary,
         )
 
+        if meta_dict.get("estimator_type") == "neural_committee":
+            with data:
+                delta = NeuralCommitteeEstimator.from_arrays(data, "neural_delta_")
+                low = NeuralCommitteeEstimator.from_arrays(data, "neural_low_") if "neural_low_metadata" in data else None
+                metrics = PESValidationMetrics(**meta_dict["validation_metrics"]) if meta_dict.get("validation_metrics") else None
+            return cls(
+                featurizer, delta, low, meta_dict["low_method"], meta_dict["high_method"], metrics,
+                meta_dict.get("energy_reference", "unspecified_legacy"),
+                meta_dict.get("delta_target_definition", "unspecified_legacy"),
+            )
+
         krr_est = ExactKernelRidgeEstimator(
             kernel_type=KernelType(meta_dict["kernel_type"]),
             alpha=float(meta_dict["alpha"]),
             gamma=float(meta_dict["effective_gamma"]),
             poly_degree=int(meta_dict.get("poly_degree", 4)),
+            asymptotic_zero=bool(meta_dict.get("asymptotic_zero", True)),
         )
         krr_est.X_train = data["krr_X_train"]
         krr_est.y_train = data["krr_y_train"]
@@ -1598,6 +2067,8 @@ class DeltaPESModel:
             low_est = ExactKernelRidgeEstimator(
                 kernel_type=KernelType(meta_dict["kernel_type"]),
                 alpha=float(meta_dict["alpha"]),
+                poly_degree=int(meta_dict.get("poly_degree", 4)),
+                asymptotic_zero=bool(meta_dict.get("asymptotic_zero", True)),
             )
             low_est.X_train = data["low_X_train"]
             low_est.y_train = data["low_y_train"]
@@ -1616,6 +2087,8 @@ class DeltaPESModel:
             low_method=meta_dict.get("low_method", "dft_base"),
             high_method=meta_dict.get("high_method", "dlpno_ccsdt1_avtz"),
             validation_metrics=metrics,
+            energy_reference=meta_dict.get("energy_reference", "unspecified_legacy"),
+            delta_target_definition=meta_dict.get("delta_target_definition", "unspecified_legacy"),
         )
 
 
@@ -1641,12 +2114,19 @@ class PESValidator:
         held_out_geoms: np.ndarray,
         held_out_delta_true: np.ndarray,
         target_rms_cm1: float = 10.0,
+        validation_scope: str = "provided_delta_targets",
     ) -> PESValidationMetrics:
         """
-        Computes comprehensive spectroscopic validation metrics on training and held-out sets.
+        Computes energy-fitting errors against supplied training and held-out targets.
         """
         train_delta_true = np.asarray(train_delta_true, dtype=np.float64)
         held_out_delta_true = np.asarray(held_out_delta_true, dtype=np.float64)
+        if (
+            train_delta_true.shape != (len(train_geoms),) or held_out_delta_true.shape != (len(held_out_geoms),)
+            or not len(train_geoms) or not len(held_out_geoms)
+            or not np.all(np.isfinite(train_delta_true)) or not np.all(np.isfinite(held_out_delta_true))
+        ):
+            raise ValueError("Validation requires finite aligned training and held-out target vectors")
 
         # 1. Training metrics
         train_preds = model.predict_delta(train_geoms)
@@ -1684,10 +2164,11 @@ class PESValidator:
             spectroscopic_grade=spectroscopic_grade,
             target_rms_cm1=float(target_rms_cm1),
             timestamp=datetime.now(timezone.utc).isoformat(),
+            validation_scope=validation_scope,
         )
 
         logger.info(
-            f"Spectroscopic Validation: Held-out RMSE = {held_out_rmse_cm1:.3f} cm^-1 "
+            f"Numerical fitting validation ({validation_scope}): Held-out RMSE = {held_out_rmse_cm1:.3f} cm^-1 "
             f"(Target <= {target_rms_cm1:.1f} cm^-1 | Grade: {'PASS' if spectroscopic_grade else 'RETRY'}). "
             f"MAE = {held_out_mae_cm1:.3f} cm^-1, Max = {held_out_max_err_cm1:.3f} cm^-1."
         )
@@ -1722,6 +2203,14 @@ class AutoPESOrchestrator:
         self.high_method: str = high_method
         self.al_config: ActiveLearningConfig = al_config or ActiveLearningConfig()
         self.fit_config: DeltaFittingConfig = fit_config or DeltaFittingConfig()
+        if self.fit_config.backend == FittingBackend.POLYNOMIAL_EXPANSION:
+            # Polynomial KRR is the dual form of a ridge-regularized polynomial
+            # expansion of the invariant descriptors, including cross terms.
+            self.fit_config = self.fit_config.model_copy(update={"kernel": KernelType.POLYNOMIAL})
+        elif self.fit_config.backend == FittingBackend.PIP_RBF:
+            self.fit_config = self.fit_config.model_copy(
+                update={"kernel": KernelType.RBF, "include_secondary": True}
+            )
 
         self.featurizer: GeometryFeaturizer = GeometryFeaturizer(
             symbols=self.symbols,
@@ -1731,6 +2220,17 @@ class AutoPESOrchestrator:
         self.al_engine: ActiveLearningEngine = ActiveLearningEngine(
             featurizer=self.featurizer,
             config=self.al_config,
+        )
+
+    def _surface_estimator(self, *, seed_offset: int = 0) -> Union[ExactKernelRidgeEstimator, NeuralCommitteeEstimator]:
+        if self.fit_config.backend == FittingBackend.NEURAL_COMMITTEE:
+            return NeuralCommitteeEstimator(self.fit_config, seed_offset=seed_offset)
+        return ExactKernelRidgeEstimator(
+            kernel_type=self.fit_config.kernel,
+            alpha=self.fit_config.regularization_alpha,
+            gamma=self.fit_config.gamma,
+            poly_degree=self.fit_config.poly_degree,
+            asymptotic_zero=self.fit_config.energy_reference == "interaction_zero_asymptote",
         )
 
     def run_active_selection_from_store(
@@ -1780,15 +2280,32 @@ class AutoPESOrchestrator:
         dense_dft_geoms: Optional[np.ndarray] = None,
         dense_dft_energies: Optional[np.ndarray] = None,
     ) -> Tuple[DeltaPESModel, DeltaSurfaceFitResult]:
-        """Fits a DeltaPESModel on training, held-out, and optional dense baseline DFT data.
+        """Fit on training data and evaluate on separate held-out data.
+
+        A dense low-level baseline may be provided explicitly; its overlap
+        with the validation geometries then makes this a test of unseen
+        high-level labels, not a wholly unseen-geometry test of that baseline.
 
         Follows Method Matrix §13.2 / QS-3:
         1. Base estimator low_krr is fitted on full dense low-level DFT sampling dataset (N ~ 2,000 points).
-        2. High-level active-learning residual deltas: Delta E_k = E_k^high - low_krr.predict(X_k^high).
+        2. Paired energy differences: Delta E_k = E_k^high - E_k^low (Method Matrix delta_pairs contract).
         3. delta_krr is fitted strictly on these sparse active-learning residuals.
         """
         train_geoms = np.asarray(train_geoms, dtype=np.float64)
         held_out_geoms = np.asarray(held_out_geoms, dtype=np.float64)
+        if (dense_dft_geoms is None) != (dense_dft_energies is None):
+            raise ValueError("Dense baseline coordinates and energies must be supplied together")
+        energy_vectors = []
+        for values, geometries in (
+            (train_low_energies, train_geoms), (train_high_energies, train_geoms),
+            (held_out_low_energies, held_out_geoms), (held_out_high_energies, held_out_geoms),
+        ):
+            original = np.asarray(values)
+            vector = np.asarray(values, dtype=np.float64)
+            if original.dtype.kind == "b" or vector.shape != (len(geometries),) or not np.all(np.isfinite(vector)):
+                raise ValueError("Paired energies must be finite aligned vectors in Hartree")
+            energy_vectors.append(vector)
+        train_low_energies, train_high_energies, held_out_low_energies, held_out_high_energies = energy_vectors
 
         # 1. Fit baseline low_krr on the complete dense low-level DFT dataset
         if dense_dft_geoms is not None and dense_dft_energies is not None:
@@ -1799,35 +2316,28 @@ class AutoPESOrchestrator:
             low_train_feats = dense_feats
             low_train_y = dense_dft_energies
         else:
-            all_geoms = np.concatenate([train_geoms, held_out_geoms], axis=0)
-            all_low = np.concatenate([train_low_energies, held_out_low_energies], axis=0)
-            low_train_feats = self.featurizer.compute_morse_features(all_geoms)
-            low_train_y = all_low
-            n_base_total = int(all_geoms.shape[0])
+            # Held-out labels are validation data. A caller may explicitly
+            # supply a dense low-level baseline, but the default must not
+            # silently absorb the held-out set into baseline training.
+            low_train_feats = self.featurizer.compute_morse_features(train_geoms)
+            low_train_y = np.asarray(train_low_energies, dtype=np.float64)
+            n_base_total = int(train_geoms.shape[0])
 
-        low_krr = ExactKernelRidgeEstimator(
-            kernel_type=self.fit_config.kernel,
-            alpha=self.fit_config.regularization_alpha,
-            gamma=self.fit_config.gamma,
-        )
+        low_krr = self._surface_estimator()
         low_krr.fit(low_train_feats, low_train_y)
 
-        # 2. Extract sparse high-level residuals relative to dense baseline: Delta E = E^high - V_low(R)
+        # 2. Learn aligned high-minus-low labels. Fitting interpolation error in
+        # the low-level surrogate instead changes the learning problem and can
+        # dominate a supposedly measured delta error on a withheld domain.
         train_feats = self.featurizer.compute_morse_features(train_geoms)
-        train_v_low_pred = low_krr.predict(train_feats)
-        train_delta = np.asarray(train_high_energies, dtype=np.float64) - train_v_low_pred
+        train_delta = train_high_energies - train_low_energies
 
         held_out_feats = self.featurizer.compute_morse_features(held_out_geoms)
         held_out_v_low_pred = low_krr.predict(held_out_feats)
-        held_out_delta = np.asarray(held_out_high_energies, dtype=np.float64) - held_out_v_low_pred
+        held_out_delta = held_out_high_energies - held_out_low_energies
 
         # 3. Fit delta_krr strictly on sparse active-learning residuals
-        delta_krr = ExactKernelRidgeEstimator(
-            kernel_type=self.fit_config.kernel,
-            alpha=self.fit_config.regularization_alpha,
-            gamma=self.fit_config.gamma,
-            poly_degree=self.fit_config.poly_degree,
-        )
+        delta_krr = self._surface_estimator(seed_offset=1000003)
         delta_krr.fit(train_feats, train_delta)
 
         model = DeltaPESModel(
@@ -1836,6 +2346,8 @@ class AutoPESOrchestrator:
             low_level_estimator=low_krr,
             low_method=self.low_method,
             high_method=self.high_method,
+            energy_reference=self.fit_config.energy_reference,
+            delta_target_definition="paired_high_minus_low",
         )
 
         # 4. Validate on held-out grid (Method Matrix QS-3 Step 5)
@@ -1846,6 +2358,20 @@ class AutoPESOrchestrator:
             held_out_geoms=held_out_geoms,
             held_out_delta_true=held_out_delta,
             target_rms_cm1=self.fit_config.target_rms_cm1,
+            validation_scope="paired_delta_correction_with_evaluated_low_energy",
+        )
+        baseline_error = held_out_v_low_pred - held_out_low_energies
+        total_error = held_out_v_low_pred + model.predict_delta(held_out_geoms) - held_out_high_energies
+        baseline_rmse = float(np.sqrt(np.mean(baseline_error ** 2)) * HARTREE_TO_CM1)
+        total_rmse = float(np.sqrt(np.mean(total_error ** 2)) * HARTREE_TO_CM1)
+        metrics = metrics.model_copy(update={
+            "held_out_baseline_rmse_cm1": baseline_rmse,
+            "held_out_total_surrogate_rmse_cm1": total_rmse,
+            "total_surrogate_meets_target": bool(total_rmse <= self.fit_config.target_rms_cm1),
+        })
+        logger.info(
+            "Separate standalone-surrogate validation: baseline RMSE %.6f cm^-1; total RMSE %.6f cm^-1; target met: %s",
+            baseline_rmse, total_rmse, metrics.total_surrogate_meets_target,
         )
         model.validation_metrics = metrics
 
@@ -1873,9 +2399,11 @@ class AutoPESOrchestrator:
         """
         # Check if pes_store is a path to an HDF5 datastore file
         if isinstance(pes_store, (str, Path)):
+            from cochem_base.core_engine.cochem_core_pes_store import ReadWriteFileLock
+
             store_path = Path(pes_store).resolve()
-            h5_lock = filelock.FileLock(store_path.with_suffix(".h5.lock"), timeout=60.0)
-            with h5_lock:
+            h5_lock = ReadWriteFileLock(Path(f"{store_path}.lock"), timeout=10.0)
+            with h5_lock.read_lock():
                 with h5py.File(store_path, "r", swmr=True) as h5f:
                     if "dense_dft/coordinates" in h5f:
                         dense_geoms = np.asarray(h5f["dense_dft/coordinates"][:], dtype=np.float64)
@@ -1889,11 +2417,9 @@ class AutoPESOrchestrator:
                     if "sparse_ccsd/coordinates" in h5f:
                         high_geoms = np.asarray(h5f["sparse_ccsd/coordinates"][:], dtype=np.float64)
                         high_energies = np.asarray(h5f["sparse_ccsd/energy"][:], dtype=np.float64)
-                        high_low_energies = (
-                            np.asarray(h5f["sparse_ccsd/low_energy"][:], dtype=np.float64)
-                            if "sparse_ccsd/low_energy" in h5f
-                            else high_energies.copy()
-                        )
+                        if "sparse_ccsd/low_energy" not in h5f:
+                            raise MissingDataError("Missing aligned sparse_ccsd/low_energy dataset")
+                        high_low_energies = np.asarray(h5f["sparse_ccsd/low_energy"][:], dtype=np.float64)
                     else:
                         raise KeyError("Missing sparse_ccsd dataset in HDF5 store.")
 
@@ -1977,7 +2503,7 @@ class AutoPESOrchestrator:
 
 
 # =============================================================================
-# Demonstration / Physical Benchmark Potential Suite (Authentic Verification)
+# Numerical demonstration using an empirical potential (not electronic-structure evidence)
 # =============================================================================
 
 def generate_benchmark_intermolecular_pes_data(
@@ -1985,8 +2511,16 @@ def generate_benchmark_intermolecular_pes_data(
     random_seed: int = 42,
 ) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray]:
     """
-    Generates authentic physical testing geometries and energies using ASE EMT.
-    Avoids procedural np.random coordinates.
+    Return a deterministic Cu/Ag/Au EMT trajectory and two numerical targets.
+
+    Both energy arrays are in Hartree. The second target is an explicitly
+    artificial affine transformation of EMT energy for solver verification;
+    it is not DFT, CCSD(T), or evidence of spectroscopic prediction accuracy.
+    Specifically, E_target = 1.02 * E_EMT - 0.005 eV. With the same centered
+    linear estimator, the correction error scales to 2% of the baseline error;
+    passing a correction threshold here is not independent accuracy evidence.
+    ``random_seed`` is retained for API compatibility; this trajectory has
+    fixed initial coordinates and velocities and uses no random sampling.
     """
     from ase import Atoms, units
     from ase.calculators.emt import EMT
@@ -2002,19 +2536,19 @@ def generate_benchmark_intermolecular_pes_data(
     dyn = VelocityVerlet(atoms, 1.0 * units.fs)
 
     geoms = np.empty((n_points, 3, 3), dtype=np.float64)
-    e_dft = np.empty(n_points, dtype=np.float64)
-    e_cc = np.empty(n_points, dtype=np.float64)
+    empirical_energies = np.empty(n_points, dtype=np.float64)
+    transformed_energies = np.empty(n_points, dtype=np.float64)
 
     for p in range(n_points):
         dyn.run(2)
         geoms[p] = atoms.get_positions()
-        # Physical energy
-        energy = atoms.get_potential_energy()
-        e_dft[p] = energy
-        # Benchmark correlation shift
-        e_cc[p] = energy * 1.02 - 0.005
+        # ASE returns eV; every AutoPES fitting/validation API uses Hartree.
+        energy_ev = atoms.get_potential_energy()
+        empirical_energies[p] = energy_ev / units.Hartree
+        # Numerical target only: preserve the original 0.005 eV shift.
+        transformed_energies[p] = (energy_ev * 1.02 - 0.005) / units.Hartree
 
-    return symbols, geoms, e_dft, e_cc
+    return symbols, geoms, empirical_energies, transformed_energies
 
 
 # =============================================================================
@@ -2029,7 +2563,7 @@ def build_cli_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--demo",
         action="store_true",
-        help="Run self-contained physical demonstration on Ar...HCl complex.",
+        help="Run a numerical Cu/Ag/Au EMT fitting demonstration (not a quantum benchmark).",
     )
     parser.add_argument(
         "--campaign-h5",
@@ -2079,23 +2613,23 @@ def build_cli_parser() -> argparse.ArgumentParser:
 
 def run_demo() -> int:
     """
-    Executes a comprehensive, physical verification demonstration of the
-    CoChem AutoPES active learning and Delta-learning fitting engine.
+    Exercise fitting on EMT and an artificial transformed target.
+
+    This measures numerical fitting error, not electronic-structure accuracy.
     """
     logger.info("================================================================================")
     logger.info("CoChem AutoPES: Active Learning (300-800 pts) & Delta-Learning Demonstration")
-    logger.info("Mandated by Method Matrix v4 QS-3 & §13.2 (Table 2 Rows T2-12h / T2-1d)")
+    logger.info("Empirical numerical demonstration; independent scientific accuracy is not assessed.")
     logger.info("================================================================================")
 
-    # 1. Generate physical Ar...HCl benchmark dataset (2,000 DFT base pool)
-    symbols, geoms, e_dft, e_cc = generate_benchmark_intermolecular_pes_data(n_points=2000, random_seed=42)
-    logger.info("Generated physical Ar...HCl dataset: 2,000 points across R=[2.8, 6.5] A, theta=[0, pi].")
+    # 1. Generate deterministic empirical-potential data in Hartree.
+    symbols, geoms, empirical_energy, transformed_energy = generate_benchmark_intermolecular_pes_data(n_points=2000, random_seed=42)
+    logger.info("Generated 2,000 Cu/Ag/Au EMT trajectory points; upper target is an artificial affine transform.")
+    logger.info("E_target = 1.02 * E_EMT - 0.005 eV; the small correction has no independent quantum reference.")
 
     # Verify Mendeleev dynamic mass resolution
-    ar_mass = get_dynamic_atomic_mass("Ar")
-    h_mass = get_dynamic_atomic_mass("H")
-    cl_mass = get_dynamic_atomic_mass("Cl")
-    logger.info(f"Mendeleev Masses: Ar={ar_mass:.4f} u, H={h_mass:.4f} u, Cl={cl_mass:.4f} u (ZERO hardcoded masses).")
+    for symbol in symbols:
+        logger.info("Mendeleev mass: %s=%.6f u", symbol, get_dynamic_atomic_mass(symbol))
 
     # 2. Configure Active Learning Engine
     al_config = ActiveLearningConfig(
@@ -2118,8 +2652,8 @@ def run_demo() -> int:
 
     orchestrator = AutoPESOrchestrator(
         symbols=symbols,
-        low_method="wb97x_v_tz",
-        high_method="dlpno_ccsdt1_avtz",
+        low_method="ase_emt",
+        high_method="numerical_affine_emt_target",
         al_config=al_config,
         fit_config=fit_config,
     )
@@ -2129,7 +2663,7 @@ def run_demo() -> int:
     start_time = time.perf_counter()
     al_result = orchestrator.al_engine.select_points(
         pool_geoms=geoms,
-        pool_energies=e_dft,
+        pool_energies=empirical_energy,
     )
     sel_elapsed = time.perf_counter() - start_time
 
@@ -2142,23 +2676,23 @@ def run_demo() -> int:
         f"({al_result.iqr_threshold_mev_atom:.3f} meV/atom)."
     )
 
-    # 4. Execute Delta-Learning Surface Fitting & Spectroscopic Held-Out Validation (Steps 4 & 5)
+    # 4. Fit and validate the numerical paired correction on held-out geometries.
     logger.info("\n--- Phase 2: Delta-Learning Potential Energy Surface Fitting ---")
     train_idx = al_result.selected_indices
     held_idx = al_result.held_out_indices
 
     model, fit_summary = orchestrator.fit_delta_surface_from_data(
         train_geoms=geoms[train_idx],
-        train_low_energies=e_dft[train_idx],
-        train_high_energies=e_cc[train_idx],
+        train_low_energies=empirical_energy[train_idx],
+        train_high_energies=transformed_energy[train_idx],
         held_out_geoms=geoms[held_idx],
-        held_out_low_energies=e_dft[held_idx],
-        held_out_high_energies=e_cc[held_idx],
+        held_out_low_energies=empirical_energy[held_idx],
+        held_out_high_energies=transformed_energy[held_idx],
     )
 
     metrics = fit_summary.metrics
     logger.info("\n================================================================================")
-    logger.info("FINAL SPECTROSCOPIC VALIDATION REPORT (Method Matrix QS-3 & Row T2-12h)")
+    logger.info("NUMERICAL FITTING VALIDATION REPORT (NOT SPECTROSCOPIC ACCURACY EVIDENCE)")
     logger.info("================================================================================")
     logger.info(f"Training Points (Actively Selected): {metrics.n_train}")
     logger.info(f"Held-Out Validation Points:        {metrics.n_held_out}")
@@ -2168,8 +2702,9 @@ def run_demo() -> int:
     logger.info(f"Held-Out Validation MAE:           {metrics.held_out_mae_cm1:.4f} cm^-1")
     logger.info(f"Held-Out Validation Max Error:     {metrics.held_out_max_err_cm1:.4f} cm^-1")
     logger.info(f"Held-Out Validation RMSE (kcal):   {metrics.held_out_rmse_kcal_mol:.5f} kcal/mol")
-    logger.info(f"Spectroscopic Target Threshold:    <= {metrics.target_rms_cm1:.1f} cm^-1")
-    logger.info(f"Spectroscopic Grade Status:        {'[PASS - SPECTROSCOPIC GRADE]' if metrics.spectroscopic_grade else '[RETRY]'}")
+    logger.info(f"Numerical Correction Threshold:    <= {metrics.target_rms_cm1:.1f} cm^-1")
+    logger.info(f"Correction Threshold Met:          {metrics.spectroscopic_grade}")
+    logger.info("Independent physical/spectroscopic accuracy: NOT ASSESSED")
     logger.info("================================================================================")
 
     # 5. Verify Analytical Gradient Evaluation
@@ -2192,8 +2727,8 @@ def run_demo() -> int:
     if demo_npz.exists():
         demo_npz.unlink()
 
-    logger.info("\n[SUCCESS] AutoPES demonstration completed with full Method Matrix compliance.")
-    return 0
+    logger.info("\nAutoPES numerical demonstration finished; scientific accuracy requires independent reference data.")
+    return 0 if metrics.spectroscopic_grade else 1
 
 
 def main() -> int:
@@ -2246,6 +2781,13 @@ def main() -> int:
 
     logger.info("Fitting Delta-learning potential energy surface...")
     model, fit_summary = orchestrator.fit_delta_surface_from_store(store)
+    if not fit_summary.metrics.spectroscopic_grade:
+        logger.error(
+            "PES accuracy gate failed: held-out RMSE %.6f cm^-1 exceeds %.6f cm^-1; model was not published.",
+            fit_summary.metrics.held_out_rmse_cm1,
+            fit_summary.metrics.target_rms_cm1,
+        )
+        return 2
     model.save_npz(args.output_model)
     logger.info(f"Delta-learning surface fitted and saved to {args.output_model}.")
     return 0

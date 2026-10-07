@@ -14,10 +14,7 @@ except ImportError:
     molsym = None
 
 from collections.abc import Mapping
-try:
-    from mendeleev import element as _mendeleev_element
-except ImportError:
-    _mendeleev_element = None
+from cochem_base.physics.isotopes import get_atomic_mass, get_isotope_mass
 
 _TARGET_HEAVY_MASS_NUMBERS = {
     "H": 2,    # Deuterium
@@ -40,27 +37,7 @@ class _DynamicHeavyIsotopesMap(Mapping):
         if sym not in _TARGET_HEAVY_MASS_NUMBERS:
             raise KeyError(key)
 
-        mass_num = _TARGET_HEAVY_MASS_NUMBERS[sym]
-        if _mendeleev_element is not None:
-            try:
-                el = _mendeleev_element(sym)
-                for iso in getattr(el, "isotopes", []):
-                    if iso.mass_number == mass_num and iso.mass is not None:
-                        return float(iso.mass)
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-
-        # Fallback values if mendeleev is unavailable
-        fallbacks = {
-            "H": 2.014101778,
-            "C": 13.003354835,
-            "N": 15.000108898,
-            "O": 17.999159612,
-            "S": 33.96786690,
-            "Cl": 36.96590260,
-            "Br": 80.9162906,
-        }
-        return fallbacks[sym]
+        return get_isotope_mass(sym, _TARGET_HEAVY_MASS_NUMBERS[sym])
 
     def __iter__(self):
         return iter(_TARGET_HEAVY_MASS_NUMBERS.keys())
@@ -175,7 +152,7 @@ def auto_kie_profiling(hdf5_path: str, group_name: str) -> None:
         if len(symbols) * 3 != H.shape[0]:
             raise ValueError("Dimension mismatch between symbols and Hessian.")
 
-        base_masses = np.array([pt.to_mass(s) for s in symbols])
+        base_masses = np.array([get_atomic_mass(s) for s in symbols])
 
         # Find symmetrically equivalent atoms
         mol = molsym.Molecule(symbols, coords, base_masses)

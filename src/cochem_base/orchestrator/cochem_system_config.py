@@ -293,30 +293,23 @@ def get_mendeleev_isotopic_masses() -> Dict[str, float]:
 
         for sym, mass_numbers in elements_to_query:
             el = element(sym)
-            masses[sym] = float(el.mass)
+            standard_mass = float(el.mass)
+            if not math.isfinite(standard_mass) or standard_mass <= 0:
+                raise ValueError(f"Nonphysical standard atomic mass for {sym}")
+            masses[sym] = standard_mass
             for iso in el.isotopes:
                 if iso.mass_number in mass_numbers and iso.mass is not None:
                     iso_key = f"{iso.mass_number}{sym}"
-                    masses[iso_key] = float(iso.mass)
+                    isotope_mass = float(iso.mass)
+                    if not math.isfinite(isotope_mass) or isotope_mass <= 0:
+                        raise ValueError(f"Nonphysical isotope mass for {iso_key}")
+                    masses[iso_key] = isotope_mass
+            missing = [number for number in mass_numbers if f"{number}{sym}" not in masses]
+            if missing:
+                raise ValueError(f"Mendeleev has no measured isotope mass for {sym}: {missing}")
 
     except Exception as exc:
-        logger.warning(
-            f"Dynamic Mendeleev mass loading encountered warning ({exc}). Retrying standard access."
-        )
-        try:
-            from mendeleev import element
-
-            masses["C"] = float(element("C").mass)
-            masses["13C"] = float(
-                [i.mass for i in element("C").isotopes if i.mass_number == 13 and i.mass is not None][0]
-            )
-            masses["12C"] = 12.00000000000
-        except Exception:
-            # Absolute fallback if mendeleev is unavailable during bootstrap
-            masses["12C"] = 12.00000000000
-            masses["13C"] = 13.00335483507
-            masses["1H"] = 1.00782503223
-            masses["16O"] = 15.99491461957
+        raise RuntimeError(f"Dynamic Mendeleev mass loading failed: {exc}") from exc
 
     return masses
 
@@ -616,10 +609,14 @@ class HardwareProfile(BaseModel):
                     logger.debug(f"Ignored exception: {_e}")
 
         # Synchronize physical cores
-        phys = d.get("physical_cpu_cores") or d.get("cpu_physical_cores") or d.get("cpu_cores")
+        phys = d.get("physical_cpu_cores")
+        if phys is None:
+            phys = d.get("cpu_physical_cores")
+        if phys is None:
+            phys = d.get("cpu_cores")
         if phys is not None:
             try:
-                phys_int = max(1, int(phys))
+                phys_int = int(phys)
                 d["physical_cpu_cores"] = phys_int
                 d["cpu_physical_cores"] = phys_int
                 if "cpu_cores" not in d:
@@ -627,15 +624,11 @@ class HardwareProfile(BaseModel):
             except (ValueError, TypeError) as _e:
                 logger.debug(f"Ignored exception: {_e}")
         else:
-            d["physical_cpu_cores"] = 1
-            d["cpu_physical_cores"] = 1
+            raise ValueError("Golden registry requires measured physical CPU cores")
 
         # Synchronize logical cores
         if "logical_cpu_cores" not in d or d["logical_cpu_cores"] is None:
-            if "cpu_cores" in d and d["cpu_cores"] is not None:
-                d["logical_cpu_cores"] = int(d["cpu_cores"])
-            elif "physical_cpu_cores" in d and d["physical_cpu_cores"] is not None:
-                d["logical_cpu_cores"] = int(d["physical_cpu_cores"]) * 2
+            raise ValueError("Golden registry requires measured logical CPU cores")
 
         # Synchronize allocatable compute cores
         if "allocatable_compute_cores" not in d or d["allocatable_compute_cores"] is None:
@@ -1314,11 +1307,7 @@ class CoChemSystemConfig(BaseModel):
             if extracted_hw:
                 d["hardware"] = extracted_hw
             else:
-                d["hardware"] = {
-                    "physical_cpu_cores": max(1, os.cpu_count() or 1),
-                    "logical_cpu_cores": max(1, os.cpu_count() or 1),
-                    "ram_gb": 16.0,
-                }
+                raise ValueError("Golden registry requires an audited hardware section")
         elif isinstance(d["hardware"], dict):
             for k, v in extracted_hw.items():
                 if k not in d["hardware"]:
@@ -1532,109 +1521,28 @@ def discover_host_os() -> OSProfile:
 
 
 def discover_host_hardware() -> HardwareProfile:
-    """
-    Perform genuine physical discovery of CPU cores, memory topology, AVX-512 support,
-    heterogeneous GPUs, and IEEE-754 precision traps.
-    """
-    # 1. CPU topology
-    phys_cores = psutil.cpu_count(logical=False) or 1
-    log_cores = psutil.cpu_count(logical=True) or 1
-
-    # 2. RAM discovery
-    total_ram_bytes = psutil.virtual_memory().total
-    total_ram_gb = round(total_ram_bytes / (1024**3), 2)
-    total_ram_mb = int(total_ram_bytes / (1024**2))
-
-    # 3. AVX-512 vector detection
-    avx512 = False
-    if platform.system() == "Linux" and os.path.exists("/proc/cpuinfo"):
-        try:
-            cpuinfo = Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="ignore").lower()
-            if "avx512" in cpuinfo:
-                avx512 = True
-        except OSError as _e:
-            logger.debug(f"Ignored exception: {_e}")
-
-    # 4. IEEE-754 subnormal floating point precision verification
-    trap_detected = verify_ieee754_subnormal_precision()
-
-    # 5. GPU discovery
-    detected_gpus: List[GPUDevice] = []
-    gpu_profile_str = "None"
-    vram_gb_total = 0.0
-    fp64_support = False
-
-    # Check for nvidia-smi
-    nvidia_smi = shutil.which("nvidia-smi")
-    if nvidia_smi:
-        try:
-            proc = subprocess.run(
-                [
-                    nvidia_smi,
-                    "--query-gpu=index,name,memory.total,driver_version",
-                    "--format=csv,noheader,nounits",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=5.0,
-                check=False,
-            )
-            if proc.returncode == 0:
-                lines = proc.stdout.strip().splitlines()
-                for line in lines:
-                    parts = [p.strip() for p in line.split(",")]
-                    if len(parts) >= 3:
-                        idx = int(parts[0])
-                        gname = parts[1]
-                        vram_mb = float(parts[2])
-                        driver_ver = parts[3] if len(parts) > 3 else None
-                        vram_gb = round(vram_mb / 1024.0, 2)
-                        vram_gb_total += vram_gb
-                        gpu_profile_str = gname
-
-                        # Check for FP64 capable architectures
-                        if any(arch in gname for arch in ["A100", "H100", "V100", "Titan V", "Quadro GV100"]):
-                            fp64_support = True
-
-                        detected_gpus.append(
-                            GPUDevice(
-                                device_index=idx,
-                                name=gname,
-                                vendor="NVIDIA",
-                                vram_bytes=int(vram_mb * 1024 * 1024),
-                                vram_gb=vram_gb,
-                                driver_version=driver_ver,
-                                fp64_capable=fp64_support,
-                            )
-                        )
-        except Exception as exc:
-            logger.debug(f"nvidia-smi probe completed with notice: {exc}")
-
-    gpu_metrics = GPUComputeSchema(
-        gpu_profile=gpu_profile_str,
-        vram_gb=vram_gb_total,
-        device_count=len(detected_gpus),
-        fp64_capable=fp64_support,
-        subnormal_precision_trap=trap_detected,
-        mps_enabled=len(detected_gpus) > 0,
-        devices=detected_gpus,
-    )
-
+    """Construct Stage 0 authority from bounded real hardware observations."""
+    from cochem_base.core_engine.hardware_profiler import profile_hardware
+    observed = profile_hardware()
+    gpu_profile = "NVIDIA" if observed.gpu_probe_status == "measured" else "Unknown"
+    vram_gb = (observed.vram_bytes or 0) / 1024**3
+    trap = verify_ieee754_subnormal_precision()
     return HardwareProfile(
-        ram_gb=total_ram_gb,
-        physical_cpu_cores=phys_cores,
-        logical_cpu_cores=log_cores,
-        allocatable_compute_cores=phys_cores,
-        ram_mb=total_ram_mb,
-        avx512_support=avx512,
-        avx_512_capable=avx512,
-        gpu_profile=gpu_profile_str,
-        vram_gb=vram_gb_total,
-        subnormal_precision_trap=trap_detected,
-        gpu_fp64_capable=fp64_support,
-        mps_enabled=len(detected_gpus) > 0,
-        os_target=_default_os_target(),
-        gpu_compute_metrics=gpu_metrics,
+        ram_gb=observed.allocatable_ram_bytes / 1024**3,
+        physical_cpu_cores=observed.physical_cores,
+        logical_cpu_cores=observed.logical_cores,
+        allocatable_compute_cores=min(observed.physical_cores, len(observed.available_cpu_ids)),
+        ram_mb=observed.allocatable_ram_bytes // 1024**2,
+        avx512_support=observed.avx512 is True,
+        avx_512_capable=observed.avx512 is True,
+        gpu_profile=gpu_profile, vram_gb=vram_gb,
+        subnormal_precision_trap=trap, gpu_fp64_capable=False, mps_enabled=False,
+        os_target=observed.environment.os_target,
+        gpu_compute_metrics=GPUComputeSchema(
+            gpu_profile=gpu_profile, vram_gb=vram_gb,
+            device_count=observed.gpu_device_count or 0,
+            subnormal_precision_trap=trap,
+        ),
     )
 
 
@@ -1766,52 +1674,18 @@ def interrogate_system_config(
 
 
 def resolve_golden_registry_path(custom_path: Optional[Union[str, Path]] = None) -> Path:
+    """Resolve the chosen authority without substituting a different registry.
+
+    A missing configured file must fail at load time; repository-local files
+    cannot silently override Stage 0 configuration.
     """
-    Resolve canonical filesystem path for `cochem_system_config.json` via 4-tier hierarchy:
-    Tier 1: Explicit Parameter (CLI / Function argument)
-    Tier 2: Environment Variables ($COCHEM_CONFIG, $COCHEM_ARTIFACT_DIR)
-    Tier 3: Repository Root / CoChem-BASE cochem_system_config.json
-    Tier 4: Dynamic User Home Fallback (~/CoChem_Artifacts/Registry/cochem_system_config.json)
-    """
-    if custom_path:
-        p = Path(_expand_env_vars(str(custom_path))).resolve()
-        if p.is_dir() or p.suffix == "":
-            return p / "cochem_system_config.json"
-        return p
-
-    env_cfg = os.environ.get("COCHEM_CONFIG")
-    if env_cfg:
-        p = Path(_expand_env_vars(env_cfg)).resolve()
-        if p.is_file():
-            return p
-        if p.is_dir():
-            return p / "cochem_system_config.json"
-
-    env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
-    if env_art:
-        art_p = Path(_expand_env_vars(env_art)).resolve()
-        candidate = art_p / "Registry" / "cochem_system_config.json"
-        if candidate.exists():
-            return candidate
-        candidate_flat = art_p / "cochem_system_config.json"
-        if candidate_flat.exists():
-            return candidate_flat
-
-    cwd = Path.cwd().resolve()
-    repo_cand = cwd / "cochem_system_config.json"
-    if repo_cand.exists():
-        return repo_cand
-
-    base_cand = cwd / "CoChem-BASE" / "cochem_system_config.json"
-    if base_cand.exists():
-        return base_cand
-
-    # Check parent workspace
-    parent_cand = cwd.parent / "cochem_system_config.json"
-    if parent_cand.exists():
-        return parent_cand
-
-    return (Path.home() / "CoChem_Artifacts" / "Registry" / "cochem_system_config.json").resolve()
+    configured = custom_path or os.environ.get("COCHEM_CONFIG")
+    if configured is not None:
+        target = Path(_expand_env_vars(str(configured))).expanduser().resolve()
+        return target / "cochem_system_config.json" if target.is_dir() else target
+    artifacts = os.environ.get("COCHEM_ARTIFACT_DIR") or os.environ.get("COCHEM_ARTIFACTS_DIR")
+    root = Path(os.path.expandvars(artifacts)).expanduser() if artifacts else Path.home() / "CoChem_Artifacts"
+    return (root / "Registry" / "cochem_system_config.json").resolve()
 
 
 def validate_system_config(

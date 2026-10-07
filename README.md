@@ -1,328 +1,172 @@
-# CoChem-BASE: Master Environment & Architecture Framework
+# CoChem-BASE
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-brightgreen.svg)](https://www.python.org/)
-[![Method Matrix](https://img.shields.io/badge/Method_Matrix-v4.1-orange.svg)](Method_Matrix.md)
-[![Manual](https://img.shields.io/badge/User_Manual-v4.1-blueviolet.svg)](CoChem_User_Manual.md)
-[![Architecture](https://img.shields.io/badge/Architecture-Tripartite_Air--Gap-success.svg)](README.md#3-tripartite-workspace-air-gap-architecture)
-[![Zero-Mock](https://img.shields.io/badge/Testing-Zero--Mock_Verified-purple.svg)](README.md#7-zero-mock-testing-mandate)
+[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 
-**Principal Investigator / Architect:** Dr. Joshua John Klaassen  
-**ORCiD:** [https://orcid.org/0009-0007-1506-4401](https://orcid.org/0009-0007-1506-4401)  
-**GitHub Organization:** [https://github.com/ProfJJK-CoChem](https://github.com/ProfJJK-CoChem)  
-**Master Manual:** [CoChem User Manual v4.1](CoChem_User_Manual.md) | **Method Matrix:** [Method Matrix v4.1](Method_Matrix.md) | **License:** [Apache-2.0](LICENSE)
+CoChem-BASE provides scientific input ingestion, environment setup, the Voilà
+interface, validated calculation execution and handoffs to the CoChem ecosystem.
+It preserves actual inputs, engine identity, resource allocation, outputs and
+scientific records needed to assess a result.
 
----
+**Students and instructors: start with the
+[Classroom50 + ORCA GitHub Actions guide](.docs/GitHub_Classroom_ORCA_Setup.md).**
+It covers private binary setup, correct GitHub permissions, each student's
+assignment repository, GUI job export, calculations and retrieval of results.
+Students using the instructor's provisioned route do not enter tokens in CoChem.
 
-## 1. Executive Overview & Mission
+Version **1.0.0 validates the supported Classroom50 / GitHub Actions route**,
+including real ORCA optimization and harmonic calculations. The complete local
+BASE profile passed 1,532 tests with two declared physical Slurm deferrals;
+Ubuntu, macOS and Windows control and wheel checks also passed. The
+[release record](.docs/Release_1_0_0.md) identifies exact revisions, evidence,
+distribution records and remaining host/scientific boundaries.
 
-**CoChem-BASE** is the foundational routing engine, environment orchestrator, and Stage 0 bootstrap layer for the **CoChem** computational ecosystem (`CoChem-BASE`, `CoChem-TOPOS`, `CoChem-TORQ`, `CoChem-SpycFit`, `CoChem-SCRIBE`). It provisions isolated computational silos, schedules hardware-aware quantum chemical workloads, enforces strict architectural air-gaps, and seamlessly manages state synchronization across heterogeneous computing environments (local workstations, WSL2, and High-Performance Computing (HPC) clusters).
+## Choose a calculation environment
 
-Built to rigorous *ab initio* theoretical standards, CoChem-BASE empowers both experts and non-coders alike. It integrates directly with the Valeev stack (MPQC, TiledArray, Libint) and external electronic structure engines (ORCA 6.1.0, CFOUR 2.1, xTB 6.7.1, PySCF 2.7+). Thanks to our intuitive **No-Code Dashboard**, complex workflows execute dynamic JAX-compiled tensor computation graphs guided by the **Method Matrix v4 10-Tier Wall-Clock Heuristic (T0–T9)**—all without requiring manual script writing.
+| Route | How to use it | Validation boundary |
+| --- | --- | --- |
+| Classroom50 / GitHub Actions | Accept the assignment, export a JSON job in Voilà, and run **ORCA calculation**. | Hosted installation and chemistry must pass for the selected source revision. See [ORCA evidence](.docs/ORCA_Actions_Setup.md). |
+| Local Linux CPU | Complete Stage 0 and select an audited installed engine. | Local tests and real bounded calculations provide evidence for documented operations. |
+| Windows / WSL2 | Submit Actions jobs from the interface; use WSL2 for local Linux ORCA. | The Linux archive does not run natively on Windows. WSL acceptance is separate from Linux cloud tests. |
+| macOS | Use Actions or install the matching macOS engine build and complete setup. | Native macOS acceptance needs an appropriate host. Linux binaries and registries are not portable to it. |
+| HPC / Slurm | Use permitted site engines/MPI and a registry generated in the allocation. | Physical Slurm-node and GPU acceptance remains deferred until a suitable host is supplied. |
+| Codespaces interface | Host the interface in Codespaces and choose the calculation destination independently. | Local lifecycle/browser evidence is separate from an actual Codespaces rebuild. |
 
-```mermaid
-graph TD
-    A[Start_Here.ipynb / Stage 0 Bootstrap] --> B[cochem_base_silo Virtual Environment]
-    B --> C[4-Tier OS Configuration & Path Loader]
-    C --> D[Interactive Matrix Dashboard]
-    D --> E{Tripartite Air-Gap Manager}
-    E -->|Read-Only Schemas| F[Tier 1: Static Execution Tier]
-    E -->|SWMR Locking / QCSchema| G[Tier 2: Persistent Data Tier]
-    E -->|Sterile Scratch Quarantine| H[Tier 3: Ephemeral Compute Tier]
-    H --> I[HPCDispatcher: Slurm / PBS / Torque / Local]
-```
+Selecting Actions preserves the local/HPC choices. Every execution host needs
+its own engine paths, measured resource limits and Stage 0 registry.
 
-### Key Capabilities
-- **Stage 0 Environment Bootstrapper**: Automated, reproducible provisioning of dedicated Conda/Mamba environments (`cochem_base_silo`) without host filesystem contamination.
-- **4-Tier OS Interaction Model**: Deterministic cross-platform path and configuration resolution hierarchy spanning explicit parameters, environment variables, central JSON configs, and dynamic fallbacks.
-- **Tripartite Workspace Air-Gap**: Absolute physical separation between immutable code/schemas, POSIX-locked persistent datasets, and sterile ephemeral calculation scratch spaces.
-- **Hardware-Aware Dispatching**: Dynamic workload routing across CPU threads, AVX-512 vector units, and CUDA GPUs with subnormal precision trapping.
-- **SWMR & QCSchema Data Standard**: Concurrent real-time telemetry streaming via Single-Writer Multiple-Reader HDF5 stores alongside FAIR-compliant QCSchema archives.
-- **Zero-Mock Verification**: 100% genuine physical validation across all unit and integration test suites without synthetic physics or dummy mocks.
+## Student Actions calculations
 
----
+The instructor prepares the private archive and grants selected repositories
+access. All ORCA workflows read the same reviewed
+[`scripts/orca-distribution.json`](scripts/orca-distribution.json). The supported
+distribution is ORCA 6.1.1 for Linux x86-64 with Open MPI 4.1.8; its SHA-256 is
+checked before extraction. The licensed binary is not included in this
+repository, Python distributions or calculation artifacts.
 
-## 2. 4-Tier OS Interaction & Path Resolution Model
+1. Complete the [student quick start](.docs/GitHub_Classroom_ORCA_Setup.md#student-quick-start)
+   and confirm the repository's physical ORCA acceptance passed.
+2. In Voilà, select **GitHub Actions**, enter the course repository and approved
+   branch, and configure the molecule in **No Code Matrix**.
+3. Select **Prepare GitHub Actions job**, download the JSON and commit it under
+   `jobs/` using the course's review process.
+4. Open **Actions → ORCA calculation → Run workflow**, enter its `job_file`
+   path, and start one job. Download its result artifact when it finishes.
 
-To guarantee cross-platform reproducibility across Linux, macOS, Windows WSL2, and native Windows environments, CoChem-BASE implements an authoritative **4-Tier OS Interaction Model** for all path, environment, and configuration resolution operations.
+The course workflow supports bounded molecular single points, optimizations
+and harmonic frequencies: up to 50 atoms, one or two processes, at most 1024 MB
+per process and 1800 seconds of chemistry execution. Defaults are two processes
+and 512 MB per process. External checkpoints, R2 references, T9 recovery,
+periodic calculations and VPT2 require other workflows.
 
-```
-+-----------------------------------------------------------------------------------+
-|                        4-TIER OS INTERACTION HIERARCHY                            |
-+-----------------------------------------------------------------------------------+
-| Tier 1: Explicit Parameters        | CLI arguments, function kwargs (custom_path) |
-|         (Highest Precedence)       | Overrides all lower tiers deterministically  |
-+------------------------------------+----------------------------------------------+
-| Tier 2: Environment Variables      | $COCHEM_CONFIG, $COCHEM_ARTIFACT_DIR,        |
-|         (User/Pipeline Overrides)  | $COCHEM_SCRATCH, $COCHEM_RUNTIME_DIR         |
-+------------------------------------+----------------------------------------------+
-| Tier 3: Central System Config      | cochem_system_config.json in repo/silo root  |
-|         (Pydantic-Validated Store) | Schema-enforced hardware, engines & silos    |
-+------------------------------------+----------------------------------------------+
-| Tier 4: Dynamic Discovery Fallbacks| XDG_CACHE_HOME, tempfile.gettempdir(),       |
-|         (Deterministic Defaults)   | ~/.cochem, ~/CoChem_Artifacts                |
-+-----------------------------------------------------------------------------------+
-```
+Examples are [water single point](examples/jobs/water-single-point.json),
+[water optimization](examples/jobs/water-optimization.json), and
+[water optimization plus harmonic frequencies](examples/jobs/water-harmonic.json).
+These HF/STO-3G examples validate execution, not research-level chemical accuracy.
+A harmonic calculation at supplied coordinates does not certify a stationary
+geometry; optimize first when appropriate.
 
-### Tier Breakdown
+## Launch the interface from source
 
-1. **Tier 1: Explicit CLI & Function Arguments**  
-   Direct function arguments (e.g., `custom_path`, `--config`, `--artifact-dir`, `--scratch-dir`) take absolute precedence over all other configuration sources. This ensures programmatic scripts and command-line invocations retain strict, deterministic control.
+Use Python 3.12 for the pinned Stage 0 environments. Classroom50 users should
+clone their **accepted assignment repository**, using its **Code → Local** HTTPS
+URL, and run the launcher inside that checkout. The clone example below is for
+upstream development; it does not create or select your course assignment.
 
-2. **Tier 2: Environment Variables**  
-   When explicit arguments are omitted, CoChem-BASE inspects designated environment variables:
-   - `COCHEM_CONFIG`: Path to custom system configuration JSON.
-   - `COCHEM_ARTIFACT_DIR` / `COCHEM_DATA_ROOT`: Target directory for persistent HDF5 databases and registries.
-   - `COCHEM_SCRATCH` / `COCHEM_SCRATCH_DIR`: Target path for high-IOPS ephemeral calculation scratch.
-   - `COCHEM_RUNTIME_DIR`: Directory for Unix domain sockets and telemetry pipes.
-   - `COCHEM_BASE_ROOT` / `COCHEM_WORKSPACE_ROOT`: Monorepo root directory anchors.
-   - `COCHEM_CONDA_EXE` / `COCHEM_WSL_EXE`: Specific executable binary paths.
+From an upstream development checkout:
 
-3. **Tier 3: Central System Configuration (`cochem_system_config.json`)**  
-   If neither Tier 1 nor Tier 2 overrides are present, CoChem-BASE loads the central system configuration file `cochem_system_config.json` located in the repository root or active silo. This file is strictly validated against the Pydantic `CoChemConfig` schema to guarantee structural integrity of hardware specs, external engine binaries, and active module silos.
-
-4. **Tier 4: Dynamic Workspace Discovery & Fallbacks**  
-   If explicit files or environment overrides are absent, the system dynamically discovers safe default paths anchored relative to the repository tree, standard user directories, or operating system temporary folders:
-   - Persistent Artifacts: `$HOME/CoChem_Artifacts` or `<repo_root>/.agent_artifacts`
-   - Ephemeral Scratch: `XDG_CACHE_HOME/cochem/scratch`, `tempfile.gettempdir()/cochem_scratch`, or `$HOME/.cochem/scratch`
-   - Runtime Sockets: `tempfile.gettempdir()/cochem` (UDP on native Windows; Unix datagrams on POSIX)
-
----
-
-## 3. Tripartite Workspace Air-Gap Architecture
-
-CoChem-BASE enforces a strict three-tier physical air-gap to defend against data contamination, git repository bloat, and concurrency race conditions. Computational chemistry workflows generate heavy transient wavefunctions, large binary tensors, and high-frequency telemetry logs; the Tripartite Workspace Air-Gap guarantees that each artifact is strictly quarantined into its designated lifecycle boundary.
-
-```
-+-----------------------------------------------------------------------------------+
-|                        TRIPARTITE WORKSPACE AIR-GAP                               |
-+-----------------------------------------------------------------------------------+
-| 1. STATIC EXECUTION TIER    | Immutable Git Repository                            |
-|    (Read-Only at Runtime)   | Code, Schemas, UI Widgets, Start_Here.ipynb         |
-|                             | Monitored by scripts/airgap_trap.py                 |
-+-----------------------------+-----------------------------------------------------+
-| 2. PERSISTENT DATA TIER     | Dynamically Resolved Workspace                      |
-|    (POSIX-Locked Storage)   | $COCHEM_ARTIFACT_DIR / $SCRATCH / ~/CoChem_Artifacts|
-|                             | SWMR runtime_active.h5 / cochem_state.h5            |
-|                             | Compressed QCSchema archive_pes.h5                  |
-+-----------------------------+-----------------------------------------------------+
-| 3. EPHEMERAL COMPUTE TIER   | Sterile Quarantine Scratch Directory                |
-|    (Node-Local Scratch)     | /tmp/cochem_exec_<uuid>/ or Host %TEMP%             |
-|                             | Wavefunctions (.gbw), PySCF Checkpoints, Sockets    |
-|                             | Automated Teardown & Garbage Collection             |
-+-----------------------------------------------------------------------------------+
-```
-
-### Tier 1: Static Execution Tier (Code & Schemas)
-- **Scope**: The Git-tracked repository directory containing core Python source packages (`cochem_base/`, `cochem_topos/`), JSON configuration schemas, Jupyter UI controllers (`Start_Here.ipynb`), and developer test suites.
-- **Constraint**: **Zero runtime writes**. The runtime engine operates strictly in a read-only capacity with respect to this directory.
-- **Enforcement**: Monitored by `scripts/airgap_trap.py` and pre-commit hooks. Any attempt by computational engines or scripts to dump binary files (`.h5`, `.xyz`, `.gbw`, `.tmp`, `.log`, `.chk`) into the Git repository tree immediately fails CI/CD validation.
-
-### Tier 2: Persistent Data Tier (Registries & State Stores)
-- **Scope**: A dedicated, Git-ignored persistent workspace dynamically resolved via the 4-tier configuration hierarchy (`$COCHEM_ARTIFACT_DIR`, `$COCHEM_DATA_ROOT`, `$SCRATCH`, or `$HOME/CoChem_Artifacts`).
-- **Storage Strategy**:
-  - **Live Runtime State**: Single-Writer Multiple-Reader (SWMR) HDF5 database (`runtime_active.h5` / `cochem_state.h5`) protected by cross-process POSIX locks (`filelock`).
-  - **Archival PES Datasets**: Long-term potential energy surface records stored in compressed, FAIR-compliant QCSchema v1 HDF5 structures (`archive_pes.h5`).
-  - **Audit & Metadata Chains**: System configuration manifests (`cochem_system_config.json`) and cryptographic provenance ledgers (`[M]`, `[D]`, `[E]` hashes).
-
-### Tier 3: Ephemeral Compute Tier (Node-Local Sterile Quarantine)
-- **Scope**: High-throughput, node-local scratch storage (`/tmp/cochem_exec_<uuid>/` on Linux/POSIX or `%TEMP%\cochem_scratch` on Windows).
-- **Transient Workloads**: Holds raw quantum chemistry wavefunctions (e.g., ORCA `.gbw`, `.densities`), PySCF checkpoint files (`.chk`), intermediate Hessian matrices, temporary SCF scratch files (`.tmp`, `.opt`, `.xyz`), CUDA MPS communication pipes (`nvidia-mps`), and UNIX domain telemetry sockets.
-- **Lifecycle**: Each execution batch provisions an isolated UUID-tagged directory. Upon calculation completion or failure, data extractors transfer essential energies/gradients to Tier 2 and execute complete garbage collection on Tier 3.
-
----
-
-## 4. Architectural Mandate: GitHub Actions Compute Prohibition
-
-> [!WARNING]
-> **Strict Compute Policy**: GitHub Actions (GHA) runners are strictly prohibited from acting as computational execution nodes for quantum chemistry, molecular dynamics, or heavy tensor algebra.
-
-GitHub Actions infrastructure is subject to strict operational limits:
-- **6-Hour Hard Job Timeout**: GitHub-hosted runners are terminated forcefully without checkpoint preservation.
-- **Hardware Constraints**: Virtualized shared CPU cores lack dedicated physical AVX-512 units and GPU compute pipelines, inducing severe thread contention and numerical instability.
-- **Quota & Cost Guardrails**: Heavy computational execution on hosted runners exhausts organization concurrency limits.
-
-### Prescribed GHA Scope
-GitHub Actions in the CoChem ecosystem is strictly constrained to:
-1. **Air-Gap Enforcement Sweeps**: Executing `scripts/airgap_trap.py` to ensure zero restricted computational artifacts exist in the repository.
-2. **AST Anti-Spoofing Scans**: Validating imports and forbidding unauthorized runtime interception hooks or un-amnestied concurrency primitives.
-3. **Static Linting & Type Verification**: Executing `ruff` and `mypy` static type checks under Python 3.11+.
-4. **Zero-Mock Lightweight Unit Tests**: Running pytest suites against lightweight physical systems (e.g., hydrogen dimer, 2-atom tensors, analytical Hamiltonians).
-
-### Production Compute Dispatch
-All intensive *ab initio* electronic structure computations (ORCA, CFOUR, MRCC), PES active-learning scans, and Sinc-DVR grid calculations must be dispatched via the `ParslExecutionBroker` or `SubprocessBroker` to dedicated High-Performance Computing clusters (managed by **Slurm**, **PBS**, or **Torque**) or configured on-premise multi-GPU workstations.
-
----
-
-## 5. Getting Started & Stage 0 Bootstrap
-
-The primary entry point for configuring and interacting with CoChem-BASE is our **No-Code Interactive Dashboard**, a Voilà-powered standalone graphical interface driven by `Start_Here.ipynb` and `ipywidgets`. This allows researchers to orchestrate complex quantum chemistry workflows without writing a single line of code!
-
-### Prerequisites
-- **Operating System**: Linux, macOS, or Windows (native or WSL2).
-- **Python**: Version 3.11 or higher.
-- **Environment Manager**: Python's built-in `venv`; the launchers create `.venv` automatically.
-
-The notebook and platform launchers run `scripts/bootstrap_environment.py` before starting the
-interface. On the first run it creates or repairs the Python environment, installs
-`requirements-ui.txt`, validates the installation, and then launches Voilà. Later runs skip
-installation when the environment is complete.
-
-### 6-Tier Environment Matrix & Device Setup
-
-CoChem-BASE supports heterogeneous deployment across various hardware and operating systems. Below is the setup and access matrix for running jobs across different device architectures:
-
-| Device Type | Compute Role | Access Method | Setup & Execution Instructions |
-| :--- | :--- | :--- | :--- |
-| **Native Windows** | Primary Compute Node / Client | Localhost GUI | Install Python 3.11+ and Conda. Run `git clone`, then `voila Start_Here.ipynb`. Access the UI at `http://localhost:8866`. |
-| **macOS (Apple Silicon/Intel)** | Primary Compute Node / Client | Localhost GUI | Install Python 3.11+ and Conda/Mamba. Run `git clone`, then `voila Start_Here.ipynb`. Access at `http://localhost:8866`. |
-| **Linux (Debian/Ubuntu/HPC)**| Heavy Compute Node / Server | Localhost or Headless | **Local**: Run `voila Start_Here.ipynb`. <br>**Headless**: Bind to all IPs using `voila Start_Here.ipynb --no-browser --port=8866 --Voila.ip=0.0.0.0` and access via SSH tunnel or VPN. |
-| **Mobile / Tablet (iOS/Android)**| Thin Client (Remote Control) | Remote Web Browser | Mobile devices act as **Thin Clients**. You cannot run quantum calculations natively on the mobile processor. <br>1. Launch Voilà on your host PC, Mac, or HPC server using `--Voila.ip=0.0.0.0`. <br>2. Connect your mobile device to the same local network or VPN. <br>3. Open Safari/Chrome on your tablet/phone and navigate to `http://<host-ip-address>:8866` to monitor telemetry and dispatch jobs remotely! |
-
-### Step 1: Clone the Repository
 ```bash
 git clone https://github.com/ProfJJK-CoChem/CoChem-BASE.git
 cd CoChem-BASE
-```
-
-### Step 2: Launch the Voilà Application
-Experience the No-Code interface locally:
-```bash
 ./Launch_CoChem_Mac_Linux.sh
 ```
 
-To prepare the environment without launching the interface, run:
+An unpacked source distribution provides the same launcher. In Windows
+PowerShell, use `.\Launch_CoChem_Windows.bat --native`. The launchers prepare the UI environment and open
+`Start_Here.ipynb` with Voilà. To prepare without launching:
+
 ```bash
 python3 scripts/bootstrap_environment.py
 ```
 
-### SSH Port Forwarding for HPC Users
-If you are deploying CoChem-BASE on a headless remote High-Performance Computing (HPC) cluster, launch Voilà bound to all IP addresses, disabling the browser launch:
-```bash
-voila Start_Here.ipynb --no-browser --port=8866 --Voila.ip=0.0.0.0
-```
-Then, on your local workstation, establish an SSH tunnel to securely access the interactive GUI:
-```bash
-ssh -L 8866:localhost:8866 <username>@<hpc_address>
-```
-Navigate to `http://localhost:8866` in your local web browser.
+Interaction and calculation environments are separate choices. Actions exports
+a portable request and gives submission instructions. Native execution requires
+the selected host's audited setup. For a remote interface, use an authenticated
+host connection and SSH port forwarding according to the site's access policy.
 
-### The No-Code GUI Experience
+## Python installation and CLI
 
-1. **Seamless Install Wizard**
-   - **Calculation Environment:** Select your calculation environment (e.g., `local`, `github-actions`, `hpc`, `linux`, `macos`, `wsl`).
-   - **Interaction Environment:** Select your interaction environment (e.g., `Local`, `GitHub Codespaces`).
+The wheel supplies Python packages and `cochem-cli`. The complete notebook and
+launcher pathway uses a source checkout or source distribution. Installing the
+package does not install licensed engines or authorize their use.
 
-2. **No-Code Matrix Configuration**
-   - Use the intuitive, click-driven dashboard to define computational tasks according to the *Method Matrix v4.1*.
-   - **Geometry:** Simply input your Cartesian `.xyz` coordinates.
-   - **Engine:** Select from integrated backends (ORCA, CFOUR) via dropdown menus.
-   - **Method & Basis Set:** Construct valid theoretical pairings (e.g., `B3LYP / def2-TZVP`) ensuring strict adherence to the CoChem theoretical standards, all without touching a script.
-
-3. **Execution & Live Telemetry**
-   - Click to dispatch the computational workflow locally or onto an HPC job scheduler.
-   - Monitor the **Execution & Live Telemetry** log streaming interface for real-time visual tracking of SCF convergence, energy gradients, and engine-specific warnings—no need to manually tail output files in the terminal!
-
----
-
-## 6. Local Developer Installation & CLI
-
-For developers contributing directly to the CoChem codebase:
+For development in a separate virtual environment:
 
 ```bash
-# 1. Create development environment
-conda create -n cochem_dev python=3.11 -y
-conda activate cochem_dev
-
-# 2. Install editable package with development tooling
-pip install -e ".[dev]"
-
-# 3. Verify installation with Zero-Mock test suites
-pytest test_suite/
+python3.12 -m venv /path/outside/checkout/cochem-env
+source /path/outside/checkout/cochem-env/bin/activate
+python -m pip install -e '.[dev,ui,catalog,symmetry,scribe]'
+cochem-cli --version
+cochem-cli --help
 ```
 
-### Programmatic API Usage
-CoChem-BASE exposes a clean, typed Python interface for dynamic path resolution, hardware discovery, and HPC task dispatching:
+The installed module form is `python -m cochem_base.cli`; source users can run
+`python cli.py`. For a prepared host:
 
-```python
-from pathlib import Path
-from cochem_base.orchestrator.cochem_system_config import (
-    load_golden_registry,
-    resolve_golden_registry_path,
-    discover_storage_topology,
-)
-from cochem_base.core_engine.cochem_core_subprocess_broker import SubprocessBroker
-
-# 1. Dynamically resolve Tripartite workspace boundaries via 4-Tier OS model
-config_file: Path = resolve_golden_registry_path()
-system_cfg = load_golden_registry(config_file)
-storage_cfg = system_cfg.storage or discover_storage_topology()
-
-artifact_dir = Path(storage_cfg.artifacts_dir)
-scratch_dir = Path(storage_cfg.scratch_dir) if storage_cfg.scratch_dir else artifact_dir / "Scratch"
-
-print(f"Active Config: {config_file}")
-print(f"Artifact Store: {artifact_dir}")
-print(f"Scratch Directory: {scratch_dir}")
-
-# 2. Dispatch quantum chemical task safely via SubprocessBroker
-with SubprocessBroker(
-    cwd=scratch_dir,
-    memory_limit_gb=8.0
-) as broker:
-    # Tasks run with cross-platform isolation and crash telemetry monitoring
-    return_code: int = broker.execute(
-        payload_command=["orca", "water_opt.inp"],
-        job_name="orca_opt_001",
-        timeout=3600.0,
-    )
-    print(f"Current Job Status: Return Code {return_code}")
+```bash
+cochem-cli setup --all --artifact-dir /path/outside/checkout/artifacts
+cochem-cli status --json
+cochem-cli run --help
 ```
 
----
+The default setup storage profile requires 50 GB free. Small hosted examples
+use an explicit bounded profile after provisioner disk checks; that does not
+reduce the requirements of larger calculations.
 
-## 7. Zero-Mock Testing Mandate
+## Setup, data and scientific boundaries
 
-CoChem enforces an absolute **Zero-Mock Policy** across all test suites (`test_suite/` and `tests/`).
+Stage 0 executes eleven setup phases and records their results. Native
+authorization uses the measured registry and verified executable identity;
+a GUI selection alone does not authorize an unavailable engine.
 
-> [!IMPORTANT]
-> **Zero Mocks, Stubs, or Fake Logic**:
-> - No `unittest.mock`, dummy return values, or simulated physics.
-> - Fast test execution (< 5 minutes) is achieved not by mocking hardware calls, but by scaling physical chemical inputs to minimal toy models (e.g., $H_2$, $He_2$, $H_2O$ single-points, $2 \times 2$ Hamiltonians).
-> - Every test verifies genuine OS filesystem I/O, cryptographic hashes, subprocess boundaries, and real HDF5 serialization.
+Code and schemas stay in the source directory. Registries, HDF5 stores and
+results use an external artifact directory; temporary calculation files use
+external scratch storage. The source gate checks this boundary and retained
+scientific fixture provenance.
 
----
+Connected pathways include xTB, CREST, PySCF, ORCA and periodic Quantum ESPRESSO,
+each subject to its installed capabilities and supported operations. CFOUR/VPT2
+and other incomplete domain capabilities remain explicit pending handoffs.
+TOPOS and TORQ domain development belongs to their respective repositories.
+BASE does not manufacture results for absent modules.
 
-## 8. Method Matrix & Theoretical Framework
+## Verification and architecture
 
-CoChem-BASE executes under the **Method Matrix v4.1** theoretical standard, classifying quantum chemical methods into 10 wall-clock execution tiers ($T_0$ through $T_9$):
-- **$T_0$–$T_2$ (Fast Pre-Screening)**: MLFFs, semi-empirical tight-binding (GFN2-xTB), and density functional approximations (PBE0, B3LYP-D4).
-- **$T_3$–$T_5$ (Core PES Scans)**: Correlated wavefunction theories (MP2, DLPNO-CCSD(T)) and multi-reference active spaces (CASSCF).
-- **$T_6$–$T_9$ (Gold-Standard Benchmarking)**: Canonical CCSD(T)/CBS extrapolation, CCSDT(Q), and Sinc-DVR nuclear vibrational Hamiltonian solvers.
+The SRS baseline is Chunk 17 plus architectural proposal additions. See
+[SRS implementation status](.docs/SRS_Implementation_Status.md),
+[ORCA integration evidence](.docs/ORCA_Actions_Setup.md), and
+[scientific acceptance](.docs/ORCA_Scientific_Acceptance.md).
 
-For non-covalent complexes, CoChem automatically injects Grimme D4 dispersion corrections and enforces Boys-Bernardi Counterpoise (CP) correction:
-$$\Delta E_{\mathrm{int}}^{\mathrm{CP}} = E_{AB}^{AB}(AB) - \left[ E_A^{AB}(AB) + E_B^{AB}(AB) \right]$$
+In a prepared environment, run the canonical suite:
 
----
-
-## 9. Citation & Academic Attribution
-
-If you utilize CoChem-BASE or any module within the CoChem ecosystem for academic research, computational modeling, or spectroscopic analysis, please cite:
-
-```bibtex
-@article{klaassen2026cochem,
-  author    = {Klaassen, Joshua John and {The CoChem Development Consortium}},
-  title     = {CoChem v4: A Differentiable Tensor Framework for Heterogeneous Ab Initio Workflows},
-  journal   = {Journal of Chemical Information and Modeling},
-  year      = {2026},
-  doi       = {10.5281/zenodo.cochem.v4}
-}
+```bash
+python ci_tools/base_ci.py all --output /path/outside/checkout/acceptance
 ```
 
-**Principal Investigator:** Dr. Joshua John Klaassen ([https://orcid.org/0009-0007-1506-4401](https://orcid.org/0009-0007-1506-4401))
+Reports retain outcomes, exact external deferrals and source integrity.
+Scientific checks use actual calculations where claimed. Download tests, unit
+tests, browser checks and hosted physical acceptance establish different facts.
+Small examples do not certify every method, molecule or a universal PES or
+spectroscopic accuracy bound.
 
----
+## Project and license
 
-## 10. License
+Principal Investigator / Architect: Dr. Joshua John Klaassen
+([ORCID](https://orcid.org/0009-0007-1506-4401)).
+Organization: [ProfJJK-CoChem](https://github.com/ProfJJK-CoChem).
 
-This project is licensed under the **Apache License, Version 2.0**. See the [LICENSE](LICENSE) file for full terms and conditions.
+CoChem-BASE uses [Apache-2.0](LICENSE). Separately installed engines and models
+retain their own terms. See the [Method Matrix](Method_Matrix.md),
+[user manual](CoChem_User_Manual.md), and [changelog](CHANGELOG.md). Historical
+alpha documents describe their recorded revisions; current release claims
+require the evidence in the release record.

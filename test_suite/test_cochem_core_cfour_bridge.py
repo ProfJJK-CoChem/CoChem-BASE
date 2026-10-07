@@ -335,10 +335,17 @@ def test_isomass_force_field_rediagonalization():
     ], dtype=np.float64)
     symbols = ["O", "H", "H"]
 
-    # Construct an authentic physical 9x9 harmonic Cartesian force constant matrix (Hartree/bohr^2)
-    np.random.seed(42)
-    A = np.random.randn(9, 9) * 0.05
-    F = A.T @ A + np.diag([0.5, 0.5, 0.5, 0.35, 0.35, 0.35, 0.35, 0.35, 0.35])
+    # Analytical three-spring harmonic model: a numerical projection test,
+    # not an electronic-structure reference Hessian for water.
+    F = np.zeros((9, 9))
+    for i, j, force_constant in [(0, 1, 0.5), (0, 2, 0.5), (1, 2, 0.08)]:
+        direction = coords[j] - coords[i]
+        direction /= np.linalg.norm(direction)
+        block = force_constant * np.outer(direction, direction)
+        F[3*i:3*i+3, 3*i:3*i+3] += block
+        F[3*j:3*j+3, 3*j:3*j+3] += block
+        F[3*i:3*i+3, 3*j:3*j+3] -= block
+        F[3*j:3*j+3, 3*i:3*i+3] -= block
 
     # Re-diagonalize for D2O (isotopes = [16, 2, 2])
     iso_res_d2o = isomass_rediagonalize_force_field(
@@ -368,8 +375,10 @@ def test_isomass_force_field_rediagonalization():
     assert all(f > 0 for f in iso_res_d2o.iso_frequencies_cm_inv)
     assert iso_res_d2o.iso_zpe_cm_inv < iso_res_d2o.parent_zpe_cm_inv
 
-    # 4. Check shifts
-    assert iso_res_d2o.delta_B0_MHz < 0.0, "Delta B0 must be negative upon deuteration"
+    # 4. Harmonic data cannot provide anharmonic ground-state constants.
+    assert iso_res_d2o.parent_B0_MHz is None
+    assert iso_res_d2o.iso_B0_MHz is None
+    assert iso_res_d2o.delta_B0_MHz is None
     assert iso_res_d2o.provenance_tag == "[D]"
 
 

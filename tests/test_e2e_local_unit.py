@@ -536,8 +536,8 @@ class TestInputScaffoldingAndMethodMatrix:
         coords = [atom[1:] for atom in WATER_DIMER_ATOMS]
         elements = [atom[0] for atom in WATER_DIMER_ATOMS]
 
-        # Weak complex without D3/D4 dispersion MUST raise ValueError with [ERR_STRATEGY_PIVOT]
-        with pytest.raises(ValueError, match="ERR_STRATEGY_PIVOT"):
+        # Weak complexes must reject missing empirical dispersion.
+        with pytest.raises(ValueError, match="D3BJ or D4"):
             MoleculeInput(
                 basin_id="water_dimer_no_disp",
                 elements=elements,
@@ -551,7 +551,7 @@ class TestInputScaffoldingAndMethodMatrix:
             basin_id="water_dimer_d3",
             elements=elements,
             coordinates=coords,
-            theory_level="B3LYP-D3 def2-SVP",
+            theory_level="B3LYP D3BJ def2-SVP",
             is_weak_complex=True,
         )
         assert mol_d3.is_weak_complex is True
@@ -578,7 +578,7 @@ class TestInputScaffoldingAndMethodMatrix:
                 multiplicity=0,
             )
 
-    def test_generate_orca_input_water_dimer_weak_complex(self, tmp_path: Path) -> None:
+    def test_generate_orca_input_water_dimer_weak_complex(self, tmp_path: Path, configured_registry) -> None:
         coords = [atom[1:] for atom in WATER_DIMER_ATOMS]
         elements = [atom[0] for atom in WATER_DIMER_ATOMS]
 
@@ -586,7 +586,7 @@ class TestInputScaffoldingAndMethodMatrix:
             basin_id="water_dimer_basin_01",
             elements=elements,
             coordinates=coords,
-            theory_level="B3LYP-D3 def2-SVP",
+            theory_level="B3LYP D3BJ def2-SVP",
             charge=0,
             multiplicity=1,
             is_weak_complex=True,
@@ -602,9 +602,9 @@ class TestInputScaffoldingAndMethodMatrix:
         assert "Basin ID: water_dimer_basin_01" in content
 
         # Verify Method Matrix keywords: defgrid1 starting grid, NoSym, TightSCF
-        assert "B3LYP-D3 def2-SVP" in content
+        assert "B3LYP D3BJ def2-SVP" in content
         assert "Opt" in content
-        assert "defgrid1" in content
+        assert "DEFGRID1" in content.upper()
         assert "NoSym" in content
         assert "TightSCF" in content
 
@@ -618,7 +618,7 @@ class TestInputScaffoldingAndMethodMatrix:
         for el in elements:
             assert el in content
 
-    def test_generate_orca_input_single_point(self, tmp_path: Path) -> None:
+    def test_generate_orca_input_single_point(self, tmp_path: Path, configured_registry) -> None:
         coords = [atom[1:] for atom in WATER_DIMER_ATOMS]
         elements = [atom[0] for atom in WATER_DIMER_ATOMS]
 
@@ -626,7 +626,7 @@ class TestInputScaffoldingAndMethodMatrix:
             basin_id="water_dimer_sp",
             elements=elements,
             coordinates=coords,
-            theory_level="B3LYP-D3 def2-TZVP",
+            theory_level="B3LYP D3BJ def2-TZVP",
             is_weak_complex=True,
             is_opt=False,
         )

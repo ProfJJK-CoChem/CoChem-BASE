@@ -1,8 +1,8 @@
 """CoChem-ML Telemetry Schema Validation Test Suite via Pydantic v2 (Task 1.15).
 
-Physical Verification Suite for all Pydantic v2 telemetry and state schemas,
+Serialization and validation tests for Pydantic v2 telemetry and state schemas,
 enforcing strict type safety, extra='forbid' injection immunity, ISO 8601 UTC
-timestamp normalization, authentic ab-initio quantum chemical payload ingestion,
+timestamp normalization, numerical schema input validation,
 bidirectional lossless serialization with native dataclasses, and cryptographic
 SHA-256 hash preservation.
 
@@ -13,7 +13,7 @@ SRS-CHUNK-018-AG-ML-RL-TRANSITION-V1.0-20260913 (Task 1.15 & FR-04/FR-06).
 Invariants Verified:
 - Zero-Mock & Anti-Spoofing Protocol v4 Directives (Zero pass/NotImplementedError/mocks/skips) [M]
 - Dynamic Mendeleev Atomic Weight Resolution without Static Dictionaries (Carbon mass ~12.011) [M]
-- Authentic Ab-Initio Quantum Chemical Ingestion from complexes.h5 & water_hessian.npy [E]
+- Schema round-tripping is not physical or ab-initio acceptance evidence.
 - Strict extra='forbid' Field Injection Immunity across all 54 Telemetry Schemas [M]
 - Bidirectional Lossless Roundtrip Parity (dataclass <-> schema <-> dict <-> JSON) [D]
 - Cryptographic SHA-256 Digest Invariance across Serializations [D]
@@ -576,18 +576,8 @@ def test_token_entropy_schemas_type_safety_and_bounds() -> None:
         )
 
 
-def test_physical_residual_schemas_with_authentic_hessian() -> None:
-    """Ingest authentic water Hessian matrix and validate physical residual schemas."""
-    hessian_path = _REPO_ROOT / "tests" / "data" / "water_hessian.npy"
-    assert hessian_path.exists(), f"Authentic water Hessian fixture missing at {hessian_path}"
-
-    hessian = np.load(str(hessian_path))
-    assert hessian.shape == (9, 9)
-
-    eigvals = np.linalg.eigvalsh(hessian)
-    vib_eigvals = [float(v) for v in eigvals if abs(v) > 1e-4]
-    assert len(vib_eigvals) >= 3
-
+def test_residual_schema_serialization_with_explicit_numeric_inputs() -> None:
+    """Validate schema serialization only; the literals are not engine observations."""
     grad_res = EnergyGradientResidualSchema(
         max_gradient_au=0.00012,
         rms_gradient_au=0.00008,

@@ -55,7 +55,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import atexit
 import json
 import logging
 import math
@@ -66,6 +65,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import (
     Any,
+    Callable,
     Dict,
     List,
     Optional,
@@ -106,28 +106,16 @@ logging.basicConfig(
 logger = logging.getLogger("CoChem-CoreContextCompressor")
 
 
-def _reap_zombies() -> None:
-    """Sweep and reap zombie processes to enforce clean OS process lifecycle."""
-    try:
-        current_proc = psutil.Process()
-        for child in current_proc.children(recursive=True):
-            try:
-                if child.status() == psutil.STATUS_ZOMBIE:
-                    child.wait(timeout=0.1)
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-    except (psutil.Error, OSError) as exc:
-        logger.debug("Process cleanup warning: %s", exc)
+# Process handles remain under their launching broker/library ownership.
+from cochem_base.process_cleanup import reap_owned_children as _reap_zombies
 
-
-atexit.register(_reap_zombies)
 
 
 # =============================================================================
 # CONSTANTS & REGEX DEFINITIONS
 # =============================================================================
 
-DEFAULT_LTTB_THRESHOLD: int = 1000
+DEFAULT_LTTB_THRESHOLD: int = 500
 DEFAULT_TENSOR_THRESHOLD: int = 10000
 DEFAULT_ARRAY_THRESHOLD: int = 50
 DEFAULT_TRACEBACK_MAX_LINES: int = 30
@@ -187,17 +175,17 @@ PROHIBITED_INTERCEPT_SYMBOLS: set[str] = DEFAULT_PROHIBITED_INTERCEPT_SYMBOLS
 
 class TensorSummaryModel(BaseModel):
     """
-    Typed summary statistics for large compressed numerical arrays.
+    Finite-value tensor statistics; unavailable observations remain None.
     """
     model_config = ConfigDict(extra="ignore", validate_assignment=True)
 
-    Min: float = Field(..., description="Minimum value in the tensor")
-    Max: float = Field(..., description="Maximum value in the tensor")
-    Mean: float = Field(..., description="Arithmetic mean of the tensor elements")
-    Variance: float = Field(..., description="Population variance of the tensor elements")
+    Min: Optional[float] = Field(..., description="Minimum finite value, or null when unavailable")
+    Max: Optional[float] = Field(..., description="Maximum finite value, or null when unavailable")
+    Mean: Optional[float] = Field(..., description="Mean of finite values, or null when unavailable")
+    Variance: Optional[float] = Field(..., description="Population variance of finite values, or null when unavailable")
     Last_Value: Optional[float] = Field(
         default=None,
-        description="Trailing element value in the sequence (useful for convergence trajectories)",
+        description="Finite trailing element value; null for an empty or nonfinite final observation",
     )
     Count: Optional[int] = Field(
         default=None,
@@ -220,13 +208,11 @@ class TensorSummaryModel(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to standard dictionary matching telemetry naming conventions."""
         result: Dict[str, Any] = {
-            "Min": float(self.Min),
-            "Max": float(self.Max),
-            "Mean": float(self.Mean),
-            "Variance": float(self.Variance),
+            name: None if value is None else float(value)
+            for name, value in (("Min", self.Min), ("Max", self.Max),
+                                ("Mean", self.Mean), ("Variance", self.Variance),
+                                ("Last_Value", self.Last_Value))
         }
-        if self.Last_Value is not None:
-            result["Last_Value"] = float(self.Last_Value)
         if self.Count is not None:
             result["Count"] = int(self.Count)
         if self.Shape is not None:
@@ -235,15 +221,13 @@ class TensorSummaryModel(BaseModel):
             result["Dtype"] = str(self.Dtype)
         return result
 
-    def to_telemetry_dict(self) -> Dict[str, float]:
-        """Returns standard telemetry dictionary with Array_ prefixed keys."""
-        last_val = self.Last_Value if self.Last_Value is not None else self.Max
+    def to_telemetry_dict(self) -> Dict[str, Optional[float]]:
+        """Preserve unknown statistics and final observations as null, never a maximum."""
         return {
-            "Array_Min": float(self.Min),
-            "Array_Max": float(self.Max),
-            "Array_Mean": float(self.Mean),
-            "Array_Variance": float(self.Variance),
-            "Last_Value": float(last_val),
+            name: None if value is None else float(value)
+            for name, value in (("Array_Min", self.Min), ("Array_Max", self.Max),
+                                ("Array_Mean", self.Mean), ("Array_Variance", self.Variance),
+                                ("Last_Value", self.Last_Value))
         }
 
 
@@ -854,6 +838,26 @@ def lttb_downsample(
     return lttb_downsample_xy(data_arr[:, 0], data_arr[:, 1], threshold=threshold, use_numba=use_numba)
 
 
+def compress_trajectory(data: np.ndarray) -> Dict[str, Any]:
+    """Create the bounded, statistical trajectory payload required by BASE.
+
+    Moments describe the full observed ordinates, not merely the decimated
+    sample. Non-finite telemetry is rejected instead of silently imputed.
+    """
+    values = np.asarray(data, dtype=np.float64)
+    if values.ndim != 2 or values.shape[1] != 2 or len(values) == 0 or not np.isfinite(values).all():
+        raise ValueError("Trajectory must be a nonempty, finite (N, 2) array")
+    y = values[:, 1]
+    mean = float(np.mean(y))
+    variance = float(np.var(y))
+    skewness = float(np.mean((y - mean) ** 3) / variance**1.5) if variance else 0.0
+    return {
+        "points": lttb_downsample(values, threshold=min(500, len(values)), use_numba=False).tolist(),
+        "statistics": {"count": len(y), "mean": mean, "variance": variance,
+                       "skewness": skewness, "min": float(np.min(y)), "max": float(np.max(y))},
+    }
+
+
 def lttb_downsample_1d(
     y: Union[np.ndarray, List[float], Tuple[float, ...]],
     threshold: int = DEFAULT_LTTB_THRESHOLD,
@@ -1322,17 +1326,18 @@ class ASTContextCompressor:
 
 def _compute_tensor_stats(arr: np.ndarray) -> Dict[str, Any]:
     """
-    Compute Min, Max, Mean, Variance, and Last_Value from a NumPy array, returning native Python floats.
-    Handles NaN/Inf values gracefully by filtering finite elements.
+    Compute statistics over finite values and preserve the actual final observation.
+    Empty/all-nonfinite inputs have unavailable (None) statistics. A nonfinite
+    last element remains None even when preceding finite observations exist.
     """
     flat = arr.ravel()
     if flat.size == 0:
         return {
-            "Min": 0.0,
-            "Max": 0.0,
-            "Mean": 0.0,
-            "Variance": 0.0,
-            "Last_Value": 0.0,
+            "Min": None,
+            "Max": None,
+            "Mean": None,
+            "Variance": None,
+            "Last_Value": None,
             "Count": 0,
             "Shape": list(arr.shape),
             "Dtype": str(arr.dtype),
@@ -1341,7 +1346,11 @@ def _compute_tensor_stats(arr: np.ndarray) -> Dict[str, Any]:
     if np.issubdtype(flat.dtype, np.complexfloating):
         flat = np.abs(flat)
 
-    last_val = float(flat[-1]) if np.isfinite(flat[-1]) else 0.0
+    last_val = float(flat[-1]) if np.isfinite(flat[-1]) else None
+    min_val: Optional[float]
+    max_val: Optional[float]
+    mean_val: Optional[float]
+    var_val: Optional[float]
 
     if np.isfinite(flat).all():
         min_val = float(np.min(flat))
@@ -1357,10 +1366,10 @@ def _compute_tensor_stats(arr: np.ndarray) -> Dict[str, Any]:
             mean_val = float(np.mean(finite_elements, dtype=np.float64))
             var_val = float(np.var(finite_elements, dtype=np.float64))
         else:
-            min_val = 0.0
-            max_val = 0.0
-            mean_val = 0.0
-            var_val = 0.0
+            min_val = None
+            max_val = None
+            mean_val = None
+            var_val = None
 
     return {
         "Min": min_val,
@@ -1382,6 +1391,7 @@ def compress_tensors_for_llm(
     """
     Recursively traverse arbitrary nested Python payloads and compress any numerical array
     with element count >= threshold into a 4-statistic summary dict {"Min": x, "Max": y, "Mean": z, "Variance": v}.
+    Statistics describe finite values only; no finite observations yields four nulls.
     """
     if isinstance(payload, np.ndarray):
         if np.issubdtype(payload.dtype, np.number) or np.issubdtype(payload.dtype, np.bool_):
@@ -1473,7 +1483,7 @@ def compress_array_to_summary(data: Any) -> TensorSummaryModel:
     return TensorSummaryModel(**stats)
 
 
-def compress_to_dict(data: Any) -> Dict[str, float]:
+def compress_to_dict(data: Any) -> Dict[str, Optional[float]]:
     """Converts a numerical sequence directly into a standard telemetry dictionary."""
     model = compress_array_to_summary(data)
     return model.to_telemetry_dict()
@@ -2263,7 +2273,7 @@ class ContextCompressor:
         """Compress an array directly into a TensorSummaryModel."""
         return compress_array_to_summary(data)
 
-    def compress_to_dict(self, data: Any) -> Dict[str, float]:
+    def compress_to_dict(self, data: Any) -> Dict[str, Optional[float]]:
         """Compress an array directly into a dictionary with Array_ prefixed keys."""
         return compress_to_dict(data)
 

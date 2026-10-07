@@ -247,6 +247,9 @@ def print_results(results: dict, plan: dict) -> None:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="NFTP Phase 3: Cleanup Executor")
     parser.add_argument("--manifests", required=True, help="Directory containing triage manifests")
     parser.add_argument("--trash", default=r"D:\__CoChem\.trash", help="Trash root directory")

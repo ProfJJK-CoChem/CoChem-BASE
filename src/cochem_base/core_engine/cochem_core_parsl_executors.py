@@ -52,7 +52,6 @@ Implements the Scout-and-Anchor Heterogeneous Concurrency Engine:
 from __future__ import annotations
 
 import argparse
-import atexit
 import hashlib
 import json
 import logging
@@ -136,21 +135,9 @@ DEFAULT_G6_MAX_GUIDE_FAILURES: int = 5
 # ---------------------------------------------------------------------------
 # Zombie Process Sweeping & Subprocess Safety
 # ---------------------------------------------------------------------------
-def _sweep_zombie_processes() -> None:
-    """Sweep zombie child processes to maintain OS cleanliness."""
-    try:
-        current_proc = psutil.Process()
-        for child in current_proc.children(recursive=True):
-            try:
-                if child.status() == psutil.STATUS_ZOMBIE:
-                    child.wait(timeout=0.2)
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired) as _e:
-                logger.debug(f"Ignored exception: {_e}")
-    except Exception as _e:
-        logger.debug(f"Ignored exception: {_e}")
+# Process handles remain under their launching broker/library ownership.
+from cochem_base.process_cleanup import reap_owned_children as _sweep_zombie_processes
 
-
-atexit.register(_sweep_zombie_processes)
 
 
 # =============================================================================

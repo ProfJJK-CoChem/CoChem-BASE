@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "source_reference_report": "/workspace/cochem-runtime/evidence/r2-physical-2026-10-07/acceptance-v2-work/reference/reference-generation.json",
+  "source_reference_sha256": "b06c1d9d1ce217b7c6236d70e191b0e73e8dd9ff4648aa768be05f464d45296e",
+  "reference_protocol": "1D minimum of HF/cc-pVQZ + [64 Ecorr(CCSD(T)/QZ) - 27 Ecorr(CCSD(T)/TZ)]/37",
+  "distance_angstrom": 0.741802,
+  "finite_difference_checks": [
+    {
+      "step_angstrom": 0.002,
+      "derivative_hartree_per_angstrom": -4.520418539488702e-06,
+      "curvature_hartree_per_angstrom2": 1.31988261847793
+    },
+    {
+      "step_angstrom": 0.001,
+      "derivative_hartree_per_angstrom": -2.5759450128504113e-07,
+      "curvature_hartree_per_angstrom2": 1.3198675092862544
+    }
+  ],
+  "binary_sha256": "335aef8bacd939620522d757016dcdb3107a9f0f4e71faad9e7764aa95bdc4ea",
+  "source_independent_pyscf_report": "/workspace/cochem-runtime/evidence/r2-physical-2026-10-07/independent-pyscf/reference-check.json",
+  "source_independent_pyscf_sha256": "886e4e434445a38a63ded1099aeab1a01e845ca824f40940defc6e7e44ab1ccd",
+  "independent_pyscf": {
+    "cc-pVTZ": {
+      "scf_converged": true,
+      "ccsd_converged": true,
+      "scf_energy_hartree": -1.1329512925372578,
+      "triples_correction_hartree": -1.6837197727732486e-19,
+      "ccsdt_energy_hartree": -1.1723362399223334,
+      "orca_ccsdt_energy_hartree": -1.172336239862,
+      "difference_hartree": 6.033329391641473e-11
+    },
+    "cc-pVQZ": {
+      "scf_converged": true,
+      "ccsd_converged": true,
+      "scf_energy_hartree": -1.1334489360864874,
+      "triples_correction_hartree": -2.428216011228537e-19,
+      "ccsdt_energy_hartree": -1.17379646931355,
+      "orca_ccsdt_energy_hartree": -1.17379646922,
+      "difference_hartree": 9.355005659017479e-11
+    }
+  },
+  "scope": "Recorded genuine inputs/outputs for parser regression; full fresh calculation evidence is external; no universal or experimental accuracy claim"
+}

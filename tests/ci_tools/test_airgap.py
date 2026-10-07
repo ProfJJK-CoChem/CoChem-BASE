@@ -54,15 +54,25 @@ def test_arguments_are_literal_and_environment_is_not_mutated(tmp_path: Path) ->
         run_process("echo unsafe")
 
 
-def test_invalid_utf8_and_exit_codes_fail_closed() -> None:
+@pytest.mark.parametrize("descriptor", [1, 2])
+def test_invalid_utf8_and_exit_codes_fail_closed(descriptor: int) -> None:
     with pytest.raises(UnicodeDecodeError):
-        run_process([sys.executable, "-c", "import os; os.write(1, bytes([255]))"])
+        run_process([sys.executable, "-c", "import os,sys; os.write(int(sys.argv[1]), bytes([255]))", str(descriptor)])
     with pytest.raises(subprocess.CalledProcessError) as error:
         run_process([sys.executable, "-c", "import sys; print('failure', file=sys.stderr); sys.exit(7)"])
     assert error.value.returncode == 7
     assert error.value.stderr == "failure\n"
     result = run_process([sys.executable, "-c", "raise SystemExit(7)"], check=False)
     assert result.returncode == 7
+
+
+def test_sync_capture_preserves_universal_newlines_and_explicit_error_policy() -> None:
+    result = run_process([sys.executable, "-c", "import os; os.write(1, b'first\\r\\nsecond\\rthird\\n'); os.write(2, bytes([255]))"],
+                         encoding_strategy="replace")
+    assert result.stdout == "first\nsecond\nthird\n"
+    assert result.stderr == "\ufffd"
+    uncaptured = run_process([sys.executable, "-c", "raise SystemExit(0)"], capture_output=False)
+    assert uncaptured.stdout is None and uncaptured.stderr is None
 
 
 @pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
@@ -163,10 +173,22 @@ def test_relative_repository_root_preserves_ci_boundary(tmp_path: Path) -> None:
     target = tmp_path / "ci_tools" / "sentinel.py"
     target.parent.mkdir()
     target.write_text("from cochem_base import physics\n", encoding="utf-8")
-    relative_root = Path(os.path.relpath(tmp_path, Path.cwd()))
-    exit_code, violations = run_linter([target], relative_root)
-    assert exit_code == 1
-    assert any(v.category == "CI_APPLICATION_IMPORT" for vs in violations.values() for v in vs)
+    # A Windows runner may check out onto D: while temp files live on C:.
+    # Use a real child on the temporary drive, keeping the same relative-root
+    # boundary and leaving this test process's working directory untouched.
+    program = (
+        "from pathlib import Path; import json,sys; "
+        "from ci_tools.anti_spoof_linter import run_linter; "
+        "root=Path(sys.argv[1]); assert not root.is_absolute(); "
+        "code,violations=run_linter([Path(sys.argv[2])],root); "
+        "print(json.dumps({'code':code,'categories':"
+        "[v.category for rows in violations.values() for v in rows]}))"
+    )
+    completed = run_process([sys.executable, "-c", program, tmp_path.name, str(target)],
+                            cwd=tmp_path.parent, env=dict(os.environ, PYTHONPATH=str(REPO_ROOT)))
+    result = json.loads(completed.stdout)
+    assert result["code"] == 1
+    assert "CI_APPLICATION_IMPORT" in result["categories"]
 
 
 def test_all_ci_tools_are_application_independent() -> None:
@@ -226,7 +248,12 @@ def test_quarantine_does_not_claim_library_tracker_or_other_callers_children(tmp
         from ci_tools.zero_trust_runner import QuarantineEnvironment
 
         memory = SharedMemory(create=True, size=16)
+        memory.buf[:4] = b'BASE'
         tracker_pid = resource_tracker._resource_tracker._pid
+        if sys.platform == 'win32':
+            assert tracker_pid is None, 'Windows shared memory uses kernel handle ownership'
+        else:
+            assert tracker_pid is not None, 'POSIX shared memory must retain its library tracker'
         unrelated = subprocess.Popen([sys.executable, '-c', 'import sys; sys.stdin.readline()'],
                                      stdin=subprocess.PIPE, text=True)
         try:
@@ -235,7 +262,15 @@ def test_quarantine_does_not_claim_library_tracker_or_other_callers_children(tmp
                 assert result.passed
             assert unrelated.poll() is None, 'quarantine killed another caller child'
             assert resource_tracker._resource_tracker._pid == tracker_pid
-            assert resource_tracker._resource_tracker._check_alive(), 'quarantine killed library tracker'
+            if tracker_pid is not None:
+                assert resource_tracker._resource_tracker._check_alive(), 'quarantine killed library tracker'
+            # Check the owned resource itself on every platform, including
+            # Windows where no separate resource-tracker process is created.
+            attached = SharedMemory(name=memory.name)
+            try:
+                assert bytes(attached.buf[:4]) == b'BASE', 'quarantine invalidated shared memory'
+            finally:
+                attached.close()
         finally:
             if unrelated.poll() is None:
                 unrelated.stdin.write('done\\n')

@@ -1,3 +1,9 @@
+# Keep executable source and workflow bytes portable across Git checkouts.
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+
 # Preserve independently hashed scientific fixture bytes on every platform.
 # Native output whitespace is part of its immutable provenance.
 examples/product_b/gaas_ordered.cif -text -whitespace

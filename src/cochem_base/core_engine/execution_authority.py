@@ -27,6 +27,7 @@ class ExecutionAuthorization:
     binary_sha256: str
     cpu_affinity: tuple[int, ...] = ()
     cpu_budget_unit: str = "physical_core"
+    runtime_seal_sha256: str | None = None
 
     def command(self, arguments: Sequence[str] = ()) -> list[str]:
         return [self.executable, *arguments]
@@ -95,6 +96,13 @@ def authorize_engine_execution(
                 or candidate.absolute() != binary.absolute()
             ):
                 raise ValueError(f"Command executable contradicts audited {name} binary")
+        if name == "cfour":
+            from .cfour_runtime import verify_cfour_runtime
+            runtime = verify_cfour_runtime(binary)
+            if not record.get("runtime_seal_sha256"):
+                raise ValueError("CFOUR runtime lacks complete Stage 0 authority; repeat setup")
+            if runtime["runtime_seal_sha256"] != record["runtime_seal_sha256"]:
+                raise ValueError("CFOUR runtime no longer matches its Stage 0 integrity seal")
         hardware = config.hardware
         from .cpu_allocation import audited_cpu_capacity
         limit, budget_unit = audited_cpu_capacity(hardware.model_dump(), config.execution)
@@ -152,6 +160,7 @@ def authorize_engine_execution(
             digest,
             affinity,
             budget_unit,
+            runtime_seal_sha256=record.get("runtime_seal_sha256"),
         )
     except Exception as exc:
         if isinstance(exc, RegistryAuthorityViolationError):

@@ -719,6 +719,8 @@ class EngineInfo(BaseModel):
     hash: Optional[str] = Field(None, description="SHA-256 binary hash")
     gpu_support: Optional[bool] = Field(default=False, description="Whether the engine has GPU support enabled")
     track: Optional[str] = Field(default=None, description="Ecosystem execution track or category")
+    runtime_seal_sha256: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    runtime_metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("status", mode="before")
     @classmethod
@@ -983,6 +985,15 @@ class CoChemSystemConfig(BaseModel):
     def compute_checksum(self) -> str:
         """Calculates deterministic SHA-256 checksum of configuration payload."""
         d = self.model_dump(exclude={"registry_checksum", "last_updated"})
+        # Older audited engines did not carry these optional runtime fields.
+        # Empty defaults preserve their existing checksum; real seals and
+        # metadata remain part of the authority's authenticated payload.
+        for record in d.get("engines", {}).values():
+            if isinstance(record, dict):
+                if record.get("runtime_seal_sha256") is None:
+                    record.pop("runtime_seal_sha256", None)
+                if not record.get("runtime_metadata"):
+                    record.pop("runtime_metadata", None)
         serialized = json.dumps(d, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 

@@ -5,7 +5,9 @@ on:
   # reaches the default branch. Classroom assignment branches do not auto-run.
   push:
     branches: [codex/orca-6.1.1-actions]
-    paths: ['.github/workflows/orca_calculation.yml']
+    paths:
+      - '.github/workflows/orca_calculation.yml'
+      - 'src/cochem_base/calc/cochem_calc_input_generator.py'
   workflow_dispatch:
     inputs:
       job_file:

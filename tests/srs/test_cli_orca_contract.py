@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -57,7 +58,10 @@ def test_cli_generates_real_orca_deck_and_marks_only_generation(tmp_path: Path) 
     assert "! B3LYP D4 def2-SVP Opt" in text
     assert "CPCM(Water)" in text
     assert "nprocs 1" in text
-    assert "TolMaxG 1e-5" in text
+    # A generated optimization requests margin below the independent 1e-5 gate.
+    requested_max_gradient = re.findall(r"^\s*TolMaxG\s+(\S+)", text, re.M)
+    assert len(requested_max_gradient) == 1
+    assert 0 < float(requested_max_gradient[0]) < 1e-5
     assert "InHess XTB2" in text
     assert "* xyz 0 1" in text
     assert not (tmp_path / "results" / "calculation.property.txt").exists()

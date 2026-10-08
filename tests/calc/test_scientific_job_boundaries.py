@@ -24,7 +24,7 @@ def cfour_config(**updates):
 
 
 @pytest.mark.parametrize("engine,method,basis,is_freq,is_vpt2", [
-    ("cfour", "CCSD(T)", "cc-pVTZ", False, False),
+    ("cfour", "CC3", "cc-pVTZ", False, False),
     ("cfour", "CCSD(T)", "cc-pVTZ", True, True),
     ("orca", "wB97M-V", "def2-QZVPP", True, True),
 ])
@@ -121,16 +121,21 @@ def test_connected_capability_does_not_claim_executable_or_scientific_validation
     assert capability.executable_authorization == "required_at_execution"
 
 
-def test_cfour_bridge_preserves_complete_anharmonic_request_without_execution(tmp_path):
-    from cochem_base.core_engine.cochem_core_cfour_bridge import CFOURBridge, CFOURInputConfig
+@pytest.mark.parametrize("anharmonic", ["VPT2", "NONE"])
+def test_cfour_bridge_preserves_complete_provider_request_without_execution(tmp_path, anharmonic):
+    from cochem_base.core_engine.cochem_core_cfour_bridge import CFOURAnharmMode, CFOURBridge, CFOURCalcLevel, CFOURInputConfig
     bridge = CFOURBridge(cfour_executable="deliberately-uninstalled-cfour", scratch_root=tmp_path)
-    config = CFOURInputConfig(basis="cc-pVTZ", memory_size_gb=3, scf_conv=12)
+    config = CFOURInputConfig(basis="cc-pVTZ", memory_size_gb=3, scf_conv=12,
+                              calc_level=CFOURCalcLevel.HF, anharm_mode=CFOURAnharmMode(anharmonic))
     result = bridge.dispatch_cfour_job("pending", ["H", "H"], np.array([[0, 0, 0], [0, 0, .74]]), config)
     assert result.status == "PENDING_INTEGRATION" and result.success is False
     assert result.observables is None and result.error_message is None
     request = load_calculation_handoff(result.handoff_manifest)
     assert request.provider_options["cfour_input"]["memory_size_gb"] == 3
     assert request.provider_options["cfour_input"]["scf_conv"] == 12
+    assert request.capability.adapter_status == "pending_integration"
+    assert request.provider_options["native_base_execution_api"] == "cochem_base.calc.calculation_service.run_calculation"
+    assert not list(Path(result.working_directory).rglob("output.dat"))
 
 
 def test_chain_pending_state_has_no_result_and_cannot_be_promoted(tmp_path):

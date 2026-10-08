@@ -87,6 +87,9 @@ def test_real_shared_service_paw_scf_retains_cell_and_measured_telemetry(tmp_pat
     gradients = np.asarray(result["gradients_hartree_per_bohr"])
     assert gradients.shape == (2, 3) and np.isfinite(gradients).all()
     records = read_scientific_results(result["job_id"], store_path=tmp_path / "complexes.h5")
+    assert result["nuclides"] == records["nuclides"] == list(structure.elements)
+    assert result["nuclear_identity"] == records["nuclear_identity"]
+    assert result["nuclear_identity"]["mass_source"] == "dynamic_mendeleev"
     assert records["energy_hartree"][0] == result["energy_hartree"]
     np.testing.assert_allclose(records["gradients_hartree_per_bohr"][0], gradients)
     assert "JOB DONE." in (output / "periodic/qe.out").read_text()

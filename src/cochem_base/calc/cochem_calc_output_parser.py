@@ -26,6 +26,63 @@ def _number(value: str) -> float:
     return float(value.replace("D", "E").replace("d", "e"))
 
 
+def _stationary_trah_energy_change(content: str) -> Optional[float]:
+    """Read ORCA 6.1.1's measured one-cycle stationary restart evidence.
+
+    Native 6.1.1 TRAH can converge immediately from its initial orbitals. Its
+    summary then prints the total SCF energy in ``Last Energy change``. The
+    iteration-zero energy and final SCF total still independently establish the
+    actual change. Accept this narrowly identified case only when every native
+    residual and tolerance is present and no SCF iteration was omitted.
+    """
+    if not re.search(r"Program Version\s+6\.1\.1\b", content) or "ORCA TERMINATED NORMALLY" not in content:
+        return None
+    sections = re.split(r"ORCA LEAN-SCF", content)
+    if len(sections) < 2:
+        return None
+    final = sections[-1]
+    cycles = re.findall(r"SCF CONVERGED AFTER\s+(\d+)\s+CYCLES", final)
+    if cycles != ["1"]:
+        return None
+    rows = re.findall(rf"^[ \t]*(\d+)[ \t]+({_NUMBER})[ \t]+({_NUMBER})[^\n]*\(TRAH MAcro\)[ \t]+No[ \t]*$",
+                      final, re.I | re.M)
+    totals = re.findall(rf"^[ \t]*Total Energy[ \t]*:[ \t]*({_NUMBER})[ \t]+Eh\b", final, re.M)
+    if len(rows) != 1 or rows[0][0] != "0" or len(totals) != 1:
+        return None
+    initial, orbital_residual = _number(rows[0][1]), abs(_number(rows[0][2]))
+    total = _number(totals[0])
+    if not all(math.isfinite(value) for value in (initial, total, orbital_residual)):
+        return None
+    thresholds = {
+        "Energy change": 1e-7, "MAX-Density change": 1e-7, "RMS-Density change": 5e-9,
+        "DIIS Error": 5e-7, "Orbital Gradient": 1e-5, "Orbital Rotation": 1e-5,
+    }
+    observed: dict[str, tuple[float, float, str]] = {}
+    for label, ceiling in thresholds.items():
+        values = re.findall(rf"^[ \t]*Last {re.escape(label)}[ \t]*\.{{2,}}[ \t]*({_NUMBER})"
+                            rf"[ \t]+Tolerance[ \t]*:[ \t]*({_NUMBER})[ \t]*$", final, re.M)
+        if len(values) != 1:
+            return None
+        value, tolerance = _number(values[0][0]), _number(values[0][1])
+        if not math.isfinite(value) or not math.isfinite(tolerance) or not 0 < tolerance <= ceiling:
+            return None
+        if label != "Energy change" and abs(value) > tolerance:
+            return None
+        observed[label] = value, tolerance, values[0][0]
+    # Match the known sentinel at its native printed precision. This is only an
+    # identity check; the independent measured difference below stays strict.
+    sentinel, energy_tolerance, token = observed["Energy change"]
+    mantissa, _, exponent = token.lower().replace("d", "e").partition("e")
+    fraction_digits = len(mantissa.partition(".")[2])
+    print_resolution = 10.0 ** (int(exponent or "0") - fraction_digits)
+    if not math.isclose(sentinel, total, rel_tol=0, abs_tol=0.51 * print_resolution):
+        return None
+    delta = abs(total - initial)
+    if delta >= min(1e-7, energy_tolerance) or orbital_residual > observed["Orbital Gradient"][1]:
+        return None
+    return delta
+
+
 class QCSchemaProperties(BaseModel):
     return_energy: float = Field(allow_inf_nan=False)
     scf_iterations: int
@@ -79,7 +136,13 @@ class QuantumParser:
             return False
         if "TERMINATED NORMALLY" not in content or last_de is None:
             return False
-        if not math.isfinite(last_de) or last_de >= self.scf_threshold:
+        if not math.isfinite(last_de):
+            return False
+        if last_de >= self.scf_threshold:
+            measured_restart_change = _stationary_trah_energy_change(content)
+            if measured_restart_change is not None:
+                logger.info("Accepted measured stationary TRAH restart SCF change %.3e Eh", measured_restart_change)
+                return True
             logger.error("SCF energy change %s does not satisfy %s", last_de, self.scf_threshold)
             return False
         return True

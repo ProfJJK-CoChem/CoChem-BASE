@@ -1,4 +1,4 @@
-name: CoChem BASE 1.0.0 bounded CI
+name: CoChem BASE bounded CI
 
 on:
   workflow_dispatch:
@@ -60,7 +60,7 @@ jobs:
           if-no-files-found: error
 
   installed-wheel:
-    name: Installed 1.0.0 wheel (${{ matrix.os }})
+    name: Installed wheel (${{ matrix.os }})
     needs: source-integrity
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30

@@ -11,7 +11,7 @@
   "mounts": [
     "source=cochem-base-artifacts,target=/home/vscode/CoChem_Artifacts,type=volume"
   ],
-  "postCreateCommand": "sudo chown vscode:vscode /home/vscode/CoChem_Artifacts && python3 scripts/hosted_dashboard.py setup --min-disk-space-gb 1",
+  "postCreateCommand": "bash scripts/setup_devcontainer.sh",
   "postStartCommand": "python3 scripts/hosted_dashboard.py start",
   "forwardPorts": [
     8866

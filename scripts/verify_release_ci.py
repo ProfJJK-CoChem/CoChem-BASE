@@ -1,4 +1,4 @@
-"""Bounded public CI checks and clean-wheel acceptance for BASE 1.0.0.
+"""Bounded public CI checks and clean-wheel acceptance for the reviewed BASE release.
 
 This deliberately does not replace the full canonical release-candidate gate or
 licensed ORCA, ML-model, QE, GPU, Slurm and native scientific acceptance. Every
@@ -15,10 +15,20 @@ from pathlib import Path
 import subprocess
 import sys
 import tarfile
+import tomllib
 
 
 ROOT = Path(__file__).resolve().parents[1]
 HOSTED_TESTS = (
+    "tests/base/test_native_grid_execution.py",
+    "tests/base/test_native_crash_provenance.py",
+    "tests/base/test_python_hook_swmr.py",
+    "tests/base/test_gradient_telemetry.py",
+    "tests/base/test_chain_integrity.py",
+    "tests/calc/test_nuclide_ingress_handoff.py",
+    "tests/ui/test_optional_licensed_engines.py",
+    "tests/calc/test_cfour_execution_contract.py",
+    "tests/base/test_cfour_provisioning.py",
     "tests/base/test_context_compression_contract.py",
     "tests/base/test_scribe_missing_observations.py",
     "tests/base/test_srs_runtime_foundations.py::test_crash_tail_preserves_exact_physical_stderr",
@@ -53,6 +63,7 @@ HOSTED_TESTS = (
     "tests/ui/test_gui_spectroscopy_inspector.py",
     "tests/ui/test_hessian_inspector.py",
     "tests/ui/test_cli_run_and_gui_parity.py",
+    "tests/ui/test_voila_runtime_acceptance.py",
 )
 
 
@@ -67,11 +78,12 @@ def _environment() -> dict[str, str]:
 
 def _run(command: list[str], directory: Path, environment: dict[str, str], log: Path,
          timeout: int = 1800) -> str:
-    with log.open("w", encoding="utf-8") as stream:
+    stderr_log = log.with_name(log.name + ".stderr.log")
+    with log.open("w", encoding="utf-8") as stream, stderr_log.open("w", encoding="utf-8") as errors:
         result = subprocess.run(command, cwd=directory, env=environment, stdin=subprocess.DEVNULL,
-                                stdout=stream, stderr=subprocess.STDOUT, timeout=timeout, check=False)
+                                stdout=stream, stderr=errors, timeout=timeout, check=False)
     if result.returncode:
-        raise RuntimeError(f"{Path(command[0]).name} exited {result.returncode}; inspect {log}")
+        raise RuntimeError(f"{Path(command[0]).name} exited {result.returncode}; inspect {log} and {stderr_log}")
     return log.read_text(encoding="utf-8")
 
 
@@ -115,6 +127,7 @@ def wheel(output: Path) -> dict:
          environment, output / "archive.log", 60)
     with tarfile.open(archive) as bundle:
         bundle.extractall(source, filter="data")
+    expected_version = tomllib.loads((source / "pyproject.toml").read_text())["project"]["version"]
     distribution = output / "dist"
     _run([sys.executable, "-m", "build", "--outdir", str(distribution), str(source)],
          output, environment, output / "build.log")
@@ -134,8 +147,8 @@ def wheel(output: Path) -> dict:
         ("module-version", [str(python), "-I", "-m", "cochem_base.cli", "--version"]),
     ):
         version = _run(argv, output, environment, output / f"{label}.log", 90)
-        if "CoChem-BASE 1.0.0 " not in version:
-            raise RuntimeError("Installed CLI does not report the reviewed 1.0.0 version")
+        if f"CoChem-BASE {expected_version} " not in version:
+            raise RuntimeError(f"Installed CLI does not report the reviewed {expected_version} version")
     _run([str(command), "run", "--help"], output, environment, output / "run-help.log", 90)
     isotope = json.loads(_run([str(command), "mass", "13C", "--json"], output, environment,
                               output / "isotope-mass.json", 90))
@@ -153,11 +166,14 @@ import cochem_base
 from cochem_base import _version
 from cochem_base.core_engine.hardware_profiler import profile_hardware
 from cochem_base.calc.calculation_service import CalculationMatrixConfig
-assert importlib.metadata.version('CoChem-BASE') == '1.0.0'
+from cochem_base.core_engine import cfour_runtime
+expected_version = sys.argv[2]
+assert importlib.metadata.version('CoChem-BASE') == expected_version
 installation = Path(sys.prefix).resolve()
 package_roots = [Path(path).resolve() for path in cochem_base.__path__]
 assert package_roots and all(path.is_relative_to(installation) for path in package_roots)
 assert Path(_version.__file__).resolve().is_relative_to(installation)
+assert Path(cfour_runtime.__file__).resolve().is_relative_to(installation)
 hardware = profile_hardware()
 root = Path(sys.argv[1])
 (root / 'hardware.json').write_text(json.dumps({'hardware': {
@@ -166,10 +182,13 @@ root = Path(sys.argv[1])
 config = CalculationMatrixConfig(geometry='H 0 0 0\\nH 0 0 0.74', engine='orca',
                                  method='HF', basis_set='STO-3G', is_opt=False)
 (root / 'input.json').write_text(config.model_dump_json())
+cfour = CalculationMatrixConfig(geometry='H 0 0 0\\nH 0 0 0.74', engine='cfour',
+                               method='HF', basis_set='STO-3G', is_opt=False)
+(root / 'cfour-input.json').write_text(cfour.model_dump_json())
 print(json.dumps({'installed_module': str(Path(_version.__file__).resolve()),
-                  'namespace_roots': list(map(str, package_roots)), 'version': '1.0.0'}))
+                  'namespace_roots': list(map(str, package_roots)), 'version': expected_version}))
 """
-    _run([str(python), "-I", "-c", probe, str(output)], output, environment, output / "installed-imports.json", 90)
+    _run([str(python), "-I", "-c", probe, str(output), expected_version], output, environment, output / "installed-imports.json", 90)
     environment["COCHEM_CONFIG"] = str(output / "hardware.json")
     _run([str(command), "run", "--config", str(output / "input.json"), "--threads", "1",
           "--maxcore-mb", "128", "--dry-run", "--scratch", str(output / "scratch"),
@@ -185,9 +204,19 @@ print(json.dumps({'installed_module': str(Path(_version.__file__).resolve()),
             or not any(line.split() == ["%maxcore", "128"] for line in deck.splitlines())
             or not any(line.split() == ["nprocs", "1"] for line in deck.splitlines())):
         raise RuntimeError("Installed ORCA dry-run deck changed the requested method or resource limits")
+    _run([str(command), "run", "--config", str(output / "cfour-input.json"), "--threads", "1",
+          "--maxcore-mb", "128", "--dry-run", "--scratch", str(output / "cfour-scratch"),
+          "--output", str(output / "cfour-generated-deck"), "--json"],
+         output, environment, output / "cfour-deck-generation.json", 90)
+    cfour_execution = json.loads((output / "cfour-generated-deck/execution.json").read_text())
+    cfour_deck = (output / "cfour-generated-deck/ZMAT").read_text()
+    if (cfour_execution["status"] != "DECK_GENERATED"
+            or not all(keyword in cfour_deck for keyword in
+                       ("CALC=HF", "BASIS=STO-3G", "UNITS=BOHR", "MEMORY_SIZE=128", "MEM_UNIT=MB"))):
+        raise RuntimeError("Installed CFOUR dry-run deck changed its method, units or resource limits")
     _run([str(python), "-m", "pip", "freeze"], output, environment, output / "installed-dependencies.txt", 60)
     return {"passed": True, "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
-            "source_revision": revision, "version": "1.0.0", "wheel": wheels[0].name,
+            "source_revision": revision, "version": expected_version, "wheel": wheels[0].name,
             "wheel_sha256": hashlib.sha256(wheels[0].read_bytes()).hexdigest()}
 
 

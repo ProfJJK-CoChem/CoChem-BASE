@@ -13,7 +13,7 @@ import secrets
 import subprocess
 import sys
 import threading
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -44,10 +44,28 @@ def _decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
+@dataclass(frozen=True)
+class ProtocolConfiguration:
+    """Initial response data for the actual local HTTP engineering peer."""
+
+    private: bool = True
+    controller_private: bool = True
+    active: bool = True
+    correct_installation: bool = True
+    source_changed: bool = False
+    source_extra: bool = False
+    source_truncated: bool = False
+    excess_permissions: bool = False
+    project_owner_type: str = "User"
+    project_owner_login: str = "student"
+    project_fork: bool = False
+    project_archived: bool = False
+
+
 class ProtocolServer(ThreadingHTTPServer):
     """An explicitly local engineering peer with distinct encryption stores."""
 
-    def __init__(self):
+    def __init__(self, configuration: ProtocolConfiguration):
         super().__init__(("127.0.0.1", 0), ProtocolHandler)
         self.signing_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         self.actions_key = PrivateKey.generate()
@@ -55,21 +73,21 @@ class ProtocolServer(ThreadingHTTPServer):
         self.controller_token = secrets.token_urlsafe(32)
         self.error_secret = secrets.token_urlsafe(32)
         self.tokens = {}
-        self.private = True
-        self.controller_private = True
-        self.active = True
-        self.correct_installation = True
-        self.source_changed = False
+        self.private = configuration.private
+        self.controller_private = configuration.controller_private
+        self.active = configuration.active
+        self.correct_installation = configuration.correct_installation
+        self.source_changed = configuration.source_changed
         self.tampered_path = ""
         self.starter_previous = False
-        self.source_extra = False
-        self.source_truncated = False
-        self.excess_permissions = False
+        self.source_extra = configuration.source_extra
+        self.source_truncated = configuration.source_truncated
+        self.excess_permissions = configuration.excess_permissions
         self.fail_variable = False
-        self.project_owner_type = "User"
-        self.project_owner_login = "student"
-        self.project_fork = False
-        self.project_archived = False
+        self.project_owner_type = configuration.project_owner_type
+        self.project_owner_login = configuration.project_owner_login
+        self.project_fork = configuration.project_fork
+        self.project_archived = configuration.project_archived
         self.redirect = False
         self.authorized = []
         self.writes = []
@@ -232,8 +250,9 @@ class ProtocolHandler(BaseHTTPRequestHandler):
 
 
 @pytest.fixture
-def peer():
-    server = ProtocolServer()
+def peer(request):
+    configuration = request.param if hasattr(request, "param") else ProtocolConfiguration()
+    server = ProtocolServer(configuration)
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     try:
@@ -306,17 +325,17 @@ def test_rotation_uses_new_private_labels_and_updates_existing_vars(peer):
     assert any(method == "PATCH" for method, path in peer.writes)
 
 
-@pytest.mark.parametrize("flag", ["private", "controller_private", "active", "correct_installation"])
-def test_ownership_membership_and_private_boundaries_refuse_before_writes(peer, flag):
-    setattr(peer, flag, False)
+@pytest.mark.parametrize("peer", [ProtocolConfiguration(private=False), ProtocolConfiguration(controller_private=False),
+    ProtocolConfiguration(active=False), ProtocolConfiguration(correct_installation=False)], indirect=True)
+def test_ownership_membership_and_private_boundaries_refuse_before_writes(peer):
     with pytest.raises(CourseAccessError):
         provision(peer)
     assert peer.writes == []
 
 
-@pytest.mark.parametrize("flag", ["source_changed", "source_extra", "source_truncated", "excess_permissions"])
-def test_source_tampering_and_broader_installation_permissions_refuse_before_writes(peer, flag):
-    setattr(peer, flag, True)
+@pytest.mark.parametrize("peer", [ProtocolConfiguration(source_changed=True), ProtocolConfiguration(source_extra=True),
+    ProtocolConfiguration(source_truncated=True), ProtocolConfiguration(excess_permissions=True)], indirect=True)
+def test_source_tampering_and_broader_installation_permissions_refuse_before_writes(peer):
     with pytest.raises(CourseAccessError):
         provision(peer)
     assert peer.writes == []
@@ -367,10 +386,10 @@ def test_calculation_allows_only_explicit_canonical_public_maintainer(peer):
     assert result["canonical_maintainer"] is True
 
 
-@pytest.mark.parametrize("setting,value", [("private", False), ("project_owner_type", "Organization"),
-    ("project_owner_login", "another"), ("project_fork", True), ("project_archived", True)])
-def test_changed_visibility_or_personal_owner_stops_calculation_access(peer, setting, value):
-    setattr(peer, setting, value)
+@pytest.mark.parametrize("peer", [ProtocolConfiguration(private=False), ProtocolConfiguration(project_owner_type="Organization"),
+    ProtocolConfiguration(project_owner_login="another"), ProtocolConfiguration(project_fork=True),
+    ProtocolConfiguration(project_archived=True)], indirect=True)
+def test_changed_visibility_or_personal_owner_stops_calculation_access(peer):
     api = GitHubAPI(peer.controller_token, api_url=peer.url, allow_loopback=True)
     with pytest.raises(CourseAccessError):
         verify_calculation_project(api, "student/project")

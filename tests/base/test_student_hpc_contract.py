@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 import subprocess
 import sys
 import uuid
@@ -32,6 +31,8 @@ from cochem_base.interfaces.student_hpc import (
     _source_inventory,
     _verify_source,
     _write,
+    load_local_registry_snapshot,
+    local_execution_environment,
     render_batch_script,
     validate_portable_calculation,
     validate_resources,
@@ -167,9 +168,9 @@ def test_actual_absent_allocation_cannot_run_chemistry(tmp_path, scheduler, vari
 
 @pytest.mark.parametrize("scheduler,variable,command", [("slurm", "SLURM_JOB_ID", "scontrol"), ("pbs", "PBS_JOBID", "qstat")])
 def test_environment_job_id_alone_cannot_replace_actual_controller_authority(tmp_path, scheduler, variable, command):
-    if shutil.which(command):
-        pytest.skip("A connected scheduler requires its separate genuine allocation acceptance; this test checks actual command absence")
-    process = _run_without_allocation("from pathlib import Path; import sys; from cochem_base.interfaces.student_hpc import require_allocation; require_allocation({'scheduler':sys.argv[1]}, Path(sys.argv[2]))", scheduler, tmp_path, allocation={variable: "123"})
+    directory = tmp_path / "actual-empty-command-directory"
+    directory.mkdir()
+    process = _run_without_allocation("from pathlib import Path; import sys; from cochem_base.interfaces.student_hpc import require_allocation; require_allocation({'scheduler':sys.argv[1]}, Path(sys.argv[2]))", scheduler, tmp_path, allocation={variable: "123", "PATH": str(directory)})
     assert process.returncode != 0 and "scheduler command is unavailable" in process.stderr
 
 
@@ -340,6 +341,7 @@ def test_local_native_fixture_bytes_and_failed_metadata_publish_exactly(tmp_path
                  "water.hess": (FIXTURE / "water.hess").read_bytes()}
     for name, data in originals.items():
         (local / name).write_bytes(data)
+        (local / name).chmod(0o400)
     _write(local / "student-result.json", {"status": "failed", "operation_performed": False,
         "scope": "Replay of authentic retained files; not a new calculation or successful cluster job"})
     files = {str(path.relative_to(local)): {"sha256": _hash(path), "size_bytes": path.stat().st_size}
@@ -353,6 +355,7 @@ def test_local_native_fixture_bytes_and_failed_metadata_publish_exactly(tmp_path
     assert not tuple(published.rglob("*.lock")) and not tuple(published.rglob("*.tmp"))
     for name, original in originals.items():
         assert (published / name).read_bytes() == original
+        assert (published / name).stat().st_mode & 0o777 == 0o400
 
 
 def test_local_publication_refuses_links_and_retains_existing_result_bytes(tmp_path):
@@ -372,3 +375,64 @@ def test_local_publication_refuses_links_and_retains_existing_result_bytes(tmp_p
     with pytest.raises(StudentHpcError, match="links/special"):
         _publish_local_results(local, published)
     assert {path.name: path.read_bytes() for path in published.iterdir()} == before
+
+
+def test_queued_registry_is_validated_from_exact_local_bytes_without_shared_source_lock(tmp_path):
+    """Real measured registry metadata; no complete setup or science is asserted."""
+    from cochem_base.cochem_core_registry_schema import CoChemSystemConfig
+    source_root = tmp_path / "queued-authority"
+    local_root = tmp_path / "node-local"
+    source_root.mkdir()
+    local_root.mkdir(mode=0o700)
+    original = source_root / "registry.json"
+    config = CoChemSystemConfig.create_default(auto_detect_hardware=True)
+    config.update_checksum()
+    original.write_text(config.model_dump_json(), encoding="utf-8")
+    original.chmod(0o400)
+    contents = original.read_bytes()
+    digest = hashlib.sha256(contents).hexdigest()
+    metadata_before = original.stat()
+    snapshot = local_root / "registry.json"
+    admitted = load_local_registry_snapshot(original, snapshot, digest)
+    assert admitted.verify_checksum() and admitted.hardware == config.hardware
+    assert original.read_bytes() == snapshot.read_bytes() == contents
+    assert sorted(path.name for path in source_root.iterdir()) == ["registry.json"]
+    assert (local_root / "registry.json.lock").is_file()
+    assert original.stat().st_mode == metadata_before.st_mode
+    assert original.stat().st_mtime_ns == metadata_before.st_mtime_ns
+    with pytest.raises(StudentHpcError, match="changed while"):
+        load_local_registry_snapshot(original, local_root / "rejected.json", "0" * 64)
+    assert not (local_root / "rejected.json").exists()
+    assert original.read_bytes() == contents
+
+
+def test_local_registry_snapshot_keeps_canonical_structural_validation(tmp_path):
+    from cochem_base.core.cochem_core_registry_manager import RegistryParseError
+    source = tmp_path / "malformed-authority.json"
+    source.write_bytes(b"{invalid-json}")
+    with pytest.raises(RegistryParseError):
+        load_local_registry_snapshot(source, tmp_path / "local-copy.json", _hash(source))
+    assert source.read_bytes() == b"{invalid-json}"
+    assert not (tmp_path / "malformed-authority.json.lock").exists()
+
+
+def test_worker_temp_cache_and_scratch_aliases_are_local_and_restored_after_exception(tmp_path):
+    import tempfile
+    runtime = tmp_path / "allocation-runtime"
+    temporary = tmp_path / "allocation-temporary"
+    keys = ("TMPDIR", "TMP", "TEMP", "COCH_SCRATCH", "COCHEM_SCRATCH_DIR", "COCHEM_SCRATCH",
+            "COCHEM_ARTIFACT_DIR", "COCHEM_ARTIFACTS", "COCHEM_CONFIG", "COCHEM_ORCA_BIN")
+    original_environment = {key: os.environ.get(key) for key in keys}
+    original_tempdir = tempfile.tempdir
+    with pytest.raises(ValueError, match="retained engineering exception"):
+        with local_execution_environment(runtime, temporary):
+            assert Path(tempfile.gettempdir()) == temporary
+            assert all(Path(os.environ[key]) == temporary for key in ("TMPDIR", "TMP", "TEMP"))
+            assert all(Path(os.environ[key]) == runtime / "Scratch"
+                       for key in ("COCH_SCRATCH", "COCHEM_SCRATCH_DIR", "COCHEM_SCRATCH"))
+            with tempfile.TemporaryDirectory() as directory:
+                assert Path(directory).parent == temporary
+            os.environ["COCHEM_ORCA_BIN"] = "engineering-state-restoration-marker"
+            raise ValueError("retained engineering exception")
+    assert {key: os.environ.get(key) for key in keys} == original_environment
+    assert tempfile.tempdir == original_tempdir

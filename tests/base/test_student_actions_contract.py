@@ -29,16 +29,17 @@ from cochem_base.interfaces.student_request import canonical_json, decode_reques
 class ProjectApprovalServer(ThreadingHTTPServer):
     """Actual local REST exchange for approval metadata, never science output."""
 
-    def __init__(self):
+    def __init__(self, *, variable_name_changed: bool = False,
+                 commit_changed: bool = False, worker_missing: bool = False):
         super().__init__(("127.0.0.1", 0), ProjectApprovalHandler)
         self.token = secrets.token_urlsafe(32)
         self.revision = "b" * 40
         self.variables = {"COCHEM_APPROVED_BASE_SHA": self.revision}
         self.variable_status = 200
-        self.variable_name_changed = False
-        self.commit_changed = False
+        self.variable_name_changed = variable_name_changed
+        self.commit_changed = commit_changed
         self.channel_changed = False
-        self.worker_missing = False
+        self.worker_missing = worker_missing
         self.paths = []
         self.metadata_auth_verified = False
 
@@ -93,8 +94,9 @@ class ProjectApprovalHandler(BaseHTTPRequestHandler):
 
 
 @pytest.fixture
-def project_approval_peer():
-    peer = ProjectApprovalServer()
+def project_approval_peer(request):
+    configuration = request.param if hasattr(request, "param") else {}
+    peer = ProjectApprovalServer(**configuration)
     thread = Thread(target=peer.serve_forever, daemon=True)
     thread.start()
     try:
@@ -154,10 +156,11 @@ def test_invalid_target_worker_approval_refuses_before_source_read(project_appro
     assert not any("/repos/ProfJJK-CoChem/CoChem-BASE/" in path for path in peer.paths)
 
 
-@pytest.mark.parametrize("flag", ["variable_name_changed", "commit_changed", "worker_missing"])
-def test_changed_target_approval_or_missing_exact_worker_refuses(project_approval_peer, tmp_path, flag):
+@pytest.mark.parametrize("project_approval_peer", [{"variable_name_changed": True},
+                                                   {"commit_changed": True},
+                                                   {"worker_missing": True}], indirect=True)
+def test_changed_target_approval_or_missing_exact_worker_refuses(project_approval_peer, tmp_path):
     peer = project_approval_peer
-    setattr(peer, flag, True)
     with pytest.raises(StudentActionsError):
         project_approval_client(peer, tmp_path).preflight()
     assert not any(path.endswith("/commits/main") and "CoChem-BASE" in path for path in peer.paths)

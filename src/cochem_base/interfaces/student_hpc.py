@@ -21,6 +21,7 @@ import sys
 import tempfile
 import time
 import uuid
+from contextlib import ExitStack, contextmanager
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -276,8 +277,11 @@ class StudentHpcClient:
             if os.name != "posix":
                 raise StudentHpcError("Use a connected Linux cluster interface for Slurm/OpenPBS; no local fallback is performed")
             from cochem_base.config_loader import resolve_config_path
-            from cochem_base.core.cochem_core_registry_manager import load_system_config
-            registry = load_system_config(resolve_config_path(self.registry_path))
+            original = resolve_config_path(self.registry_path)
+            expected_sha256 = _hash(original)
+            mount = _local_scratch_mount(Path(tempfile.gettempdir()))
+            with tempfile.TemporaryDirectory(prefix="cochem-hpc-registry-", dir=mount["path"]) as folder:
+                registry = load_local_registry_snapshot(original, Path(folder) / "registry.json", expected_sha256)
             scheduler = registry.hpc.scheduler.lower()
             if registry.stage0 is None or scheduler not in COMMANDS:
                 raise StudentHpcError("Complete BASE setup on a connected Slurm/OpenPBS login host before selecting HPC")
@@ -673,6 +677,54 @@ def create_allocation_workspace(request: dict, allocation: dict) -> tuple[Path, 
                   "scope": "Measured filesystem placement; scheduler authority is retained separately"}
 
 
+def load_local_registry_snapshot(source: Path, destination: Path, expected_sha256: str):
+    """Validate queued registry bytes locally without locking shared source."""
+    from cochem.core.context import AtomicWrite
+    from cochem_base.core.cochem_core_registry_manager import load_system_config
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256) or _hash(source) != expected_sha256:
+        raise StudentHpcError("Submitting setup authority changed while this job was queued")
+    contents = source.read_bytes()
+    if hashlib.sha256(contents).hexdigest() != expected_sha256 or _hash(source) != expected_sha256:
+        raise StudentHpcError("Submitting setup authority changed during its immutable local snapshot")
+    _local_scratch_mount(destination.parent)
+    if destination.exists() or destination.is_symlink():
+        raise StudentHpcError("The private registry snapshot target already exists")
+    with AtomicWrite(destination) as staged:
+        staged.write_bytes(contents)
+        staged.chmod(0o600)
+    destination.chmod(0o400)
+    registry = load_system_config(destination)
+    if _hash(destination) != expected_sha256 or _hash(source) != expected_sha256:
+        raise StudentHpcError("The queued setup authority differs from its validated local snapshot")
+    return registry
+
+
+@contextmanager
+def local_execution_environment(runtime: Path, temporary: Path):
+    """Keep setup/provider temporary I/O local and restore library-call state."""
+    scratch = runtime / "Scratch"
+    scratch.mkdir(parents=True, mode=0o700)
+    temporary.mkdir(mode=0o700)
+    replacements = {"COCHEM_ARTIFACT_DIR": str(runtime), "COCHEM_ARTIFACTS": str(runtime),
+        "COCHEM_CONFIG": str(runtime / "Registry/cochem_system_config.json"),
+        "COCHEM_SCRATCH_DIR": str(scratch), "COCH_SCRATCH": str(scratch), "COCHEM_SCRATCH": str(scratch),
+        "TMPDIR": str(temporary), "TMP": str(temporary), "TEMP": str(temporary)}
+    bindings = ("COCHEM_ORCA_BIN", "COCHEM_CFOUR_BIN", "XTB_CMD", "CREST_CMD", "QE_CMD")
+    previous = {key: os.environ.get(key) for key in (*replacements, *bindings)}
+    previous_tempdir = tempfile.tempdir
+    os.environ.update(replacements)
+    tempfile.tempdir = str(temporary)
+    try:
+        yield
+    finally:
+        tempfile.tempdir = previous_tempdir
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
 def _publish_local_results(source: Path, destination: Path) -> None:
     """Retain exact local result bytes; publish the completion manifest last."""
     from cochem.core.context import AtomicWrite
@@ -695,9 +747,10 @@ def _publish_local_results(source: Path, destination: Path) -> None:
         with AtomicWrite(target) as staged:
             with path.open("rb") as incoming, staged.open("wb") as outgoing:
                 shutil.copyfileobj(incoming, outgoing)
-            staged.chmod(stat.S_IMODE(path.stat().st_mode) & 0o600)
+            staged.chmod(0o600)
             if _hash(staged) != digest or _hash(path) != digest:
                 raise StudentHpcError("A local HPC result changed during atomic publication")
+        target.chmod(stat.S_IMODE(path.stat().st_mode) & 0o600)
         if _hash(target) != digest:
             raise StudentHpcError("An HPC result differs from its measured local original")
 
@@ -786,6 +839,7 @@ def execute_staged(package: Path, *, request_sha256: str) -> dict:
     report = {"schema_version": "cochem.hpc-result/1", "request_id": request["request_id"],
         "scheduler": request["scheduler"], "job_id": os.environ.get("SLURM_JOB_ID" if request["scheduler"] == "slurm" else "PBS_JOBID"),
         "status": "failed", "operation_performed": False, "resources": request["resources"]}
+    local_state = ExitStack()
     try:
         allocation = require_allocation(request, package)
         allocation_root, placement = create_allocation_workspace(request, allocation)
@@ -794,20 +848,17 @@ def execute_staged(package: Path, *, request_sha256: str) -> dict:
         shutil.copy2(package / "request.json", result_root / "request.json")
         _write(result_root / "allocation-authority.json", allocation)
         _write(result_root / "local-storage-authority.json", placement)
-        from cochem_base.core.cochem_core_registry_manager import load_system_config
         from cochem_base.orchestrator.bootstrap_service import run_setup
+        runtime = allocation_root / "allocation-runtime"
+        local_state.enter_context(local_execution_environment(runtime, allocation_root / "temporary"))
         submitting = Path(request["registry_path"])
-        if _hash(submitting) != request["registry_sha256"]:
-            raise StudentHpcError("Submitting setup authority changed while this job was queued")
-        source_config = load_system_config(submitting).model_dump(mode="json")
+        source_config = load_local_registry_snapshot(
+            submitting, allocation_root / "submitting-registry.json", request["registry_sha256"]).model_dump(mode="json")
         bindings = {"orca": "COCHEM_ORCA_BIN", "cfour": "COCHEM_CFOUR_BIN", "xtb": "XTB_CMD", "crest": "CREST_CMD", "qe": "QE_CMD"}
         for engine, variable in bindings.items():
             found = source_config.get("engines", {}).get(engine, {})
             if found.get("path"):
                 os.environ[variable] = found["path"]
-        runtime = allocation_root / "allocation-runtime"
-        os.environ.update(COCHEM_ARTIFACT_DIR=str(runtime), COCHEM_ARTIFACTS=str(runtime),
-                          COCHEM_CONFIG=str(runtime / "Registry/cochem_system_config.json"))
         setup = run_setup(runtime, skip_heavy=True)
         _write(result_root / "compute-setup.json", setup)
         registry = Path(os.environ["COCHEM_CONFIG"])
@@ -883,20 +934,23 @@ def execute_staged(package: Path, *, request_sha256: str) -> dict:
         report.update(error=str(error), error_type=type(error).__name__)
         raise
     finally:
-        _write(result_root / "student-result.json", report)
-        files = list(result_root.rglob("*"))
-        if any(path.is_symlink() for path in files) or len(files) > MAX_FILES or sum(path.stat().st_size for path in files if path.is_file()) > MAX_BYTES:
-            raise StudentHpcError("HPC results exceed bounded publication or contain links")
-        _write(result_root / "publication-manifest.json", {"schema_version": "cochem.hpc-publication/1",
-            "request_sha256": request_sha256, "files": {str(path.relative_to(result_root)):
-            {"sha256": _hash(path), "size_bytes": path.stat().st_size} for path in files if path.is_file()}})
-        if result_root != published_root:
-            # The initial request copy reserves the shared transport tree. It is
-            # already bound to the same bytes; all other files publish atomically.
-            retained_request = published_root / "request.json"
-            if _hash(retained_request) != request_sha256:
-                raise StudentHpcError("The retained submitted request changed during allocation execution")
-            _publish_local_results(result_root, published_root)
+        try:
+            _write(result_root / "student-result.json", report)
+            files = list(result_root.rglob("*"))
+            if any(path.is_symlink() for path in files) or len(files) > MAX_FILES or sum(path.stat().st_size for path in files if path.is_file()) > MAX_BYTES:
+                raise StudentHpcError("HPC results exceed bounded publication or contain links")
+            _write(result_root / "publication-manifest.json", {"schema_version": "cochem.hpc-publication/1",
+                "request_sha256": request_sha256, "files": {str(path.relative_to(result_root)):
+                {"sha256": _hash(path), "size_bytes": path.stat().st_size} for path in files if path.is_file()}})
+            if result_root != published_root:
+                # The initial request copy reserves the shared transport tree. It is
+                # already bound to the same bytes; all other files publish atomically.
+                retained_request = published_root / "request.json"
+                if _hash(retained_request) != request_sha256:
+                    raise StudentHpcError("The retained submitted request changed during allocation execution")
+                _publish_local_results(result_root, published_root)
+        finally:
+            local_state.close()
 
 
 def main() -> int:

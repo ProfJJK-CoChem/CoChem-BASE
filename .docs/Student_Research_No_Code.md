@@ -1,11 +1,13 @@
 # Student guide: molecular research in CoChem
 
-You use **one course repository containing CoChem-BASE**. BASE prepares the
+You use **one private research project containing CoChem-BASE, owned by your
+personal GitHub account**. BASE prepares the
 interface, installs its analysis components, submits calculations and brings
 results back. You do not open other CoChem repositories, install Python
 packages, enter access tokens or type terminal commands.
 
-Your instructor supplies the assignment link and approved scientific protocol.
+Your instructor supplies the reviewed BASE template, lab App invitation,
+Classroom50 collection instructions and approved scientific protocol.
 **You supply your own starting structures and scientific inputs.** For this
 course, monomer and complex geometries made in Avogadro 2 are common starting
 points. BASE also ingests the other molecular, periodic, Hessian, spectroscopy
@@ -15,26 +17,53 @@ during setup is only an installation check.
 ## Start your workspace
 
 1. Sign into GitHub and Classroom50 with your own account. Accept the course
-   organization invitation if one is pending.
-2. Open your instructor's Classroom50 assignment link and choose **Accept
-   assignment**. When setup finishes, choose **Open repository**. Bookmark this
-   repository; it holds your research workspace.
-3. In that repository choose **Code → Codespaces → Create codespace on main**.
-   If **New with options** appears instead, use your instructor's branch and
-   the two-core machine. Review the requested permissions and confirm your
-   personal account is the payer.
-4. Wait for the automatic setup to finish. BASE installs the required analysis
-   components itself. The first start can take several minutes. Do not start
-   a second Codespace because setup is still running.
-5. In VS Code's **Ports** panel, open **8866 — CoChem Voilà dashboard → Open in
-   Browser**. Keep its visibility **Private**. This opens the CoChem interface.
-6. Look at **CoChem setup and updates**. Required setup must finish before a
-   dependent calculation is enabled. If setup reports a problem, use **Retry
-   setup** once after the instructor fixes the reported access problem. Give
-   the instructor the error message; do not try terminal installation commands.
+   organization/team invitation if one is pending. Classroom50 handles course
+   enrollment, report links and feedback; it does not create or fund your
+   personal research project automatically.
+2. Open your instructor's approved BASE template. Choose **Use this template →
+   Create a new repository**. Select **your personal account** as owner, name it
+   for your project and choose **Private**. Create an independent template copy,
+   not a fork. Bookmark this project; it will hold your research files.
+3. In your private project choose **Code → Codespaces → Create codespace** on
+   the instructor's reviewed branch. If **New with options** appears, choose
+   the recommended machine and confirm your personal account is the payer.
+   Let automatic BASE setup finish. Private modules and engines may remain
+   unavailable before enrollment; you do not install them manually.
+4. In VS Code's **Ports** panel, open **8866 — CoChem Voilà dashboard → Open in
+   Browser** and keep its visibility **Private**. In BASE's **Lab access**,
+   confirm your personal project and enter the instructor access repository
+   and exact lab App slug from the course invitation. These are nonsecret invitation
+   details, not tokens. Choose the optional engines requested for your course.
+5. Select **Authorize lab app**. On GitHub choose your personal account, then
+   **Only select repositories**, select this private project, review permissions
+   and install. Do not authorize every repository on your account.
+6. Select **Request project access** in BASE. GitHub opens a prefilled data-only
+   enrollment issue in the instructor's private access repository. Choose
+   **Submit new issue**; do not add code, commands or credentials.
+7. Wait for the controller's success comment. If enrollment fails, give the
+   instructor its issue/run link and visible error. The instructor corrects
+   access; you do not create or paste a token. Stop this initial Codespace after
+   approval. Use it for enrollment before beginning your research uploads.
+8. From **your private project's** Codespaces menu create a **fresh Codespace**
+   after approval. It receives the separately provisioned private source access.
+   A rebuild of the initial Codespace is not evidence that access arrived.
+9. Wait for automatic BASE/module setup, then reopen the private dashboard.
+   Look at **CoChem setup and updates**. BASE installs TOPOS/TORQ in managed
+   storage; you never open or install their repositories. Required setup must
+   finish before dependent calculations become available. If an error remains,
+   give it to your instructor and use **Retry setup** after access is corrected.
+10. Choose **GitHub Actions** as the calculation environment. In **Lab access**,
+    refresh engine access. ORCA/CFOUR are optional and strongly recommended;
+    missing access disables their dependent methods while independent BASE
+    features remain usable. The actual calculation worker still verifies its
+    engine installation and scientific execution before reporting success.
 
-The Codespace supplies the interface. A GitHub Actions calculation runs on a
-separate worker and can continue after you close or stop the Codespace.
+The instructor's [personal-project App guide](Personal_Project_App_Deployment.md)
+explains the setup and enrollment checks. Students use browser controls only.
+Your personal project's Actions jobs use the allowance shown on your account;
+Classroom50 or team membership does not transfer organization secrets or billing.
+The Codespace supplies the interface. A calculation runs on a separate Actions
+worker and can continue after you close or stop the Codespace.
 
 ## Upload your structures
 
@@ -176,8 +205,9 @@ a minimum. Your own Avogadro 2 structures remain the usual course inputs.
 
 1. Select **GitHub Codespaces** as the interface environment and **GitHub
    Actions** as the calculation environment. BASE should identify your current
-   assignment repository and approved branch. Check these refer to your
-   assignment, rather than the upstream application repository.
+   personal private project and approved branch. Confirm it shows your
+   `username/project`, rather than upstream BASE or an organization collection
+   repository.
 2. Choose the engine, operation and scientific settings specified by your
    instructor. Do not use a small installation-check method as a substitute
    for the assigned van der Waals research protocol.
@@ -273,15 +303,17 @@ convergence and correction conventions are appropriate for that comparison.
 
 Save the original starting files, final structures, calculation bundle and
 report. BASE's managed runtime/results directories are separate from your
-assignment checkout. To submit a downloaded report through the repository,
-drag its course-approved files into your assignment's **Explorer** folder in
+personal project checkout. To save a downloaded report through the repository,
+drag its course-approved files into your project's **Explorer** folder in
 VS Code, or use GitHub **Add file → Upload files**. Use VS Code **Source Control**
 to commit the course files you intend to submit: select the files, enter a
 descriptive message, choose **Commit**, then
 **Sync Changes**. These are ordinary buttons, not terminal commands. Confirm
-that the intended report appears in your repository on GitHub. Follow your
-instructor's policy for large result files rather than committing an entire
-runtime or binary archive.
+that the intended report appears in your private project on GitHub. Submit the
+project/report URL through your instructor's Classroom50 instructions and confirm
+the instructor can access the intended report; enrollment alone does not grant
+collection access to a private personal repository. Follow the course policy for
+large files rather than committing an entire runtime or binary archive.
 
 ## Get bug fixes without losing your work
 

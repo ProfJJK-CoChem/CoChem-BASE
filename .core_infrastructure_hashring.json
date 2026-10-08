@@ -169,7 +169,7 @@
     "src/cochem_base/interfaces/module_execution.py": "8fa46ba123b83fc8391432596d1e7b5aa9d34dec8f6d0dc3960383870d3038ad",
     "src/cochem_base/interfaces/module_registry.py": "5e93821e21aa8e2266f46a41dc7781c0799afff751fe0d7658eeeb37e82bc713",
     "src/cochem_base/interfaces/student_actions.py": "bdd1babaa1849f6fd31c35faefb321212f336df940de90ded122098fefea85ce",
-    "src/cochem_base/interfaces/student_hpc.py": "d206e7219f373d1d557733704ffc22d59d9ecbb6d640e1d1784a19b221eeb6b1",
+    "src/cochem_base/interfaces/student_hpc.py": "23a669ab57c66c6d5acd20f764c1e8b5508a1a850859bcfe6261f8837a29303d",
     "src/cochem_base/interfaces/student_setup.py": "b3a353b903ea759dcc556b51b79ea6c0cc9bb45c7608c1c13b210479363e9a00",
     "src/cochem_base/orchestrator/__init__.py": "62b0e0565b34164afdb4f8f4706a133d8d8a8dcd387d8ce8b0f0f0a4e927d6d6",
     "src/cochem_base/orchestrator/bootstrap_service.py": "91f47e5632fca2a84f1f5299ac06f921ce5402b12195bf420d821209f8e60256",

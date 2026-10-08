@@ -333,7 +333,11 @@ def accept_native_hessian_calculation(page, report: dict, artifacts: Path, timeo
         selected = page.get_by_role("status").filter(has_text="Retained Hessian selected:")
         expect(selected).to_contain_text(candidate, timeout=30000)
         if "Retained native force-Hessian, mass and spectrum receipts agree" in selected.inner_text():
-            label = candidate
+            selected_text = selected.text_content()
+            prefix = "Retained Hessian selected: "
+            assert selected_text is not None and selected_text.startswith(prefix)
+            label, terminator, _ = selected_text[len(prefix):].partition(". Choose Load geometry and Hessian.")
+            assert terminator, "Selected Hessian receipt lacks its canonical public label boundary"
             break
     assert label, "No generated Hessian has matching actual native derivative receipts"
     root_label, separator, relative = label.partition(" · ")

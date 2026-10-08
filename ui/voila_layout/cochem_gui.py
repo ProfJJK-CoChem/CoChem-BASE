@@ -2165,7 +2165,7 @@ class CoChemGUI:
             except (ValueError, OSError, UnicodeError, KeyError, TypeError) as exc:
                 errors.append(f"{entry.get('name', 'XYZ')}: {exc}")
         if accepted:
-            self.student_geometry_choice.options = [(record["filename"], key) for key, record in self._student_uploads.items()]
+            self.student_geometry_choice.options = [(record["label"], key) for key, record in self._student_uploads.items()]
             self.student_geometry_choice.value = accepted[-1]
             self._select_student_geometry({"new": accepted[-1]})
             self._refresh_student_monomer_choices()

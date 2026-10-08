@@ -306,6 +306,7 @@ def test_cfour_routing_persists_real_provider_environment_format_and_reuses_only
     assert values["COCHEM_CFOUR_MPI_AVAILABLE"] == "false"
     assert "LD_LIBRARY_PATH" not in values
     assert paths == [str(tmp_path / "licensed-engines/cfour/bin")]
+    assert not (tmp_path / "licensed-engines/cfour/bin/xcfour").exists()
     assert len(downloads) == len(installs) == 1
     setup.provision_selected(["cfour"], tmp_path, 2)
     assert verifications == [("cfour", tmp_path / "licensed-engines/cfour", manifest)]

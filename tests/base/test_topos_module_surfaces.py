@@ -294,8 +294,10 @@ def test_api_selection_rejects_untrusted_artifact_identity(monkeypatch, change):
 
 
 @pytest.mark.parametrize("case", ["valid", "public", "branch", "event", "no-kit", "legacy-topos", "foreign-profile"])
-def test_actual_workflow_preflight_before_any_network_process(tmp_path, request_file, xyz, monkeypatch, case):
+def test_actual_workflow_preflight_before_any_network_process(tmp_path, request_file, xyz, case):
     import os
+    import subprocess
+    import sys
     from pathlib import Path
 
     import yaml
@@ -321,15 +323,19 @@ def test_actual_workflow_preflight_before_any_network_process(tmp_path, request_
         values["TOPOS_REQUEST"] = ""
     if case == "foreign-profile":
         values["ENGINE_PROFILE"] = "unreviewed-installer"
-    for key, value in values.items():
-        monkeypatch.setenv(key, value)
-    monkeypatch.chdir(tmp_path)
+    child = tmp_path / "authored-preflight.py"
+    child.write_text("import sys\nsys.path.insert(0, " + repr(str(workflow.parents[2])) + ")\n" + source)
+    completed = subprocess.run([sys.executable, str(child)], cwd=tmp_path,
+                               env=dict(os.environ, **values), capture_output=True, text=True, timeout=30)
     if case == "valid":
-        exec(compile(source, str(workflow), "exec"), {})
-        assert Path(os.environ["GITHUB_ENV"]).read_text() == "TOPOS_SELECTED=true\n"
+        assert completed.returncode == 0, completed.stderr
+        assert Path(values["GITHUB_ENV"]).read_text() == "TOPOS_SELECTED=true\n"
     else:
-        with pytest.raises((ValueError, SystemExit)):
-            exec(compile(source, str(workflow), "exec"), {})
+        assert completed.returncode != 0
+        expected = {"public": "private", "branch": "default-branch dispatch",
+                    "event": "default-branch dispatch", "no-kit": "run ID and name",
+                    "legacy-topos": "typed request", "foreign-profile": "Unsupported engine profile"}
+        assert expected[case] in completed.stderr
 
 
 def test_actual_workflow_verifies_kit_before_engine_provisioning_and_isolated_execution():
@@ -405,27 +411,40 @@ def test_batch_subprocess_failures_preserve_structured_results_and_continue(monk
     assert not list(tmp_path.rglob("engine.stdout"))
 
 
-def test_reviewed_controller_builder_is_shared_by_dashboard_and_hosted(monkeypatch, tmp_path):
+def test_reviewed_controller_builder_is_shared_by_dashboard_and_hosted(tmp_path):
     import ast
+    import os
+    import subprocess
+    import venv
     from pathlib import Path
 
     import yaml
 
-    from scripts import hosted_dashboard as dashboard
     from scripts.hosted_dashboard import CONTROLLER_BUILD_TOOLS
 
-    # Source contract, not a wheel build or installation: inspect the actual
-    # authored hosted command and run its tool-install call at a stopped boundary.
+    # Execute the authored command in a real interpreter without pip. It must
+    # fail at that prerequisite before any package installation or network call.
     root = Path(__file__).resolve().parents[2]
     document = yaml.safe_load((root / ".github/workflows/ecosystem_modules.yml").read_text())
     command = next(step["run"] for step in document["jobs"]["modules"]["steps"]
                    if step.get("name") == "Install trusted BASE as a noneditable controller")
     assert "python -m pip install --no-build-isolation ." in command
     snippet = command.split("python - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
-    commands = []
-    monkeypatch.setattr(dashboard.subprocess, "run", lambda argv, **kwargs: commands.append(argv))
-    exec(compile(snippet, "authored-controller-build-step", "exec"), {})
-    assert commands[0][4:] == [f"{name}=={version}" for name, version in CONTROLLER_BUILD_TOOLS.items()]
+    authored = ast.parse(snippet)
+    invocation = next(node for node in ast.walk(authored) if isinstance(node, ast.Call)
+                      and ast.unparse(node.func) == "subprocess.run")
+    assert [ast.unparse(item) for item in invocation.args[0].elts[:4]] == ["sys.executable", "'-m'", "'pip'", "'install'"]
+    assert ast.unparse(invocation.args[0].elts[4]) == "*(f'{name}=={version}' for name, version in CONTROLLER_BUILD_TOOLS.items())"
+    environment = tmp_path / "without-pip"
+    venv.EnvBuilder(with_pip=False).create(environment)
+    python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    child = tmp_path / "authored-controller.py"
+    child.write_text("import sys\nsys.path.insert(0, " + repr(str(root)) + ")\n" + snippet)
+    completed = subprocess.run([str(python), "-I", str(child)], cwd=tmp_path,
+                               capture_output=True, text=True, timeout=30)
+    assert completed.returncode != 0
+    assert "No module named pip" in completed.stderr
+    assert not list(environment.rglob("pip"))
     assert CONTROLLER_BUILD_TOOLS == {"setuptools": "80.9.0", "wheel": "0.45.1", "build": "1.3.0", "packaging": "25.0"}
     # The dashboard uses those same pins and does not reenable isolated builds.
     tree = ast.parse((root / "scripts/hosted_dashboard.py").read_text())

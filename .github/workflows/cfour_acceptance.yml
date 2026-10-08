@@ -1,172 +1,125 @@
-name: CFOUR 2.1 calculation acceptance
+name: Reviewed TOPOS CFOUR first-order native diagnostic
 
 on:
   workflow_dispatch:
-  workflow_call:
-    inputs:
-      base_repository:
-        description: Repository containing the reviewed BASE source for a reusable call.
-        required: false
-        default: ProfJJK-CoChem/CoChem-BASE
-        type: string
-      base_ref:
-        description: Full CoChem-BASE commit SHA providing the shared installer and BASE acceptance.
-        required: true
-        type: string
-    secrets:
-      PRIVATE_CFOUR_ASSET_CREDENTIAL:
-        required: true
-      BASE_SOURCE_READ_TOKEN:
-        description: Optional read-only access when a reusable caller cannot read the private BASE source.
-        required: false
-  # Register and exercise the integration before it reaches the default branch.
-  # Assignment branches and pull requests do not automatically run licensed jobs.
-  push:
-    branches: [codex/cfour-optional-integration]
-    paths:
-      - '.github/actions/setup-cfour/**'
-      - '.github/workflows/cfour_acceptance.yml'
-      - 'scripts/*cfour*'
-      - 'src/cochem_base/calc/cfour_execution.py'
 
 permissions:
   contents: read
 
 concurrency:
-  group: cfour-acceptance-${{ github.repository }}-${{ github.ref }}
+  group: topos-cfour-first-order-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  licensed-calculations:
+  property-diagnostic:
+    if: github.event.repository.private && github.ref == 'refs/heads/codex/topos-cfour-properties-diagnostic-20261008'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
+      TOPOS_REF: 'f8168b37585f97a0a2f21c37874fcd6bf3e40c31'
+      BASE_REF: '0a8392baa498a799a1cabf922f5f5fbca8acc88d'
+      TORQ_REF: '79fbb111125e50627a1a2c129888a45496f368d4'
+      TOPOS_REQUIRE_BASE: '1'
+      TOPOS_EXECUTION_BACKEND: base
       OMP_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
       MKL_NUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
       QT_QPA_PLATFORM: offscreen
       COCHEM_HEADLESS: '1'
       COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
     steps:
-      - name: Validate a reusable caller's BASE revision
-        env:
-          BASE_REF: ${{ inputs.base_ref }}
-        run: |
-          if [[ -n "$BASE_REF" && ! "$BASE_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo '::error::Reusable callers must pin base_ref to a full CoChem-BASE commit SHA.'
-            exit 1
-          fi
-      - uses: actions/checkout@v4
+      - name: Retain the reviewed workflow and controller source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          repository: ${{ inputs.base_repository || github.repository }}
-          ref: ${{ inputs.base_ref || github.sha }}
-          token: ${{ secrets.BASE_SOURCE_READ_TOKEN || github.token }}
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - name: Checkout the pinned compatible BASE provider
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ProfJJK-CoChem/CoChem-BASE
+          ref: '0a8392baa498a799a1cabf922f5f5fbca8acc88d'
+          path: .cochem-dependencies/base
+          persist-credentials: false
+      - name: Checkout the pinned TOPOS implementation
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ProfJJK-CoChem/CoChem-TOPOS
+          ref: 'f8168b37585f97a0a2f21c37874fcd6bf3e40c31'
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+          path: .cochem-dependencies/topos
+          persist-credentials: false
+      - name: Checkout the mandatory pinned TORQ consumer
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ProfJJK-CoChem/CoChem-TORQ
+          ref: 79fbb111125e50627a1a2c129888a45496f368d4
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+          path: .cochem-dependencies/torq
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Record the real runner CPU topology and scheduling limits
-        run: |
-          python - <<'PY'
-          import json, os, subprocess
-          from pathlib import Path
-          limits = {}
-          for name in ('cpu.max', 'cpuset.cpus.effective'):
-              path = Path('/sys/fs/cgroup') / name
-              limits[name] = path.read_text().strip() if path.is_file() else None
-          topology = subprocess.run(['lscpu', '--json'], capture_output=True, text=True, check=True, timeout=10)
-          print(json.dumps({'runner_environment': os.environ.get('RUNNER_ENVIRONMENT'),
-              'cpu_allocation_policy': os.environ.get('COCHEM_CPU_ALLOCATION_POLICY'),
-              'logical_cpus': os.cpu_count(), 'affinity_cpu_ids': sorted(os.sched_getaffinity(0)),
-              'kernel_limits': limits, 'lscpu': json.loads(topology.stdout)}, indent=2))
-          PY
-      - name: Prepare external evidence and registry locations
+      - name: Establish exact pins and separate scratch/evidence directories
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/cfour-evidence"
+          test "$(git -C .cochem-dependencies/base rev-parse HEAD)" = "$BASE_REF"
+          test "$(git -C .cochem-dependencies/topos rev-parse HEAD)" = "$TOPOS_REF"
+          test "$(git -C .cochem-dependencies/torq rev-parse HEAD)" = "$TORQ_REF"
           echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
           echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
-          git rev-parse HEAD > "$RUNNER_TEMP/cfour-evidence/base-commit.txt"
-      - name: Audit the checked-out BASE source
-        run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/cfour-evidence/source-audit"
-      - name: Install the approved runtime's native prerequisite
-        run: |
+          echo "COCHEM_BASE_ROOT=$RUNNER_TEMP/cochem-sources/base" >> "$GITHUB_ENV"
+          echo "COCHEM_TOPOS_ROOT=$RUNNER_TEMP/cochem-sources/topos" >> "$GITHUB_ENV"
+          echo "COCHEM_TORQ_ROOT=$RUNNER_TEMP/cochem-sources/torq" >> "$GITHUB_ENV"
           sudo apt-get update
-          sudo apt-get install --yes libgfortran5
-      - name: Check that optional provisioning tolerates an absent credential
-        id: optional-cfour
-        uses: ./.github/actions/setup-cfour
-      - name: Retain and verify the optional unavailable result
-        env:
-          OPTIONAL_CFOUR_AVAILABLE: ${{ steps.optional-cfour.outputs.available }}
-        run: |
-          set -euo pipefail
-          test "$OPTIONAL_CFOUR_AVAILABLE" = false
-          cp "$RUNNER_TEMP/cfour-evidence/installation.json" "$RUNNER_TEMP/cfour-evidence/optional-installation-unavailable.json"
-      - name: Install the checksum-pinned private CFOUR runtime
-        uses: ./.github/actions/setup-cfour
+          sudo apt-get install --yes build-essential libgfortran5
+      - name: Provision the approved private CFOUR runtime through BASE
+        uses: ./.cochem-dependencies/base/.github/actions/setup-cfour
         with:
           asset-token: ${{ secrets.PRIVATE_CFOUR_ASSET_CREDENTIAL }}
           required: 'true'
-      - name: Install BASE and execute all eleven Stage 0 phases
+      - name: Isolate all scientific source roots from the controller BASE namespace
         run: |
           set -euo pipefail
-          if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
-              > "$RUNNER_TEMP/cfour-evidence/stage0-setup.log" 2>&1; then
-            tail -n 30 "$RUNNER_TEMP/cfour-evidence/stage0-setup.log"
-          else
-            status=$?
-            tail -n 100 "$RUNNER_TEMP/cfour-evidence/stage0-setup.log"
-            exit "$status"
-          fi
-      - name: Record the fresh registry CPU allocation evidence
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          registry = json.loads(Path(os.environ['COCHEM_CONFIG']).read_text())
-          report = json.dumps({'hardware': registry['hardware'],
-              'cpu_allocation': (registry.get('execution') or {}).get('cpu_allocation')}, indent=2)
-          (Path(os.environ['RUNNER_TEMP']) / 'cfour-evidence/cpu-allocation.json').write_text(report + '\n')
-          print(report)
-          PY
-      - name: Run real CFOUR energies, gradients, optimization, harmonic and OpenMP acceptance
+          mkdir -p "$RUNNER_TEMP/cochem-sources"
+          test ! -e "$COCHEM_BASE_ROOT"
+          test ! -e "$COCHEM_TOPOS_ROOT"
+          test ! -e "$COCHEM_TORQ_ROOT"
+          mv .cochem-dependencies/base "$COCHEM_BASE_ROOT"
+          mv .cochem-dependencies/topos "$COCHEM_TOPOS_ROOT"
+          mv .cochem-dependencies/torq "$COCHEM_TORQ_ROOT"
+      - name: Install the mandatory ecosystem and audit all eleven phases
+        working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/verify_cfour_scientific.py \
-            --registry "$COCHEM_CONFIG" \
-            --output "$RUNNER_TEMP/cfour-evidence/scientific-acceptance.json"
-      - name: Validate input isotopologue identity through native harmonics and ingestion
+          python "$COCHEM_TOPOS_ROOT/scripts/setup_ecosystem.py" \
+            --base-root "$COCHEM_BASE_ROOT" --torq-root "$COCHEM_TORQ_ROOT" \
+            --artifacts "$COCHEM_ARTIFACT_DIR" --min-disk-space-gb 1
+      - name: Run the one-hour exact first-order diagnostic without fallback
+        working-directory: ${{ runner.temp }}
         run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/verify_srs_completion.py \
-            --engine cfour --registry "$COCHEM_CONFIG" \
-            --output "$RUNNER_TEMP/cfour-evidence/srs-completion.json"
-      - name: Retain scientific results and failure diagnostics
+          set -euo pipefail
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$GITHUB_WORKSPACE/scripts/accept_topos_cfour_properties.py" \
+            --base-root "$COCHEM_BASE_ROOT" --base-ref "$BASE_REF" \
+            --topos-root "$COCHEM_TOPOS_ROOT" --topos-ref "$TOPOS_REF" \
+            --torq-root "$COCHEM_TORQ_ROOT" --torq-ref "$TORQ_REF" \
+            --registry "$COCHEM_CONFIG" --artifacts "$COCHEM_ARTIFACT_DIR" \
+            --work "$RUNNER_TEMP/topos-cfour-private-work" \
+            --evidence "$RUNNER_TEMP/topos-cfour-property-evidence"
+      - name: Retain selected scientific text and audited installation receipts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: cfour-2.1-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          name: topos-cfour-first-order-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/cfour-evidence/**/*.json
-            ${{ runner.temp }}/cfour-evidence/**/*.txt
-            ${{ runner.temp }}/cfour-evidence/**/*.log
-            ${{ runner.temp }}/cfour-evidence/**/*.xyz
-            ${{ runner.temp }}/cfour-evidence/**/*.dat
-            ${{ runner.temp }}/cfour-evidence/**/*.sha256
-            ${{ runner.temp }}/cfour-evidence/**/*.h5
-            ${{ runner.temp }}/cfour-evidence/**/*.npz
-            ${{ runner.temp }}/cfour-evidence/**/ZMAT
-            ${{ runner.temp }}/cfour-evidence/**/GRD
-            ${{ runner.temp }}/cfour-evidence/**/FCMFINAL
-            ${{ runner.temp }}/cfour-evidence/**/JOBARC
-            ${{ runner.temp }}/cfour-evidence/**/JAINDX
-            ${{ runner.temp }}/cfour-evidence/**/OPTARC
+            ${{ runner.temp }}/topos-cfour-property-evidence/
+            ${{ runner.temp }}/cfour-evidence/installation.json
+            ${{ runner.temp }}/cfour-evidence/distribution-provenance.json
             ${{ runner.temp }}/cochem-artifacts/Registry/*.json
-            ${{ runner.temp }}/cochem-artifacts/Registry/*.sha256
-            !${{ runner.temp }}/cfour-evidence/**/GENBAS
-            !${{ runner.temp }}/cfour-evidence/**/ECPDATA
+            ${{ runner.temp }}/cochem-artifacts/setup-receipt.json
+            ${{ runner.temp }}/cochem-artifacts/setup_summary.json
+            ${{ runner.temp }}/cochem-artifacts/mandatory-validation.json
           if-no-files-found: error
           retention-days: 14
-      - name: Remove the job-local licensed CFOUR installation and download
+      - name: Remove controlled scratch and the job-local licensed runtime
         if: always()
-        run: rm -rf -- "$RUNNER_TEMP/cochem-cfour-install" "$RUNNER_TEMP/cochem-cfour-download"
+        run: rm -rf -- "$RUNNER_TEMP/topos-cfour-private-work" "$RUNNER_TEMP/cochem-cfour-install" "$RUNNER_TEMP/cochem-cfour-download"

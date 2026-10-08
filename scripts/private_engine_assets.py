@@ -9,6 +9,7 @@ qualify a private-release staging transaction.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import importlib
 import json
@@ -19,10 +20,11 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any
 from urllib.parse import quote
 
 SCHEMA = "cochem.private-engine-staging/1"
@@ -39,6 +41,12 @@ _ZERO_SHA = "0" * 64
 
 class PrivateAssetError(RuntimeError):
     """A provider, identity, ownership or byte-integrity prerequisite failed."""
+
+
+class GitHubResponseError(PrivateAssetError):
+    def __init__(self, status: int):
+        self.status = status
+        super().__init__(f"The authenticated GitHub API returned HTTP {status}.")
 
 
 def canonical_json(value: Any) -> bytes:
@@ -178,39 +186,73 @@ def _gh_environment() -> dict[str, str]:
     environment["GH_DEBUG"] = "0"
     environment["GH_PROMPT_DISABLED"] = "1"
     environment["GH_PAGER"] = "cat"
-    environment["GH_FORCE_TTY"] = "0"
+    environment.pop("GH_FORCE_TTY", None)
+    environment["NO_COLOR"] = "1"
+    environment["CLICOLOR"] = "0"
+    environment["CLICOLOR_FORCE"] = "0"
     return environment
 
 
 def _gh(
-    arguments: list[str], *, output: BinaryIO | int = subprocess.PIPE, seconds: int = 120
-) -> bytes:
+    arguments: list[str], *, seconds: int = 120, allow_http_error: bool = False
+) -> tuple[bytes, int]:
     executable = shutil.which("gh")
     if executable is None:
         raise PrivateAssetError("The actual authenticated GitHub CLI is required.")
     process = subprocess.Popen(
         [executable, *arguments],
         stdin=subprocess.DEVNULL,
-        stdout=output,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
         env=_gh_environment(),
         start_new_session=True,
     )
+    chunks = []
+    size = 0
+    deadline = time.monotonic() + seconds
     try:
-        stdout, _ = process.communicate(timeout=seconds)
-    except subprocess.TimeoutExpired as exc:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.communicate()
-        raise PrivateAssetError("Authenticated GitHub operation exceeded its time budget.") from exc
-    if process.returncode:
+        if process.stdout is None:
+            raise PrivateAssetError("The genuine GitHub process has no metadata stream.")
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise PrivateAssetError(
+                        "Authenticated GitHub operation exceeded its time budget."
+                    )
+                if not selector.select(min(1.0, remaining)):
+                    continue
+                block = os.read(process.stdout.fileno(), 65536)
+                if not block:
+                    break
+                size += len(block)
+                if size > 4 * 1024 * 1024:
+                    raise PrivateAssetError("GitHub metadata exceeded the bounded response size.")
+                chunks.append(block)
+        process.stdout.close()
+        code = process.wait(timeout=max(0.001, deadline - time.monotonic()))
+    except BaseException:
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+        raise
+    if code != 0 and not (allow_http_error and code == 1):
         # gh stderr can contain signed storage URLs or private server details.
         # Preserve status, not those strings, in user-facing errors/journals.
-        raise PrivateAssetError(f"Authenticated GitHub operation exited {process.returncode}.")
-    if stdout is None:
-        return b""
-    if len(stdout) > 4 * 1024 * 1024:
-        raise PrivateAssetError("GitHub metadata exceeded the bounded response size.")
-    return stdout
+        raise PrivateAssetError(f"Authenticated GitHub operation exited {code}.")
+    return b"".join(chunks), code
+
+
+def _http_response(raw: bytes) -> tuple[int, bytes]:
+    separator = re.search(rb"\r?\n\r?\n", raw)
+    header = raw[: separator.start()] if separator else b""
+    body = raw[separator.end() :] if separator else b""
+    first = header.splitlines()[0] if header else b""
+    match = re.fullmatch(rb"HTTP/[0-9.]+ ([1-5][0-9]{2})(?: [ -~]*)?", first)
+    if separator is None or match is None:
+        raise PrivateAssetError("The actual provider HTTP status is unavailable or malformed.")
+    return int(match[1]), body
 
 
 def _api(endpoint: str, *, method: str = "GET", body: dict[str, Any] | None = None) -> Any:
@@ -222,6 +264,7 @@ def _api(endpoint: str, *, method: str = "GET", body: dict[str, Any] | None = No
         "github.com",
         "--method",
         method,
+        "--include",
         "-H",
         "Accept: application/vnd.github+json",
         "-H",
@@ -229,14 +272,22 @@ def _api(endpoint: str, *, method: str = "GET", body: dict[str, Any] | None = No
         endpoint,
     ]
     if body is None:
-        raw = _gh(arguments)
+        raw, code = _gh(arguments, allow_http_error=True)
     else:
         with tempfile.TemporaryDirectory(prefix="cochem-private-json-") as directory:
             path = Path(directory) / "request.json"
             path.write_bytes(canonical_json(body))
             path.chmod(0o600)
-            raw = _gh([*arguments, "--input", str(path)])
-    return _json(raw) if raw.strip() else None
+            raw, code = _gh([*arguments, "--input", str(path)], allow_http_error=True)
+    status, content = _http_response(raw)
+    expected = {"GET": 200, "POST": 201, "PATCH": 200, "DELETE": 204}.get(method)
+    if (200 <= status < 300 and code != 0) or (status >= 400 and code != 1):
+        raise PrivateAssetError(
+            "Provider HTTP status contradicts the actual GitHub process result."
+        )
+    if expected is None or status != expected:
+        raise GitHubResponseError(status)
+    return _json(content) if content.strip() else None
 
 
 def _repo_record(repository: str) -> dict[str, Any]:
@@ -276,9 +327,9 @@ def _distribution(engine: str, value: dict[str, Any]) -> dict[str, Any]:
         path = Path(directory) / "distribution.json"
         path.write_bytes(canonical_json(value))
         path.chmod(0o600)
-        validated = loader(path)
-    if engine == "orca" and validated != loader():
-        raise ValueError("ORCA staging must match the existing reviewed distribution exactly.")
+        validated: dict[str, Any] = loader(path)
+    if validated != loader():
+        raise ValueError("Staging must match the existing authentic reviewed distribution exactly.")
     _repository(validated["repository"])
     if not _NAME.fullmatch(validated["release_tag"]) or not _NAME.fullmatch(
         validated["archive_name"]
@@ -286,6 +337,70 @@ def _distribution(engine: str, value: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Only literal reviewed release tags and archive names are supported.")
     _digest(validated["sha256"])
     return validated
+
+
+def _calculation(workflow_path: str, value: Any) -> dict[str, Any] | None:
+    calculation_workflow = bool(re.search(r"_calculation\.ya?ml$", workflow_path))
+    if not calculation_workflow:
+        if value is not None:
+            raise ValueError(
+                "Fixed validation workflows cannot accept arbitrary calculation controls."
+            )
+        return None
+    if not isinstance(value, dict) or set(value) != {
+        "job_file",
+        "input_sha256",
+        "cores",
+        "maxcore_mb",
+    }:
+        raise ValueError("Calculation workflows require exact job bytes and resource intent.")
+    name = value["job_file"]
+    if (
+        not isinstance(name, str)
+        or len(name) > 200
+        or not name.endswith(".json")
+        or not re.fullmatch(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*", name)
+        or any(part in {".", ".."} for part in name.split("/"))
+    ):
+        raise ValueError("The exact calculation job must be a safe committed JSON path.")
+    _digest(value["input_sha256"])
+    if (
+        type(value["cores"]) is not int
+        or value["cores"] not in {1, 2}
+        or type(value["maxcore_mb"]) is not int
+        or not 1 <= value["maxcore_mb"] <= 1024
+    ):
+        raise ValueError("Calculation resources require 1 or 2 cores and 1..1024 MiB per core.")
+    return value
+
+
+def _committed_calculation(
+    repository: str, source_sha: str, calculation: dict[str, Any] | None
+) -> None:
+    if calculation is None:
+        return
+    file = _api(f"repos/{repository}/contents/{calculation['job_file']}?ref={source_sha}")
+    if (
+        file.get("type") != "file"
+        or file.get("path") != calculation["job_file"]
+        or file.get("encoding") != "base64"
+        or type(file.get("size")) is not int
+        or not 0 < file["size"] <= 256 * 1024
+        or not isinstance(file.get("content"), str)
+    ):
+        raise PrivateAssetError(
+            "The exact committed calculation file is unavailable or exceeds its bound."
+        )
+    try:
+        raw = base64.b64decode(file["content"].replace("\n", ""), validate=True)
+    except ValueError as exc:
+        raise PrivateAssetError("The genuine committed job encoding is malformed.") from exc
+    if len(raw) != file["size"] or _sha(raw) != calculation["input_sha256"]:
+        raise PrivateAssetError(
+            "The committed calculation differs from the exact approved request bytes."
+        )
+    if not isinstance(_json(raw), dict):
+        raise PrivateAssetError("The genuine committed calculation must contain a JSON object.")
 
 
 def _receipt_shape(record: Any, *, allow_expired: bool = False) -> dict[str, Any]:
@@ -305,6 +420,7 @@ def _receipt_shape(record: Any, *, allow_expired: bool = False) -> dict[str, Any
         "created_at",
         "expires_at",
         "status",
+        "intent_sha256",
     }:
         raise ValueError("Unexpected staging receipt fields are forbidden.")
     if (
@@ -318,6 +434,8 @@ def _receipt_shape(record: Any, *, allow_expired: bool = False) -> dict[str, Any
     if _sha(canonical_json(approved)) != _digest(record["approved_distribution_sha256"]):
         raise ValueError("Approved distribution identity differs from its pinned digest.")
     _digest(record["approved_descriptor_file_sha256"])
+    if _sha(_intent_bytes(record)) != _digest(record["intent_sha256"]):
+        raise ValueError("The complete staging intent differs from its immutable digest.")
     source, target, project = record["source"], record["destination"], record["project"]
     if (
         not isinstance(source, dict)
@@ -349,7 +467,7 @@ def _receipt_shape(record: Any, *, allow_expired: bool = False) -> dict[str, Any
             "size_bytes",
             "sha256",
         }
-        or set(project) != {"ref", "source_sha", "workflow_path"}
+        or set(project) != {"ref", "source_sha", "workflow_path", "calculation"}
     ):
         raise ValueError("Staging identity tuples require their exact bounded fields.")
     for field in ("repository_id", "release_id", "asset_id", "size_bytes"):
@@ -395,6 +513,7 @@ def _receipt_shape(record: Any, *, allow_expired: bool = False) -> dict[str, Any
         or not _WORKFLOW.fullmatch(project["workflow_path"])
     ):
         raise ValueError("A pinned project commit, branch and workflow path are required.")
+    _calculation(project["workflow_path"], project["calculation"])
     created, expires = _timestamp(record["created_at"]), _timestamp(record["expires_at"])
     now = _utc_now()
     if created > now or not timedelta(0) < expires - created <= timedelta(hours=24):
@@ -421,6 +540,39 @@ def load_staging_receipt(
     return record
 
 
+def _intent_bytes(record: dict[str, Any]) -> bytes:
+    immutable = _json(canonical_json(record))
+    immutable.pop("intent_sha256", None)
+    immutable["status"] = "preparing"
+    immutable["destination"]["release_id"] = None
+    immutable["destination"]["asset_id"] = None
+    return canonical_json(immutable)
+
+
+def _verify_intent(receipt_path: Path, record: dict[str, Any], journal: dict[str, Any]) -> None:
+    expected = _digest(record["intent_sha256"])
+    raw = _safe_path(Path(str(receipt_path) + ".intent.json")).read_bytes()
+    if (
+        _sha(raw) != expected
+        or raw != _intent_bytes(record)
+        or journal.get("intent_sha256") != expected
+    ):
+        raise PrivateAssetError(
+            "Immutable staging intent, operational journal and receipt diverged."
+        )
+
+
+def _asset_access_live(record: dict[str, Any]) -> None:
+    created, expires = _timestamp(record["created_at"]), _timestamp(record["expires_at"])
+    now = _utc_now()
+    if (
+        created > now
+        or not timedelta(0) < expires - created <= timedelta(hours=24)
+        or now >= expires
+    ):
+        raise PrivateAssetError("The temporary asset-access intent has expired or is invalid.")
+
+
 def _release_marker(record: dict[str, Any]) -> str:
     return canonical_json(
         {
@@ -433,18 +585,32 @@ def _release_marker(record: dict[str, Any]) -> str:
             "workflow_path": record["project"]["workflow_path"],
             "approved_distribution_sha256": record["approved_distribution_sha256"],
             "expires_at": record["expires_at"],
+            "intent_sha256": record["intent_sha256"],
         }
     ).decode("utf-8")
 
 
-def _task_release(record: dict[str, Any]) -> dict[str, Any]:
+def _closing_marker(record: dict[str, Any]) -> str:
+    marker = _json(_release_marker(record).encode("utf-8"))
+    marker["lifecycle"] = "closing"
+    return canonical_json(marker).decode("utf-8")
+
+
+def _task_release(record: dict[str, Any], *, allow_closing: bool = False) -> dict[str, Any]:
     target = record["destination"]
-    release = _api(f"repos/{target['repository']}/releases/{target['release_id']}")
+    release: dict[str, Any] = _api(f"repos/{target['repository']}/releases/{target['release_id']}")
+    if not isinstance(release, dict):
+        raise PrivateAssetError("The provider returned no actual owned-release object.")
     if (
         release.get("id") != target["release_id"]
         or release.get("tag_name") != target["release_tag"]
         or release.get("target_commitish") != record["project"]["source_sha"]
-        or release.get("body") != _release_marker(record)
+        or release.get("body")
+        not in (
+            {_release_marker(record), _closing_marker(record)}
+            if allow_closing
+            else {_release_marker(record)}
+        )
         or release.get("draft") is not True
         or release.get("prerelease") is not False
     ):
@@ -507,8 +673,6 @@ def _download(repository: str, asset: dict[str, Any], path: Path) -> None:
             )
             if process.stdout is None:
                 raise PrivateAssetError("The native authenticated transfer has no byte stream.")
-            import time
-
             deadline = time.monotonic() + 1800
             received = 0
             with selectors.DefaultSelector() as selector:
@@ -554,7 +718,7 @@ def _upload(repository: str, release_id: int, name: str, path: Path) -> dict[str
         f"https://uploads.github.com/repos/{_repository(repository)}/releases/"
         f"{_positive_id(release_id)}/assets?name={quote(name, safe='')}"
     )
-    raw = _gh(
+    raw, _ = _gh(
         [
             "api",
             "--hostname",
@@ -572,11 +736,8 @@ def _upload(repository: str, release_id: int, name: str, path: Path) -> dict[str
         ],
         seconds=1800,
     )
-    header, separator, body = raw.partition(b"\r\n\r\n")
-    if not separator:
-        header, separator, body = raw.partition(b"\n\n")
-    status = header.splitlines()[0].split() if header else []
-    if not separator or len(status) < 2 or status[1] != b"201":
+    status, body = _http_response(raw)
+    if status != 201:
         raise PrivateAssetError(
             "The exact upload did not return an actual HTTP 201 asset creation."
         )
@@ -604,11 +765,13 @@ def stage_private_asset(
     workflow_path: str,
     receipt: Path,
     expires_hours: int = 6,
+    calculation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     _codespaces()
     receipt = _private_output(receipt)
     journal_path = _private_output(Path(str(receipt) + ".journal.json"))
-    if receipt.exists() or journal_path.exists():
+    intent_path = _private_output(Path(str(receipt) + ".intent.json"))
+    if receipt.exists() or journal_path.exists() or intent_path.exists():
         raise FileExistsError("A staging task's receipt/journal cannot be overwritten.")
     if type(expires_hours) is not int or not 1 <= expires_hours <= 24:
         raise ValueError("Temporary staging lifetime must be 1 through 24 hours.")
@@ -628,6 +791,8 @@ def stage_private_asset(
         raise ValueError("Supply an exact safe heads ref.")
     if not _WORKFLOW.fullmatch(workflow_path):
         raise ValueError("Supply the exact .github/workflows YAML path.")
+    calculation = _calculation(workflow_path, calculation)
+    _committed_calculation(repository, source_sha, calculation)
     actual_ref = _api(f"repos/{repository}/git/ref/{ref[5:]}")
     if actual_ref.get("ref") != ref or actual_ref.get("object", {}).get("sha") != source_sha:
         raise PrivateAssetError(
@@ -653,7 +818,7 @@ def stage_private_asset(
     asset = matches[0]
     created = _utc_now()
     task = uuid.uuid4().hex
-    record = {
+    record: dict[str, Any] = {
         "schema_version": SCHEMA,
         "task_id": task,
         "purpose": PURPOSE,
@@ -685,22 +850,33 @@ def stage_private_asset(
             "size_bytes": asset["size"],
             "sha256": distribution["sha256"],
         },
-        "project": {"ref": ref, "source_sha": source_sha, "workflow_path": workflow_path},
+        "project": {
+            "ref": ref,
+            "source_sha": source_sha,
+            "workflow_path": workflow_path,
+            "calculation": calculation,
+        },
         "created_at": _iso(created),
         "expires_at": _iso(created + timedelta(hours=expires_hours)),
         "status": "preparing",
     }
     _asset_identity(asset, record["source"])
-    journal = {"receipt": record, "history": []}
+    intent = _intent_bytes(record)
+    record["intent_sha256"] = _sha(intent)
+    _write_private(intent_path, intent, exclusive=True)
+    journal = {"receipt": record, "history": [], "intent_sha256": record["intent_sha256"]}
     _write_private(journal_path, canonical_json(journal), exclusive=True)
     try:
         with tempfile.TemporaryDirectory(prefix="cochem-private-engine-") as directory:
             archive = Path(directory) / distribution["archive_name"]
+            _asset_access_live(record)
             _journal(journal_path, journal, "downloading_approved_source")
             _download(distribution["repository"], record["source"], archive)
             current = _personal_private(repository, owner=True)
             if current["id"] != project["id"] or current["owner"]["id"] != project["owner"]["id"]:
                 raise PrivateAssetError("Private project identity changed before staging.")
+            _asset_access_live(record)
+            _verify_intent(receipt, record, journal)
             _journal(journal_path, journal, "creating_task_owned_release")
             release = _api(
                 f"repos/{repository}/releases",
@@ -720,6 +896,10 @@ def stage_private_asset(
             before = _file_sha(archive)
             if before != (distribution["sha256"], asset["size"]):
                 raise PrivateAssetError("Approved source bytes changed before upload.")
+            _asset_access_live(record)
+            current = _personal_private(repository, owner=True)
+            if current["id"] != project["id"] or current["owner"]["id"] != project["owner"]["id"]:
+                raise PrivateAssetError("Private project identity changed before upload.")
             uploaded = _upload(repository, release["id"], distribution["archive_name"], archive)
             record["destination"]["asset_id"] = _positive_id(uploaded["id"])
             _journal(journal_path, journal, "verifying_authenticated_readback")
@@ -727,6 +907,7 @@ def stage_private_asset(
             if _file_sha(archive) != before:
                 raise PrivateAssetError("Local approved source changed while uploading.")
             readback = Path(directory) / "authenticated-readback.bin"
+            _asset_access_live(record)
             _download(repository, record["destination"], readback)
             _personal_private(repository, owner=True)
             _task_release(record)
@@ -773,6 +954,35 @@ def validate_actions_context(receipt: dict[str, Any]) -> dict[str, Any]:
     actual = _personal_private(target["repository"], owner=False)
     if actual["id"] != target["repository_id"] or actual["owner"]["id"] != target["owner_id"]:
         raise PrivateAssetError("Live private repository identity differs from the receipt.")
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    if not re.fullmatch(r"[1-9][0-9]*", run_id):
+        raise PrivateAssetError("The actual owning-repository Actions run ID is required.")
+    run = _api(f"repos/{target['repository']}/actions/runs/{run_id}")
+    if (
+        run.get("id") != int(run_id)
+        or not _matches_run(run, receipt)
+        or run.get("status") != "in_progress"
+        or run.get("event") != "workflow_dispatch"
+        or run.get("repository", {}).get("id") != target["repository_id"]
+        or run.get("head_repository", {}).get("id") != target["repository_id"]
+    ):
+        raise PrivateAssetError(
+            "The actual Actions run differs from the exact task/workflow/source binding."
+        )
+    _committed_calculation(target["repository"], project["source_sha"], project["calculation"])
+    if project["calculation"] is not None:
+        calculation = project["calculation"]
+        if any(
+            os.environ.get(variable) != expected
+            for variable, expected in (
+                ("JOB_FILE", calculation["job_file"]),
+                ("JOB_CORES", str(calculation["cores"])),
+                ("JOB_MAXCORE_MB", str(calculation["maxcore_mb"])),
+            )
+        ):
+            raise PrivateAssetError(
+                "Actual worker job/resource controls differ from staged request intent."
+            )
     release = _task_release(receipt)
     assets = release.get("assets", [])
     if len(assets) != 1:
@@ -799,29 +1009,17 @@ def consume_staged_asset(receipt: dict[str, Any], *, destination: Path) -> dict[
 def _matches_run(run: dict[str, Any], receipt: dict[str, Any]) -> bool:
     return (
         run.get("head_sha") == receipt["project"]["source_sha"]
+        and run.get("head_branch") == receipt["project"]["ref"][len("refs/heads/") :]
+        and run.get("head_repository", {}).get("id") == receipt["destination"]["repository_id"]
+        and run.get("head_repository", {}).get("full_name") == receipt["destination"]["repository"]
         and str(run.get("path", "")).split("@", 1)[0] == receipt["project"]["workflow_path"]
         and receipt["task_id"]
         in re.findall(r"(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])", str(run.get("display_title", "")))
     )
 
 
-def cleanup_staged_asset(*, receipt_path: Path, receipt_sha256: str, run_id: int) -> dict[str, Any]:
-    _codespaces()
-    raw = _safe_path(receipt_path).read_bytes()
-    if _sha(raw) != _digest(receipt_sha256):
-        raise ValueError("The retained ready receipt digest changed.")
-    record = _receipt_shape(_json(raw), allow_expired=True)
-    if canonical_json(record) != raw:
-        raise ValueError("The immutable ready receipt must remain canonical.")
+def _audit_no_active_runs(record: dict[str, Any]) -> None:
     target = record["destination"]
-    current = _personal_private(target["repository"], owner=True)
-    if current["id"] != target["repository_id"] or current["owner"]["id"] != target["owner_id"]:
-        raise PrivateAssetError("Cleanup repository identity changed.")
-    run = _api(f"repos/{target['repository']}/actions/runs/{_positive_id(run_id)}")
-    if not _matches_run(run, record) or run.get("status") != "completed":
-        raise PrivateAssetError(
-            "Cleanup requires this exact task's actual completed/cancelled Actions run."
-        )
     for page in range(1, 11):
         runs = _api(
             f"repos/{target['repository']}/actions/runs?head_sha={record['project']['source_sha']}&per_page=100&page={page}"
@@ -839,27 +1037,123 @@ def cleanup_staged_asset(*, receipt_path: Path, receipt_sha256: str, run_id: int
             )
         entries = runs["workflow_runs"]
         if any(
-            _matches_run(item, record) and item.get("status") != "completed" for item in entries
+            item.get("head_sha") == record["project"]["source_sha"]
+            and str(item.get("path", "")).split("@", 1)[0] == record["project"]["workflow_path"]
+            and item.get("status") != "completed"
+            for item in entries
         ):
-            raise PrivateAssetError("A matching task run is still active; retain private assets.")
+            raise PrivateAssetError(
+                "A run using this exact workflow/source is still active; retain assets."
+            )
         if len(entries) < 100:
             break
-    release = _task_release(record)
-    if len(release.get("assets", [])) != 1:
-        raise PrivateAssetError("Cleanup refuses a release with unrecognized or shared assets.")
-    _asset_identity(release["assets"][0], target)
+
+
+def _provider_inventory(endpoint: str) -> list[dict[str, Any]]:
+    result = []
+    for page in range(1, 11):
+        entries = _api(f"{endpoint}?per_page=100&page={page}")
+        if not isinstance(entries, list) or any(not isinstance(item, dict) for item in entries):
+            raise PrivateAssetError(
+                "The actual provider inventory is malformed; retain uncertainty."
+            )
+        result.extend(entries)
+        if len(entries) < 100:
+            return result
+    raise PrivateAssetError(
+        "Provider inventory exceeds the complete bounded audit; retain uncertainty."
+    )
+
+
+def _task_asset_absent(record: dict[str, Any]) -> bool:
+    target = record["destination"]
+    try:
+        asset = _api(f"repos/{target['repository']}/releases/assets/{target['asset_id']}")
+    except GitHubResponseError as exc:
+        if exc.status != 404:
+            raise
+    else:
+        _asset_identity(asset, target)
+        return False
+    # A private 404 can hide lost access. Confirm the owner's real private
+    # repository and complete authenticated draft-release/asset inventories.
+    current = _personal_private(target["repository"], owner=True)
+    if current["id"] != target["repository_id"] or current["owner"]["id"] != target["owner_id"]:
+        raise PrivateAssetError(
+            "Provider absence cannot be established after repository identity change."
+        )
+    releases = _provider_inventory(f"repos/{target['repository']}/releases")
+    known = [item for item in releases if item.get("id") == target["release_id"]]
+    if not known:
+        return True
+    if len(known) != 1:
+        raise PrivateAssetError("The provider returned ambiguous owned-release IDs.")
+    _task_release(record, allow_closing=True)
+    assets = _provider_inventory(
+        f"repos/{target['repository']}/releases/{target['release_id']}/assets"
+    )
+    if any(item.get("id") == target["asset_id"] for item in assets):
+        raise PrivateAssetError("Exact asset 404 contradicts the authenticated asset inventory.")
+    return True
+
+
+def cleanup_staged_asset(*, receipt_path: Path, receipt_sha256: str, run_id: int) -> dict[str, Any]:
+    _codespaces()
+    record = load_staging_receipt(
+        _safe_path(receipt_path).read_bytes(), receipt_sha256, allow_expired=True
+    )
+    target = record["destination"]
     journal_path = Path(str(receipt_path) + ".journal.json")
     journal = _json(_safe_path(journal_path).read_bytes())
     if journal.get("receipt") != record:
         raise PrivateAssetError("Lifecycle journal no longer describes the exact owned receipt.")
-    _journal(journal_path, journal, "deleting_completed_task_release", completed_run_id=run_id)
-    _api(f"repos/{target['repository']}/releases/{target['release_id']}", method="DELETE")
-    _journal(journal_path, journal, "cleaned", completed_run_id=run_id)
+    _verify_intent(receipt_path, record, journal)
+    current = _personal_private(target["repository"], owner=True)
+    if current["id"] != target["repository_id"] or current["owner"]["id"] != target["owner_id"]:
+        raise PrivateAssetError("Cleanup repository identity changed.")
+    run = _api(f"repos/{target['repository']}/actions/runs/{_positive_id(run_id)}")
+    if (
+        run.get("id") != run_id
+        or not _matches_run(run, record)
+        or run.get("status") != "completed"
+        or run.get("repository", {}).get("id") != target["repository_id"]
+    ):
+        raise PrivateAssetError(
+            "Cleanup requires this task's actual terminal owning-repository Actions run."
+        )
+    absent = _task_asset_absent(record)
+    if not absent:
+        release = _task_release(record, allow_closing=True)
+        _journal(journal_path, journal, "closing_admission", completed_run_id=run_id)
+        if release["body"] != _closing_marker(record):
+            _api(
+                f"repos/{target['repository']}/releases/{target['release_id']}",
+                method="PATCH",
+                body={"body": _closing_marker(record)},
+            )
+        if _task_release(record, allow_closing=True)["body"] != _closing_marker(record):
+            raise PrivateAssetError("The provider did not close new asset-consumer admission.")
+    _audit_no_active_runs(record)
+    if not absent:
+        _journal(journal_path, journal, "deleting_completed_task_asset", completed_run_id=run_id)
+        _api(f"repos/{target['repository']}/releases/assets/{target['asset_id']}", method="DELETE")
+    if not _task_asset_absent(record):
+        raise PrivateAssetError("The exact task asset remains available after deletion.")
+    _journal(
+        journal_path,
+        journal,
+        "cleaned",
+        completed_run_id=run_id,
+        empty_private_release_retained=True,
+        task_asset_absence_confirmed=True,
+    )
     return {
         "status": "cleaned",
         "task_id": record["task_id"],
         "release_id": target["release_id"],
         "run_id": run_id,
+        "asset_id": target["asset_id"],
+        "empty_private_release_retained": True,
     }
 
 
@@ -870,6 +1164,22 @@ def repair_staging(*, receipt_path: Path) -> dict[str, Any]:
     record = journal["receipt"]
     if record.get("schema_version") != SCHEMA or not _TASK.fullmatch(record.get("task_id", "")):
         raise ValueError("A genuine retained staging intent is required.")
+    _verify_intent(receipt_path, record, journal)
+    if journal.get("operational_status") in {
+        "closing_admission",
+        "deleting_completed_task_asset",
+        "cleaned",
+    }:
+        if not receipt_path.is_file() or not journal.get("completed_run_id"):
+            raise PrivateAssetError(
+                "Interrupted cleanup needs its retained ready receipt and actual terminal run."
+            )
+        return cleanup_staged_asset(
+            receipt_path=receipt_path,
+            receipt_sha256=journal["ready_receipt_sha256"],
+            run_id=journal["completed_run_id"],
+        )
+    _asset_access_live(record)
     target = record["destination"]
     current = _personal_private(target["repository"], owner=True)
     if current["id"] != target["repository_id"] or current["owner"]["id"] != target["owner_id"]:
@@ -880,7 +1190,7 @@ def repair_staging(*, receipt_path: Path) -> dict[str, Any]:
     if target.get("release_id") is None:
         # A crash can occur after provider creation but before its response is
         # journaled. Discover only the exact unguessable task tag and marker.
-        matches = []
+        matches: list[dict[str, Any]] = []
         for page in range(1, 11):
             releases = _api(f"repos/{target['repository']}/releases?per_page=100&page={page}")
             if not isinstance(releases, list):
@@ -911,6 +1221,7 @@ def repair_staging(*, receipt_path: Path) -> dict[str, Any]:
         )
     target["asset_id"] = _positive_id(matches[0]["id"])
     _asset_identity(matches[0], target)
+    _asset_access_live(record)
     with tempfile.TemporaryDirectory(prefix="cochem-private-repair-") as directory:
         _download(target["repository"], target, Path(directory) / "readback.bin")
     record["status"] = "ready"
@@ -943,6 +1254,10 @@ def main(argv: list[str] | None = None) -> int:
     stage.add_argument("--workflow-path", required=True)
     stage.add_argument("--receipt", type=Path, required=True)
     stage.add_argument("--expires-hours", type=int, default=6)
+    stage.add_argument("--job-file")
+    stage.add_argument("--input-sha256")
+    stage.add_argument("--cores", type=int)
+    stage.add_argument("--maxcore-mb", type=int)
     consume = commands.add_parser("consume")
     consume.add_argument("--receipt", type=Path, required=True)
     consume.add_argument("--receipt-sha256", required=True)
@@ -956,6 +1271,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "stage":
+            controls = (args.job_file, args.input_sha256, args.cores, args.maxcore_mb)
+            if any(item is not None for item in controls) and not all(
+                item is not None for item in controls
+            ):
+                raise ValueError("Provide all four exact calculation intent arguments together.")
+            calculation = (
+                {
+                    "job_file": args.job_file,
+                    "input_sha256": args.input_sha256,
+                    "cores": args.cores,
+                    "maxcore_mb": args.maxcore_mb,
+                }
+                if all(item is not None for item in controls)
+                else None
+            )
             result = stage_private_asset(
                 engine=args.engine,
                 descriptor=args.descriptor,
@@ -966,6 +1296,7 @@ def main(argv: list[str] | None = None) -> int:
                 workflow_path=args.workflow_path,
                 receipt=args.receipt,
                 expires_hours=args.expires_hours,
+                calculation=calculation,
             )
         elif args.command == "consume":
             receipt = load_staging_receipt(

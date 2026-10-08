@@ -192,8 +192,8 @@ class CoChemGUI:
         # 3.1 Seamless Install View
         
         self.gh_repo_input = widgets.Text(
-            description="Course repository:", value=os.environ.get("GITHUB_REPOSITORY", ""),
-            placeholder="course-organization/student-repository", style={'description_width': 'initial'},
+            description="Private project:", value=os.environ.get("GITHUB_REPOSITORY", ""),
+            placeholder="your-account/private-project", style={'description_width': 'initial'},
             layout=widgets.Layout(width='90%'),
         )
         self.gh_branch_input = widgets.Text(
@@ -208,6 +208,58 @@ class CoChemGUI:
         self.gh_branch_input.observe(self._refresh_actions_guidance, names='value')
         self.actions_job_download = widgets.HTML()
         self._last_actions_job = None
+        self._actions_lifecycle_running = False
+        self.actions_asset_descriptor = widgets.Text(
+            description="Reviewed descriptor:", placeholder="Path to approved ORCA/CFOUR distribution JSON",
+            style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'),
+        )
+        self.actions_asset_descriptor_sha256 = widgets.Text(
+            description="Reviewed file SHA-256:", placeholder="Independently retained descriptor file SHA-256",
+            style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'),
+        )
+        self.actions_cores = widgets.Dropdown(options=[1, 2], value=1, description="Actions cores:")
+        self.actions_memory = widgets.BoundedIntText(
+            value=512, min=1, max=1024, description="MB per core:",
+            style={'description_width': 'initial'},
+        )
+        self.actions_task_id = widgets.Text(
+            description="Retained task:", placeholder="Actual task UUID returned after staging",
+            style={'description_width': 'initial'},
+        )
+        self.actions_stage_submit = widgets.Button(description="Stage privately and submit", button_style="primary")
+        self.actions_refresh = widgets.Button(description="Refresh owned run")
+        self.actions_cancel = widgets.Button(description="Cancel owned run")
+        self.actions_download = widgets.Button(description="Download owned results")
+        self.actions_cleanup = widgets.Button(description="Clean completed staged assets")
+        self.actions_repair = widgets.Button(description="Review staged-asset repair")
+        self.actions_run_id = widgets.Text(description="Actual run ID:", value="")
+        self.actions_select_run = widgets.Button(description="Select observed owned run")
+        self.actions_lifecycle_status = widgets.HTML("<p>No private Actions task has been submitted.</p>")
+        self.actions_stage_submit.on_click(lambda _: self._run_private_actions("submit"))
+        self.actions_refresh.on_click(lambda _: self._run_private_actions("status"))
+        self.actions_cancel.on_click(lambda _: self._run_private_actions("cancel"))
+        self.actions_download.on_click(lambda _: self._run_private_actions("download"))
+        self.actions_cleanup.on_click(lambda _: self._run_private_actions("cleanup"))
+        self.actions_repair.on_click(lambda _: self._run_private_actions("repair"))
+        self.actions_select_run.on_click(lambda _: self._run_private_actions("select"))
+        self.actions_private_panel = widgets.VBox([
+            widgets.HTML(
+                "<h4>Private personal project Actions</h4>"
+                "<p>Codespaces supplies the interface. Your personal private repository runs the calculation "
+                "and uses your Actions quota. Staging temporarily copies approved licensed assets into that "
+                "private project; the lab credential is never copied into the project or Actions.</p>"
+                "<p>Use your existing authorized GitHub identity with access to the lab's private release "
+                "and your own project. Codespaces additional repository permissions do not grant access "
+                "across different owners. If access is unavailable, staging stays blocked; complete your "
+                "own browser authentication and approved laboratory access first.</p>"
+            ),
+            self.actions_asset_descriptor, self.actions_asset_descriptor_sha256,
+            widgets.HBox([self.actions_cores, self.actions_memory]),
+            self.actions_stage_submit, self.actions_task_id,
+            widgets.HBox([self.actions_refresh, self.actions_cancel, self.actions_download]),
+            widgets.HBox([self.actions_run_id, self.actions_select_run]),
+            widgets.HBox([self.actions_cleanup, self.actions_repair]), self.actions_lifecycle_status,
+        ])
         self.actions_operation = widgets.Dropdown(
             options=[("Single point", "single_point"), ("Optimization", "optimization"),
                      ("Harmonic frequencies", "harmonic_frequencies"),
@@ -821,6 +873,7 @@ class CoChemGUI:
             self.btn_save_matrix,
             self.matrix_output,
             self.actions_job_download,
+            self.actions_private_panel,
         ], layout=widgets.Layout(border='1px solid #ccc', padding='10px', margin='10px 0'))
 
         # Task 3: Connected HPC / Slurm Panel
@@ -1088,7 +1141,7 @@ class CoChemGUI:
     def _actions_repository(self) -> str:
         repository = self.gh_repo_input.value.strip()
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*", repository):
-            raise ValueError("Enter your instructor-provided course repository as OWNER/REPOSITORY.")
+            raise ValueError("Enter your own private personal project as OWNER/REPOSITORY.")
         return repository
 
     def _local_engine_choices(self) -> list[tuple[str, str | None]]:
@@ -1161,16 +1214,16 @@ class CoChemGUI:
         guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/GitHub_Classroom_ORCA_Setup.md"
         cfour_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/CFOUR_Actions_Setup.md"
         self.gh_guidance.value = (
-            "<h4>GitHub Actions: Classroom50 course setup</h4>"
-            "<p>Use the GitHub course repository provided by your Classroom50 instructor. "
-            "Your instructor prepares approved private ORCA/CFOUR access and the course workflows. "
+            "<h4>GitHub Actions: private personal student project</h4>"
+            "<p>Use your own private personal project with the reviewed ORCA/CFOUR workflows. "
+            "Codespaces stages approved assets using your own authorized identity. "
             "Students do not enter tokens or binary download links in this interface.</p>"
-            "<ol><li>Enter the course repository and branch provided by your instructor.</li>"
+            "<ol><li>Enter your private personal project and reviewed branch.</li>"
             "<li>Ask the instructor to confirm calculation acceptance passed for your selected licensed engine in this repository.</li>"
             "<li>Open <b>No Code Matrix</b>, choose ORCA or CFOUR, enter your molecule and method, then choose "
             "<b>Prepare GitHub Actions job</b>.</li>"
-            "<li>Download the JSON, upload it to the stated <code>jobs/</code> path on the approved branch, "
-            "then open <b>Actions → ORCA calculation</b> or <b>CFOUR calculation → Run workflow</b>. Enter that path as <code>job_file</code>.</li>"
+            "<li>Use <b>Stage privately and submit</b> with your independently reviewed distribution descriptor. "
+            "The interface uploads the validated job, stages its approved private asset, and dispatches the owning project workflow.</li>"
             "<li>Wait for the calculation to finish. Download its result artifact and retain the run URL. "
             "A prepared file or an archive-access check is not a completed calculation.</li></ol>"
             f"<p><a href='{guide}#student-quick-start' target='_blank' rel='noopener'>Student quick start</a> · "
@@ -1186,6 +1239,7 @@ class CoChemGUI:
                 if remote else "Native execution requires the complete eleven-phase setup audit on the configured host."
             )
         self.actions_job_options.layout.display = '' if remote else 'none'
+        self.actions_private_panel.layout.display = '' if remote else 'none'
         if hasattr(self, 'artifact_output_path'):
             self.artifact_output_path.layout.display = 'none' if remote else ''
         if hasattr(self, 'output_destination_guidance'):
@@ -2441,18 +2495,16 @@ class CoChemGUI:
             filename = f"{project}-{model.engine}-job.json"
             job_file = f"jobs/{filename}"
             digest = hashlib.sha256(payload).hexdigest()
-            self._last_actions_job = {"job_file": job_file, "config": model.model_dump(mode="json"), "sha256": digest}
+            self._last_actions_job = {"job_file": job_file, "config": model.model_dump(mode="json"), "sha256": digest, "payload": payload}
             encoded = base64.b64encode(payload).decode("ascii")
             workflow = f"https://github.com/{repository}/actions/workflows/{model.engine}_calculation.yml"
             self.actions_job_download.value = (
                 "<p role='status'><b>Actions job prepared.</b> No calculation has been submitted or run.</p>"
                 f"<p><a download='{filename}' href='data:application/json;base64,{encoded}'>Download {engine_name} job JSON</a></p>"
-                f"<ol><li>Upload this file as <code>{job_file}</code> in <code>{html.escape(repository)}</code> "
-                f"on the instructor-approved <code>{html.escape(self.gh_branch_input.value.strip() or 'main')}</code> branch.</li>"
-                f"<li>Open <a href='{workflow}' target='_blank' rel='noopener'>{engine_name} calculation</a>, select "
-                f"<b>Run workflow</b>, and set <code>job_file</code> to <code>{job_file}</code>.</li>"
-                "<li>Select one or two cores and your instructor's memory allowance. After completion, download "
-                "the calculation artifact and retain its run URL.</li></ol>"
+                "<p>Use <b>Stage privately and submit</b> with the actual independently reviewed distribution "
+                "descriptor and its file checksum. The interface uploads a unique job to your private project "
+                "and dispatches the workflow with its exact private staging receipt.</p>"
+                f"<p><a href='{workflow}' target='_blank' rel='noopener'>Open owning {engine_name} workflow</a></p>"
                 f"<p>Input SHA-256: <code>{digest}</code>. Calculation timeout: {self.actions_timeout.value} seconds.</p>"
             )
             self.state.system_status = "Actions job prepared"
@@ -2461,6 +2513,75 @@ class CoChemGUI:
         except (ValueError, RuntimeError, OSError, MethodologyViolationError) as exc:
             self.state.error_message = str(exc)
             self.actions_job_download.value = f"<p role='alert'>Actions job was not prepared: {html.escape(str(exc))}</p>"
+
+    def _run_private_actions(self, operation: str) -> None:
+        """Run a real owning-project lifecycle operation without blocking the notebook."""
+        if self._actions_lifecycle_running:
+            return
+        try:
+            if self.calc_env_dropdown.value != "github-actions":
+                raise ValueError("Select GitHub Actions as the calculation environment.")
+            repository = self._actions_repository()
+            if operation == "submit":
+                self._prepare_actions_job()
+                if self._last_actions_job is None:
+                    raise ValueError("Prepare a valid connected ORCA/CFOUR request first.")
+                payload = self._last_actions_job["payload"]
+                descriptor = Path(self.actions_asset_descriptor.value.strip()).expanduser()
+                descriptor_sha256 = self.actions_asset_descriptor_sha256.value.strip()
+                ref = "refs/heads/" + (self.gh_branch_input.value.strip() or "main")
+                cores, memory = self.actions_cores.value, self.actions_memory.value
+            else:
+                payload, descriptor, descriptor_sha256, ref, cores, memory = None, None, None, None, None, None
+            task = self.actions_task_id.value.strip()
+            selected_run = self.actions_run_id.value.strip()
+            runtime = self._run_artifact_root() / "GUI" / "PrivateActions"
+        except (ValueError, OSError, RuntimeError) as exc:
+            self.actions_lifecycle_status.value = "<p role='alert'>Private Actions operation blocked: " + html.escape(str(exc)) + "</p>"
+            return
+        self._actions_lifecycle_running = True
+        controls = [self.actions_stage_submit, self.actions_refresh, self.actions_cancel,
+                    self.actions_download, self.actions_cleanup, self.actions_repair,
+                    self.actions_select_run]
+        for button in controls:
+            button.disabled = True
+        self.actions_lifecycle_status.value = "<p role='status'>Running the requested private project operation.</p>"
+
+        def work() -> None:
+            try:
+                from cochem_base.interfaces.private_actions import PrivateActionsController
+                controller = PrivateActionsController(repository, runtime)
+                if operation == "submit":
+                    result = controller.stage_and_dispatch(
+                        payload, descriptor, descriptor_sha256,
+                        ref=ref, cores=cores, maxcore_mb=memory,
+                    )
+                elif operation == "select":
+                    if not selected_run.isdigit():
+                        raise ValueError("Enter the actual owning-project run ID.")
+                    result = controller.select_run(task, int(selected_run))
+                elif operation in {"status", "cancel", "download", "cleanup", "repair"}:
+                    result = getattr(controller, operation)(task)
+                else:
+                    raise ValueError("Unsupported private project operation.")
+                self.actions_task_id.value = result["task_id"]
+                self.actions_lifecycle_status.value = (
+                    "<p>Observed private Actions lifecycle:</p><pre>"
+                    + html.escape(json.dumps(result, sort_keys=True, indent=2)) + "</pre>"
+                )
+            except Exception as exc:
+                self.actions_lifecycle_status.value = (
+                    "<p role='alert'>Private Actions operation blocked: "
+                    + html.escape(str(exc))
+                    + "</p><p>Use your own authorized browser identity with lab release read access "
+                    "and private project Contents/Actions access. No lab credential is needed in Actions.</p>"
+                )
+            finally:
+                self._actions_lifecycle_running = False
+                for button in controls:
+                    button.disabled = False
+
+        threading.Thread(target=work, daemon=True).start()
 
     def _cancel_pipeline(self, b: Any = None) -> None:
         if self._pipeline_running:

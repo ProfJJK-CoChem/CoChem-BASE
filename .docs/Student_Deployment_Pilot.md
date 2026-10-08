@@ -20,7 +20,7 @@ must remain usable if neither engine is configured.
 2. Create the assignment through Classroom50 and have one enrolled pilot
    student accept it. Record the resulting assignment repository and source
    commit. Do not use an instructor's source checkout as student acceptance.
-3. Make the approved `PRIVATE_ORCA_ASSET_CREDENTIAL`, `PRIVATE_CFOUR_ASSET_CREDENTIAL` and,
+3. Make the approved `legacy organization engine credential`, `legacy organization engine credential` and,
    when modules are needed, `COCHEM_SOURCE_READ_TOKEN` available to that
    assignment using selected-repository organization access or approved
    repository secrets. No token values belong in a notebook, input or report.

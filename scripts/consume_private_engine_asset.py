@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +31,32 @@ def load_workflow_receipt(engine: str) -> dict[str, Any]:
     receipt = load_staging_receipt(raw, expected)
     if receipt["engine"] != engine or receipt["task_id"] != task:
         raise ValueError("The workflow engine/task differs from its immutable staging receipt.")
+    validate_calculation_intent(receipt, ROOT, os.environ)
     validate_actions_context(receipt)
     return receipt
+
+
+def validate_calculation_intent(
+    receipt: dict[str, Any], checkout: Path, environment: Mapping[str, str]
+) -> None:
+    """Bind actual checked-out job bytes and resource form values to staging."""
+    project = receipt["project"]
+    calculation = project.get("calculation")
+    if project["workflow_path"].endswith("_calculation.yml"):
+        if not isinstance(calculation, dict) or set(calculation) != {
+            "job_file", "input_sha256", "cores", "maxcore_mb"
+        }:
+            raise ValueError("The calculation workflow needs its exact staged job/resource intent.")
+        if any(environment.get(variable) != str(calculation[key]) for variable, key in (
+            ("JOB_FILE", "job_file"), ("JOB_CORES", "cores"), ("JOB_MAXCORE_MB", "maxcore_mb")
+        )):
+            raise ValueError("The Actions job path or resources differ from the staging intent.")
+        from scripts.run_actions_calculation import read_job_file
+        _, contents, _ = read_job_file(checkout, calculation["job_file"])
+        if hashlib.sha256(contents).hexdigest() != calculation["input_sha256"]:
+            raise ValueError("The actual Actions calculation input differs from its staged SHA-256.")
+    elif calculation is not None:
+        raise ValueError("A fixed acceptance/provisioning workflow must not borrow a calculation intent.")
 
 
 def _outside_checkout(path: Path) -> Path:

@@ -312,8 +312,8 @@ its source. Each new assignment must be authorized to use them.
 
 | Actions secret | Purpose |
 | --- | --- |
-| `PRIVATE_ORCA_ASSET_CREDENTIAL` | Read the approved private ORCA release archive |
-| `PRIVATE_CFOUR_ASSET_CREDENTIAL` | Read the approved private CFOUR runtime archive |
+| `legacy organization engine credential` | Read the approved private ORCA release archive |
+| `legacy organization engine credential` | Read the approved private CFOUR runtime archive |
 | `COCHEM_SOURCE_READ_TOKEN` | Read the approved private CoChem module source |
 
 1. In GitHub, open the course **Organization Settings → Secrets and variables

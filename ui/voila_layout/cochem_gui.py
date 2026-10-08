@@ -3664,14 +3664,12 @@ class CoChemGUI:
                     self._refresh_execution_gate()
                 return
             from cochem_base.calc.calculation_service import parse_run_geometry
-            from cochem_base.physics.isotopes import get_element_mass_and_abundance
             import numpy as np
 
             symbols, coordinates = parse_run_geometry(self.matrix_geometry.value)
             if not symbols:
                 raise MethodologyViolationError("Enter valid XYZ geometry before execution.")
-            numbers = [get_element_mass_and_abundance(symbol)[2] for symbol in symbols]
-            fragments = detect_molecular_fragments(numbers, np.asarray(coordinates))
+            fragments = detect_molecular_fragments(symbols, np.asarray(coordinates))
             validate_method_matrix_compliance(
                 self.matrix_method.value, num_fragments=len(fragments),
                 unphysical_override=self.unphysical_override.value,

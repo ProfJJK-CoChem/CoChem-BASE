@@ -291,7 +291,12 @@ class CoChemGUI:
                 ('GitHub Actions (Cloud Compute)', 'github-actions'), 
                 ('HPC Cluster (Slurm/PBS)', 'hpc')
             ],
-            value='macos' if sys.platform == 'darwin' else 'local' if os.name == 'nt' else 'linux',
+            value=(
+                'github-actions'
+                if os.environ.get('COCHEM_CALCULATION_ENVIRONMENT') == 'github-actions'
+                else 'macos' if sys.platform == 'darwin'
+                else 'local' if os.name == 'nt' else 'linux'
+            ),
             description='Calculation Environment:',
             style={'description_width': 'initial'}
         )
@@ -1211,8 +1216,9 @@ class CoChemGUI:
         valid_repository = bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*", repository))
         guide_repository = repository if valid_repository else "ProfJJK-CoChem/CoChem-BASE"
         branch = self.gh_branch_input.value.strip() or "main"
-        guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/GitHub_Classroom_ORCA_Setup.md"
+        guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/ORCA_Actions_Setup.md"
         cfour_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/CFOUR_Actions_Setup.md"
+        private_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/docs/private_student_engine_staging.md"
         self.gh_guidance.value = (
             "<h4>GitHub Actions: private personal student project</h4>"
             "<p>Use your own private personal project with the reviewed ORCA/CFOUR workflows. "
@@ -1226,10 +1232,11 @@ class CoChemGUI:
             "The interface uploads the validated job, stages its approved private asset, and dispatches the owning project workflow.</li>"
             "<li>Wait for the calculation to finish. Download its result artifact and retain the run URL. "
             "A prepared file or an archive-access check is not a completed calculation.</li></ol>"
-            f"<p><a href='{guide}#student-quick-start' target='_blank' rel='noopener'>Student quick start</a> · "
-            f"<a href='{guide}#instructor-setup' target='_blank' rel='noopener'>Instructor setup</a> · "
+            f"<p><a href='{guide}#student-setup' target='_blank' rel='noopener'>Student quick start</a> · "
+            f"<a href='{guide}#scientific-and-licensing-checks' target='_blank' rel='noopener'>Scientific and licensing checks</a> · "
             f"<a href='{guide}#troubleshooting' target='_blank' rel='noopener'>Troubleshooting</a></p>"
             f"<p><a href='{cfour_guide}' target='_blank' rel='noopener'>CFOUR setup and calculation instructions</a></p>"
+            f"<p><a href='{private_guide}#browser-authentication-in-codespaces' target='_blank' rel='noopener'>Browser authentication and private staging</a></p>"
         )
         remote = hasattr(self, 'calc_env_dropdown') and self.calc_env_dropdown.value == "github-actions"
         if hasattr(self, 'matrix_engine'):

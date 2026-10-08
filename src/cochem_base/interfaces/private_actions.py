@@ -51,7 +51,9 @@ def _gh(route: str, *, method: str = "GET", document: dict[str, Any] | None = No
     ]
     if document is not None:
         command.extend(["--input", "-"])
-    environment = os.environ.copy()
+    from scripts.private_gh_auth import private_gh_environment
+
+    environment = private_gh_environment()
     environment.update(GH_DEBUG="0", GH_PROMPT_DISABLED="1", GH_PAGER="cat")
     try:
         result = subprocess.run(

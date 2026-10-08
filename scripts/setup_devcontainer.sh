@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare the Linux dashboard image without requiring licensed engines.
+# Prepare the Codespaces interface without local calculation authority.
 set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,4 +19,4 @@ sudo --preserve-env=http_proxy,https_proxy,no_proxy,HTTP_PROXY,HTTPS_PROXY,NO_PR
   libegl1 libopengl0 libgl1 libdbus-1-3 libxkbcommon-x11-0 libxcb-cursor0
 sudo mkdir -p -- "$artifact_root"
 sudo chown "$(id -u):$(id -g)" "$artifact_root"
-python3 scripts/hosted_dashboard.py setup --min-disk-space-gb 1
+python3 scripts/hosted_dashboard.py setup --calculation-environment "${COCHEM_CALCULATION_ENVIRONMENT:-github-actions}" --min-disk-space-gb 1

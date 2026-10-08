@@ -180,9 +180,10 @@ def _codespaces() -> None:
 
 
 def _gh_environment() -> dict[str, str]:
-    # Use injected/native gh authentication normally. Never ask gh to reveal a
-    # credential, read its auth files, or persist its environment in a receipt.
-    environment = os.environ.copy()
+    # Select the already authorized native identity without obtaining its secret.
+    from scripts.private_gh_auth import private_gh_environment
+
+    environment = private_gh_environment()
     environment["GH_DEBUG"] = "0"
     environment["GH_PROMPT_DISABLED"] = "1"
     environment["GH_PAGER"] = "cat"
@@ -1144,7 +1145,7 @@ def cleanup_staged_asset(*, receipt_path: Path, receipt_sha256: str, run_id: int
         journal,
         "cleaned",
         completed_run_id=run_id,
-        empty_private_release_retained=True,
+        release_deletion_performed=False,
         task_asset_absence_confirmed=True,
     )
     return {
@@ -1153,7 +1154,7 @@ def cleanup_staged_asset(*, receipt_path: Path, receipt_sha256: str, run_id: int
         "release_id": target["release_id"],
         "run_id": run_id,
         "asset_id": target["asset_id"],
-        "empty_private_release_retained": True,
+        "release_deletion_performed": False,
     }
 
 

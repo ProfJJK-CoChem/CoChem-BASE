@@ -15,6 +15,41 @@ artifacts. ORCA and CFOUR distribution identities come unchanged from the
 existing reviewed distribution manifests and genuine installers. A descriptor
 does not itself establish native scientific acceptance.
 
+## Browser authentication in Codespaces
+
+The default private lifecycle authentication mode is `auto`. In Codespaces,
+only the private GitHub CLI subprocesses remove inherited `GH_TOKEN` and
+`GITHUB_TOKEN` variable names, allowing the CLI to use the student's existing
+stored browser identity. GitHub CLI gives those injected variables precedence
+over stored credentials, so browser login alone would otherwise remain shadowed.
+Public source installation and the parent interface environment are unchanged.
+
+In the Codespaces terminal, authorize your own student account and confirm its
+GitHub CLI identity without displaying any credential:
+
+```sh
+env -u GH_TOKEN -u GITHUB_TOKEN gh auth login --hostname github.com --web --git-protocol https
+env -u GH_TOKEN -u GITHUB_TOKEN gh auth status --hostname github.com
+```
+
+Complete the laboratory's authorized repository access and any required SSO.
+The authenticated student must be able to read the exact approved lab release
+and manage their own private project. Authentication does not grant missing
+repository permissions. The interface applies selection for each operation;
+a browser login does not require restarting the default interface.
+
+`COCHEM_PRIVATE_GH_AUTH=stored-cli` explicitly selects the native stored CLI
+identity; `COCHEM_PRIVATE_GH_AUTH=environment` retains an independently authorized
+injected identity. Set an optional override on the process launching the interface
+or the explicit staging command. No token is entered in the UI. Unsupported modes
+fail before any private provider operation.
+
+In GitHub Actions, the genuine owning-project environment authentication always
+wins, even if a local override is inherited. The runner retains its platform
+`GITHUB_TOKEN`; stored Codespaces credentials are never transported to Actions.
+These process-selection checks do not establish provider access. The real
+private-project pilot below remains required and unrun.
+
 ## First student pilot
 
 No actual student-owned private project was supplied in this session. Private
@@ -76,9 +111,28 @@ python -m scripts.private_engine_assets stage \
   --expires-hours 6
 ```
 
-Use `--engine cfour` and the existing authentic CFOUR descriptor for the CFOUR
-profile. Fixed acceptance/archive validation workflows require an explicit
-null calculation intent, so the four job/resource CLI flags are omitted.
+A scientific CFOUR calculation uses its genuine calculation workflow and the
+same four committed job/resource controls:
+
+```sh
+python -m scripts.private_engine_assets stage \
+  --engine cfour \
+  --descriptor scripts/cfour-distribution.json \
+  --descriptor-sha256 REVIEWED_DESCRIPTOR_FILE_SHA256 \
+  --repository STUDENT/PRIVATE_PROJECT \
+  --ref refs/heads/main \
+  --source-sha ACTUAL_COMMITTED_SHA \
+  --workflow-path .github/workflows/cfour_calculation.yml \
+  --job-file jobs/approved-request.json \
+  --input-sha256 ACTUAL_COMMITTED_JOB_SHA256 \
+  --cores 2 --maxcore-mb 1024 \
+  --receipt /workspaces/.cochem-private/cfour-request.json \
+  --expires-hours 6
+```
+
+Fixed acceptance/archive validation and utility provisioning workflows, including
+`.github/workflows/cfour_provisioning.yml`, require an explicit null calculation
+intent, so the four job/resource CLI flags are omitted.
 The controller supplies these contracts automatically; the command also
 supports an independently inspectable first pilot.
 
@@ -110,8 +164,10 @@ identity and performs a complete authenticated SHA/size readback before ready.
 Provider digest metadata is also checked when supplied; it does not replace the
 independent byte check.
 
-The reviewed native GitHub CLI transport strips authentication after a
-cross-host redirect and does not inject it again at storage hosts. Upload uses
+The reviewed native GitHub CLI transport strips authentication on redirects
+from GitHub API/upload endpoints to unrelated storage domains and does not inject
+it again at those hosts. This does not claim stripping on every cross-host
+redirect; Go may preserve authentication for same-domain subdomains. Upload uses
 `gh api --input` with a non-replayable file body; `gh release upload` is avoided
 because its body can replay on HTTP 307/308. Verbose/debug output and forced
 terminal/color output are disabled, and private provider stderr is discarded.
@@ -147,9 +203,14 @@ Cleanup requires the genuine terminal run bound to the task, repository, branch,
 source and workflow. It first changes the provider-visible release marker to
 close new consumer admission, then audits the complete bounded run inventory.
 Any active run using that workflow/source blocks deletion. Cleanup deletes only
-the exact task-owned asset ID and confirms absence. It retains an empty private
-draft release as the ownership ledger: GitHub has no atomic “delete release if
-its asset set is unchanged” operation, so deleting the whole release after an
+the exact task-owned asset ID and confirms absence. The task-owned private draft
+release remains when present and is normally empty after deletion of this task's
+asset; unrelated concurrent assets are untouched. A release already removed by
+another authorized actor can be reconciled through authenticated absence checks.
+Cleanup records `release_deletion_performed=false`, describing this adapter's
+operation rather than claiming the release still exists or is empty. GitHub has
+no atomic “delete release if its asset set is unchanged” operation, so deleting
+the whole release after an
 asset check could delete an unrelated concurrently added file.
 
 A private GitHub 404 alone is not proof of deletion. Recovery revalidates the

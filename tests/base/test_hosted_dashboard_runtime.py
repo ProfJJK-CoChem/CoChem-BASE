@@ -2,15 +2,22 @@
 
 import json
 import os
-from pathlib import Path
 import socket
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
-from scripts.hosted_dashboard import REPO_ROOT, runtime_environment, server_identity, start_dashboard, stop_owned_server, validate_setup
+from scripts.hosted_dashboard import (
+    REPO_ROOT,
+    runtime_environment,
+    server_identity,
+    start_dashboard,
+    stop_owned_server,
+    validate_setup,
+)
 
 
 def test_runtime_files_live_outside_checkout_and_environment_is_not_mutated(tmp_path):
@@ -44,7 +51,7 @@ for name in variables:
 
 def test_missing_registry_cannot_validate_hosted_setup(tmp_path):
     with pytest.raises(subprocess.CalledProcessError):
-        validate_setup(Path(sys.executable), tmp_path)
+        validate_setup(Path(sys.executable), tmp_path, "local")
 
 
 def test_artifact_symlink_cannot_enter_checkout(tmp_path):
@@ -143,3 +150,117 @@ def test_failed_server_cleanup_stops_its_group_and_preserves_unrelated_process(t
         stop_owned_server(server)
         unrelated.terminate()
         unrelated.wait(timeout=5)
+
+
+@pytest.mark.parametrize("selection", ["unknown", "linux", "", "actions"])
+def test_unknown_explicit_calculation_profile_is_rejected(selection, tmp_path):
+    if selection == "":
+        # Empty defaults are not a valid explicit CLI selection either.
+        result = subprocess.run([
+            sys.executable, str(REPO_ROOT / "scripts/hosted_dashboard.py"), "start",
+            "--artifacts", str(tmp_path), "--calculation-environment", selection,
+        ], capture_output=True, text=True, timeout=10)
+        assert result.returncode == 2
+        assert "invalid choice" in result.stderr
+    else:
+        with pytest.raises(ValueError, match="github-actions or local"):
+            runtime_environment(tmp_path, selection)
+
+
+def test_local_profile_retains_its_actual_registry_requirement(tmp_path):
+    environment = runtime_environment(tmp_path, "local")
+    assert environment["COCHEM_CALCULATION_ENVIRONMENT"] == "local"
+    assert Path(environment["COCHEM_CONFIG"]) == tmp_path / "Registry" / "cochem_system_config.json"
+    with pytest.raises(subprocess.CalledProcessError):
+        validate_setup(Path(sys.executable), tmp_path, "local")
+
+
+def test_actions_profile_points_to_absent_dedicated_authority_and_keeps_local_files(tmp_path):
+    local = tmp_path / "Registry" / "cochem_system_config.json"
+    local.parent.mkdir()
+    local.write_text("An existing user file must remain untouched.\n")
+    environment = runtime_environment(tmp_path, "github-actions")
+    registry = Path(environment["COCHEM_CONFIG"])
+    assert registry.is_relative_to(tmp_path / "dashboard")
+    assert not registry.exists()
+    assert registry != local
+    assert local.read_text() == "An existing user file must remain untouched.\n"
+    assert environment["COCHEM_CALCULATION_ENVIRONMENT"] == "github-actions"
+
+
+def test_actions_profile_cannot_adopt_existing_or_symlinked_execution_registry(tmp_path):
+    registry = tmp_path / "dashboard" / "actions-interface-no-local-registry.json"
+    registry.parent.mkdir()
+    registry.touch()
+    with pytest.raises(ValueError, match="cannot adopt"):
+        runtime_environment(tmp_path, "github-actions")
+    registry.unlink()
+    registry.symlink_to(tmp_path / "absent-user-target")
+    with pytest.raises(ValueError, match="cannot adopt"):
+        runtime_environment(tmp_path, "github-actions")
+    assert registry.is_symlink()
+
+
+def test_actions_runtime_drops_inherited_engine_paths_without_mutating_parent(tmp_path):
+    code = """
+import os, sys
+from pathlib import Path
+from scripts.hosted_dashboard import runtime_environment
+before = dict(os.environ)
+environment = runtime_environment(Path(sys.argv[1]), 'github-actions')
+for name in ('XTB_CMD', 'COCHEM_XTB_BIN', 'ORCA_CMD', 'COCHEM_CFOUR_BIN'):
+    assert name not in environment
+assert dict(os.environ) == before
+assert not Path(environment['COCHEM_CONFIG']).exists()
+"""
+    environment = dict(os.environ)
+    for name in ("XTB_CMD", "COCHEM_XTB_BIN", "ORCA_CMD", "COCHEM_CFOUR_BIN"):
+        environment[name] = "/unrelated/execution/environment"
+    subprocess.run([sys.executable, "-c", code, str(tmp_path)], env=environment,
+                   check=True, timeout=20)
+
+
+def test_calculation_profile_default_and_environment_selection_in_actual_process(tmp_path):
+    code = """
+import os
+from scripts.hosted_dashboard import calculation_environment
+os.environ.pop('COCHEM_CALCULATION_ENVIRONMENT', None)
+assert calculation_environment() == 'local'
+os.environ['COCHEM_CALCULATION_ENVIRONMENT'] = 'github-actions'
+assert calculation_environment() == 'github-actions'
+assert calculation_environment('local') == 'local'
+"""
+    subprocess.run([sys.executable, "-c", code], check=True, timeout=10)
+
+
+def test_actual_owned_process_identity_binds_its_calculation_environment(tmp_path):
+    environment = runtime_environment(tmp_path, "local")
+    command = [sys.executable, "-c", "import time; time.sleep(60)"]
+    process = subprocess.Popen(command, env=environment)
+    try:
+        expected = {name: environment[name] for name in (
+            "COCHEM_CONFIG", "COCHEM_CALCULATION_ENVIRONMENT",
+        )}
+        identity = server_identity(Path(sys.executable), process.pid, command, expected)
+        assert identity is not None
+        assert server_identity(Path(sys.executable), process.pid, command,
+                               {**expected, "COCHEM_CALCULATION_ENVIRONMENT": "github-actions"}) is None
+        assert process.poll() is None
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
+
+def test_actions_interface_genuinely_renders_private_panel_without_stage0(tmp_path):
+    evidence = validate_setup(Path(sys.executable), tmp_path, "github-actions")
+    assert evidence["status"] == "INTERFACE_READY"
+    assert evidence["calculation_environment"] == "github-actions"
+    assert evidence["local_execution_authority"] is False
+    assert evidence["scientific_calculation_qualification"] is False
+    assert evidence["widget_mime"] == "application/vnd.jupyter.widget-view+json"
+    assert evidence["private_staging_panel_visible"] is True
+    assert evidence["base_version"] and evidence["voila_version"]
+    environment = runtime_environment(tmp_path, "github-actions")
+    assert not Path(environment["COCHEM_CONFIG"]).exists()
+    assert not (tmp_path / "free-engines").exists()
+    assert not (tmp_path / "Registry" / "cochem_system_config.json").exists()

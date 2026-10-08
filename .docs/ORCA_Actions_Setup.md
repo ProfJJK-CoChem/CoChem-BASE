@@ -12,6 +12,10 @@ The canonical student route is a personal private copy of CoChem-BASE. Its owner
 
 The staging transaction checks the repository’s actual private visibility and personal owner, downloads an exact approved release asset, verifies its SHA-256, uploads it to a temporary private release, and verifies an authenticated readback. Actions consumes the same receipt and archive using its own repository identity. Lab credentials are never transferred to student projects.
 
+## Browser authentication
+
+Use [the Codespaces browser-authentication instructions](../docs/private_student_engine_staging.md#browser-authentication-in-codespaces) before private staging. The default interface selects the student's stored native GitHub CLI identity for each private operation, so the scoped Codespaces injection does not shadow browser login. The owning Actions workflow independently retains its platform authentication. No personal or organization credential is copied into the project.
+
 ## Scientific and licensing checks
 
 The reviewed distribution descriptor records ORCA 6.1.1, its Linux x86-64 archive and OpenMPI 4.1.8. Installation verifies the archive and real executable before any calculation. A successful download is not scientific acceptance: the actual calculation must complete and its native outputs must be validated independently.

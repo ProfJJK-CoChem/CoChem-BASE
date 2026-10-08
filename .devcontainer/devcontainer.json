@@ -6,13 +6,14 @@
     "QT_QPA_PLATFORM": "offscreen",
     "COCHEM_HEADLESS": "1",
     "OMP_NUM_THREADS": "2",
-    "OPENBLAS_NUM_THREADS": "2"
+    "OPENBLAS_NUM_THREADS": "2",
+    "COCHEM_CALCULATION_ENVIRONMENT": "github-actions"
   },
   "mounts": [
     "source=cochem-base-artifacts,target=/home/vscode/CoChem_Artifacts,type=volume"
   ],
   "postCreateCommand": "bash scripts/setup_devcontainer.sh",
-  "postStartCommand": "python3 scripts/hosted_dashboard.py start",
+  "postStartCommand": "python3 scripts/hosted_dashboard.py start --calculation-environment github-actions",
   "forwardPorts": [
     8866
   ],

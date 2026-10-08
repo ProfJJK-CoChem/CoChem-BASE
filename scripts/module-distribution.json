@@ -175,7 +175,7 @@
         "matrix"
       ],
       "science_base_version": "1.1.0",
-      "science_base_revision": "e6955f863ea79036c674ce46122a301e5db8ab1e"
+      "science_base_revision": "f847de26d278bbbabacaca9337307bf5799cbc66"
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",

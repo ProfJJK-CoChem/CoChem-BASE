@@ -18,6 +18,9 @@ tests/data/orca_6_1_1_water_hf_sto3g/water.xyz -text -whitespace
 tests/data/water.xyz -text -whitespace
 tests/data/water_dimer.xyz -text -whitespace
 tests/data/water_eq.xyz -text -whitespace
+tests/data/cfour_2_1_water_hf_sto3g/provenance.json -text -whitespace
+tests/data/cfour_2_1_water_hf_sto3g/water.out.txt -text -whitespace
+tests/data/conformer_pool_native_topos_xtb.json -text -whitespace
 tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVQZ.inp -text -whitespace
 tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVQZ.out -text -whitespace
 tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVTZ.inp -text -whitespace

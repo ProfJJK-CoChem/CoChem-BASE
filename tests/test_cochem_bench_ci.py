@@ -33,13 +33,36 @@ def test_canonical_workflow_and_reusable_physical_acceptance():
     workflow = yaml.safe_load(data)
     triggers = workflow.get("on", workflow.get(True))
     assert {"push", "pull_request", "workflow_dispatch"} <= triggers.keys()
+    diagnostic_input = triggers["workflow_dispatch"]["inputs"]["native_cleanup_diagnosis"]
+    assert diagnostic_input["type"] == "boolean"
+    assert diagnostic_input["default"] is False
+    assert diagnostic_input["required"] is False
     jobs = workflow["jobs"]
-    assert set(jobs) == {"source-integrity", "ci-plane-contract", "bounded-physical-acceptance", "installed-wheel", "public-ci-scope"}
+    release_jobs = {"source-integrity", "ci-plane-contract", "bounded-physical-acceptance", "installed-wheel", "public-ci-scope"}
+    assert set(jobs) == release_jobs | {"actual-macos-observation"}
+    normal_release_condition = "github.event_name != 'workflow_dispatch' || !inputs.native_cleanup_diagnosis"
+    assert jobs["ci-plane-contract"]["if"] == normal_release_condition
+    assert jobs["installed-wheel"]["if"] == normal_release_condition
+    assert "if" not in jobs["bounded-physical-acceptance"]
+    assert "if" not in jobs["public-ci-scope"]
+    diagnostic = jobs["actual-macos-observation"]
+    assert diagnostic["if"] == "github.event_name == 'workflow_dispatch' && inputs.native_cleanup_diagnosis"
+    assert diagnostic["needs"] == "source-integrity"
+    assert diagnostic["runs-on"] == "macos-latest"
+    assert diagnostic["timeout-minutes"] == 15
+    diagnostic_commands = "\n".join(step.get("run", "") for step in diagnostic["steps"])
+    assert "base_ci.py audit" in diagnostic_commands
+    assert "run_owned_cleanup_diagnostic.py" in diagnostic_commands
+    assert '--expected-revision "$GITHUB_SHA"' in diagnostic_commands
+    assert not any(package in diagnostic_commands.lower() for package in ("torch", "pyscf", "openmpi", "orca", "cfour"))
+    assert any(step.get("if") == "always()" and step.get("uses", "").startswith("actions/upload-artifact@")
+               for step in diagnostic["steps"])
+    assert workflow["concurrency"]["group"] == "${{ inputs.native_cleanup_diagnosis && 'native-cleanup-diagnosis' || 'base-release-ci' }}-${{ github.ref }}"
     assert jobs["installed-wheel"]["needs"] == "source-integrity"
     assert set(jobs["installed-wheel"]["strategy"]["matrix"]["os"]) == {"ubuntu-24.04", "macos-latest", "windows-latest"}
     wheel_commands = "\n".join(step.get("run", "") for step in jobs["installed-wheel"]["steps"])
     assert "scripts.verify_release_ci wheel" in wheel_commands
-    assert set(jobs["public-ci-scope"]["needs"]) == set(jobs) - {"public-ci-scope"}
+    assert set(jobs["public-ci-scope"]["needs"]) == release_jobs - {"public-ci-scope"}
     assert set(jobs["ci-plane-contract"]["strategy"]["matrix"]["os"]) == {"ubuntu-24.04", "macos-latest", "windows-latest"}
     assert jobs["ci-plane-contract"]["strategy"]["fail-fast"] is False
     assert jobs["ci-plane-contract"]["needs"] == "source-integrity"

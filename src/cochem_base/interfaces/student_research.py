@@ -388,6 +388,8 @@ def execute_provider_request(provider: dict, input_directory: str | Path, output
         verified = build_topos_request(artifact.read_text(encoding="utf-8"), operation=request["operation"],
                                       charge=declared["molecule"]["charge"], multiplicity=declared["molecule"]["multiplicity"],
                                       engine=declared["engine"], method=declared["method"],
+                                      fragments=declared["molecule"].get("fragments"),
+                                      fragment_states=declared["molecule"].get("fragment_states"),
                                       options={key: declared[key] for key in ("matrix_revision", "matrix_row_id", "matrix_product", "matrix_inputs")}
                                       if request["operation"] == "matrix" else None)
         for field in ("symbols", "coordinates", "isotopes"):

@@ -20,7 +20,7 @@ from ci_tools.base_ci import (InfrastructureIntegrityError, _control_evidence_di
     _copy_reviewed_source, _git, _profile_environment, _source_origin_receipts,
     tracked_source_snapshot, verify_source_binding)
 
-OBSERVER_SHA256 = "f21665e5bfa71d44871f2103bf5924ccc13aa33c54c844cd23a2e4187d1938fb"
+OBSERVER_SHA256 = "1042dfd4486b91eac869b5adf49246343f6a081a3093abae5621792848a94c4e"
 TEST_SHA256 = "354ad7a7f44b91d7439e82c42f471b6e513661122360a9473c31a41fa04a04ee"
 
 

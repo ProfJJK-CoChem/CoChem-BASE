@@ -589,7 +589,12 @@ def _stop_owned_process(
             except ProcessLookupError:
                 break
             except PermissionError:
-                return False
+                # Darwin excludes zombies from its group signal probe and can
+                # report EPERM for a terminal-only group. The probe establishes
+                # no terminal boundary: require the unchanged fresh identity,
+                # membership and status checks below, within the same deadline.
+                if sys.platform != "darwin" or psutil is None:
+                    return False
             if psutil is not None and not sys.platform.startswith("linux"):
                 members, current_terminal = set(), set()
                 uncertain = False

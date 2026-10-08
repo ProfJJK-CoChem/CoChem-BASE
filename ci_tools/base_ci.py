@@ -48,6 +48,21 @@ class InfrastructureIntegrityError(ValueError):
     """The source does not match its independently selected Git revision."""
 
 
+def _git_path_options() -> list[str]:
+    """Support actual Windows paths without trusting global Git configuration."""
+    return ["-c", "core.longpaths=true"] if os.name == "nt" else []
+
+
+def _git_error_kind(stderr: bytes) -> str:
+    """Retain a typed native failure without disclosing Git URLs or values."""
+    lowered = stderr.lower()
+    if b"filename too long" in lowered or b"file name too long" in lowered:
+        return "path_length"
+    if b"permission denied" in lowered or b"access is denied" in lowered:
+        return "permission_denied"
+    return "git_failure"
+
+
 def _git_environment() -> dict[str, str]:
     # Network trust and injected credentials stay inherited; Git path/config
     # injection cannot redirect an inspection to another repository or hooks.
@@ -68,7 +83,7 @@ def _git(root: Path, args: list[str], *, timeout: int = 60) -> bytes:
         raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Git inspection is unavailable")
     if Path(executable).resolve().is_relative_to(root.resolve()):
         raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Git inspection executable is inside untrusted source")
-    result = subprocess.run([str(Path(executable).absolute()), "--no-pager", "-c", "core.hooksPath=" + os.devnull,
+    result = subprocess.run([str(Path(executable).absolute()), "--no-pager", *_git_path_options(), "-c", "core.hooksPath=" + os.devnull,
                              "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false",
                              "-c", "core.attributesFile=" + os.devnull,
                              "-C", str(root), *args], capture_output=True,
@@ -77,7 +92,8 @@ def _git(root: Path, args: list[str], *, timeout: int = 60) -> bytes:
         # Git diagnostics may contain a configured credential URL. Never echo
         # arbitrary environment values or Git stderr into evidence or the UI.
         raise InfrastructureIntegrityError(
-            "[HARD_ABORT: INFRASTRUCTURE TAMPERING] Git source inspection failed")
+            "[HARD_ABORT: INFRASTRUCTURE TAMPERING] Git source inspection failed "
+            f"(native_exit_code={result.returncode}, error_kind={_git_error_kind(result.stderr)})")
     return result.stdout
 
 
@@ -463,12 +479,13 @@ def _copy_reviewed_source(root: Path, destination: Path, binding: dict[str, Any]
     # A local protocol clone copies committed source and the minimum genuine Git
     # identity. No parent .git/config, untracked file, artifact or licensed runtime
     # is copied. Disabling local hardlinks also prevents object-store mutation.
-    completed = subprocess.run([str(Path(executable).absolute()), "-c", "core.hooksPath=" + os.devnull,
+    completed = subprocess.run([str(Path(executable).absolute()), *_git_path_options(), "-c", "core.hooksPath=" + os.devnull,
         "clone", "--no-local", "--no-hardlinks", "--no-checkout", "--depth=1",
         root.as_uri(), str(destination)], env=_git_environment(), capture_output=True,
         check=False, timeout=120)
     if completed.returncode:
-        raise InfrastructureIntegrityError("[HARD_ABORT: SOURCE QUARANTINE COPY] Could not copy committed source")
+        raise InfrastructureIntegrityError("[HARD_ABORT: SOURCE QUARANTINE COPY] Could not copy committed source "
+            f"(native_exit_code={completed.returncode}, error_kind={_git_error_kind(completed.stderr)})")
     _git(destination, ["checkout", "--detach", binding["revision"]])
     if binding["mode"] == "development":
         # Only Git-tracked current bytes enter an explicit development copy.

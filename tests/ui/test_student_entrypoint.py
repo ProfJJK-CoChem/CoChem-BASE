@@ -224,6 +224,76 @@ def case_portable_t9_form_validates_electrons_orbitals_and_rationale(gui):
         gui._portable_t9_request()
 
 
+def case_unused_t9_does_not_verify_optional_pyscf(gui):
+    upload(gui)
+    assert gui.multiplicity_input.value == 1
+    assert gui.t9_enable.value is False
+    assert gui._t9_backend_worker is None
+    assert gui._t9_backend_observation is None
+    assert gui.matrix_geometry.value.encode() == WATER
+
+
+def case_missing_t9_authority_is_background_denial(gui):
+    from cochem_base.config_loader import resolve_config_path
+    assert not resolve_config_path().exists()
+    gui._start_t9_backend_check()
+    gui.student_input_label.value = 'A real widget stays responsive during authority verification'
+    worker = gui._t9_backend_worker
+    assert worker is not None
+    worker.join(timeout=15)
+    assert not worker.is_alive()
+    observed = gui._t9_backend_observation
+    assert observed is not None and observed['available'] is False
+    assert observed['registry_absent'] is True
+    assert observed['reason']
+    assert gui._t9_backend_binding_matches(observed)
+    registry = resolve_config_path()
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text('{not a registry}', encoding='utf-8')
+    assert not gui._t9_backend_binding_matches(observed)
+    gui._invalidate_t9_backend()
+    assert gui._t9_backend_observation is None
+    gui._start_t9_backend_check()
+    gui._t9_backend_worker.join(timeout=15)
+    assert gui._t9_backend_observation is not None
+    assert gui._t9_backend_observation['available'] is False
+    assert gui._t9_backend_observation['reason']
+    assert gui._t9_backend_observation['generation'] > observed['generation']
+    registry.write_text('{"stage0": null}', encoding='utf-8')
+    gui._invalidate_t9_backend()
+    gui._start_t9_backend_check()
+    gui._t9_backend_worker.join(timeout=15)
+    assert not gui._t9_backend_worker.is_alive()
+    assert gui._t9_backend_observation['available'] is False
+    assert 'Stage 0 micro-silo' in gui._t9_backend_observation['reason']
+
+
+def case_native_primary_requires_fresh_t9_authority(gui):
+    from cochem_base.calc.calculation_service import CalculationMatrixConfig
+    from cochem_base.calc.t9_fallback import T9FallbackConfig
+    from cochem_base.config_loader import get_artifact_dir, resolve_config_path
+    assert not resolve_config_path().exists()
+    recovery = T9FallbackConfig(
+        python_executable=Path(sys.executable), active_electrons=2,
+        active_orbitals=[4, 5], basis='STO-3G', threads=1, memory_mb=512,
+        active_space_rationale='Explicit input for a real missing-authority rejection; no recovered energy is claimed.',
+    )
+    configuration = CalculationMatrixConfig(
+        geometry=WATER.decode(), engine='orca', method='HF', basis_set='STO-3G',
+        theory_tier='T2', product_class=None, is_opt=False, is_freq=False,
+        t9_fallback=recovery,
+    )
+    directory = get_artifact_dir() / 'fresh-recovery-admission'
+    directory.mkdir()
+    path = directory / 'matrix_config.json'
+    path.write_text(configuration.model_dump_json(), encoding='utf-8')
+    gui._pipeline_thread(path)
+    assert gui.state.system_status == 'Calculation Error'
+    assert 'Execution authority denied' in gui.state.error_message
+    assert not (directory / 'Scratch').exists()
+    assert not (directory / 'Results').exists()
+
+
 MALFORMED = [
     b"4\nwrong count\nO 0 0 0\nH 0 0 .96\nH .92 0 -.24\n",
     b"1\nnonfinite\nH nan 0 0\n",
@@ -244,6 +314,9 @@ CASES += [f"unsafe-name-{index}" for index in range(len(UNSAFE_NAMES))]
 def test_actual_student_entrypoint_contract(case, tmp_path):
     environment = dict(os.environ, COCHEM_ARTIFACTS=str(tmp_path / "artifacts"),
                        COCHEM_ARTIFACT_DIR=str(tmp_path / "artifacts"), COCHEM_STUDENT_AUTO_SETUP="false", CODESPACES="false")
+    if case in {'unused_t9_does_not_verify_optional_pyscf', 'missing_t9_authority_is_background_denial',
+                'native_primary_requires_fresh_t9_authority'}:
+        environment['COCHEM_CONFIG'] = str(tmp_path / 'absent-authority' / 'cochem_system_config.json')
     completed = subprocess.run([sys.executable, str(Path(__file__).resolve()), case],
         env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60, check=False)
     assert completed.returncode == 0, completed.stdout + completed.stderr

@@ -148,7 +148,14 @@ def test_cli_lists_reviewed_modules_without_installing(tmp_path):
     assert set(catalog["modules"]["topos"]["operations"]) == {
         "geometry_analysis", "energy", "gradient", "optimize", "search", "frequency", "thermochemistry", "association", "matrix",
     }
-    assert set(catalog["modules"]["torq"]["operations"]) == {"geometry_analysis", "research_scan", "wiberg_lowdin"}
+    # The catalog is the reviewed transport allow-list. Installed provider
+    # discovery separately excludes unavailable NBO/NAO operations.
+    assert set(catalog["modules"]["torq"]["operations"]) == {
+        "geometry_analysis", "research_scan", "wiberg_lowdin", "nbo_analysis", "wiberg_nao",
+    }
+    observations = installed_module_status(root)
+    assert all(item["operations"] == [] and item["scientific_execution_verified"] is False
+               for item in observations)
     assert not root.exists()
 
 

@@ -35,7 +35,6 @@ Usage Examples:
 from __future__ import annotations
 
 import argparse
-import atexit
 import json
 import logging
 import os
@@ -44,6 +43,7 @@ import shutil
 import signal
 import sys
 import tempfile
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -157,33 +157,15 @@ class TermColor:
 # =============================================================================
 
 def reap_zombie_processes() -> int:
-    """Scans and reaps orphaned child processes spawned during quantum chemistry execution."""
-    reaped_count = 0
-    if psutil is None:
-        return 0
+    """Clean only registered CoChem work, leaving other libraries' wait owners intact."""
+    from cochem_base.core_engine.cochem_core_subprocess_broker import cleanup_zombie_processes
 
-    try:
-        current_proc = psutil.Process()
-        children = current_proc.children(recursive=False)
-        for child in children:
-            try:
-                if child.is_running() and child.status() == psutil.STATUS_ZOMBIE:
-                    child.wait(timeout=0)
-                    reaped_count += 1
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, psutil.TimeoutExpired):
-                continue
-    except Exception as exc:
-        logger.debug(f"Zombie sweep error: {exc}")
-
-    return reaped_count
+    return cleanup_zombie_processes()
 
 
 def handle_shutdown_signal(signum: int, frame: Any) -> None:
-    """Graceful signal handler ensuring clean subprocess teardown and lock release."""
-    sig_name = signal.Signals(signum).name if hasattr(signal, "Signals") else str(signum)
-    sys.stderr.write(f"\n[INTERRUPT] Received signal {sig_name}. Terminating active workers...\n")
-    reap_zombie_processes()
-    sys.exit(128 + signum)
+    """Unwind executable control flow; no locks, logging, or child waits here."""
+    raise SystemExit(128 + signum)
 
 
 # =============================================================================
@@ -1188,10 +1170,20 @@ def entrypoint() -> int:
     from cochem_base.core_engine.cochem_core_telemetry_logger import install_global_excepthook
 
     install_global_excepthook(chain=True)
-    atexit.register(reap_zombie_processes)
-    signal.signal(signal.SIGINT, handle_shutdown_signal)
-    signal.signal(signal.SIGTERM, handle_shutdown_signal)
-    return main()
+    previous_handlers = {}
+    try:
+        if threading.current_thread() is threading.main_thread():
+            for name in ("SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK"):
+                if hasattr(signal, name):
+                    signum = getattr(signal, name)
+                    previous_handlers[signum] = signal.getsignal(signum)
+                    signal.signal(signum, handle_shutdown_signal)
+        return main()
+    finally:
+        # Restore even after partial installation or SystemExit/KeyboardInterrupt.
+        for signum, previous in previous_handlers.items():
+            signal.signal(signum, previous)
+        reap_zombie_processes()
 
 
 if __name__ == "__main__":

@@ -159,6 +159,10 @@ class CoChemGUI:
         self._actions_input_record = None
         self._setup_service = None
         self._input_selection_running = False
+        self._t9_backend_observation: dict[str, Any] | None = None
+        self._t9_backend_generation = 0
+        self._t9_backend_running = False
+        self._t9_backend_worker: threading.Thread | None = None
         self._remote_probe_running = False
         self._actions_retrieving = False
         self._remote_probe_client = None
@@ -1870,6 +1874,8 @@ class CoChemGUI:
             self.student_setup_status.value = "<p role='alert'>Wait for the running calculation to finish or cancel it before changing CoChem installations.</p>"
             return
         self._student_setup_busy = True
+        if action in {"install_default_modules", "apply_updates", "rollback"}:
+            self._invalidate_t9_backend()
         self.student_setup_status.value = f"<p role='status' aria-live='polite'>CoChem: {html.escape(action.replace('_', ' '))}…</p>"
         for button in (self.btn_setup_retry, self.btn_setup_updates, self.btn_setup_apply,
                        self.btn_setup_rollback, self.btn_setup_restart):
@@ -2168,17 +2174,23 @@ class CoChemGUI:
             self.t9_guidance.value = '<p>T9 recovery belongs to the ORCA single-reference calculation route.</p>'
             return ''
         remote = self.calc_env_dropdown.value in {'github-actions', 'hpc'}
-        backend_reason = ''
-        if not remote:
-            try:
-                from cochem_base.core_engine.execution_authority import authorize_engine_execution
-                authorize_engine_execution('pyscf', cores=self.actions_cores.value,
-                    maxcore_mb=self.actions_memory.value)
-            except (ValueError, RuntimeError, OSError) as exc:
-                backend_reason = 'Audited PySCF recovery is unavailable: ' + str(exc)
-        for control in (self.t9_enable, self.t9_method, self.t9_basis, self.t9_electrons, self.t9_orbitals, self.t9_rationale):
-            control.disabled = bool(backend_reason)
         required = self.multiplicity_input.value > 1
+        requested = required or self.t9_enable.value
+        backend_reason = ''
+        if not remote and requested:
+            observation = self._t9_backend_observation
+            if observation is not None and not self._t9_backend_binding_matches(observation):
+                self._invalidate_t9_backend()
+                observation = None
+            if observation is None:
+                self._start_t9_backend_check()
+                backend_reason = 'Checking the configured PySCF recovery environment. T9-dependent calculations remain unavailable until verification finishes.'
+            elif not observation.get('available'):
+                backend_reason = 'Audited PySCF recovery is unavailable: ' + observation['reason']
+        # The intent checkbox remains usable; it requests an asynchronous check.
+        # Required/requested recovery and every dependent Run control fail closed.
+        for control in (self.t9_method, self.t9_basis, self.t9_electrons, self.t9_orbitals, self.t9_rationale):
+            control.disabled = bool(backend_reason)
         reason = ''
         if required and not self.t9_enable.value:
             reason = 'Open-shell ORCA requires explicit T9 recovery before starting: enable recovery and choose the active electrons, molecular orbitals and scientific rationale.'
@@ -2191,12 +2203,134 @@ class CoChemGUI:
                 reason = str(exc)
         qualification = (
             'The calculation worker requires pinned PySCF and fresh Stage 0 authority before automatic recovery.'
-            if remote else 'The configured PySCF interpreter has current Stage 0 authority.' if not backend_reason else backend_reason
+            if remote else backend_reason if backend_reason else
+            'PySCF recovery availability was observed for this retained environment. Scientific dispatch re-verifies its complete Stage 0 authority.' if requested else
+            'PySCF recovery has not been requested. Closed-shell calculations with T9 off do not inspect or require this optional backend.'
         )
         self.t9_guidance.value = (
             '<p role="alert">' + html.escape(reason) + '</p>' if reason else '<p role="status">' + html.escape(qualification) + '</p>'
         ) + '<p>At or above 10% spin contamination, the rejected single-reference result requires T9 recovery. An interrupted optimization or frequency job is not certified by a recovered single-point result.</p>'
         return reason
+
+    def _invalidate_t9_backend(self) -> None:
+        """Discard UI readiness; scientific execution never trusts this observation."""
+        self._t9_backend_generation += 1
+        self._t9_backend_observation = None
+
+    @staticmethod
+    def _t9_backend_file_state(path: Path) -> tuple[Any, ...]:
+        stat = path.stat()
+        return (str(path), stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_mode)
+
+    def _t9_backend_binding(self) -> tuple[list[tuple[Any, ...]], list[Path]]:
+        """Bind readiness to actual registry, controller source and silo files.
+
+        Full content hashes are acquired by the background verifier. Subsequent
+        UI transitions inspect filesystem identity only; actual dispatch always
+        repeats the complete scientific authorization regardless of this state.
+        """
+        from cochem_base.config_loader import resolve_config_path
+        from cochem_base.core_engine import execution_authority
+        from cochem_base.orchestrator import micro_silo_manager
+        registry = resolve_config_path()
+        payload = json.loads(registry.read_text(encoding='utf-8'))
+        stage0 = payload.get('stage0') if isinstance(payload, dict) else None
+        silos = stage0.get('micro_silos') if isinstance(stage0, dict) else None
+        silo = silos.get('cochem_calc_silo') if isinstance(silos, dict) else None
+        if not isinstance(silo, dict):
+            raise ValueError('PySCF recovery requires a complete Stage 0 micro-silo record')
+        if not silo.get('root') or not silo.get('python_executable'):
+            raise ValueError('PySCF recovery requires a complete Stage 0 micro-silo record')
+        silo_root = Path(silo['root'])
+        files = [registry, Path(__file__).resolve(), Path(execution_authority.__file__).resolve(),
+                 Path(micro_silo_manager.__file__).resolve()]
+        states = []
+        if silo_root.is_dir():
+            files.extend([silo_root / 'pyvenv.cfg', Path(silo['python_executable'])])
+            package_roots = list((silo_root / 'lib').glob('python*/site-packages'))
+            if (silo_root / 'Lib' / 'site-packages').is_dir():
+                package_roots.append(silo_root / 'Lib' / 'site-packages')
+            for package_root in package_roots:
+                def reject_unreadable_path(error: OSError) -> None:
+                    raise error
+                for directory, child_dirs, child_files in os.walk(package_root, followlinks=False, onerror=reject_unreadable_path):
+                    child_dirs[:] = [name for name in child_dirs if name != '__pycache__']
+                    states.append(self._t9_backend_file_state(Path(directory)))
+                    files.extend(Path(directory) / name for name in child_files if not name.endswith(('.pyc', '.pyo')))
+                    if len(files) + len(states) > 50000:
+                        raise ValueError('PySCF readiness inventory exceeds the bounded file limit')
+        states.extend(self._t9_backend_file_state(path) for path in files)
+        return sorted(states), files
+
+    def _t9_backend_binding_matches(self, observation: dict[str, Any]) -> bool:
+        try:
+            from cochem_base.config_loader import resolve_config_path
+            registry = resolve_config_path()
+            if observation.get('generation') != self._t9_backend_generation:
+                return False
+            if observation.get('registry_path') != str(registry):
+                return False
+            if observation.get('resources') != (self.actions_cores.value, self.actions_memory.value):
+                return False
+            if observation.get('registry_absent') and registry.exists():
+                return False
+            for state in observation['file_states']:
+                if self._t9_backend_file_state(Path(state[0])) != state:
+                    return False
+            return True
+        except (OSError, ValueError, KeyError, TypeError):
+            return False
+
+    def _start_t9_backend_check(self) -> None:
+        if self._t9_backend_running:
+            return
+        self._t9_backend_running = True
+        generation = self._t9_backend_generation
+        cores, memory = self.actions_cores.value, self.actions_memory.value
+        def check() -> None:
+            from cochem_base.config_loader import resolve_config_path
+            registry = resolve_config_path()
+            observation = {'generation': generation, 'available': False, 'reason': '', 'file_states': [],
+                           'registry_path': str(registry), 'registry_absent': not registry.exists(),
+                           'resources': (cores, memory)}
+            try:
+                from cochem_base.core_engine.execution_authority import authorize_engine_execution
+                before, files = self._t9_backend_binding()
+                authorization = authorize_engine_execution('pyscf', cores=cores, maxcore_mb=memory)
+                after, _ = self._t9_backend_binding()
+                if before != after:
+                    raise ValueError('Recovery environment changed during verification; retry after setup finishes')
+                content_hashes = {}
+                total_size = 0
+                for path in files:
+                    total_size += path.stat().st_size
+                    if total_size > 2 * 1024**3:
+                        raise ValueError('Recovery source inventory exceeds the bounded byte limit')
+                    with path.open('rb') as handle:
+                        content_hashes[str(path)] = hashlib.file_digest(handle, 'sha256').hexdigest()
+                final, _ = self._t9_backend_binding()
+                if final != after:
+                    raise ValueError('Recovery source or package state changed while recording its identity')
+                observation.update(available=True, file_states=final, content_sha256=content_hashes,
+                                   executable=authorization.executable, observed_at=time.time())
+            except (ValueError, RuntimeError, OSError, KeyError, TypeError) as exc:
+                observation['reason'] = str(exc)
+                try:
+                    observation['file_states'], _ = self._t9_backend_binding()
+                except (ValueError, RuntimeError, OSError, KeyError, TypeError):
+                    from cochem_base.config_loader import resolve_config_path
+                    registry = resolve_config_path()
+                    if registry.exists():
+                        observation['file_states'] = [self._t9_backend_file_state(registry)]
+            def publish() -> None:
+                self._t9_backend_running = False
+                if generation == self._t9_backend_generation:
+                    self._t9_backend_observation = observation
+                if hasattr(self, 'btn_execute'):
+                    self._check_dispersion_gate()
+            self._ui_call(publish)
+        self._t9_backend_worker = threading.Thread(target=check, daemon=True)
+        self._t9_backend_worker.start()
 
     def _portable_t9_request(self) -> dict[str, Any] | None:
         if not self.t9_enable.value:
@@ -4315,9 +4449,11 @@ class CoChemGUI:
         if self.multiplicity_input.value > 1 and t9 is None and fallback is None:
             raise MethodologyViolationError("Open-shell ORCA requires an explicit scientifically chosen T9 recovery active space before starting")
         if t9 is not None and not remote:
-            from cochem_base.core_engine.execution_authority import authorize_engine_execution
-            interpreter = authorize_engine_execution('pyscf', cores=t9['threads'],
-                maxcore_mb=self.actions_memory.value).executable
+            observation = self._t9_backend_observation
+            if (observation is None or not observation.get('available')
+                    or not self._t9_backend_binding_matches(observation)):
+                raise MethodologyViolationError('Wait for the actual PySCF recovery check or retry setup before configuring T9')
+            interpreter = observation['executable']
             fallback = T9FallbackConfig.model_validate({**t9, 'python_executable': interpreter})
         scientific = self._selected_scientific_input()
         references = None
@@ -5333,6 +5469,13 @@ class CoChemGUI:
         try:
             work_dir = config_path.parent
             configuration = json.loads(config_path.read_text(encoding="utf-8"))
+            if configuration.get('t9_fallback') is not None:
+                from cochem_base.calc.t9_fallback import T9FallbackConfig
+                from cochem_base.core_engine.execution_authority import authorize_engine_execution
+                recovery = T9FallbackConfig.model_validate(configuration['t9_fallback'])
+                self.telemetry_output.append_stdout('Verifying fresh PySCF recovery authority before starting the saved calculation.\n')
+                authorize_engine_execution('pyscf', executable=recovery.python_executable,
+                    cores=recovery.threads, maxcore_mb=math.ceil(recovery.memory_mb / recovery.threads))
             engine = configuration["engine"].upper()
             operation = ("optimization + harmonic frequencies" if configuration['is_opt'] and configuration['is_freq']
                          else "harmonic frequencies" if configuration['is_freq']

@@ -98,6 +98,7 @@ logger = logging.getLogger("CoChem-Broker")
 
 # Global Popen process tracking for zombie sweeping
 _GLOBAL_ACTIVE_POPEN_PROCESSES: List[subprocess.Popen] = []
+_GLOBAL_PROCESS_OWNERS: Dict[subprocess.Popen, tuple[bool, Optional[WindowsJobObject], Any]] = {}
 _GLOBAL_TRACKING_LOCK = threading.RLock()
 
 # Comprehensive cross-platform segmentation fault, abort, access violation, and fatal crash return codes
@@ -273,10 +274,24 @@ class WindowsJobObject:
             return
 
         try:
+            # HANDLE is pointer-sized on 64-bit Windows; ctypes' default int
+            # return type would truncate the ownership handle.
+            kernel32 = ctypes.windll.kernel32
+            kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+            kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+            kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.SetInformationJobObject.argtypes = [
+                wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+            ]
+            kernel32.SetInformationJobObject.restype = wintypes.BOOL
+            kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+            kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel32.CloseHandle.restype = wintypes.BOOL
             self.handle = ctypes.windll.kernel32.CreateJobObjectW(None, None)
             if not self.handle:
-                logger.warning("Failed to create Win32 Job Object.")
-                return
+                raise SubprocessBrokerError("Failed to create an owned Windows Job Object")
 
             if kill_on_close:
                 info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
@@ -288,15 +303,16 @@ class WindowsJobObject:
                     ctypes.sizeof(info),
                 )
                 if not res:
-                    logger.warning("Failed to set JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE on Job Object.")
-        except Exception as exc:
-            logger.warning(f"Error initializing WindowsJobObject: {exc}")
-            self.handle = None
+                    raise SubprocessBrokerError("Windows Job Object refused KILL_ON_JOB_CLOSE")
+        except BaseException:
+            self.close()
+            raise
 
     def assign_pid(self, pid: int) -> bool:
         """Assigns an active process PID to the Win32 Job Object."""
         if not self._is_windows or not self.handle:
             return False
+        proc_handle = None
         try:
             proc_handle = ctypes.windll.kernel32.OpenProcess(
                 PROCESS_SET_QUOTA | PROCESS_TERMINATE,
@@ -309,15 +325,19 @@ class WindowsJobObject:
                 return False
 
             res = ctypes.windll.kernel32.AssignProcessToJobObject(self.handle, proc_handle)
-            ctypes.windll.kernel32.CloseHandle(proc_handle)
             return bool(res)
         except Exception as exc:
             logger.debug(f"Failed to assign PID {pid} to Job Object: {exc}")
             return False
+        finally:
+            if proc_handle:
+                ctypes.windll.kernel32.CloseHandle(proc_handle)
 
     def assign_popen(self, proc: subprocess.Popen) -> bool:
-        """Assigns a subprocess.Popen instance to the Win32 Job Object."""
-        return self.assign_pid(proc.pid)
+        """Assign the original Popen kernel handle, preserving process generation."""
+        if not self._is_windows or not self.handle:
+            return False
+        return bool(ctypes.windll.kernel32.AssignProcessToJobObject(self.handle, int(proc._handle)))
 
     def set_kill_on_close(self, enable: bool = True) -> bool:
         """Dynamically enables or disables JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE on the Job Object."""
@@ -353,33 +373,83 @@ class WindowsJobObject:
         self.close()
 
 
+def _resume_owned_windows_process(proc: subprocess.Popen) -> None:
+    """Resume a suspended native launcher only after checked Job assignment."""
+    resume = ctypes.windll.ntdll.NtResumeProcess
+    resume.argtypes = [wintypes.HANDLE]
+    resume.restype = ctypes.c_long
+    status = resume(int(proc._handle))
+    if status != 0:
+        raise SubprocessBrokerError(f"Windows owned child resume failed with NTSTATUS {status:#x}")
+
+
 # =====================================================================
 # Process Tracking and Zombie Reaper
 # =====================================================================
 
 def get_active_popen_processes() -> List[subprocess.Popen]:
     """Returns a list of currently running subprocess.Popen processes tracked globally."""
-    global _GLOBAL_ACTIVE_POPEN_PROCESSES
-    with _GLOBAL_TRACKING_LOCK:
-        _GLOBAL_ACTIVE_POPEN_PROCESSES = [p for p in _GLOBAL_ACTIVE_POPEN_PROCESSES if p.poll() is None]
-        return list(_GLOBAL_ACTIVE_POPEN_PROCESSES)
+    if not _GLOBAL_TRACKING_LOCK.acquire(timeout=0.25):
+        raise SubprocessBrokerError("Could not inspect owned children within the tracking-lock deadline")
+    try:
+        # Poll through Popen, but retain exited launchers' ownership metadata:
+        # their dedicated groups may still contain live native workers.
+        return [p for p in _GLOBAL_ACTIVE_POPEN_PROCESSES if p.poll() is None]
+    finally:
+        _GLOBAL_TRACKING_LOCK.release()
 
 
-def register_popen_process(proc: subprocess.Popen) -> None:
+def _capture_owned_leader(proc: subprocess.Popen) -> Any:
+    """Capture a real process generation before publishing its Popen handle."""
+    if HAS_PSUTIL:
+        try:
+            leader = psutil.Process(proc.pid)
+            leader.create_time()
+            return leader
+        except psutil.NoSuchProcess:
+            return None
+    return None
+
+
+def register_popen_process(
+    proc: subprocess.Popen,
+    *,
+    owns_posix_group: Optional[bool] = None,
+    job_obj: Optional[WindowsJobObject] = None,
+    leader_identity: Any = None,
+) -> None:
     """Registers a Popen child process for automatic zombie cleanup on script exit."""
-    global _GLOBAL_ACTIVE_POPEN_PROCESSES
-    with _GLOBAL_TRACKING_LOCK:
-        _GLOBAL_ACTIVE_POPEN_PROCESSES = [p for p in _GLOBAL_ACTIVE_POPEN_PROCESSES if p.poll() is None]
-        if proc.poll() is None and proc not in _GLOBAL_ACTIVE_POPEN_PROCESSES:
+    _enable_descendant_reaping()
+    if leader_identity is None:
+        leader_identity = _capture_owned_leader(proc)
+    if owns_posix_group is None:
+        try:
+            owns_posix_group = os.name != "nt" and os.getpgid(proc.pid) == proc.pid
+        except ProcessLookupError:
+            owns_posix_group = False
+    if not _GLOBAL_TRACKING_LOCK.acquire(timeout=0.25):
+        raise SubprocessBrokerError("Could not register owned child within the tracking-lock deadline")
+    try:
+        if proc not in _GLOBAL_ACTIVE_POPEN_PROCESSES:
             _GLOBAL_ACTIVE_POPEN_PROCESSES.append(proc)
+        _GLOBAL_PROCESS_OWNERS[proc] = (bool(owns_posix_group), job_obj, leader_identity)
+    finally:
+        _GLOBAL_TRACKING_LOCK.release()
 
 
 def unregister_popen_process(proc: subprocess.Popen) -> None:
     """Unregisters a Popen child process from global tracking."""
     global _GLOBAL_ACTIVE_POPEN_PROCESSES
-    with _GLOBAL_TRACKING_LOCK:
+    if not _GLOBAL_TRACKING_LOCK.acquire(timeout=0.25):
+        # Keep the handle registered for a later normal cleanup attempt. Never
+        # block interrupted execution indefinitely on another thread's lock.
+        return
+    try:
         if proc in _GLOBAL_ACTIVE_POPEN_PROCESSES:
             _GLOBAL_ACTIVE_POPEN_PROCESSES.remove(proc)
+        _GLOBAL_PROCESS_OWNERS.pop(proc, None)
+    finally:
+        _GLOBAL_TRACKING_LOCK.release()
 
 
 def _enable_descendant_reaping() -> None:
@@ -465,28 +535,161 @@ def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
             logger.debug(f"Ignored exception: {_e}")
 
 
+def _terminate_owned_popen(
+    proc: subprocess.Popen,
+    *,
+    owns_posix_group: bool = False,
+    job_obj: Optional[WindowsJobObject] = None,
+    timeout: float = 5.0,
+    leader_identity: Any = None,
+) -> bool:
+    """Boundedly stop owned work without collecting another Popen owner's status.
+
+    This runs in normal control flow, never in a signal handler. A dedicated
+    group remains owned even if its launcher has already exited. Discovering
+    descendants also covers workers that created a separate session.
+    """
+    deadline = time.monotonic() + max(0.0, timeout)
+    children = []
+    if HAS_PSUTIL:
+        if leader_identity is None:
+            _, _, leader_identity = _GLOBAL_PROCESS_OWNERS.get(proc, (False, None, None))
+        try:
+            current = psutil.Process(proc.pid)
+            if leader_identity is None:
+                # A not-yet-registered setup child still belongs to its Popen
+                # owner. An already reaped bare PID cannot establish ownership.
+                if proc.returncode is not None:
+                    logger.warning("Refusing cleanup of unproven exited leader PID %s", proc.pid)
+                    return False
+                leader_identity = current
+            if (leader_identity.pid != proc.pid
+                    or current.create_time() != leader_identity.create_time()):
+                logger.warning("Refusing cleanup of changed process generation PID %s", proc.pid)
+                return False
+            children = leader_identity.children(recursive=True)
+        except psutil.NoSuchProcess:
+            if leader_identity is None and owns_posix_group:
+                logger.warning("Refusing an unproven exited leader group %s", proc.pid)
+                return False
+        except psutil.AccessDenied:
+            logger.warning("Cannot verify owned process generation PID %s", proc.pid)
+            return False
+
+    group_owned = owns_posix_group and os.name != "nt" and proc.pid != os.getpgrp()
+    if group_owned:
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            pass
+    for child in children:
+        try:
+            child.terminate()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    if proc.poll() is None:
+        try:
+            proc.terminate()
+            proc.wait(timeout=min(1.0, max(0.0, deadline - time.monotonic())))
+        except (ProcessLookupError, subprocess.TimeoutExpired):
+            pass
+
+    # Escalate the entire owned group, including workers whose launcher exited.
+    if group_owned:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+    if job_obj is not None:
+        job_obj.close()
+    elif os.name == "nt" and not HAS_PSUTIL:
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True, check=False,
+                timeout=max(0.001, deadline - time.monotonic()),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    for child in children:
+        try:
+            child.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    if proc.poll() is None:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+    try:
+        # Only Popen collects the direct child's status; psutil must not steal it.
+        proc.wait(timeout=max(0.001, deadline - time.monotonic()))
+    except subprocess.TimeoutExpired:
+        logger.warning("Owned child PID %s did not exit within the cleanup deadline", proc.pid)
+    if children:
+        _, alive = psutil.wait_procs(children, timeout=max(0.0, deadline - time.monotonic()))
+        if alive:
+            logger.warning("Owned descendants remain after cleanup: %s", [child.pid for child in alive])
+            return False
+    if group_owned:
+        # A launcher may already be gone when group termination starts. Wait
+        # for SIGKILL delivery/adoption and reap only this known owned group.
+        while True:
+            _reap_owned_group_children(proc.pid)
+            try:
+                os.killpg(proc.pid, 0)
+            except ProcessLookupError:
+                break
+            except PermissionError:
+                return False
+            if time.monotonic() >= deadline:
+                logger.warning("Owned group %s remains after the cleanup deadline", proc.pid)
+                return False
+            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+    return proc.poll() is not None
+
+
 def cleanup_zombie_processes() -> int:
-    """Atexit / Signal hook to terminate any dangling Popen child process trees."""
+    """Bounded shutdown cleanup of explicitly registered CoChem Popen handles."""
     global _GLOBAL_ACTIVE_POPEN_PROCESSES
     count = 0
-    with _GLOBAL_TRACKING_LOCK:
-        active_list = list(_GLOBAL_ACTIVE_POPEN_PROCESSES)
-        _GLOBAL_ACTIVE_POPEN_PROCESSES.clear()
+    # Interpreter shutdown must not wait forever for a daemon's tracking lock.
+    # Each running owner also cleans its own child before unregistering it.
+    if not _GLOBAL_TRACKING_LOCK.acquire(timeout=0.25):
+        return 0
+    try:
+        active_list = [(proc, _GLOBAL_PROCESS_OWNERS.get(proc, (False, None, None)))
+                       for proc in _GLOBAL_ACTIVE_POPEN_PROCESSES]
+    finally:
+        _GLOBAL_TRACKING_LOCK.release()
 
-    for proc in active_list:
-        if proc.poll() is None:
+    deadline = time.monotonic() + 10.0
+    for proc, (owns_group, job_obj, leader_identity) in active_list:
+        was_active = proc.poll() is None
+        if was_active or owns_group or job_obj is not None:
             try:
-                pid = proc.pid
-                kill_process_tree(pid, timeout=10.0)
-                count += 1
-                logger.info(f"Terminated background child process PID {pid}")
+                finished = _terminate_owned_popen(
+                    proc, owns_posix_group=owns_group, job_obj=job_obj,
+                    timeout=max(0.0, deadline - time.monotonic()),
+                    leader_identity=leader_identity,
+                )
+                if finished:
+                    count += int(was_active)
+                    logger.info(f"Terminated background child process PID {proc.pid}")
+                else:
+                    logger.warning("Cleanup incomplete for owned PID %s; retaining its owner record", proc.pid)
             except (ProcessLookupError, PermissionError, OSError) as e:
+                finished = False
                 logger.warning(f"Failed to terminate process PID {proc.pid}: {e}")
+        else:
+            finished = True
+        if finished:
+            unregister_popen_process(proc)
     return count
 
 
 class ZombieReaper:
-    """Global and instance zombie sweeper with signal handlers and Win32 Job Object integration."""
+    """Owned process cleanup with Win32 Job Object integration."""
 
     @staticmethod
     def reap_all() -> int:
@@ -499,28 +702,9 @@ class ZombieReaper:
         kill_process_tree(pid, timeout=timeout)
 
 
-def _signal_cleanup_handler(signum: int, frame: Any) -> None:
-    logger.info(f"Received signal {signum}. Triggering zombie reaper cleanup...")
-    cleanup_zombie_processes()
-    sys.exit(128 + signum)
-
-
-def _register_signal_handlers() -> None:
-    try:
-        if threading.current_thread() is threading.main_thread():
-            for sig_name in ("SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK"):
-                if hasattr(signal, sig_name):
-                    sig = getattr(signal, sig_name)
-                    try:
-                        signal.signal(sig, _signal_cleanup_handler)
-                    except (ValueError, OSError, RuntimeError) as _e:
-                        logger.debug(f"Ignored exception: {_e}")
-    except Exception as _e:
-        logger.debug(f"Ignored exception: {_e}")
-
-
+# Importing a library must preserve the embedding application's signal handlers.
+# Executable entrypoints own cancellation; process owners unwind and clean below.
 atexit.register(cleanup_zombie_processes)
-_register_signal_handlers()
 
 
 # =====================================================================
@@ -1323,33 +1507,38 @@ def safe_subprocess_run(
         popen_args["creationflags"] = popen_args.get("creationflags", 0) | subprocess.CREATE_NEW_PROCESS_GROUP
 
     job_obj = WindowsJobObject() if (use_job_object and platform.system() == "Windows") else None
-    _enable_descendant_reaping()
-
-    if job_obj is not None and platform.system() == "Windows":
-        CREATE_SUSPENDED = 0x00000004
-        popen_args["creationflags"] = popen_args.get("creationflags", 0) | CREATE_SUSPENDED
-        proc = subprocess.Popen(parsed_cmd, **popen_args)
-        register_popen_process(proc)
-        job_obj.assign_popen(proc)
-        try:
-            ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
-        except Exception as _e:
-            logger.debug(f"Ignored exception: {_e}")
-    else:
-        if platform.system() != "Windows":
-            popen_args.setdefault("start_new_session", True)
-        proc = subprocess.Popen(parsed_cmd, **popen_args)
-        register_popen_process(proc)
-
-    if cpu_affinity is not None:
-        enforce_cpu_affinity(proc.pid, cpu_affinity)
-
+    proc: Optional[subprocess.Popen] = None
+    leader_identity: Any = None
+    reader_threads: list[threading.Thread] = []
     stdout_data: Any = ""
     stderr_data: Any = ""
     stderr_raw_tail = bytearray()
     decoding_errors: list[UnicodeError] = []
 
     try:
+        # Cover every step after Popen, including registration/affinity/admission.
+        _enable_descendant_reaping()
+        if job_obj is not None and platform.system() == "Windows":
+            CREATE_SUSPENDED = 0x00000004
+            popen_args["creationflags"] = popen_args.get("creationflags", 0) | CREATE_SUSPENDED
+            proc = subprocess.Popen(parsed_cmd, **popen_args)
+            leader_identity = _capture_owned_leader(proc)
+            register_popen_process(proc, job_obj=job_obj, leader_identity=leader_identity)
+            if not job_obj.assign_popen(proc):
+                raise SubprocessBrokerError("Windows child could not be assigned to its owned Job Object")
+            _resume_owned_windows_process(proc)
+        else:
+            if platform.system() != "Windows":
+                popen_args.setdefault("start_new_session", True)
+            proc = subprocess.Popen(parsed_cmd, **popen_args)
+            leader_identity = _capture_owned_leader(proc)
+            register_popen_process(
+                proc, owns_posix_group=bool(popen_args.get("start_new_session")),
+                leader_identity=leader_identity,
+            )
+        if cpu_affinity is not None:
+            enforce_cpu_affinity(proc.pid, cpu_affinity)
+
         if stream_to_disk and capture_output:
             from collections import deque
 
@@ -1407,6 +1596,7 @@ def safe_subprocess_run(
             )
             t_stdout.start()
             t_stderr.start()
+            reader_threads.extend((t_stdout, t_stderr))
 
             deadline = time.monotonic() + timeout
             fatal_workers_reaped = False
@@ -1501,11 +1691,6 @@ def safe_subprocess_run(
 
         return completed
     except subprocess.TimeoutExpired:
-        kill_process_tree(proc.pid, timeout=10.0)
-        try:
-            proc.wait(timeout=3.0)
-        except subprocess.TimeoutExpired as _e:
-            logger.debug(f"Ignored exception: {_e}")
         logger.error(f"Subprocess '{cmd}' timed out after {timeout} seconds.")
         raise
     except subprocess.CalledProcessError as e:
@@ -1515,9 +1700,20 @@ def safe_subprocess_run(
         logger.error(f"Subprocess execution error for '{cmd}': {e}")
         raise
     finally:
-        if platform.system() != "Windows" and popen_args.get("start_new_session"):
-            _reap_owned_group_children(proc.pid)
-        unregister_popen_process(proc)
+        if proc is not None:
+            # This also runs for KeyboardInterrupt/SystemExit, preserving their
+            # original propagation while cleaning before tracking is released.
+            finished = _terminate_owned_popen(
+                proc, owns_posix_group=bool(popen_args.get("start_new_session")),
+                job_obj=job_obj,
+                leader_identity=leader_identity,
+            )
+            for reader in reader_threads:
+                reader.join(timeout=1.0)
+            if finished:
+                unregister_popen_process(proc)
+            elif sys.exc_info()[0] is None:
+                raise SubprocessBrokerError("Owned subprocess cleanup did not finish within its deadline")
         if job_obj is not None:
             job_obj.close()
 
@@ -1725,28 +1921,35 @@ class SubprocessBroker:
             self._zmq_context = None
 
     def execute_zombie_reaper(self) -> int:
-        """Terminates all managed subprocesses and their orphaned children with 10-second grace period."""
+        """Boundedly clean managed trees, retaining handles until cleanup succeeds."""
         count = 0
         with self._lock:
             procs = list(self.active_processes)
-            self.active_processes.clear()
 
         if not procs:
             return 0
 
         logger.info("Executing SubprocessBroker Zombie Reaper Protocol...")
+        deadline = time.monotonic() + 10.0
         for proc in procs:
-            if proc.poll() is None:
-                try:
-                    pid = proc.pid
-                    kill_process_tree(pid, timeout=10.0)
+            was_active = proc.poll() is None
+            try:
+                # Instance launches always own a dedicated POSIX group. The
+                # Windows Job reference remains in the registered owner record.
+                _, job_obj, leader_identity = _GLOBAL_PROCESS_OWNERS.get(proc, (False, None, None))
+                if _terminate_owned_popen(
+                    proc, owns_posix_group=os.name != "nt", job_obj=job_obj,
+                    timeout=max(0.0, deadline - time.monotonic()),
+                    leader_identity=leader_identity,
+                ):
+                    with self._lock:
+                        if proc in self.active_processes:
+                            self.active_processes.remove(proc)
                     unregister_popen_process(proc)
-                    count += 1
-                    logger.info(f"Reaped managed process tree PID {pid}")
-                except (ProcessLookupError, PermissionError, OSError) as e:
-                    logger.warning(f"Reaper failed on PID {proc.pid}: {e}")
-            else:
-                unregister_popen_process(proc)
+                    count += int(was_active)
+                    logger.info(f"Reaped managed process tree PID {proc.pid}")
+            except (ProcessLookupError, PermissionError, OSError) as e:
+                logger.warning(f"Reaper failed on PID {proc.pid}: {e}")
 
         return count
 
@@ -1840,24 +2043,35 @@ class SubprocessBroker:
             "text": False,
         }
         if platform.system() == "Windows":
-            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            # Admission is atomic: the launcher cannot spawn unowned workers
+            # before its Job Object assignment has succeeded.
+            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004
         else:
             popen_kwargs["start_new_session"] = True
 
         process: Optional[subprocess.Popen] = None
+        leader_identity: Any = None
         job_obj = WindowsJobObject() if platform.system() == "Windows" else None
         watchdog: Optional[DeadMansSwitchWatchdog] = None
         exit_code: int = 0
+        interrupted = False
+        reader_threads: list[threading.Thread] = []
 
         try:
             _enable_descendant_reaping()
             process = subprocess.Popen(command, **popen_kwargs)
+            leader_identity = _capture_owned_leader(process)
             with self._lock:
                 self.active_processes.append(process)
-            register_popen_process(process)
+            register_popen_process(
+                process, owns_posix_group=os.name != "nt", job_obj=job_obj,
+                leader_identity=leader_identity,
+            )
 
             if job_obj is not None:
-                job_obj.assign_popen(process)
+                if not job_obj.assign_popen(process):
+                    raise SubprocessBrokerError("Windows child could not be assigned to its owned Job Object")
+                _resume_owned_windows_process(process)
 
             if cpu_affinity is not None:
                 enforce_cpu_affinity(process.pid, cpu_affinity)
@@ -1896,6 +2110,7 @@ class SubprocessBroker:
 
             t_stdout.start()
             t_stderr.start()
+            reader_threads.extend((t_stdout, t_stderr))
 
             deadline = time.monotonic() + timeout if timeout is not None and timeout > 0 else None
             fatal_workers_reaped = False
@@ -1947,19 +2162,35 @@ class SubprocessBroker:
                 )
 
         except KeyboardInterrupt:
-            logger.error("Keyboard Interrupt. Triggering Reaper.")
-            self.execute_zombie_reaper()
+            interrupted = True
             exit_code = -1
+            raise
         except (OSError, ValueError, subprocess.SubprocessError) as e:
             logger.error(f"Dispatch Exception: {e}")
             self.execute_zombie_reaper()
             exit_code = -2
+        except BaseException:
+            interrupted = True
+            exit_code = -2
+            raise
         finally:
             if watchdog is not None:
                 watchdog.stop()
 
+            daemonized = watchdog is not None and watchdog.is_daemonized and not interrupted
+            finished = False
+            if process is not None and not daemonized:
+                finished = _terminate_owned_popen(
+                    process, owns_posix_group=os.name != "nt", job_obj=job_obj,
+                    leader_identity=leader_identity,
+                )
+                for reader in reader_threads:
+                    reader.join(timeout=1.0)
+                if interrupted and process.returncode is not None:
+                    exit_code = process.returncode
+
             if job_obj is not None:
-                if watchdog is not None and watchdog.is_daemonized:
+                if daemonized:
                     job_obj.set_kill_on_close(False)
                 job_obj.close()
 
@@ -1967,9 +2198,10 @@ class SubprocessBroker:
                 if platform.system() != "Windows":
                     _reap_owned_group_children(process.pid)
                 with self._lock:
-                    if process in self.active_processes:
+                    if (finished or daemonized) and process in self.active_processes:
                         self.active_processes.remove(process)
-                unregister_popen_process(process)
+                if finished or daemonized:
+                    unregister_popen_process(process)
 
             # Compute cryptographic dispatch audit hash
             dispatch_seed = f"{job_name}:{cmd_str}:{exit_code}:{time.time()}".encode('utf-8')
@@ -1979,7 +2211,7 @@ class SubprocessBroker:
                 self.telemetry.aggregate_and_lock(job_name, stdout_hist, stderr_hist, exit_code, dispatch_hash,
                                                   stderr_bytes=bytes(stderr_raw_tail))
 
-            if not (watchdog is not None and watchdog.is_daemonized):
+            if not daemonized:
                 self.garbage_collect_core_dumps(exec_path)
                 self.ramdisk_manager.sync_and_cleanup(exec_path, self.cwd)
             else:
@@ -1987,6 +2219,9 @@ class SubprocessBroker:
                     f"Job '{job_name}' daemonized (PID {process.pid if process else 'N/A'}); "
                     f"preserving execution directory {exec_path} for active background completion."
                 )
+
+            if process is not None and not (finished or daemonized) and sys.exc_info()[0] is None:
+                raise SubprocessBrokerError("Owned subprocess cleanup did not finish within its deadline")
 
         return exit_code
 

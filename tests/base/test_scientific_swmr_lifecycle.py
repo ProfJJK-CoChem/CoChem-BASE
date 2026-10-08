@@ -314,3 +314,178 @@ def test_gui_reader_helpers_exclude_real_uncommitted_buffers_and_reject_lost_com
     for helper in (read_hdf5_swmr_telemetry, read_hdf5_dataset_previews):
         with pytest.raises(ValueError, match="gradients are incomplete"):
             helper(store)
+
+# Proposed additions to tests/base/test_scientific_swmr_lifecycle.py.
+# Uses its genuine native_records, publish and verify_snapshot helpers.
+
+@pytest.mark.parametrize("api", ["canonical", "gui-telemetry", "gui-preview"])
+@pytest.mark.parametrize("closing", [True, False])
+def test_admitted_nested_reader_finishes_during_actual_writer_transition(tmp_path, native_records, api, closing):
+    """An admitted reader can finish; an independent new reader waits."""
+    import time
+    from cochem_base.core_engine.scientific_writer import _store, scientific_reader_snapshot
+    from cochem_base.spectroscopy.parser import read_hdf5_swmr_telemetry, read_hdf5_dataset_previews
+    store = tmp_path / "nested-transition.h5"
+    ready, admitted, transition_requested, new_attempted = (threading.Event() for _ in range(4))
+    new_entered = threading.Event()
+    def real_read():
+        if api == "canonical":
+            view = read_scientific_results("water", store_path=store)
+            return view["energy_hartree"], view["coordinates_angstrom"], view["gradients_hartree_per_bohr"]
+        if api == "gui-telemetry":
+            view = read_hdf5_swmr_telemetry(store)["trajectories"]["water"]
+        else:
+            view = {row["name"].rsplit("/", 1)[-1]: row["values"]
+                    for row in read_hdf5_dataset_previews(store)
+                    if row["name"].startswith("trajectories/water/")}
+        return view["energy_hartree"], view["coordinates_angstrom"], view["gradients_hartree_per_bohr"]
+
+    def producer():
+        with scientific_writer_scope(store_path=store):
+            publish(store, native_records, 0)
+            ready.set()
+            assert transition_requested.wait(10)
+            if not closing:
+                # A different real job creates new topology before reactivation.
+                publish(store, native_records, 1, job="second")
+
+    def existing_reader():
+        assert ready.wait(10)
+        with scientific_reader_snapshot(store_path=store):
+            admitted.set()
+            shared = _store(store)
+            deadline = time.monotonic() + 5
+            while True:
+                with shared.condition:
+                    waiting = shared.transition and shared.closing is closing
+                    assert shared.readers >= 1
+                if waiting:
+                    break
+                assert time.monotonic() < deadline, "Actual writer never entered the requested transition"
+                time.sleep(.001)
+            assert new_attempted.wait(5)
+            # Observe both the real topology waiter and the independently
+            # blocked snapshot waiter; an event alone does not prove admission.
+            deadline = time.monotonic() + 5
+            while True:
+                with shared.condition:
+                    blocked = len(shared.condition._waiters) >= 2
+                    assert shared.transition and shared.readers == 1
+                if blocked:
+                    break
+                assert time.monotonic() < deadline, "New reader never actually waited for the transition"
+                time.sleep(.001)
+            energies, coordinates, gradients = real_read()
+            np.testing.assert_array_equal(energies, native_records["energy_hartree"][:1])
+            np.testing.assert_array_equal(coordinates, native_records["coordinates_angstrom"][:1])
+            np.testing.assert_array_equal(gradients, native_records["gradients_hartree_per_bohr"][:1])
+            assert not new_entered.is_set()
+            with shared.condition:
+                assert shared.readers == 1
+            # An actual absent-job error is caught inside the outer snapshot.
+            # A subsequent nested read must still use that admitted scope.
+            with pytest.raises(KeyError):
+                read_scientific_results("absent-native-job", store_path=store)
+            real_read()
+
+    def new_reader():
+        assert admitted.wait(10)
+        shared = _store(store)
+        deadline = time.monotonic() + 5
+        while True:
+            with shared.condition:
+                waiting = shared.transition and shared.closing is closing
+            if waiting:
+                break
+            assert time.monotonic() < deadline
+            time.sleep(.001)
+        new_attempted.set()
+        with scientific_reader_snapshot(store_path=store):
+            new_entered.set()
+            with shared.condition:
+                # A later producer close may begin after this admission. It
+                # must wait for this admitted reader, which can still finish.
+                assert shared.readers == 1
+            verify_snapshot(read_scientific_results("water", store_path=store), native_records)
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        writer = pool.submit(producer)
+        first = pool.submit(existing_reader)
+        assert admitted.wait(10)
+        follower = pool.submit(new_reader)
+        transition_requested.set()
+        first.result(timeout=15)
+        writer.result(timeout=15)
+        follower.result(timeout=15)
+    assert new_entered.is_set()
+    verify_snapshot(read_scientific_results("water", store_path=store), native_records)
+    if not closing:
+        second = read_scientific_results("second", store_path=store)
+        assert second["metadata"][0]["native_observation_index"] == 1
+        np.testing.assert_array_equal(second["gradients_hartree_per_bohr"], native_records["gradients_hartree_per_bohr"][1:2])
+    with h5py.File(store, "r+", libver="latest") as reopened:
+        assert not reopened.swmr_mode
+
+
+def test_nested_reader_exception_resets_depth_and_later_native_append_succeeds(tmp_path, native_records):
+    from cochem_base.core_engine.scientific_writer import _store, scientific_reader_snapshot
+    from cochem_base.spectroscopy.parser import read_hdf5_swmr_telemetry
+    store = tmp_path / "reader-exception.h5"
+    publish(store, native_records, 0)
+    with pytest.raises(KeyError):
+        with scientific_reader_snapshot(store_path=store):
+            read_hdf5_swmr_telemetry(store)  # actual depth >= 3 via preview helper
+            read_scientific_results("absent-native-job", store_path=store)
+    shared = _store(store)
+    assert getattr(shared.reader_depth, "value", 0) == 0
+    with shared.condition:
+        assert shared.readers == 0 and shared.users == 0
+    publish(store, native_records, 1)
+    verify_snapshot(read_scientific_results("water", store_path=store), native_records)
+
+
+@pytest.mark.parametrize("mode", ["public-append", "existing-handle"])
+def test_reader_to_writer_conflict_is_typed_prompt_and_preserves_native_store(tmp_path, native_records, mode):
+    """A bounded isolated worker prevents a regressed self-deadlock hanging CI."""
+    program = r'''
+from pathlib import Path
+import hashlib,sys,time
+import numpy as np
+from cochem_base.core_engine.scientific_telemetry import append_scientific_result,read_scientific_results
+from cochem_base.core_engine.scientific_writer import scientific_writer_scope,scientific_reader_snapshot,ScientificSnapshotConflictError
+source,store,mode=Path(sys.argv[1]),Path(sys.argv[2]),sys.argv[3]
+actual=read_scientific_results('water',store_path=source)
+assert actual['gradients_hartree_per_bohr'].shape==(5,3,3)
+def publish(path,index):
+    append_scientific_result('water',actual['nuclides'],actual['coordinates_angstrom'][index],actual['energy_hartree'][index],gradients=actual['gradients_hartree_per_bohr'][index],metadata={'scope':'retained native ORCA I/O replay','native_observation_index':index},store_path=path)
+def forbidden_initialize(manager):raise AssertionError('A forbidden operation reached initialization')
+def forbidden_append(manager,writer):raise AssertionError('A forbidden operation reached the writer callback')
+with scientific_writer_scope(store_path=store) as writer:
+    publish(store,0)
+    with scientific_reader_snapshot(store_path=store):
+        observed=read_scientific_results('water',store_path=store)
+        np.testing.assert_array_equal(observed['energy_hartree'],actual['energy_hartree'][:1])
+        np.testing.assert_array_equal(observed['coordinates_angstrom'],actual['coordinates_angstrom'][:1])
+        np.testing.assert_array_equal(observed['gradients_hartree_per_bohr'],actual['gradients_hartree_per_bohr'][:1])
+        before=hashlib.sha256(store.read_bytes()).hexdigest()
+        state=(writer.users,writer.readers,writer.commands.qsize())
+        started=time.monotonic()
+        try:
+            if mode=='public-append':publish(store,1)
+            else:writer.write('trajectories/water',forbidden_initialize,forbidden_append)
+        except ScientificSnapshotConflictError:pass
+        else:raise AssertionError('Scientific reader-to-writer conflict was not refused')
+        assert time.monotonic()-started<1
+        assert (writer.users,writer.readers,writer.commands.qsize())==state
+        assert hashlib.sha256(store.read_bytes()).hexdigest()==before
+        other=store.with_name('independent-store.h5')
+        publish(other,0)
+        assert read_scientific_results('water',store_path=other)['energy_hartree'][0]==actual['energy_hartree'][0]
+    publish(store,1)
+assert len(read_scientific_results('water',store_path=store)['energy_hartree'])==2
+'''
+    completed = subprocess.run([sys.executable, "-c", program, str(tmp_path / "source-records.h5"),
+        str(tmp_path / "guarded-store.h5"), mode], capture_output=True, text=True, timeout=12,
+        env=os.environ.copy())
+    assert completed.returncode == 0, completed.stderr
+    verify_snapshot(read_scientific_results("water", store_path=tmp_path / "guarded-store.h5"), native_records)

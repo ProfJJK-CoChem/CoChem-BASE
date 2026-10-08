@@ -20,6 +20,10 @@ from typing import Any, Callable
 from cochem_base.core.cochem_core_registry_manager import FileLockTimeoutError
 
 
+class ScientificSnapshotConflictError(RuntimeError):
+    """A synchronous writer was requested from its own active read snapshot."""
+
+
 class _ScientificStore:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -30,11 +34,16 @@ class _ScientificStore:
         # independent-process readers retain fully concurrent SWMR access.
         self.publication = threading.RLock()
         self.users = self.readers = 0
+        self.reader_depth = threading.local()
         self.transition = self.closing = False
         self.thread: threading.Thread | None = None
         self.commands: queue.Queue = queue.Queue()
 
     def acquire(self) -> None:
+        if getattr(self.reader_depth, "value", 0):
+            raise ScientificSnapshotConflictError(
+                "Close this store's reader snapshot before acquiring a scientific writer"
+            )
         with self.condition:
             if not self.condition.wait_for(lambda: not self.closing, timeout=10):
                 raise FileLockTimeoutError("Previous scientific writer did not close within ten seconds")
@@ -76,19 +85,37 @@ class _ScientificStore:
 
     @contextmanager
     def snapshot(self):
+        # An already admitted thread owns one logical snapshot until its outer
+        # scope exits. A pending transition must wait for that thread; making
+        # its nested GUI/canonical reads wait for the transition deadlocks both.
+        depth = getattr(self.reader_depth, "value", 0)
+        if depth:
+            self.reader_depth.value = depth + 1
+            try:
+                with self.publication:
+                    yield
+            finally:
+                self.reader_depth.value = depth
+            return
         with self.condition:
             if not self.condition.wait_for(lambda: not self.transition, timeout=10):
                 raise FileLockTimeoutError("Scientific archive topology transition exceeded ten seconds")
             self.readers += 1
+        self.reader_depth.value = 1
         try:
             with self.publication:
                 yield
         finally:
+            self.reader_depth.value = 0
             with self.condition:
                 self.readers -= 1
                 self.condition.notify_all()
 
     def write(self, group_path: str, initialize: Callable, append: Callable) -> Any:
+        if getattr(self.reader_depth, "value", 0):
+            raise ScientificSnapshotConflictError(
+                "Close this store's reader snapshot before appending scientific observations"
+            )
         with self.condition:
             if self.users < 1 or self.closing:
                 raise RuntimeError("Scientific append requires a live writer scope")

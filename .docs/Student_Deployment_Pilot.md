@@ -1,102 +1,99 @@
-# Pilot one Classroom50 assignment before course rollout
+# Accept the actual no-code student research deployment
 
-BASE provides the source, setup, interface and reviewed calculation workflows.
-A completed calculation in the upstream repository establishes its execution
-path; a course deployment also needs the student's own assignment permissions,
-Codespaces authorization and result retrieval to work.
+A deployment passes only when a student uses their own accepted Classroom50
+repository, fresh Codespace and ordinary GUI route. Source installation,
+locally rendered Voilà and instructor-run Actions are separate evidence. Do not
+infer student permissions from the instructor's access.
 
-Use the [ORCA/Classroom50 guide](GitHub_Classroom_ORCA_Setup.md),
-[CFOUR guide](CFOUR_Actions_Setup.md) and
-[private-module guide](Ecosystem_Modules_Setup.md) for the detailed setup.
-ORCA and CFOUR are optional and strongly recommended. The free-engine dashboard
-must remain usable if neither engine is configured.
+Follow the [instructor deployment guide](Classroom50_Assignment_Deployment.md)
+and [student no-code guide](Student_Research_No_Code.md). Students supply their
+own Avogadro 2 monomer or complex XYZ files. They receive BASE alone and never
+run terminal installation commands or open underlying module repositories.
 
-## Instructor: prepare a single pilot assignment
+## Before student acceptance
 
-1. Update the approved course template to the reviewed `v1.0.1` source after
-   that release is published. Preserve the released workflows,
-   `.devcontainer/devcontainer.json`, scripts, requirements and notebooks.
-   An older template copy does not update when upstream changes.
-2. Create the assignment through Classroom50 and have one enrolled pilot
-   student accept it. Record the resulting assignment repository and source
-   commit. Do not use an instructor's source checkout as student acceptance.
-3. Make the approved `PRIVATE_ORCA_ASSET_CREDENTIAL`, `PRIVATE_CFOUR_ASSET_CREDENTIAL` and,
-   when modules are needed, `COCHEM_SOURCE_READ_TOKEN` available to that
-   assignment using selected-repository organization access or approved
-   repository secrets. No token values belong in a notebook, input or report.
-   Copying a template does not copy secrets. Leave fork pull-request secrets
-   and write tokens disabled.
-4. Grant the student/team read access to the approved private modules declared
-   in the devcontainer. Confirm assignment access and accepted organization
-   membership. Actions access and Codespaces access are separate.
-5. Confirm user-owned Codespaces and the student's available allowance. Actions
-   in an organization-owned assignment consumes that organization's allowance.
-   Student Codespaces core-hours do not pay for Actions jobs.
+The instructor should record:
 
-## Student: create and check the interface
+- Reviewed BASE starter/runtime source and compatible module catalog.
+- Course organization, template, classroom and assignment.
+- Organization Actions secret policy for each required reader: all applicable
+  repositories or selected assignment grants. No credential values.
+- Student team Read access, accepted membership and same-owner Codespaces
+  repository declarations.
+- Personal Codespaces payer/allowance and organization Actions entitlement.
+- Approved scientific protocol and a bounded test that fits the worker.
 
-1. Open the accepted assignment repository on the instructor-approved branch.
-   Create a **new** Codespace and authorize the declared module permissions.
-   Confirm the payer is your student account. A rebuild does not apply newly
-   declared repository permissions to an old Codespace.
-2. Wait for the setup lifecycle to finish. Open the forwarded **CoChem Voilà
-   dashboard** port, keeping its visibility private. Retain setup errors if
-   it fails; a port opening alone does not establish a rendered dashboard.
-3. Confirm structure ingestion, data inspection and the installed free-engine
-   route work. Without a local licensed engine, its dependent local choices
-   should be disabled. Choosing GitHub Actions prepares a remote request;
-   that alone does not establish remote archive access or complete chemistry.
-4. If the course uses TOPOS/TORQ, follow the module guide to verify repository
-   read access, isolated installation and the supported geometry handoff.
-   Installing a module does not validate all its scientific operations.
+ORCA/CFOUR are optional and strongly recommended. With both absent, BASE must
+still render and ingest data. Dependent calculations are unavailable; a job
+explicitly requesting an unavailable engine must not be reported successful.
 
-## Student: run and retrieve one calculation
+## Required actual student checks
 
-1. Follow the engine guide's student workflow for one small reviewed example.
-   Run **ORCA 6.1.1 calculation acceptance** or **CFOUR 2.1 calculation acceptance** first
-   when required by the instructor, then run the corresponding **ORCA
-   calculation** or **CFOUR calculation** workflow with its example job file.
-2. Record the workflow URL, checked-out commit, job file, resource settings and
-   result-artifact name. Confirm the workflow and scientific validation pass;
-   an installation success alone is insufficient.
-3. Download the result artifact from the completed run. Inspect the input,
-   calculation report, native outputs and harmonic Hessian when requested.
-   These small examples test integration; they are not experimental accuracy
-   benchmarks.
-4. Import the supported result into the interface, or retain it with the
-   course submission as instructed. Commit and push course work, then stop
-   the Codespace. Delete it when appropriate to release storage.
+| Check | Student action | Evidence required |
+| --- | --- | --- |
+| Assignment acceptance | Accept the Classroom50 link and open the repository | Real student identity, accepted organization membership, exact assignment/revision. |
+| Fresh Codespace | Create on the approved branch and authorize requested permissions | Actual GitHub Codespaces service record, student identity, creation time, machine and payer. |
+| Automatic setup | Wait for BASE to render its setup status | Required modules installed/verified without student commands; failures accurately disable their operations. |
+| Original ingestion | Upload their own monomer and complex XYZ, choose one of several starting files | Actual browser FileUpload, original bytes/hash, ordered nuclei/geometry and state handling. |
+| Validation | Upload a malformed geometry | Visible actionable error, no unexpected execution, earlier valid originals preserved. |
+| Hosted submission | Select the approved calculation and click Run on GitHub Actions | Real workflow dispatch under the available student identity, unique request ID, run URL and actual accepted source SHA. |
+| Lifecycle | Refresh status and cancel a separate bounded run | Status and cancellation bound to that request/run, not the latest unrelated run. |
+| Genuine result | Allow one chemistry run to complete | Actual engine output, convergence/result checks and scientific report. No synthetic output substitutes. |
+| Retrieval | Retrieve and inspect results and download the bundle | Correct request/run/artifact association, file checksums, genuine data visible in GUI. |
+| Research output | Run supported comparisons/analysis | Authentic tables/figures, explicit conventions and unavailable-data gates. |
+| Compatible fix | Check/apply an approved update and restart | Exact old/new versions, original uploads and prior result hashes unchanged, successful rollback behavior when relevant. |
+| Submission | Commit/sync a report with VS Code buttons | Report appears in GitHub and Classroom50 collection under the student's identity; instructor feedback/score recorded. |
 
-## Deployment record and current boundary
+A browser download/export alone is not a submitted calculation. An Actions run
+with an instructor credential is not proof of student-token permissions. An
+installed provider with no verified scientific operation is not a complete
+research pipeline. A preview plot derived from no native data is not acceptance.
 
-Record each observation rather than marking the entire pilot passed from one
-successful step:
+## Maintainer acceptance harness
 
-| Check | Evidence to retain |
-| --- | --- |
-| Student assignment access | Assignment repository, accepted invitation, source commit |
-| Fresh Codespace | Student identity, creation time, requested permissions, payer, setup report |
-| Interface | Rendered dashboard and ingestion result; licensed-engine absence behavior |
-| Module access, when requested | Pinned revision, installation/verification report and supported handoff |
-| Actual Actions chemistry | Run URL, source commit, resource settings and scientific acceptance report |
-| Retrieval | Downloaded artifact and successful supported result inspection |
+`tests/ui/student_entrypoint_browser_acceptance.py` exercises an actual rendered
+Voilà session through Chromium. It uses the browser's file-input API to upload
+complete XYZ files and checks the resulting geometry/selection/setup controls.
+It can exercise a real hosted request when a designated test repository and
+its authenticated route are available. The harness is for maintainers; its
+command line must not appear in student setup instructions.
 
-On 2026-10-07 the available cloud integration authenticated as the instructor,
-listed zero existing Codespaces and found no student assignment repository in
-the course organization. Repository Codespaces machine/permission checks
-returned HTTP 403, `Resource not accessible by integration`. No student account
-was impersonated and no billed Codespace was created. Actual student-identity
-Classroom50/Codespaces acceptance therefore remains a course deployment check.
-Local devcontainer tests and upstream hosted calculations have separate
-evidence; they do not replace this pilot.
+Retain browser screenshots, errors, download hashes, exact source/setup reports
+and actual hosted run/artifact evidence together. Distinguish UI-only acceptance
+from real hosted calculation acceptance in the report. Never report an optional
+hosted check as performed when no real run occurred.
 
-The actual local container pass used the configured Python 3.12 Bookworm image
-and the new `scripts/setup_devcontainer.sh`. It reproduced missing GL/DBus
-libraries, then verified their installation, native PySide/VTK imports, all
-eleven Stage 0 phases, rendered Voilà lifecycle and genuine xTB GFN-FF/GFN2
-energy/Hessian checks. ORCA and CFOUR were absent, and BASE remained operational.
-The script supplies the system libraries that the stock Python image lacks.
-No public port or billed Codespace was created. Editable installation
-regenerated package metadata in the isolated source copy; all other tracked
-bytes matched its recorded source revision. The final release's full source
-and integrity gates are recorded separately.
+## Current service boundary
+
+Earlier cloud validation found zero existing Codespaces and received HTTP 403
+`Resource not accessible by integration` from repository machine/permission
+APIs. That established an integration authorization limitation, not a failed
+student installation. Local tests used the configured Python 3.12 Bookworm
+image, verified all eleven Stage 0 phases, rendered/repeated Voilà and genuine
+free xTB calculations without licensed binaries.
+
+For the updated student entrypoint, record current API and browser outcomes
+rather than reusing that old observation. A newly created actual Codespace or
+successful Actions run needs its own service record. If the available
+integration cannot create or inspect a student Codespace, complete independent
+functional/Actions checks and state the precise unverified student step. Do not
+mark that service check passed or ask students to substitute terminal code.
+
+## Deployment record
+
+Keep one small JSON/Markdown record per pilot with:
+
+- Student username, organization, classroom, assignment and Codespace identity.
+- BASE runtime/starter and provider revisions and compatible-update catalog.
+- Payer/machine, setup outcomes and each actually available capability.
+- Uploaded filenames, source hashes, ordered element/isotope identities,
+  geometry, charges, multiplicities and fragments.
+- Request IDs, run URLs, checked-out source, resources and operation.
+- Native calculation/result validation and retrieval/bundle hashes.
+- Figures/tables, scientific conventions and explicit missing prerequisites.
+- Before/after update preservation and result/source version separation.
+- Submitted report, collection observation and instructor feedback.
+
+Keep credentials and private engine archives out of the record. A successful
+pilot validates this route, not every molecule, hardware platform, provider
+method or experimental accuracy claim.

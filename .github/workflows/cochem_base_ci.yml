@@ -19,6 +19,10 @@ concurrency:
 jobs:
   source-integrity:
     name: Source integrity and complete legacy inventory
+    # Classroom copies receive calculation workflows, without spending the
+    # course's allowance on upstream release tests after every student report.
+    # Instructors can still request this complete bounded suite explicitly.
+    if: github.repository == 'ProfJJK-CoChem/CoChem-BASE' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "CoChem-BASE"
-version = "1.0.1"
+version = "1.1.0"
 description = "CoChem ingestion, environment setup, validated calculation execution and student interface"
 authors = [
     {name = "CoChem Team"}

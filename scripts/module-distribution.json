@@ -156,27 +156,41 @@
     },
     "topos": {
       "repository": "ProfJJK-CoChem/CoChem-TOPOS",
-      "revision": "6a01b0f2adb7cff02edda6e339facf3d6f93904d",
+      "revision": "f63249fa32c5350bd53d285758994c9ebc7154eb",
       "distribution": "cochem-topos",
-      "adapter": "topos_geometry",
+      "adapter": "topos_provider",
       "adapter_requirements": [
         "ase==3.29.0",
         "networkx==3.7"
       ],
       "operations": [
-        "geometry_analysis"
+        "geometry_analysis",
+        "energy",
+        "gradient",
+        "optimize",
+        "search",
+        "frequency",
+        "thermochemistry",
+        "association",
+        "matrix"
       ]
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "d7a4739a5f7d6f22ed659b32eeb4706bef16225e",
+      "revision": "4ce8eecba56e91e27c6abb32473b2ee4d44767c4",
       "distribution": "CoChem-TORQ",
-      "adapter": "torq_geometry",
+      "adapter": "torq_provider",
       "adapter_requirements": [
-        "mendeleev>=1.2,<2"
+        "mendeleev>=1.2,<2",
+        "pyscf==2.14.0",
+        "geometric==1.1.1",
+        "dftd4==3.7.0",
+        "tomli>=2,<3"
       ],
       "operations": [
-        "geometry_analysis"
+        "geometry_analysis",
+        "research_scan",
+        "wiberg_lowdin"
       ]
     }
   }

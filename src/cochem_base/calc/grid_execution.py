@@ -112,6 +112,12 @@ def _stage_model(molecule: Any, stage: int, coordinates: Any) -> Any:
     data = molecule.model_dump()
     data.update(grid_stage=stage, coordinates=coordinates,
                 theory_level=re.sub(r"\bDEFGRID\d+\b", "", molecule.theory_level, flags=re.I).strip())
+    if molecule.initial_hessian == "READ" and stage > minimum:
+        # The uploaded tensor belongs to the initial geometry. A completed
+        # optimizer stage changes that geometry; its private .opt restart is
+        # not a portable Cartesian Hessian. Use a qualified model Hessian for
+        # the next stage instead of reusing an unrelated tensor.
+        data.update(initial_hessian="Lindh", hessian_file=None)
     return MoleculeInput.model_validate(data)
 
 
@@ -196,6 +202,10 @@ def execute_orca_calculation(
         transfers["initial_hessian"] = {"native_policy": data.initial_hessian,
             "source_sha256": _digest(data.hessian_file) if data.hessian_file is not None else None,
             "portable_optimizer_hessian_available": False}
+        if molecule.initial_hessian == "READ" and previous is not None:
+            transfers["initial_hessian"]["reason"] = (
+                "The original READ checkpoint is bound to the first-stage geometry; "
+                "the next stage uses a Lindh model at its actual transferred geometry.")
         _write_json(stage_dir / "stage_handoff.json", transfers)
         spin = SpinContaminationStreamValidator(config.multiplicity)
         stream = ORCAGradientStream(

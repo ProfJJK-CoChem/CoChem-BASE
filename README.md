@@ -12,9 +12,10 @@ scientific records needed to assess a result.
 [Classroom50 assignment deployment guide](.docs/Classroom50_Assignment_Deployment.md)**
 to prepare the release template, configure access, pilot one student and roll
 the assignment out to the course. **Students: start with the
-[Classroom50 + ORCA GitHub Actions guide](.docs/GitHub_Classroom_ORCA_Setup.md).**
-It covers approved binary access, each student's assignment repository, GUI
-job export, calculations and retrieval of results.
+[graphical research guide](.docs/Student_Research_No_Code.md).**
+Students upload their own Avogadro 2 monomers or complexes. BASE automatically
+installs its approved modules and provides calculation submission, monitoring,
+result retrieval, scientific reports and compatible updates in the GUI.
 Students using the instructor's provisioned route do not enter tokens in CoChem.
 
 For CFOUR runtime access, classroom setup and host compatibility, follow the
@@ -28,8 +29,11 @@ It explains `COCHEM_SOURCE_READ_TOKEN`, student-owned Codespaces, the
 organization's shared Actions allowance, and which modules currently support
 installation or execution.
 
-Version **1.0.1** brings the integrated CFOUR/module routes and the current SRS
-closure work into the student distribution. The complete profile
+The **1.1.0 release candidate** adds automatic module setup, student geometry
+uploads, direct Actions submission and retrieval, research reports and preserved
+runtime updates. Its validation is recorded separately from earlier releases.
+Version **1.0.1** brought the integrated CFOUR/module routes and SRS
+closure work into the distribution. Its complete profile
 passed **1,827 tests** with **two explicit physical Slurm deferrals** and no
 failures. Hosted ORCA/CFOUR science, three-platform package/control checks and
 a fresh local Voilà container also passed. The
@@ -47,7 +51,7 @@ before rolling a new template out to the course.
 
 | Route | How to use it | Validation boundary |
 | --- | --- | --- |
-| Classroom50 / GitHub Actions | Accept the assignment, export a JSON job in Voilà, and run **ORCA calculation** or **CFOUR calculation**. | Hosted installation and chemistry must pass for the selected source revision. See [ORCA evidence](.docs/ORCA_Actions_Setup.md). |
+| Classroom50 / GitHub Actions | Accept the assignment, open BASE in Codespaces, upload XYZ and select **Run with GitHub Actions**. | Exact submitted structures and approved scientific worker revisions bind the retained results. Hosted execution is distinct from actual student Codespaces acceptance. |
 | Local Linux CPU | Complete Stage 0 and select an audited installed engine. | Local tests and real bounded calculations provide evidence for documented operations. |
 | Windows / WSL2 | Submit Actions jobs from the interface; use WSL2 for local Linux ORCA. | The Linux archive does not run natively on Windows. WSL acceptance is separate from Linux cloud tests. |
 | macOS | Use Actions or install the matching macOS engine build and complete setup. | Native macOS acceptance needs an appropriate host. Linux binaries and registries are not portable to it. |
@@ -66,14 +70,21 @@ distribution is ORCA 6.1.1 for Linux x86-64 with Open MPI 4.1.8; its SHA-256 is
 checked before extraction. The licensed binary is not included in this
 repository, Python distributions or calculation artifacts.
 
-1. Complete the [student quick start](.docs/GitHub_Classroom_ORCA_Setup.md#student-quick-start)
-   and confirm the repository's physical ORCA acceptance passed.
-2. In Voilà, select **GitHub Actions**, enter the course repository and approved
-   branch, and configure the molecule in **No Code Matrix**.
-3. Select **Prepare GitHub Actions job**, download the JSON and commit it under
-   `jobs/` using the course's review process.
-4. Open **Actions → ORCA calculation → Run workflow**, enter its `job_file`
-   path, and start one job. Download its result artifact when it finishes.
+1. Accept the Classroom50 assignment, create its Codespace and wait for automatic
+   setup. Open the private Voilà dashboard on port 8866.
+2. Upload your own monomer or complex XYZ files and declare their charge and
+   multiplicity. BASE preserves the original files separately from software.
+3. Select **GitHub Actions**, the accepted assignment repository, a supported
+   method and operation, then submit through BASE. No JSON editing, terminal
+   command, separate module checkout or manual workflow dispatch is required.
+4. Use BASE's status, cancellation and verified result retrieval controls.
+   Review computed structures, tables, diagrams and provenance before writing
+   your research report. Use BASE's update controls when a compatible fix is
+   published; software updates preserve uploaded structures and results.
+
+The [student research guide](.docs/Student_Research_No_Code.md) describes the
+buttons and actual supported provider scope. Unavailable scientific providers
+disable their dependent operations rather than returning illustrative numbers.
 
 The course workflow supports bounded molecular single points, optimizations
 and harmonic frequencies: up to 50 atoms, one or two processes, at most 1024 MB
@@ -111,8 +122,9 @@ PowerShell, use `.\Launch_CoChem_Windows.bat --native`. The launchers prepare th
 python3 scripts/bootstrap_environment.py
 ```
 
-Interaction and calculation environments are separate choices. Actions exports
-a portable request and gives submission instructions. Native execution requires
+Interaction and calculation environments are separate choices. BASE submits
+Actions requests and retrieves their verified results through the interface.
+Native execution requires
 the selected host's audited setup. For a remote interface, use an authenticated
 host connection and SSH port forwarding according to the site's access policy.
 

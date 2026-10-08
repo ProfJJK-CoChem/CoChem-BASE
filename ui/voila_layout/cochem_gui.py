@@ -1,11 +1,16 @@
 import atexit
+import base64
+import hashlib
 import html
 import json
 import logging
+import math
 import os
 import re
 import sys
 import threading
+import time
+import uuid
 from collections import deque
 from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple
@@ -132,6 +137,24 @@ class CoChemGUI:
         self.state = CoChemGUIState()
         self._pipeline_running = False
         self._pipeline_cancellation = threading.Event()
+        self._student_research_running = False
+        self._student_uploads: dict[str, dict[str, Any]] = {}
+        self._student_setup_busy = False
+        self._actions_running = False
+        self._actions_submission: dict[str, Any] | None = None
+        self._actions_client = None
+        self._actions_monitor_stop = threading.Event()
+        self._actions_retrieved = None
+        self._actions_input_record = None
+        self._setup_service = None
+        self._input_selection_running = False
+        self._remote_probe_running = False
+        self._actions_retrieving = False
+        self._remote_probe_client = None
+        self._remote_probe_submission = None
+        self._remote_engine_target = None
+        self._remote_engine_availability = {engine: {"status": "unknown", "provisionable": False,
+            "reason": "Remote engine access has not been checked."} for engine in ("orca", "cfour")}
 
         # --- Environment Auto-Detection ---
         is_init, env_str, is_hpc, is_slurm = self._detect_environment()
@@ -166,7 +189,7 @@ class CoChemGUI:
         self.btn_install = widgets.Button(description="Seamless Install", icon='cogs', layout=widgets.Layout(width='auto', margin='5px 0'))
         self.btn_matrix = widgets.Button(description="No Code Matrix", icon='table', layout=widgets.Layout(width='auto', margin='5px 0'))
         self.btn_inspector = widgets.Button(description="Data Inspector (Ab-Initio)", icon='search', layout=widgets.Layout(width='auto', margin='5px 0'))
-        self.btn_modules = widgets.Button(description="Module handoff", layout=widgets.Layout(width='auto', margin='5px 0'))
+        self.btn_modules = widgets.Button(description="Research results", layout=widgets.Layout(width='auto', margin='5px 0'))
         self.btn_periodic = widgets.Button(description="Periodic structures", layout=widgets.Layout(width='auto', margin='5px 0'))
 
         # Configuration and inspection work without provisioned quantum engines.
@@ -201,8 +224,13 @@ class CoChemGUI:
             style={'description_width': 'initial'},
         )
         self.gh_guidance = widgets.HTML()
+        self.remote_engine_status = widgets.HTML("<p role='status'>Remote licensed-engine availability has not been checked.</p>")
+        self.btn_remote_engine_check = widgets.Button(description="Retry remote engine check")
+        self.btn_remote_engine_check.on_click(self._check_remote_engines)
+        self.btn_remote_engine_cancel = widgets.Button(description="Cancel remote engine check", disabled=True)
+        self.btn_remote_engine_cancel.on_click(self._cancel_remote_engine_check)
         self.gh_setup_box = widgets.VBox([
-            self.gh_repo_input, self.gh_branch_input, self.gh_guidance,
+            self.gh_repo_input, self.gh_branch_input, widgets.HBox([self.btn_remote_engine_check, self.btn_remote_engine_cancel]), self.remote_engine_status, self.gh_guidance,
         ], layout=widgets.Layout(border='1px solid #0056b3', padding='15px', margin='10px 0'))
         self.gh_repo_input.observe(self._refresh_actions_guidance, names='value')
         self.gh_branch_input.observe(self._refresh_actions_guidance, names='value')
@@ -218,11 +246,15 @@ class CoChemGUI:
             value=300, min=30, max=1800, description="Calculation timeout (s):",
             style={'description_width': 'initial'},
         )
+        self.actions_cores = widgets.BoundedIntText(value=2, min=1, max=2, description="Calculation cores:",
+                                                   style={'description_width': 'initial'})
+        self.actions_memory = widgets.BoundedIntText(value=512, min=256, max=1024, description="Memory per core (MB):",
+                                                    style={'description_width': 'initial'})
         self.actions_job_options = widgets.VBox([
-            self.actions_operation, self.actions_timeout,
+            self.actions_operation, self.actions_timeout, self.actions_cores, self.actions_memory,
             widgets.HTML("<p>Course profile: ORCA or CFOUR, up to 50 atoms, one or two cores, "
                          "512 MB per core by default (maximum 1024 MB), and at most 1800 seconds per calculation. "
-                         "Choose cores and memory on GitHub when starting the workflow.</p>"
+                         "BASE submits the selected resources and monitors the calculation here.</p>"
                          "<p>Harmonic frequencies at supplied coordinates do not certify a stationary structure. "
                          "Choose <b>Optimize + harmonic frequencies</b> to optimize first. VPT2 remains a separate module integration.</p>"),
         ], layout=widgets.Layout(display='none'))
@@ -239,7 +271,8 @@ class CoChemGUI:
                 ('GitHub Actions (Cloud Compute)', 'github-actions'), 
                 ('HPC Cluster (Slurm/PBS)', 'hpc')
             ],
-            value='macos' if sys.platform == 'darwin' else 'local' if os.name == 'nt' else 'linux',
+            value='github-actions' if os.environ.get('CODESPACES', '').lower() == 'true' else
+                  'macos' if sys.platform == 'darwin' else 'local' if os.name == 'nt' else 'linux',
             description='Calculation Environment:',
             style={'description_width': 'initial'}
         )
@@ -378,6 +411,8 @@ class CoChemGUI:
             if hasattr(self, 'btn_execute'):
                 self._check_dispersion_gate()
                 self._refresh_topos_capabilities()
+                if env == 'github-actions' and self._automatic_remote_checks_enabled():
+                    self._check_remote_engines()
                 
         self.calc_env_dropdown.observe(_on_calc_env_change, names='value')
         _on_calc_env_change({'new': self.calc_env_dropdown.value})
@@ -406,6 +441,8 @@ class CoChemGUI:
             self.local_install_options,
             self.run_install_btn,
         ], layout=widgets.Layout(padding='20px'))
+        self._build_student_setup_panel()
+        self.view_install.children = (self.student_setup_panel, *self.view_install.children)
 
         # 3.2 Step 0: Product Class Gate & No Code Matrix View
         self.product_class_selector = widgets.RadioButtons(
@@ -600,6 +637,31 @@ class CoChemGUI:
             description="T9 active-space JSON:", placeholder="Optional validated CASSCF/NEVPT2 configuration",
             style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'),
         )
+        self.t9_config_path.layout.display = 'none'
+        self.t9_enable = widgets.Checkbox(value=False, description="Enable explicit T9 spin-contamination recovery")
+        self.t9_method = widgets.Dropdown(options=['CASSCF', 'NEVPT2'], value='NEVPT2', description="Recovery method:",
+            style={'description_width': 'initial'})
+        self.t9_basis = widgets.Dropdown(options=['STO-3G', 'def2-SVP', 'def2-TZVP', 'cc-pVDZ', 'aug-cc-pVDZ'],
+            value='def2-SVP', description="Recovery basis:", style={'description_width': 'initial'})
+        self.t9_electrons = widgets.IntText(value=0, description="Active electrons:", style={'description_width': 'initial'})
+        self.t9_orbitals = widgets.Text(value='', description="Active MO indices:", placeholder="Distinct zero-based indices, e.g. 4,5,6",
+            style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
+        self.t9_rationale = widgets.Textarea(value='', description="Active-space rationale:",
+            style={'description_width': 'initial'}, layout=widgets.Layout(width='95%', height='80px'))
+        self.t9_panel = widgets.VBox([
+            widgets.HTML("<h4>T9 recovery</h4><p>An explicit CASSCF/NEVPT2 active space can recover a rejected single-reference spin-contaminated result. Choose the electron count, zero-based molecular orbitals, basis and scientific rationale. BASE binds the audited PySCF interpreter; no executable path or code is entered. Recovery is a single-point calculation on the original geometry and does not certify an interrupted optimization or Hessian.</p>"),
+            self.t9_enable, self.t9_method, self.t9_basis, self.t9_electrons, self.t9_orbitals, self.t9_rationale,
+        ])
+        self.scientific_r2_upload = widgets.FileUpload(accept='.zip', multiple=False, description="Upload R2 references")
+        self.scientific_read_upload = widgets.FileUpload(accept='.hess', multiple=False, description="Upload READ Hessian")
+        self.scientific_input_status = widgets.HTML("<p role='status'>R2 needs a genuine reference package with original engine evidence. READ needs an authentic Cartesian Hessian bound to this geometry. Missing scientific files disable their dependent requests.</p>")
+        self._scientific_inputs = {}
+        self.scientific_initial_hessian = widgets.Dropdown(options=[('xTB2 initial curvature', 'XTB2'),
+            ('BFGS initial curvature', 'BFGS'), ('Read uploaded Cartesian Hessian', 'READ')], value='XTB2',
+            description="Initial Hessian:", style={'description_width': 'initial'})
+        self.scientific_r2_upload.observe(lambda change: self._ingest_student_scientific_input('r2_reference', self.scientific_r2_upload), names='value')
+        self.scientific_read_upload.observe(lambda change: self._ingest_student_scientific_input('read_hessian', self.scientific_read_upload), names='value')
+        self.r2_reference_manifest.layout.display = 'none'
         self.cb_recipe_r2.observe(lambda change: setattr(self.cb_recipe_r1, 'value', False) if change['new'] else None, names='value')
         self.cb_recipe_r1.observe(lambda change: setattr(self.cb_recipe_r2, 'value', False) if change['new'] else None, names='value')
         self.fragment_preview = widgets.Textarea(
@@ -635,6 +697,10 @@ class CoChemGUI:
         self.cb_recipe_r2.observe(update_preview, 'value')
         self.r2_reference_manifest.observe(update_preview, 'value')
         self.t9_config_path.observe(update_preview, 'value')
+        for control in (self.t9_enable, self.t9_method, self.t9_basis, self.t9_electrons, self.t9_orbitals,
+                        self.t9_rationale, self.scientific_initial_hessian):
+            control.observe(update_preview, 'value')
+            control.observe(self._check_dispersion_gate, 'value')
         self.charge_input.observe(update_preview, 'value')
         self.multiplicity_input.observe(update_preview, 'value')
         self.matrix_solvation.observe(update_preview, 'value')
@@ -682,8 +748,7 @@ class CoChemGUI:
             self.unphysical_override,
             self.dispersion_warning,
             self.engine_warning,
-            self.t9_config_path,
-            widgets.HTML("<p>T9 recovery requires a scientifically selected active space. Supply its validated JSON configuration; no active space is guessed.</p>"),
+            self.t9_panel,
         ])
 
         self.tab_topos = widgets.VBox([
@@ -713,7 +778,8 @@ class CoChemGUI:
             self.fragments_output,
             self.cb_recipe_r1,
             self.cb_recipe_r2,
-            self.r2_reference_manifest,
+            self.scientific_r2_upload, self.scientific_initial_hessian, self.scientific_read_upload,
+            self.scientific_input_status,
             widgets.HTML("<b>Generated Frozen Monomer Directives:</b>"),
             self.fragment_preview
         ])
@@ -724,7 +790,27 @@ class CoChemGUI:
         
         self.smiles_input = widgets.Text(description="SMILES:", placeholder="e.g. CCO")
         self.btn_build_smiles = widgets.Button(description="Build from SMILES", button_style="info")
-        self.xyz_upload = widgets.FileUpload(accept='.xyz', multiple=False, description="Upload .xyz")
+        self.xyz_upload = widgets.FileUpload(accept='.xyz', multiple=True, description="Upload .xyz")
+        self.student_geometry_choice = widgets.Dropdown(options=[("Upload your starting geometry", "")],
+            description="Starting geometry:", style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
+        self.student_input_role = widgets.Dropdown(options=[("Complex starting geometry", "complex"),
+            ("Monomer A", "monomer_a"), ("Monomer B", "monomer_b"), ("Additional monomer", "monomer")],
+            value="complex", description="Input type:", style={'description_width': 'initial'})
+        self.student_input_label = widgets.Text(description="Geometry label:", placeholder="Your monomer or complex name",
+            style={'description_width': 'initial'})
+        self.student_fragment_atoms = widgets.Text(description="Fragment atom groups:",
+            placeholder="Optional: 1,2,3;4,5,6 (one-based atom indices)", style={'description_width': 'initial'},
+            layout=widgets.Layout(width='95%'))
+        self.student_upload_status = widgets.HTML("<p role='status'>Upload the monomer or complex starting geometries you made in Avogadro 2. Coordinates must be in ångströms. Originals are preserved with SHA-256 hashes.</p>")
+        self.btn_save_input_details = widgets.Button(description="Save geometry details")
+        self.btn_save_input_details.on_click(self._save_student_input_details)
+        self.student_geometry_choice.observe(self._select_student_geometry, names="value")
+        self.student_monomer_choices = widgets.SelectMultiple(options=[], description="Your monomers:",
+            style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
+        self.student_seed_separation = widgets.BoundedFloatText(value=5.0, min=2, max=100,
+            description="Seed separation (Å):", style={'description_width': 'initial'})
+        self.btn_assemble_monomers = widgets.Button(description="Prepare complex starting seed")
+        self.btn_assemble_monomers.on_click(self._assemble_student_monomers)
         
         # 3D Viewer Output
         self.viewer_output = widgets.Output(layout=widgets.Layout(width='400px', height='300px', border='1px solid #ccc'))
@@ -738,13 +824,24 @@ class CoChemGUI:
                 try:
                     import py3Dmol
                     from IPython.display import display
+                    from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+                    identity = parse_geometry_identity(xyz_data)
+                    viewer_xyz = str(len(identity.elements)) + "\nBASE display geometry; nuclear labels retained in input\n" + "\n".join(
+                        element + " " + " ".join(format(value, ".17g") for value in row)
+                        for element, row in zip(identity.elements, identity.coordinates_angstrom, strict=True)) + "\n"
                     view = py3Dmol.view(width=400, height=300)
-                    view.addModel(xyz_data, 'xyz')
+                    view.addModel(viewer_xyz, 'xyz')
                     view.setStyle({'stick': {}, 'sphere': {'radius': 0.4}})
                     view.zoomTo()
-                    display(view)
+                    rendered = view.write_html()
+                    # Uploading a new geometry can remove an earlier viewer
+                    # while its library promise is pending. Never instantiate
+                    # WebGL against a detached/missing DOM element.
+                    guard = f'if (!document.getElementById("3dmolviewer_{view.uniqueid}")) {{ return; }}\n'
+                    rendered = rendered.replace('$3Dmolpromise.then(function() {', '$3Dmolpromise.then(function() {\n' + guard, 1)
+                    display({'application/3dmoljs_load.v0': rendered, 'text/html': rendered}, raw=True)
                 except ImportError:
-                    print("py3Dmol is not installed. Run pip install py3Dmol to view 3D models.")
+                    print("The 3D viewer is unavailable. Open CoChem setup and choose Retry setup.")
                 except Exception as e:
                     print(f"Viewer Error: {e}")
 
@@ -766,30 +863,24 @@ class CoChemGUI:
                 self.project_name.value = smiles.replace('/', '_').replace('\\', '_')
                 _update_3d_viewer()
             except ImportError:
-                self.matrix_geometry.value = "Error: RDKit is not installed. Run conda install -c conda-forge rdkit"
+                self.student_upload_status.value = "<p role='alert'>The structure builder is unavailable. Open CoChem setup and choose Retry setup.</p>"
             except Exception as e:
                 self.matrix_geometry.value = f"SMILES Build Error: {e}"
                 
-        def _on_xyz_upload(change):
-            if self.xyz_upload.value:
-                file_name = list(self.xyz_upload.value.keys())[0]
-                self.project_name.value = file_name.replace('.xyz', '')
-                file_info = list(self.xyz_upload.value.values())[0]
-                content = file_info['content'].decode('utf-8')
-                self.matrix_geometry.value = content
-                _update_3d_viewer()
-
         self.btn_build_smiles.on_click(_on_smiles_build)
-        self.xyz_upload.observe(_on_xyz_upload, names='value')
+        self.xyz_upload.observe(self._on_student_xyz_upload, names='value')
         
         # Add an observe to matrix_geometry so manual typing updates the 3D model
         self.matrix_geometry.observe(lambda c: _update_3d_viewer(), names='value')
         
         self.tab_builder = widgets.HBox([
             widgets.VBox([
-                widgets.HTML("<b>Molecule Builder & Import</b><br/><i>Generate 3D geometries from SMILES or import existing .xyz files.</i>"),
+                widgets.HTML("<b>Your starting geometries</b><p>Upload your own Avogadro 2 monomer or complex XYZ files. Supply charge, multiplicity and fragment membership; XYZ does not contain those reliably. Atom order and isotope labels are retained.</p>"),
                 widgets.HBox([self.smiles_input, self.btn_build_smiles]),
-                self.xyz_upload,
+                self.xyz_upload, self.student_geometry_choice, self.student_input_role, self.student_input_label,
+                self.student_fragment_atoms, self.btn_save_input_details, self.student_upload_status,
+                widgets.HTML("<details><summary>Starting from separate monomer XYZ files</summary><p>Save each monomer's charge and multiplicity, select its uploaded geometry below, and prepare a translated starting seed. This packing is an initial guess; TOPOS must calculate and search it before any binding or minimum claim.</p></details>"),
+                self.student_monomer_choices, self.student_seed_separation, self.btn_assemble_monomers,
                 widgets.HTML("<b>Manual Coordinate Editor (Build from scratch):</b>"),
                 self.matrix_geometry
             ], layout=widgets.Layout(width='50%')),
@@ -863,11 +954,31 @@ class CoChemGUI:
         self.telemetry_output = BoundedTelemetryOutput(layout=widgets.Layout(border='1px solid #ccc', height='400px', overflow='auto', padding='5px'))
         self.calculation_result = widgets.HTML("<i>No accepted calculation result yet.</i>")
         self.execution_description = widgets.HTML()
+        self.actions_status = widgets.HTML("<p role='status'>No remote calculation submitted.</p>")
+        self.btn_actions_refresh = widgets.Button(description="Refresh calculation status", disabled=True)
+        self.btn_actions_refresh.on_click(self._refresh_student_actions)
+        self.btn_actions_retrieve = widgets.Button(description="Retrieve and inspect results", disabled=True)
+        self.btn_actions_retrieve.on_click(self._retrieve_student_actions)
+        self.actions_results_download = widgets.HTML()
+        self.actions_calculated_geometry = widgets.Dropdown(options=[("No retained calculated geometry", "")],
+            description="Calculated geometry:", style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
+        self.btn_actions_use_geometry = widgets.Button(description="Use calculated structure", disabled=True)
+        self.btn_actions_use_geometry.on_click(self._use_student_calculated_geometry)
+        self.actions_history = widgets.Dropdown(options=[("No retained calculations", "")],
+            description="Previous calculations:", style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'))
+        self.btn_actions_open = widgets.Button(description="Open selected calculation", disabled=True)
+        self.btn_actions_open.on_click(self._open_student_actions_history)
+        self.actions_controls = widgets.VBox([self.actions_status,
+            self.actions_history, self.btn_actions_open,
+            widgets.HBox([self.btn_actions_refresh, self.btn_actions_retrieve]), self.actions_results_download],
+            layout=widgets.Layout(display='none'))
+        self.actions_controls.children += (self.actions_calculated_geometry, self.btn_actions_use_geometry)
 
         self.telemetry_panel = widgets.VBox([
             widgets.HTML("<h4>Live Telemetry & Execution</h4>"),
             self.execution_description,
             widgets.HBox([self.btn_execute, self.btn_cancel]),
+            self.actions_controls,
             self.calculation_result,
             self.telemetry_output
         ], layout=widgets.Layout(border='1px solid #ccc', padding='10px', margin='10px 0'))
@@ -999,6 +1110,7 @@ class CoChemGUI:
             self.btn_module_run,
         ], layout=widgets.Layout(padding='20px'))
         self._refresh_module_capabilities()
+        self._build_student_research_panels()
 
         self.periodic_input_path = widgets.Text(description="Periodic input:", layout=widgets.Layout(width='90%'))
         self.periodic_settings_path = widgets.Text(description="PAW settings JSON:", style={'description_width': 'initial'},
@@ -1079,6 +1191,934 @@ class CoChemGUI:
         self.state.observe(self._on_environment_change, names='environment')
         self._refresh_actions_guidance()
         self._check_dispersion_gate()
+        self._start_student_setup()
+        self._refresh_student_actions_history()
+        self._restore_student_inputs()
+        self._restore_student_scientific_inputs()
+        if self.calc_env_dropdown.value == "github-actions" and self._automatic_remote_checks_enabled():
+            self._check_remote_engines()
+
+    def _ui_call(self, callback: Any) -> None:
+        """Publish background progress on the live notebook event loop."""
+        try:
+            from IPython import get_ipython
+            kernel = getattr(get_ipython(), "kernel", None)
+            loop = getattr(kernel, "io_loop", None)
+            if loop is not None and threading.current_thread() is not threading.main_thread():
+                loop.add_callback(callback)
+                return
+        except ImportError:
+            callback()
+            return
+        callback()
+
+    def _build_student_setup_panel(self) -> None:
+        self.student_setup_status = widgets.HTML("<p role='status'>Checking CoChem setup…</p>")
+        self.btn_setup_retry = widgets.Button(description="Retry setup", icon="refresh")
+        self.btn_setup_updates = widgets.Button(description="Check for updates")
+        self.btn_setup_apply = widgets.Button(description="Apply compatible updates", disabled=True)
+        self.btn_setup_rollback = widgets.Button(description="Roll back update", disabled=True)
+        self.btn_setup_restart = widgets.Button(description="Restart interface", disabled=True)
+        for button, action in ((self.btn_setup_retry, "install_default_modules"),
+                               (self.btn_setup_updates, "check_updates"),
+                               (self.btn_setup_apply, "apply_updates"),
+                               (self.btn_setup_rollback, "rollback"),
+                               (self.btn_setup_restart, "restart_dashboard")):
+            button.on_click(lambda _, name=action: self._student_setup_action(name))
+        self.student_setup_panel = widgets.VBox([
+            widgets.HTML("<h3>CoChem setup and updates</h3><p>BASE prepares TOPOS and TORQ automatically in separate environments. You use every module here; no terminal commands or separate repository installation are needed. Your input geometries and results stay outside application source during updates.</p>"),
+            self.student_setup_status,
+            widgets.HBox([self.btn_setup_retry, self.btn_setup_updates, self.btn_setup_apply]),
+            widgets.HBox([self.btn_setup_rollback, self.btn_setup_restart]),
+        ], layout=widgets.Layout(border='1px solid #b8daff', padding='12px', margin='10px 0'))
+
+    def _render_student_setup_status(self, status: dict[str, Any]) -> None:
+        rows = []
+        for name, observation in status.get("modules", {}).items():
+            rows.append("<tr>" + "".join(f"<td>{html.escape(str(value))}</td>" for value in
+                (name.upper(), observation.get("status", "unavailable"), observation.get("revision", ""),
+                 observation.get("message", ""))) + "</tr>")
+        base = status.get("base", {})
+        operation = status.get("operation", {})
+        self.student_setup_status.value = (
+            f"<p role='status' aria-live='polite'><b>{'Ready' if status.get('ready') else 'Setup requires attention'}</b>. "
+            f"BASE revision: {html.escape(str(base.get('revision', 'unavailable')))}. "
+            f"{html.escape(str(operation.get('message', '')))}</p>"
+            "<table><caption>CoChem components</caption><thead><tr><th>Component</th><th>Status</th><th>Revision</th><th>Details</th></tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table>"
+        )
+        self.btn_setup_restart.disabled = self._student_setup_busy or not base.get("restart_required", False)
+        self.btn_setup_rollback.disabled = self._student_setup_busy or not bool(status.get("rollback_available", False))
+        plan = status.get("update_plan") or {}
+        self.btn_setup_apply.disabled = self._student_setup_busy or not bool(plan.get("status") == "updates_available" or
+            plan.get("updates") or plan.get("available") or plan.get("compatible_updates"))
+        if plan:
+            self.student_setup_status.value += (
+                f"<p role='status'>Update check: {html.escape(str(plan.get('status', 'complete')))}. "
+                "Apply compatible updates checks approved published revisions and preserves your research data.</p>"
+            )
+        self._student_setup_observation = status
+
+    def _start_student_setup(self) -> None:
+        """Initialize services without blocking the interface or importing other modules."""
+        def check() -> None:
+            try:
+                from cochem_base.interfaces.student_setup import StudentSetupService
+                from cochem_base.config_loader import get_artifact_dir
+                self._setup_service = StudentSetupService(artifact_dir=get_artifact_dir(), repository_root=_REPO_ROOT,
+                    idle_check=lambda: not (
+                    self._pipeline_running or self._topos_running or self._actions_running or self._actions_retrieving or self._remote_probe_running))
+                status = self._setup_service.status()
+                self._ui_call(lambda: self._render_student_setup_status(status))
+                automatic = os.environ.get("COCHEM_STUDENT_AUTO_SETUP", "").lower()
+                if not status.get("ready") and (automatic in {"1", "true", "yes"} or
+                    automatic not in {"0", "false", "no"} and os.environ.get("CODESPACES", "").lower() == "true"):
+                    self._student_setup_action("install_default_modules")
+            except (ImportError, ValueError, RuntimeError, OSError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.student_setup_status, "value",
+                    f"<p role='alert'>CoChem setup could not be checked: {html.escape(message)}. Choose Retry setup after access is corrected.</p>"))
+        self._student_setup_initial_worker = threading.Thread(target=check, daemon=True)
+        self._student_setup_initial_worker.start()
+
+    def _student_setup_action(self, action: str) -> None:
+        if self._student_setup_busy:
+            return
+        if self._pipeline_running or self._topos_running or self._actions_running:
+            self.student_setup_status.value = "<p role='alert'>Wait for the running calculation to finish or cancel it before changing CoChem installations.</p>"
+            return
+        self._student_setup_busy = True
+        self.student_setup_status.value = f"<p role='status' aria-live='polite'>CoChem: {html.escape(action.replace('_', ' '))}…</p>"
+        for button in (self.btn_setup_retry, self.btn_setup_updates, self.btn_setup_apply,
+                       self.btn_setup_rollback, self.btn_setup_restart):
+            button.disabled = True
+        finished = threading.Event()
+        def progress() -> None:
+            while not finished.wait(2):
+                if self._setup_service is None:
+                    continue
+                try:
+                    status = self._setup_service.status()
+                    self._ui_call(lambda current=status: self._render_student_setup_status(current)
+                        if self._student_setup_busy else None)
+                except (ValueError, RuntimeError, OSError):
+                    continue
+        def perform() -> None:
+            try:
+                if self._setup_service is None:
+                    from cochem_base.interfaces.student_setup import StudentSetupService
+                    from cochem_base.config_loader import get_artifact_dir
+                    self._setup_service = StudentSetupService(artifact_dir=get_artifact_dir(), repository_root=_REPO_ROOT,
+                        idle_check=lambda: not (
+                        self._pipeline_running or self._topos_running or self._actions_running or self._actions_retrieving or self._remote_probe_running))
+                receipt = getattr(self._setup_service, action)()
+                status = self._setup_service.status()
+                if action == "check_updates" and isinstance(receipt, dict):
+                    status["update_plan"] = receipt
+                def success() -> None:
+                    self._student_setup_busy = False
+                    self._render_student_setup_status(status)
+                    self.btn_setup_retry.disabled = False
+                    self.btn_setup_updates.disabled = False
+                    self._refresh_module_capabilities()
+                    self._refresh_orbital_backend_choices()
+                    if hasattr(self, "_refresh_research_capabilities"):
+                        self._refresh_research_capabilities()
+                self._ui_call(success)
+            except (ValueError, RuntimeError, OSError, ImportError) as exc:
+                message = str(exc)
+                def failure() -> None:
+                    self._student_setup_busy = False
+                    self.btn_setup_retry.disabled = False
+                    self.btn_setup_updates.disabled = False
+                    self.student_setup_status.value = f"<p role='alert'>CoChem setup operation failed: {html.escape(message)}. Your uploaded inputs and results are retained.</p>"
+                self._ui_call(failure)
+            finally:
+                finished.set()
+        self._student_setup_worker = threading.Thread(target=perform, daemon=True)
+        self._student_setup_progress_worker = threading.Thread(target=progress, daemon=True)
+        self._student_setup_worker.start()
+        self._student_setup_progress_worker.start()
+
+    def _on_student_xyz_upload(self, change: Any = None) -> None:
+        """Accept actual ipywidgets 8 uploads and preserve original validated bytes."""
+        from cochem_base.config_loader import get_artifact_dir
+        from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+        raw = self.xyz_upload.value
+        if not raw:
+            return
+        files = list(raw.values()) if isinstance(raw, dict) else list(raw)
+        accepted, errors = [], []
+        for entry in files:
+            try:
+                filename = str(entry.get("name") or entry.get("metadata", {}).get("name") or "geometry.xyz")
+                if "/" in filename or "\\" in filename or not filename.lower().endswith(".xyz"):
+                    raise ValueError("Use an XYZ filename without directory components")
+                content = bytes(entry["content"])
+                if not content or len(content) > 2 * 1024 * 1024:
+                    raise ValueError("An XYZ upload must contain 1 byte to 2 MiB")
+                text = content.decode("utf-8-sig", errors="strict")
+                lines = text.strip().splitlines()
+                if not lines or not lines[0].strip().isdigit():
+                    raise ValueError("Uploaded XYZ requires atom count, comment line and one frame of coordinates in ångströms")
+                identity = parse_geometry_identity(text)
+                if len(identity.elements) > 5000:
+                    raise ValueError("Geometry ingestion supports at most 5,000 atoms")
+                digest = hashlib.sha256(content).hexdigest()
+                existing = next((key for key, item in self._student_uploads.items()
+                                 if item["sha256"] == digest and item["filename"] == filename), None)
+                if existing:
+                    accepted.append(existing)
+                    continue
+                key = uuid.uuid4().hex
+                directory = get_artifact_dir() / "StudentInputs" / key
+                directory.mkdir(parents=True, exist_ok=False)
+                safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", filename).lstrip(".")[:160] or "geometry.xyz"
+                path = directory / safe_name
+                with path.open("xb") as handle:
+                    handle.write(content)
+                path.chmod(0o444)
+                record = {"schema_version": "cochem.student-input/1", "id": key, "filename": filename,
+                    "path": str(path), "sha256": digest, "byte_count": len(content), "atom_count": len(identity.elements),
+                    "elements": list(identity.elements), "nuclides": list(identity.nuclides),
+                    "coordinates_angstrom": [list(row) for row in identity.coordinates_angstrom],
+                    "role": self.student_input_role.value, "label": Path(filename).stem,
+                    "charge": self.charge_input.value, "multiplicity": self.multiplicity_input.value,
+                    "fragments": None, "coordinate_unit": "angstrom", "origin": "student_upload"}
+                (directory / "input-manifest.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+                self._student_uploads[key] = record
+                accepted.append(key)
+            except (ValueError, OSError, UnicodeError, KeyError, TypeError) as exc:
+                errors.append(f"{entry.get('name', 'XYZ')}: {exc}")
+        if accepted:
+            self.student_geometry_choice.options = [(record["filename"], key) for key, record in self._student_uploads.items()]
+            self.student_geometry_choice.value = accepted[-1]
+            self._select_student_geometry({"new": accepted[-1]})
+            self._refresh_student_monomer_choices()
+        if errors:
+            self.student_upload_status.value += "<p role='alert'>Rejected uploads: " + "<br/>".join(html.escape(message) for message in errors) + "</p>"
+
+    def _select_student_geometry(self, change: Any) -> None:
+        key = change["new"]
+        record = self._student_uploads.get(key)
+        if not record or self._input_selection_running:
+            return
+        path = Path(record["path"])
+        try:
+            content = path.read_bytes()
+            if hashlib.sha256(content).hexdigest() != record["sha256"]:
+                raise ValueError("Preserved original geometry hash no longer matches")
+            self._input_selection_running = True
+            self.matrix_geometry.value = content.decode("utf-8-sig")
+            self.project_name.value = record["label"]
+            self.student_input_label.value = record["label"]
+            self.student_input_role.value = record["role"]
+            self.charge_input.value = record["charge"]
+            self.multiplicity_input.value = record["multiplicity"]
+            self.student_fragment_atoms.value = ";".join(",".join(str(index + 1) for index in fragment)
+                for fragment in record.get("fragments") or [])
+            self.module_artifact.value = str(path) if hasattr(self, "module_artifact") else ""
+            self.student_upload_status.value = (
+                f"<p role='status'><b>{html.escape(record['filename'])}</b>: {record['atom_count']} atoms. "
+                "Original bytes, atom order and isotope labels preserved. "
+                f"SHA-256: <code>{record['sha256']}</code>.</p>"
+                "<p>Confirm this geometry's input type, charge and multiplicity, then choose Save geometry details. "
+                "Fragment groups use one-based atom indices. Editing coordinates creates a distinct calculation request; the uploaded original remains unchanged.</p>"
+            )
+        except (ValueError, OSError, UnicodeError) as exc:
+            self.student_upload_status.value = f"<p role='alert'>Geometry could not be loaded: {html.escape(str(exc))}</p>"
+        finally:
+            self._input_selection_running = False
+
+    def _save_student_input_details(self, b: Any = None) -> None:
+        record = self._student_uploads.get(self.student_geometry_choice.value)
+        if not record:
+            self.student_upload_status.value = "<p role='alert'>Upload and select your XYZ before saving its details.</p>"
+            return
+        try:
+            if self.multiplicity_input.value < 1:
+                raise ValueError("Multiplicity must be a positive integer")
+            groups = None
+            if self.student_fragment_atoms.value.strip():
+                groups = [[int(index.strip()) - 1 for index in group.split(",")]
+                          for group in self.student_fragment_atoms.value.split(";")]
+                indices = [index for group in groups for index in group]
+                if any(not group for group in groups) or sorted(indices) != list(range(record["atom_count"])):
+                    raise ValueError("Fragment groups must assign every atom exactly once using indices 1 through the atom count")
+            record.update(role=self.student_input_role.value, label=self.student_input_label.value.strip() or Path(record["filename"]).stem,
+                          charge=self.charge_input.value, multiplicity=self.multiplicity_input.value, fragments=groups)
+            Path(record["path"]).parent.joinpath("input-manifest.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+            self.project_name.value = record["label"]
+            self.student_upload_status.value = f"<p role='status'>Saved {html.escape(record['role'])} details: {html.escape(record['label'])}, charge {record['charge']}, multiplicity {record['multiplicity']}. Original SHA-256 <code>{record['sha256']}</code> unchanged.</p>"
+            self._refresh_student_monomer_choices()
+        except (ValueError, OSError) as exc:
+            self.student_upload_status.value = f"<p role='alert'>Geometry details were not saved: {html.escape(str(exc))}</p>"
+
+    def _refresh_student_monomer_choices(self) -> None:
+        chosen = set(self.student_monomer_choices.value)
+        choices = [(item["label"], key) for key, item in self._student_uploads.items() if item["role"].startswith("monomer")]
+        self.student_monomer_choices.options = choices
+        self.student_monomer_choices.value = tuple(key for _, key in choices if key in chosen)
+
+    def _restore_student_inputs(self) -> None:
+        """Reopen the student's retained, hash-checked inputs after GUI updates."""
+        from cochem_base.config_loader import get_artifact_dir
+        from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+        root = get_artifact_dir() / "StudentInputs"
+        if not root.is_dir() or root.is_symlink():
+            return
+        records = {}
+        manifests = []
+        for candidate in root.glob("*/input-manifest.json"):
+            try:
+                if candidate.is_symlink() or candidate.parent.is_symlink():
+                    continue
+                manifests.append((candidate.stat().st_mtime, candidate))
+            except OSError:
+                continue
+        for _, manifest in sorted(manifests, key=lambda item: item[0])[-500:]:
+            try:
+                if manifest.is_symlink() or manifest.parent.is_symlink() or manifest.stat().st_size > 2 * 1024 * 1024:
+                    continue
+                record = json.loads(manifest.read_text(encoding="utf-8"))
+                key = record["id"]
+                if (record.get("schema_version") != "cochem.student-input/1" or not re.fullmatch(r"[a-f0-9]{32}", key)
+                        or manifest.parent.name != key or record.get("role") not in {"complex", "monomer_a", "monomer_b", "monomer"}
+                        or type(record.get("charge")) is not int or type(record.get("multiplicity")) is not int or record["multiplicity"] < 1):
+                    continue
+                path = Path(record["path"])
+                if (path.is_symlink() or path.parent.resolve() != manifest.parent.resolve() or not path.is_file()
+                        or path.stat().st_size > 2 * 1024 * 1024):
+                    continue
+                content = path.read_bytes()
+                if hashlib.sha256(content).hexdigest() != record["sha256"]:
+                    continue
+                identity = parse_geometry_identity(content.decode("utf-8-sig"))
+                if list(identity.elements) != record["elements"] or list(identity.nuclides) != record["nuclides"]:
+                    continue
+                if (record.get("coordinate_unit") != "angstrom" or type(record.get("atom_count")) is not int
+                        or record["atom_count"] != len(identity.elements) or not 1 <= record["atom_count"] <= 5000
+                        or type(record.get("byte_count")) is not int or record["byte_count"] != len(content)
+                        or record.get("coordinates_angstrom") != [list(row) for row in identity.coordinates_angstrom]
+                        or not isinstance(record.get("filename"), str) or not 1 <= len(record["filename"]) <= 256
+                        or "/" in record["filename"] or "\\" in record["filename"] or "\0" in record["filename"]
+                        or not isinstance(record.get("label"), str) or not 1 <= len(record["label"]) <= 500
+                        or any(character in record["label"] for character in "\0\r\n")):
+                    continue
+                groups = record.get("fragments")
+                if groups is not None:
+                    if (not isinstance(groups, list) or not groups or any(not isinstance(group, list) or not group for group in groups)):
+                        continue
+                    indices = [index for group in groups for index in group]
+                    if any(type(index) is not int for index in indices) or sorted(indices) != list(range(record["atom_count"])):
+                        continue
+                states = record.get("fragment_states")
+                if states is not None:
+                    if not groups or not isinstance(states, list) or len(states) != len(groups):
+                        continue
+                    valid_states = all(isinstance(state, dict) and state.get("atom_indices") == group
+                        and type(state.get("charge")) is int and type(state.get("multiplicity")) is int and state["multiplicity"] > 0
+                        for state, group in zip(states, groups, strict=True))
+                    if not valid_states or sum(state["charge"] for state in states) != record["charge"]:
+                        continue
+                records[key] = record
+            except (ValueError, KeyError, TypeError, UnicodeError, OSError):
+                continue
+        if records:
+            self._student_uploads.update(records)
+            self.student_geometry_choice.options = [(record["label"], key) for key, record in self._student_uploads.items()]
+            self.student_geometry_choice.value = next(reversed(records))
+            self._refresh_student_monomer_choices()
+
+    def _assemble_student_monomers(self, b: Any = None) -> None:
+        try:
+            from cochem_base.config_loader import get_artifact_dir
+            from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+            from cochem_base.interfaces.student_research import assemble_monomers
+            records = [self._student_uploads[key] for key in self.student_monomer_choices.value]
+            if len(records) < 2:
+                raise ValueError("Upload at least two monomers, save their input types and electronic states, then select them above")
+            monomers = []
+            for item in records:
+                raw = Path(item["path"]).read_bytes()
+                if hashlib.sha256(raw).hexdigest() != item["sha256"]:
+                    raise ValueError("Original monomer geometry hash has changed")
+                monomers.append({"xyz": raw.decode("utf-8-sig"), "charge": item["charge"], "multiplicity": item["multiplicity"]})
+            result = assemble_monomers(monomers, separation_angstrom=self.student_seed_separation.value,
+                                      multiplicity=self.multiplicity_input.value)
+            identity = parse_geometry_identity(result["xyz"])
+            content = result["xyz"].encode("utf-8")
+            key = uuid.uuid4().hex
+            directory = get_artifact_dir() / "StudentInputs" / key
+            directory.mkdir(parents=True, exist_ok=False)
+            path = directory / "student-monomer-complex-seed.xyz"
+            path.write_bytes(content)
+            path.chmod(0o444)
+            record = {"schema_version": "cochem.student-input/1", "id": key, "filename": path.name,
+                "path": str(path), "sha256": hashlib.sha256(content).hexdigest(), "byte_count": len(content),
+                "atom_count": len(identity.elements), "elements": list(identity.elements), "nuclides": list(identity.nuclides),
+                "coordinates_angstrom": [list(row) for row in identity.coordinates_angstrom], "role": "complex",
+                "label": " + ".join(item["label"] for item in records), "charge": result["molecule"]["charge"],
+                "multiplicity": result["molecule"]["multiplicity"], "fragments": result["molecule"]["fragments"],
+                "fragment_states": result["molecule"]["fragment_states"], "coordinate_unit": "angstrom",
+                "origin": "student_monomer_translation_seed", "monomer_sources": [{"id": item["id"], "sha256": item["sha256"]} for item in records],
+                "assembly": result["topos_request"]["metadata"]["assembly"]}
+            (directory / "input-manifest.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+            self._student_uploads[key] = record
+            self.student_geometry_choice.options = [(item["label"], identity) for identity, item in self._student_uploads.items()]
+            self.student_geometry_choice.value = key
+            self.student_upload_status.value += "<p><b>Starting packing prepared by translation only.</b> No energy or stable-complex claim has been made. Select a TOPOS search or association calculation next.</p>"
+        except (ValueError, OSError, ImportError) as exc:
+            self.student_upload_status.value = f"<p role='alert'>Complex starting seed was not prepared: {html.escape(str(exc))}</p>"
+
+    def _student_current_xyz(self) -> str:
+        from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+        identity = parse_geometry_identity(self.matrix_geometry.value)
+        text = self.matrix_geometry.value
+        if text.strip().splitlines()[0].strip().isdigit():
+            return text
+        return str(len(identity.elements)) + "\nStudent geometry entered in BASE; angstrom\n" + "\n".join(
+            symbol + " " + " ".join(format(value, ".17g") for value in row)
+            for symbol, row in zip(identity.nuclides, identity.coordinates_angstrom, strict=True)) + "\n"
+
+    def _portable_t9_request(self) -> dict[str, Any] | None:
+        if not self.t9_enable.value:
+            return None
+        from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+        from cochem_base.physics.nuclide_resolver import get_element
+        orbitals = [int(value.strip()) for value in self.t9_orbitals.value.split(',') if value.strip()]
+        if (not orbitals or any(index < 0 for index in orbitals) or len(set(orbitals)) != len(orbitals)
+                or not 1 <= self.t9_electrons.value <= 2 * len(orbitals)):
+            raise ValueError("T9 requires distinct nonnegative MO indices and a compatible positive active-electron count")
+        rationale = self.t9_rationale.value.strip()
+        if not rationale or len(rationale) > 4000:
+            raise ValueError("T9 requires a scientific active-space rationale of at most 4,000 characters")
+        identity = parse_geometry_identity(self.matrix_geometry.value)
+        total = sum(int(get_element(symbol).atomic_number) for symbol in identity.elements) - self.charge_input.value
+        spin = self.multiplicity_input.value - 1
+        inactive = total - self.t9_electrons.value
+        if (inactive < 0 or inactive % 2 or (self.t9_electrons.value - spin) % 2
+                or spin > self.t9_electrons.value or (self.t9_electrons.value + spin) // 2 > len(orbitals)):
+            raise ValueError("The requested active space cannot represent this geometry's charge and multiplicity")
+        return {"pyscf_version": "2.14.0", "method": self.t9_method.value, "basis": self.t9_basis.value,
+            "active_electrons": self.t9_electrons.value, "active_orbitals": orbitals,
+            "active_space_rationale": rationale, "threads": self.actions_cores.value,
+            "memory_mb": self.actions_memory.value * self.actions_cores.value,
+            "timeout_seconds": float(self.actions_timeout.value), "max_cycle": 200}
+
+    def _ingest_student_scientific_input(self, kind: str, widget: widgets.FileUpload) -> None:
+        if not widget.value:
+            return
+        entry = list(widget.value.values())[0] if isinstance(widget.value, dict) else widget.value[0]
+        try:
+            content = bytes(entry['content'])
+            if not content or len(content) > 16 * 1024 * 1024:
+                raise ValueError("Scientific uploads must contain 1 byte to 16 MiB")
+            geometry = self._student_current_xyz()
+            filename = str(entry.get('name', 'scientific-input'))
+        except (ValueError, KeyError, TypeError) as exc:
+            self.scientific_input_status.value = f"<p role='alert'>Scientific input was not accepted: {html.escape(str(exc))}</p>"
+            return
+        widget.disabled = True
+        self.scientific_input_status.value = "<p role='status'>Verifying retained scientific evidence and its geometry binding…</p>"
+        def ingest() -> None:
+            try:
+                from cochem_base.interfaces.scientific_inputs import ingest_scientific_upload
+                from cochem_base.config_loader import get_artifact_dir
+                destination = get_artifact_dir() / "ScientificInputs" / f"{kind}-{uuid.uuid4().hex}"
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                receipt = ingest_scientific_upload(kind, content, filename, geometry_xyz=geometry, destination=destination)
+                retained = {key: receipt[key] for key in ('kind', 'entrypoint', 'geometry_sha256', 'input_scope', 'scientific_validation_performed')}
+                retained['schema_version'] = 'cochem.student-scientific-input/1'
+                retained['files'] = {name: {'sha256': hashlib.sha256(raw).hexdigest(), 'size_bytes': len(raw)}
+                                     for name, raw in receipt['files'].items()}
+                metadata = destination / 'student-scientific-input.json'
+                metadata.write_text(json.dumps(retained, indent=2, allow_nan=False) + '\n', encoding='utf-8')
+                metadata.chmod(0o444)
+                def success() -> None:
+                    self._scientific_inputs[kind] = receipt
+                    if kind == 'r2_reference':
+                        self.r2_reference_manifest.value = str(receipt['entrypoint_path'])
+                    self.scientific_input_status.value = (
+                        f"<p role='status'><b>{html.escape(kind)} retained.</b> "
+                        f"Input scope: {html.escape(str(receipt.get('input_scope', 'transport and source binding')))}. "
+                        "The worker validates native evidence before executing its dependent scientific method.</p>"
+                    )
+                    self._check_dispersion_gate()
+                    try:
+                        self.live_preview.value = json.dumps(self._collect_run_config(), indent=2)
+                    except (ValueError, RuntimeError, OSError, MethodologyViolationError) as exc:
+                        self.live_preview.value = f"Configuration requires attention: {exc}"
+                self._ui_call(success)
+            except (ValueError, RuntimeError, OSError, ImportError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.scientific_input_status, 'value', f"<p role='alert'>Scientific input was rejected: {html.escape(message)}</p>"))
+            finally:
+                self._ui_call(lambda: setattr(widget, 'disabled', False))
+        self._scientific_input_worker = threading.Thread(target=ingest, daemon=True)
+        self._scientific_input_worker.start()
+
+    def _restore_student_scientific_inputs(self) -> None:
+        """Recover only bounded intact evidence stored in this student's workspace."""
+        def restore() -> None:
+            from cochem_base.config_loader import get_artifact_dir
+            from cochem_base.interfaces.scientific_inputs import safe_relative_path
+            root = get_artifact_dir() / 'ScientificInputs'
+            if root.is_symlink() or not root.is_dir():
+                return
+            candidates = []
+            for path in root.glob('*/student-scientific-input.json'):
+                try:
+                    if not path.is_symlink() and not path.parent.is_symlink() and path.stat().st_size <= 256 * 1024:
+                        candidates.append((path.stat().st_mtime, path))
+                except OSError:
+                    continue
+            restored = {}
+            for _, path in sorted(candidates, reverse=True)[:20]:
+                try:
+                    record = json.loads(path.read_text(encoding='utf-8'))
+                    kind = record['kind']
+                    if kind in restored or kind not in {'r2_reference', 'read_hessian'} or record.get('schema_version') != 'cochem.student-scientific-input/1':
+                        continue
+                    if not re.fullmatch('[a-f0-9]{64}', record['geometry_sha256']) or not isinstance(record.get('files'), dict) or not 1 <= len(record['files']) <= 512:
+                        continue
+                    files, total = {}, 0
+                    for name, expected in record['files'].items():
+                        safe_relative_path(name)
+                        source = path.parent.joinpath(*name.split('/'))
+                        if source.is_symlink() or not source.resolve().is_relative_to(path.parent.resolve()) or not source.is_file():
+                            raise ValueError('Evidence file is outside the owned receipt')
+                        size = source.stat().st_size
+                        total += size
+                        if not 0 < size <= 16 * 1024 * 1024 or total > 64 * 1024 * 1024 or type(expected['size_bytes']) is not int or size != expected['size_bytes']:
+                            raise ValueError('Evidence size differs from the receipt')
+                        raw = source.read_bytes()
+                        if hashlib.sha256(raw).hexdigest() != expected['sha256']:
+                            raise ValueError('Evidence hash differs from the receipt')
+                        files[name] = raw
+                    entrypoint = record['entrypoint']
+                    if entrypoint not in files:
+                        continue
+                    restored[kind] = {**record, 'files': files, 'entrypoint_path': path.parent.joinpath(*entrypoint.split('/'))}
+                except (ValueError, TypeError, KeyError, OSError):
+                    continue
+            def complete() -> None:
+                for kind, receipt in restored.items():
+                    self._scientific_inputs.setdefault(kind, receipt)
+                if restored:
+                    self.scientific_input_status.value = '<p role="status">Retained R2/READ evidence was reopened after verifying its original file hashes. Choose the matching geometry; native scientific validation remains required.</p>'
+                    self._check_dispersion_gate()
+            self._ui_call(complete)
+        self._scientific_restore_worker = threading.Thread(target=restore, daemon=True)
+        self._scientific_restore_worker.start()
+
+    def _selected_scientific_input(self) -> dict[str, Any] | None:
+        requested = []
+        if self.cb_recipe_r2.value:
+            requested.append('r2_reference')
+        if self.scientific_initial_hessian.value == 'READ':
+            requested.append('read_hessian')
+        if len(requested) > 1:
+            raise ValueError("R2 uses its reference-monomer protocol; a separate READ Hessian cannot replace that request")
+        if not requested:
+            return None
+        receipt = self._scientific_inputs.get(requested[0])
+        if not receipt:
+            raise ValueError("Upload the genuine " + requested[0] + " input before choosing this dependent calculation")
+        geometry = self._student_current_xyz()
+        if receipt['geometry_sha256'] != hashlib.sha256(geometry.encode('utf-8')).hexdigest():
+            raise ValueError("Scientific reference/Hessian input belongs to a different geometry. Upload evidence bound to the currently selected structure")
+        return receipt
+
+    def _build_student_research_panels(self) -> None:
+        self._research_capability_observations = {}
+        self._research_observations = []
+        self._research_reports = []
+        self.research_capabilities = widgets.HTML("<p role='status'>Checking installed research capabilities…</p>")
+        self.btn_research_refresh = widgets.Button(description="Refresh research capabilities")
+        self.btn_research_refresh.on_click(self._refresh_research_capabilities)
+        self.research_topos_operation = widgets.Dropdown(options=[("Checking capabilities", "")],
+            description="Research operation:", style={'description_width': 'initial'}, disabled=True)
+        self.research_topos_engine = widgets.Dropdown(options=[("xTB GFN2 screening", "xtb")], value="xtb", description="Research method:", style={'description_width': 'initial'})
+        self.research_matrix_recipe = widgets.Dropdown(options=[("No verified molecule-only recipe", "")],
+            description="Optimization recipe:", style={'description_width': 'initial'}, disabled=True)
+        self.research_matrix_guidance = widgets.HTML("<p>Only complete recipes supported by the installed TOPOS catalog can be selected. R1 association references and scan-coordinate recipes require their own validated inputs.</p>")
+        self.research_candidates = widgets.BoundedIntText(value=4, min=1, max=100, description="Starting candidates:",
+            style={'description_width': 'initial'})
+        self.research_temperature = widgets.BoundedFloatText(value=298.15, min=1, max=2000,
+            description="Temperature (K):", style={'description_width': 'initial'})
+        self.research_fragment_states = widgets.VBox()
+        self._research_fragment_state_inputs = []
+        self.btn_research_fragment_states = widgets.Button(description="Set monomer electronic states")
+        self.btn_research_fragment_states.on_click(self._build_student_fragment_states)
+        self.btn_research_topos = widgets.Button(description="Run TOPOS research", button_style="success", disabled=True)
+        self.btn_research_topos.on_click(self._run_student_topos)
+        self.research_status = widgets.HTML("<p role='status'>Upload your own monomer or complex starting geometries in Molecule Builder.</p>")
+        self.research_topos_panel = widgets.VBox([
+            widgets.HTML("<h4>TOPOS research through BASE</h4><p>Use your uploaded starting geometry or a documented seed assembled from your own monomers. Choose an installed operation; results retain the actual method, input and provider identities.</p>"),
+            self.research_capabilities, self.btn_research_refresh, self.research_topos_operation,
+            self.research_topos_engine, self.research_matrix_recipe, self.research_matrix_guidance, self.research_candidates, self.research_temperature,
+            self.btn_research_fragment_states, self.research_fragment_states, self.btn_research_topos, self.research_status,
+        ])
+        old_topos = widgets.Accordion(children=[self.tab_topos])
+        old_topos.set_title(0, "Advanced native conformer search")
+        old_topos.selected_index = None
+        self.tab_topos = widgets.VBox([self.research_topos_panel, old_topos])
+        self.research_scan_method = widgets.Dropdown(options=[("HF (installation example)", "hf"),
+            ("PBE-D4", "pbe-d4"), ("B3LYP-D4", "b3lyp-d4"), ("MP2", "mp2")],
+            value="pbe-d4", description="Scan method:", style={'description_width': 'initial'})
+        self.research_scan_basis = widgets.Dropdown(options=["sto-3g", "def2-svp", "def2-tzvp", "cc-pvdz", "aug-cc-pvdz"],
+            value="def2-svp", description="Scan basis:", style={'description_width': 'initial'})
+        self.research_scan_start = widgets.BoundedFloatText(value=3.0, min=.2, max=100, description="Start separation (Å):",
+            style={'description_width': 'initial'})
+        self.research_scan_end = widgets.BoundedFloatText(value=6.0, min=.2, max=100, description="End separation (Å):",
+            style={'description_width': 'initial'})
+        self.research_scan_points = widgets.BoundedIntText(value=5, min=2, max=20, description="Scan points:",
+            style={'description_width': 'initial'})
+        self.btn_research_torq = widgets.Button(description="Run TORQ potential energy scan", button_style="success", disabled=True)
+        self.btn_research_torq.on_click(self._run_student_torq)
+        self.btn_research_nbo = widgets.Button(description="Run NBO analysis", disabled=True)
+        self.btn_research_nbo.on_click(lambda _: self._run_student_orbital_analysis("nbo_analysis"))
+        self.btn_research_wiberg = widgets.Button(description="Run Löwdin Wiberg analysis", disabled=True)
+        self.btn_research_wiberg.on_click(self._run_student_wiberg)
+        self.btn_research_wiberg_nao = widgets.Button(description="Run NAO Wiberg analysis", disabled=True)
+        self.btn_research_wiberg_nao.on_click(lambda _: self._run_student_orbital_analysis("wiberg_nao"))
+        self.research_orbital_backend = widgets.Dropdown(options=[('No verified orbital backend', None)],
+            description='Orbital backend:', style={'description_width': 'initial'}, disabled=True)
+        self.research_orbital_backend.observe(lambda change: self._refresh_execution_gate(), names='value')
+        self.research_bond_capability = widgets.HTML("<p>NBO and Wiberg calculations require an installed provider that returns authentic, hash-bound analysis. An unavailable provider disables those selections. Mayer, Löwdin and NAO-Wiberg bond definitions are distinct.</p>")
+        self.tab_torq = widgets.VBox([
+            widgets.HTML("<h4>TORQ research through BASE</h4><p>Rigid two-fragment scans translate the second monomer along the initial mass-center separation. They calculate each point and preserve all monomer internal coordinates. This operation does not optimize the scan points or claim a multidimensional surface.</p>"),
+            self.research_scan_method, self.research_scan_basis,
+            widgets.HBox([self.research_scan_start, self.research_scan_end]), self.research_scan_points,
+            self.btn_research_torq, self.research_orbital_backend, widgets.HBox([self.btn_research_nbo, self.btn_research_wiberg, self.btn_research_wiberg_nao]),
+            self.research_bond_capability,
+        ])
+        children = list(self.config_tabs.children)
+        children[2:4] = [self.tab_topos, self.tab_torq]
+        self.config_tabs.children = children
+        self.research_energy_kind = widgets.Dropdown(options=[("Electronic energies", "electronic_energy"),
+            ("Gibbs free energies", "gibbs_free_energy")], value="electronic_energy", description="Compare:")
+        self.research_populations = widgets.Checkbox(value=False, description="Include minimum-based population model")
+        self.research_isomer_choices = widgets.SelectMultiple(options=[], description="Calculated structures:",
+            style={'description_width': 'initial'}, layout=widgets.Layout(width='95%', height='130px'))
+        self.btn_research_compare = widgets.Button(description="Compare calculated isomers", disabled=True)
+        self.btn_research_compare.on_click(self._compare_student_isomers)
+        self.research_report_output = widgets.HTML("<p role='status'>Verified calculations produce energy tables, population models, potential-energy diagrams and available orbital/bond diagrams here. Starting XYZ coordinates alone do not supply those observations.</p>")
+        self.research_report_download = widgets.HTML()
+        advanced = widgets.Accordion(children=[self.view_modules])
+        advanced.set_title(0, "Advanced module installation and validated handoff")
+        advanced.selected_index = None
+        self.view_modules = widgets.VBox([
+            widgets.HTML("<h3>Research results</h3>"), self.research_report_output,
+            self.research_isomer_choices, self.research_energy_kind, self.research_populations, self.btn_research_compare,
+            self.research_report_download, advanced,
+        ], layout=widgets.Layout(padding='20px'))
+        self._refresh_research_capabilities()
+
+    def _refresh_research_capabilities(self, b: Any = None) -> None:
+        if not hasattr(self, "research_capabilities"):
+            return
+        self.btn_research_refresh.disabled = True
+        def refresh() -> None:
+            try:
+                from cochem_base.interfaces.student_research import get_student_capabilities
+                observations = get_student_capabilities(root=Path(self.module_root.value))
+                def render() -> None:
+                    self._research_capability_observations = {item["module_id"]: item for item in observations}
+                    available = self._research_capability_observations.get("topos", {})
+                    labels = {"energy": "Single-point energy", "gradient": "Energy and Cartesian gradient",
+                        "optimize": "Optimize starting geometry", "search": "Find isomer candidates",
+                        "frequency": "Harmonic frequencies", "thermochemistry": "Thermochemistry",
+                        "association": "Monomer association search", "matrix": "Validated matrix optimization recipe"}
+                    options = [(labels[operation], operation) for operation in available.get("operations", []) if operation in labels]
+                    self.research_topos_operation.options = options or [("No installed research provider", "")]
+                    self.research_topos_operation.disabled = not options
+                    self.btn_research_topos.disabled = not options or self._actions_running or self._pipeline_running
+                    torq = self._research_capability_observations.get("torq", {})
+                    self.btn_research_torq.disabled = "research_scan" not in torq.get("operations", []) or self._actions_running or self._pipeline_running
+                    self.btn_research_wiberg.disabled = "wiberg_lowdin" not in torq.get("operations", []) or self._actions_running or self._pipeline_running
+                    self.btn_research_nbo.disabled = "nbo_analysis" not in torq.get("operations", []) or self._actions_running or self._pipeline_running
+                    self.btn_research_wiberg_nao.disabled = "wiberg_nao" not in torq.get("operations", []) or self._actions_running or self._pipeline_running
+                    definitions = torq.get("provider_capabilities", {}).get("scientific_apis", {})
+                    reasons = {name: item.get("reason", item.get("scope", "No installed provider"))
+                               for name, item in definitions.items() if isinstance(item, dict) and not item.get("available")}
+                    if reasons:
+                        self.research_bond_capability.value = "<ul>" + "".join(
+                            f"<li>{html.escape(str(name))}: {html.escape(str(reason))}</li>" for name, reason in reasons.items()) + "</ul>"
+                    self.research_capabilities.value = "<ul>" + "".join(
+                        f"<li><b>{html.escape(item['module_id'].upper())}</b>: {html.escape(item.get('status', 'unavailable'))}; "
+                        f"{html.escape(', '.join(item.get('operations', [])) or 'no reviewed scientific operation available')}. "
+                        f"{html.escape(str(item.get('reason', '')))}</li>" for item in observations) + "</ul>"
+                    self._refresh_research_engine_choices()
+                    self._refresh_orbital_backend_choices()
+                    self._refresh_execution_gate()
+                    self.btn_research_refresh.disabled = False
+                self._ui_call(render)
+            except (ValueError, RuntimeError, OSError, ImportError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.research_capabilities, "value", f"<p role='alert'>Research capabilities could not be checked: {html.escape(message)}</p>"))
+                self._ui_call(lambda: setattr(self.btn_research_refresh, "disabled", False))
+        self._research_capability_worker = threading.Thread(target=refresh, daemon=True)
+        self._research_capability_worker.start()
+
+    def _refresh_research_engine_choices(self) -> None:
+        if not hasattr(self, "research_topos_engine"):
+            return
+        remote = self.calc_env_dropdown.value == "github-actions"
+        orca_ready = (self._remote_engine_availability['orca'].get('provisionable', False)
+                      if remote else licensed_engine_availability()['orca']['available'])
+        options = [("xTB GFN2 screening", "xtb")]
+        if orca_ready:
+            options.append(("ORCA r2SCAN-3c", "orca"))
+        previous = self.research_topos_engine.value
+        self.research_topos_engine.options = options
+        self.research_topos_engine.value = previous if previous in dict(options).values() else "xtb"
+        from cochem_base.interfaces.student_research import student_matrix_recipes
+        recipes = student_matrix_recipes(capabilities=list(self._research_capability_observations.values()))
+        self._student_matrix_recipes = {item['row_id']: item for item in recipes if item['engine'] != 'orca' or orca_ready}
+        choices = [(f"{row}: {item['method']} / {item['basis'] or 'built in'}", row)
+                   for row, item in self._student_matrix_recipes.items()]
+        current = self.research_matrix_recipe.value
+        self.research_matrix_recipe.options = choices or [("No verified molecule-only recipe", "")]
+        self.research_matrix_recipe.value = current if current in self._student_matrix_recipes else (choices[0][1] if choices else '')
+        self.research_matrix_recipe.disabled = not choices
+
+    def _refresh_orbital_backend_choices(self) -> None:
+        if not hasattr(self, 'research_orbital_backend'):
+            return
+        torq = self._research_capability_observations.get('torq', {})
+        definitions = torq.get('provider_capabilities', {}).get('scientific_apis', {})
+        engines = set()
+        for operation in ('nbo_analysis', 'wiberg_nao'):
+            record = definitions.get(operation, {})
+            if operation in torq.get('operations', []) and record.get('available') is True:
+                engines.update(engine for engine in record.get('supported_engines', []) if engine in {'orca', 'pyscf'})
+        remote = self.calc_env_dropdown.value == 'github-actions'
+        orca_ready = (self._remote_engine_availability['orca'].get('provisionable', False)
+                      if remote else licensed_engine_availability()['orca']['available'])
+        if not orca_ready:
+            engines.discard('orca')
+        choices = [(engine.upper(), engine) for engine in sorted(engines)]
+        previous = self.research_orbital_backend.value
+        self.research_orbital_backend.options = choices or [('No verified orbital backend', None)]
+        self.research_orbital_backend.value = previous if previous in engines else (choices[0][1] if choices else None)
+        self.research_orbital_backend.disabled = not choices
+
+    def _student_fragment_groups(self) -> list[list[int]]:
+        from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+        identity = parse_geometry_identity(self._student_current_xyz())
+        record = self._student_uploads.get(self.student_geometry_choice.value)
+        groups = record.get("fragments") if record else None
+        if self.student_fragment_atoms.value.strip():
+            groups = [[int(index.strip()) - 1 for index in group.split(",")]
+                      for group in self.student_fragment_atoms.value.split(";")]
+        if not groups:
+            groups = detect_molecular_fragments(list(identity.elements), list(identity.coordinates_angstrom))
+        flattened = [index for group in groups for index in group]
+        if sorted(flattened) != list(range(len(identity.elements))):
+            raise ValueError("Fragment membership must assign every atom exactly once")
+        return [list(group) for group in groups]
+
+    def _build_student_fragment_states(self, b: Any = None) -> None:
+        try:
+            groups = self._student_fragment_groups()
+            current = self._student_uploads.get(self.student_geometry_choice.value) or {}
+            states = current.get("fragment_states", [])
+            controls, rows = [], []
+            for index, group in enumerate(groups):
+                state = states[index] if index < len(states) else {"charge": 0, "multiplicity": 1}
+                charge = widgets.IntText(value=state["charge"], description=f"Monomer {index + 1} charge:", style={'description_width': 'initial'})
+                spin = widgets.BoundedIntText(value=state["multiplicity"], min=1, max=21,
+                    description=f"Monomer {index + 1} multiplicity:", style={'description_width': 'initial'})
+                controls.append((group, charge, spin))
+                rows.append(widgets.VBox([widgets.HTML(f"<p>Monomer {index + 1}: atoms {html.escape(', '.join(str(i + 1) for i in group))}</p>"), widgets.HBox([charge, spin])]))
+            self._research_fragment_state_inputs = controls
+            self.research_fragment_states.children = rows
+        except (ValueError, RuntimeError) as exc:
+            self.research_status.value = f"<p role='alert'>Monomer states require valid input: {html.escape(str(exc))}</p>"
+
+    def _run_student_topos(self, b: Any = None) -> None:
+        try:
+            from cochem_base.interfaces.student_research import SCHEMA, build_topos_request, build_topos_matrix_request
+            geometry = self._student_current_xyz()
+            operation = self.research_topos_operation.value
+            if operation not in self._research_capability_observations.get("topos", {}).get("operations", []):
+                raise ValueError("The installed TOPOS provider does not support this operation")
+            engine = self.research_topos_engine.value
+            fragments, states = None, None
+            if operation == "association":
+                fragments = self._student_fragment_groups()
+                if not self._research_fragment_state_inputs or [row[0] for row in self._research_fragment_state_inputs] != fragments:
+                    self._build_student_fragment_states()
+                    raise ValueError("Confirm each displayed monomer charge and multiplicity, then run the association search")
+                states = [{"atom_indices": group, "charge": charge.value, "multiplicity": spin.value}
+                          for group, charge, spin in self._research_fragment_state_inputs]
+                if sum(state["charge"] for state in states) != self.charge_input.value:
+                    raise ValueError("Monomer charges must sum to the selected complex charge")
+            if operation == 'matrix':
+                row = self.research_matrix_recipe.value
+                if row not in getattr(self, '_student_matrix_recipes', {}):
+                    raise ValueError("Select a complete optimization recipe from the verified installed catalog")
+                request = build_topos_matrix_request(geometry, row_id=row,
+                    charge=self.charge_input.value, multiplicity=self.multiplicity_input.value,
+                    capabilities=list(self._research_capability_observations.values()), options={
+                        "threads": self.actions_cores.value, "memory_mb": self.actions_memory.value * self.actions_cores.value,
+                        "budget_seconds": self.actions_timeout.value})
+            else:
+                request = build_topos_request(geometry, operation=operation,
+                    charge=self.charge_input.value, multiplicity=self.multiplicity_input.value,
+                    engine=engine, method="r2SCAN-3c" if engine == "orca" else "GFN2-xTB",
+                    fragments=fragments, fragment_states=states, options={
+                        "n_candidates": self.research_candidates.value if operation in {"search", "association"} else 1,
+                        "threads": self.actions_cores.value, "memory_mb": self.actions_memory.value * self.actions_cores.value,
+                        "budget_seconds": self.actions_timeout.value, "temperature_k": self.research_temperature.value})
+            provider = {"schema_version": SCHEMA, "module": "topos", "operation": operation,
+                "artifact": "inputs/starting-geometry.xyz", "artifact_sha256": hashlib.sha256(geometry.encode("utf-8")).hexdigest(),
+                "options": {"topos_request": request}}
+            self._run_student_provider(provider, geometry)
+        except (ValueError, RuntimeError, OSError, ImportError) as exc:
+            self.research_status.value = f"<p role='alert'>TOPOS research was not started: {html.escape(str(exc))}</p>"
+
+    def _run_student_torq(self, b: Any = None) -> None:
+        try:
+            from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+            from cochem_base.interfaces.student_research import SCHEMA
+            from cochem_base.interfaces.torq_research import validate_scan_options
+            if "research_scan" not in self._research_capability_observations.get("torq", {}).get("operations", []):
+                raise ValueError("The installed TORQ provider does not support this scan")
+            geometry = self._student_current_xyz()
+            if self.research_scan_end.value <= self.research_scan_start.value:
+                raise ValueError("Scan end separation must exceed its start")
+            count = self.research_scan_points.value
+            distances = [self.research_scan_start.value + (self.research_scan_end.value - self.research_scan_start.value) * index / (count - 1)
+                         for index in range(count)]
+            options = validate_scan_options({"method": {"name": self.research_scan_method.value, "basis": self.research_scan_basis.value},
+                "charge": self.charge_input.value, "multiplicity": self.multiplicity_input.value,
+                "fragments": self._student_fragment_groups(), "distances_angstrom": distances,
+                "cores": self.actions_cores.value, "memory_mb": self.actions_memory.value * self.actions_cores.value},
+                len(parse_geometry_identity(geometry).elements))
+            provider = {"schema_version": SCHEMA, "module": "torq", "operation": "research_scan",
+                "artifact": "inputs/starting-geometry.xyz", "artifact_sha256": hashlib.sha256(geometry.encode("utf-8")).hexdigest(),
+                "options": options}
+            self._run_student_provider(provider, geometry)
+        except (ValueError, RuntimeError, OSError, ImportError) as exc:
+            self.research_status.value = f"<p role='alert'>TORQ scan was not started: {html.escape(str(exc))}</p>"
+
+    def _run_student_provider(self, provider: dict[str, Any], geometry: str) -> None:
+        if self.calc_env_dropdown.value == "github-actions":
+            self._submit_student_actions(provider=provider)
+            self.research_status.value = "<p role='status'>Research request submitted through the selected Actions route. Monitor its calculation below and retrieve verified results when complete.</p>"
+            return
+        if self._pipeline_running or self._topos_running or self._actions_running:
+            raise ValueError("Wait for or cancel the current calculation before starting another")
+        self._pipeline_cancellation.clear()
+        self._student_research_running = True
+        self._pipeline_running = True
+        self.btn_cancel.disabled = False
+        self.research_status.value = "<p role='status'>Running the installed scientific provider on the configured local host…</p>"
+        self._refresh_execution_gate()
+        def run() -> None:
+            try:
+                from cochem_base.interfaces.student_research import execute_provider_request
+                from cochem_base.interfaces.module_execution import ModuleOperationCancelled
+                from cochem_base.config_loader import get_artifact_dir
+                root = get_artifact_dir() / "StudentResearch" / uuid.uuid4().hex
+                path = root / provider["artifact"]
+                path.parent.mkdir(parents=True, exist_ok=False)
+                path.write_text(geometry, encoding="utf-8", newline="")
+                result = execute_provider_request(provider, root, root / "results", root=Path(self.module_root.value),
+                    cancel_event=self._pipeline_cancellation, resources={"cores": self.actions_cores.value,
+                        "memory_mb": self.actions_memory.value * self.actions_cores.value, "budget_seconds": self.actions_timeout.value})
+                def success() -> None:
+                    self._last_module_result = result
+                    self._load_student_research_report(root / "results")
+                    self.research_status.value = "<p role='status'>Research calculation completed. Open Research results for retained tables and diagrams.</p>"
+                self._ui_call(success)
+            except ModuleOperationCancelled as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.research_status, "value", f"<p role='status'>Research calculation cancelled: {html.escape(message)}. Owned native processes stopped; partial artifacts retain their provenance.</p>"))
+            except (ValueError, RuntimeError, OSError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.research_status, "value", f"<p role='alert'>Research calculation failed: {html.escape(message)}</p>"))
+            finally:
+                self._student_research_running = False
+                self._pipeline_running = False
+                self._ui_call(lambda: setattr(self.btn_cancel, "disabled", True))
+                self._ui_call(self._refresh_execution_gate)
+        self._research_worker = threading.Thread(target=run, daemon=True)
+        self._research_worker.start()
+
+    def _run_student_wiberg(self, b: Any = None) -> None:
+        self._run_student_orbital_analysis("wiberg_lowdin")
+
+    def _run_student_orbital_analysis(self, operation: str) -> None:
+        try:
+            from cochem_base.interfaces.student_research import SCHEMA
+            if operation not in self._research_capability_observations.get("torq", {}).get("operations", []):
+                raise ValueError("The installed TORQ provider does not support authentic " + operation)
+            if self.research_scan_method.value == "mp2":
+                raise ValueError("The installed Wiberg provider requires HF, PBE-D4 or B3LYP-D4; MP2 density is not supported")
+            geometry = self._student_current_xyz()
+            provider = {"schema_version": SCHEMA, "module": "torq", "operation": operation,
+                "artifact": "inputs/starting-geometry.xyz", "artifact_sha256": hashlib.sha256(geometry.encode("utf-8")).hexdigest(),
+                "options": {"method": {"name": self.research_scan_method.value, "basis": self.research_scan_basis.value},
+                    "charge": self.charge_input.value, "multiplicity": self.multiplicity_input.value,
+                    "cores": self.actions_cores.value, "memory_mb": self.actions_memory.value * self.actions_cores.value}}
+            if operation in {'nbo_analysis', 'wiberg_nao'}:
+                declaration = self._research_capability_observations.get('torq', {}).get('provider_capabilities', {}).get('scientific_apis', {}).get(operation, {})
+                engine = self.research_orbital_backend.value
+                if declaration.get('available') is not True or engine not in declaration.get('supported_engines', []):
+                    raise ValueError('Choose an authentic provider-declared orbital backend; unavailable dependencies cannot be substituted')
+                provider['options']['engine'] = engine
+            self._run_student_provider(provider, geometry)
+        except (ValueError, RuntimeError, OSError, ImportError) as exc:
+            self.research_status.value = f"<p role='alert'>Orbital/bond analysis was not started: {html.escape(str(exc))}</p>"
+
+    def _load_student_research_report(self, root: Path) -> None:
+        from cochem_base.interfaces.student_reports import load_reports, discover_observations, report_html
+        reports = load_reports(root)
+        observations = discover_observations(root)
+        self._research_reports.extend(reports)
+        existing = {(json.dumps(item.get("source", {}), sort_keys=True), item.get("energy_kind")) for item in self._research_observations}
+        for item in observations:
+            key = (json.dumps(item.get("source", {}), sort_keys=True), item.get("energy_kind"))
+            if key not in existing:
+                kind = "Gibbs free energy" if item.get("energy_kind") == "gibbs_free_energy" else "Electronic energy"
+                item["label"] = f"{root.name[:36]} · {item['label']} · {kind}"
+                self._research_observations.append(item)
+                existing.add(key)
+        chosen = set(self.research_isomer_choices.value)
+        self.research_isomer_choices.options = [(item["label"], index) for index, item in enumerate(self._research_observations)]
+        self.research_isomer_choices.value = tuple(index for _, index in self.research_isomer_choices.options
+                                                   if index in chosen or not chosen)
+        if reports:
+            self.research_report_output.value = "\n".join(report_html(report) for report in self._research_reports)
+        elif observations:
+            self.research_report_output.value = f"<p role='status'>Retained {len(self._research_observations)} computed energy observations. Choose Compare calculated isomers for compatible structures.</p>"
+        else:
+            self.research_report_output.value = "<p role='status'>Calculation artifacts were retained. The provider returned no compatible scientific report observations; no diagram or population has been invented.</p>"
+        self.btn_research_compare.disabled = not bool(self._research_observations)
+
+    def _compare_student_isomers(self, b: Any = None) -> None:
+        try:
+            from cochem_base.interfaces.student_reports import build_isomer_report, report_html, export_report
+            from cochem_base.config_loader import get_artifact_dir
+            observations = [self._research_observations[index] for index in self.research_isomer_choices.value
+                            if self._research_observations[index].get("energy_kind") == self.research_energy_kind.value]
+            report = build_isomer_report(observations, energy_kind=self.research_energy_kind.value,
+                temperature_kelvin=self.research_temperature.value, populations=self.research_populations.value)
+            self.research_report_output.value = report_html(report)
+            paths = export_report(report, get_artifact_dir() / "StudentReports" / uuid.uuid4().hex)
+            links = []
+            for filename, path in paths.items():
+                content = Path(path).read_bytes()
+                media = "image/svg+xml" if filename.endswith(".svg") else "text/csv" if filename.endswith(".csv") else "application/json" if filename.endswith(".json") else "text/html"
+                encoded = base64.b64encode(content).decode("ascii")
+                links.append(f"<a download='{html.escape(filename)}' href='data:{media};base64,{encoded}'>Download {html.escape(filename)}</a>")
+            self.research_report_download.value = "<p>" + " · ".join(links) + "</p>"
+        except (ValueError, RuntimeError, OSError) as exc:
+            self.research_report_output.value = f"<p role='alert'>Scientific comparison requires complete compatible evidence: {html.escape(str(exc))}</p>"
 
     def _invalidate_actions_job(self, change: Any = None) -> None:
         self._last_actions_job = None
@@ -1135,45 +2175,144 @@ class CoChemGUI:
         self._local_engine_options = tuple(self._local_engine_choices())
         selected = self.matrix_engine.value
         options = (
-            (("ORCA (course Actions workflow)", "ORCA"),
-             ("CFOUR (course Actions workflow)", "CFOUR"),
-             ("xTB (local/HPC only)", "XTB"),
-             ("PySCF (local/HPC only)", "PYSCF"))
+            tuple([("Choose a calculation engine", None)]
+                  + [(engine.upper() + " (verified archive access)", engine.upper())
+                     for engine, item in self._remote_engine_availability.items() if item.get("provisionable") is True]
+                  + [("xTB (free Actions optimization)", "XTB")])
             if remote else self._local_engine_options
         )
         values = {value for _, value in options}
         self.matrix_engine.options = options
-        self.matrix_engine.value = selected if selected in values else ('ORCA' if remote else None)
+        self.matrix_engine.value = selected if selected in values else None
         if remote:
             self.licensed_engine_status.value = (
-                "<p>ORCA and CFOUR are optional and strongly recommended. Remote licensed-engine availability is unverified in this interface. "
-                "An ORCA or CFOUR choice prepares a request only; the course workflow checks its own download, installation and execution authority. "
+                "<p>ORCA and CFOUR are optional and strongly recommended. A genuine Actions check must verify archive access before each dependent choice is enabled. "
+                "Archive access does not establish installation or scientific acceptance; the calculation worker verifies its actual runtime before executing. "
                 "Local engine availability does not establish GitHub Actions availability.</p>"
             )
         if hasattr(self, 'btn_execute'):
             self._refresh_execution_gate()
 
+    def _automatic_remote_checks_enabled(self) -> bool:
+        configured = os.environ.get("COCHEM_STUDENT_AUTO_REMOTE_CHECK", "").lower()
+        if configured:
+            return configured in {"1", "true", "yes"}
+        if os.environ.get("CODESPACES", "").lower() == "true":
+            return True
+        try:
+            from IPython import get_ipython
+            return getattr(get_ipython(), "kernel", None) is not None
+        except ImportError:
+            return False
+
+    def _check_remote_engines(self, b: Any = None) -> None:
+        if self._remote_probe_running or self.calc_env_dropdown.value != "github-actions":
+            return
+        try:
+            repository = self._actions_repository()
+            branch = self.gh_branch_input.value.strip() or "main"
+            probe_target = (repository, branch)
+        except ValueError as exc:
+            self.remote_engine_status.value = f"<p role='status'>Remote engine check requires your assignment repository: {html.escape(str(exc))}</p>"
+            return
+        self._remote_probe_running = True
+        self.btn_remote_engine_check.disabled = True
+        self.btn_remote_engine_cancel.disabled = False
+        self.remote_engine_status.value = "<p role='status' aria-live='polite'>Checking approved ORCA and CFOUR archive access on GitHub Actions. BASE remains usable with free engines.</p>"
+        def check() -> None:
+            try:
+                from cochem_base.interfaces.student_actions import StudentActionsClient
+                from cochem_base.config_loader import get_artifact_dir
+                artifacts = get_artifact_dir()
+                client = StudentActionsClient(repository, branch=branch,
+                    repository_root=Path(os.environ.get("COCHEM_ASSIGNMENT_ROOT", str(_REPO_ROOT))), artifact_dir=artifacts)
+                self._remote_probe_client = client
+                submission = client.check_engines(engines=["orca", "cfour"])
+                self._remote_probe_submission = submission
+                deadline = time.monotonic() + 20 * 60
+                while True:
+                    current = client.status(submission)
+                    submission = current
+                    self._remote_probe_submission = current
+                    if current.get("status") == "completed":
+                        break
+                    if time.monotonic() >= deadline:
+                        client.cancel(submission)
+                        raise RuntimeError("The remote engine check exceeded 20 minutes; cancellation was requested. Retry after the workflow stops.")
+                    time.sleep(3)
+                directory = artifacts / "RemoteEngineChecks" / f"{submission['request_id']}-{uuid.uuid4().hex}"
+                receipt = client.download_results(submission, directory)
+                report = receipt["report"]
+                if report.get("capability_probe_performed") is not True or report.get("operation_performed") is not False:
+                    raise ValueError("The workflow did not return a verified licensed-engine readiness report")
+                engines = report.get("result", {}).get("engines", {})
+                if set(engines) != {"orca", "cfour"}:
+                    raise ValueError("The remote engine check returned an incomplete engine inventory")
+                def success() -> None:
+                    if (self.gh_repo_input.value.strip(), self.gh_branch_input.value.strip() or "main") != probe_target:
+                        return
+                    self._remote_engine_target = probe_target
+                    self._remote_engine_availability = engines
+                    self.remote_engine_status.value = "<ul>" + "".join(
+                        f"<li><b>{html.escape(engine.upper())}:</b> {html.escape(str(item.get('status', 'unavailable')))}. "
+                        f"{html.escape(str(item.get('reason', '')))}</li>" for engine, item in engines.items()) + "</ul><p>Provisionable means approved archive access was verified. Each calculation still verifies installation, Stage 0 authority and native execution.</p>"
+                    self._refresh_engine_choices()
+                    self._refresh_research_capabilities()
+                self._ui_call(success)
+            except (ValueError, RuntimeError, OSError, ImportError, AttributeError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.remote_engine_status, "value",
+                    f"<p role='alert'>Remote licensed-engine access was not verified: {html.escape(message)}. Those methods remain unavailable; free-engine calculations and geometry ingestion remain available.</p>"))
+            finally:
+                def finished() -> None:
+                    self._remote_probe_running = False
+                    self.btn_remote_engine_check.disabled = False
+                    self.btn_remote_engine_cancel.disabled = True
+                    if (self.gh_repo_input.value.strip(), self.gh_branch_input.value.strip() or "main") != probe_target and self._automatic_remote_checks_enabled():
+                        self._check_remote_engines()
+                self._ui_call(finished)
+        self._remote_probe_worker = threading.Thread(target=check, daemon=True)
+        self._remote_probe_worker.start()
+
+    def _cancel_remote_engine_check(self, b: Any = None) -> None:
+        if not self._remote_probe_running or self._remote_probe_client is None or self._remote_probe_submission is None:
+            return
+        self.btn_remote_engine_cancel.disabled = True
+        def cancel() -> None:
+            try:
+                self._remote_probe_client.cancel(dict(self._remote_probe_submission))
+                self._ui_call(lambda: setattr(self.remote_engine_status, 'value', '<p role="status">Remote engine check cancellation requested. BASE waits for GitHub confirmation; free engines remain available.</p>'))
+            except (ValueError, RuntimeError, OSError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.remote_engine_status, 'value', f'<p role="alert">Engine check cancellation could not be confirmed: {html.escape(message)}.</p>'))
+        self._remote_probe_cancel_worker = threading.Thread(target=cancel, daemon=True)
+        self._remote_probe_cancel_worker.start()
+
     def _refresh_actions_guidance(self, change: Any = None) -> None:
         repository = self.gh_repo_input.value.strip()
+        target = (repository, self.gh_branch_input.value.strip() or "main")
+        if self._remote_engine_target != target:
+            self._remote_engine_availability = {engine: {"status": "unknown", "provisionable": False,
+                "reason": "Archive access has not been verified for this assignment repository and branch."}
+                for engine in ("orca", "cfour")}
+            self.remote_engine_status.value = "<p role='status'>Licensed-engine archive access has not been checked for this assignment repository and branch.</p>"
         valid_repository = bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*", repository))
         guide_repository = repository if valid_repository else "ProfJJK-CoChem/CoChem-BASE"
         branch = self.gh_branch_input.value.strip() or "main"
         guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/GitHub_Classroom_ORCA_Setup.md"
+        student_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/Student_Research_No_Code.md"
         cfour_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/CFOUR_Actions_Setup.md"
         self.gh_guidance.value = (
             "<h4>GitHub Actions: Classroom50 course setup</h4>"
             "<p>Use the GitHub course repository provided by your Classroom50 instructor. "
             "Your instructor prepares approved private ORCA/CFOUR access and the course workflows. "
             "Students do not enter tokens or binary download links in this interface.</p>"
-            "<ol><li>Enter the course repository and branch provided by your instructor.</li>"
-            "<li>Ask the instructor to confirm calculation acceptance passed for your selected licensed engine in this repository.</li>"
-            "<li>Open <b>No Code Matrix</b>, choose ORCA or CFOUR, enter your molecule and method, then choose "
-            "<b>Prepare GitHub Actions job</b>.</li>"
-            "<li>Download the JSON, upload it to the stated <code>jobs/</code> path on the approved branch, "
-            "then open <b>Actions → ORCA calculation</b> or <b>CFOUR calculation → Run workflow</b>. Enter that path as <code>job_file</code>.</li>"
-            "<li>Wait for the calculation to finish. Download its result artifact and retain the run URL. "
-            "A prepared file or an archive-access check is not a completed calculation.</li></ol>"
-            f"<p><a href='{guide}#student-quick-start' target='_blank' rel='noopener'>Student quick start</a> · "
+            "<ol><li>Confirm the assignment repository and branch shown here.</li>"
+            "<li>Open <b>No Code Matrix</b>, upload your Avogadro starting XYZ, and confirm charge, multiplicity and calculation method.</li>"
+            "<li>Select <b>Run on GitHub Actions</b>. BASE checks your access, submits the request and shows its progress here.</li>"
+            "<li>After successful completion, select <b>Retrieve and inspect results</b>. BASE verifies and imports the result bundle. "
+            "You can also download the bundle for your research records.</li></ol>"
+            f"<p><a href='{student_guide}#start-your-workspace' target='_blank' rel='noopener'>Student quick start</a> · "
             f"<a href='{guide}#instructor-setup' target='_blank' rel='noopener'>Instructor setup</a> · "
             f"<a href='{guide}#troubleshooting' target='_blank' rel='noopener'>Troubleshooting</a></p>"
             f"<p><a href='{cfour_guide}' target='_blank' rel='noopener'>CFOUR setup and calculation instructions</a></p>"
@@ -1181,36 +2320,41 @@ class CoChemGUI:
         remote = hasattr(self, 'calc_env_dropdown') and self.calc_env_dropdown.value == "github-actions"
         if hasattr(self, 'matrix_engine'):
             self._refresh_engine_choices()
+            self._refresh_research_engine_choices()
+            self._refresh_orbital_backend_choices()
             self.matrix_engine.tooltip = (
-                "Prepare an ORCA or CFOUR request without a local engine. The approved workflow provisions and authorizes its own engine."
+                "Run an ORCA, CFOUR or free xTB request without a local engine. The approved workflow provisions and authorizes its own engine."
                 if remote else "Native execution requires the complete eleven-phase setup audit on the configured host."
             )
         self.actions_job_options.layout.display = '' if remote else 'none'
+        if hasattr(self, 'actions_controls'):
+            self.actions_controls.layout.display = '' if remote else 'none'
         if hasattr(self, 'artifact_output_path'):
             self.artifact_output_path.layout.display = 'none' if remote else ''
         if hasattr(self, 'output_destination_guidance'):
             self.output_destination_guidance.value = (
-                "<h4>Actions job download</h4><p>The project name determines the downloaded JSON filename. "
-                "Upload that file to the course repository's <code>jobs/</code> directory.</p>"
+                "<h4>Research request</h4><p>BASE submits your uploaded geometry and calculation request directly. "
+                "Save configuration provides an optional reproducibility copy.</p>"
                 if remote else "<h4>Artifact Output Configuration</h4><p>Saved configurations use &lt;Output Dir&gt;/&lt;Project Name&gt;/. "
                 "Each calculation writes logs and results below &lt;Output Dir&gt;/GUI/run_…/.</p>"
             )
         if hasattr(self, 'execution_description'):
             self.execution_description.value = (
-                "<p>Prepare the selected ORCA or CFOUR operation for its course Actions workflow. "
-                "Its calculation logs and validated results are available in the GitHub run artifact after execution.</p>"
+                "<p>Run the selected ORCA, CFOUR or free xTB operation on GitHub Actions. "
+                "BASE monitors its workflow and retrieves verified calculation logs and scientific results.</p>"
                 if remote else "<p>Run ORCA, supported closed-shell CFOUR calculations, xTB optimization, or a PySCF RHF single point on the configured host. "
                 "Screening carries no product accuracy certification. TOPOS and TORQ use their separate runners.</p>"
             )
         self.calculation_environment_status.value = (
-            "<p><b>Calculation target: GitHub Actions.</b> This interface prepares a job file; "
-            "the approved workflow runs the calculation after you submit it on GitHub. "
-            f"<a href='{guide}#student-quick-start' target='_blank' rel='noopener'>Course instructions</a></p>"
+            "<p><b>Calculation target: GitHub Actions.</b> BASE submits, monitors and retrieves your calculation. "
+            f"<a href='{student_guide}#run-your-calculation' target='_blank' rel='noopener'>Course instructions</a></p>"
             if remote else "<p>Calculation target: the configured local or HPC execution host.</p>"
         )
         self._invalidate_actions_job()
         if hasattr(self, 'btn_execute'):
             self._refresh_execution_gate()
+        if remote and valid_repository and self._remote_engine_target != target and self._automatic_remote_checks_enabled():
+            self._check_remote_engines()
 
     def _detect_environment(self) -> Tuple[bool, str, bool, bool]:
         """Display measured, signed registry state; individual phase files are insufficient."""
@@ -1603,6 +2747,9 @@ class CoChemGUI:
         self._check_dispersion_gate()
 
     def _on_engine_changed(self, change: Any) -> None:
+        if change['new'] != 'ORCA' and hasattr(self, 't9_enable'):
+            self.t9_enable.value = False
+            self.scientific_initial_hessian.value = 'XTB2'
         if change["new"] == "XTB":
             self.product_class_selector.value = "Screening (no product accuracy claim)"
             self.matrix_tier.value = "T1"
@@ -1691,6 +2838,12 @@ class CoChemGUI:
                 self.matrix_method.value, num_fragments=len(fragments),
                 unphysical_override=self.unphysical_override.value,
             )
+            self._portable_t9_request()
+            self._selected_scientific_input()
+            if self.cb_recipe_r2.value and (self.matrix_method.value != "wB97M-V" or self.matrix_basis.value != "def2-QZVPP"):
+                raise MethodologyViolationError("Recipe R2 requires its verified wB97M-V/def2-QZVPP protocol")
+            if self.cb_recipe_r2.value and self.calc_env_dropdown.value == "github-actions" and self.actions_operation.value not in {"optimization", "optimization_frequencies"}:
+                raise MethodologyViolationError("Recipe R2 requires intermolecular optimization")
             if self.product_class_selector.value != "Screening (no product accuracy claim)":
                 validate_product_class_policy(
                     self.product_class_selector.value, tier=self._selected_canonical_tier(),
@@ -1712,9 +2865,11 @@ class CoChemGUI:
         reason = ""
         remote = self.calc_env_dropdown.value == "github-actions"
         if remote:
-            self.btn_execute.description = "Prepare GitHub Actions job"
-            if self.matrix_engine.value not in {"ORCA", "CFOUR"}:
-                reason = "The course Actions workflows accept ORCA or CFOUR jobs. Choose either engine or return to the configured local/HPC host."
+            self.btn_execute.description = "Run on GitHub Actions"
+            if self.matrix_engine.value not in {"ORCA", "CFOUR", "XTB"}:
+                reason = "Choose xTB for free screening or verify remote ORCA/CFOUR access before selecting a licensed engine."
+            elif self.matrix_engine.value in {"ORCA", "CFOUR"} and not self._remote_engine_availability[self.matrix_engine.value.lower()].get("provisionable"):
+                reason = "This licensed engine is unavailable until a genuine remote engine check verifies approved archive access."
             else:
                 try:
                     self._actions_repository()
@@ -1751,7 +2906,9 @@ class CoChemGUI:
         self.matrix_method.disabled = selected is None or selected in {'XTB', 'PYSCF'}
         self.matrix_basis.disabled = selected is None or selected == 'XTB'
         for control in (self.matrix_solvation, self.matrix_cbs_pair, self.cb_recipe_r1,
-                        self.cb_recipe_r2, self.r2_reference_manifest, self.t9_config_path):
+                        self.cb_recipe_r2, self.r2_reference_manifest, self.t9_config_path,
+                        self.t9_enable, self.t9_method, self.t9_basis, self.t9_electrons, self.t9_orbitals, self.t9_rationale,
+                        self.scientific_initial_hessian, self.scientific_r2_upload, self.scientific_read_upload):
             control.disabled = selected != 'ORCA'
         self.cfour_operation.layout.display = '' if selected == 'CFOUR' and not remote else 'none'
         self.cfour_operation.disabled = selected != 'CFOUR'
@@ -1764,18 +2921,32 @@ class CoChemGUI:
             previous = self.cfour_operation.value
             self.cfour_operation.options = cfour_operations
             self.cfour_operation.value = previous if previous in {value for _, value in cfour_operations} else 'single_point'
-        actions_operations = (cfour_operations if selected == 'CFOUR' else
+        actions_operations = ([('Geometry optimization', 'optimization')] if selected == 'XTB' and remote else
+                              cfour_operations if selected == 'CFOUR' else
                               [('Single point', 'single_point'), ('Optimization', 'optimization'),
                                ('Harmonic frequencies', 'harmonic_frequencies'),
                                ('Optimize + harmonic frequencies', 'optimization_frequencies')])
         if tuple(self.actions_operation.options) != tuple(actions_operations):
             previous = self.actions_operation.value
             self.actions_operation.options = actions_operations
-            self.actions_operation.value = previous if previous in {value for _, value in actions_operations} else 'single_point'
+            self.actions_operation.value = previous if previous in {value for _, value in actions_operations} else actions_operations[0][1]
         self.product_class_selector.disabled = selected in {'XTB', 'PYSCF', 'CFOUR'}
         self.engine_warning.value = f"<b>{html.escape(reason)}</b>" if reason else ""
-        self.btn_execute.disabled = bool(reason or self.dispersion_warning.value or self._pipeline_running
+        self.btn_execute.disabled = bool(reason or self.dispersion_warning.value or self._pipeline_running or self._actions_running
                                          or self._topos_running or self._installation_running)
+        if hasattr(self, 'btn_research_topos'):
+            busy = self._pipeline_running or self._actions_running or self._topos_running or self._student_setup_busy
+            top_ops = self._research_capability_observations.get('topos', {}).get('operations', [])
+            torq_ops = self._research_capability_observations.get('torq', {}).get('operations', [])
+            self.btn_research_topos.disabled = busy or not bool(top_ops and self.research_topos_operation.value in top_ops)
+            for button, operation in ((self.btn_research_torq, 'research_scan'),
+                                      (self.btn_research_wiberg, 'wiberg_lowdin'),
+                                      (self.btn_research_wiberg_nao, 'wiberg_nao'),
+                                      (self.btn_research_nbo, 'nbo_analysis')):
+                button.disabled = busy or operation not in torq_ops
+                if operation in {'nbo_analysis', 'wiberg_nao'}:
+                    declaration = self._research_capability_observations.get('torq', {}).get('provider_capabilities', {}).get('scientific_apis', {}).get(operation, {})
+                    button.disabled = button.disabled or declaration.get('available') is not True or self.research_orbital_backend.value not in declaration.get('supported_engines', [])
 
     def _on_detect_fragments_clicked(self, b: Any) -> None:
         geom = self.matrix_geometry.value
@@ -1813,7 +2984,7 @@ class CoChemGUI:
         import uuid
 
         if self.calc_env_dropdown.value == "github-actions":
-            self.slurm_status_output.value = "<p role='alert'>GitHub Actions is selected. Prepare the course job JSON and submit it through ORCA calculation on GitHub.</p>"
+            self.slurm_status_output.value = "<p role='alert'>GitHub Actions is selected. Use Run on GitHub Actions in BASE to submit and monitor this calculation.</p>"
             return
         try:
             controller = SlurmSubmissionController()
@@ -2234,8 +3405,8 @@ class CoChemGUI:
         if self.matrix_engine.value != "ORCA":
             raise MethodologyViolationError("Select an available calculation engine; ORCA and CFOUR are optional.")
         remote = self.calc_env_dropdown.value == "github-actions"
-        if remote and (self.cb_recipe_r2.value or self.t9_config_path.value.strip()):
-            raise MethodologyViolationError("The course Actions job must be self-contained; R2 reference files and T9 checkpoints require a separate approved workflow.")
+        if remote and self.t9_config_path.value.strip():
+            raise MethodologyViolationError("Remote T9 uses the active-space form; computer-local configuration paths are not portable")
         self._check_dispersion_gate()
         if self.dispersion_warning.value:
             raise MethodologyViolationError("Resolve the methodology validation message before running or saving.")
@@ -2244,11 +3415,21 @@ class CoChemGUI:
         fallback = None
         if self.t9_config_path.value.strip():
             fallback = T9FallbackConfig.model_validate_json(Path(self.t9_config_path.value).expanduser().read_text(encoding='utf-8'))
+        t9 = self._portable_t9_request()
+        if t9 is not None and not remote:
+            from cochem_base.core_engine.execution_authority import authorize_engine_execution
+            interpreter = authorize_engine_execution('pyscf', cores=t9['threads'],
+                maxcore_mb=self.actions_memory.value).executable
+            fallback = T9FallbackConfig.model_validate({**t9, 'python_executable': interpreter})
+        scientific = self._selected_scientific_input()
         references = None
         if self.cb_recipe_r2.value:
-            if not self.r2_reference_manifest.value.strip():
-                raise MethodologyViolationError("Recipe R2 requires its reference-monomer manifest")
-            references = Path(self.r2_reference_manifest.value).expanduser().resolve(strict=True)
+            if self.matrix_method.value != 'wB97M-V' or self.matrix_basis.value != 'def2-QZVPP':
+                raise MethodologyViolationError("Recipe R2 requires its verified wB97M-V/def2-QZVPP protocol")
+            if remote and self.actions_operation.value not in {'optimization', 'optimization_frequencies'}:
+                raise MethodologyViolationError("Recipe R2 requires intermolecular optimization")
+            if not remote:
+                references = Path(scientific['entrypoint_path']).expanduser().resolve(strict=True)
         config = CalculationMatrixConfig(
             geometry=self.matrix_geometry.value, engine="orca",
             method="HF" if self.matrix_method.value in {"HF/MINI", "HF/STO-3G"} else self.matrix_method.value,
@@ -2261,6 +3442,8 @@ class CoChemGUI:
             frozen_monomer_indices=list(range(len(elements))) if (self.cb_recipe_r1.value or self.cb_recipe_r2.value) and len(fragments) > 1 else None,
             recipe="R2" if self.cb_recipe_r2.value else "R1" if self.cb_recipe_r1.value and len(fragments) > 1 else None,
             r2_reference_manifest=references, t9_fallback=fallback,
+            initial_hessian=self.scientific_initial_hessian.value,
+            hessian_file=Path(scientific['entrypoint_path']) if scientific and scientific['kind'] == 'read_hessian' and not remote else None,
             grid_stage=3 if (self.product_class_selector.value == ProductClass.PRODUCT_C.value
                              or self.cb_recipe_r2.value
                              or remote and self.actions_operation.value in {"harmonic_frequencies", "optimization_frequencies"}) else 2,
@@ -2312,6 +3495,8 @@ class CoChemGUI:
             implicit_solvation=self.matrix_solvation.value,
             cbs_cardinal_pair=self.matrix_cbs_pair.value,
             recipe="R1" if self.cb_recipe_r1.value else ("R2" if self.cb_recipe_r2.value else None),
+            **({"is_opt": True, "is_freq": False, "timeout_seconds": float(self.actions_timeout.value)}
+               if self.calc_env_dropdown.value == "github-actions" else {}),
         )
         validate_xtb_config(config, elements)
         return config.model_dump(mode="json")
@@ -2347,7 +3532,7 @@ class CoChemGUI:
     def _build_pipeline_command(self) -> list[str]:
         """Export an equivalent CLI invocation for reproducibility."""
         if self.calc_env_dropdown.value == "github-actions":
-            raise ValueError("Prepare the Actions job JSON and submit it through the course workflow.")
+            raise ValueError("GitHub Actions is selected. Use Run on GitHub Actions in BASE to submit, monitor and retrieve this calculation.")
         config_path = self._prepare_pipeline()
         runtime = config_path.parent
         cli_path = Path(__file__).resolve().parents[2] / "cli.py"
@@ -2390,7 +3575,7 @@ class CoChemGUI:
         if self._pipeline_running:
             return
         if self.calc_env_dropdown.value == "github-actions":
-            self._prepare_actions_job()
+            self._submit_student_actions()
             return
         self._check_dispersion_gate()
         if self.btn_execute.disabled:
@@ -2413,7 +3598,7 @@ class CoChemGUI:
         self._pipeline_worker.start()
 
     def _prepare_actions_job(self) -> None:
-        """Export a validated portable request; submission happens in GitHub."""
+        """Validate the direct request and provide an optional reproducibility copy."""
         import base64
         import hashlib
         from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry
@@ -2422,10 +3607,12 @@ class CoChemGUI:
         self._invalidate_actions_job()
         try:
             repository = self._actions_repository()
-            if self.matrix_engine.value not in {'ORCA', 'CFOUR'}:
-                raise ValueError("The course workflows accept molecular ORCA or CFOUR jobs only.")
-            if self.cb_recipe_r2.value or self.t9_config_path.value.strip():
-                raise ValueError("The course job must be self-contained; R2 reference files and T9 checkpoints require a separate approved workflow.")
+            if self.matrix_engine.value not in {'ORCA', 'CFOUR', 'XTB'}:
+                raise ValueError("The course workflows accept molecular ORCA, CFOUR or supported free xTB jobs only.")
+            if self.matrix_engine.value in {'ORCA', 'CFOUR'} and not self._remote_engine_availability[self.matrix_engine.value.lower()].get('provisionable'):
+                raise ValueError("Licensed-engine archive access must be verified for this assignment before submission")
+            if self.t9_config_path.value.strip():
+                raise ValueError("Remote T9 must use the explicit portable active-space form")
             if len(parse_run_geometry(self.matrix_geometry.value)[0]) > 50:
                 raise ValueError("The course Actions profile accepts at most 50 atoms per job.")
             config = self._collect_run_config()
@@ -2435,7 +3622,11 @@ class CoChemGUI:
             payload = model.model_dump_json(indent=2).encode("utf-8") + b"\n"
             if len(payload) > 256 * 1024:
                 raise ValueError("The course job JSON must be at most 256 KiB.")
-            validate_configuration(payload, model.model_dump(mode="json"))
+            if model.engine == 'xtb':
+                from cochem_base.calc.xtb_execution import validate_xtb_config
+                validate_xtb_config(model, parse_run_geometry(model.geometry)[0])
+            elif not (self._selected_scientific_input() or self._portable_t9_request()):
+                validate_configuration(payload, model.model_dump(mode="json"))
             project = re.sub(r"[^A-Za-z0-9_-]", "_", self.project_name.value).strip("_")[:64] or "molecule"
             engine_name = model.engine.upper()
             filename = f"{project}-{model.engine}-job.json"
@@ -2443,16 +3634,10 @@ class CoChemGUI:
             digest = hashlib.sha256(payload).hexdigest()
             self._last_actions_job = {"job_file": job_file, "config": model.model_dump(mode="json"), "sha256": digest}
             encoded = base64.b64encode(payload).decode("ascii")
-            workflow = f"https://github.com/{repository}/actions/workflows/{model.engine}_calculation.yml"
             self.actions_job_download.value = (
-                "<p role='status'><b>Actions job prepared.</b> No calculation has been submitted or run.</p>"
-                f"<p><a download='{filename}' href='data:application/json;base64,{encoded}'>Download {engine_name} job JSON</a></p>"
-                f"<ol><li>Upload this file as <code>{job_file}</code> in <code>{html.escape(repository)}</code> "
-                f"on the instructor-approved <code>{html.escape(self.gh_branch_input.value.strip() or 'main')}</code> branch.</li>"
-                f"<li>Open <a href='{workflow}' target='_blank' rel='noopener'>{engine_name} calculation</a>, select "
-                f"<b>Run workflow</b>, and set <code>job_file</code> to <code>{job_file}</code>.</li>"
-                "<li>Select one or two cores and your instructor's memory allowance. After completion, download "
-                "the calculation artifact and retain its run URL.</li></ol>"
+                "<p role='status'><b>Actions request validated.</b> No calculation has been submitted or run.</p>"
+                f"<p><a download='{filename}' href='data:application/json;base64,{encoded}'>Download {engine_name} request JSON</a></p>"
+                "<p>This copy is optional. Select <b>Run on GitHub Actions</b> to submit, monitor and retrieve your calculation directly in BASE.</p>"
                 f"<p>Input SHA-256: <code>{digest}</code>. Calculation timeout: {self.actions_timeout.value} seconds.</p>"
             )
             self.state.system_status = "Actions job prepared"
@@ -2462,7 +3647,452 @@ class CoChemGUI:
             self.state.error_message = str(exc)
             self.actions_job_download.value = f"<p role='alert'>Actions job was not prepared: {html.escape(str(exc))}</p>"
 
+    def _submit_student_actions(self, b: Any = None, *, provider: dict[str, Any] | None = None) -> None:
+        """Submit data, dispatch and correlate a hosted calculation through BASE."""
+        if self._actions_running or self._pipeline_running or self._topos_running:
+            return
+        try:
+            geometry = self._student_current_xyz()
+            repository = self._actions_repository()
+            branch = self.gh_branch_input.value.strip() or "main"
+            if provider is None:
+                self._prepare_actions_job()
+                if self._last_actions_job is None:
+                    return
+                configuration = dict(self._last_actions_job["config"])
+                configuration["geometry"] = geometry
+                scientific_input = self._selected_scientific_input()
+                t9_request = self._portable_t9_request()
+            else:
+                from cochem_base.interfaces.student_research import validate_provider_request
+                validate_provider_request(provider)
+                configuration = None
+                scientific_input = None
+                t9_request = None
+        except (ValueError, RuntimeError, OSError) as exc:
+            self.state.error_message = str(exc)
+            self.actions_status.value = f"<p role='alert'>Calculation was not submitted: {html.escape(str(exc))}</p>"
+            return
+        inputs: dict[str, str | bytes] = {"inputs/starting-geometry.xyz": geometry}
+        original = self._student_uploads.get(self.student_geometry_choice.value)
+        if original:
+            content = Path(original["path"]).read_bytes()
+            if hashlib.sha256(content).hexdigest() != original["sha256"]:
+                self.state.error_message = "Original input geometry hash no longer matches; calculation was not submitted."
+                return
+            inputs["inputs/original-student-geometry.xyz"] = content
+            for item in original.get("monomer_sources", []):
+                monomer = self._student_uploads.get(item["id"])
+                if monomer:
+                    raw = Path(monomer["path"]).read_bytes()
+                    if hashlib.sha256(raw).hexdigest() != item["sha256"]:
+                        self.state.error_message = "Preserved monomer input hash changed; research request was not submitted."
+                        return
+                    inputs[f"inputs/monomer-{item['id']}.xyz"] = raw
+        self._actions_submission = None
+        self._actions_client = None
+        self._actions_running = True
+        self._refresh_execution_gate()
+        self._actions_monitor_stop.clear()
+        self.btn_execute.disabled = True
+        self.btn_cancel.disabled = True
+        self.btn_actions_retrieve.disabled = True
+        self.actions_results_download.value = ""
+        self.actions_status.value = "<p role='status' aria-live='polite'>Checking access and submitting your calculation…</p>"
+        self.state.system_status = "Submitting Actions calculation"
+        self._actions_input_record = dict(original) if original else None
+        def submit() -> None:
+            try:
+                from cochem_base.interfaces.student_actions import StudentActionsClient
+                from cochem_base.config_loader import get_artifact_dir
+                client = StudentActionsClient(repository, branch=branch,
+                    repository_root=Path(os.environ.get("COCHEM_ASSIGNMENT_ROOT", str(_REPO_ROOT))), artifact_dir=get_artifact_dir())
+                submission = client.submit(configuration, xyz_files=inputs, provider=provider,
+                    scientific_inputs=scientific_input, t9_request=t9_request,
+                    cores=self.actions_cores.value, maxcore_mb=self.actions_memory.value)
+                self._actions_client = client
+                self._actions_submission = submission
+                self._retain_student_actions_submission(submission)
+                def submitted() -> None:
+                    self.btn_cancel.disabled = False
+                    self.btn_actions_refresh.disabled = False
+                    self.state.error_message = ""
+                    self.actions_job_download.value = "<p>The calculation has been submitted through BASE. Configuration export is available separately for reproducibility.</p>"
+                    self._render_student_actions_status(submission)
+                self._ui_call(submitted)
+                self._poll_student_actions()
+            except (ValueError, RuntimeError, OSError, ImportError) as exc:
+                message = str(exc)
+                def failure() -> None:
+                    dispatched = self._actions_submission is not None
+                    self._actions_running = dispatched
+                    self.btn_cancel.disabled = not dispatched
+                    self.state.error_message = message
+                    self.state.system_status = "Actions monitoring requires attention" if dispatched else "Actions submission failed"
+                    self.actions_status.value = (
+                        f"<p role='alert'>Calculation {'was submitted, but monitoring paused' if dispatched else 'was not submitted'}: "
+                        f"{html.escape(message)}. {'Use Refresh calculation status; do not create a duplicate request.' if dispatched else 'BASE has retained your original geometry.'}</p>"
+                    )
+                    self._refresh_execution_gate()
+                self._ui_call(failure)
+        self._actions_worker = threading.Thread(target=submit, daemon=True)
+        self._actions_worker.start()
+
+    def _render_student_actions_status(self, observation: dict[str, Any]) -> None:
+        if self._actions_submission is not None and observation.get("request_id") == self._actions_submission.get("request_id"):
+            self._actions_submission = dict(observation)
+            self._retain_student_actions_submission(observation)
+        status = observation.get("status", "awaiting_workflow")
+        conclusion = observation.get("conclusion")
+        request = observation.get("request_id", "")
+        url = observation.get("url")
+        link = ""
+        if isinstance(url, str) and url.startswith("https://github.com/"):
+            link = f" <a href='{html.escape(url, quote=True)}' target='_blank' rel='noopener'>Calculation run details</a>"
+        self.actions_status.value = (
+            f"<p role='status' aria-live='polite'><b>Calculation: {html.escape(str(status))}</b>"
+            + (f"; result: {html.escape(str(conclusion))}" if conclusion else "")
+            + f".<br/>Request: <code>{html.escape(str(request))}</code>." + link + "</p>"
+        )
+        if status == 'dispatch_unconfirmed':
+            self.actions_status.value += "<p role='status'>GitHub acknowledgement is delayed. BASE is checking the original request; do not submit it again.</p>"
+        complete = status == "completed"
+        self._actions_running = not complete
+        self.btn_cancel.disabled = complete
+        self.btn_actions_retrieve.disabled = not (complete and conclusion is not None)
+        self.btn_actions_retrieve.description = "Retrieve and inspect results" if conclusion == "success" else "Retrieve calculation diagnostics"
+        self.state.system_status = f"Actions {conclusion if complete else status}"
+        self._actions_last_status = observation
+        self.btn_actions_open.disabled = not bool(getattr(self, "_actions_history_records", {})) or self._actions_running
+        self._refresh_execution_gate()
+
+    def _retain_student_actions_submission(self, submission: dict[str, Any]) -> None:
+        from cochem_base.config_loader import get_artifact_dir
+        request_id = str(submission.get("request_id", ""))
+        if not re.fullmatch(r"[a-f0-9-]{36}", request_id):
+            raise ValueError("Remote submission requires a UUID identity")
+        directory = get_artifact_dir() / "StudentActions" / request_id
+        directory.mkdir(parents=True, exist_ok=True)
+        temporary = directory / f".submission-{uuid.uuid4().hex}.json"
+        temporary.write_text(json.dumps(submission, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+        temporary.chmod(0o600)
+        temporary.replace(directory / "submission.json")
+        self._ui_call(self._refresh_student_actions_history)
+
+    def _refresh_student_actions_history(self) -> None:
+        from cochem_base.config_loader import get_artifact_dir
+        root = get_artifact_dir() / "StudentActions"
+        observed = {}
+        if root.is_dir() and not root.is_symlink():
+            candidates = []
+            for path in root.glob("*/submission.json"):
+                try:
+                    if not path.is_symlink() and not path.parent.is_symlink():
+                        candidates.append((path.stat().st_mtime, path))
+                except OSError:
+                    continue
+            for _, path in sorted(candidates, reverse=True)[:100]:
+                try:
+                    if path.is_symlink() or path.stat().st_size > 64 * 1024:
+                        continue
+                    record = json.loads(path.read_text(encoding="utf-8"))
+                    key = str(record["request_id"])
+                    if re.fullmatch(r"[a-f0-9-]{36}", key) and isinstance(record.get("repository"), str):
+                        observed[key] = record
+                except (ValueError, OSError, KeyError, TypeError):
+                    continue
+        self._actions_history_records = observed
+        selected = self.actions_history.value
+        self.actions_history.options = [(f"{record['repository']} · {record.get('status', 'submitted')} · {key[:8]}", key)
+                                        for key, record in observed.items()] or [("No retained calculations", "")]
+        if selected in observed:
+            self.actions_history.value = selected
+        self.btn_actions_open.disabled = not bool(observed) or self._actions_running
+
+    def _open_student_actions_history(self, b: Any = None) -> None:
+        if self._actions_running or self._pipeline_running or self._topos_running:
+            self.actions_status.value = "<p role='alert'>Finish or cancel the current calculation before opening another.</p>"
+            return
+        record = self._actions_history_records.get(self.actions_history.value)
+        if not record:
+            return
+        self.btn_actions_open.disabled = True
+        def reopen() -> None:
+            try:
+                from cochem_base.interfaces.student_actions import StudentActionsClient, verify_retained_results
+                from cochem_base.config_loader import get_artifact_dir
+                artifacts = get_artifact_dir()
+                retained = artifacts / 'StudentActions' / record['request_id'] / 'retained-result.json'
+                if retained.is_file():
+                    if retained.is_symlink() or retained.stat().st_size > 128 * 1024:
+                        raise ValueError('The retained result receipt is invalid')
+                    saved = json.loads(retained.read_text(encoding='utf-8'))
+                    submission = saved['submission']
+                    identity = ('request_id', 'repository', 'source_sha', 'worker_source_sha', 'payload_sha256', 'run_id', 'run_attempt')
+                    if saved.get('schema_version') != 'cochem.student-retained-result/1' or any(submission.get(key) != record.get(key) for key in identity):
+                        raise ValueError('The retained result differs from the selected calculation identity')
+                    path = Path(saved['path']).absolute()
+                    if not path.resolve().is_relative_to((artifacts / 'StudentResults').resolve()):
+                        raise ValueError('The retained result is outside this student workspace')
+                    receipt = verify_retained_results(path, submission)
+                    download = self._student_result_download_html(receipt)
+                    def imported() -> None:
+                        self._actions_submission = dict(submission)
+                        self._actions_client = None
+                        self._actions_retrieved = receipt
+                        self._render_student_actions_status(submission)
+                        self._apply_student_engine_diagnostics(receipt['report'], submission)
+                        if receipt['report'].get('status') == 'completed' and receipt['report'].get('operation_performed') is True:
+                            self._import_student_actions_results(receipt)
+                            self.actions_status.value = '<p role="status"><b>Retained results verified and reopened.</b> Original request, run, approved sources and every retained file hash were checked without downloading or rerunning chemistry.</p>'
+                        else:
+                            self.actions_status.value = '<p role="status">Retained calculation diagnostics verified and reopened. No incomplete scientific result has been accepted.</p>'
+                        self.actions_results_download.value = download
+                        self.btn_actions_refresh.disabled = True
+                        self.btn_actions_retrieve.disabled = True
+                    self._ui_call(imported)
+                else:
+                    client = StudentActionsClient(record['repository'], branch=record['branch'],
+                        repository_root=Path(os.environ.get('COCHEM_ASSIGNMENT_ROOT', str(_REPO_ROOT))), artifact_dir=artifacts)
+                    self._actions_client = client
+                    self._actions_submission = dict(record)
+                    self._ui_call(lambda: setattr(self.btn_actions_refresh, 'disabled', False))
+                    self._refresh_student_actions()
+            except (ValueError, RuntimeError, OSError, KeyError, TypeError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.actions_status, 'value', f'<p role="alert">Previous calculation could not be reopened: {html.escape(message)}. No unverified data was accepted.</p>'))
+            finally:
+                self._ui_call(lambda: setattr(self.btn_actions_open, 'disabled', False))
+        self._actions_reopen_worker = threading.Thread(target=reopen, daemon=True)
+        self._actions_reopen_worker.start()
+
+    def _poll_student_actions(self) -> None:
+        deadline = time.monotonic() + 90 * 60
+        while self._actions_submission is not None and not self._actions_monitor_stop.is_set():
+            observation = self._actions_client.status(self._actions_submission)
+            self._ui_call(lambda current=observation: self._render_student_actions_status(current))
+            if observation.get("status") == "completed":
+                return
+            if time.monotonic() >= deadline:
+                self._actions_client.cancel(self._actions_submission)
+                self._ui_call(lambda: setattr(self.actions_status, "value",
+                    "<p role='alert'>The 90-minute monitoring limit was reached. BASE requested cancellation; refresh status to confirm the final workflow outcome.</p>"))
+                return
+            self._actions_monitor_stop.wait(5)
+
+    def _refresh_student_actions(self, b: Any = None) -> None:
+        if self._actions_submission is None or self._actions_client is None:
+            return
+        self.btn_actions_refresh.disabled = True
+        def refresh() -> None:
+            try:
+                observation = self._actions_client.status(self._actions_submission)
+                self._ui_call(lambda: self._render_student_actions_status(observation))
+            except (ValueError, RuntimeError, OSError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.actions_status, "value", f"<p role='alert'>Status could not be refreshed: {html.escape(message)}</p>"))
+            finally:
+                self._ui_call(lambda: setattr(self.btn_actions_refresh, "disabled", False))
+        self._actions_refresh_worker = threading.Thread(target=refresh, daemon=True)
+        self._actions_refresh_worker.start()
+
+    def _cancel_student_actions(self, b: Any = None) -> None:
+        if self._actions_submission is None or self._actions_client is None:
+            return
+        self.btn_cancel.disabled = True
+        self.state.system_status = "Requesting remote cancellation"
+        def cancel() -> None:
+            try:
+                self._actions_client.cancel(self._actions_submission)
+                self._ui_call(lambda: setattr(self.actions_status, "value",
+                    "<p role='status'>Cancellation requested. BASE continues monitoring until GitHub confirms the final outcome.</p>"))
+            except (ValueError, RuntimeError, OSError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.actions_status, "value", f"<p role='alert'>Cancellation could not be confirmed: {html.escape(message)}. Refresh status.</p>"))
+                self._ui_call(lambda: setattr(self.btn_cancel, "disabled", False))
+        self._actions_cancel_worker = threading.Thread(target=cancel, daemon=True)
+        self._actions_cancel_worker.start()
+
+    def _retrieve_student_actions(self, b: Any = None) -> None:
+        if self._actions_submission is None or self._actions_client is None:
+            return
+        self.btn_actions_retrieve.disabled = True
+        self._actions_retrieving = True
+        self.actions_status.value = "<p role='status'>Retrieving and verifying calculation provenance and file hashes…</p>"
+        submission = dict(self._actions_submission)
+        def retrieve() -> None:
+            try:
+                from cochem_base.config_loader import get_artifact_dir
+                destination = get_artifact_dir() / "StudentResults" / str(submission["request_id"])
+                if destination.exists():
+                    destination = destination.parent / f"{submission['request_id']}-{uuid.uuid4().hex}"
+                receipt = self._actions_client.download_results(submission, destination)
+                self._actions_retrieved = receipt
+                retained = get_artifact_dir() / 'StudentActions' / submission['request_id'] / 'retained-result.json'
+                retained.parent.mkdir(parents=True, exist_ok=True)
+                retained.write_text(json.dumps({'schema_version': 'cochem.student-retained-result/1',
+                    'path': receipt['path'], 'submission': submission}, indent=2, allow_nan=False) + '\n', encoding='utf-8')
+                retained.chmod(0o600)
+                download = self._student_result_download_html(receipt)
+                def imported() -> None:
+                    try:
+                        report = receipt.get("report", {})
+                        self._apply_student_engine_diagnostics(report, submission)
+                        if report.get("status") == "completed" and report.get("operation_performed") is True:
+                            self._import_student_actions_results(receipt)
+                            self.actions_status.value = "<p role='status'><b>Results verified and imported.</b> Request, workflow, source identity and every retained file hash have been checked.</p>"
+                            self.state.system_status = "Actions results imported"
+                        else:
+                            reason = report.get("error", "The workflow did not complete its scientific operation. Review the retained diagnostics.")
+                            self.actions_status.value = f"<p role='alert'><b>Diagnostics verified and imported.</b> Calculation did not complete: {html.escape(str(reason))}. No scientific result has been accepted.</p>"
+                            self.state.system_status = "Actions diagnostics imported"
+                        self.actions_results_download.value = download
+                    except (ValueError, RuntimeError, OSError, KeyError, TypeError) as exc:
+                        self.actions_status.value = f"<p role='alert'>Verified artifacts were retained, but their scientific view could not be imported: {html.escape(str(exc))}.</p>"
+                        self.actions_results_download.value = download
+                        self.state.system_status = "Result inspection requires attention"
+                self._ui_call(imported)
+            except (ValueError, RuntimeError, OSError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.actions_status, "value",
+                    f"<p role='alert'>Results were not imported: {html.escape(message)}. No unverified science has been accepted.</p>"))
+            finally:
+                self._actions_retrieving = False
+                self._ui_call(lambda: setattr(self.btn_actions_retrieve, "disabled", False))
+        self._actions_retrieve_worker = threading.Thread(target=retrieve, daemon=True)
+        self._actions_retrieve_worker.start()
+
+    def _apply_student_engine_diagnostics(self, report: dict[str, Any], submission: dict[str, Any]) -> None:
+        if report.get('failure_category') == 'engine_provisioning':
+            unavailable = report.get('engine_availability', {})
+            if isinstance(unavailable, dict) and submission.get('repository') == self.gh_repo_input.value.strip() and submission.get('branch') == (self.gh_branch_input.value.strip() or 'main'):
+                for engine in ('orca', 'cfour'):
+                    item = unavailable.get(engine)
+                    if isinstance(item, dict) and item.get('status') == 'unavailable' and item.get('provisionable') is False:
+                        self._remote_engine_availability[engine] = item
+                self._refresh_engine_choices()
+                self._refresh_research_engine_choices()
+
+    def _import_student_actions_results(self, receipt: dict[str, Any]) -> None:
+        root = Path(receipt["path"]).resolve()
+        if not root.is_dir():
+            raise ValueError("Verified result directory is unavailable")
+        report = receipt.get("report", {})
+        if report.get("status") != "completed" or report.get("operation_performed") is not True:
+            raise ValueError("The verified package contains diagnostics for an incomplete calculation, not completed scientific results")
+        hdf5 = sorted(root.rglob("*.h5"))
+        bundles = sorted(root.rglob("*.npz"))
+        xyz = sorted(root.rglob("*.xyz"))
+        if hdf5:
+            self.inspector_file_input.value = str(hdf5[0])
+            self._on_read_hdf5_clicked(None)
+        if bundles:
+            self.isotope_hessian_path.value = str(bundles[0])
+        if xyz:
+            final = next((path for path in xyz if path.name in {"optimized.xyz", "xtbopt.xyz", "final.xyz"}), None)
+            if final:
+                self.module_artifact.value = str(final)
+        self._collect_student_calculated_geometries(root)
+        if self._actions_input_record:
+            manifest = root.parent / f"{receipt.get('request_id', 'results')}-student-original-input.json"
+            manifest.write_text(json.dumps(self._actions_input_record, indent=2) + "\n", encoding="utf-8")
+        self.calculation_result.value = (
+            f"<p><b>Verified calculation results</b> for request <code>{html.escape(str(receipt.get('request_id', '')))}</code>. "
+            "Open Data Inspector for native observables and Research results for module tables and figures.</p>"
+        )
+        if hasattr(self, "_load_student_research_report"):
+            self._load_student_research_report(root)
+
+    def _student_result_download_html(self, receipt: dict[str, Any]) -> str:
+        """Prepare bounded downloads on the retrieval worker, preserving the GUI loop."""
+        import io
+        import zipfile
+        root = Path(receipt["path"]).resolve()
+        files = [path for path in sorted(root.rglob("*")) if path.is_file() and not path.is_symlink()]
+        if sum(path.stat().st_size for path in files) > 32 * 1024 * 1024:
+            url = (self._actions_submission or {}).get("url", "")
+            return f"<p>The bundle exceeds the browser's 32 MiB inline limit. <a href='{html.escape(str(url), quote=True)}' target='_blank' rel='noopener'>Download its artifact from the calculation run</a>.</p>"
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path in files:
+                archive.write(path, path.relative_to(root).as_posix())
+        encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+        return f"<p><a download='cochem-calculation-{html.escape(str(receipt.get('request_id', 'results')))}.zip' href='data:application/zip;base64,{encoded}'>Download calculation bundle</a></p>"
+
+    def _collect_student_calculated_geometries(self, root: Path) -> None:
+        from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+        request = json.loads((root / "request.json").read_text(encoding="utf-8"))
+        state = request.get("calculation") or request.get("provider", {}).get("options", {}).get("topos_request", {}).get("molecule", {})
+        charge, multiplicity = state.get("charge"), state.get("multiplicity")
+        if type(charge) is not int or type(multiplicity) is not int:
+            self.btn_actions_use_geometry.disabled = True
+            return
+        geometries = {}
+        for source in sorted(root.rglob("result.json"))[:2000]:
+            if source.is_symlink() or source.stat().st_size > 32 * 1024 * 1024:
+                continue
+            try:
+                raw = source.read_bytes()
+                native = json.loads(raw)
+                if native.get("converged") is not True or not math.isfinite(native["energy_hartree"]):
+                    continue
+                symbols = native.get("nuclides", native.get("elements"))
+                coordinates = native["coordinates_angstrom"]
+                text = str(len(symbols)) + "\nVerified native calculation geometry; angstrom\n" + "\n".join(
+                    label + " " + " ".join(format(value, ".17g") for value in point)
+                    for label, point in zip(symbols, coordinates, strict=True)) + "\n"
+                parse_geometry_identity(text)
+                key = source.relative_to(root).as_posix()
+                geometries[key] = {"xyz": text, "charge": charge, "multiplicity": multiplicity,
+                    "source": str(source), "source_sha256": hashlib.sha256(raw).hexdigest(),
+                    "request_id": request["request_id"], "optimization_performed": native.get("optimization_performed", False),
+                    "fragments": state.get("fragments") or (self._actions_input_record or {}).get("fragments"),
+                    "fragment_states": state.get("fragment_states") or (self._actions_input_record or {}).get("fragment_states")}
+            except (ValueError, KeyError, TypeError, OSError):
+                continue
+        self._actions_calculated_geometries = geometries
+        self.actions_calculated_geometry.options = [(f"{key} ({'optimized' if item['optimization_performed'] else 'supplied coordinates'})", key)
+            for key, item in geometries.items()] or [("No retained calculated geometry", "")]
+        self.btn_actions_use_geometry.disabled = not bool(geometries)
+
+    def _use_student_calculated_geometry(self, b: Any = None) -> None:
+        from cochem_base.config_loader import get_artifact_dir
+        from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+        item = getattr(self, "_actions_calculated_geometries", {}).get(self.actions_calculated_geometry.value)
+        if not item:
+            return
+        try:
+            if hashlib.sha256(Path(item["source"]).read_bytes()).hexdigest() != item["source_sha256"]:
+                raise ValueError("Calculated source geometry changed after verified import")
+            identity = parse_geometry_identity(item["xyz"])
+            key = uuid.uuid4().hex
+            directory = get_artifact_dir() / "StudentInputs" / key
+            directory.mkdir(parents=True, exist_ok=False)
+            path = directory / "calculated-geometry.xyz"
+            content = item["xyz"].encode("utf-8")
+            path.write_bytes(content)
+            path.chmod(0o444)
+            record = {"schema_version": "cochem.student-input/1", "id": key, "filename": path.name,
+                "path": str(path), "sha256": hashlib.sha256(content).hexdigest(), "byte_count": len(content),
+                "atom_count": len(identity.elements), "elements": list(identity.elements), "nuclides": list(identity.nuclides),
+                "coordinates_angstrom": [list(row) for row in identity.coordinates_angstrom], "role": "complex",
+                "label": f"Calculated structure {item['request_id'][:8]}", "charge": item["charge"], "multiplicity": item["multiplicity"],
+                "fragments": item["fragments"], "fragment_states": item["fragment_states"], "coordinate_unit": "angstrom",
+                "origin": "verified_calculation_geometry", "source_result": {"path": item["source"], "sha256": item["source_sha256"]},
+                "optimization_performed": item["optimization_performed"]}
+            (directory / "input-manifest.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+            self._student_uploads[key] = record
+            self.student_geometry_choice.options = [(entry["label"], identifier) for identifier, entry in self._student_uploads.items()]
+            self.student_geometry_choice.value = key
+            self.module_artifact.value = str(path)
+            self.state.active_view = "matrix"
+        except (ValueError, OSError) as exc:
+            self.actions_status.value = f"<p role='alert'>Calculated structure was not loaded: {html.escape(str(exc))}</p>"
+
     def _cancel_pipeline(self, b: Any = None) -> None:
+        if self._actions_running and self._actions_submission is not None:
+            self._cancel_student_actions()
+            return
         if self._pipeline_running:
             self._pipeline_cancellation.set()
             self.btn_cancel.disabled = True

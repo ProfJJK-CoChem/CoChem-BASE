@@ -19,4 +19,8 @@ sudo --preserve-env=http_proxy,https_proxy,no_proxy,HTTP_PROXY,HTTPS_PROXY,NO_PR
   libegl1 libopengl0 libgl1 libdbus-1-3 libxkbcommon-x11-0 libxcb-cursor0
 sudo mkdir -p -- "$artifact_root"
 sudo chown "$(id -u):$(id -g)" "$artifact_root"
+# Every student gets the default ecosystem through BASE, without a terminal.
+# Optional provider failures are retained for the GUI's Retry setup control.
+export COCHEM_STUDENT_AUTO_SETUP="${COCHEM_STUDENT_AUTO_SETUP:-true}"
+export COCHEM_MODULES="${COCHEM_MODULES:-topos torq}"
 python3 scripts/hosted_dashboard.py setup --min-disk-space-gb 1

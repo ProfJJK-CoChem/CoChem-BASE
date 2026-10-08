@@ -71,7 +71,9 @@ def resolve_nuclear_identity(tokens: Sequence[str]) -> NuclearIdentity:
 
 def parse_geometry_identity(text: str) -> GeometryIdentity:
     """Read one XYZ frame or coordinate block with complete nuclear identities."""
-    lines = text.strip().splitlines()
+    # A Windows UTF-8 signature is encoding metadata, not an atom/count token.
+    # Only the parsing view changes; callers retain their original bytes/hash.
+    lines = text.removeprefix("\ufeff").strip().splitlines()
     if not lines:
         raise ValueError("Geometry cannot be empty")
     expected = None

@@ -65,3 +65,10 @@ def test_publishes_strict_report(tmp_path: Path) -> None:
     target = tmp_path / "nested" / "result.json"
     adapter._publish_json(target, {"observation": None, "reason": "undefined axis"})
     assert json.loads(target.read_text()) == {"observation": None, "reason": "undefined axis"}
+
+
+def test_normalizes_all_requested_isotope_aliases(tmp_path: Path) -> None:
+    source = tmp_path / "aliases.xyz"
+    source.write_text("4\nisotope aliases\nC-13 0 0 0\nC13 0 0 1.4\nD 0 1 0\nT 0 0 2.4\n")
+    symbols, _, _ = adapter.read_xyz(source)
+    assert symbols == ["13C", "13C", "2H", "3H"]

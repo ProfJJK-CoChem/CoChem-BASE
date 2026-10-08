@@ -184,94 +184,38 @@ the connected operations and downstream modules for additional protocols.
 
 ## Students: run a CFOUR assignment calculation
 
-1. Accept the instructor's Classroom50 assignment and organization invitation,
-   then open your accepted assignment repository. Use the instructor-approved
-   branch and calculation workflow. You do not need CFOUR on your laptop for
-   GitHub Actions calculations.
-2. Confirm the instructor has completed the repository's CFOUR physical
-   acceptance before running an assignment. A secret's existence, an accessible
-   release or a successful archive checksum does not establish successful
-   chemistry.
-3. For the first practice run, use
-   `examples/jobs/cfour-water-single-point.json` directly. No file edit or GUI
-   export is needed. The other committed examples are
-   `examples/jobs/cfour-water-optimization.json` and
-   `examples/jobs/cfour-water-harmonic.json`; the last requests optimization
-   followed by harmonic frequencies. These molecular examples use HF/STO-3G
-   neutral singlet water.
-4. For an assigned molecule, open the Voilà interface's **Seamless Install**
-   panel, select **GitHub Actions** as the calculation environment and enter
-   the instructor's course repository and approved branch. Open **No Code
-   Matrix** and choose **CFOUR (course Actions workflow)**. Enter the XYZ
-   coordinates in ångströms, charge and multiplicity, then select the method and
-   basis requested by the assignment. The bounded adapter requires multiplicity
-   `1`; entering another value does not add open-shell support. HF/STO-3G is
-   under tier **T2**, MP2 under **T6**, and CCSD(T) under **T8**. Select **Project
-   Name**, **Actions operation** and **Calculation timeout (s)**. HF permits
-   Single point, Optimization, Harmonic frequencies, or Optimize + harmonic
-   frequencies; the correlated methods permit Single point only.
-5. Select **Prepare GitHub Actions job**, then **Download CFOUR job JSON**.
-   The downloaded `<project>-cfour-job.json` contains the validated calculation
-   settings, not an executable, token or laptop installation path. Preparing a
-   request does not submit or run chemistry. In your approved assignment
-   repository, open `jobs/` and select **Add file → Upload files** to upload it.
-   If `jobs/` does not exist, use **Add file → Create new file**, enter the
-   complete path `jobs/<project>-cfour-job.json` and paste the entire downloaded
-   JSON into the editor. Commit through the course's review process and wait
-   for the input to reach the approved branch before starting a calculation.
-   Alternatively, copy and edit an instructor-approved committed CFOUR example;
-   keep `engine` set to `cfour` and retain `initial_hessian: "BFGS"` for
-   optimization requests.
-6. Open **Actions → CFOUR calculation → Run workflow**. Select the approved
-   branch containing the input. In **job_file**, enter
-   `examples/jobs/cfour-water-single-point.json` for the first practice run or
-   your committed `jobs/<project>-cfour-job.json` path. Enter a repository path,
-   not a laptop path or the JSON contents. Leave **cores** at `2` and
-   **maxcore_mb** at `512` unless the instructor specifies another supported
-   value. Start one run and wait for setup, execution and result validation.
-7. Download `cfour-calculation-<run-id>-<attempt>` from the completed run promptly
-   and retain its run URL, input, native output, validation report and scientific
-   record. In `student-job/`, inspect `calculation-report.json`,
-   `submitted-job.json` and `validated-job.json`; `calculation/` retains the
-   native calculation evidence and accepted result, and `complexes.h5` retains
-   the scientific record. Confirm that the requested operation and method
-   completed. Partial output from a failed job is useful diagnostic evidence,
-   not a completed result.
-8. On failure, send the instructor the run URL and the relevant error text.
-   Do not send an archive token or licensed runtime. Correct the input or
-   configuration through the course review process and start a fresh run.
+Accept your Classroom50 assignment, open its Codespace and wait for automatic
+BASE setup. Open the private Voilà dashboard on port 8866. Students use BASE
+only; a separate CFOUR or CoChem module checkout is not required.
 
-A green workflow is not automatically a Classroom50 assignment grade. Follow
-the instructor's submission and grading arrangement. HF/STO-3G practice jobs
-test the software path; they do not establish research-level accuracy or
-agreement with measured vibrational frequencies.
+1. Upload your own Avogadro 2 monomer or complex XYZ geometry through BASE.
+   Declare charge and multiplicity; XYZ files do not supply those values.
+2. Select **GitHub Actions**, your accepted assignment repository and the
+   available CFOUR engine. Choose the supported method, basis and operation.
+3. Submit through **Run with GitHub Actions**. BASE creates the request,
+   submits it, monitors its actual status and provides cancellation.
+4. Retrieve the completed result through BASE and inspect its native output,
+   validated scientific report, structures and Hessian when requested. A
+   failed job retains its diagnostics and is not labelled accepted chemistry.
+5. Save your research report through VS Code's Source Control interface and
+   submit according to your course. Stop the Codespace after saving your work.
 
-The course workflow permits a **256 KiB** JSON input, at most **50 atoms**,
-**1 or 2 OpenMP threads**, a **1–1024 MB** memory budget per allocated core,
-and at most **1800 seconds** of chemistry execution. Defaults are two threads
-and 512 MB per core. CFOUR receives one shared global memory request derived
-from `cores × maxcore_mb`; these are not independent MPI process allocations.
-Installation time is separate from the calculation timeout. Follow the
-instructor's bounded examples: these limits do not make every 50-atom
-method/basis combination affordable.
+Follow the [student research guide](Student_Research_No_Code.md) for the
+complete interface journey. Students do not run installation scripts, edit
+JSON, commit job requests or dispatch workflows manually. The instructor
+provides approved runtime access through the organization Actions secret.
 
-For equilibrium harmonic frequencies, request optimization followed by
-frequencies unless you already have an appropriately optimized geometry.
-Setting `is_freq` alone evaluates the supplied coordinates and does not certify
-a stationary point. External checkpoints, R2 references, ORCA recipes, T9
-recovery, periodic calculations and VPT2 require other connected workflows.
+The molecular CFOUR adapter supports closed-shell HF calculations and supported
+MP2/CCSD/CCSD(T) single points. Connected optimization and harmonic frequencies
+currently use HF; VPT2 and further domain operations require an actual available
+provider. The approved build uses OpenMP, not MPI. Method limitations and
+physical acceptance remain explicit in the GUI and result evidence.
 
-The current molecular CFOUR adapter is deliberately bounded: closed-shell RHF
-reference, HF calculations and supported MP2/CCSD/CCSD(T) single points. Its
-HF geometry optimization uses BASE's optimizer with real native CFOUR energies
-and analytic gradients. Harmonic acceptance requires genuine CFOUR derivative
-artifacts. The bounded input uses Cartesian basis functions, all electrons
-without a frozen core, and disabled molecular symmetry. Keep those settings in
-mind when comparing against a separately configured reference calculation.
-VPT2, general open-shell methods and downstream spectroscopic
-workflows require their separately integrated ecosystem providers and physical
-acceptance. A successful small installation test does not certify those
-capabilities.
+HF/STO-3G examples establish integration rather than vdW research accuracy.
+A harmonic evaluation at supplied coordinates does not establish a stationary
+point; use an appropriately verified optimization when required. Student
+results retain the method, basis, electronic state, requested operation,
+engine/runtime identity and source revisions.
 
 ## Codespaces: separate authentication and execution choices
 

@@ -36,197 +36,50 @@ requests** disabled. The course's manual calculation workflows do not need it.
 
 ## Student quick start
 
-Your instructor supplies a **Classroom50 assignment acceptance link**. Sign in
-at <https://classroom50.org/> using **Sign in with GitHub**, accept the course
-organization invitation, open the assignment link, and select **Accept
-assignment → Open repository** after its setup finishes. Classroom50 creates
-your assignment repository in the instructor's organization. If you see **Not a
-member yet**, ask the instructor to add you to the roster before trying again.
+Your instructor supplies a Classroom50 assignment acceptance link. Sign in with
+your own GitHub account, accept the organization invitation, select **Accept
+assignment**, then **Open repository**. Use that accepted repository, not the
+upstream BASE repository.
 
-Use the repository you just accepted, unless your instructor specifies a
-separate managed calculation repository. You do not need to download ORCA to
-your laptop for the Actions route.
+1. Select **Code → Codespaces → Create codespace**, authorize the requested
+   course repository access and wait for automatic BASE/module setup.
+2. Open the private **CoChem Voilà dashboard** on port **8866** from VS Code's
+   **Ports** panel. No notebook cell, terminal command or separate module
+   installation is required.
+3. Upload your own Avogadro 2 monomer or complex XYZ files inside BASE. Preserve
+   each original, assign its role, and declare its charge and multiplicity.
+4. Choose **GitHub Actions** as calculation environment and your accepted
+   assignment repository. Select the available ORCA method and operation,
+   then submit through BASE's **Run with GitHub Actions** button.
+5. Use BASE's status and cancellation controls. When the job finishes, retrieve
+   its verified result package through BASE and inspect the scientific report,
+   structures, HDF5/Hessian records and available diagrams.
+6. Save your report through VS Code's Source Control interface and follow your
+   course submission instructions. Stop the Codespace when finished.
 
-### Open the CoChem interface
-
-If your instructor enables Codespaces for the course:
-
-1. In **your accepted assignment repository**, select the instructor-approved
-   branch, then **Code → Codespaces → Create codespace on [approved branch]**.
-   Confirm GitHub identifies **your personal account** as the payer when the
-   course uses your student allowance. Authorize the requested read access to
-   the course's module repositories. Resume an existing course Codespace only
-   if its repository permissions have not changed; new permissions require a
-   new Codespace.
-2. Wait for container creation and the terminal setup tasks to finish. The
-   repository's `.devcontainer` configuration installs the dashboard, completes
-   its setup and starts Voilà automatically; the first creation takes longer
-   than reopening an existing environment.
-3. Open the editor's **Ports** tab. Find **8866 — CoChem Voilà dashboard** and
-   select **Open in Browser**. Keep the port's visibility **Private**, and stay
-   signed into your approved GitHub account. Do not make the dashboard public.
-4. If the dashboard did not start after setup completed, open a terminal at the
-   assignment repository root and run:
-
-   ```bash
-   python3 scripts/hosted_dashboard.py start
-   python3 scripts/hosted_dashboard.py check
-   ```
-
-   `start` reuses an already healthy dashboard. `check` verifies that its page
-   rendered; it does not run a chemistry calculation. If setup is missing or a
-   command reports an error, retain that message and contact the instructor
-   before repeating installation. Then return to **Ports → 8866 → Open in
-   Browser**.
-
-Alternatively, open the interface on your own computer. Install Python 3.12,
-then clone **your assignment repository** using the HTTPS URL under its
-**Code → Local** menu. Open a terminal in that checkout. In Windows PowerShell:
-
-```powershell
-.\Launch_CoChem_Windows.bat --native
-```
-
-On Linux or macOS:
-
-```bash
-./Launch_CoChem_Mac_Linux.sh
-```
-
-The launcher installs the interface dependencies and starts Voilà. Follow its
-printed browser address if a browser does not open automatically. The launcher's
-`--check` option only checks prerequisites; it does not install, open or test the
-GUI. See the [source-launch instructions](../README.md#launch-the-interface-from-source)
-for more detail, using the assignment checkout rather than cloning upstream
-BASE. No local ORCA installation is required to export Actions jobs.
-
-Codespaces hosts the interface while Actions hosts the chemistry. The Codespaces
-configuration and lifecycle have local validation; an actual hosted Codespace
-rebuild remains a separate course deployment check.
+The [full student research guide](Student_Research_No_Code.md) explains the
+interface, monomer assembly, provider operations, scientific interpretation and
+update controls. You do not install ORCA on your laptop or Codespace for this
+route, and you do not enter the instructor's archive token.
 
 ### Verify the course calculation environment
 
-1. In the open CoChem setup screen, choose **GitHub Actions** as the calculation
-   environment, enter your course repository as `OWNER/REPOSITORY` and the
-   instructor-approved branch, and follow the guide link. This choice exports
-   portable requests; it does not install ORCA on your interface computer.
-2. Check that the repository contains `scripts/orca-distribution.json` and
-   `.github/workflows/orca_acceptance.yml` on its default branch. If this is a
-   new course copy, wait for the instructor to finish setup before starting it.
-3. Open **Actions**. Enable workflows if GitHub asks and the instructor has
-   approved this copy. Select **ORCA private archive access**, choose **Run
-   workflow**, select the approved branch, and run it once. A green check proves
-   access and checksum verification only. If the workflow or Run workflow
-   button is absent, use the troubleshooting table below.
-4. Select **ORCA 6.1.1 calculation acceptance → Run workflow**, choose the same
-   approved branch and run it once. The job installs MPI, verifies ORCA,
-   prepares BASE, and calculates water with one and two processes. Keep the
-   Actions page open; initial installation includes compilation and can take
-   tens of minutes. Avoid starting duplicate runs.
-5. Open the completed run. The calculation step must pass. At the bottom of the
-   run's summary, download the artifact named
-   `orca-6.1.1-acceptance-<run-id>-<attempt>`. The run ID is the number in
-   the run page's URL. Download and retain the evidence promptly: the workflow
-   requests **14 days** of artifact retention. Keep the run URL with your lab
-   notes. Archive-access success alone is not a successful chemistry test.
-6. Confirm the calculation evidence reports normal ORCA termination, SCF
-   convergence and serial/parallel energy agreement within `1e-8 Eh`. The
-   calculation inputs, engine outputs, acceptance JSON and `results.xml` are
-   retained for inspection. Ask the instructor to review a red run before
-   retrying or changing the installation.
-7. Follow your assignment's calculation instructions after acceptance passes.
-   The installation test is a small HF/STO-3G water calculation; its success
-   does not validate every method, molecule, or a downstream module's science.
-
-Students using instructor-provisioned access normally do not create a token.
-If you cannot see repository Settings, send the instructor the run URL and
-error text. Do not send a token, an archive download URL containing credentials,
-or the ORCA binary in a discussion, issue or chat.
+The instructor checks the archive and physical engine acceptance once for the
+course. Your actual submitted job independently verifies its own download,
+engine identity, resources and physical execution. A failed or incomplete run
+is displayed as such; it is not a completed scientific result.
 
 ### Run your assignment calculation
 
-Use this route after the repository's ORCA acceptance has passed. The acceptance
-workflow checks the installation; the **ORCA calculation** workflow runs your
-submitted molecular calculation.
+BASE submits a hash-bound data-only request directly. You do not edit JSON,
+commit a job file, or open GitHub's workflow form. Installation and calculations
+run on the selected Actions worker; BASE monitors the actual request and safely
+retrieves its associated results. The native HF/STO-3G water examples are
+installation checks, not a vdW research protocol.
 
-1. Open the CoChem interface and select **GitHub Actions** as the calculation
-   environment. Enter the course repository and approved branch in its setup
-   panel. Open **No Code Matrix**, enter your molecule's XYZ coordinates,
-   charge and multiplicity, choose **ORCA**, and select the method and basis
-   requested by your assignment. Set **Project Name**, **Actions operation**
-   (Single point, Optimization, Harmonic frequencies, or Optimize + harmonic
-   frequencies), and **Calculation timeout (s)**. Coordinates
-   are in ångströms. Check that the charge and spin state describe the intended
-   molecule before exporting.
-2. Select **Prepare GitHub Actions job**. Download the generated
-   `<project>-orca-job.json` file using **Download ORCA job JSON**. This export contains the calculation settings,
-   not an ORCA executable, a token, or paths to your laptop's installation.
-   Preparing the file does not start a calculation on either your laptop or
-   GitHub.
-3. Open the approved course calculation repository in GitHub. If `jobs/` does
-   not exist yet, select **Add file → Create new file**, enter
-   `jobs/water-orca-job.json` as the complete filename, and paste the complete
-   contents of the downloaded JSON into the editor. GitHub creates the folder
-   when you commit the file. Once `jobs/` exists, you can open that folder and
-   use **Add file → Upload files** for later exported requests. Commit using
-   the course's review procedure. If review is required, wait for the input to
-   reach the instructor-approved branch before starting a job.
-4. Select **Actions → ORCA calculation → Run workflow**. Select the approved
-   branch containing the committed input. In **job_file**, enter its repository
-   path, for example `jobs/water-orca-job.json`. Do not enter a laptop file path,
-   a URL, or the contents of the JSON file. Leave **cores** at `2` and
-   **maxcore_mb** at `512` unless your assignment specifies another supported
-   value. Start one run.
-5. Open the run and follow its setup and calculation steps. The workflow starts
-   a fresh runner, installs the approved ORCA/MPI runtime and creates a registry
-   for that runner. A successful calculation must finish the actual engine
-   execution and result validation steps.
-6. Download `orca-calculation-<run-id>-<attempt>` from the run's summary.
-   Download it promptly and save it with your lab records: this workflow
-   requests **14 days** of artifact retention. In `student-job/`, inspect `calculation-report.json`, the original
-   `submitted-job.json`, and the validated settings in `validated-job.json`.
-   The `calculation/` directory contains ORCA input/output and `result.json`;
-   `complexes.h5` preserves the scientific record. Keep these with the run URL.
-   Read the final energy in hartrees and confirm the requested operation
-   converged; an error log or partial output is not a completed result.
-7. If a job fails, retain its evidence and show the instructor the run URL and
-   the relevant error. Correct the input or configuration, commit the change,
-   and create a new run so that each result remains tied to a specific input
-   and source revision.
-
-If your instructor uses a centrally managed calculation repository, submit the
-exported JSON through the assigned course process. The instructor reviews it
-and carries out the commit/run steps; you do not need that repository's token
-or permission to change its workflows. Your computer does not need to remain
-awake after GitHub accepts the workflow run.
-
-For your first practice run, you can use the committed
-`examples/jobs/water-single-point.json` directly as **job_file**, without a GUI
-export. `examples/jobs/water-optimization.json` supplies a geometry optimization;
-`examples/jobs/water-harmonic.json` adds harmonic frequencies after optimization.
-These use HF/STO-3G water for learning the workflow; this method and basis do not
-establish research-grade accuracy.
-
-For equilibrium harmonic frequencies, use **Optimize + harmonic frequencies**
-unless you already have an appropriately optimized geometry. **Harmonic
-frequencies** evaluates the supplied coordinates; that selection does not
-certify that the geometry is a stationary point.
-
-The course workflow accepts embedded molecular ORCA jobs up to **50 atoms**, a
-**256 KiB** JSON file, **1 or 2 processes**, **1–1024 MB per process**, and at most
-**1800 seconds of calculation time**. The default is 2 processes and 512 MB per
-process. Installation time is separate from that calculation timeout. These
-limits do not make every 50-atom method/basis combination affordable: follow the
-instructor's bounded examples. External Hessian/checkpoint files, Recipe R2
-references, T9 recovery, periodic calculations and VPT2 are not accepted by this
-student workflow. Unsupported scientific operations are rejected rather than
-converted into a different calculation.
-
-Save the input and the results requested by your instructor in the assignment
-repository, and submit through the course's Classroom50 process. A green ORCA
-workflow is a calculation result, not automatically a Classroom50 score or a
-completed assignment submission. Automatic grading requires a separately
-configured course grading rule.
+Compatible updates are handled inside BASE. The student's assignment and
+uploaded structures remain separate from the approved canonical scientific
+worker source and module revisions used for each run.
 
 ## Instructor setup
 

@@ -1,0 +1,226 @@
+name: CoChem student research
+run-name: CoChem student ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: BASE-generated immutable request UUID
+        required: true
+        type: string
+      request_sha256:
+        description: SHA-256 of the canonical data-only request
+        required: true
+        type: string
+      request_base64:
+        description: BASE-generated structures and scientific settings (no commands)
+        required: true
+        type: string
+
+# Calculations never need write access to source, students' reports or secrets.
+permissions:
+  contents: read
+
+concurrency:
+  group: cochem-student-research-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  research:
+    # A changed default branch/source hash is rejected again by request preflight.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: worker
+    env:
+      REQUEST_ID: ${{ inputs.request_id }}
+      REQUEST_SHA256: ${{ inputs.request_sha256 }}
+      REQUEST_BASE64: ${{ inputs.request_base64 }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      COCHEM_HEADLESS: '1'
+      COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
+      PYTHONDONTWRITEBYTECODE: '1'
+      QT_QPA_PLATFORM: offscreen
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - name: Set job-local runtime paths
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-student-runtime" >> "$GITHUB_ENV"
+          echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-student-runtime/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          path: assignment
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Verify submitted structures, identity and finite resource limits
+        id: request
+        working-directory: assignment
+        run: |
+          python scripts/run_student_research.py --preflight-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Verify the instructor-approved canonical worker revision
+        working-directory: assignment
+        env:
+          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          COCHEM_APPROVED_BASE_SHA: ${{ vars.COCHEM_APPROVED_BASE_SHA }}
+          COCHEM_COURSE_CHANNEL: ${{ vars.COCHEM_COURSE_CHANNEL }}
+        run: |
+          python scripts/run_student_research.py --approve-worker-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Obtain the exact canonical BASE worker without changing student files
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ProfJJK-CoChem/CoChem-BASE
+          ref: ${{ steps.request.outputs.worker_sha }}
+          path: worker
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          persist-credentials: false
+      - name: Revalidate scientific capabilities and resources in the approved worker
+        id: worker
+        run: |
+          python scripts/run_student_research.py --verify-worker-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Audit the approved BASE source
+        run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/cochem-student-audit"
+      - name: Install native prerequisites on the disposable runner
+        if: steps.worker.outputs.probe != 'true'
+        env:
+          RUNNER_HOST_KIND: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_HOST_KIND" != 'github-hosted' || "$RUNNER_OS" != 'Linux' ]]; then
+            echo '::error::Native provisioning is restricted to disposable GitHub-hosted Linux runners.'
+            exit 1
+          fi
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/ghc
+          sudo apt-get update
+          sudo apt-get install --yes build-essential libgfortran5 \
+            libegl1 libgl1 libxkbcommon0 libxcb-cursor0 libxcb-icccm4 \
+            libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 libdbus-1-3
+      - name: Provision ORCA only when this operation requests it
+        id: orca_install
+        if: steps.worker.outputs.orca == 'true'
+        uses: ./worker/.github/actions/setup-orca
+        with:
+          asset-token: ${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}
+      - name: Provision CFOUR only when this operation requests it
+        id: cfour_install
+        if: steps.worker.outputs.cfour == 'true'
+        uses: ./worker/.github/actions/setup-cfour
+        with:
+          asset-token: ${{ secrets.PRIVATE_CFOUR_ASSET_CREDENTIAL }}
+          required: 'true'
+      - name: Install an explicitly requested native CREST sampler
+        if: steps.worker.outputs.crest == 'true'
+        run: |
+          python scripts/install_free_engines.py \
+            --root "$COCHEM_ARTIFACT_DIR/free-engines" --engines crest \
+            --output "$RUNNER_TEMP/cochem-student-evidence/crest-installation.json"
+          echo "CREST_CMD=$COCHEM_ARTIFACT_DIR/free-engines/crest/crest/crest" >> "$GITHUB_ENV"
+          echo "$COCHEM_ARTIFACT_DIR/free-engines/crest/crest" >> "$GITHUB_PATH"
+      - name: Install BASE, free engines and every Stage 0 phase
+        if: steps.worker.outputs.probe != 'true'
+        env:
+          COCHEM_MODULES: ''
+        run: |
+          set -euo pipefail
+          if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
+            > "$RUNNER_TEMP/cochem-student-evidence/stage0-setup.log" 2>&1; then
+            tail -n 20 "$RUNNER_TEMP/cochem-student-evidence/stage0-setup.log"
+          else
+            status=$?
+            tail -n 80 "$RUNNER_TEMP/cochem-student-evidence/stage0-setup.log"
+            exit "$status"
+          fi
+      - name: Create and authorize the actual PySCF calculation silo when requested
+        if: steps.worker.outputs.pyscf == 'true'
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          from scripts.hosted_dashboard import runtime_environment, setup_build_environment
+          artifacts = Path(os.environ['COCHEM_ARTIFACT_DIR'])
+          manifest = artifacts / 'dashboard/deployment_manifest.json'
+          manifest.write_text(json.dumps({'selected_repositories':['CoChem-BASE'],
+              'requested_silos':['cochem_core_silo','cochem_ui_silo','cochem_calc_silo']})+'\n')
+          env = setup_build_environment(runtime_environment(artifacts))
+          with (Path(os.environ['RUNNER_TEMP'])/'cochem-student-evidence/pyscf-stage0-setup.log').open('w') as log:
+              subprocess.run([str(artifacts/'ui-env/bin/python'),'cli.py','setup','--all',
+                  '--artifact-dir',str(artifacts),'--min-disk-space-gb','1','--json'],
+                  env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+          PY
+      - name: Retrieve and verify the student's sealed reference or Hessian inputs
+        if: steps.worker.outputs.scientific_inputs == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/run_student_research.py \
+            --download-scientific-inputs --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Check optional licensed archive access without installing an engine
+        if: steps.worker.outputs.probe == 'true'
+        env:
+          PRIVATE_ORCA_ASSET_CREDENTIAL: ${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}
+          PRIVATE_CFOUR_ASSET_CREDENTIAL: ${{ secrets.PRIVATE_CFOUR_ASSET_CREDENTIAL }}
+        run: |
+          python scripts/run_student_research.py --capability-probe \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Install the selected reviewed providers without exposing readers to execution
+        if: steps.worker.outputs.modules != ''
+        env:
+          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          MODULE_IDS: ${{ steps.worker.outputs.modules }}
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" - <<'PY'
+          import json, os
+          from pathlib import Path
+          from cochem_base.interfaces.student_setup import StudentSetupService
+          if not os.environ.get('COCHEM_SOURCE_READ_TOKEN'):
+              raise SystemExit('The instructor must authorize this assignment for the source-reader secret.')
+          report = StudentSetupService(os.environ['COCHEM_ARTIFACT_DIR'], Path.cwd()).install_modules(
+              os.environ['MODULE_IDS'].split())
+          target = Path(os.environ['RUNNER_TEMP']) / 'cochem-student-evidence/module-installation.json'
+          target.write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
+          print(json.dumps({name: item['status'] for name, item in report['modules'].items()}))
+          if not report['ready']:
+              raise SystemExit('A required provider installation failed; no scientific operation was run.')
+          PY
+      - name: Run the requested native calculation or reviewed scientific provider
+        if: steps.worker.outputs.probe != 'true'
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/run_student_research.py \
+            --output "$RUNNER_TEMP/cochem-student-evidence" \
+            --registry "$COCHEM_CONFIG" --module-root "$COCHEM_ARTIFACT_DIR/Modules"
+      - name: Seal completed results or honest failure diagnostics
+        if: always() && steps.request.outcome == 'success'
+        working-directory: ${{ github.workspace }}
+        env:
+          COCHEM_ORCA_REQUESTED: ${{ steps.worker.outputs.orca }}
+          COCHEM_CFOUR_REQUESTED: ${{ steps.worker.outputs.cfour }}
+          COCHEM_ORCA_PROVISIONING_OUTCOME: ${{ steps.orca_install.outcome }}
+          COCHEM_CFOUR_PROVISIONING_OUTCOME: ${{ steps.cfour_install.outcome }}
+        run: |
+          python assignment/scripts/run_student_research.py --finalize-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Return the exact request's scientific artifacts to BASE
+        if: always() && steps.request.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cochem-student-${{ inputs.request_id }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cochem-student-evidence/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove optional job-local licensed runtime distributions
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          rm -rf -- "$RUNNER_TEMP/cochem-orca-install" "$RUNNER_TEMP/cochem-orca-download" \
+            "$RUNNER_TEMP/cochem-cfour-install" "$RUNNER_TEMP/cochem-cfour-download"

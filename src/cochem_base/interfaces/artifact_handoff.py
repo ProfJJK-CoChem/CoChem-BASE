@@ -80,7 +80,7 @@ def _inspect(path: Path) -> tuple[str, dict]:
         }
     if suffix == ".xyz":
         from cochem_base.calc.calculation_service import parse_run_geometry_identity
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = path.read_text(encoding="utf-8-sig").splitlines()
         if not lines or not lines[0].strip().isdigit() or int(lines[0]) <= 0:
             raise ValueError("XYZ handoff requires an explicit positive atom count")
         identity = parse_run_geometry_identity("\n".join(lines))

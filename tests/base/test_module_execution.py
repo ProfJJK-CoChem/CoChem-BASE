@@ -19,7 +19,8 @@ from cochem_base.interfaces.module_execution import (
     installed_module_status,
 )
 from scripts import manage_modules as installer
-from tests.base.test_module_installer import git, install_fixture, repository  # noqa: F401; shared real Git fixture
+# Pytest discovers the imported real Git fixture by name.
+from tests.base.test_module_installer import git, install_fixture, repository  # noqa: F401
 
 
 @pytest.fixture
@@ -115,7 +116,8 @@ def test_provider_environment_removes_credentials_and_injection():
     blocked = ["COCHEM_SOURCE_READ_TOKEN", "PRIVATE_ORCA_ASSET_CREDENTIAL", "GITHUB_TOKEN", "GH_TOKEN",
                "MY_API_KEY", "PRIVATE_PASSWORD", "SOURCE_CREDENTIAL", "MY_SECRET", "GIT_CONFIG_COUNT",
                "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_ASKPASS", "SSH_ASKPASS", "PYTHONPATH",
-               "PYTHONHOME", "PYTHONUSERBASE", "VIRTUAL_ENV", "LD_PRELOAD", "LD_LIBRARY_PATH"]
+               "PYTHONHOME", "PYTHONUSERBASE", "VIRTUAL_ENV", "LD_PRELOAD", "LD_LIBRARY_PATH",
+               "COCHEM_BASE_ROOT", "COCHEM_TOPOS_ROOT", "COCHEM_TORQ_ROOT", "COCHEM_TORQ_SIDECAR", "TOPOS_CONFIG", "TOPOS_EXECUTION_BACKEND"]
     child_environment = installer._build_env()
     child_environment.update(dict.fromkeys(blocked, "boundary-test-value"))
     child_environment["COCHEM_OPERATION_TEST_LABEL"] = "ordinary-setting"
@@ -143,13 +145,15 @@ def test_cli_lists_reviewed_modules_without_installing(tmp_path):
     )
     catalog = json.loads(result.stdout)
     assert catalog == installer.load_manifest()
-    assert catalog["modules"]["topos"]["operations"] == ["geometry_analysis"]
-    assert catalog["modules"]["torq"]["operations"] == ["geometry_analysis"]
+    assert set(catalog["modules"]["topos"]["operations"]) == {
+        "geometry_analysis", "energy", "gradient", "optimize", "search", "frequency", "thermochemistry", "association", "matrix",
+    }
+    assert set(catalog["modules"]["torq"]["operations"]) == {"geometry_analysis", "research_scan", "wiberg_lowdin"}
     assert not root.exists()
 
 
 @pytest.fixture
-def execution_installation(repository, tmp_path):
+def execution_installation(repository, tmp_path):  # noqa: F811 - pytest fixture parameter
     origin, fixture_spec, root = repository
     # This real wheel has no geometry provider; tests must reject before dispatch.
     spec = dict(fixture_spec, adapter="topos_geometry")

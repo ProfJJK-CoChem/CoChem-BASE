@@ -252,6 +252,8 @@ def run_calculation(
         if engine:
             raw["engine"] = engine
         config = CalculationMatrixConfig.model_validate(raw)
+        if config.hessian_file is not None and not config.hessian_file.is_absolute():
+            config = config.model_copy(update={"hessian_file": (cfg_path.parent / config.hessian_file).resolve()})
         validate_job_configuration(config)
         capability = calculation_capability(config)
         pending = capability.adapter_status == "pending_integration"
@@ -322,6 +324,33 @@ def run_calculation(
         sandbox_dir = scratch_root / basin_id
         sandbox_dir.mkdir()
         (sandbox_dir / "matrix_config.validated.json").write_text(config.model_dump_json(indent=2), encoding="utf-8")
+        if config.engine == "orca" and config.initial_hessian == "READ" and not pending:
+            # An electronic Hessian is a tensor tied to ordered atoms and a
+            # coordinate frame. Snapshot the uploaded evidence, then rotate
+            # its actual tensor into the same Eckart frame as the native deck.
+            # Retain both files and their separate identities for inspection.
+            from cochem_base.interfaces.scientific_inputs import transform_read_hessian
+            checkpoint_dir = sandbox_dir / "scientific-inputs"
+            checkpoint_dir.mkdir()
+            source_checkpoint = config.hessian_file.resolve(strict=True)
+            original_checkpoint = checkpoint_dir / ("original" + source_checkpoint.suffix.lower())
+            source_digest = hashlib.sha256(source_checkpoint.read_bytes()).hexdigest()
+            shutil.copyfile(source_checkpoint, original_checkpoint)
+            if hashlib.sha256(original_checkpoint.read_bytes()).hexdigest() != source_digest:
+                raise ValueError("The READ checkpoint changed while preserving its original input")
+            transformed = transform_read_hessian(original_checkpoint, config.geometry,
+                                                  checkpoint_dir / "aligned.hess")
+            if (hashlib.sha256(source_checkpoint.read_bytes()).hexdigest() != source_digest
+                    or not np.allclose(transformed["coordinates_angstrom"], coordinates, rtol=0, atol=1e-12)):
+                raise ValueError("The preserved READ Hessian does not match the native input coordinate frame")
+            receipt = dict(transformed["receipt"])
+            receipt.update(original_input="scientific-inputs/" + original_checkpoint.name,
+                           native_input="scientific-inputs/aligned.hess", uploaded_source_sha256=source_digest)
+            (checkpoint_dir / "frame-binding.json").write_text(json.dumps(receipt, indent=2, allow_nan=False), encoding="utf-8")
+            config = config.model_copy(update={"hessian_file": Path(transformed["path"])})
+            molecule = build_molecular_input(config, basin_id=basin_id, coordinates=coordinates,
+                                             nprocs=threads, maxcore_mb=authorization.maxcore_mb if authorization else maxcore_mb)
+            (sandbox_dir / "matrix_config.execution.json").write_text(config.model_dump_json(indent=2), encoding="utf-8")
         (sandbox_dir / "ingress_alignment.json").write_text(json.dumps({
             "method": "periodic_cell_frame_preserved" if periodic is not None else "pending_input_frame_preserved" if pending else "mass_weighted_COM_and_Eckart_SVD", "elements": elements,
             "nuclear_identity": identity.metadata,

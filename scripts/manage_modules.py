@@ -94,25 +94,27 @@ def _paths(module_id: str, spec: dict, root: Path) -> tuple[Path, Path, Path, Pa
         raise ValueError("Module installation root must be outside the BASE source checkout.")
     parent = root / module_id
     location = parent / spec["revision"]
-    for path in (parent, location, location / "source", location / "env", parent / "installation.json", parent / "source.json"):
+    for path in (parent, location, location / "source", location / "env", parent / "installation.json", parent / "source.json", location / "installation.json", location / "source.json", location / "wheels"):
         if path.is_symlink() or not path.resolve().is_relative_to(root):
             raise ValueError("Module installation paths may not use redirected symbolic links.")
     return parent, location, location / "source", location / "env"
 
 
-def _redact(message: str) -> str:
-    for key in ("COCHEM_SOURCE_READ_TOKEN", "GITHUB_TOKEN", "GH_TOKEN", "BASE_SOURCE_READ_TOKEN", "PRIVATE_ORCA_ASSET_CREDENTIAL"):
-        value = os.environ.get(key)
-        if value:
+def _redact(message: str, env: dict[str, str] | None = None) -> str:
+    for key, value in {**os.environ, **(env or {})}.items():
+        if value and (any(word in key.upper() for word in ("TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "AUTHORIZATION")) or key.upper().endswith("_KEY")):
             message = message.replace(value, "[redacted]")
     return message
 
 
-def _run(command: list[str], *, env: dict[str, str], label: str, cwd: Path | None = None) -> str:
-    result = subprocess.run(command, env=env, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+def _run(command: list[str], *, env: dict[str, str], label: str, cwd: Path | None = None, timeout: float = 1800) -> str:
+    try:
+        result = subprocess.run(command, env=env, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        raise ModuleInstallationError(f"{label} exceeded its {timeout:g}-second setup budget; retry from the setup panel.") from error
     if result.returncode:
         # Hooks and HTTP diagnostics can contain credentials: sanitize before reporting.
-        detail = _redact(result.stdout + "\n" + result.stderr)[-12000:]
+        detail = _redact(result.stdout + "\n" + result.stderr, env)[-12000:]
         raise ModuleInstallationError(f"{label} failed (exit {result.returncode}).\n{detail}")
     return result.stdout.rstrip("\r\n")
 
@@ -136,17 +138,18 @@ def _git_env() -> dict[str, str]:
 
 
 @contextlib.contextmanager
-def _git_auth():
+def _git_auth(*, token_override: str | None = None):
     env = _git_env()
-    token = env.get("COCHEM_SOURCE_READ_TOKEN")
+    token = token_override or env.get("COCHEM_SOURCE_READ_TOKEN") or env.get("GITHUB_TOKEN") or env.get("GH_TOKEN")
     if not token:
         yield env, []
         return
     with tempfile.TemporaryDirectory(prefix="cochem-git-auth-") as temporary:
         helper = Path(temporary) / "askpass.sh"
-        helper.write_text('#!/bin/sh\ncase "$1" in\n*sername*) printf "%s\\n" "x-access-token" ;;\n*) printf "%s\\n" "$COCHEM_SOURCE_READ_TOKEN" ;;\nesac\n', encoding="utf-8")
+        helper.write_text('#!/bin/sh\ncase "$1" in\n*sername*) printf "%s\\n" "x-access-token" ;;\n*) printf "%s\\n" "$COCHEM_GIT_READ_TOKEN" ;;\nesac\n', encoding="utf-8")
         helper.chmod(0o700)
         env["GIT_ASKPASS"] = str(helper)
+        env["COCHEM_GIT_READ_TOKEN"] = token
         env["GIT_CONFIG_GLOBAL"] = os.devnull
         env["GIT_CONFIG_NOSYSTEM"] = "1"
         # The helper reads the environment; neither its file nor Git config has a token.
@@ -303,15 +306,26 @@ def _read_receipt(path: Path) -> dict:
     return receipt
 
 
-def verify_installation(module_id: str, spec: dict, root: Path) -> dict:
+def verify_installation(module_id: str, spec: dict, root: Path, *, active: bool = True) -> dict:
+    """Verify the active installation, or a retained immutable revision before activation."""
     parent, location, source, environment = _paths(module_id, spec, root)
-    receipt = _read_receipt(parent / "installation.json")
+    receipt = _read_receipt((parent if active else location) / "installation.json")
     expected = {"schema_version": RECEIPT_SCHEMA, "status": "installed", "module_id": module_id,
                 "repository": spec["repository"], "revision": spec["revision"], "distribution": spec["distribution"],
                 "manifest_spec_sha256": _digest_json(spec), "source_path": str(source),
                 "python_path": str(_python_path(environment)), "adapter": spec.get("adapter"), "operations": spec["operations"]}
     if any(receipt.get(key) != value for key, value in expected.items()):
         raise ModuleInstallationError("Installation receipt does not match the current reviewed module specification.")
+    retained_wheel = receipt.get("built_wheel_path")
+    if retained_wheel is not None:
+        wheel = Path(retained_wheel)
+        if (wheel.is_symlink() or (not wheel.resolve().is_relative_to((location / "wheels").resolve()) or any(parent.is_symlink() for parent in wheel.parents if parent.is_relative_to(location))) or not wheel.is_file()
+                or hashlib.sha256(wheel.read_bytes()).hexdigest() != receipt.get("built_wheel_sha256")):
+            raise ModuleInstallationError("Retained module wheel differs from its accepted provenance.")
+    for dependency in receipt.get("private_dependency_wheels", []):
+        path = Path(dependency["path"])
+        if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != dependency["sha256"]:
+            raise ModuleInstallationError("Verified private dependency wheel is missing or changed.")
     integrity = _source_integrity(source, spec)
     if any(receipt.get(key) != value for key, value in integrity.items()):
         raise ModuleInstallationError("Installed module source integrity differs from its receipt.")
@@ -326,21 +340,31 @@ def verify_installation(module_id: str, spec: dict, root: Path) -> dict:
     return receipt
 
 
-def fetch_module(module_id: str, spec: dict, root: Path) -> dict:
+def fetch_module(module_id: str, spec: dict, root: Path, *, activate: bool = True) -> dict:
     """Obtain reviewed source, without representing it as an installed provider."""
     parent, location, source, _environment = _paths(module_id, spec, root)
     receipt_path = parent / "source.json"
     expected = {"schema_version": SOURCE_SCHEMA, "status": "downloaded", "module_id": module_id,
                 "repository": spec["repository"], "revision": spec["revision"],
                 "manifest_spec_sha256": _digest_json(spec), "source_path": str(source)}
-    if receipt_path.exists():
-        existing = _read_receipt(receipt_path)
+    retained_path = location / "source.json"
+    existing_path = receipt_path if receipt_path.exists() and _read_receipt(receipt_path).get("revision") == spec["revision"] else retained_path
+    if existing_path.exists():
+        existing = _read_receipt(existing_path)
         if existing.get("revision") == spec["revision"]:
-            if any(existing.get(key) != value for key, value in expected.items()):
+            source_identity = {key: value for key, value in expected.items() if key != "manifest_spec_sha256"}
+            if any(existing.get(key) != value for key, value in source_identity.items()):
                 raise ModuleInstallationError("Source receipt does not match the reviewed specification.")
             integrity = _source_integrity(source, spec)
             if any(existing.get(key) != value for key, value in integrity.items()):
                 raise ModuleInstallationError("Downloaded module source integrity differs from its receipt.")
+            # One immutable checkout may be reviewed under a newer adapter or
+            # dependency policy. Source-only reuse is safe after exact Git/hash
+            # verification; installation acceptance still binds the full policy.
+            existing = {**existing, **expected}
+            _atomic_json(retained_path, existing)
+            if activate:
+                _atomic_json(receipt_path, existing)
             return existing
     parent.mkdir(parents=True, exist_ok=True)
     # Atomic directory creation also excludes simultaneous installs at this pin.
@@ -355,18 +379,31 @@ def fetch_module(module_id: str, spec: dict, root: Path) -> dict:
     _run(["git", "-C", str(source), "checkout", "--detach", spec["revision"]], env=_build_env(), label="Check out pinned module source")
     integrity = _source_integrity(source, spec)
     receipt = {**expected, **integrity}
-    _atomic_json(receipt_path, receipt)
+    _atomic_json(retained_path, receipt)
+    if activate:
+        _atomic_json(receipt_path, receipt)
     return receipt
 
 
-def install_module(module_id: str, spec: dict, root: Path) -> dict:
+def install_module(module_id: str, spec: dict, root: Path, *, activate: bool = True, dependency_wheels: list[Path] | None = None) -> dict:
     parent, location, source, environment = _paths(module_id, spec, root)
     receipt_path = parent / "installation.json"
     if receipt_path.exists():
         existing = _read_receipt(receipt_path)
         if existing.get("revision") == spec["revision"]:
-            return verify_installation(module_id, spec, root)
-    fetch_module(module_id, spec, root)
+            receipt = verify_installation(module_id, spec, root)
+            if not (location / "installation.json").exists():
+                _atomic_json(location / "installation.json", receipt)
+            if not (location / "source.json").exists():
+                _atomic_json(location / "source.json", _read_receipt(parent / "source.json"))
+            return receipt
+    retained_path = location / "installation.json"
+    if retained_path.exists():
+        receipt = verify_installation(module_id, spec, root, active=False)
+        if activate:
+            activate_installation(module_id, spec, root)
+        return receipt
+    fetch_module(module_id, spec, root, activate=activate)
     if spec.get("install_blocker"):
         raise ModuleInstallationError(f"{module_id} source was downloaded to {source}, but installation is blocked: {spec['install_blocker']}; no runnable installation was created.")
     if spec["distribution"] is None:
@@ -393,7 +430,29 @@ def install_module(module_id: str, spec: dict, root: Path) -> dict:
         if _canonical_name(name) != _canonical_name(spec["distribution"]):
             raise ModuleInstallationError("Built distribution does not match the reviewed module identity.")
         wheel_sha256 = hashlib.sha256(wheel.read_bytes()).hexdigest()
-        _run([str(python), "-I", "-B", "-m", "pip", "install", str(wheel), *spec["adapter_requirements"]], env=_build_env(), label="Install module and adapter dependencies")
+        retained_wheels = location / "wheels"
+        retained_wheels.mkdir(exist_ok=True)
+        wheel_build = retained_wheels / wheel_sha256
+        if wheel_build.is_symlink():
+            raise ModuleInstallationError("Retained wheel build directories may not be redirected.")
+        wheel_build.mkdir(exist_ok=True)
+        retained_wheel = wheel_build / wheel.name
+        if retained_wheel.exists() and hashlib.sha256(retained_wheel.read_bytes()).hexdigest() != wheel_sha256:
+            raise ModuleInstallationError("A different retained wheel already occupies this accepted build.")
+        shutil.copyfile(wheel, retained_wheel)
+        supplied = []
+        for dependency in dependency_wheels or []:
+            dependency = Path(dependency).resolve(strict=True)
+            if not dependency.name.endswith(".whl") or not dependency.is_file():
+                raise ModuleInstallationError("Private dependency must be a verified local wheel.")
+            dependency_name, dependency_version = _wheel_identity(dependency)
+            supplied.append({"path": str(dependency), "name": dependency_name, "version": dependency_version,
+                "sha256": hashlib.sha256(dependency.read_bytes()).hexdigest()})
+        # Explicit wheel files satisfy reviewed private package requirements.
+        # Their parent directories are never opened as unrestricted indexes.
+        _run([str(python), "-I", "-B", "-m", "pip", "install", str(wheel),
+              *[item["path"] for item in supplied], *spec["adapter_requirements"]],
+             env=_build_env(), label="Install module and adapter dependencies")
         _run([str(python), "-I", "-B", "-m", "pip", "check"], env=_build_env(), label="Dependency check")
         probe = _probe(python, spec["distribution"])
         if probe["distribution_metadata"]["version"] != version:
@@ -407,8 +466,21 @@ def install_module(module_id: str, spec: dict, root: Path) -> dict:
                "repository": spec["repository"], "revision": spec["revision"], "distribution": spec["distribution"],
                "manifest_spec_sha256": _digest_json(spec), "source_path": str(source), "python_path": str(python),
                "adapter": spec.get("adapter"), "operations": spec["operations"], "built_wheel_sha256": wheel_sha256,
+               "built_wheel_path": str(retained_wheel), "private_dependency_wheels": supplied,
                "pip_check": {"passed": True}, "environment_sha256": _environment_integrity(environment), **integrity, **probe}
-    _atomic_json(receipt_path, receipt)
+    _atomic_json(retained_path, receipt)
+    if activate:
+        _atomic_json(receipt_path, receipt)
+    return receipt
+
+
+def activate_installation(module_id: str, spec: dict, root: Path) -> dict:
+    """Switch only a verified receipt; retain every previous source/environment."""
+    parent, location, _source, _environment = _paths(module_id, spec, root)
+    receipt = verify_installation(module_id, spec, root, active=False)
+    source_receipt = _read_receipt(location / "source.json")
+    _atomic_json(parent / "source.json", source_receipt)
+    _atomic_json(parent / "installation.json", receipt)
     return receipt
 
 

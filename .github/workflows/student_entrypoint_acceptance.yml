@@ -1,0 +1,99 @@
+name: BASE student GUI acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: Licensed engine for the real GUI submission and retrieval
+        required: true
+        default: orca
+        type: choice
+        options: [orca, cfour]
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: student-gui-acceptance-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  student-journey:
+    if: github.event.repository.private && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      COCHEM_HEADLESS: '1'
+      COCHEM_STUDENT_AUTO_SETUP: 'true'
+      COCHEM_MODULES: 'topos torq'
+      QT_QPA_PLATFORM: offscreen
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
+      ACCEPTANCE_ENGINE: ${{ inputs.engine }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Reserve the interface runtime and evidence outside source
+        run: |
+          set -euo pipefail
+          echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-student-interface" >> "$GITHUB_ENV"
+          echo "STUDENT_UI_EVIDENCE=$RUNNER_TEMP/student-ui-evidence" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/student-ui-evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/student-ui-evidence/source-commit.txt"
+      - name: Install the browser and native GUI prerequisites
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_ENVIRONMENT" != 'github-hosted' || "$RUNNER_OS" != 'Linux' ]]; then
+            echo '::error::Acceptance requires a disposable GitHub-hosted Linux runner.'
+            exit 1
+          fi
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/ghc
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes libegl1 libopengl0 libgl1 libdbus-1-3 libxkbcommon-x11-0 libxcb-cursor0
+          python -m pip install 'playwright==1.62.0'
+          python -m playwright install --with-deps chromium
+          python - <<'PY' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as browser:
+              print('STUDENT_CHROMIUM=' + browser.chromium.executable_path)
+          PY
+      - name: Automatically install BASE and its selected private modules
+        env:
+          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/hosted_dashboard.py setup --min-disk-space-gb 1
+      - name: Render BASE with Actions authorization
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/hosted_dashboard.py start
+          python3 scripts/hosted_dashboard.py check
+      - name: Exercise uploaded XYZ, GUI submission, monitoring and verified result retrieval
+        run: |
+          set -euo pipefail
+          python tests/ui/student_entrypoint_browser_acceptance.py \
+            --url http://127.0.0.1:8866 --chromium "$STUDENT_CHROMIUM" \
+            --artifacts "$STUDENT_UI_EVIDENCE" --hosted \
+            --repository "$GITHUB_REPOSITORY" --branch "${GITHUB_REF_NAME}" \
+            --engine "$ACCEPTANCE_ENGINE" --calculation-timeout 600 \
+            --hosted-timeout 4500 --execution-origin github-actions
+      - name: Preserve scientific acceptance and browser observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: student-gui-${{ inputs.engine }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/student-ui-evidence/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Stop the owned dashboard
+        if: always()
+        run: python3 scripts/hosted_dashboard.py stop

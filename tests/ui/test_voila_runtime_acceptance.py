@@ -171,10 +171,7 @@ def _classroom_gui():
     gui.gh_repo_input.value = "course-organization/student-water"
     gui.matrix_geometry.value = WATER
     gui.product_class_selector.value = "Screening (no product accuracy claim)"
-    gui.matrix_tier.value = "T2"
-    gui.matrix_method.value = "HF/STO-3G"
-    gui.matrix_basis.value = "STO-3G"
-    gui.matrix_solvation.value = None
+    gui.matrix_engine.value = "XTB"
     gui.project_name.value = "water homework"
     return gui
 
@@ -190,50 +187,30 @@ def test_actions_exports_portable_job_without_local_authority(tmp_path):
 
 def _exercise_actions_export(tmp_path):
     from cochem_base.core_engine.execution_authority import authorize_engine_execution
-    from cochem_base.calc.calculation_service import CalculationMatrixConfig
-    from cochem_base.calc.cochem_calc_input_generator import MoleculeInput
-    from cochem_base.calc.calculation_service import parse_run_geometry
-    from cochem_base.interfaces.actions_jobs import validate_configuration
+    from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry
+    from cochem_base.calc.xtb_execution import validate_xtb_config
 
     with pytest.raises((ValueError, RuntimeError, OSError)):
         authorize_engine_execution("orca", cores=1)
     gui = _classroom_gui()
     gui.artifact_output_path.value = str(tmp_path / "local-results")
     assert not gui.btn_execute.disabled
-    gui._execute_pipeline(None)
+    assert {'ORCA', 'CFOUR'}.isdisjoint(value for _, value in gui.matrix_engine.options)
+    gui._save_matrix_config(None)
     encoded = re.search(r"data:application/json;base64,([^']+)", gui.actions_job_download.value).group(1)
     contents = base64.b64decode(encoded)
     config = CalculationMatrixConfig.model_validate_json(contents)
-    assert config.engine == "orca" and config.method == "HF" and config.basis_set == "STO-3G"
-    assert config.geometry == WATER and not config.is_opt and not config.is_freq
-    assert config.timeout_seconds == 300
-    assert config.grid_stage == 2
-    assert gui._last_actions_job["job_file"] == "jobs/water_homework-orca-job.json"
+    validate_xtb_config(config, parse_run_geometry(config.geometry)[0])
+    assert config.engine == "xtb" and config.method == "GFN2-xTB" and config.basis_set == "built-in"
+    assert config.geometry == WATER and config.is_opt and not config.is_freq
+    assert config.timeout_seconds == 300 and config.product_class is None
+    assert gui._last_actions_job["job_file"] == "jobs/water_homework-xtb-job.json"
     assert gui._last_actions_job["sha256"] == hashlib.sha256(contents).hexdigest()
-    assert gui.state.system_status == "Actions job prepared"
     assert not gui._pipeline_running and not hasattr(gui, "_pipeline_worker")
     assert not (tmp_path / "local-results").exists()
     assert "No calculation has been submitted or run" in gui.actions_job_download.value
-    assert "course-organization/student-water/actions/workflows/orca_calculation.yml" in gui.actions_job_download.value
-    for operation, optimize, frequencies in (("optimization", True, False),
-                                             ("harmonic_frequencies", False, True),
-                                             ("optimization_frequencies", True, True)):
-        gui.actions_operation.value = operation
-        assert gui._last_actions_job is None and gui.actions_job_download.value == ""
-        gui._save_matrix_config(None)
-        assert gui._last_actions_job["config"]["is_opt"] is optimize
-        assert gui._last_actions_job["config"]["is_freq"] is frequencies
-        assert json.loads(gui.live_preview.value)["is_freq"] is frequencies
-        encoded = re.search(r"data:application/json;base64,([^']+)", gui.actions_job_download.value).group(1)
-        payload = base64.b64decode(encoded)
-        exported = validate_configuration(payload, gui._last_actions_job["config"])
-        elements, coordinates = parse_run_geometry(exported.geometry)
-        policy = MoleculeInput(
-            basin_id="export-boundary", elements=elements, coordinates=coordinates,
-            theory_level=f"{exported.method} {exported.basis_set}",
-            is_opt=exported.is_opt, is_freq=exported.is_freq, grid_stage=exported.grid_stage,
-        )
-        assert policy.resolved_grid() == ("DEFGRID3" if frequencies else "DEFGRID2")
+    assert 'Select <b>Run on GitHub Actions</b>' in gui.actions_job_download.value
+    assert 'Upload this file' not in gui.actions_job_download.value
     gui.matrix_geometry.value = "invalid geometry"
     assert gui._last_actions_job is None and gui.actions_job_download.value == ""
     assert gui.btn_execute.disabled
@@ -242,7 +219,9 @@ def _exercise_actions_export(tmp_path):
 def test_actions_guidance_has_course_links_and_no_secret_widgets():
     gui = _classroom_gui()
     gui.gh_branch_input.value = "approved/course"
-    for anchor in ("student-quick-start", "instructor-setup", "troubleshooting"):
+    assert ("course-organization/student-water/blob/approved%2Fcourse/"
+            ".docs/Student_Research_No_Code.md#start-your-workspace") in gui.gh_guidance.value
+    for anchor in ("instructor-setup", "troubleshooting"):
         assert ("course-organization/student-water/blob/approved%2Fcourse/"
                 f".docs/GitHub_Classroom_ORCA_Setup.md#{anchor}") in gui.gh_guidance.value
     for obsolete in ("gh_pat_input", "gh_orca_url_input", "gh_cfour_url_input", "btn_provision_secrets"):
@@ -255,34 +234,34 @@ def test_actions_guidance_has_course_links_and_no_secret_widgets():
     assert not gui._installation_running
 
 
-@pytest.mark.parametrize("external", ["r2", "t9"])
-def test_actions_rejects_source_host_dependencies(external):
+def test_actions_dependent_scientific_inputs_require_genuine_uploads():
     gui = _classroom_gui()
-    if external == "r2":
-        gui.cb_recipe_r2.value = True
-    else:
-        gui.t9_config_path.value = "/nonexistent/source-only-checkpoint.json"
-    gui._execute_pipeline(None)
-    assert gui._last_actions_job is None
-    assert "self-contained" in gui.state.error_message
-    assert not gui._pipeline_running
+    gui.cb_recipe_r2.value = True
+    with pytest.raises(ValueError, match='Upload the genuine'):
+        gui._selected_scientific_input()
+    gui.cb_recipe_r2.value = False
+    gui.scientific_initial_hessian.value = 'READ'
+    with pytest.raises(ValueError, match='Upload the genuine'):
+        gui._selected_scientific_input()
+    assert not gui._pipeline_running and not gui._actions_running
 
 
 def test_actions_selection_never_falls_back_to_local_engine(tmp_path):
     gui = _classroom_gui()
     gui.matrix_engine.value = "XTB"
     gui.artifact_output_path.value = str(tmp_path / "local-results")
-    assert gui.btn_execute.disabled
-    assert gui.btn_execute.description == "Prepare GitHub Actions job"
+    assert not gui.btn_execute.disabled
+    assert gui.btn_execute.description == "Run on GitHub Actions"
+    gui.gh_repo_input.value = "invalid-course-repository"
     gui._execute_pipeline(None)
-    assert "ORCA or CFOUR jobs only" in gui.state.error_message
+    assert "repository" in gui.state.error_message
     assert not gui._pipeline_running and not (tmp_path / "local-results").exists()
     gui._execute_periodic_pipeline(None)
     gui._start_topos_search(None)
     gui._on_slurm_submit(None)
     assert "GitHub Actions is selected" in gui.slurm_status_output.value
     assert not gui._pipeline_running and not gui._topos_running
-    with pytest.raises(ValueError, match="Actions job JSON"):
+    with pytest.raises(ValueError, match="GitHub Actions"):
         gui._build_pipeline_command()
     gui.calc_env_dropdown.value = "linux"
     assert gui.btn_execute.description == "Run xTB optimization"

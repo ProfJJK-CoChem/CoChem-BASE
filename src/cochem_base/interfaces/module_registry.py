@@ -3,7 +3,9 @@
 Importable namespace packages and legacy compatibility files do not prove that
 a scientific module is installed or that its calculations have been validated.
 External distributions advertise metadata through the ``cochem.modules`` entry
-point group. Discovery never imports or executes those providers.
+point group. This namespace-level discovery never imports those providers. BASE's
+student research service separately probes reviewed isolated installations and
+their callable receiver contracts before enabling operations.
 """
 from __future__ import annotations
 
@@ -68,7 +70,8 @@ def get_module_capability(module_id: str) -> ModuleCapability:
         return ModuleCapability(
             module_id=name, name=title, responsibility=responsibility,
             status=ModuleStatus.AVAILABLE,
-            operations=("setup", "ingest_artifact", "electronic_calculation", "inspect_hessian", "prepare_module_handoff"),
+            operations=("setup", "ingest_artifact", "electronic_calculation", "inspect_hessian", "prepare_module_handoff",
+                        "execute_module_handoff", "student_research"),
         )
     candidates = [ep for ep in metadata.entry_points(group=ENTRY_POINT_GROUP)
                   if ep.name.lower().removeprefix("cochem-") == name]

@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import urllib.parse
 from pathlib import Path
 import socket
 import signal
@@ -21,6 +23,33 @@ import urllib.request
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def assignment_identity(source: Path) -> dict[str, str]:
+    """Discover a student's actual repository without displaying remote credentials."""
+    result = subprocess.run(["git", "-C", str(source), "config", "--get", "remote.origin.url"],
+        capture_output=True, text=True, check=False, timeout=15)
+    url = result.stdout.strip()
+    repository = None
+    if result.returncode == 0 and len(url) <= 4096:
+        if url.startswith("git@github.com:"):
+            repository = url[len("git@github.com:"):]
+        else:
+            parsed = urllib.parse.urlsplit(url)
+            if parsed.scheme in {"https", "ssh"} and parsed.hostname == "github.com":
+                repository = parsed.path.lstrip("/")
+        if repository and repository.endswith(".git"):
+            repository = repository[:-4]
+    if not repository or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*", repository):
+        return {}
+    branch = subprocess.run(["git", "-C", str(source), "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+        capture_output=True, text=True, check=False, timeout=15)
+    name = branch.stdout.strip().removeprefix("origin/") if branch.returncode == 0 else ""
+    if not name:
+        branch = subprocess.run(["git", "-C", str(source), "symbolic-ref", "--short", "HEAD"],
+            capture_output=True, text=True, check=False, timeout=15)
+        name = branch.stdout.strip() if branch.returncode == 0 else "main"
+    return {"GITHUB_REPOSITORY": repository, "GITHUB_REF_NAME": name}
+
+
 def runtime_environment(artifact_dir: Path) -> dict[str, str]:
     """Resolve writable runtime locations and reject pollution of the source tree."""
     artifact_dir = artifact_dir.expanduser().resolve()
@@ -28,19 +57,41 @@ def runtime_environment(artifact_dir: Path) -> dict[str, str]:
         raise ValueError("The artifact directory must be outside the source checkout")
     env = os.environ.copy()
     env["COCHEM_ARTIFACT_DIR"] = str(artifact_dir)
+    origin_record = artifact_dir / "StudentSetup" / "assignment-runtime.json"
+    if origin_record.is_file():
+        origin = json.loads(origin_record.read_text(encoding="utf-8"))
+        env["COCHEM_ASSIGNMENT_ROOT"] = origin["source_path"]
+    else:
+        env["COCHEM_ASSIGNMENT_ROOT"] = str(REPO_ROOT)
+    identity = assignment_identity(Path(env["COCHEM_ASSIGNMENT_ROOT"]))
+    if identity:
+        # Actions already supplies authoritative values for that same checkout;
+        # an external interface runtime must never substitute its own BASE repo.
+        if env.get("GITHUB_REPOSITORY") != identity["GITHUB_REPOSITORY"]:
+            env.update(identity)
+        elif not env.get("GITHUB_REF_NAME"):
+            env["GITHUB_REF_NAME"] = identity["GITHUB_REF_NAME"]
+    authority_dir = artifact_dir
+    active_path = artifact_dir / "StudentSetup" / "active-runtime.json"
+    if active_path.is_file():
+        active = json.loads(active_path.read_text(encoding="utf-8"))
+        if active.get("kind") == "reviewed-release":
+            _validate_runtime_metadata(active, artifact_dir)
+            authority_dir = Path(active["authority_path"])
     # A hosted profile must never inherit another checkout's execution authority
     # or mutate its scientific silos while auditing this installation.
-    env["COCHEM_CONFIG"] = str(artifact_dir / "Registry" / "cochem_system_config.json")
-    env["COCHEM_MANIFEST_PATH"] = str(artifact_dir / "dashboard" / "deployment_manifest.json")
+    env["COCHEM_CONFIG"] = str(authority_dir / "Registry" / "cochem_system_config.json")
+    env["COCHEM_MANIFEST_PATH"] = str(authority_dir / "dashboard" / "deployment_manifest.json")
     for variable, silo in {
         "COCHEM_CORE_SILO": "cochem_core_silo",
         "COCHEM_UI_SILO": "cochem_ui_silo",
         "COCHEM_CALC_SILO": "cochem_calc_silo",
         "COCHEM_ML_SILO": "cochem_mace_silo",
     }.items():
-        env[variable] = str(artifact_dir / "Silos" / silo)
+        env[variable] = str(authority_dir / "Silos" / silo)
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["COCHEM_HEADLESS"] = "1"
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     xtb_root = artifact_dir / "free-engines" / "xtb" / "xtb-dist"
     if (xtb_root / "bin" / "xtb").is_file():
         env["XTB_CMD"] = str(xtb_root / "bin" / "xtb")
@@ -80,51 +131,90 @@ print(json.dumps({'status': config.status, 'registry_path': authority.registry_p
                   'phases': len(config.stage0.phases)}))
 """
     completed = subprocess.run(
-        [str(python), "-c", probe], cwd=REPO_ROOT, env=runtime_environment(artifact_dir),
+        [str(python), "-B", "-c", probe], cwd=REPO_ROOT, env=runtime_environment(artifact_dir),
         check=True, capture_output=True, text=True, timeout=30,
     )
     return json.loads(completed.stdout)
 
 
+def setup_build_environment(env: dict[str, str]) -> dict[str, str]:
+    """Source/binary credentials never reach bootstrap or package build hooks."""
+    result = {key: value for key, value in env.items() if not key.startswith("GIT_")
+              and key not in {"PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV", "SSH_ASKPASS"}
+              and not any(word in key.upper() for word in ("TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "AUTHORIZATION"))
+              and not key.upper().endswith("_KEY")}
+    result.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", GIT_TERMINAL_PROMPT="0",
+                  PYTHONNOUSERSITE="1", PYTHONDONTWRITEBYTECODE="1")
+    return result
+
+
 def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) -> None:
     """Install the bounded CPU dashboard and publish genuine execution authority."""
     env = runtime_environment(artifact_dir)
+    build_env = setup_build_environment(env)
     subprocess.run([
         sys.executable, str(REPO_ROOT / "scripts/bootstrap_environment.py"),
         "--venv", str(python.parent.parent),
-    ], cwd=REPO_ROOT, env=env, check=True)
+    ], cwd=REPO_ROOT, env=build_env, check=True)
     # Explicitly refresh the entire UI contract, including newly added plotting
     # dependencies, even when the bootstrap import probe succeeds on an old venv.
     subprocess.run([
         str(python), "-m", "pip", "install", "-e", ".[dev,symmetry]",
         "-r", "requirements.txt", "-r", "requirements-ui.txt",
-    ], cwd=REPO_ROOT, env=env, check=True)
-    subprocess.run([str(python), "-m", "pip", "check"], env=env, check=True)
+    ], cwd=REPO_ROOT, env=build_env, check=True)
+    subprocess.run([str(python), "-m", "pip", "check"], env=build_env, check=True)
     subprocess.run([
         str(python), str(REPO_ROOT / "scripts/install_free_engines.py"),
         "--root", str(artifact_dir / "free-engines"), "--engines", "xtb",
         "--output", str(artifact_dir / "free-engines" / "installation.json"),
-    ], cwd=REPO_ROOT, env=env, check=True)
+    ], cwd=REPO_ROOT, env=build_env, check=True)
     manifest = artifact_dir / "dashboard" / "deployment_manifest.json"
     selected_repositories = ["CoChem-BASE"]
     requested_modules = os.environ.get("COCHEM_MODULES", "").replace(",", " ").split()
+    automatic = (os.environ.get("CODESPACES", "").lower() == "true"
+                 or os.environ.get("COCHEM_STUDENT_AUTO_SETUP", "").lower() == "true")
+    if automatic and not requested_modules:
+        requested_modules = ["topos", "torq"]
     if requested_modules:
         catalog = json.loads((REPO_ROOT / "scripts/module-distribution.json").read_text(encoding="utf-8"))["modules"]
         if any(name not in catalog for name in requested_modules):
             raise ValueError("COCHEM_MODULES must contain module IDs from scripts/module-distribution.json")
-        subprocess.run([
-            str(python), str(REPO_ROOT / "scripts/manage_modules.py"), "install",
-            "--modules", *requested_modules, "--root", str(artifact_dir / "Modules"), "--json",
-        ], cwd=REPO_ROOT, env=env, check=True)
-        selected_repositories.extend(catalog[name]["repository"].split("/")[1]
-                                     for name in dict.fromkeys(requested_modules))
+        # A provider access/build failure must disable that provider rather than
+        # prevent students from opening BASE and fixing access using Retry setup.
+        probe = """import json,sys
+from cochem_base.interfaces.student_setup import StudentSetupService
+service=StudentSetupService(sys.argv[1],sys.argv[2])
+result=service.install_modules(json.loads(sys.argv[3]))
+print(json.dumps(result))
+"""
+        try:
+            completed = subprocess.run([str(python), "-B", "-c", probe, str(artifact_dir), str(REPO_ROOT), json.dumps(requested_modules)],
+                cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False, timeout=3600)
+        except subprocess.TimeoutExpired:
+            completed = subprocess.CompletedProcess([], 1, stdout="", stderr="Optional module setup exceeded its setup budget. Retry setup from the interface.")
+        if completed.returncode == 0:
+            result = json.loads(completed.stdout)
+            selected_repositories.extend(catalog[name]["repository"].split("/")[1]
+                for name, item in result["modules"].items() if item["status"] == "installed")
+        else:
+            # Preserve bounded diagnostics for the GUI; never print a credential.
+            try:
+                from scripts.manage_modules import _atomic_json, _redact
+            except ModuleNotFoundError:
+                from manage_modules import _atomic_json, _redact
+            setup_dir = artifact_dir / "StudentSetup"
+            setup_dir.mkdir(exist_ok=True, mode=0o700)
+            _atomic_json(setup_dir / "initial-setup.json", {"schema_version": "cochem.student-setup/1", "ready": False,
+                "modules": {name: {"status": "failed", "operations": [], "message": _redact(completed.stderr[-4000:])}
+                            for name in requested_modules}})
+        print("Optional module setup completed; unavailable modules can be retried in the interface.")
     manifest.write_text(json.dumps({"selected_repositories": selected_repositories}) + "\n", encoding="utf-8")
     env = runtime_environment(artifact_dir)  # Include the newly installed binary.
     with (artifact_dir / "dashboard" / "setup-command.json").open("w", encoding="utf-8") as output:
         subprocess.run([
             str(python), str(REPO_ROOT / "cli.py"), "setup", "--all", "--skip-heavy",
             "--artifact-dir", str(artifact_dir), "--min-disk-space-gb", str(min_disk_space_gb), "--json",
-        ], cwd=REPO_ROOT, env=env, stdout=output, check=True)
+        ], cwd=REPO_ROOT, env=setup_build_environment(env), stdout=output, check=True)
     evidence = validate_setup(python, artifact_dir)
     evidence["min_disk_space_gb"] = min_disk_space_gb
     evidence["scope"] = "BASE dashboard and native xTB CPU screening; optional heavy engines excluded"
@@ -169,7 +259,7 @@ except (psutil.NoSuchProcess, psutil.ZombieProcess):
 print(json.dumps(identity))
 """
     result = subprocess.run(
-        [str(python), "-c", probe, str(pid), json.dumps(command)],
+        [str(python), "-B", "-c", probe, str(pid), json.dumps(command)],
         capture_output=True, text=True, timeout=10, check=False,
     )
     if result.returncode:
@@ -177,9 +267,9 @@ print(json.dumps(identity))
     return json.loads(result.stdout)
 
 
-def server_command(python: Path, port: int) -> list[str]:
+def server_command(python: Path, port: int, source_root: Path | None = None) -> list[str]:
     return [
-        str(python), "-m", "voila", str(REPO_ROOT / "Start_Here.ipynb"),
+        str(python), "-B", "-m", "voila", str((source_root or REPO_ROOT) / "Start_Here.ipynb"),
         "--no-browser", f"--port={port}", "--Voila.ip=0.0.0.0",
         "--Voila.port_retries=0",
     ]
@@ -223,6 +313,7 @@ def start_dashboard(python: Path, artifact_dir: Path, port: int, timeout: float)
             if record["port"] == port and page_ready(port):
                 # Upgrade records created before process identity was persisted.
                 record["create_time"] = identity
+                record["command"] = server_command(python, port)
                 state.write_text(json.dumps(record) + "\n", encoding="utf-8")
                 print(f"CoChem dashboard is already ready on port {port}.")
                 return
@@ -245,7 +336,7 @@ def start_dashboard(python: Path, artifact_dir: Path, port: int, timeout: float)
                 identity = server_identity(python, child.pid, command)
                 if identity is None:
                     break
-                state.write_text(json.dumps({"pid": child.pid, "port": port, "create_time": identity}) + "\n", encoding="utf-8")
+                state.write_text(json.dumps({"pid": child.pid, "port": port, "create_time": identity, "command": command}) + "\n", encoding="utf-8")
                 print(f"CoChem dashboard rendered successfully on port {port}.")
                 return
             time.sleep(0.25)
@@ -256,26 +347,157 @@ def start_dashboard(python: Path, artifact_dir: Path, port: int, timeout: float)
     raise RuntimeError(f"Dashboard startup failed; inspect {log}")
 
 
+def _validate_runtime_metadata(record: dict, artifact_dir: Path) -> None:
+    """Validate paths using only stdlib before selecting an environment."""
+    if not isinstance(record, dict) or record.get("schema_version") != "cochem.student-runtime/1":
+        raise RuntimeError("The selected runtime has no valid versioned receipt")
+    source = Path(record.get("source_path", "")).resolve()
+    python = Path(record.get("python_path", "")).absolute()
+    if record.get("kind") == "reviewed-release":
+        import re
+        revision = record.get("revision", "")
+        if not re.fullmatch(r"[0-9a-f]{40}", str(revision)):
+            raise RuntimeError("The selected runtime has no immutable Git identity")
+        location = artifact_dir / "BaseRuntime/base" / revision
+        if source != location / "source" or python != python_path(location / "env"):
+            raise RuntimeError("The selected runtime is outside its managed revision")
+        if Path(record.get("authority_path", "")).resolve() != location / "authority":
+            raise RuntimeError("The selected authority is outside its managed revision")
+        spec = record.get("base_spec", {})
+        if spec.get("repository") != "ProfJJK-CoChem/CoChem-BASE" or spec.get("revision") != revision:
+            raise RuntimeError("The selected runtime has an invalid upstream identity")
+    elif record.get("kind") == "assignment":
+        origin_path = artifact_dir / "StudentSetup/assignment-runtime.json"
+        origin = json.loads(origin_path.read_text(encoding="utf-8")) if origin_path.is_file() else None
+        expected = Path(origin["source_path"]).resolve() if origin else REPO_ROOT
+        if source != expected or not (source / "Start_Here.ipynb").is_file() or not python.is_file():
+            raise RuntimeError("The assignment runtime is unavailable")
+    else:
+        raise RuntimeError("The selected runtime kind is unsupported")
+
+
+def selected_runtime(artifact_dir: Path) -> dict | None:
+    """Resolve external code only after trusted BASE verifies its source/env."""
+    state = artifact_dir / "StudentSetup" / "active-runtime.json"
+    if not state.exists():
+        return None
+    record = json.loads(state.read_text(encoding="utf-8"))
+    _validate_runtime_metadata(record, artifact_dir)
+    if record.get("kind") == "reviewed-release":
+        # The devcontainer's bootstrap interpreter has no scientific/UI packages.
+        # Verify with the original BASE environment before executing the target.
+        verifier = python_path(artifact_dir / "ui-env")
+        if not verifier.is_file():
+            raise RuntimeError("The original BASE verifier environment is unavailable")
+        probe = """import json,sys
+from pathlib import Path
+from scripts.manage_modules import verify_installation
+record=json.loads(sys.argv[1])
+verify_installation('base',record['base_spec'],Path(sys.argv[2])/'BaseRuntime',active=False)
+"""
+        env = runtime_environment(artifact_dir)
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        result = subprocess.run([str(verifier), "-B", "-c", probe, json.dumps(record), str(artifact_dir)],
+            cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=180)
+        if result.returncode:
+            raise RuntimeError("The selected BASE source or environment failed integrity verification; the previous runtime has been retained")
+    return record
+
+
+def stop_dashboard(python: Path, artifact_dir: Path) -> None:
+    """Stop only an exact recorded dashboard identity, including its kernels."""
+    state = artifact_dir / "dashboard" / "server.json"
+    if not state.is_file():
+        return
+    record = json.loads(state.read_text(encoding="utf-8"))
+    origin_path = artifact_dir / "StudentSetup" / "assignment-runtime.json"
+    origin = json.loads(origin_path.read_text(encoding="utf-8")) if origin_path.is_file() else None
+    candidates = [server_command(python, record["port"])]
+    if origin is not None:
+        candidates.append(server_command(Path(origin["python_path"]), record["port"], Path(origin["source_path"])))
+    # Retained history proves an older external runtime's expected exact launch
+    # command after another version has been selected, without trusting arbitrary
+    # command strings placed in server.json.
+    history = artifact_dir / "StudentSetup" / "history"
+    if history.is_dir():
+        for path in history.glob("*.json"):
+            runtime = json.loads(path.read_text(encoding="utf-8"))["runtime"]
+            _validate_runtime_metadata(runtime, artifact_dir)
+            candidates.append(server_command(Path(runtime["python_path"]), record["port"], Path(runtime["source_path"])))
+    last_update = artifact_dir / "StudentSetup" / "last-update.json"
+    if last_update.is_file():
+        previous_running = json.loads(last_update.read_text(encoding="utf-8")).get("runtime")
+        if previous_running is not None:
+            _validate_runtime_metadata(previous_running, artifact_dir)
+            candidates.append(server_command(Path(previous_running["python_path"]), record["port"], Path(previous_running["source_path"])))
+    # Upgrade servers launched before immutable runtime bytecode suppression.
+    # Every legacy variant still has the same verified source/interpreter paths.
+    candidates += [[argument for argument in candidate if argument != "-B"] for candidate in list(candidates)]
+    command = record.get("command")
+    if command is None:
+        command = next((candidate for candidate in candidates
+                        if server_identity(python, record["pid"], candidate) is not None), None)
+    if command not in candidates:
+        raise RuntimeError("The recorded dashboard command is outside the managed runtime; no process was stopped")
+    identity = server_identity(python, record["pid"], command)
+    if identity is None:
+        state.unlink(missing_ok=True)
+        return
+    if record.get("create_time", identity) != identity:
+        raise RuntimeError("The dashboard PID identity changed; no process was stopped")
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(record["pid"]), "/T", "/F"], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        if os.getpgid(record["pid"]) != record["pid"]:
+            raise RuntimeError("The dashboard is not in its owned process session; no process was stopped")
+        os.killpg(record["pid"], signal.SIGTERM)
+        deadline = time.monotonic() + 10
+        while server_identity(python, record["pid"], command) is not None and time.monotonic() < deadline:
+            time.sleep(0.2)
+        try:
+            os.killpg(record["pid"], signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    state.unlink(missing_ok=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("setup", "start", "check"))
+    parser.add_argument("command", choices=("setup", "start", "check", "restart", "stop"))
     parser.add_argument("--artifacts", type=Path, default=Path(os.environ.get("COCHEM_ARTIFACT_DIR", "~/CoChem_Artifacts")))
     parser.add_argument("--venv", type=Path)
     parser.add_argument("--port", type=int, default=8866)
     parser.add_argument("--timeout", type=float, default=120)
+    parser.add_argument("--restart-delay", type=float, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--min-disk-space-gb", type=float, default=50.0,
                         help="Minimum free workspace storage; use 1 only for bounded small-molecule acceptance")
     args = parser.parse_args(argv)
     artifacts = args.artifacts.expanduser().resolve()
     env = runtime_environment(artifacts)
+    if args.restart_delay < 0 or args.restart_delay > 5:
+        parser.error("Restart delay must be between zero and five seconds")
+    if args.restart_delay:
+        time.sleep(args.restart_delay)
+    runtime = selected_runtime(artifacts) if args.command != "setup" else None
+    if runtime is not None and Path(runtime["source_path"]).resolve() != REPO_ROOT:
+        source = Path(runtime["source_path"])
+        command = [runtime["python_path"], str(source / "scripts/hosted_dashboard.py"), args.command,
+                   "--artifacts", str(artifacts), "--port", str(args.port), "--timeout", str(args.timeout)]
+        return subprocess.call(command, cwd=source, env=env)
     venv = args.venv.expanduser().resolve() if args.venv else artifacts / "ui-env"
     if venv == REPO_ROOT or REPO_ROOT in venv.parents:
         parser.error("The dashboard virtual environment must be outside the checkout")
-    python = python_path(venv)
+    python = Path(runtime["python_path"]) if runtime is not None else python_path(venv)
     if args.command == "setup":
         if args.min_disk_space_gb <= 0:
             parser.error("The minimum workload storage must be positive")
         setup_dashboard(python, artifacts, args.min_disk_space_gb)
+    elif args.command in {"restart", "stop"}:
+        stop_dashboard(python, artifacts)
+        if args.command == "restart":
+            validate_setup(python, artifacts)
+            start_dashboard(python, artifacts, args.port, args.timeout)
     elif args.command == "start":
         if not python.is_file():
             parser.error("Dashboard environment is missing; run the setup command first")

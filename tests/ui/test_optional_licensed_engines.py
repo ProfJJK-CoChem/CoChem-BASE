@@ -46,41 +46,6 @@ def _exercise(case: str) -> None:
     assert not gui.license_mode.disabled
     geometry = Path(__file__).resolve().parents[2].joinpath('examples/jobs/water.xyz').read_text(encoding='utf-8')
     gui.matrix_geometry.value = geometry
-    if case == 'catalog-transitions':
-        from ui.voila_layout.cochem_gui import METHOD_MATRIX_TIERS
-
-        gui.calc_env_dropdown.value = 'github-actions'
-        gui.gh_repo_input.value = 'course-organization/student-water'
-        for engine, tier, method, basis in (
-                ('PYSCF', 'T2', 'HF', 'STO-3G'), ('XTB', 'T1', 'GFN2-xTB', 'built-in')):
-            gui.matrix_engine.value = 'CFOUR'
-            assert gui.matrix_tier.value == 'T2' and gui.matrix_method.options == ('HF',)
-            gui.matrix_engine.value = engine
-            assert gui.matrix_tier.options == (tier,)
-            assert gui.matrix_method.options == tuple(METHOD_MATRIX_TIERS[tier]['methods'])
-            assert gui.matrix_basis.options == tuple(METHOD_MATRIX_TIERS[tier]['allowed_basis_sets'])
-            gui.calc_env_dropdown.value = 'linux'
-            config = gui._collect_run_config()
-            assert config['engine'] == engine.lower() and config['method'] == method
-            assert config['basis_set'] == basis
-            assert gui.btn_execute.disabled and not gui._pipeline_running
-            gui.calc_env_dropdown.value = 'github-actions'
-        for tier in ('T2', 'T6', 'T8'):
-            gui.matrix_engine.value = 'CFOUR'
-            gui.matrix_tier.value = tier
-            gui.matrix_engine.value = 'ORCA'
-            assert gui.matrix_tier.value == tier
-            assert gui.matrix_method.options == tuple(METHOD_MATRIX_TIERS[tier]['methods'])
-            assert gui.matrix_basis.options == tuple(METHOD_MATRIX_TIERS[tier]['allowed_basis_sets'])
-            gui._prepare_actions_job()
-            assert gui._last_actions_job['config']['engine'] == 'orca'
-            assert not gui._pipeline_running and not hasattr(gui, '_pipeline_worker')
-        gui.matrix_engine.value = 'CFOUR'
-        gui.calc_env_dropdown.value = 'linux'
-        assert gui.matrix_engine.value is None and gui.matrix_method.disabled
-        assert gui.matrix_method.options == tuple(METHOD_MATRIX_TIERS['T2']['methods'])
-        assert gui.matrix_basis.options == tuple(METHOD_MATRIX_TIERS['T2']['allowed_basis_sets'])
-        return
     if case == 'missing':
         gui._execute_pipeline(None)
         assert not gui._pipeline_running
@@ -124,62 +89,39 @@ def _exercise(case: str) -> None:
             gui._cfour_run_config()
         assert gui.matrix_engine.value is None and gui.cfour_operation.disabled
         return
-    if case not in {'remote', 'remote-cfour'}:
+    if case not in {'remote', 'remote-cfour', 'catalog-transitions'}:
         raise ValueError('Unknown optional engine control case')
     gui.calc_env_dropdown.value = 'github-actions'
-    assert gui.matrix_engine.value == 'ORCA'
-    assert 'Remote licensed-engine availability is unverified' in gui.licensed_engine_status.value
     gui.gh_repo_input.value = 'course-organization/student-water'
-    gui.product_class_selector.value = 'Screening (no product accuracy claim)'
-    gui.matrix_tier.value = 'T2'
-    gui.matrix_method.value = 'HF/STO-3G'
-    gui.matrix_basis.value = 'STO-3G'
-    gui.matrix_solvation.value = None
-    if case == 'remote-cfour':
-        gui.matrix_engine.value = 'CFOUR'
-        assert gui.matrix_tier.options == ('T2', 'T6', 'T8')
-        assert gui.matrix_solvation.disabled and gui.cb_recipe_r1.disabled and gui.cb_recipe_r2.disabled
-        assert 'CFOUR_Actions_Setup.md' in gui.gh_guidance.value
-        assert gui.matrix_method.value == 'HF' and gui.matrix_basis.value == 'cc-pVDZ'
-        assert not any(basis.startswith('def2-') for basis in gui.matrix_basis.options)
-        for operation, optimize, frequencies in (
-                ('single_point', False, False), ('optimization', True, False),
-                ('harmonic_frequencies', False, True), ('optimization_frequencies', True, True)):
-            gui.actions_operation.value = operation
-            gui._prepare_actions_job()
-            config = gui._last_actions_job['config']
-            assert config['engine'] == 'cfour' and config['method'] == 'HF'
-            assert config['is_opt'] is optimize and config['is_freq'] is frequencies
-            assert config['initial_hessian'] == ('BFGS' if optimize else 'XTB2')
-            assert config['grid_stage'] is None and config['theory_tier'] is None
-            assert config['timeout_seconds'] == 300
-        assert gui._last_actions_job['job_file'].endswith('-cfour-job.json')
-        assert 'actions/workflows/cfour_calculation.yml' in gui.actions_job_download.value
-        assert 'Download CFOUR job JSON' in gui.actions_job_download.value
-        assert 'No calculation has been submitted or run' in gui.actions_job_download.value
-        gui.matrix_tier.value = 'T8'
-        gui.matrix_method.value = 'CCSD(T)'
-        assert gui.actions_operation.options == (('Single point', 'single_point'),)
-        with pytest.raises(TraitError):
-            gui.actions_operation.value = 'optimization'
-        gui._prepare_actions_job()
-        assert gui._last_actions_job['config']['method'] == 'CCSD(T)'
-        gui.multiplicity_input.value = 3
-        assert gui.btn_execute.disabled
-        gui._prepare_actions_job()
-        assert gui._last_actions_job is None
-        assert not gui._pipeline_running and not hasattr(gui, '_pipeline_worker')
-        gui.calc_env_dropdown.value = 'linux'
-        assert gui.matrix_engine.value is None and gui.matrix_method.disabled
-        return
-    gui._prepare_actions_job()
-    assert gui._last_actions_job['config']['engine'] == 'orca'
-    assert 'No calculation has been submitted or run' in gui.actions_job_download.value
-    assert not gui._pipeline_running and not hasattr(gui, '_pipeline_worker')
-    gui.calc_env_dropdown.value = 'linux'
     assert gui.matrix_engine.value is None
-    assert gui.matrix_method.disabled and gui.btn_execute.disabled
+    assert {'ORCA', 'CFOUR'}.isdisjoint(value for _, value in gui.matrix_engine.options)
+    assert all(not item['provisionable'] for item in gui._remote_engine_availability.values())
+    assert 'CFOUR_Actions_Setup.md' in gui.gh_guidance.value
+    assert gui.btn_execute.disabled
+    for engine in ('ORCA', 'CFOUR'):
+        with pytest.raises(TraitError):
+            gui.matrix_engine.value = engine
+    gui.matrix_engine.value = 'XTB'
+    assert gui.actions_operation.options == (('Geometry optimization', 'optimization'),)
+    gui._prepare_actions_job()
+    assert gui._last_actions_job['config']['engine'] == 'xtb'
+    assert gui._last_actions_job['config']['is_opt'] is True
+    assert not gui._pipeline_running and not hasattr(gui, '_pipeline_worker')
+    assert 'No calculation has been submitted or run' in gui.actions_job_download.value
+    gui.gh_repo_input.value = 'course-organization/other-student'
     assert gui._last_actions_job is None
+    assert {'ORCA', 'CFOUR'}.isdisjoint(value for _, value in gui.matrix_engine.options)
+    gui.calc_env_dropdown.value = 'linux'
+    assert gui.matrix_engine.value == 'XTB'
+    assert gui.btn_execute.disabled  # The local host still needs actual Stage 0 authority.
+    if case == 'catalog-transitions':
+        gui.matrix_engine.value = 'PYSCF'
+        config = gui._collect_run_config()
+        assert config['engine'] == 'pyscf' and config['method'] == 'HF'
+        assert gui.matrix_tier.options == ('T2',)
+        gui.calc_env_dropdown.value = 'github-actions'
+        assert gui.matrix_engine.value is None
+        assert gui.matrix_method.disabled and gui.btn_execute.disabled
 
 
 if __name__ == '__main__':

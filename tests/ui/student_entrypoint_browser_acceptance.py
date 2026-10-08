@@ -528,6 +528,42 @@ def main() -> None:
             page.get_by_label("Fragment atom groups:", exact=True).fill("1,2,3;4,5,6")
             page.get_by_role("button", name="Save geometry details", exact=True).click()
             expect(page.get_by_text("Saved complex details:", exact=False)).to_be_visible(timeout=15000)
+            selected_status = page.locator("[data-cochem-input-id]")
+            expect(selected_status).to_have_count(1)
+            selected_identity = selected_status.get_attribute("data-cochem-input-id")
+            assert uuid.UUID(selected_identity).hex == selected_identity
+            custom_label = "student-complex-custom-label"
+            page.get_by_label("Geometry label:", exact=True).fill(custom_label)
+            page.get_by_role("button", name="Save geometry details", exact=True).click()
+            expect(selection).to_have_value(custom_label)
+            expect(selected_status).to_have_attribute("data-cochem-input-id", selected_identity)
+            expect(page.get_by_label("Geometry (XYZ):", exact=True)).to_have_value(DIMER.decode())
+            expect(page.get_by_label("Input type:", exact=True)).to_have_value("Complex starting geometry")
+            expect(page.get_by_label("Charge:", exact=True)).to_have_value("0")
+            expect(page.get_by_label("Multiplicity:", exact=True)).to_have_value("1")
+            expect(page.get_by_label("Fragment atom groups:", exact=True)).to_have_value("1,2,3;4,5,6")
+            expect(page.get_by_text(report["input_sha256"]["student-complex.xyz"], exact=True)).to_be_visible()
+            upload_files(page, [artifact / "student-complex.xyz"])
+            expect(selected_status).to_contain_text("Original bytes, atom order and isotope labels preserved.")
+            expect(selection.locator("option")).to_have_count(3)
+            expect(selection).to_have_value(custom_label)
+            expect(selected_status).to_have_attribute("data-cochem-input-id", selected_identity)
+            expect(page.get_by_label("Geometry label:", exact=True)).to_have_value(custom_label)
+            expect(page.get_by_label("Geometry (XYZ):", exact=True)).to_have_value(DIMER.decode())
+            expect(page.get_by_label("Input type:", exact=True)).to_have_value("Complex starting geometry")
+            expect(page.get_by_label("Charge:", exact=True)).to_have_value("0")
+            expect(page.get_by_label("Multiplicity:", exact=True)).to_have_value("1")
+            expect(page.get_by_label("Fragment atom groups:", exact=True)).to_have_value("1,2,3;4,5,6")
+            expect(page.get_by_text(report["input_sha256"]["student-complex.xyz"], exact=True)).to_be_visible()
+            report["geometry_label_identity"] = {"selected_input_id": selected_identity,
+                "custom_label": custom_label, "saved_label_displayed_immediately": True,
+                "deduplicated_actual_upload_retained_same_id_and_label": True,
+                "original_geometry_hash": report["input_sha256"]["student-complex.xyz"],
+                "original_coordinates_roles_and_fragments_preserved": True}
+            page.get_by_label("Geometry label:", exact=True).fill("student-complex")
+            page.get_by_role("button", name="Save geometry details", exact=True).click()
+            expect(selection).to_have_value("student-complex")
+            expect(selected_status).to_have_attribute("data-cochem-input-id", selected_identity)
             selection.select_option(label="student-water")
             page.get_by_label("Input type:", exact=True).select_option(label="Monomer A")
             page.get_by_role("button", name="Save geometry details", exact=True).click()

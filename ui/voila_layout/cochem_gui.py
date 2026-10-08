@@ -2193,7 +2193,7 @@ class CoChemGUI:
                 for fragment in record.get("fragments") or [])
             self.module_artifact.value = str(path) if hasattr(self, "module_artifact") else ""
             self.student_upload_status.value = (
-                f"<p role='status'><b>{html.escape(record['filename'])}</b>: {record['atom_count']} atoms. "
+                f"<p role='status' data-cochem-input-id='{html.escape(record['id'], quote=True)}'><b>{html.escape(record['filename'])}</b>: {record['atom_count']} atoms. "
                 "Original bytes, atom order and isotope labels preserved. "
                 f"SHA-256: <code>{record['sha256']}</code>.</p>"
                 "<p>Confirm this geometry's input type, charge and multiplicity, then choose Save geometry details. "
@@ -2222,8 +2222,16 @@ class CoChemGUI:
             record.update(role=self.student_input_role.value, label=self.student_input_label.value.strip() or Path(record["filename"]).stem,
                           charge=self.charge_input.value, multiplicity=self.multiplicity_input.value, fragments=groups)
             Path(record["path"]).parent.joinpath("input-manifest.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+            selected_key = self.student_geometry_choice.value
+            selection_was_running = self._input_selection_running
+            self._input_selection_running = True
+            try:
+                self.student_geometry_choice.options = [(item["label"], key) for key, item in self._student_uploads.items()]
+                self.student_geometry_choice.value = selected_key
+            finally:
+                self._input_selection_running = selection_was_running
             self.project_name.value = record["label"]
-            self.student_upload_status.value = f"<p role='status'>Saved {html.escape(record['role'])} details: {html.escape(record['label'])}, charge {record['charge']}, multiplicity {record['multiplicity']}. Original SHA-256 <code>{record['sha256']}</code> unchanged.</p>"
+            self.student_upload_status.value = f"<p role='status' data-cochem-input-id='{html.escape(record['id'], quote=True)}'>Saved {html.escape(record['role'])} details: {html.escape(record['label'])}, charge {record['charge']}, multiplicity {record['multiplicity']}. Original SHA-256 <code>{record['sha256']}</code> unchanged.</p>"
             self._refresh_student_monomer_choices()
         except (ValueError, OSError) as exc:
             self.student_upload_status.value = f"<p role='alert'>Geometry details were not saved: {html.escape(str(exc))}</p>"

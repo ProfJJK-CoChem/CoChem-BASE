@@ -48,18 +48,34 @@ def test_redirected_topos_receipt_cannot_bind_an_out_of_band_python(tmp_path):
         managed_topos_producer(root)
 
 
-def test_real_managed_topos_receipt_exposes_exact_verified_producer_without_execution():
+def test_real_managed_topos_receipt_exposes_exact_verified_producer_without_execution(tmp_path):
     configured = os.environ.get("COCHEM_TEST_TOPOS_MODULE_ROOT")
     if not configured:
         pytest.skip("Set COCHEM_TEST_TOPOS_MODULE_ROOT to a genuinely installed sealed mandatory package root")
     root = Path(configured).absolute()
-    spec = manager.load_manifest()["modules"]["topos"]
-    genuine = manager.verify_installation("topos", spec, root)
-    observed = managed_topos_producer(root)
+    # The checkout's pytest profile deliberately imports source modules. Sealed
+    # kit authority belongs to the genuine noneditable installed controller.
+    probe = """import json, pathlib, sys
+from scripts import manage_modules as manager
+from scripts.torq_dashboard import managed_topos_producer
+if not pathlib.Path(manager.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve()):
+    raise RuntimeError('Receipt verification must use installed BASE authority')
+root = pathlib.Path(sys.argv[1])
+genuine = manager.verify_installation('topos', manager.load_manifest()['modules']['topos'], root)
+observed = managed_topos_producer(root)
+print(json.dumps({'genuine': genuine, 'observed': observed,
+                  'receipt_sha256': manager._digest_json(genuine)}))
+"""
+    completed = subprocess.run(
+        [sys.executable, "-I", "-B", "-c", probe, str(root)], cwd=tmp_path,
+        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=180, check=True,
+    )
+    proof = json.loads(completed.stdout)
+    genuine, observed = proof["genuine"], proof["observed"]
     assert observed is not None and observed["status"] == "verified"
     assert observed["python_path"] == genuine["python_path"]
     assert observed["source_pins"] == genuine["source_pins"]
-    assert observed["installation_receipt_sha256"] == manager._digest_json(genuine)
+    assert observed["installation_receipt_sha256"] == proof["receipt_sha256"]
 
 
 @pytest.mark.parametrize("port", [True, -1, 0, 1023, 65536, 8888.5])

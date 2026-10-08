@@ -202,13 +202,21 @@ def test_gui_prepares_real_complete_handoff_without_execution(gui, request_file,
 def test_gui_cancellation_reaches_execution_boundary_without_fake_success(gui, monkeypatch, request_file, xyz, tmp_path):
     reached = threading.Event()
     observed = {}
-    def wait_for_cancel(manifest, output, **kwargs):
+    def wait_for_cancel(module, arguments, output, **kwargs):
+        from cochem_base.interfaces.artifact_handoff import load_module_handoff
+        assert module == "scripts.run_module_handoff"
+        assert arguments[0] == "--handoff" and arguments[2] == "--output"
+        assert arguments[4:] == ["--root", str(gui.module_root.value), "--timeout", "45.0"]
+        handoff = load_module_handoff(arguments[1])
+        assert handoff.options == {"topos_request": json.loads(request_file.read_text())}
+        assert handoff.scientific_execution_performed is False
+        assert str(output.parent / "result") == arguments[3]
         observed.update(kwargs)
         reached.set()
         if not kwargs["cancellation_event"].wait(3):
             raise RuntimeError("Cancellation was not forwarded")
         raise InterruptedError("Transport boundary cancelled; no native process was launched")
-    monkeypatch.setattr("cochem_base.interfaces.module_execution.execute_module_handoff", wait_for_cancel)
+    monkeypatch.setattr("scripts.gui_module_controller.run_installed_cli", wait_for_cancel)
     gui.module_request_file.value = str(request_file)
     gui.module_artifact.value = str(xyz)
     gui.module_output.value = str(tmp_path / "packages")
@@ -218,7 +226,8 @@ def test_gui_cancellation_reaches_execution_boundary_without_fake_success(gui, m
     assert gui.btn_module_install.disabled and gui.btn_module_run.disabled
     gui._cancel_module_operation()
     gui._module_worker.join(timeout=5)
-    assert observed["timeout"] == 45
+    assert observed["timeout"] == 75
+    assert observed["cancellation_event"] is gui._module_cancellation
     assert "cancelled" in gui.module_handoff_status.value
     assert gui.btn_module_cancel.disabled and not gui.btn_module_run.disabled
     assert not list(tmp_path.rglob("result.json"))
@@ -387,10 +396,20 @@ def test_batch_topos_prerequisites_reject_before_install(monkeypatch, tmp_path, 
 
 def test_gui_partial_result_is_never_rendered_as_completed_science(gui, monkeypatch, request_file, xyz, tmp_path):
     # A non-numerical lifecycle fixture; no simulated engine output or success.
-    def interrupted_receiver(*args, **kwargs):
+    def interrupted_receiver(module, arguments, output, **kwargs):
+        from cochem_base.interfaces.artifact_handoff import load_module_handoff
+        assert module == "scripts.run_module_handoff"
+        assert arguments[0] == "--handoff" and arguments[2] == "--output"
+        handoff = load_module_handoff(arguments[1])
+        assert handoff.options == {"topos_request": json.loads(request_file.read_text())}
+        assert handoff.scientific_execution_performed is False
+        assert arguments[4:] == ["--root", str(gui.module_root.value), "--timeout", str(float(gui.module_timeout.value))]
+        assert kwargs["timeout"] == gui.module_timeout.value + 30
+        assert kwargs["cancellation_event"] is gui._module_cancellation
+        assert str(output.parent / "result") == arguments[3]
         return {"status": "partial", "validation_status": "human-review", "published": False,
                 "scope": "Transport UI fixture: interrupted before any numerical result"}
-    monkeypatch.setattr("cochem_base.interfaces.module_execution.execute_module_handoff", interrupted_receiver)
+    monkeypatch.setattr("scripts.gui_module_controller.run_installed_cli", interrupted_receiver)
     gui.module_request_file.value = str(request_file)
     gui.module_artifact.value = str(xyz)
     gui.module_output.value = str(tmp_path / "packages")
@@ -399,6 +418,7 @@ def test_gui_partial_result_is_never_rendered_as_completed_science(gui, monkeypa
     assert "partial" in gui.module_handoff_status.value and "human-review" in gui.module_handoff_status.value
     assert "completed" not in gui.module_handoff_status.value
     assert gui._last_module_result["published"] is False
+    assert not list(tmp_path.rglob("result.json"))
 
 
 @pytest.mark.parametrize("failure", ["timeout", "process"])

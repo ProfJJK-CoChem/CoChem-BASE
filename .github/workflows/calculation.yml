@@ -78,6 +78,8 @@ jobs:
           persist-credentials: false
       - name: Bind original controller, exact clean native source and unchanged request transport
         working-directory: controller
+        env:
+          TORQ_SCIENTIFIC_SOURCE_SHA: ${{ steps.torq.outputs.revision }}
         run: |
           set -euo pipefail
           python -B -m scripts.native_torq_actions verify \

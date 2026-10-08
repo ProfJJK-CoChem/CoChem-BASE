@@ -11,7 +11,7 @@ on:
       torq_ref:
         description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
         required: false
-        default: d7a4739a5f7d6f22ed659b32eeb4706bef16225e
+        default: 4f323800227dbde00ffb082bd6d9e44d851e1c7a
         type: string
   workflow_call:
     inputs:
@@ -23,7 +23,7 @@ on:
       torq_ref:
         description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
         required: false
-        default: d7a4739a5f7d6f22ed659b32eeb4706bef16225e
+        default: 4f323800227dbde00ffb082bd6d9e44d851e1c7a
         type: string
       base_repository:
         description: Repository containing the reviewed BASE source for a reusable call.

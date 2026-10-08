@@ -30,7 +30,7 @@ APPROVED_OWNERS: dict[str, str] = {
     'tests/base/test_licensed_codespaces.py': '07fc50c6cabb10471910ae5ae2f76b208e92554047240e946f6bec4896c1ed81',
     'tests/base/test_mandatory_ecosystem.py': '63452abe832e34defb6e3f4c4e90eb5e46f70405a90591e17ca83c0e06f3536c',
     'tests/base/test_safe_subprocess_owned_cleanup.py': '066f83e806a9ab1247e2650b2485703ed0f621891d1d3190c4e7a5b3e06de3bf',
-    'tests/base/test_topos_module_surfaces.py': 'bc30e687db62bec38939b2812f683958af835d361012959473cdb3e221a7ca00',
+    'tests/base/test_topos_module_surfaces.py': '76b335bee278e1dece4d6b6fa868300b7de205cd71200ac28e6aa6725c59226b',
 }
 
 APPROVED_SCOPES: dict[tuple[str, str], str] = {
@@ -63,8 +63,8 @@ APPROVED_SCOPES: dict[tuple[str, str], str] = {
     ('tests/base/test_topos_module_surfaces.py', 'test_batch_subprocess_failures_preserve_structured_results_and_continue'): '350a8cea38596074a6f9b388a39911e7276aa69a3da07f74adc218c4bbfe152d',
     ('tests/base/test_topos_module_surfaces.py', 'test_batch_topos_prerequisites_reject_before_install'): '0631c94af702a9c511ff9d030ee05961fcb0e5832f57f4a9463f82da1742251f',
     ('tests/base/test_topos_module_surfaces.py', 'test_dashboard_installer_uses_noneditable_base_and_explicit_kit'): '2a4383415d6b72a11252ee2d4edb49d989ce2612e7adf4b5a06b3d090cf8e66d',
-    ('tests/base/test_topos_module_surfaces.py', 'test_gui_cancellation_reaches_execution_boundary_without_fake_success'): 'bc7e250a21f58ad18254b08a35f834140047f7debf1e1521d9c9a6330064b305',
-    ('tests/base/test_topos_module_surfaces.py', 'test_gui_partial_result_is_never_rendered_as_completed_science'): '811ed5869cf428bc25469fddd6466d73aaba6903ecaae4068d4265c004a4c2c2',
+    ('tests/base/test_topos_module_surfaces.py', 'test_gui_cancellation_reaches_execution_boundary_without_fake_success'): '6999069d9f799a3685379c842a2d180d924888d14b452506a316c6b9e20430d1',
+    ('tests/base/test_topos_module_surfaces.py', 'test_gui_partial_result_is_never_rendered_as_completed_science'): '8abe00822d1bd5979d7fedc1bfb0858ca657135f348eb6d9aca3ab6e38244211',
     ('tests/base/test_topos_module_surfaces.py', 'test_interrupted_setup_keeps_actual_failed_process_audit_and_failed_batch'): 'a13fa684012e2c44cba2c3845618079b160f482f66dbcef0db8c769e01817627',
     ('tests/base/test_topos_module_surfaces.py', 'test_missing_kit_rejected_before_dashboard_bootstrap'): 'ccaca67701b39c78a30802a357b8ce30affe430dac839d38c2c87ec513cbb72b',
 }

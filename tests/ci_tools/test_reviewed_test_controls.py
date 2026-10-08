@@ -66,6 +66,13 @@ def test_exact_controls_classify_only_intercepts_and_preserve_raw_linter(control
     assert all(is_reviewed_control(item, records) for item in intercepts)
     assert all(not is_reviewed_control(item, records) for rows in raw.values() for item in rows
                if item.category != "MONKEYPATCH_INTERCEPT")
+    gui_controls = [record for record in records if record["function"] in {
+        "test_gui_cancellation_reaches_execution_boundary_without_fake_success",
+        "test_gui_partial_result_is_never_rendered_as_completed_science",
+    }]
+    assert len(gui_controls) == 2
+    assert {record["target"] for record in gui_controls} == {"scripts.gui_module_controller.run_installed_cli"}
+    assert all(record["scientific_execution_performed"] is False for record in gui_controls)
     assert findings(root) == raw
 
 
@@ -134,6 +141,15 @@ def test_whole_owner_byte_change_is_rejected(control_layout):
     ("tests/base/test_safe_subprocess_owned_cleanup.py", "child = real_popen(command, **kwargs)", "child = object()"),
     ("tests/base/test_mandatory_ecosystem.py", "{'status': 'failed', 'published': False}", "{'status': 'completed', 'published': True}"),
     ("tests/base/test_licensed_codespaces.py", 'setup, "checked_installer", installer', 'setup, "run_native_engine", installer'),
+    ("tests/base/test_topos_module_surfaces.py",
+     'monkeypatch.setattr("scripts.gui_module_controller.run_installed_cli", wait_for_cancel)',
+     'monkeypatch.setattr("cochem_base.interfaces.module_execution.execute_module_handoff", wait_for_cancel)'),
+    ("tests/base/test_topos_module_surfaces.py",
+     'monkeypatch.setattr("scripts.gui_module_controller.run_installed_cli", interrupted_receiver)',
+     'monkeypatch.setattr("cochem_base.core_engine.execution_authority.authorize_engine_execution", interrupted_receiver)'),
+    ("tests/base/test_topos_module_surfaces.py",
+     'return {"status": "partial", "validation_status": "human-review", "published": False,',
+     'return {"status": "completed", "validation_status": "verified", "published": True,'),
 ])
 def test_fresh_manifest_hashes_cannot_authorize_native_or_completed_science(control_layout, relative, before, after):
     root, manifest = control_layout

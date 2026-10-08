@@ -1,5 +1,14 @@
 # Install private CoChem modules for a Classroom50 course
 
+For student-owned private projects using personal Actions minutes, follow the
+[private student project guide](Private_Student_Projects.md). Organization secrets
+do not transfer to personal repositories. Configure the private
+`COCHEM_ORCA_ASSET_CREDENTIAL` and `COCHEM_CFOUR_ASSET_CREDENTIAL` variables to
+select existing authorized secrets; their identifiers are never fixed in public
+YAML. Any credential name in examples below is a placeholder, not the name of
+an existing lab secret. Organization-owned course assignments remain a separate
+route using organization Actions minutes.
+
 CoChem-BASE supplies ingestion, environment setup, the interface and execution
 handoffs. Each additional module supplies its own supported calculations.
 Access to its repository, installation of its dependencies, and a successful
@@ -19,7 +28,7 @@ separate licensed engine installation.
 | Student-owned Codespace | Student's GitHub identity, with authorized `contents: read` access to the declared module repositories | Student's personal Codespaces allowance. Verified GitHub Education students currently receive up to 180 core-hours per month; verify their current allowance. |
 | Local Linux, WSL, macOS or HPC | User's authorized Git credentials or an approved local source checkout | Local machine or the HPC site's allocation. |
 
-The ORCA archive still uses `PRIVATE_ORCA_ASSET_CREDENTIAL`. Classroom50 collection and
+The ORCA archive still uses `PRIVATE_ORCA_CREDENTIAL`. Classroom50 collection and
 grading use their own credentials. Do not reuse the Classroom50 service token
 as a module or ORCA reader.
 

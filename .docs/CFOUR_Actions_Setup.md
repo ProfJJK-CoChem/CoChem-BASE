@@ -1,5 +1,14 @@
 # CFOUR for Classroom50, GitHub Actions and local CoChem environments
 
+For student-owned private projects using personal Actions minutes, follow the
+[private student project guide](Private_Student_Projects.md). Organization secrets
+do not transfer to personal repositories. Configure the private
+`COCHEM_ORCA_ASSET_CREDENTIAL` and `COCHEM_CFOUR_ASSET_CREDENTIAL` variables to
+select existing authorized secrets; their identifiers are never fixed in public
+YAML. Any credential name in examples below is a placeholder, not the name of
+an existing lab secret. Organization-owned course assignments remain a separate
+route using organization Actions minutes.
+
 ORCA and CFOUR are **optional, strongly recommended** components of CoChem.
 BASE can ingest structures, inspect data, prepare environments and use installed
 free engines without either licensed engine. An absent engine or a failed
@@ -30,7 +39,7 @@ The reviewed settings are in
 | Compiler | GCC/GFortran 11.4.0 |
 | Mathematical runtime | ILP64 OpenBLAS pthread; 64-bit Fortran integers |
 | Parallel execution | OpenMP enabled; MPI disabled |
-| Actions archive credential | `PRIVATE_CFOUR_ASSET_CREDENTIAL` |
+| Actions archive credential | `PRIVATE_CFOUR_CREDENTIAL` |
 
 The package contains the `xcfour` launcher, its companion native programs,
 required runtime libraries, `GENBAS`, `ECPDATA` and a complete file inventory.
@@ -45,7 +54,7 @@ its own reviewed identity and compatibility validation.
 
 ## Instructor: connect the private release to course repositories
 
-The CFOUR release and `PRIVATE_CFOUR_ASSET_CREDENTIAL` have already been configured for
+The CFOUR release and `PRIVATE_CFOUR_CREDENTIAL` have already been configured for
 the upstream integration. A new course or assignment repository still needs
 authorized access; copying the template does not copy secrets.
 
@@ -53,7 +62,7 @@ authorized access; copying the template does not copy secrets.
    published release and the exact archive under **Assets**. A tag by itself
    is insufficient. Keep the licensed runtime in the authorized private asset
    repository, outside the course source repository and Git history.
-2. Confirm the token saved as `PRIVATE_CFOUR_ASSET_CREDENTIAL` is unexpired and has access
+2. Confirm the token saved as `PRIVATE_CFOUR_CREDENTIAL` is unexpired and has access
    to the asset repository. In GitHub's fine-grained token editor, select its
    repository owner, choose **Only select repositories → CoChem-CFOUR**, then
    **Permissions → Add permissions → Contents → Read-only**. Complete any
@@ -61,7 +70,7 @@ authorized access; copying the template does not copy secrets.
    not require Actions or Codespaces management permission.
 3. For an instructor-managed course, open the course organization's **Settings
    → Secrets and variables → Actions**. Choose **New organization secret**, or
-   edit the existing `PRIVATE_CFOUR_ASSET_CREDENTIAL`. Enter the credential through
+   edit the existing `PRIVATE_CFOUR_CREDENTIAL`. Enter the credential through
    GitHub's secret form; never put its value in source, a lab input, logs or chat.
 4. Under **Repository access**, choose **Selected repositories**. Select the
    approved pilot calculation repository and course template as appropriate,
@@ -85,8 +94,8 @@ authorized access; copying the template does not copy secrets.
 
 The default `GITHUB_TOKEN` in a calculation repository cannot automatically read
 the separate private asset repository. `COCHEM_SOURCE_READ_TOKEN` downloads
-private CoChem module source; `PRIVATE_ORCA_ASSET_CREDENTIAL` reads the ORCA archive;
-`PRIVATE_CFOUR_ASSET_CREDENTIAL` reads the CFOUR archive. Classroom50's service and
+private CoChem module source; `PRIVATE_ORCA_CREDENTIAL` reads the ORCA archive;
+`PRIVATE_CFOUR_CREDENTIAL` reads the CFOUR archive. Classroom50's service and
 grading credentials serve another purpose. Keep these access scopes distinct.
 
 People who can modify and execute a credential-bearing workflow must be

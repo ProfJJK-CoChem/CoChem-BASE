@@ -22,6 +22,16 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Require a private licensed provisioning context
+      shell: bash
+      env:
+        REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+      run: |
+        set -euo pipefail
+        if [[ "$REPOSITORY_PRIVATE" != true ]]; then
+          echo '::error::Licensed provisioning requires a private project repository.'
+          exit 1
+        fi
     - name: Read the reviewed CFOUR identity
       id: identity
       continue-on-error: true
@@ -61,7 +71,7 @@ runs:
       run: |
         set -euo pipefail
         if [[ -z "$GH_TOKEN" ]]; then
-          echo 'PRIVATE_CFOUR_ASSET_CREDENTIAL is unavailable; CFOUR-dependent operations will remain disabled.'
+          echo 'The private CFOUR asset credential is unavailable; CFOUR-dependent operations will remain disabled.'
           exit 1
         fi
         mkdir -p "$RUNNER_TEMP/cochem-cfour-download"
@@ -105,7 +115,7 @@ runs:
             if os.environ['COCHEM_IDENTITY_OUTCOME'] != 'success':
                 reason = 'The reviewed CFOUR distribution identity could not be loaded.'
             elif os.environ['COCHEM_DOWNLOAD_OUTCOME'] != 'success':
-                reason = 'The private CFOUR runtime could not be downloaded; check PRIVATE_CFOUR_ASSET_CREDENTIAL access and the pinned release asset.'
+                reason = 'The private CFOUR runtime could not be downloaded; check the private asset credential access and the pinned release asset.'
             else:
                 reason = 'CFOUR runtime verification or installation failed; see the provisioning step for the precise error.'
         report = Path(os.environ['RUNNER_TEMP']) / 'cfour-evidence/installation.json'

@@ -100,6 +100,12 @@ engines, Python profiles and genuine allocation registry. The installed module
 does not submit a Slurm job or reuse another machine's CPU/RAM authority. Every
 scientific operation needs its own available provider and retained evidence.
 
+The [TOPOS student deployment guide](../docs/topos_student_deployment.md) explains
+the BASE GUI's **Open complete TOPOS interface** control, the installed
+`python -I -B -m scripts.module_dashboard` equivalent, private Codespaces port
+forwarding, and canonical intake of previous GOAT/CREST starting states. It uses
+the same reviewed mandatory environment and BASE registry as the typed receiver.
+
 ## Acceptance boundaries
 
 Record source fetch, package installation, integrity verification, actual native

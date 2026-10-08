@@ -1,0 +1,168 @@
+name: TOPOS calculation
+run-name: CoChem TOPOS ${{ inputs.dispatch_id }} ${{ inputs.engine_task_ids }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      dispatch_id:
+        description: Exact TOPOS task UUID from private staging
+        required: true
+        type: string
+      job_file:
+        description: Exact committed canonical TOPOS request JSON
+        required: true
+        type: string
+      request_sha256:
+        description: Exact committed request byte checksum
+        required: true
+        type: string
+      staging_bundle:
+        description: Canonical separate kit and zero/one/two engine staging bundle
+        required: true
+        type: string
+      staging_bundle_sha256:
+        description: Exact separate staging bundle byte checksum
+        required: true
+        type: string
+      engine_task_ids:
+        description: Separate engine task UUIDs, empty for free calculations
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: topos-calculation-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  calculate:
+    if: ${{ github.event.repository.private && github.event.repository.owner.type == 'User' && github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: write
+      actions: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      COCHEM_HEADLESS: '1'
+      COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
+      QT_QPA_PLATFORM: offscreen
+      TOPOS_DISPATCH_ID: ${{ inputs.dispatch_id }}
+      JOB_FILE: ${{ inputs.job_file }}
+      TOPOS_REQUEST_SHA256: ${{ inputs.request_sha256 }}
+      TOPOS_STAGING_BUNDLE: ${{ inputs.staging_bundle }}
+      TOPOS_STAGING_BUNDLE_SHA256: ${{ inputs.staging_bundle_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select external registry and evidence storage
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/topos-evidence"
+          echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/topos-bootstrap" >> "$GITHUB_ENV"
+          echo "COCHEM_CONFIG=$RUNNER_TEMP/topos-bootstrap/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
+          git rev-parse HEAD > "$RUNNER_TEMP/topos-evidence/source-commit.txt"
+      - name: Verify exact owning project, request, allocation and staged kit
+        id: staging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PYTHONPATH: src
+        run: python -B -m scripts.run_private_topos_actions preflight --output "$RUNNER_TEMP/topos-evidence/preflight.json"
+      - name: Audit the checked-out BASE source
+        run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/topos-evidence/source-audit"
+      - name: Install native prerequisites and reserve licensed distribution disk space
+        env:
+          RUNNER_HOST_KIND: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_HOST_KIND" != github-hosted || "$RUNNER_OS" != Linux ]]; then
+            echo '::error::This provisioner is restricted to its disposable GitHub-hosted Linux worker.'
+            exit 1
+          fi
+          if [[ "$TOPOS_REQUIRES_ORCA" == true ]]; then
+            sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/ghc
+          fi
+          sudo apt-get update
+          sudo apt-get install --yes build-essential libgfortran5 libegl1 libopengl0 libgl1 libdbus-1-3 libxkbcommon0
+      - name: Provision the exact privately staged ORCA distribution
+        if: env.TOPOS_REQUIRES_ORCA == 'true'
+        uses: ./.github/actions/setup-orca
+        with:
+          asset-receipt: ${{ steps.staging.outputs.orca_receipt }}
+          asset-receipt-sha256: ${{ steps.staging.outputs.orca_sha256 }}
+          asset-task-id: ${{ steps.staging.outputs.orca_task }}
+      - name: Provision the exact privately staged CFOUR distribution
+        if: env.TOPOS_REQUIRES_CFOUR == 'true'
+        uses: ./.github/actions/setup-cfour
+        with:
+          asset-receipt: ${{ steps.staging.outputs.cfour_receipt }}
+          asset-receipt-sha256: ${{ steps.staging.outputs.cfour_sha256 }}
+          asset-task-id: ${{ steps.staging.outputs.cfour_task }}
+          required: 'true'
+      - name: Install BASE and execute all eleven Stage 0 phases
+        run: |
+          set -euo pipefail
+          if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 > "$RUNNER_TEMP/topos-evidence/stage0-setup.log" 2>&1; then
+            tail -n 30 "$RUNNER_TEMP/topos-evidence/stage0-setup.log"
+          else
+            status=$?
+            tail -n 100 "$RUNNER_TEMP/topos-evidence/stage0-setup.log"
+            exit "$status"
+          fi
+      - name: Download and verify the complete staged mandatory kit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -I -B -m scripts.run_private_topos_actions download-kit \
+            --checkout "$GITHUB_WORKSPACE" --output "$RUNNER_TEMP/topos-kit"
+      - name: Install the sealed kit and run the exact complete TOPOS request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -I -B -m scripts.run_private_topos_actions run \
+            --checkout "$GITHUB_WORKSPACE" --kit "$RUNNER_TEMP/topos-kit" \
+            --modules "$RUNNER_TEMP/topos-managed/Modules" --output "$RUNNER_TEMP/topos-controlled-execution"
+      - name: Export only the verified committed scientific snapshot
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/topos-controlled-execution/execution/operation.json" ]]; then
+            "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -I -B -m scripts.export_topos_evidence \
+              --source "$RUNNER_TEMP/topos-controlled-execution" \
+              --output "$RUNNER_TEMP/topos-evidence/scientific-export" --root "$RUNNER_TEMP/topos-managed/Modules"
+          fi
+      - name: Retain scientific exports, exact submitted request and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: topos-calculation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/topos-evidence/
+            ${{ runner.temp }}/topos-controlled-execution/submitted-job.json
+            ${{ runner.temp }}/topos-controlled-execution/worker-receipt.json
+            ${{ runner.temp }}/topos-controlled-execution/hosted-budget-controls.json
+            ${{ runner.temp }}/topos-controlled-execution/execution/result.json
+            ${{ runner.temp }}/topos-controlled-execution/execution/execution.log
+            ${{ runner.temp }}/topos-bootstrap/Registry/*.json
+            ${{ runner.temp }}/topos-bootstrap/Registry/*.sha256
+            ${{ runner.temp }}/topos-bootstrap/**/CrashRecords/*.json
+            ${{ runner.temp }}/orca-evidence/*.json
+            ${{ runner.temp }}/cfour-evidence/*.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove job-local licensed runtimes and kit transport
+        if: always()
+        run: |
+          rm -rf -- "$RUNNER_TEMP/cochem-orca-install" "$RUNNER_TEMP/cochem-orca-download" \
+            "$RUNNER_TEMP/cochem-cfour-install" "$RUNNER_TEMP/cochem-cfour-download" \
+            "$RUNNER_TEMP/topos-kit" "$RUNNER_TEMP/mandatory-kit.zip"

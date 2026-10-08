@@ -659,7 +659,7 @@ def child_inspect(runtime: Path) -> dict:
             "xtb_executable": selected.resolve_executable("xtb"), "crest_executable": selected.resolve_executable("crest")}
 
 
-def child_execute(handoff: Path, output: Path, runtime: Path) -> dict:
+def child_execute(handoff: Path, output: Path, runtime: Path, hosted_budget: Path | None = None) -> dict:
     from topos.config import SystemConfig
     from topos.storage import RunStore
 
@@ -670,8 +670,13 @@ def child_execute(handoff: Path, output: Path, runtime: Path) -> dict:
     request, _ = provider.request_from_handoff(handoff)
     if request.calculation_environment != "local":
         raise ValueError("This installed receiver accepts explicit local BASE execution only")
+    budget_controls = None
+    if hosted_budget is not None:
+        from scripts.private_topos_job import load_hosted_budget
+        budget_controls = load_hosted_budget(hosted_budget, original.options["topos_request"], os.environ)
     outcome = provider.execute_handoff(handoff, output / "runs", config=SystemConfig(
-        execution_backend="base", base_registry_path=runtime / "Registry/cochem_system_config.json"))
+        execution_backend="base", base_registry_path=runtime / "Registry/cochem_system_config.json"),
+        **({"hosted_budget": budget_controls} if budget_controls is not None else {}))
     record, consumption = outcome["record"], outcome["receipt"]
     folder = Path(record["metadata"]["run_dir"]).resolve()
     if not folder.is_relative_to((output / "runs").resolve()):
@@ -692,7 +697,8 @@ def child_execute(handoff: Path, output: Path, runtime: Path) -> dict:
             "scope": "Typed TOPOS calculation through mandatory BASE authority; no automatic publication or TORQ calculation"}
 
 
-def execute(handoff: Path, output: Path, spec: dict, root: Path, *, timeout: float, cancellation_event=None) -> dict:
+def execute(handoff: Path, output: Path, spec: dict, root: Path, *, timeout: float, cancellation_event=None,
+            hosted_budget: Path | None = None) -> dict:
     from cochem.core.context import assert_writable_path
     from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
     from cochem_base.interfaces.artifact_handoff import load_module_handoff
@@ -712,6 +718,10 @@ def execute(handoff: Path, output: Path, spec: dict, root: Path, *, timeout: flo
     report = output / "operation.json"
     command = [receipt["python_path"], "-I", "-B", str(Path(__file__).resolve()), "execute",
                "--runtime", receipt["runtime_path"], "--handoff", str(handoff), "--output", str(output)]
+    if hosted_budget is not None:
+        from scripts.private_topos_job import load_hosted_budget
+        load_hosted_budget(hosted_budget, payload, os.environ)
+        command.extend(["--hosted-budget", str(hosted_budget)])
     try:
         safe_subprocess_run(command, cwd=output, env=_setup_environment(), timeout=budget.check(),
                             stream_to_disk=True, cancellation_event=cancellation_event, required_disk_gb=0.01)
@@ -739,13 +749,14 @@ def main() -> int:
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--handoff", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--hosted-budget", type=Path)
     arguments = parser.parse_args()
     if arguments.mode == "inspect":
         print(json.dumps(child_inspect(arguments.runtime), allow_nan=False))
         return 0
     if arguments.handoff is None or arguments.output is None:
         parser.error("execute requires --handoff and --output")
-    result = child_execute(arguments.handoff, arguments.output, arguments.runtime)
+    result = child_execute(arguments.handoff, arguments.output, arguments.runtime, arguments.hosted_budget)
     _manager()._atomic_json(arguments.output / "operation.json", result)
     return 0
 

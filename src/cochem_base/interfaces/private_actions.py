@@ -484,9 +484,12 @@ class PrivateActionsController:
         if len(matches) != 1 or matches[0].get("expired") is not False:
             raise PrivateActionsError("The exact run-attempt evidence artifact is unavailable.")
         artifact = matches[0]
+        from scripts.private_gh_auth import private_gh_environment
+
         result = subprocess.run(
             ["gh", "run", "download", str(state["run_id"]), "--repo", self.repository,
              "--name", name, "--dir", str(destination)],
+            env=private_gh_environment(),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=60,
         )
         if result.returncode or not destination.is_dir() or not any(destination.rglob("*")):

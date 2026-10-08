@@ -209,6 +209,34 @@ class CoChemGUI:
         self.actions_job_download = widgets.HTML()
         self._last_actions_job = None
         self._actions_lifecycle_running = False
+        self.actions_pathway = widgets.Dropdown(
+            options=[("Molecular ORCA/CFOUR job", "molecular"), ("Complete TOPOS request", "topos")],
+            value="molecular", description="Private Actions pathway:", style={'description_width': 'initial'},
+        )
+        self.actions_topos_request = widgets.Text(
+            description="TOPOS request JSON:", placeholder="Path to Download request for BASE private Actions runner export",
+            style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'),
+        )
+        self.actions_topos_upload = widgets.FileUpload(accept='.json', multiple=False,
+                                                     description="Drop TOPOS request")
+        self.actions_topos_timeout = widgets.BoundedIntText(value=3600, min=1, max=14400,
+            description="TOPOS receiver seconds:", style={'description_width': 'initial'})
+        self.actions_topos_descriptors = {}
+        descriptor_fields = []
+        for engine in ('orca', 'cfour'):
+            path = widgets.Text(description=engine.upper() + " descriptor:", style={'description_width': 'initial'})
+            digest = widgets.Text(description=engine.upper() + " descriptor SHA-256:", style={'description_width': 'initial'})
+            self.actions_topos_descriptors[engine] = (path, digest)
+            descriptor_fields.extend([path, digest])
+        self.actions_topos_panel = widgets.VBox([
+            widgets.HTML("<p>Open the complete installed TOPOS interface, choose the pathway and starting states, "
+                "then download its <b>BASE private Actions runner</b> request. Drop that request here. "
+                "The installed mandatory package and reviewed kit are selected in Module installation. "
+                "Supply a descriptor only for each licensed engine required by that exact recipe; free recipes need none. "
+                "This CPU worker permits up to two threads and 4096 MiB; chemistry and allocations are retained.</p>"),
+            self.actions_topos_request, self.actions_topos_upload, self.actions_topos_timeout, *descriptor_fields,
+        ], layout=widgets.Layout(display='none'))
+        self.actions_pathway.observe(self._private_actions_pathway_changed, names='value')
         self.actions_asset_descriptor = widgets.Text(
             description="Reviewed descriptor:", placeholder="Path to approved ORCA/CFOUR distribution JSON",
             style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'),
@@ -253,6 +281,7 @@ class CoChemGUI:
                 "across different owners. If access is unavailable, staging stays blocked; complete your "
                 "own browser authentication and approved laboratory access first.</p>"
             ),
+            self.actions_pathway, self.actions_topos_panel,
             self.actions_asset_descriptor, self.actions_asset_descriptor_sha256,
             widgets.HBox([self.actions_cores, self.actions_memory]),
             self.actions_stage_submit, self.actions_task_id,
@@ -1058,6 +1087,30 @@ class CoChemGUI:
         self.btn_module_cancel.on_click(self._cancel_module_operation)
         self._module_cancellation = threading.Event()
         atexit.register(self._module_cancellation.set)
+        self._module_dashboard = None
+        self._module_dashboard_starting = False
+        self.module_dashboard_port = widgets.BoundedIntText(description="TOPOS interface port:", value=8501,
+            min=1, max=65535, style={'description_width': 'initial'})
+        self.btn_module_dashboard = widgets.Button(description="Open complete TOPOS interface", button_style="info",
+            layout=widgets.Layout(width='auto'))
+        self.btn_module_dashboard.on_click(self._open_module_dashboard)
+        self.btn_module_dashboard_stop = widgets.Button(description="Stop TOPOS interface and its jobs", disabled=True,
+            layout=widgets.Layout(width='auto'))
+        self.btn_module_dashboard_stop.on_click(self._stop_module_dashboard)
+        self.module_dashboard_status = widgets.HTML("<p role='status'>The complete TOPOS interface provides method-matrix recipes, external starting states, resume, review and export.</p>")
+        atexit.register(self._cleanup_module_dashboard)
+        self._torq_dashboard = None
+        self._torq_dashboard_starting = False
+        self.torq_dashboard_port = widgets.BoundedIntText(description="TORQ interface port:", value=8888,
+            min=1, max=65535, style={'description_width': 'initial'})
+        self.btn_torq_dashboard = widgets.Button(description="Open TORQ student interface", button_style="info",
+            layout=widgets.Layout(width='auto'))
+        self.btn_torq_dashboard_stop = widgets.Button(description="Stop TORQ interface", disabled=True,
+            layout=widgets.Layout(width='auto'))
+        self.btn_torq_dashboard.on_click(self._open_torq_dashboard)
+        self.btn_torq_dashboard_stop.on_click(self._stop_torq_dashboard)
+        self.torq_dashboard_status = widgets.HTML("<p role='status'>The separately verified TORQ interface accepts external states and supported torsional protocols.</p>")
+        atexit.register(self._cleanup_torq_dashboard)
         self.module_recipient.observe(self._module_recipient_changed, names='value')
         self._module_recipient_changed()
         self.module_install_status = widgets.HTML("<p role='status'>Select a module to install or inspect.</p>")
@@ -1066,6 +1119,10 @@ class CoChemGUI:
             self.btn_module_refresh, self.module_capabilities,
             widgets.HTML("<p>Select a single XYZ geometry, geometry-bound Hessian (.npz/.h5/.hess), or converged result JSON. The package preserves its source and verifies its contents when loaded by a recipient.</p>"),
             self.module_recipient, self.module_root, self.module_ecosystem_kit, self.btn_module_install, self.module_install_status,
+            self.module_dashboard_port, widgets.HBox([self.btn_module_dashboard, self.btn_module_dashboard_stop]),
+            self.module_dashboard_status,
+            self.torq_dashboard_port, widgets.HBox([self.btn_torq_dashboard, self.btn_torq_dashboard_stop]),
+            self.torq_dashboard_status,
             self.module_artifact, self.module_operation, self.module_request_file, self.module_timeout,
             self.module_output, self.btn_module_handoff, self.module_handoff_status,
             widgets.HBox([self.btn_module_run, self.btn_module_cancel]),
@@ -1400,6 +1457,134 @@ class CoChemGUI:
         self.module_ecosystem_kit.disabled = not is_topos
         self.module_operation.description = 'Task from request:' if is_topos else 'Requested task:'
         self.module_operation.value = 'Read from TOPOS request' if is_topos else 'geometry_analysis'
+        self.btn_module_dashboard.disabled = not is_topos or self._module_dashboard is not None or self._module_dashboard_starting
+        self.module_dashboard_port.disabled = not is_topos or self._module_dashboard is not None or self._module_dashboard_starting
+        is_torq = self.module_recipient.value == 'torq'
+        self.btn_torq_dashboard.disabled = not is_torq or self._torq_dashboard is not None or self._torq_dashboard_starting
+        self.torq_dashboard_port.disabled = not is_torq or self._torq_dashboard is not None or self._torq_dashboard_starting
+
+    def _open_torq_dashboard(self, b: Any = None) -> None:
+        from scripts.gui_module_controller import start_installed_dashboard
+        import uuid
+        if self._torq_dashboard is not None or self._torq_dashboard_starting:
+            self.torq_dashboard_status.value = "<p role='status'>This BASE session already owns its TORQ interface.</p>"
+            return
+        root, port = Path(self.module_root.value).expanduser().absolute(), self.torq_dashboard_port.value
+        repository, remote_ref = self.gh_repo_input.value.strip() or None, self.gh_branch_input.value.strip() or 'main'
+        self._torq_dashboard_starting = True
+        self._module_recipient_changed()
+        self.torq_dashboard_status.value = "<p role='status'>Verifying and starting the installed TORQ student interface…</p>"
+
+        def launch() -> None:
+            try:
+                dashboard = start_installed_dashboard('torq', root,
+                    self._run_artifact_root() / 'GUI' / ('torq-controller-' + uuid.uuid4().hex),
+                    port=port, remote_repository=repository, remote_ref=remote_ref)
+                self._torq_dashboard = dashboard
+                self.btn_torq_dashboard_stop.disabled = False
+                producer = dashboard.topos_producer_python
+                producer_guidance = (
+                    "<p>For <b>Reviewed TOPOS ensemble JSON</b>, paste this verified managed producer into TORQ's "
+                    f"<b>TOPOS Python</b> field: <code>{html.escape(str(producer))}</code>. "
+                    "TORQ verifies the original handoff before a new independently reviewed calculation.</p>"
+                    if producer is not None else
+                    "<p>No managed TOPOS producer is installed here. For reviewed TOPOS ensembles, explicitly select "
+                    "the Python executable of your independently installed producer in TORQ's <b>TOPOS Python</b> field. "
+                    "Other out-of-band starting states remain available.</p>"
+                )
+                # This authenticated URL is displayed solely inside the private
+                # interface, never printed to logs or retained in public artifacts.
+                self.torq_dashboard_status.value = (
+                    f"<p><a target='_blank' rel='noopener noreferrer' href='{html.escape(dashboard.url, quote=True)}'>Open TORQ starting states and calculations</a></p>"
+                    "<p>Keep the forwarded port private and this BASE session open. Supported protocols retain their own capability and scientific gates.</p>"
+                    + producer_guidance)
+            except Exception as exc:
+                self.torq_dashboard_status.value = f"<p role='alert'>TORQ interface was not started: {html.escape(str(exc))}</p>"
+            finally:
+                self._torq_dashboard_starting = False
+                self._module_recipient_changed()
+        self._torq_dashboard_worker = threading.Thread(target=launch, daemon=True)
+        self._torq_dashboard_worker.start()
+
+    def _cleanup_torq_dashboard(self) -> None:
+        if self._torq_dashboard is not None:
+            self._torq_dashboard.stop()
+            self._torq_dashboard = None
+
+    def _stop_torq_dashboard(self, b: Any = None) -> None:
+        self.btn_torq_dashboard_stop.disabled = True
+        self.torq_dashboard_status.value = "<p role='status'>Stopping the owned TORQ interface…</p>"
+
+        def stop() -> None:
+            try:
+                self._cleanup_torq_dashboard()
+                self.torq_dashboard_status.value = "<p role='status'>TORQ interface stopped; retained scientific results remain available.</p>"
+            except Exception as exc:
+                self.torq_dashboard_status.value = f"<p role='alert'>Could not stop the owned TORQ interface: {html.escape(str(exc))}</p>"
+                self.btn_torq_dashboard_stop.disabled = False
+            finally:
+                self._module_recipient_changed()
+        self._torq_dashboard_stop_worker = threading.Thread(target=stop, daemon=True)
+        self._torq_dashboard_stop_worker.start()
+
+    def _open_module_dashboard(self, b: Any = None) -> None:
+        """Open the installed TOPOS app after BASE verifies the complete kit."""
+        from scripts.gui_module_controller import start_installed_dashboard
+        import uuid
+
+        if self._module_dashboard is not None or self._module_dashboard_starting:
+            self.module_dashboard_status.value = "<p role='status'>The TOPOS interface is already owned by this BASE session.</p>"
+            return
+        root, port = Path(self.module_root.value).expanduser().absolute(), self.module_dashboard_port.value
+        repository = self.gh_repo_input.value.strip() or None
+        remote_ref = self.gh_branch_input.value.strip() or 'main'
+        self._module_dashboard_starting = True
+        self.btn_module_dashboard.disabled = True
+        self.module_dashboard_port.disabled = True
+        self.module_dashboard_status.value = "<p role='status'>Verifying the installed mandatory package and rendering its complete TOPOS interface…</p>"
+
+        def launch() -> None:
+            try:
+                dashboard = start_installed_dashboard('topos', root,
+                    self._run_artifact_root() / 'GUI' / ('topos-controller-' + uuid.uuid4().hex),
+                    port=port, remote_repository=repository, remote_ref=remote_ref)
+                self._module_dashboard = dashboard
+                self.btn_module_dashboard_stop.disabled = False
+                self.module_dashboard_status.value = (
+                    f"<p role='status'>TOPOS interface is ready at revision {html.escape(dashboard.revision)}.</p>"
+                    f"<p><a target='_blank' rel='noopener noreferrer' href='{html.escape(dashboard.url, quote=True)}'>Open TOPOS calculations, external input and review</a></p>"
+                    "<p>In Codespaces, forward this port with private visibility. Keep this BASE session open. "
+                    "Calculations use the TOPOS installation's audited BASE registry; available engines and resources determine executable routes.</p>"
+                    f"<p>Logs and results: <code>{html.escape(str(dashboard.output))}</code>.</p>")
+            except Exception as exc:
+                self.module_dashboard_status.value = f"<p role='alert'>TOPOS interface was not started: {html.escape(str(exc))}</p>"
+            finally:
+                self._module_dashboard_starting = False
+                self._module_recipient_changed()
+        self._module_dashboard_worker = threading.Thread(target=launch, daemon=True)
+        self._module_dashboard_worker.start()
+
+    def _cleanup_module_dashboard(self) -> None:
+        dashboard = self._module_dashboard
+        if dashboard is not None:
+            dashboard.stop()
+            self._module_dashboard = None
+
+    def _stop_module_dashboard(self, b: Any = None) -> None:
+        self.btn_module_dashboard_stop.disabled = True
+        self.module_dashboard_status.value = "<p role='status'>Stopping the owned TOPOS interface and its jobs…</p>"
+
+        def stop() -> None:
+            try:
+                self._cleanup_module_dashboard()
+                self.module_dashboard_status.value = "<p role='status'>TOPOS interface stopped. Retained inputs, run records and results remain available.</p>"
+            except Exception as exc:
+                self.module_dashboard_status.value = f"<p role='alert'>Could not stop the owned TOPOS interface: {html.escape(str(exc))}</p>"
+                self.btn_module_dashboard_stop.disabled = False
+            finally:
+                self._module_recipient_changed()
+        self._module_dashboard_stop_worker = threading.Thread(target=stop, daemon=True)
+        self._module_dashboard_stop_worker.start()
 
     def _cancel_module_operation(self, b: Any = None) -> None:
         self._module_cancellation.set()
@@ -1407,14 +1592,17 @@ class CoChemGUI:
 
     def _refresh_module_capabilities(self, b: Any = None) -> None:
         from cochem_base.interfaces.module_registry import list_module_capabilities
-        from cochem_base.interfaces.module_execution import installed_module_status
+        from scripts.gui_module_controller import run_installed_cli
+        import uuid
         self.module_capabilities.value = "<p role='status'>Checking module installations…</p>"
-        root = Path(self.module_root.value)
+        root = Path(self.module_root.value).expanduser().absolute()
         self.btn_module_refresh.disabled = True
 
         def refresh() -> None:
             try:
-                managed = {entry['module_id']: entry for entry in installed_module_status(root)}
+                report = run_installed_cli('scripts.gui_module_controller', ['status', '--root', str(root)],
+                    self._run_artifact_root() / 'GUI' / ('module-status-' + uuid.uuid4().hex), timeout=180)
+                managed = {entry['module_id']: entry for entry in report}
                 rows = []
                 for item in list_module_capabilities():
                     state = item.status.value.replace("_", " ")
@@ -1435,13 +1623,10 @@ class CoChemGUI:
         self._module_refresh_worker.start()
 
     def _install_selected_module(self, b: Any = None) -> None:
-        from scripts.manage_modules import DEFAULT_MANIFEST, load_manifest, install_module
+        from scripts.gui_module_controller import run_installed_cli
+        import uuid
         name = self.module_recipient.value
-        spec = load_manifest(DEFAULT_MANIFEST)["modules"].get(name)
-        if spec is None or spec['distribution'] is None or spec.get('install_blocker'):
-            self.module_install_status.value = "<p role='alert'>This recipient has no installable package in the approved catalog. Source download is available through the module CLI where catalogued.</p>"
-            return
-        root = Path(self.module_root.value).expanduser()
+        root = Path(self.module_root.value).expanduser().absolute()
         kit = self.module_ecosystem_kit.value.strip() if name == 'topos' else None
         self.btn_module_install.disabled = True
         self.btn_module_run.disabled = True
@@ -1449,13 +1634,19 @@ class CoChemGUI:
 
         def install() -> None:
             try:
+                arguments = ['install', '--modules', name, '--root', str(root), '--json']
                 if name == 'topos':
                     if not kit:
                         raise ValueError("Select the explicit CoChem kit directory for TOPOS installation")
-                    receipt = install_module(name, spec, root, ecosystem_kit=Path(kit).expanduser())
-                else:
-                    receipt = install_module(name, spec, root)
-                self.module_install_status.value = f"<p role='status'>{html.escape(name)} installed at revision {html.escape(receipt['revision'])}.</p>"
+                    arguments += ['--ecosystem-kit', str(Path(kit).expanduser().absolute())]
+                diagnostics = self._run_artifact_root() / 'GUI' / ('module-install-' + uuid.uuid4().hex)
+                report = run_installed_cli('scripts.manage_modules', arguments, diagnostics, timeout=14400)
+                receipts = report.get('modules')
+                if not isinstance(receipts, list) or len(receipts) != 1 or receipts[0].get('module_id') != name or receipts[0].get('status') != 'installed':
+                    raise ValueError('The installed controller returned no exact selected module receipt')
+                receipt = receipts[0]
+                self.module_install_status.value = (f"<p role='status'>{html.escape(name)} installed at revision {html.escape(receipt['revision'])}.</p>"
+                    f"<p>Installed controller receipt and diagnostics: <code>{html.escape(str(diagnostics))}</code>.</p>")
                 self._refresh_module_capabilities()
             except Exception as exc:
                 self.module_install_status.value = f"<p role='alert'>Module installation failed: {html.escape(str(exc))}</p>"
@@ -1467,13 +1658,13 @@ class CoChemGUI:
 
     def _run_module_geometry(self, b: Any = None) -> None:
         from cochem_base.interfaces.artifact_handoff import prepare_module_handoff
-        from cochem_base.interfaces.module_execution import execute_module_handoff
+        from scripts.gui_module_controller import run_installed_cli
         from scripts.module_request import execution_timeout, handoff_options
         import uuid
         name = self.module_recipient.value
         artifact = self.module_artifact.value
-        destination = Path(self.module_output.value).expanduser() / f"execution_{uuid.uuid4().hex}"
-        root = Path(self.module_root.value).expanduser()
+        destination = Path(self.module_output.value).expanduser().absolute() / f"execution_{uuid.uuid4().hex}"
+        root = Path(self.module_root.value).expanduser().absolute()
         request_file = self.module_request_file.value.strip() if name == 'topos' else None
         timeout = self.module_timeout.value
         self._module_cancellation.clear()
@@ -1487,8 +1678,10 @@ class CoChemGUI:
                 operation, options = handoff_options(name, request_file)
                 limit = execution_timeout(timeout, options)
                 prepare_module_handoff(name, artifact, destination / 'handoff', operation=operation, options=options)
-                result = execute_module_handoff(destination / 'handoff/handoff.json', destination / 'result',
-                                                root=root, timeout=limit, cancellation_event=self._module_cancellation)
+                result = run_installed_cli('scripts.run_module_handoff',
+                    ['--handoff', str(destination / 'handoff/handoff.json'), '--output', str(destination / 'result'),
+                     '--root', str(root), '--timeout', str(limit)], destination / 'controller',
+                    timeout=limit + 30, cancellation_event=self._module_cancellation)
                 self._last_module_result = result
                 status = str(result.get('status', 'unknown'))
                 validation = str(result.get('validation_status', 'not reported'))
@@ -2582,20 +2775,46 @@ class CoChemGUI:
             if self.calc_env_dropdown.value != "github-actions":
                 raise ValueError("Select GitHub Actions as the calculation environment.")
             repository = self._actions_repository()
+            topos = self.actions_pathway.value == "topos"
+            descriptors, kit, modules, receiver_timeout = {}, None, None, None
             if operation == "submit":
-                self._prepare_actions_job()
-                if self._last_actions_job is None:
-                    raise ValueError("Prepare a valid connected ORCA/CFOUR request first.")
-                payload = self._last_actions_job["payload"]
-                descriptor = Path(self.actions_asset_descriptor.value.strip()).expanduser()
-                descriptor_sha256 = self.actions_asset_descriptor_sha256.value.strip()
+                if topos:
+                    uploads = self.actions_topos_upload.value
+                    if uploads:
+                        item = uploads[0] if isinstance(uploads, (tuple, list)) else next(iter(uploads.values()))
+                        payload = bytes(item["content"])
+                    else:
+                        selected = self.actions_topos_request.value.strip()
+                        if not selected:
+                            raise ValueError("Drop or select the complete TOPOS request JSON first.")
+                        source = Path(selected).expanduser()
+                        if source.is_symlink() or not source.is_file() or not 0 < source.stat().st_size <= 256 * 1024:
+                            raise ValueError("Select a bounded regular TOPOS request JSON.")
+                        payload = source.read_bytes()
+                    if not 0 < len(payload) <= 256 * 1024:
+                        raise ValueError("Drop a complete TOPOS request JSON of at most 256 KiB.")
+                    for engine, (path, digest) in self.actions_topos_descriptors.items():
+                        if path.value.strip() or digest.value.strip():
+                            descriptors[engine] = (Path(path.value.strip()).expanduser().absolute(), digest.value.strip())
+                    if not self.module_ecosystem_kit.value.strip():
+                        raise ValueError("Select the reviewed complete CoChem kit directory in Module installation.")
+                    kit, modules = Path(self.module_ecosystem_kit.value).expanduser().absolute(), Path(self.module_root.value).expanduser().absolute()
+                    receiver_timeout = self.actions_topos_timeout.value
+                    descriptor, descriptor_sha256 = None, None
+                else:
+                    self._prepare_actions_job()
+                    if self._last_actions_job is None:
+                        raise ValueError("Prepare a valid connected ORCA/CFOUR request first.")
+                    payload = self._last_actions_job["payload"]
+                    descriptor = Path(self.actions_asset_descriptor.value.strip()).expanduser()
+                    descriptor_sha256 = self.actions_asset_descriptor_sha256.value.strip()
                 ref = "refs/heads/" + (self.gh_branch_input.value.strip() or "main")
                 cores, memory = self.actions_cores.value, self.actions_memory.value
             else:
                 payload, descriptor, descriptor_sha256, ref, cores, memory = None, None, None, None, None, None
             task = self.actions_task_id.value.strip()
             selected_run = self.actions_run_id.value.strip()
-            runtime = self._run_artifact_root() / "GUI" / "PrivateActions"
+            runtime = self._run_artifact_root() / "GUI" / ("PrivateToposActions" if topos else "PrivateActions")
         except (ValueError, OSError, RuntimeError) as exc:
             self.actions_lifecycle_status.value = "<p role='alert'>Private Actions operation blocked: " + html.escape(str(exc)) + "</p>"
             return
@@ -2608,19 +2827,46 @@ class CoChemGUI:
         self.actions_lifecycle_status.value = "<p role='status'>Running the requested private project operation.</p>"
 
         def work() -> None:
+            controller = None
+            control_file = None
             try:
                 from cochem_base.interfaces.private_actions import PrivateActionsController
-                controller = PrivateActionsController(repository, runtime)
-                if operation == "submit":
+                if topos:
+                    import uuid
+                    from scripts.gui_module_controller import run_installed_cli
+                    from scripts.private_engine_assets import _private_output
+                    directory = _private_output(runtime / ('gui-controls-' + uuid.uuid4().hex))
+                    directory.mkdir(parents=True, mode=0o700, exist_ok=False)
+                    control_file = directory / 'control.json'
+                    control = {'operation': operation, 'repository': repository, 'runtime': str(runtime)}
+                    if operation == 'submit':
+                        request_file = directory / 'request.json'
+                        request_file.write_bytes(payload)
+                        request_file.chmod(0o600)
+                        control.update(request_file=str(request_file), kit=str(kit), root=str(modules),
+                            descriptors={engine: [str(item[0]), item[1]] for engine, item in descriptors.items()},
+                            ref=ref, receiver_timeout=receiver_timeout)
+                    else:
+                        control['task'] = task
+                        if operation == 'select':
+                            control['run_id'] = selected_run
+                    control_file.write_text(json.dumps(control, allow_nan=False))
+                    control_file.chmod(0o600)
+                    result = run_installed_cli('scripts.gui_module_controller',
+                        ['private-actions', '--control', str(control_file)], directory / 'execution', timeout=14400)
+                elif operation == "submit":
+                    controller = PrivateActionsController(repository, runtime)
                     result = controller.stage_and_dispatch(
                         payload, descriptor, descriptor_sha256,
                         ref=ref, cores=cores, maxcore_mb=memory,
                     )
                 elif operation == "select":
+                    controller = PrivateActionsController(repository, runtime)
                     if not selected_run.isdigit():
                         raise ValueError("Enter the actual owning-project run ID.")
                     result = controller.select_run(task, int(selected_run))
                 elif operation in {"status", "cancel", "download", "cleanup", "repair"}:
+                    controller = PrivateActionsController(repository, runtime)
                     result = getattr(controller, operation)(task)
                 else:
                     raise ValueError("Unsupported private project operation.")
@@ -2630,6 +2876,13 @@ class CoChemGUI:
                     + html.escape(json.dumps(result, sort_keys=True, indent=2)) + "</pre>"
                 )
             except Exception as exc:
+                if getattr(exc, 'task_id', None):
+                    self.actions_task_id.value = exc.task_id
+                if controller is not None and getattr(controller, "last_task_id", None):
+                    self.actions_task_id.value = controller.last_task_id
+                if control_file is not None and control_file.with_suffix('.interrupted.json').is_file():
+                    from scripts.gui_module_controller import _report
+                    self.actions_task_id.value = _report(control_file.with_suffix('.interrupted.json'))['task_id']
                 self.actions_lifecycle_status.value = (
                     "<p role='alert'>Private Actions operation blocked: "
                     + html.escape(str(exc))
@@ -2642,6 +2895,13 @@ class CoChemGUI:
                     button.disabled = False
 
         threading.Thread(target=work, daemon=True).start()
+
+    def _private_actions_pathway_changed(self, change=None) -> None:
+        topos = self.actions_pathway.value == "topos"
+        self.actions_topos_panel.layout.display = '' if topos else 'none'
+        for field in (self.actions_asset_descriptor, self.actions_asset_descriptor_sha256,
+                      self.actions_cores, self.actions_memory):
+            field.disabled = topos
 
     def _cancel_pipeline(self, b: Any = None) -> None:
         if self._pipeline_running:

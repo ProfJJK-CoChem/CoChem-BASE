@@ -4,6 +4,11 @@ run-name: ${{ inputs.dispatch_id }}
 on:
   workflow_dispatch:
     inputs:
+      base_commit:
+        description: Exact reviewed BASE implementation Git commit
+        required: true
+        type: string
+        default: ebdb66fac87096edf40d31f873bb4bdf683c4d72
       dispatch_id:
         description: Unique request correlation ID
         required: true
@@ -31,6 +36,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 330
     env:
+      BASE_COMMIT: ${{ inputs.base_commit }}
       TOPOS_DISPATCH_ID: ${{ inputs.dispatch_id }}
       TOPOS_REQUEST_B64: ${{ inputs.request_b64 }}
       TOPOS_REQUEST_SHA256: ${{ inputs.request_sha256 }}
@@ -49,14 +55,22 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: ProfJJK-CoChem/CoChem-BASE
-          ref: 705b9d54370d5089da286a02b7a1c4afdcbafec1
+          ref: ${{ inputs.base_commit }}
           path: .cochem-dependencies/base
           persist-credentials: false
+      - name: Verify the exact scientific BASE implementation
+        shell: bash
+        run: |
+          if [[ ! "$BASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'BASE source must be an exact lowercase 40-character Git commit.' >&2
+            exit 1
+          fi
+          test "$(git -C .cochem-dependencies/base rev-parse HEAD)" = "$BASE_COMMIT"
       - name: Checkout the reviewed TOPOS implementation
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: ProfJJK-CoChem/CoChem-TOPOS
-          ref: 6264cf08e76c37b04f111023161bf46f22c6e98b
+          ref: 343532dd606063073ea78862898b9d0a8da0c5c2
           token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN || github.token }}
           path: .cochem-dependencies/topos
           persist-credentials: false

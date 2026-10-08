@@ -34,6 +34,9 @@ BASE/TOPOS/TORQ kit**, follow the [ecosystem guide](.docs/Ecosystem_Modules_Setu
 Modern TOPOS uses a complete typed scientific request and its reviewed provider;
 the legacy geometry SDK and TORQ's supplied-geometry adapter remain separately
 scoped profiles. Package installation is not scientific qualification.
+The [TOPOS student deployment guide](docs/topos_student_deployment.md) covers
+installing the complete kit from BASE, opening the full TOPOS interface, and
+ingesting prior GOAT/CREST starting states for canonical continuation.
 
 The **historical 1.0.1 release evidence**, reviewed on 2026-10-08, records the
 complete profile at `583a6d22db0fab0fdd54d2659ceac87ba82fa48a`: **1,827 passed**,

@@ -62,7 +62,8 @@ def installed_module_status(root: Path | None = None, manifest: Path | None = No
 
 def execute_module_handoff(handoff_path: str | Path, output: str | Path, *,
                            root: Path | None = None, manifest: Path | None = None,
-                           timeout: float = 180, cancellation_event=None) -> dict:
+                           timeout: float = 180, cancellation_event=None,
+                           hosted_budget: Path | None = None) -> dict:
     """Run one bounded, reviewed geometry operation; preserve its exact provenance."""
     import scripts
     from cochem.core.context import assert_writable_path
@@ -82,7 +83,9 @@ def execute_module_handoff(handoff_path: str | Path, output: str | Path, *,
         from scripts.mandatory_ecosystem import execute
         return execute(path, Path(output).expanduser().resolve(), spec,
                        Path(root) if root is not None else default_root(), timeout=timeout,
-                       cancellation_event=cancellation_event)
+                       cancellation_event=cancellation_event, hosted_budget=hosted_budget)
+    if hosted_budget is not None:
+        raise ValueError("Hosted budget controls belong only to the exact mandatory TOPOS receiver")
     if spec["adapter"] not in _ADAPTERS or handoff.operation != "geometry_analysis":
         raise ValueError("This operation is not supported by BASE's installed adapters")
     if handoff.artifact.kind != "geometry_xyz":

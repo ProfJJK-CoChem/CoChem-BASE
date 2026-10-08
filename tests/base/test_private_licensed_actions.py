@@ -37,6 +37,10 @@ DRAFT_CONSUMER_JOBS = {
     "cfour_provisioning.yml": "provision",
 }
 
+# Bundled TOPOS uses a separate exact contract; legacy receipt checks remain unchanged.
+BUNDLE_DRAFT_CONSUMER_JOBS = {"topos_calculation.yml": "calculate"}
+ALL_DRAFT_CONSUMER_JOBS = {**DRAFT_CONSUMER_JOBS, **BUNDLE_DRAFT_CONSUMER_JOBS}
+
 
 class UniqueSafeLoader(yaml.SafeLoader):
     """Reject duplicate YAML keys instead of silently losing a merge branch."""
@@ -107,7 +111,7 @@ def test_only_actual_staged_draft_consumer_jobs_receive_contents_write():
             if permissions.get("contents") == "write":
                 privileged.add((path.name, job_name))
                 assert permissions == {"contents": "write", "actions": "read"}
-    assert observed == privileged == set(DRAFT_CONSUMER_JOBS.items())
+    assert observed == privileged == set(ALL_DRAFT_CONSUMER_JOBS.items())
 
 
 def run_guard(source: str, **updates: str) -> subprocess.CompletedProcess[str]:

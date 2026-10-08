@@ -18,11 +18,23 @@
   "postCreateCommand": "bash scripts/setup_devcontainer.sh",
   "postStartCommand": "python3 scripts/hosted_dashboard.py start --calculation-environment github-actions",
   "forwardPorts": [
-    8866
+    8866,
+    8501,
+    8888
   ],
   "portsAttributes": {
     "8866": {
       "label": "CoChem Voil\u00e0 dashboard",
+      "onAutoForward": "notify",
+      "protocol": "http"
+    },
+    "8501": {
+      "label": "CoChem TOPOS complete interface",
+      "onAutoForward": "notify",
+      "protocol": "http"
+    },
+    "8888": {
+      "label": "CoChem TORQ student interface",
       "onAutoForward": "notify",
       "protocol": "http"
     }

@@ -1,5 +1,9 @@
 # Private engine staging for a student project
 
+For a complete TOPOS method-matrix request, external starting states, mandatory
+package installation, and zero/one/two-engine private Actions staging, follow
+[the TOPOS student deployment guide](topos_student_deployment.md#run-the-complete-request-on-the-students-personal-actions-allowance).
+
 The interface runs in Codespaces. Calculations run in GitHub Actions in the
 student's own **personal private repository**, using that repository's Actions
 allowance. Codespaces uses the student's existing authorized GitHub CLI identity

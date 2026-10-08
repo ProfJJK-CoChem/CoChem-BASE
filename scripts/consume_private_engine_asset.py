@@ -42,6 +42,10 @@ def validate_calculation_intent(
     """Bind actual checked-out job bytes and resource form values to staging."""
     project = receipt["project"]
     calculation = project.get("calculation")
+    if project["workflow_path"] == ".github/workflows/topos_calculation.yml":
+        from scripts.private_topos_job import validate_bound_request
+        validate_bound_request(checkout, calculation, environment)
+        return
     if project["workflow_path"].endswith("_calculation.yml"):
         if not isinstance(calculation, dict) or set(calculation) != {
             "job_file", "input_sha256", "cores", "maxcore_mb"

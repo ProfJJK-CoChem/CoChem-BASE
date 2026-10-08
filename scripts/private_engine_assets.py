@@ -342,6 +342,9 @@ def _distribution(engine: str, value: dict[str, Any]) -> dict[str, Any]:
 
 
 def _calculation(workflow_path: str, value: Any) -> dict[str, Any] | None:
+    if workflow_path == ".github/workflows/topos_calculation.yml":
+        from scripts.private_topos_job import validate_intent
+        return validate_intent(value)
     calculation_workflow = bool(re.search(r"_calculation\.ya?ml$", workflow_path))
     if not calculation_workflow:
         if value is not None:

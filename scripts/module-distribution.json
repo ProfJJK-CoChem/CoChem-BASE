@@ -188,10 +188,11 @@
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "e77e2a47d4ef23bb4ad6db72519e656336cf0bb2",
+      "revision": "968d95650046c34ad934335a613e5aa7b692d802",
       "distribution": "CoChem-TORQ",
       "adapter": "torq_geometry",
       "adapter_requirements": [
+        "CoChem-TORQ[interface,calculations]==0.1.0",
         "mendeleev>=1.2,<2"
       ],
       "operations": [

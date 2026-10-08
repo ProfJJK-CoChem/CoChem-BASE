@@ -42,6 +42,9 @@ def calculation_capability(config: Any) -> CalculationCapability:
     native = {"orca": {"single_point", "optimization", "harmonic_frequencies"}, "xtb": {"single_point", "optimization"},
               "pyscf": {"single_point"}, "qe": {"single_point"}, "cfour": set()}
     connected = operation in native[config.engine]
+    if config.engine == "cfour":
+        from cochem_base.calc.cfour_execution import supported_cfour_request
+        connected = supported_cfour_request(config)
     return CalculationCapability(
         engine=config.engine, operation=operation,
         adapter_status="connected" if connected else "pending_integration",
@@ -94,6 +97,8 @@ def validate_job_configuration(config: Any) -> None:
         CFOURCalcLevel(config.method)
         if not config.basis_set or config.basis_set.lower() in {"default", "built-in"}:
             raise ValueError("CFOUR jobs require an explicit orbital basis")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9+_.()*-]*", config.basis_set):
+            raise ValueError("CFOUR basis must be a plain basis label without injected input keywords")
         if config.recipe or config.implicit_solvation or config.frozen_monomer_indices is not None:
             raise ValueError("CFOUR handoff does not define ORCA recipe, solvation or frozen-index keyword translations")
     if config.initial_hessian.upper() == "READ" and config.hessian_file is None:
@@ -160,9 +165,9 @@ def prepare_calculation_handoff(config: Any, artifact_path: str | Path, destinat
                                 dependency_files: dict[str, str | Path] | None = None) -> ModuleHandoff:
     """Bind a real single-frame XYZ and complete validated configuration for BASE."""
     validate_job_configuration(config)
-    from cochem_base.calc.calculation_service import parse_run_geometry
+    from cochem_base.calc.calculation_service import parse_run_geometry_identity
     source = Path(artifact_path).expanduser().resolve(strict=True)
-    if parse_run_geometry(source.read_text()) != parse_run_geometry(config.geometry):
+    if parse_run_geometry_identity(source.read_text()) != parse_run_geometry_identity(config.geometry):
         raise ValueError("Handoff geometry must exactly match its calculation configuration")
     data = config.model_dump(mode="json")
     source_inputs = dict(dependency_files or {})
@@ -219,7 +224,7 @@ def prepare_calculation_handoff(config: Any, artifact_path: str | Path, destinat
 
 def load_calculation_handoff(manifest_path: str | Path) -> ScientificJobRequest:
     """Revalidate the receiving boundary without loading any installed module code."""
-    from cochem_base.calc.calculation_service import parse_run_geometry
+    from cochem_base.calc.calculation_service import parse_run_geometry, parse_run_geometry_identity
     path = Path(manifest_path).expanduser().resolve(strict=True)
     manifest = load_module_handoff(path)
     if manifest.module_id != "base" or manifest.artifact.kind != "geometry_xyz":
@@ -227,7 +232,7 @@ def load_calculation_handoff(manifest_path: str | Path) -> ScientificJobRequest:
     request = ScientificJobRequest.model_validate(manifest.options["scientific_job"])
     if request.geometry_sha256 != manifest.artifact.sha256 or request.capability.operation != manifest.operation:
         raise ValueError("Scientific job input binding or operation is inconsistent")
-    if parse_run_geometry((path.parent / manifest.artifact.filename).read_text()) != parse_run_geometry(request.calculation_config["geometry"]):
+    if parse_run_geometry_identity((path.parent / manifest.artifact.filename).read_text()) != parse_run_geometry_identity(request.calculation_config["geometry"]):
         raise ValueError("Scientific job geometry differs from its copied artifact")
     for name, expected in request.dependencies.items():
         checkpoint = (path.parent / "dependencies" / name).resolve(strict=True)

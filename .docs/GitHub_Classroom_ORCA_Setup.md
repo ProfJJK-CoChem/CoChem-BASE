@@ -6,6 +6,14 @@ Start with the student steps if your instructor has already prepared the course.
 The browser computer can run Windows, macOS or Linux: the calculations in this
 guide run on GitHub's Ubuntu Linux x86-64 runner.
 
+ORCA and CFOUR are **optional, strongly recommended** engines. BASE's ingestion,
+inspection, setup and available free-engine calculations work without them. A
+missing licensed engine or failed optional installation disables its dependent
+calculations. A dedicated ORCA or CFOUR calculation still requires its selected
+engine and fails honestly when that engine is unavailable. For the separate
+CFOUR archive, access credential and compatibility requirements, see the
+[CFOUR setup guide](CFOUR_Actions_Setup.md).
+
 The primary course arrangement is **[Classroom50](https://classroom50.org/) with
 an instructor-managed GitHub organization**. Classroom50 is the free,
 open-source alternative to GitHub Classroom supported by the Fifty Foundation.

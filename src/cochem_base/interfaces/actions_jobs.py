@@ -1,6 +1,6 @@
 """Shared Classroom50 Actions request limits for the GUI and calculation runner.
 
-Only embedded molecular ORCA requests are accepted: at most 50 atoms, one or two
+Only connected molecular ORCA or CFOUR requests are accepted: at most 50 atoms, one or two
 CPU processes, 1024 MB per process and 30 minutes of chemistry execution. External
 checkpoints and downstream-only operations require separate ecosystem workflows.
 Imports remain standard-library only until full scientific validation is called.
@@ -58,8 +58,12 @@ def validate_resources(cores: int, maxcore_mb: int) -> None:
 
 def preflight_configuration(data: dict[str, Any]) -> None:
     """Cheap limits before downloading the licensed engine; full validation follows."""
-    if data.get("engine", "orca") != "orca":
-        raise ValueError("The ORCA calculation workflow requires engine='orca'")
+    engine = data.get("engine", "orca")
+    if engine not in {"orca", "cfour"}:
+        raise ValueError("The licensed calculation workflows require engine='orca' or engine='cfour'")
+    if engine == "cfour":
+        _preflight_cfour(data)
+        return
     for field in ("hessian_file", "r2_reference_manifest", "t9_fallback", "periodic"):
         if data.get(field) is not None:
             raise ValueError(f"Classroom jobs do not accept external dependencies or recovery inputs: {field}")
@@ -92,6 +96,36 @@ def preflight_configuration(data: dict[str, Any]) -> None:
         raise ValueError("Classroom solvation accepts a single CPCM(solvent) expression")
 
 
+def _preflight_cfour(data: dict[str, Any]) -> None:
+    """Bound CFOUR requests to the native closed-shell adapter's actual scope."""
+    for field in ("hessian_file", "r2_reference_manifest", "t9_fallback", "periodic",
+                  "recipe", "implicit_solvation", "frozen_monomer_indices",
+                  "cbs_cardinal_pair", "theory_tier", "grid_stage", "product_class"):
+        if data.get(field) is not None:
+            raise ValueError(f"The CFOUR Classroom adapter does not implement {field}")
+    if data.get("is_vpt2", False) is not False:
+        raise ValueError("CFOUR VPT2 requires the downstream scientific adapter")
+    if data.get("multiplicity", 1) != 1:
+        raise ValueError("The connected CFOUR adapter requires a closed-shell singlet")
+    method = data.get("method")
+    if method not in {"HF", "MP2", "CCSD", "CCSD(T)"}:
+        raise ValueError("Select one connected CFOUR method: HF, MP2, CCSD or CCSD(T)")
+    if method != "HF" and (data.get("is_opt", False) or data.get("is_freq", False)):
+        raise ValueError("Connected CFOUR optimization and harmonic frequencies require HF")
+    expected_hessian = "BFGS" if data.get("is_opt", False) else "XTB2"
+    if data.get("initial_hessian", "XTB2") != expected_hessian:
+        raise ValueError("CFOUR optimization requires explicit BFGS analytic-gradient optimization")
+    basis = data.get("basis_set")
+    if not isinstance(basis, str) or not re.fullmatch(r"(?:STO-3G|6-31G\*\*|cc-pV[DTQ]Z)", basis):
+        raise ValueError("CFOUR basis_set must be one plain supported orbital-basis label")
+    timeout = data.get("timeout_seconds", 3600)
+    if (type(timeout) not in (int, float) or not math.isfinite(timeout)
+            or not 0 < timeout <= MAX_TIMEOUT_SECONDS):
+        raise ValueError("Set timeout_seconds to a positive number no greater than 1800")
+    if not isinstance(data.get("geometry"), str):
+        raise ValueError("Embed the molecular geometry in the geometry JSON field")
+
+
 def validate_configuration(contents: bytes, data: dict[str, Any]) -> Any:
     from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry
     from cochem_base.calc.molecular_input import build_molecular_input
@@ -109,5 +143,10 @@ def validate_configuration(contents: bytes, data: dict[str, Any]) -> Any:
     capability = calculation_capability(config)
     if capability.adapter_status != "connected":
         raise ValueError(f"{capability.operation} is pending scientific integration: {capability.reason}")
-    build_molecular_input(config)
+    if config.engine == "orca":
+        build_molecular_input(config)
+    else:
+        from cochem_base.calc.cfour_execution import supported_cfour_request
+        if not supported_cfour_request(config):
+            raise ValueError("The CFOUR request has no connected native result validator")
     return config

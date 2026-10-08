@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ import pytest
 
 from cli import CalculationMatrixConfig, _parse_run_geometry
 from cochem_base.calc.xtb_execution import accept_xtb_result, validate_xtb_config
+from cochem_base.core_engine.scientific_telemetry import read_scientific_results
 
 WATER = "O 0 0 0\nH 0.7586 0 0.5043\nH -0.7586 0 0.5043"
 ROOT = Path(__file__).resolve().parents[2]
@@ -64,6 +66,21 @@ def test_real_cli_calculation_and_atomic_publication(tmp_path, method, tier, opt
     assert (published / "xtb.out.sha256").is_file()
     assert (published / "input.xyz.sha256").is_file()
     assert not Path(execution["scratch_dir"]).exists()
+
+    if optimize:
+        evidence = result["optimization_evidence"]
+        assert evidence["optimizer"] == "SciPy BFGS with native xTB analytic gradients"
+        assert evidence["evaluations"] > 2
+        assert evidence["gradient_norm_hartree_per_bohr"] <= 1e-4
+        records = read_scientific_results(result["telemetry_job_id"], store_path=result["telemetry_path"])
+        measured = [row["gradient_source"] for row in records["metadata"] if "gradient_source" in row]
+        assert len(measured) == evidence["evaluations"]
+        assert len(records["gradients_hartree_per_bohr"]) >= len(measured)
+        for source in measured:
+            checkpoint = published / source["gradient_artifact"]["path"]
+            assert hashlib.sha256(checkpoint.read_bytes()).hexdigest() == source["gradient_artifact"]["sha256"]
+            assert source["record_kind"] == "measured_optimization_gradient_evaluation"
+            assert source["gradient_artifact"]["unit"] == "hartree/bohr"
 
     # Revalidate actual engine evidence after removing its normal-termination
     # marker. A process exit code alone must not create a successful result.

@@ -7,6 +7,7 @@ Purpose: Pulls deduplicated coordinates from landscape.h5 and dynamically compil
 """
 
 import hashlib
+import json
 import logging
 import math
 import re
@@ -82,6 +83,7 @@ def _orca_method_keywords(theory_level: str) -> str:
 class MoleculeInput(BaseModel):
     basin_id: str = Field(..., description="Unique Basin ID")
     elements: List[str] = Field(..., description="List of elements")
+    nuclides: Optional[List[str]] = Field(default=None, description="Ordered nuclear isotope labels, separate from electronic elements")
     coordinates: List[Tuple[float, float, float]] = Field(..., description="XYZ coordinates")
     theory_level: str = Field(default="B3LYP D3BJ def2-SVP", description="Level of theory")
     charge: int = Field(default=0, strict=True, description="Molecular charge")
@@ -106,6 +108,12 @@ class MoleculeInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_method_matrix(self) -> "MoleculeInput":
+        if self.nuclides is not None:
+            from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+            identity = resolve_nuclear_identity(self.nuclides)
+            if list(identity.elements) != self.elements:
+                raise ValueError("Nuclide assignments must match the ordered electronic elements")
+            self.nuclides = list(identity.nuclides)
         coords = np.asarray(self.coordinates, dtype=float)
         if not self.elements or coords.shape != (len(self.elements), 3) or not np.all(np.isfinite(coords)):
             raise ValueError("Molecular coordinates must be a nonempty, finite N x 3 array matching elements.")
@@ -420,6 +428,9 @@ def generate_orca_input(
     template_str = """# =====================================================================
 # CoChem-CORE Cryptographic Provenance Stamp: {{ sha256 }}
 # Basin ID: {{ basin_id }} | Engine Target: ORCA 6.1.1
+{% if nuclides_json %}# Nuclear assignments (electronic XYZ symbols remain canonical): {{ nuclides_json }}
+# Nuclear assignment SHA-256: {{ nuclides_sha256 }}
+{% endif %}
 {% if automatic_auxiliary %}# Correlation fitting basis: generated AutoAux (no explicit /C basis supplied)
 {% endif %}# =====================================================================
 ! {{ theory_level }} {{ opt_keyword }} {{ grid_keyword }} {{ solvation_keyword }} NoSym TightSCF
@@ -448,6 +459,8 @@ end
     rendered_inp = template.render(
         sha256=coord_hash,
         basin_id=data.basin_id,
+        nuclides_json=json.dumps(data.nuclides) if data.nuclides is not None else None,
+        nuclides_sha256=hashlib.sha256(json.dumps(data.nuclides).encode()).hexdigest() if data.nuclides is not None else None,
         theory_level=theory_level,
         automatic_auxiliary="AUTOAUX" in theory_level.upper().split() and "AUTOAUX" not in data.theory_level.upper().split(),
         opt_keyword=opt_keyword,
@@ -496,6 +509,10 @@ def generate_pyscf_input(data: MoleculeInput, output_dir: Optional[Path] = None,
         "unit": "Angstrom", "basis": tokens[1], "charge": data.charge, "spin": 0,
         "max_memory": (data.maxcore_mb or 1024) * (data.nprocs or 1),
     }
+    nuclear_identity = None
+    if data.nuclides is not None:
+        from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+        nuclear_identity = resolve_nuclear_identity(data.nuclides).metadata
     script = """# Explicit PySCF restricted-HF single-point calculation.
 import hashlib
 import json
@@ -512,6 +529,7 @@ if pyscf.__version__ != EXPECTED_VERSION:
     raise RuntimeError("PySCF version differs from the pinned requested version")
 pyscf.lib.num_threads(PROCESS_THREADS)
 specification = json.loads(SPECIFICATION_JSON)
+nuclear_identity = json.loads(NUCLEAR_IDENTITY_JSON)
 molecule = gto.M(**specification)
 calculation = scf.RHF(molecule)
 calculation.conv_tol = 1e-10
@@ -527,9 +545,10 @@ Path(__file__).with_suffix('.result.json').write_text(json.dumps({
     'basis': specification['basis'], 'operation': 'single_point',
     'scf_converged': bool(calculation.converged), 'energy_hartree': float(calculation.e_tot),
     'gradients_hartree_per_bohr': gradient.tolist(),
+    'nuclear_identity': nuclear_identity,
     'input_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
 }, indent=2, allow_nan=False), encoding='utf-8')
-""".replace("EXPECTED_VERSION", repr(expected_version)).replace("PROCESS_THREADS", str(data.nprocs or 1)).replace("SPECIFICATION_JSON", repr(json.dumps(specification)))
+""".replace("EXPECTED_VERSION", repr(expected_version)).replace("PROCESS_THREADS", str(data.nprocs or 1)).replace("SPECIFICATION_JSON", repr(json.dumps(specification))).replace("NUCLEAR_IDENTITY_JSON", repr(json.dumps(nuclear_identity)))
     out_base = output_dir if output_dir else get_artifact_base()
     out_base.mkdir(parents=True, exist_ok=True)
     output_path = out_base / f"{data.basin_id}_pyscf.py"

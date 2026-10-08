@@ -67,3 +67,4 @@ cochem_*_silo/
 *.pdb
 *.cif
 !tests/**/*.xyz
+*.egg-info/

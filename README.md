@@ -8,11 +8,19 @@ interface, validated calculation execution and handoffs to the CoChem ecosystem.
 It preserves actual inputs, engine identity, resource allocation, outputs and
 scientific records needed to assess a result.
 
-**Students and instructors: start with the
+**Instructors: follow the
+[Classroom50 assignment deployment guide](.docs/Classroom50_Assignment_Deployment.md)**
+to prepare the release template, configure access, pilot one student and roll
+the assignment out to the course. **Students: start with the
 [Classroom50 + ORCA GitHub Actions guide](.docs/GitHub_Classroom_ORCA_Setup.md).**
-It covers private binary setup, correct GitHub permissions, each student's
-assignment repository, GUI job export, calculations and retrieval of results.
+It covers approved binary access, each student's assignment repository, GUI
+job export, calculations and retrieval of results.
 Students using the instructor's provisioned route do not enter tokens in CoChem.
+
+For CFOUR runtime access, classroom setup and host compatibility, follow the
+[CFOUR setup guide](.docs/CFOUR_Actions_Setup.md). **ORCA and CFOUR are optional,
+strongly recommended engines.** BASE remains usable when either is absent or
+its optional installation fails; only dependent calculations are unavailable.
 
 For private module downloads, isolated installations and TOPOS/TORQ geometry
 handoffs, follow the [ecosystem modules guide](.docs/Ecosystem_Modules_Setup.md).
@@ -20,18 +28,26 @@ It explains `COCHEM_SOURCE_READ_TOKEN`, student-owned Codespaces, the
 organization's shared Actions allowance, and which modules currently support
 installation or execution.
 
-Version **1.0.0 validates the supported Classroom50 / GitHub Actions route**,
-including real ORCA optimization and harmonic calculations. The complete local
-BASE profile passed 1,532 tests with two declared physical Slurm deferrals;
-Ubuntu, macOS and Windows control and wheel checks also passed. The
-[release record](.docs/Release_1_0_0.md) identifies exact revisions, evidence,
-distribution records and remaining host/scientific boundaries.
+Version **1.0.1** brings the integrated CFOUR/module routes and the current SRS
+closure work into the student distribution. The complete profile
+passed **1,827 tests** with **two explicit physical Slurm deferrals** and no
+failures. Hosted ORCA/CFOUR science, three-platform package/control checks and
+a fresh local Voilà container also passed. The
+[release and validation record](.docs/Release_1_0_1.md) identifies
+actual tested revisions, application equivalence to the complete-profile
+source `583a6d2`, supported operations and how to verify publication through
+the actual GitHub release and its attached validation/checksum records. The older
+[1.0.0 record](.docs/Release_1_0_0.md) remains historical. Existing Classroom50
+assignment copies must be updated to the approved course source; pulling this
+repository does not grant assignment secrets or private-module permissions.
+Use the [single-student deployment pilot](.docs/Student_Deployment_Pilot.md)
+before rolling a new template out to the course.
 
 ## Choose a calculation environment
 
 | Route | How to use it | Validation boundary |
 | --- | --- | --- |
-| Classroom50 / GitHub Actions | Accept the assignment, export a JSON job in Voilà, and run **ORCA calculation**. | Hosted installation and chemistry must pass for the selected source revision. See [ORCA evidence](.docs/ORCA_Actions_Setup.md). |
+| Classroom50 / GitHub Actions | Accept the assignment, export a JSON job in Voilà, and run **ORCA calculation** or **CFOUR calculation**. | Hosted installation and chemistry must pass for the selected source revision. See [ORCA evidence](.docs/ORCA_Actions_Setup.md). |
 | Local Linux CPU | Complete Stage 0 and select an audited installed engine. | Local tests and real bounded calculations provide evidence for documented operations. |
 | Windows / WSL2 | Submit Actions jobs from the interface; use WSL2 for local Linux ORCA. | The Linux archive does not run natively on Windows. WSL acceptance is separate from Linux cloud tests. |
 | macOS | Use Actions or install the matching macOS engine build and complete setup. | Native macOS acceptance needs an appropriate host. Linux binaries and registries are not portable to it. |
@@ -141,8 +157,10 @@ external scratch storage. The source gate checks this boundary and retained
 scientific fixture provenance.
 
 Connected pathways include xTB, CREST, PySCF, ORCA and periodic Quantum ESPRESSO,
-each subject to its installed capabilities and supported operations. CFOUR/VPT2
-and other incomplete domain capabilities remain explicit pending handoffs.
+each subject to its installed capabilities and supported operations. The
+[CFOUR guide](.docs/CFOUR_Actions_Setup.md) describes its bounded molecular
+runtime and calculation pathway. VPT2 and other incomplete domain capabilities
+remain explicit pending handoffs.
 TOPOS and TORQ domain development belongs to their respective repositories.
 BASE does not manufacture results for absent modules.
 

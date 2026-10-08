@@ -1,56 +1,133 @@
-name: Provision an explicitly approved private CFOUR distribution
-description: Verify actual staged archive, native binaries and reviewed version response.
+name: Provision the approved optional CFOUR runtime
+description: Verify the complete pinned CFOUR 2.1 OpenMP runtime without blocking BASE when optional installation is unavailable.
 inputs:
-  asset-receipt:
-    description: Canonical Codespaces private staging receipt with authentic CFOUR descriptor.
-    required: true
-  asset-receipt-sha256:
-    description: Exact staging receipt SHA-256.
-    required: true
-  asset-task-id:
-    description: Exact task identity from the receipt.
-    required: true
+  asset-token:
+    description: Read-only Contents access to the private CFOUR release repository.
+    required: false
+    default: ''
+  required:
+    description: Set true for a dedicated CFOUR job that must fail if provisioning is unavailable.
+    required: false
+    default: 'false'
+outputs:
+  available:
+    description: True only after archive, inventory, native dependencies and launcher startup verification.
+    value: ${{ steps.status.outputs.available }}
+  reason:
+    description: Explanation when optional CFOUR provisioning is unavailable.
+    value: ${{ steps.status.outputs.reason }}
+  installation_report:
+    description: Path to the installation status JSON; contains metadata and no licensed runtime files.
+    value: ${{ steps.status.outputs.installation_report }}
 runs:
   using: composite
   steps:
-    - name: Consume the approved CFOUR bytes from the owning private project
+    - name: Read the reviewed CFOUR identity
+      id: identity
+      continue-on-error: true
       shell: bash
       env:
-        GH_TOKEN: ${{ github.token }}
-        COCHEM_STAGING_RECEIPT: ${{ inputs.asset-receipt }}
-        COCHEM_STAGING_RECEIPT_SHA256: ${{ inputs.asset-receipt-sha256 }}
-        COCHEM_STAGING_TASK_ID: ${{ inputs.asset-task-id }}
+        COCHEM_ACTION_PATH: ${{ github.action_path }}
       run: |
         set -euo pipefail
+        mkdir -p "$RUNNER_TEMP/cfour-evidence"
+        echo 'COCHEM_CFOUR_AVAILABLE=false' >> "$GITHUB_ENV"
         python - <<'PY'
-        import os
+        import os, sys
         from pathlib import Path
-        from scripts.consume_private_engine_asset import consume, load_workflow_receipt
-        receipt = load_workflow_receipt('cfour')
-        root = Path(os.environ['RUNNER_TEMP']) / 'cochem-cfour-download'
-        root.mkdir(mode=0o700)
-        evidence = Path(os.environ['RUNNER_TEMP']) / 'cfour-evidence'
-        evidence.mkdir(exist_ok=True)
-        consume(
-            'cfour',
-            root / receipt['approved_distribution']['archive_name'],
-            root / 'distribution.json',
-            evidence / 'staging-receipt.json',
-        )
-        with Path(os.environ['GITHUB_ENV']).open('a') as output:
-            output.write('COCHEM_CFOUR_ARCHIVE_NAME=' + receipt['approved_distribution']['archive_name'] + '\n')
+        scripts = Path(os.environ['COCHEM_ACTION_PATH']).resolve().parents[2] / 'scripts'
+        sys.path.insert(0, str(scripts))
+        from provision_cfour import load_distribution_manifest
+        manifest = load_distribution_manifest(scripts / 'cfour-distribution.json')
+        fields = {
+            'COCHEM_CFOUR_SCRIPTS': str(scripts),
+            'COCHEM_CFOUR_ASSET_REPOSITORY': manifest['repository'],
+            'COCHEM_CFOUR_RELEASE_TAG': manifest['release_tag'],
+            'COCHEM_CFOUR_ARCHIVE_NAME': manifest['archive_name'],
+        }
+        with open(os.environ['GITHUB_ENV'], 'a') as output:
+            for key, value in fields.items():
+                if any(char in value for char in '\r\n\x00'):
+                    raise ValueError('Invalid distribution setting')
+                output.write(f'{key}={value}\n')
         PY
-    - name: Validate the actual CFOUR native distribution and metadata
+    - name: Download the private CFOUR release asset
+      id: download
+      if: steps.identity.outcome == 'success'
+      continue-on-error: true
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.asset-token }}
+      run: |
+        set -euo pipefail
+        if [[ -z "$GH_TOKEN" ]]; then
+          echo 'PRIVATE_CFOUR_ASSET_CREDENTIAL is unavailable; CFOUR-dependent operations will remain disabled.'
+          exit 1
+        fi
+        mkdir -p "$RUNNER_TEMP/cochem-cfour-download"
+        gh release download "$COCHEM_CFOUR_RELEASE_TAG" \
+          --repo "$COCHEM_CFOUR_ASSET_REPOSITORY" \
+          --pattern "$COCHEM_CFOUR_ARCHIVE_NAME" \
+          --dir "$RUNNER_TEMP/cochem-cfour-download"
+    - name: Verify and install the complete CFOUR runtime
+      id: install
+      if: steps.download.outcome == 'success'
+      continue-on-error: true
       shell: bash
       run: |
         set -euo pipefail
-        python -m scripts.provision_cfour \
+        python "$COCHEM_CFOUR_SCRIPTS/provision_cfour.py" \
           --archive "$RUNNER_TEMP/cochem-cfour-download/$COCHEM_CFOUR_ARCHIVE_NAME" \
-          --manifest "$RUNNER_TEMP/cochem-cfour-download/distribution.json" \
           --install-root "$RUNNER_TEMP/cochem-cfour-install" \
-          --output "$RUNNER_TEMP/cfour-evidence/installation.json" \
-          --github-env "$GITHUB_ENV" --github-path "$GITHUB_PATH"
-    - name: Remove the downloaded licensed archive and private descriptor
+          --github-env "$GITHUB_ENV" --github-path "$GITHUB_PATH" \
+          > "$RUNNER_TEMP/cfour-evidence/installation.json"
+        cp "$RUNNER_TEMP/cochem-cfour-install/cochem-cfour-provenance.json" \
+          "$RUNNER_TEMP/cfour-evidence/distribution-provenance.json"
+    - name: Record optional availability and enforce dedicated calculation requirements
+      id: status
+      if: always()
+      shell: bash
+      env:
+        COCHEM_IDENTITY_OUTCOME: ${{ steps.identity.outcome }}
+        COCHEM_DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+        COCHEM_INSTALL_OUTCOME: ${{ steps.install.outcome }}
+        COCHEM_CFOUR_REQUIRED: ${{ inputs.required }}
+      run: |
+        python - <<'PY'
+        import json, os
+        from pathlib import Path
+        required = os.environ['COCHEM_CFOUR_REQUIRED']
+        if required not in ('true', 'false'):
+            raise SystemExit('setup-cfour required input must be true or false.')
+        available = os.environ['COCHEM_INSTALL_OUTCOME'] == 'success'
+        reason = ''
+        if not available:
+            if os.environ['COCHEM_IDENTITY_OUTCOME'] != 'success':
+                reason = 'The reviewed CFOUR distribution identity could not be loaded.'
+            elif os.environ['COCHEM_DOWNLOAD_OUTCOME'] != 'success':
+                reason = 'The private CFOUR runtime could not be downloaded; check PRIVATE_CFOUR_ASSET_CREDENTIAL access and the pinned release asset.'
+            else:
+                reason = 'CFOUR runtime verification or installation failed; see the provisioning step for the precise error.'
+        report = Path(os.environ['RUNNER_TEMP']) / 'cfour-evidence/installation.json'
+        report.parent.mkdir(parents=True, exist_ok=True)
+        if not available:
+            report.write_text(json.dumps({'schema_version': 1, 'available': False,
+                                         'status': 'unavailable', 'reason': reason,
+                                         'required': required == 'true'}, indent=2) + '\n')
+            with open(os.environ['GITHUB_ENV'], 'a') as stream:
+                stream.write('COCHEM_CFOUR_AVAILABLE=false\n')
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+            stream.write(f'available={str(available).lower()}\n')
+            stream.write(f'reason={reason}\n')
+            stream.write(f'installation_report={report}\n')
+        if available:
+            print('Approved CFOUR runtime is available. Scientific acceptance remains a separate calculation step.')
+        elif required == 'true':
+            raise SystemExit('Required CFOUR provisioning failed: ' + reason)
+        else:
+            print('Optional CFOUR is unavailable: ' + reason)
+        PY
+    - name: Remove the downloaded licensed CFOUR archive
       if: always()
       shell: bash
       run: rm -rf -- "$RUNNER_TEMP/cochem-cfour-download"

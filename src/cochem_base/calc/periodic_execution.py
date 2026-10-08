@@ -195,11 +195,16 @@ def execute_periodic_singlepoint(elements: Sequence[str], coordinates_angstrom: 
         periodic: PeriodicCalculationConfig, workdir: str | Path, registry_path: str | Path | None = None,
         cores: int = 1, timeout_seconds: float = 180., charge: int = 0, multiplicity: int = 1,
         job_id: str | None = None, cancellation_event: Any = None,
-        on_event: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
+        on_event: Callable[[dict[str, Any]], None] | None = None,
+        nuclides: Sequence[str] | None = None) -> dict[str, Any]:
     """Run native pw.x under Golden Registry authority and publish measured results."""
     from cochem_base.core_engine.execution_authority import authorize_engine_execution
     from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
     from cochem_base.core_engine.scientific_telemetry import append_scientific_result
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+    nuclear_identity = resolve_nuclear_identity(nuclides if nuclides is not None else elements)
+    if nuclear_identity.elements != tuple(elements):
+        raise ValueError("QE nuclide assignments must match its ordered electronic elements")
 
     if isinstance(timeout_seconds, bool) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
         raise ValueError("QE timeout must be finite and positive")
@@ -219,6 +224,7 @@ def execute_periodic_singlepoint(elements: Sequence[str], coordinates_angstrom: 
         registry_path=authority.registry_path, cpu_affinity=list(authority.cpu_affinity), cores=authority.cores,
         memory_budget_mb=authority.total_memory_mb, method="PBE", basis="plane_wave", pseudopotential="PAW",
         accuracy_validated=False, product_class="B", job_id=job_id)
+    provenance["nuclear_identity"] = nuclear_identity.metadata
     command = authority.command(["-in", deck.name])
     provenance["command"] = command
     environment = dict(os.environ, OMP_NUM_THREADS=str(authority.cores), OPENBLAS_NUM_THREADS="1",
@@ -245,7 +251,8 @@ def execute_periodic_singlepoint(elements: Sequence[str], coordinates_angstrom: 
         provenance["elapsed_seconds"] = time.monotonic() - start
         provenance["status"] = "SCF_VERIFIED"
         result["metadata"] = provenance
-        archive = append_scientific_result(job_id, elements, result["coordinates_angstrom"], result["energy_hartree"],
+        result.update(nuclides=list(nuclear_identity.nuclides), nuclear_identity=nuclear_identity.metadata)
+        archive = append_scientific_result(job_id, nuclear_identity.nuclides, result["coordinates_angstrom"], result["energy_hartree"],
             gradients=result["gradients_hartree_per_bohr"], metadata={**provenance, "cell_angstrom": result["cell_angstrom"], "pbc": result["pbc"]})
         result.update(status="SCF_VERIFIED", job_id=job_id, archive_path=str(archive), workdir=str(directory))
         (directory / "result.json").write_text(json.dumps(result, indent=2, allow_nan=False), encoding="utf-8")

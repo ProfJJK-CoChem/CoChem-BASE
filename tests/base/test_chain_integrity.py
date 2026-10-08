@@ -1,5 +1,6 @@
 """Chain parsing and publication contracts without simulated chemistry engines."""
 
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -95,6 +96,14 @@ def test_dry_pipeline_records_decks_without_physical_publication(tmp_path, seed)
     assert all(record.energy_hartree is None and record.geometry.size == 0 for record in records)
     assert not list(chain.workdir.glob("s?.xyz"))
     assert not list(chain.workdir.glob("*.out"))
+    preparation = json.loads((chain.workdir / "s1_xtb.command.json").read_text())
+    assert "--grad" in preparation["command"] and "--strict" in preparation["command"]
+    assert "--opt" not in preparation["command"]
+    assert preparation["optimizer"] == "SciPy BFGS with native xTB analytic gradients"
+    assert preparation["optimization_level"] == "vtight"
+    assert preparation["gradient_norm_limit_hartree_per_bohr"] == 1e-5
+    assert preparation["maximum_gradient_component_limit_hartree_per_bohr"] == 1e-6
+    assert preparation["handoff"] == "s1.xyz"
     with h5py.File(chain.h5_path, "r") as campaign:
         assert len(campaign["chain"]) == 6
         assert all("geometry" not in group and "energy_hartree" not in group.attrs

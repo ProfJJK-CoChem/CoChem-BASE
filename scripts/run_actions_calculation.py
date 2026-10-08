@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a bounded Classroom request and run its real ORCA calculation.
+"""Validate a bounded Classroom request and run its real licensed calculation.
 
 The input is a CalculationMatrixConfig JSON document, never an ORCA deck or
 shell command. Runtime data and scientific evidence stay outside the checkout.
@@ -85,7 +85,7 @@ def _atomic_write(destination: Path, contents: bytes) -> None:
 
 
 def run_job(repository: Path, job_file: str, *, registry: Path, output: Path,
-            cores: int = 2, maxcore_mb: int = 512) -> dict[str, Any]:
+            cores: int = 2, maxcore_mb: int = 512, engine: str = "orca") -> dict[str, Any]:
     from cochem_base.calc.calculation_service import _external_run_path, run_calculation
     from cochem_base.core_engine.execution_authority import authorize_engine_execution
     from cochem_base.core_engine.scientific_telemetry import read_scientific_results
@@ -111,9 +111,12 @@ def run_job(repository: Path, job_file: str, *, registry: Path, output: Path,
         _atomic_write(output / "submitted-job.json.sha256",
                       f"{report['submitted_job_sha256']}  submitted-job.json\n".encode())
         config = validate_configuration(contents, data)
+        if config.engine != engine:
+            raise ValueError(f"The {engine.upper()} workflow requires engine='{engine}'")
+        report["engine"] = engine
         validated = output / "validated-job.json"
         _atomic_write(validated, (config.model_dump_json(indent=2) + "\n").encode())
-        authority = authorize_engine_execution("orca", registry_path=registry, cores=cores,
+        authority = authorize_engine_execution(engine, registry_path=registry, cores=cores,
                                                maxcore_mb=maxcore_mb)
         report.update(engine_binary_sha256=authority.binary_sha256, registry_sha256=sha256(registry),
                       operation="harmonic_frequencies" if config.is_freq else "optimization" if config.is_opt else "single_point")
@@ -146,8 +149,8 @@ def run_job(repository: Path, job_file: str, *, registry: Path, output: Path,
                           hessian_artifact=hessian,
                           optimization_performed=accepted.get("optimization_performed", False))
         energy = accepted["energy_hartree"]
-        if accepted.get("engine") != "orca" or accepted.get("converged") is not True or not math.isfinite(energy):
-            raise RuntimeError("Missing converged finite ORCA result")
+        if accepted.get("engine") != engine or accepted.get("converged") is not True or not math.isfinite(energy):
+            raise RuntimeError(f"Missing converged finite {engine.upper()} result")
         store = Path(accepted["telemetry_path"])
         telemetry = read_scientific_results(accepted["telemetry_job_id"], store_path=store)
         # Optimization legitimately retains all streamed geometry/energy frames.
@@ -158,7 +161,7 @@ def run_job(repository: Path, job_file: str, *, registry: Path, output: Path,
                 or metadata[-1].get("converged") is not True
                 or metadata[-1].get("operation") != report["operation"]
                 or telemetry["coordinates_angstrom"][-1].tolist() != accepted["coordinates_angstrom"]):
-            raise RuntimeError("Canonical scientific archive differs from the published ORCA result")
+            raise RuntimeError("Canonical scientific archive differs from the published engine result")
         report["scientific_archive_record_count"] = len(telemetry["energy_hartree"])
         shutil.copy2(store, output / "complexes.h5")
         shutil.copy2(registry, output / "stage0-registry.json")
@@ -182,6 +185,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", type=Path, default=Path.cwd())
     parser.add_argument("--job-file", required=True)
+    parser.add_argument("--engine", choices=("orca", "cfour"), default="orca")
     parser.add_argument("--cores", type=int, default=2)
     parser.add_argument("--maxcore-mb", type=int, default=512)
     parser.add_argument("--registry", type=Path)
@@ -192,16 +196,19 @@ def main() -> int:
         if arguments.preflight_only:
             validate_resources(arguments.cores, arguments.maxcore_mb)
             _, _, data = read_job_file(arguments.repository, arguments.job_file)
+            if data.get("engine", "orca") != arguments.engine:
+                raise ValueError(f"The {arguments.engine.upper()} workflow requires engine='{arguments.engine}'")
             preflight_configuration(data)
             print("Input path, JSON and resource preflight passed; full scientific validation follows Stage 0 setup.")
         else:
             if arguments.registry is None or arguments.output is None:
                 parser.error("--registry and --output are required for execution")
             report = run_job(arguments.repository, arguments.job_file, registry=arguments.registry,
-                             output=arguments.output, cores=arguments.cores, maxcore_mb=arguments.maxcore_mb)
+                             output=arguments.output, cores=arguments.cores, maxcore_mb=arguments.maxcore_mb,
+                             engine=arguments.engine)
             print(json.dumps(report, indent=2))
     except Exception as error:
-        print(f"ORCA calculation failed: {error}", file=sys.stderr)
+        print(f"{arguments.engine.upper()} calculation failed: {error}", file=sys.stderr)
         return 1
     return 0
 

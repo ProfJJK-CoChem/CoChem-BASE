@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "repository": "ProfJJK-CoChem/CoChem-CFOUR",
+  "release_tag": "cfour-2.1-runtime-20261007",
+  "archive_name": "cfour_2_1_linux_x86-64_gcc11_openmp_ilp64.tar.xz",
+  "sha256": "19ea269fcc7a13eb059bf43d34f0ef32e07cc9bb98f4ce84bdc4d0d7b20ccd63",
+  "runtime_manifest_sha256": "e9a59cfcaeed3df210d8276b7d3055aed68ba082b2dbc31e826b8eafebd4e286",
+  "source_sha256": "3c596dcdb866d500d3c37e602d8e5491deea6cfad9e4595c50dfc08b4088944a",
+  "cfour_version": "2.1",
+  "platform": "Linux",
+  "architecture": "x86_64",
+  "minimum_glibc": "2.35",
+  "archive_root": "cfour-2.1",
+  "mpi": false,
+  "openmp": true,
+  "fortran_integer_bits": 64,
+  "blas": "ILP64 OpenBLAS pthread",
+  "compiler": "GCC/GFortran 11.4.0",
+  "source": "User-approved private compiled runtime; archive and embedded inventory independently pinned"
+}

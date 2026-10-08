@@ -115,6 +115,11 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
                 digest = hashlib.file_digest(handle, "sha256").hexdigest()
             if digest != record.get("sha256_hash"):
                 raise Stage0AuthorityError(f"Audited executable changed since phase 3: {name}")
+            if name in {"xcfour", "cfour"}:
+                from cochem_base.core_engine.cfour_runtime import verify_cfour_runtime
+                runtime = verify_cfour_runtime(path)
+                if runtime["runtime_seal_sha256"] != record.get("runtime_seal_sha256"):
+                    raise Stage0AuthorityError("CFOUR runtime changed since phase 3")
         else:
             path = None
             digest = None
@@ -125,6 +130,8 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
             version=record.get("version") if available else None,
             hash=digest,
             track=record.get("track"),
+            runtime_seal_sha256=record.get("runtime_seal_sha256") if available else None,
+            runtime_metadata=record.get("runtime_metadata", {}) if available else {},
         )
         capabilities[canonical] = available
         if canonical in {"orca", "cfour", "xtb", "mpirun"}:

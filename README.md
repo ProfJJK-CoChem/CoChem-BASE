@@ -8,38 +8,49 @@ interface, validated calculation execution and handoffs to the CoChem ecosystem.
 It preserves actual inputs, engine identity, resource allocation, outputs and
 scientific records needed to assess a result.
 
+The canonical student environment is a **personal private repository**, with
+**Codespaces for the interface and private asset staging**, and that repository's
+**GitHub Actions for calculations using its owner's allowance**. Follow the
+[private student project guide](.docs/Private_Student_Projects.md) and
+[exact staging/receipt guide](docs/private_student_engine_staging.md).
+Codespaces uses the student's existing authorized GitHub identity; Actions reads
+the exact staged asset with its own repository authority. No laboratory
+credential is copied into the student project.
+
 **Instructors: follow the
 [Classroom50 assignment deployment guide](.docs/Classroom50_Assignment_Deployment.md)**
-to prepare the release template, configure access, pilot one student and roll
-the assignment out to the course. **Students: start with the
-[Classroom50 + ORCA GitHub Actions guide](.docs/GitHub_Classroom_ORCA_Setup.md).**
-It covers approved binary access, each student's assignment repository, GUI
-job export, calculations and retrieval of results.
-Students using the instructor's provisioned route do not enter tokens in CoChem.
+to prepare course collection, review source and pilot one genuine student.
+Classroom50 enrollment and grading are separate from personal calculation
+ownership. The [licensed Actions walkthrough](.docs/GitHub_Classroom_ORCA_Setup.md)
+covers approved native distributions, job export and result inspection.
 
 For CFOUR runtime access, classroom setup and host compatibility, follow the
 [CFOUR setup guide](.docs/CFOUR_Actions_Setup.md). **ORCA and CFOUR are optional,
 strongly recommended engines.** BASE remains usable when either is absent or
 its optional installation fails; only dependent calculations are unavailable.
 
-For private module downloads, isolated installations and TOPOS/TORQ geometry
-handoffs, follow the [ecosystem modules guide](.docs/Ecosystem_Modules_Setup.md).
-It explains `COCHEM_SOURCE_READ_TOKEN`, student-owned Codespaces, the
-organization's shared Actions allowance, and which modules currently support
-installation or execution.
+For reviewed public sources, isolated installations and the **mandatory
+BASE/TOPOS/TORQ kit**, follow the [ecosystem guide](.docs/Ecosystem_Modules_Setup.md).
+Modern TOPOS uses a complete typed scientific request and its reviewed provider;
+the legacy geometry SDK and TORQ's supplied-geometry adapter remain separately
+scoped profiles. Package installation is not scientific qualification.
 
-Version **1.0.1** brings the integrated CFOUR/module routes and the current SRS
-closure work into the student distribution. The complete profile
-passed **1,827 tests** with **two explicit physical Slurm deferrals** and no
-failures. Hosted ORCA/CFOUR science, three-platform package/control checks and
-a fresh local Voilà container also passed. The
+The **historical 1.0.1 release evidence**, reviewed on 2026-10-08, records the
+complete profile at `583a6d22db0fab0fdd54d2659ceac87ba82fa48a`: **1,827 passed**,
+**two explicit physical Slurm deferrals** and no failures. Its hosted
+ORCA/CFOUR, three-platform controls and local Voilà container observations
+remain tied to their recorded revisions. The
 [release and validation record](.docs/Release_1_0_1.md) identifies
 actual tested revisions, application equivalence to the complete-profile
 source `583a6d2`, supported operations and how to verify publication through
 the actual GitHub release and its attached validation/checksum records. The older
 [1.0.0 record](.docs/Release_1_0_0.md) remains historical. Existing Classroom50
 assignment copies must be updated to the approved course source; pulling this
-repository does not grant assignment secrets or private-module permissions.
+repository does not grant private laboratory authorization. These historical
+results do not qualify the newer source, mandatory provider or private student
+staging lifecycle. No student-owned private target was available here; actual
+current-source staging, owning-token draft visibility, dispatch, retrieval and
+cleanup remain **UNRUN**.
 Use the [single-student deployment pilot](.docs/Student_Deployment_Pilot.md)
 before rolling a new template out to the course.
 
@@ -47,7 +58,7 @@ before rolling a new template out to the course.
 
 | Route | How to use it | Validation boundary |
 | --- | --- | --- |
-| Classroom50 / GitHub Actions | Accept the assignment, export a JSON job in Voilà, and run **ORCA calculation** or **CFOUR calculation**. | Hosted installation and chemistry must pass for the selected source revision. See [ORCA evidence](.docs/ORCA_Actions_Setup.md). |
+| Personal private GitHub Actions | Commit a validated ORCA/CFOUR request, stage its exact asset/intent from Codespaces, and dispatch with receipt/digest/task inputs. | The genuine student pilot and native calculation must qualify the selected source; earlier hosted runs are historical. |
 | Local Linux CPU | Complete Stage 0 and select an audited installed engine. | Local tests and real bounded calculations provide evidence for documented operations. |
 | Windows / WSL2 | Submit Actions jobs from the interface; use WSL2 for local Linux ORCA. | The Linux archive does not run natively on Windows. WSL acceptance is separate from Linux cloud tests. |
 | macOS | Use Actions or install the matching macOS engine build and complete setup. | Native macOS acceptance needs an appropriate host. Linux binaries and registries are not portable to it. |
@@ -59,23 +70,28 @@ its own engine paths, measured resource limits and Stage 0 registry.
 
 ## Student Actions calculations
 
-The instructor prepares the private archive and grants selected repositories
-access. All ORCA workflows read the same reviewed
+The instructor approves the distribution and grants the student legitimate
+source read access. Codespaces stages one task-owned private asset. All ORCA
+workflows read the same reviewed
 [`scripts/orca-distribution.json`](scripts/orca-distribution.json). The supported
 distribution is ORCA 6.1.1 for Linux x86-64 with Open MPI 4.1.8; its SHA-256 is
 checked before extraction. The licensed binary is not included in this
 repository, Python distributions or calculation artifacts.
 
-1. Complete the [student quick start](.docs/GitHub_Classroom_ORCA_Setup.md#student-quick-start)
-   and confirm the repository's physical ORCA acceptance passed.
-2. In Voilà, select **GitHub Actions**, enter the course repository and approved
-   branch, and configure the molecule in **No Code Matrix**.
-3. Select **Prepare GitHub Actions job**, download the JSON and commit it under
-   `jobs/` using the course's review process.
-4. Open **Actions → ORCA calculation → Run workflow**, enter its `job_file`
-   path, and start one job. Download its result artifact when it finishes.
+1. Create/select the genuine personal private project, open Codespaces, and
+   verify the student's actual authorized identity and reviewed source access.
+2. Prepare a supported ORCA or CFOUR JSON request, review its plan, and commit
+   its actual job bytes and canonical workflow to the approved branch.
+3. Stage the exact descriptor/source/workflow/request with its job digest,
+   cores and memory controls. Retain the private immutable intent, journal and
+   receipt outside Git; no archive credential is copied into personal Actions.
+4. Dispatch using `asset_receipt`, `asset_receipt_sha256`, `asset_task_id` and
+   matching job/resource inputs. Verify the real run/attempt and native result,
+   download its original evidence, then clean up only its exact staged asset
+   after the genuine terminal lifecycle. The first pilot must qualify owning
+   Actions `contents:read` access to the private draft asset.
 
-The course workflow supports bounded molecular single points, optimizations
+The ORCA calculation workflow supports bounded molecular single points, optimizations
 and harmonic frequencies: up to 50 atoms, one or two processes, at most 1024 MB
 per process and 1800 seconds of chemistry execution. Defaults are two processes
 and 512 MB per process. External checkpoints, R2 references, T9 recovery,
@@ -88,12 +104,17 @@ These HF/STO-3G examples validate execution, not research-level chemical accurac
 A harmonic calculation at supplied coordinates does not certify a stationary
 geometry; optimize first when appropriate.
 
+The [CFOUR scientific route](.docs/CFOUR_Actions_Setup.md) uses
+`cfour_calculation.yml` with the same exact job/resource intent and the authentic
+OpenMP-only runtime. Its separate provisioning utility does not establish a
+scientific calculation. Unsupported quantities and failed stages retain reasons
+and valid earlier products.
+
 ## Launch the interface from source
 
-Use Python 3.12 for the pinned Stage 0 environments. Classroom50 users should
-clone their **accepted assignment repository**, using its **Code → Local** HTTPS
-URL, and run the launcher inside that checkout. The clone example below is for
-upstream development; it does not create or select your course assignment.
+Use Python 3.12 for the pinned Stage 0 environments. Students launch from their
+reviewed **personal private calculation project**. The clone example below is
+for upstream development; it does not create or select that project.
 
 From an upstream development checkout:
 

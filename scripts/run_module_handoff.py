@@ -12,11 +12,13 @@ def main(argv=None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--root", type=Path)
     parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--timeout", type=float, default=180, help="Explicit total receiver wall-clock bound in seconds")
     args = parser.parse_args(argv)
     from cochem_base.interfaces.module_execution import execute_module_handoff
-    result = execute_module_handoff(args.handoff, args.output, root=args.root, manifest=args.manifest)
+    result = execute_module_handoff(args.handoff, args.output, root=args.root, manifest=args.manifest,
+                                   timeout=args.timeout)
     print(json.dumps(result, indent=2, allow_nan=False))
-    return 0
+    return 0 if result.get("status") == "completed" else 1
 
 
 if __name__ == "__main__":

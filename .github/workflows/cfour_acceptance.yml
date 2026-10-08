@@ -37,6 +37,11 @@ on:
         required: true
         type: string
 
+    secrets:
+      BASE_SOURCE_READ_TOKEN:
+        description: Optional read-only access to an explicitly selected private BASE source.
+        required: false
+
 permissions:
   contents: read
 
@@ -45,7 +50,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-private-project:
+    name: Validate owning private project and staged asset inputs
+    if: ${{ github.event.repository.private && github.event.repository.owner.type == 'User' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require the owning private project and explicit dispatch
+        env:
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          REPOSITORY_OWNER_TYPE: ${{ github.event.repository.owner.type }}
+          EXECUTION_EVENT: ${{ github.event_name }}
+          COCHEM_STAGING_RECEIPT: ${{ inputs.asset_receipt }}
+          COCHEM_STAGING_RECEIPT_SHA256: ${{ inputs.asset_receipt_sha256 }}
+          COCHEM_STAGING_TASK_ID: ${{ inputs.asset_task_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$REPOSITORY_PRIVATE" != true ]]; then
+            echo '::error::Licensed calculations require a private project repository.'
+            exit 1
+          fi
+          if [[ "$REPOSITORY_OWNER_TYPE" != User ]]; then
+            echo '::error::Licensed calculations require the owning personal private project.'
+            exit 1
+          fi
+          if [[ "$EXECUTION_EVENT" != workflow_dispatch ]]; then
+            echo '::error::Licensed calculations require an explicit workflow dispatch.'
+            exit 1
+          fi
+          if [[ -z "$COCHEM_STAGING_RECEIPT" || ! "$COCHEM_STAGING_RECEIPT_SHA256" =~ ^[0-9a-f]{64}$ || ! "$COCHEM_STAGING_TASK_ID" =~ ^[0-9a-f]{32}$ ]]; then
+            echo '::error::Supply the exact privately staged receipt, SHA-256 and task identity.'
+            exit 1
+          fi
   licensed-calculations:
+    needs: validate-private-project
     if: ${{ github.event.repository.private && github.event.repository.owner.type == 'User' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -69,7 +107,7 @@ jobs:
         with:
           repository: ${{ inputs.base_repository || github.repository }}
           ref: ${{ inputs.base_ref || github.sha }}
-          token: ${{ github.token }}
+          token: ${{ secrets.BASE_SOURCE_READ_TOKEN || github.token }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:

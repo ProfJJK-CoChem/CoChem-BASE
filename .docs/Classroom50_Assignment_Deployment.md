@@ -1,15 +1,19 @@
-# Deploy a CoChem assignment through Classroom50
+# Deploy and pilot a CoChem assignment through Classroom50
 
-Follow these steps as the instructor, then have **one enrolled student** complete
-the pilot before sharing the assignment with the full class. The pilot verifies
-the student's assignment permissions, a fresh Codespace, real Actions chemistry
-and result retrieval. An instructor's successful upstream calculation does not
-establish those student-specific permissions.
+The canonical student route uses a **personal private repository** for
+calculations in its owner's GitHub Actions allowance and **Codespaces** for the
+interface. Follow [private student projects](Private_Student_Projects.md) and
+the [exact private staging guide](../docs/private_student_engine_staging.md).
+Codespaces uses the student's own authorized GitHub identity to stage reviewed
+assets; Actions uses its owning repository authority. No cross-owner credential
+is copied into the student project. Organization-owned course repositories have
+different billing and are not this personal calculation route.
 
-This guide uses the current [Classroom50](https://classroom50.org/) web app,
-rather than the former GitHub Classroom interface. Its official teacher,
-student and template documentation was checked on **2026-10-08 UTC**; references
-are listed at the end.
+Classroom50 enrollment, collection and grading are instructor-managed services.
+An organization-owned assignment and a student's personal calculation project
+are distinct repositories. Do not claim Classroom50 moves Actions charges to
+the student or automatically collects another repository's results. Use the
+course's explicit permitted-result submission process.
 
 ## 1. Choose the course names and released source
 
@@ -44,7 +48,7 @@ organization**. Codespaces cannot authorize cross-owner repositories through
 with a reviewed manifest, or separately authorized user authentication. Merely
 granting a student read access to an upstream module does not extend a
 Codespace's default token to another organization. See
-[private-module setup](Ecosystem_Modules_Setup.md#instructor-prepare-students-codespaces-access).
+[reviewed ecosystem setup](Ecosystem_Modules_Setup.md#codespaces-and-other-hosts).
 
 ## 2. Set up the organization in Classroom50
 
@@ -72,11 +76,10 @@ settings/token checks pass.
    guide specifies repository **Contents**, **Actions**, **Workflows** and
    **Administration** with read/write access, automatic **Metadata: Read**, and
    organization **Members: Read**. These permissions belong to Classroom50's
-   management/collection service; the CoChem download tokens below remain
-   separate read-only credentials.
+   management/collection service; licensed assets follow the separate student staging route.
 6. Generate the service token. Paste it only into Classroom50's **Paste token**
    field and select **Save token**. Classroom50 stores it as
-   `CLASSROOM50_SERVICE_TOKEN` in its `classroom50` repository. Select **Done**.
+   its private service credential in its `classroom50` repository. Select **Done**.
 7. Open the organization's Classroom50 **Settings → Service token → Test
    token**. Require a passing result; use **View run** for missing-permission
    errors. Complete required organization token approval if applicable. Set a
@@ -85,41 +88,14 @@ settings/token checks pass.
 
 ## 3. Confirm payer and Actions policy
 
-For this deployment, the student pays for their **personal Codespace** using
-their available student allowance; the organization owns and pays for the
-assignment repository's **Actions jobs**. Starting an Actions run from a
-student account does not transfer its cost to that student's personal account.
+Personal private calculation projects use their owner's Actions allowance.
+Organization-owned Classroom50 assignment or collection repositories use the
+organization allowance. Codespaces ownership determines its separate payer.
+Verify the actual owner and spending settings before the pilot. Keep fork
+pull-request write authority and secret delivery disabled; licensed calculations
+use reviewed manual dispatch. Do not make a calculation repository public to
+avoid a private usage limit.
 
-1. In GitHub, open **Organization Settings → Codespaces → General → Codespace
-   ownership** and choose **User ownership**. Review existing Codespaces before
-   changing this setting: an ownership change can transfer them to students'
-   personal accounts. Each pilot student must confirm their account is shown
-   as payer when creating the Codespace.
-2. Check **Organization Settings → Actions → General**. Allow the reviewed
-   course workflows and the GitHub actions they use. If you use an allowlist,
-   it must permit `actions/checkout`, `actions/setup-python` and
-   `actions/upload-artifact`, plus Classroom50's required workflows. Follow
-   Classroom50's setup diagnostics for its workflow-sharing settings.
-3. Keep **Send secrets and variables to workflows from fork pull requests** and
-   **Send write tokens to workflows from pull requests** **disabled**. The
-   manual calculation route uses the student's own approved assignment branch
-   and does not need either setting.
-4. Open **Organization Settings → Billing & Licensing → Budgets and alerts**.
-   Review the existing $0 paid-usage cap and stop behavior established during
-   setup; do not add a duplicate budget. GitHub Team currently includes
-   **3,000 standard-runner Actions minutes per month shared by the organization**,
-   plus its plan's shared artifact storage. Verify the allowances shown for
-   your account. The $0 cap allows included usage and stops paid overages after
-   included usage is exhausted.
-5. Have the pilot student check their own **Settings → Billing & Licensing**
-   and active Education benefits for Codespaces. Allowance is measured in
-   core-hours, so a two-core Codespace running for an hour uses two core-hours.
-   Stop it when idle; retained Codespaces also consume storage. Student
-   Codespaces allowance does not pay for organization Actions jobs.
-
-Use one pilot to measure actual course setup time and minutes before scheduling
-simultaneous class runs. Private licensed archives stay private; making
-assignment repositories public is not a substitute for a course usage plan.
 
 ## 4. Create a dedicated private assignment template
 
@@ -305,115 +281,29 @@ their credential/resource access; a green calculation by itself is not a grade.
 If acceptance says **Not a member yet** or **This assignment isn't available to
 you**, correct the invitation/classroom enrollment rather than creating a fork.
 
-## 7. Give the new assignment access to its approved Actions secrets
+## 7. Create the personal private calculation project
 
-The three CoChem download credentials already working in BASE do not copy with
-its source. Each new assignment must be authorized to use them.
+Have the pilot student follow [private project creation](Private_Student_Projects.md).
+Record its actual personal owner, private visibility and reviewed source SHA.
+Grant that student's authorized identity legitimate read access to the approved
+lab distribution within its license. Do not copy an organization credential or
+configure a cross-owner archive reader in personal Actions. Stage one exact
+task from Codespaces and retain its private immutable intent/journal/receipt.
 
-| Actions secret | Purpose |
-| --- | --- |
-| `legacy organization engine credential` | Read the approved private ORCA release archive |
-| `legacy organization engine credential` | Read the approved private CFOUR runtime archive |
-| `COCHEM_SOURCE_READ_TOKEN` | Read the approved private CoChem module source |
 
-1. In GitHub, open the course **Organization Settings → Secrets and variables
-   → Actions → Secrets**.
-2. Edit an existing organization secret with the exact name, or choose **New
-   organization secret** if that credential currently exists only in BASE.
-   Enter its value only in GitHub's secret form using your securely retained
-   original. GitHub cannot reveal a saved repository secret so it can be copied;
-   if you no longer have the original, regenerate the approved read-only token
-   and rotate its affected secrets.
-3. Under **Repository access**, choose **Selected repositories**, select the
-   newly accepted pilot assignment and any approved instructor testing
-   repository, then save. Repeat for each credential the assignment uses.
-   Selecting repositories in the token controls what it can **read**; selecting
-   repositories in the organization secret controls what can **use it**.
-4. Confirm each credential is unexpired, approved if the source organization
-   requires approval, and has **Contents: Read-only** for its designated source
-   repositories. GitHub's fine-grained token editor places **Contents** under
-   **Permissions → Add permissions**. The archive/source readers do not need
-   Actions write or Codespaces management permission.
-5. As the instructor, check the assignment's **Settings → Secrets and variables
-   → Actions** for an obsolete repository secret with the same name. A
-   repository value overrides an organization value. Correct stale duplicates
-   before testing.
-6. Repeat the selected-repository grant each time a student accepts and
-   Classroom50 creates a new assignment repository. Selecting the template
-   alone does not grant access to future copies. Students should not create
-   or enter instructor archive tokens.
+## 8. Check Codespaces and reviewed module access
 
-Authorize only participants permitted to access the private module/engine
-distribution. Anyone able to change and run code in a credential-bearing
-workflow can use that credential. If archive access must remain instructor-only,
-run licensed jobs in an instructor-controlled calculation repository and review
-student input there; keep the assignment/Codespace as the interface and submit
-permitted results through the course process. Secret masking does not substitute
-for that access boundary.
+Open the private personal calculation project in a real student Codespace with
+the approved browser-authenticated GitHub identity. Verify actual source access;
+cross-owner devcontainer declarations do not grant laboratory permissions.
+Keep the interface port private. Use public BASE/TOPOS/TORQ source pins and the
+complete reviewed mandatory ecosystem kit where requested. Follow
+[ecosystem setup](Ecosystem_Modules_Setup.md); modern TOPOS takes a typed request,
+not the legacy geometry-only interface. Installation and scientific acceptance
+remain separate. Record the actual Codespaces payer and its fresh setup.
 
-ORCA and CFOUR remain **optional, strongly recommended** for BASE. An assignment
-without their access must still open the dashboard and use installed free
-engines; dependent local methods are unavailable. A job explicitly selecting
-ORCA or CFOUR must require that engine and fail truthfully when it cannot be
-provisioned. See the engine guides for their pinned archive identity and setup.
 
-## 8. Give the student Codespaces and module access
-
-Actions secrets do not automatically become Codespaces credentials. The
-recommended Codespaces route uses the student's own authorized GitHub identity.
-
-1. For modules required by the course, reuse Classroom50's classroom team in
-   **ProfJJK-CoChem → Teams**. In each approved module repository, open
-   **Settings → Collaborators & teams → Add teams** and give that course team
-   **Read** access. Start with `CoChem-TOPOS` and `CoChem-TORQ`; do not grant
-   write access merely to allow downloading.
-2. Check the template's `.devcontainer/devcontainer.json` before acceptance.
-   Its supplied `customizations.codespaces.repositories` already requests
-   `contents: read` for those two repositories under `ProfJJK-CoChem`. Retain
-   the container image, lifecycle scripts, volume, ports and VS Code settings.
-   Add other same-owner repositories explicitly only when the course needs
-   them and the student already has read access.
-3. If permissions/configuration were corrected after acceptance, update the
-   assignment's configuration as well. A changed template does not replace all
-   starter code in an already accepted repository.
-4. Have the student open **their accepted assignment repository**, choose the
-   approved `main` branch, then **Code → Codespaces → Create codespace on main**
-   (or **New with options**). Use the smallest supported machine, normally two
-   cores. Confirm the payer is the student's personal account and authorize
-   the requested module read permissions.
-5. Create a **new** Codespace after a repository-permission change. Rebuilding
-   an older Codespace does not apply newly requested repository permissions.
-6. Wait for `postCreateCommand` setup to complete. Open **Ports → 8866 — CoChem
-   Voilà dashboard → Open in Browser**. Keep visibility **Private**. The
-   dashboard must render; a forwarded port alone is not acceptance.
-7. In the Codespace terminal at the assignment root, check its dashboard:
-
-   ```bash
-   python3 scripts/hosted_dashboard.py start
-   python3 scripts/hosted_dashboard.py check
-   ```
-
-   `start` reuses a healthy dashboard; `check` verifies the rendered page. Keep
-   actual setup errors and resolve them before repeating installation.
-8. If modules are required, check source access and perform the explicit
-   supported install/verify steps from the [module guide](Ecosystem_Modules_Setup.md#student-check-your-source-access):
-
-   ```bash
-   git ls-remote https://github.com/ProfJJK-CoChem/CoChem-TOPOS.git HEAD
-   git ls-remote https://github.com/ProfJJK-CoChem/CoChem-TORQ.git HEAD
-   "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/manage_modules.py install --modules topos torq --root "$COCHEM_ARTIFACT_DIR/Modules" --json
-   "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/manage_modules.py verify --modules topos torq --root "$COCHEM_ARTIFACT_DIR/Modules" --json
-   ```
-
-   A read check does not establish installation, and installation does not
-   validate every module calculation. Keep the approved module pins. The seven
-   explicitly deferred source modules and other catalog entries without usable
-   packaging/adapters are not required for this pilot.
-
-   Use BASE's managed `ui-env` Python for module commands; the VS Code
-   interpreter setting does not change the terminal's default `python3`.
-
-## 9. Run real chemistry in the accepted pilot repository
+## 9. Run real chemistry in the personal pilot project
 
 Perform installation acceptance once in the pilot before assigning many jobs;
 the student should then personally run the small assignment calculation. Do
@@ -426,21 +316,21 @@ steps rather than starting another run because chemistry has not started yet.
    workflows must be on its default branch. Enable Actions if its policy
    requires it. Confirm source manifests still point to the approved private
    asset releases; do not change checksums to silence errors.
-2. For ORCA, run **ORCA private archive access** first if checking credential
-   access, then **ORCA 6.1.1 calculation acceptance → Run workflow → main**.
+2. For ORCA, stage the exact access/acceptance workflow and its null calculation
+   intent, retain receipt/digest/task identity, then run **ORCA 6.1.1 calculation acceptance → Run workflow → main**.
    Require actual chemistry and serial/parallel agreement, not just archive
    download success. Retain `orca-6.1.1-acceptance-<run-id>-<attempt>`.
-3. For CFOUR, run **CFOUR 2.1 calculation acceptance → Run workflow → main**.
+3. For CFOUR, stage its exact acceptance workflow with null calculation intent,
+   retain receipt/digest/task identity, then run **CFOUR 2.1 calculation acceptance → Run workflow → main**.
    Require its physical calculation/derivative checks. This approved build
    tests OpenMP, not MPI. Retain
    `cfour-2.1-acceptance-<run-id>-<attempt>`.
-4. If the course uses modules in Actions, run **CoChem ecosystem modules** with
-   **action: install**, **modules: topos torq**. Inspect `installations.json` and
-   require success for every selected module. For the supported handoff check,
-   use **action: geometry_analysis**, the same modules and
-   **xyz_file: examples/jobs/water.xyz**. Retain its artifact; a successful
-   source-only fetch is not scientific execution.
-5. Have the student run **Actions → ORCA calculation → Run workflow** in their
+4. For modern TOPOS, use its reviewed all-three-package kit and typed request
+   route from the ecosystem guide. Inspect every actual installation and
+   request result; a source fetch or legacy geometry result does not qualify
+   the mandatory provider or its full scientific scope.
+5. Stage the exact committed ORCA request, including its job digest and resource
+   tuple. Supply its ready receipt/digest/task inputs. Have the student run **Actions → ORCA calculation → Run workflow** in their
    own accepted repository, selecting `main` with:
 
    | Input | First practice value |
@@ -452,7 +342,9 @@ steps rather than starting another run because chemistry has not started yet.
    For optimization followed by harmonic frequencies, use
    `examples/jobs/water-harmonic.json`. The ORCA job uses processes; enter a
    repository-relative job path, not a Windows path or pasted JSON contents.
-6. If CFOUR is assigned, have the student run **CFOUR calculation** with
+6. If CFOUR is assigned, stage the corresponding actual CFOUR calculation
+   request and receipt using `cfour_calculation.yml` and all four job/resource
+   flags. Have the student run **CFOUR calculation** with
    `examples/jobs/cfour-water-single-point.json`, `2` cores and `512` MB per
    core. Use `examples/jobs/cfour-water-harmonic.json` for optimization plus
    frequencies. CFOUR's `cores` selects OpenMP threads in this build.
@@ -475,7 +367,7 @@ through the interface. This establishes the GUI-to-Actions path as well as the
 existing example path.
 
 1. In Voilà's **Seamless Install** panel, choose **GitHub Actions** as calculation
-   environment. Enter the **actual accepted assignment `OWNER/REPOSITORY`** and
+   environment. Enter the **actual personal private calculation `OWNER/REPOSITORY`** and
    `main`, not `ProfJJK-CoChem/CoChem-BASE`.
 2. Open **No Code Matrix** and enter these water coordinates in ångströms:
 
@@ -501,12 +393,13 @@ existing example path.
 3. Select **Prepare GitHub Actions job**, then **Download ORCA job JSON** or
    **Download CFOUR job JSON**. Export prepares a request; it does not dispatch
    a calculation or install the engine locally.
-4. Commit the exported JSON to the approved assignment branch, for example
+4. Commit the exported JSON to the approved personal calculation branch, for example
    `jobs/lab01-water-orca-job.json`. In GitHub's browser, use **Add file → Create
    new file** with that full filename and paste the complete JSON if `jobs/`
    does not exist; otherwise **Add file → Upload files** is sufficient. Follow
    the instructor's review process.
-5. Run the matching **ORCA calculation** or **CFOUR calculation** workflow with
+5. Stage the actual committed request and supply its exact receipt/digest/task
+   with the same resource controls. Run the matching **ORCA calculation** or **CFOUR calculation** workflow with
    that committed repository-relative `job_file`. Use the same approved
    resources. Require actual convergence and accepted output.
 6. At the bottom of the completed run's summary, download
@@ -545,6 +438,11 @@ existing example path.
 
 ## 11. Submit, collect and review the pilot
 
+The calculation project and Classroom50 collection assignment are distinct.
+Copy only permitted reports/results to the instructor's submission repository;
+licensed assets and private receipts stay outside it. Classroom50 does not
+automatically collect an unrelated personal project.
+
 1. Have the student commit and push their `LAB01.md`/report and permitted
    result files to the accepted repository's **default branch**. For this
    pilot's **Every push** submission setting, pushing saves/submits the work.
@@ -567,7 +465,7 @@ existing example path.
    | Interface | Rendered Voilà page, structure ingestion and optional-engine absence behavior |
    | Modules, when assigned | Read-access result, pinned installation/verification and supported handoff report |
    | Actual licensed chemistry | Successful run URL, source commit, input/resources and physical result report |
-   | GUI export | Exported JSON committed to assignment and successfully executed |
+   | GUI export | Exported JSON committed to the personal calculation project and successfully executed |
    | Retrieval and inspection | Downloaded artifact and rendered HDF5/Hessian inspection |
    | Submission and review | Default-branch lab commit, successful Classroom50 collection and feedback |
 
@@ -575,50 +473,31 @@ existing example path.
    when it is no longer needed to release storage; its uncommitted local files
    would otherwise be lost.
 
-## 12. Roll out to the full class and maintain the template
+## 12. Roll out after the genuine pilot
 
-1. Correct any pilot failure before enrollment rollout. Keep its final
-   template, assignment and runtime/source manifest commits in the setup record.
-2. On **Roster**, use **Upload roster** for the remaining students, review the
-   preview, and send/share the classroom onboarding link. Existing organization
-   members must be enrolled through **Members → Actions → Add to classroom**.
-3. Share the assignment acceptance link. Add **each newly created assignment**
-   to the selected repositories for its required organization Actions secrets.
-   Give its student the approved team/module read access.
-4. Give students the short instructions in Steps 8–11, your `LAB01.md`, and the
-   [ORCA](GitHub_Classroom_ORCA_Setup.md) or [CFOUR](CFOUR_Actions_Setup.md) guide.
-   Stagger initial jobs to stay within runner capacity and included usage.
-   Students run assigned bounded calculations rather than full release
-   acceptance suites.
-5. Keep this assignment template frozen. When updating BASE, create a new
-   reviewed course template/revision and repeat the pilot. Changing a template
-   does not automatically replace all source in previously accepted copies.
-   Classroom50's `gh student submit` refreshes `.github/` and `.gitignore` from
-   its template, so do not distribute workflow changes that depend on scripts
-   students' older copies do not have.
-6. Review actual Actions/artifact usage, token expiry and student Codespaces
-   allowance during the course. Retain permitted scientific evidence before
-   artifact expiry and rotate credentials through their approved forms.
+Retain the actual student/source/run/attempt/result and cleanup evidence before
+inviting more students. Each student uses their own private project and authorized
+identity; no template copy grants lab membership or copies credentials. Review
+changes to BASE, workflow, manifest, native runtime or ecosystem pin and repeat
+the appropriate genuine acceptance. Explain billing, artifact retention,
+cancellation and cleanup. Preserve original failed attempts and scientific limits.
+
 
 ## Troubleshooting the first deployment
 
-| Symptom | Correct check |
+| Observation | Check |
 | --- | --- |
-| Organization missing in Classroom50 | OAuth organization authorization/approval and Team/Enterprise plan |
-| Private template rejected or acceptance returns 404 | Template flag, at least one commit, same organization, owner-saved assignment/team read grant |
-| Student not allowed to accept | Classroom roster enrollment plus accepted organization invitation; sharing a link is insufficient |
-| No **Run workflow** button | Reviewed workflow exists on default branch, Actions enabled, student has Write, correct workflow selected |
-| ORCA/CFOUR download gets 401/403/404 | Assignment selected for correct organization secret, source token repo access/expiry/approval, stale repository secret override, actual published asset |
-| Codespace cannot read a module | Student's team Read access, same-owner declaration and fresh Codespace permission authorization |
-| Codespace starts but dashboard does not render | Completed setup log and `python3 scripts/hosted_dashboard.py check`; private port 8866 |
-| ORCA/CFOUR absent locally despite working Actions | Expected for an interface-only Codespace; remote jobs provision independently, local dependent methods remain unavailable |
-| Jobs cannot start due to usage | Organization included Actions allowance/budget/capacity; student personal Codespaces quota is separate |
-| Green calculation but no Classroom50 grade | Own CI mode supplies no built-in score; submit/collect lab work and apply the stated rubric |
-| Updated template but old student code | Existing accepted source is an independent copy; update compatible scripts/configuration explicitly and repeat pilot |
+| Classroom assignment opens but lab staging fails | Course enrollment is separate from the student's authorized private source access. |
+| Additional repository permission did not help | Personal Codespaces cannot gain cross-owner access through that declaration; verify the real authorized identity. |
+| Workflow is absent | The canonical files must be on the personal project's default branch and Actions must be allowed. |
+| Private draft download fails | The first pilot must qualify owning Actions `contents:read` visibility; do not silently broaden or invent success. |
+| Native execution fails | Preserve genuine logs and unsupported/failed reasons. Installation is not accepted chemistry. |
+| Asset remains after cancellation | Use the exact historical receipt and terminal-run cleanup/repair, preserving unrelated assets. |
+| Costs attributed to organization | Check the actual calculation repository owner; starting a run as a student does not change its payer. |
 
-Send an instructor the run URL and relevant error text when asking for help.
-Never include a credential value or licensed runtime. A failed run should retain
-its diagnostics rather than be reclassified as a passed scientific result.
+The current genuine personal-private student pilot is unrun. Earlier upstream
+native or container evidence cannot establish these student/provider permissions.
+
 
 ## Official references
 

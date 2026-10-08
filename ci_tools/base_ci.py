@@ -12,9 +12,9 @@ import configparser
 import hashlib
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 if __package__ in (None, ""):
@@ -23,6 +23,7 @@ if __package__ in (None, ""):
 from ci_tools.anti_spoof_linter import run_linter
 from ci_tools.ci_airgap_sweep import run_airgap_sweep
 from ci_tools.mendeleev_ast_linter import scan_directory, scan_file
+from ci_tools.reviewed_test_controls import is_reviewed_control, validate_test_controls
 from ci_tools.source_fixtures import validate_source_fixtures
 
 SOURCE_TARGETS = ("src", "cochem", "ui", "frontend", "scripts", ".scripts", "cli.py", "ci_tools")
@@ -117,9 +118,11 @@ def audit(root: Path, output: Path) -> dict[str, Any]:
     sources = [root / entry for entry in SOURCE_TARGETS]
     _, source_findings = run_linter(sources, root)
     _, test_findings = run_linter(selected_test_sources(root), root)
+    control_records = validate_test_controls(root, root / "ci_tools/reviewed_test_controls.json", test_findings)
     # Static skip sites remain visible. Whether they defer acceptance is decided
     # from actual execution below; an unexpected runtime skip always fails.
-    test_blockers = {name: [item for item in rows if item.category != "PYTEST_SKIP"]
+    test_blockers = {name: [item for item in rows if item.category != "PYTEST_SKIP"
+                           and not is_reviewed_control(item, control_records)]
                      for name, rows in test_findings.items()}
     test_blockers = {name: rows for name, rows in test_blockers.items() if rows}
     mass_findings = []
@@ -141,6 +144,12 @@ def audit(root: Path, output: Path) -> dict[str, Any]:
         "production_and_ci": {name: [v.to_dict() for v in rows] for name, rows in source_findings.items()},
         "selected_test_source": {name: [v.to_dict() for v in rows] for name, rows in test_findings.items()},
         "selected_test_blocker_count": sum(map(len, test_blockers.values())),
+        "reviewed_non_scientific_test_controls": {
+            "scientific_acceptance": False,
+            "note": "Exact reviewed API, packaging and failure/lifecycle controls; raw findings above remain unchanged.",
+            "count": len(control_records),
+            "controls": control_records,
+        },
         "mass_policy": [v.to_dict() for v in mass_findings],
         "airgap": airgap.to_dict(),
         "source_fixtures": fixture_records,

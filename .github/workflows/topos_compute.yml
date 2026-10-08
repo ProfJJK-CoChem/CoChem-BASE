@@ -57,15 +57,15 @@ jobs:
         with:
           repository: ProfJJK-CoChem/CoChem-TOPOS
           ref: 6264cf08e76c37b04f111023161bf46f22c6e98b
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN || github.token }}
           path: .cochem-dependencies/topos
           persist-credentials: false
       - name: Checkout the reviewed TORQ consumer
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: ProfJJK-CoChem/CoChem-TORQ
-          ref: 79fbb111125e50627a1a2c129888a45496f368d4
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+          ref: 4f323800227dbde00ffb082bd6d9e44d851e1c7a
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN || github.token }}
           path: .cochem-dependencies/torq
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065

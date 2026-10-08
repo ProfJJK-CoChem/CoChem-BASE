@@ -30,6 +30,16 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Require a private licensed provisioning context
+      shell: bash
+      env:
+        REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+      run: |
+        set -euo pipefail
+        if [[ "$REPOSITORY_PRIVATE" != true ]]; then
+          echo '::error::Licensed provisioning requires a private project repository.'
+          exit 1
+        fi
     - name: Read the reviewed CFOUR identity
       id: identity
       continue-on-error: true

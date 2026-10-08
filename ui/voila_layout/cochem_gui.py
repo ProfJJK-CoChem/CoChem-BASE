@@ -1031,6 +1031,13 @@ class CoChemGUI:
         self.module_artifact = widgets.Text(description="Input artifact:", layout=widgets.Layout(width='90%'))
         self.module_operation = widgets.Text(description="Requested task:", value="geometry_analysis",
                                              style={'description_width': 'initial'})
+        self.module_request_file = widgets.Text(description="TOPOS request JSON:",
+            style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'))
+        self.module_ecosystem_kit = widgets.Text(description="CoChem kit directory:",
+            value=os.environ.get("COCHEM_ECOSYSTEM_KIT", ""),
+            style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'))
+        self.module_timeout = widgets.FloatText(description="Run timeout (s):", value=180,
+                                                style={'description_width': 'initial'})
         self.module_output = widgets.Text(description="Package directory:",
             value=str(get_artifact_dir() / "Handoffs"), style={'description_width': 'initial'},
             layout=widgets.Layout(width='90%'))
@@ -1044,17 +1051,24 @@ class CoChemGUI:
                                         style={'description_width': 'initial'}, layout=widgets.Layout(width='90%'))
         self.btn_module_install = widgets.Button(description="Install selected recipient", layout=widgets.Layout(width='auto'))
         self.btn_module_install.on_click(self._install_selected_module)
-        self.btn_module_run = widgets.Button(description="Run geometry analysis", layout=widgets.Layout(width='auto'))
+        self.btn_module_run = widgets.Button(description="Run selected request", layout=widgets.Layout(width='auto'))
         self.btn_module_run.on_click(self._run_module_geometry)
+        self.btn_module_cancel = widgets.Button(description="Cancel module run", disabled=True,
+                                                layout=widgets.Layout(width='auto'))
+        self.btn_module_cancel.on_click(self._cancel_module_operation)
+        self._module_cancellation = threading.Event()
+        atexit.register(self._module_cancellation.set)
+        self.module_recipient.observe(self._module_recipient_changed, names='value')
+        self._module_recipient_changed()
         self.module_install_status = widgets.HTML("<p role='status'>Select a module to install or inspect.</p>")
         self.view_modules = widgets.VBox([
-            widgets.HTML("<h3>Module installation and execution</h3><p>Install approved modules in separate environments. TOPOS and TORQ expose geometry analysis; other operations require a reviewed adapter. Installation does not certify scientific accuracy.</p>"),
+            widgets.HTML("<h3>Module installation and execution</h3><p>For TOPOS, select the CoChem kit directory and a complete request JSON file. The request selects the calculation and preserves its chemistry and resource settings. Results retain their review status; installation does not certify scientific accuracy.</p>"),
             self.btn_module_refresh, self.module_capabilities,
             widgets.HTML("<p>Select a single XYZ geometry, geometry-bound Hessian (.npz/.h5/.hess), or converged result JSON. The package preserves its source and verifies its contents when loaded by a recipient.</p>"),
-            self.module_recipient, self.module_root, self.btn_module_install, self.module_install_status,
-            self.module_artifact, self.module_operation,
+            self.module_recipient, self.module_root, self.module_ecosystem_kit, self.btn_module_install, self.module_install_status,
+            self.module_artifact, self.module_operation, self.module_request_file, self.module_timeout,
             self.module_output, self.btn_module_handoff, self.module_handoff_status,
-            self.btn_module_run,
+            widgets.HBox([self.btn_module_run, self.btn_module_cancel]),
         ], layout=widgets.Layout(padding='20px'))
         self._refresh_module_capabilities()
 
@@ -1377,6 +1391,18 @@ class CoChemGUI:
         self._pipeline_worker = threading.Thread(target=self._pipeline_thread, args=(target,), daemon=True)
         self._pipeline_worker.start()
 
+    def _module_recipient_changed(self, change: Any = None) -> None:
+        is_topos = self.module_recipient.value == 'topos'
+        self.module_operation.disabled = is_topos
+        self.module_request_file.disabled = not is_topos
+        self.module_ecosystem_kit.disabled = not is_topos
+        self.module_operation.description = 'Task from request:' if is_topos else 'Requested task:'
+        self.module_operation.value = 'Read from TOPOS request' if is_topos else 'geometry_analysis'
+
+    def _cancel_module_operation(self, b: Any = None) -> None:
+        self._module_cancellation.set()
+        self.module_handoff_status.value = "<p role='status'>Cancellation requested; waiting for the owned calculation to stop.</p>"
+
     def _refresh_module_capabilities(self, b: Any = None) -> None:
         from cochem_base.interfaces.module_registry import list_module_capabilities
         from cochem_base.interfaces.module_execution import installed_module_status
@@ -1414,50 +1440,72 @@ class CoChemGUI:
             self.module_install_status.value = "<p role='alert'>This recipient has no installable package in the approved catalog. Source download is available through the module CLI where catalogued.</p>"
             return
         root = Path(self.module_root.value).expanduser()
+        kit = self.module_ecosystem_kit.value.strip() if name == 'topos' else None
         self.btn_module_install.disabled = True
+        self.btn_module_run.disabled = True
         self.module_install_status.value = "<p role='status'>Installing the pinned module in its own environment…</p>"
 
         def install() -> None:
             try:
-                receipt = install_module(name, spec, root)
+                if name == 'topos':
+                    if not kit:
+                        raise ValueError("Select the explicit CoChem kit directory for TOPOS installation")
+                    receipt = install_module(name, spec, root, ecosystem_kit=Path(kit).expanduser())
+                else:
+                    receipt = install_module(name, spec, root)
                 self.module_install_status.value = f"<p role='status'>{html.escape(name)} installed at revision {html.escape(receipt['revision'])}.</p>"
                 self._refresh_module_capabilities()
             except Exception as exc:
                 self.module_install_status.value = f"<p role='alert'>Module installation failed: {html.escape(str(exc))}</p>"
             finally:
                 self.btn_module_install.disabled = False
+                self.btn_module_run.disabled = False
         self._module_worker = threading.Thread(target=install, daemon=True)
         self._module_worker.start()
 
     def _run_module_geometry(self, b: Any = None) -> None:
         from cochem_base.interfaces.artifact_handoff import prepare_module_handoff
         from cochem_base.interfaces.module_execution import execute_module_handoff
+        from scripts.module_request import execution_timeout, handoff_options
         import uuid
         name = self.module_recipient.value
         artifact = self.module_artifact.value
         destination = Path(self.module_output.value).expanduser() / f"execution_{uuid.uuid4().hex}"
         root = Path(self.module_root.value).expanduser()
+        request_file = self.module_request_file.value.strip() if name == 'topos' else None
+        timeout = self.module_timeout.value
+        self._module_cancellation.clear()
         self.btn_module_run.disabled = True
-        self.module_handoff_status.value = "<p role='status'>Running geometry analysis…</p>"
+        self.btn_module_install.disabled = True
+        self.btn_module_cancel.disabled = False
+        self.module_handoff_status.value = "<p role='status'>Validating the request and installed provider…</p>"
 
         def run() -> None:
             try:
-                prepare_module_handoff(name, artifact, destination / 'handoff', operation='geometry_analysis')
-                result = execute_module_handoff(destination / 'handoff/handoff.json', destination / 'result', root=root)
+                operation, options = handoff_options(name, request_file)
+                limit = execution_timeout(timeout, options)
+                prepare_module_handoff(name, artifact, destination / 'handoff', operation=operation, options=options)
+                result = execute_module_handoff(destination / 'handoff/handoff.json', destination / 'result',
+                                                root=root, timeout=limit, cancellation_event=self._module_cancellation)
                 self._last_module_result = result
+                status = str(result.get('status', 'unknown'))
+                validation = str(result.get('validation_status', 'not reported'))
                 self.module_handoff_status.value = (
-                    f"<p role='status'>Geometry analysis completed for {html.escape(name)}.</p>"
+                    f"<p role='status'>{html.escape(name)} {html.escape(operation)}: {html.escape(status)}. Review status: {html.escape(validation)}.</p>"
                     f"<p>{html.escape(result['scope'])}</p><p>Result: <code>{html.escape(str(destination / 'result/result.json'))}</code></p>"
-                    f"<pre>{html.escape(json.dumps(result['operation_report'], indent=2, allow_nan=False))}</pre>")
+                    f"<pre>{html.escape(json.dumps(result.get('operation_report', result), indent=2, allow_nan=False))}</pre>")
             except Exception as exc:
                 self.module_handoff_status.value = f"<p role='alert'>Module operation failed: {html.escape(str(exc))}</p>"
             finally:
                 self.btn_module_run.disabled = False
+                self.btn_module_install.disabled = False
+                self.btn_module_cancel.disabled = True
         self._module_worker = threading.Thread(target=run, daemon=True)
         self._module_worker.start()
 
     def _prepare_module_handoff(self, b: Any = None) -> None:
         from cochem_base.interfaces.artifact_handoff import prepare_module_handoff, load_module_handoff
+        from scripts.module_request import handoff_options
         import base64
         import io
         import uuid
@@ -1466,9 +1514,12 @@ class CoChemGUI:
         self.btn_module_handoff.disabled = True
         try:
             destination = Path(self.module_output.value).expanduser() / f"handoff_{uuid.uuid4().hex}"
+            operation, options = handoff_options(self.module_recipient.value,
+                self.module_request_file.value.strip() if self.module_recipient.value == 'topos' else None,
+                legacy_operation=self.module_operation.value.strip())
             handoff = prepare_module_handoff(
                 self.module_recipient.value, self.module_artifact.value, destination,
-                operation=self.module_operation.value.strip(),
+                operation=operation, options=options,
             )
             manifest = destination / "handoff.json"
             load_module_handoff(manifest)

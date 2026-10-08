@@ -19,6 +19,7 @@ import selectors
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -1314,7 +1315,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except (PrivateAssetError, ValueError, OSError, KeyError) as exc:
         # Errors name the failed boundary, never credentials/provider responses.
-        print(f"Private asset operation failed: {exc}", file=__import__("sys").stderr)
+        print(f"Private asset operation failed: {exc}", file=sys.stderr)
         return 1
 
 

@@ -461,6 +461,8 @@ print(json.dumps({'alias': spec.name, 'raw_origin': str(link),
     copied_module = root / relative
     copied_module.parent.mkdir(parents=True)
     shutil.copy2(actual_module, copied_module)
+    companion = relative.with_name("ml_cuda_sources.py")
+    shutil.copy2(original / companion, root / companion)
     shutil.copy2(original / "pyproject.toml", root / "pyproject.toml")
     review_ring(root)
     revision = commit(root)

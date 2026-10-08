@@ -90,19 +90,20 @@ def loaded_origins(state: dict[str, Any]) -> dict[str, Any]:
                 resolved_paths.append(Path(path).resolve())
             except (TypeError, ValueError, OSError):
                 resolved_paths.append(None)
+        # Path equality/hash preserve the host's filesystem case rules.
+        # Ancestor membership avoids raising/catching relative_to errors for
+        # every unrelated retired root; all paths were freshly resolved above.
+        ancestors = [frozenset((path, *path.parents)) if path is not None else frozenset()
+                     for path in resolved_paths]
         owned = name.split(".")[0] in state["owned"]
-        foreign_source = any(path is not None and path.is_relative_to(root)
-                             for path in resolved_paths for root in state.get("retired_roots", ()))
+        foreign_source = any(not parents.isdisjoint(state.get("retired_roots", ())) for parents in ancestors)
         if not foreign_source:
             foreign_source = any(path is not None and _foreign_checkout_source(path, state, projects, resolved=path)
                                  for path in resolved_paths)
-        if owned or foreign_source or any(path is not None and path.is_relative_to(state["copied"])
-                                         for path in resolved_paths):
+        if owned or foreign_source or any(state["copied"] in parents for parents in ancestors):
             origins[name] = paths
-        if foreign_source or any(path is not None and path.is_relative_to(state["original"])
-                                 for path in resolved_paths) or (
-                owned and any(path is None or not path.is_relative_to(state["copied"])
-                              for path in resolved_paths)):
+        if foreign_source or any(state["original"] in parents for parents in ancestors) or (
+                owned and any(state["copied"] not in parents for parents in ancestors)):
             escaped.append(name)
     if _active is state:
         os.environ[FORBIDDEN_ROOTS_KEY] = json.dumps(sorted(str(root) for root in state["retired_roots"]))

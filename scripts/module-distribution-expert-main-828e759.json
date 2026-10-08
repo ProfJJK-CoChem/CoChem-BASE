@@ -156,15 +156,11 @@
     },
     "topos": {
       "repository": "ProfJJK-CoChem/CoChem-TOPOS",
-      "revision": "b157b7e210aee5bdfa09c22270d77d794f52cdde",
+      "revision": "343532dd606063073ea78862898b9d0a8da0c5c2",
       "distribution": "cochem-topos",
-      "adapter": "topos_provider",
-      "adapter_requirements": [
-        "ase==3.29.0",
-        "networkx==3.7"
-      ],
+      "adapter": "topos_handoff",
+      "adapter_requirements": [],
       "operations": [
-        "geometry_analysis",
         "energy",
         "gradient",
         "optimize",
@@ -174,27 +170,33 @@
         "association",
         "matrix"
       ],
-      "science_base_version": "1.1.0",
-      "science_base_revision": "809b4e62a3b452fac07bd808b5b10b56984142b0"
+      "mandatory_ecosystem": {
+        "base_bootstrap_sha256": {
+          "MANIFEST.in": "a598cbfaa7b98d76bfd8990ed543f3b362ec2daae9275b368a8ddee1abeed997",
+          "cli.py": "a8ed85cc3dfe2d1bc729f1353f51e4a686de04f7c14c802fe995db0ccd8bd20b",
+          "pyproject.toml": "2f0ba51bb3316e165b0e7ec87eaf1ba47483f57f1abcd2514ac517d6c84b4a58",
+          "requirements-ui.txt": "6478c5244db5b86be639651ec3b4968efe30a156d5d9af07adc3eaae19f2a05a",
+          "requirements.txt": "4c46823570124b78a0905ad2de4e6515571437204a15cce65d36b019b65520f7"
+        },
+        "base_source_content_sha256": "46d3f9b54ed23bbc1afb4900d3a6e0c4fd19836e4f84768d506c81f209549888",
+        "schema_version": "cochem.mandatory-ecosystem-catalog/2",
+        "setup_helper_sha256": "0d7451cef59516b40badc10d34a742cfc8a9b35f4118590c05b839d490eb1730",
+        "topos_wheel_sha256": "62ae8ee2ed835942678b44161383f5d1f15eb2c981123384f964556df1bded5a",
+        "torq_revision": "4f323800227dbde00ffb082bd6d9e44d851e1c7a",
+        "torq_wheel_sha256": "d5e7ec3f8e1ae8cef85ca7aefe995219d3523e4e1330e465915a3159816fe617"
+      }
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "4ce8eecba56e91e27c6abb32473b2ee4d44767c4",
+      "revision": "968d95650046c34ad934335a613e5aa7b692d802",
       "distribution": "CoChem-TORQ",
-      "adapter": "torq_provider",
+      "adapter": "torq_geometry",
       "adapter_requirements": [
-        "mendeleev>=1.2,<2",
-        "pyscf==2.14.0",
-        "geometric==1.1.1",
-        "dftd4==3.7.0",
-        "tomli>=2,<3"
+        "CoChem-TORQ[interface,calculations]==0.1.0",
+        "mendeleev>=1.2,<2"
       ],
       "operations": [
-        "geometry_analysis",
-        "research_scan",
-        "wiberg_lowdin",
-        "nbo_analysis",
-        "wiberg_nao"
+        "geometry_analysis"
       ]
     }
   }

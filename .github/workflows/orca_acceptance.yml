@@ -109,16 +109,6 @@ jobs:
             [[ "$TOPOS_REF" =~ ^[0-9a-f]{40}$ ]]
             [[ "$TORQ_REF" =~ ^[0-9a-f]{40}$ ]]
           fi
-      - name: Validate configured downstream source credential
-        if: inputs.topos_ref != ''
-        env:
-          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
-          BASE_SOURCE_READ_TOKEN: ${{ secrets.BASE_SOURCE_READ_TOKEN }}
-        run: |
-          if [[ -z "$COCHEM_SOURCE_READ_TOKEN" && -z "$BASE_SOURCE_READ_TOKEN" ]]; then
-            echo '::error::TOPOS acceptance requires COCHEM_SOURCE_READ_TOKEN or BASE_SOURCE_READ_TOKEN exposed to this BASE workflow with private TOPOS/TORQ Contents read access.'
-            exit 1
-          fi
       - name: Validate a reusable caller's BASE revision
         env:
           BASE_REF: ${{ inputs.base_ref }}
@@ -219,7 +209,7 @@ jobs:
         with:
           repository: ProfJJK-CoChem/CoChem-TOPOS
           ref: ${{ inputs.topos_ref }}
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN || github.token }}
           path: .cochem-ecosystem/topos
           persist-credentials: false
       - name: Check out the mandatory TORQ source
@@ -228,7 +218,7 @@ jobs:
         with:
           repository: ProfJJK-CoChem/CoChem-TORQ
           ref: ${{ inputs.torq_ref }}
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN || github.token }}
           path: .cochem-ecosystem/torq
           persist-credentials: false
       - name: Isolate and identify all mandatory source checkouts

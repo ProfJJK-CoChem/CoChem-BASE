@@ -33,7 +33,7 @@ def run_guard(source: str, **updates: str) -> subprocess.CompletedProcess[str]:
         **updates,
     }
     result = subprocess.run(
-        ["bash", "-c", source],
+        ["bash", "-e", "-c", source],
         env=environment,
         capture_output=True,
         text=True,
@@ -158,3 +158,18 @@ def test_licensed_public_yaml_uses_private_selectors_without_secret_enumeration(
         if filename == "cfour_acceptance.yml":
             provision = next(step for step in workflow["jobs"][job_name]["steps"] if "asset-token" in step.get("with", {}))
         assert "secrets[vars.COCHEM_" in provision["with"]["asset-token"]
+
+
+@pytest.mark.parametrize("topos_ref,private,expected", [("a" * 40, "true", 0), ("main", "true", 1), ("a" * 40, "false", 1)])
+def test_public_downstream_sources_need_no_additional_credential_but_keep_private_pinned_execution(topos_ref, private, expected):
+    steps = document(WORKFLOWS / "orca_acceptance.yml")["jobs"]["licensed-calculations"]["steps"]
+    guard = next(step for step in steps if step.get("name") == "Validate optional downstream source identities")
+    result = run_guard(guard["run"], TOPOS_REF=topos_ref, TORQ_REF="b" * 40, CONTROLLER_PRIVATE=private,
+                       COCHEM_SOURCE_READ_TOKEN="", BASE_SOURCE_READ_TOKEN="")
+    assert (result.returncode == 0) == (expected == 0)
+    assert all(step.get("name") != "Validate configured downstream source credential" for step in steps)
+    for repository, ref in (("CoChem-TOPOS", "topos_ref"), ("CoChem-TORQ", "torq_ref")):
+        checkout = next(step for step in steps if step.get("with", {}).get("repository") == "ProfJJK-CoChem/" + repository)
+        assert checkout["with"]["token"] == "${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN || github.token }}"
+        assert checkout["with"]["ref"] == "${{ inputs." + ref + " }}"
+        assert checkout["with"]["persist-credentials"] is False

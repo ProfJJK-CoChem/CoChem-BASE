@@ -229,9 +229,9 @@ jobs:
           COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
         run: |
           if [ "$MODULE_ACTION" = fetch ]; then
-            python -m scripts.run_module_installation --action fetch --output "$COCHEM_ARTIFACT_DIR/evidence" --require-source-token
+            python -m scripts.run_module_installation --action fetch --output "$COCHEM_ARTIFACT_DIR/evidence"
           else
-            python -I -B -m scripts.run_module_installation --action "$MODULE_ACTION" --output "$COCHEM_ARTIFACT_DIR/evidence" --ecosystem-kit "${ECOSYSTEM_KIT:-}" --require-source-token
+            python -I -B -m scripts.run_module_installation --action "$MODULE_ACTION" --output "$COCHEM_ARTIFACT_DIR/evidence" --ecosystem-kit "${ECOSYSTEM_KIT:-}"
           fi
       - name: Execute the validated module request
         if: env.MODULE_ACTION == 'geometry_analysis' || env.MODULE_ACTION == 'topos_request'

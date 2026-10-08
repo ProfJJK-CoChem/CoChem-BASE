@@ -63,6 +63,7 @@ HOSTED_TESTS = (
     "tests/ui/test_gui_spectroscopy_inspector.py",
     "tests/ui/test_hessian_inspector.py",
     "tests/ui/test_cli_run_and_gui_parity.py",
+    "tests/ui/test_voila_runtime_acceptance.py",
 )
 
 

@@ -48,7 +48,8 @@ def _get_single_element_properties(atomic_number: int) -> Tuple[float, float, fl
     if not elem:
         raise ValueError(f"No Mendeleev record found for atomic number Z={atomic_number}")
 
-    mass_val = float(elem.atomic_weight or elem.mass or 0.0)
+    from cochem_base.physics.isotopes import get_isotope_mass
+    mass_val = get_isotope_mass(elem.symbol)
     charge_val = float(elem.atomic_number)
     radius_val = float(elem.covalent_radius_pyykko or elem.covalent_radius or 1.0) / 100.0  # pm to Angstrom
 

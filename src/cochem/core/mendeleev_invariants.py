@@ -45,7 +45,7 @@ class ElementData:
     covalent_radius_pm: Optional[float]
     vdw_radius_pm: Optional[float]
     valence_electrons: int
-    mass: float = 0.0
+    mass: Optional[float] = None
     mass_number: Optional[int] = None
     formal_charge: int = 0
     is_isotope: bool = False
@@ -70,28 +70,20 @@ def _load_element_data(z_or_sym: Union[int, str]) -> ElementData:
     symbol = str(elem.symbol)
     name = str(elem.name)
 
-    # Standard atomic weight with dynamic fallback to most stable isotope mass
-    weight = elem.atomic_weight
-    if weight is None or float(weight) <= 0.0:
-        iso_masses = [iso.mass_number for iso in elem.isotopes if iso.mass_number is not None]
-        if iso_masses:
-            weight = float(max(iso_masses))
-        else:
-            weight = float(z)
-    else:
-        weight = float(weight)
-
-    # Isotope tuple: (mass_number, exact_mass_amu, abundance)
+    # CIAAW average/nominal weights are descriptive elemental metadata only.
+    # Physical default masses select a measured, naturally abundant isotope.
+    if elem.atomic_weight is None or float(elem.atomic_weight) <= 0:
+        raise MendeleevInvariantError("Mendeleev has no descriptive atomic weight", symbol_or_query=z_or_sym)
+    weight = float(elem.atomic_weight)
     isotope_list: List[Tuple[int, float, float]] = []
     for iso in elem.isotopes:
-        if iso.mass_number is not None:
-            m_num = int(iso.mass_number)
-            m_exact = float(iso.mass) if iso.mass is not None and float(iso.mass) > 0.0 else float(m_num)
-            m_abund = float(iso.abundance) if iso.abundance is not None else 0.0
-            isotope_list.append((m_num, m_exact, m_abund))
-    isotopes_tuple = tuple(sorted(isotope_list, key=lambda x: x[0]))
+        if iso.mass_number is not None and iso.mass is not None and float(iso.mass) > 0:
+            isotope_list.append((int(iso.mass_number), float(iso.mass),
+                                 float(iso.abundance) if iso.abundance is not None else 0.0))
+    isotopes_tuple = tuple(sorted(isotope_list, key=lambda item: item[0]))
+    natural = [isotope for isotope in isotope_list if isotope[2] > 0]
+    principal_mass = max(natural, key=lambda item: (item[2], -item[0]))[1] if natural else None
 
-    # Radii in picometers
     cov_r = elem.covalent_radius_pyykko or elem.covalent_radius
     cov_radius_pm = float(cov_r) if cov_r is not None else None
 
@@ -115,7 +107,7 @@ def _load_element_data(z_or_sym: Union[int, str]) -> ElementData:
         covalent_radius_pm=cov_radius_pm,
         vdw_radius_pm=vdw_radius_pm,
         valence_electrons=val_e,
-        mass=weight,
+        mass=principal_mass,
         mass_number=None,
         formal_charge=0,
         is_isotope=False,
@@ -275,7 +267,7 @@ def get_element(symbol_or_z: Union[str, int]) -> ElementData:
         mass = float(iso.mass)
     else:
         is_isotope = False
-        mass = float(base_data.atomic_weight)
+        mass = base_data.mass
 
     return ElementData(
         atomic_number=base_data.atomic_number,
@@ -294,39 +286,31 @@ def get_element(symbol_or_z: Union[str, int]) -> ElementData:
 
 
 def get_isotope_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
-    """Dynamically resolve IUPAC exact isotopic mass in unified atomic mass units (u)."""
-    element_data = get_element(symbol_or_z)
-    for iso_m_num, iso_exact, _ in element_data.isotopes:
-        if iso_m_num == mass_number:
-            return iso_exact
-
-    # Dynamic fallback query directly to mendeleev element isotopes
+    """Resolve a real exact isotope; no synthetic or averaged fallback is allowed."""
+    from cochem_base.physics.isotopes import get_isotope_mass as resolve_mass
     try:
-        m_elem = _mendeleev_element(element_data.symbol)
-        for iso in m_elem.isotopes:
-            if iso.mass_number == mass_number and iso.mass is not None:
-                return float(iso.mass)
-    except Exception as _e:
-        logger.debug(f"Ignored exception: {_e}")
-
-    raise MendeleevInvariantError(
-        f"No isotope with mass number A={mass_number} found for element '{element_data.symbol}'.",
-        symbol_or_query=f"{element_data.symbol}-{mass_number}",
-    )
+        if isinstance(symbol_or_z, int):
+            symbol = get_element(symbol_or_z).symbol
+        else:
+            clean, assigned = parse_symbol_or_isotope(symbol_or_z)
+            if assigned is not None and mass_number != assigned:
+                raise ValueError("Contradictory isotope specification")
+            symbol = clean
+        return resolve_mass(symbol, mass_number)
+    except ValueError as error:
+        raise MendeleevInvariantError(str(error), symbol_or_query=symbol_or_z) from error
 
 
 def get_element_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically resolve atomic or isotopic mass in unified atomic mass units (u).
-
-    Handles standard elements ('H', 'C', 'Ar') and isotopic aliases ('D', 'T', '13C', '18O').
-    """
-    if isinstance(symbol_or_z, int):
-        return get_element(symbol_or_z).atomic_weight
-
-    clean_sym, mass_number = parse_symbol_or_isotope(symbol_or_z)
-    if mass_number is not None:
-        return get_isotope_mass(clean_sym, mass_number)
-    return get_element(clean_sym).atomic_weight
+    """Resolve a measured principal or explicitly assigned physical isotope mass."""
+    from cochem_base.physics.isotopes import get_isotope_mass as resolve_mass
+    try:
+        if isinstance(symbol_or_z, int):
+            return resolve_mass(get_element(symbol_or_z).symbol)
+        clean, number = parse_symbol_or_isotope(symbol_or_z)
+        return resolve_mass(clean, number)
+    except ValueError as error:
+        raise MendeleevInvariantError(str(error), symbol_or_query=symbol_or_z) from error
 
 
 class MendeleevResolver:

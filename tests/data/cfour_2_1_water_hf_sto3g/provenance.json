@@ -1,0 +1,19 @@
+{
+  "scope": "Unmodified output from an actual hosted CFOUR HF/STO-3G water optimization and harmonic acceptance calculation. Fixture replay validates parser units/native axes; no fresh engine execution or experimental accuracy claim.",
+  "engine": "CFOUR",
+  "method": "HF",
+  "basis": "STO-3G",
+  "source_result_sha256": "52543ba9b68445c98bc2378b13c9d6a2c4f6c64cf93368e281139cf0f0ef9a8c",
+  "files": {
+    "water.out.txt": {
+      "sha256": "c01956fd438912b4c946eb4f6492eececd7d49fa2de127c6da6833b62f862e43",
+      "bytes": 47643
+    }
+  },
+  "github_repository": "ProfJJK-CoChem/CoChem-BASE",
+  "github_sha": "f01c25a0bda238ac0db62573bbecc69fab9e8bfc",
+  "github_run_id": "37692395742",
+  "github_run_attempt": 1,
+  "source_output_relative_path": "student-job/calculation/cfour/evaluation-0007/output.dat",
+  "source_workflow_url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37692395742"
+}

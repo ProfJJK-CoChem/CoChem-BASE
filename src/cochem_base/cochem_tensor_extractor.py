@@ -26,6 +26,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 
+from cochem_base.core import cochem_constants as _physical_constants
+
 from cochem_base.exceptions import (
     CoChemIntegrityError,
     ProvenanceErrorCode,
@@ -38,23 +40,23 @@ logger = logging.getLogger("cochem.tensor_extractor")
 # =============================================================================
 
 # Planck constant h in J * s (exact SI definition)
-PLANCK_H = 6.62607015e-34
+PLANCK_H = _physical_constants.PLANCK_CONSTANT_J_S
 
 # Unified atomic mass unit in kg (CODATA 2022)
-AMU_KG = 1.66053906660e-27
+AMU_KG = _physical_constants.ATOMIC_MASS_UNIT_KG
 
 # Speed of light in vacuum in cm / s (exact SI definition)
-SPEED_OF_LIGHT_CM_S = 29979245800.0
+SPEED_OF_LIGHT_CM_S = _physical_constants.SPEED_OF_LIGHT_CM_S
 
 # Inertia to rotational constant conversion factor in MHz * amu * Angstrom^2:
-# C_rot = h / (8 * pi^2 * u * 1e-20) * 1e-6 MHz = 505379.0084350172 MHz * amu * Angstrom^2
-INERTIA_CONVERSION_AMU_ANG2_MHZ = 505379.0084350172
+# The prescribed Method Matrix factor is resolved by the shared CODATA registry.
+INERTIA_CONVERSION_AMU_ANG2_MHZ = _physical_constants.C_ROT_MHZ_U_ANG2
 
 # Inertia to rotational constant conversion factor in GHz * amu * Angstrom^2:
-INERTIA_CONVERSION_AMU_ANG2_GHZ = 505.3790084350172
+INERTIA_CONVERSION_AMU_ANG2_GHZ = INERTIA_CONVERSION_AMU_ANG2_MHZ / 1000.0
 
 # Inertia to rotational constant conversion factor in cm^-1 * amu * Angstrom^2:
-INERTIA_CONVERSION_AMU_ANG2_CM1 = 16.85762920252
+INERTIA_CONVERSION_AMU_ANG2_CM1 = INERTIA_CONVERSION_AMU_ANG2_MHZ * 1e6 / SPEED_OF_LIGHT_CM_S
 
 
 # =============================================================================
@@ -72,71 +74,13 @@ class _DynamicMendeleevMassMap(Mapping):
     """Dynamic isotopic and atomic mass mapping backed by the Mendeleev library."""
 
     def __getitem__(self, key: str) -> float:
-        if not key or not isinstance(key, str):
+        if not isinstance(key, str) or not key.strip():
             raise KeyError(key)
-        sym = str(key).strip()
-        if not sym:
-            raise KeyError(key)
-
-        # Hydrogen isotopes
-        if sym.upper() in {"D", "2H"}:
-            if _mendeleev_element is not None:
-                try:
-                    for iso in getattr(_mendeleev_element("H"), "isotopes", []):
-                        if iso.mass_number == 2:
-                            return float(iso.mass)
-                except Exception as _e:
-                    logger.debug(f"Ignored exception: {_e}")
-            return 2.01410177812
-
-        if sym.upper() in {"T", "3H"}:
-            if _mendeleev_element is not None:
-                try:
-                    for iso in getattr(_mendeleev_element("H"), "isotopes", []):
-                        if iso.mass_number == 3:
-                            return float(iso.mass)
-                except Exception as _e:
-                    logger.debug(f"Ignored exception: {_e}")
-            return 3.01604928132
-
-        # Specific isotope notation like "13C", "35Cl", "14N", "16O"
-        import re
-        m = re.match(r"^(\d+)([A-Za-z]+)$", sym)
-        if m:
-            mass_num = int(m.group(1))
-            el_sym = m.group(2).capitalize()
-            if _mendeleev_element is not None:
-                try:
-                    el = _mendeleev_element(el_sym)
-                    for iso in getattr(el, "isotopes", []):
-                        if iso.mass_number == mass_num and iso.mass is not None:
-                            return float(iso.mass)
-                    if el.mass is not None:
-                        return float(el.mass)
-                except Exception as _e:
-                    logger.debug(f"Ignored exception: {_e}")
-
-        cleaned = "".join([c for c in sym if c.isalpha()]).capitalize()
-        if cleaned:
-            if _mendeleev_element is not None:
-                try:
-                    el = _mendeleev_element(cleaned)
-                    # For mono-isotopic queries, return most abundant isotope mass if available
-                    if getattr(el, "isotopes", None):
-                        abundances = [
-                            (getattr(iso, "abundance", 0.0) or 0.0, float(iso.mass))
-                            for iso in el.isotopes
-                            if iso.mass is not None
-                        ]
-                        if abundances:
-                            abundances.sort(key=lambda x: x[0], reverse=True)
-                            return abundances[0][1]
-                    if el.mass is not None:
-                        return float(el.mass)
-                except Exception as _e:
-                    logger.debug(f"Ignored exception: {_e}")
-
-        raise KeyError(key)
+        from cochem_base.physics.isotopes import get_isotope_mass
+        try:
+            return get_isotope_mass(key.strip())
+        except ValueError as error:
+            raise KeyError(key) from error
 
     def __iter__(self):
         return iter([

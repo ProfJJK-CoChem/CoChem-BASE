@@ -803,24 +803,25 @@ def test_def08_provenance_and_codata_constants() -> None:
     - Derived force and pressure conversion constants [D]
     """
     # 1. Energy conversions [M]
-    assert HARTREE_TO_EV == 27.211386245988
+    from cochem_base.core import cochem_constants as authority
+    assert HARTREE_TO_EV == authority.HARTREE_TO_EV
     assert EV_TO_JOULE == 1.602176634e-19
 
     # 2. Length conversions [M]
-    assert BOHR_TO_ANGSTROM == 0.529177210903
+    assert BOHR_TO_ANGSTROM == authority.BOHR_TO_ANGSTROM
     assert ANGSTROM_TO_METER == 1.0e-10
 
     # 3. Force conversions [D], [M]
-    expected_hartree_per_bohr = 27.211386245988 / 0.529177210903
+    expected_hartree_per_bohr = authority.HARTREE_TO_EV / authority.BOHR_TO_ANGSTROM
     assert abs(HARTREE_PER_BOHR_TO_EV_PER_ANGSTROM - expected_hartree_per_bohr) < 1e-12
     assert abs(HARTREE_PER_BOHR_TO_EV_PER_ANGSTROM - 51.4220674763) < 1e-6
-    assert EV_PER_ANGSTROM_TO_NEWTON == 1.602176634e-9
+    assert EV_PER_ANGSTROM_TO_NEWTON == pytest.approx(1.602176634e-9, rel=1e-15)
 
     # 4. Stress conversions [M]
-    assert EV_PER_ANGSTROM3_TO_GPA == 160.21766208
+    assert EV_PER_ANGSTROM3_TO_GPA == pytest.approx(1.602176634e-19 / 1e-30 / 1e9, rel=1e-15)
 
     # 5. Dipole moment conversion [M]
-    assert DEBYE_PER_EAA == 4.80320427
+    assert DEBYE_PER_EAA == pytest.approx(1.602176634e-19 * 1e-10 / (1e-21 / 299792458.), rel=1e-15)
 
     # 6. Fallback router check
     router = SchNetFallbackRouter()

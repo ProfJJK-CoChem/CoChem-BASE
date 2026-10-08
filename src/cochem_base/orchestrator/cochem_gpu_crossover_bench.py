@@ -319,23 +319,10 @@ class FullBenchmarkReport(BaseModel):
 # ---------------------------------------------------------------------------
 
 def get_dynamic_atomic_mass(symbol: str) -> float:
-    """
-    Dynamically retrieves atomic mass from the authoritative Mendeleev library.
-    Mandated by CoChem Mendeleev Library Mandate (strictly ZERO hardcoded mass tables).
-    """
-    sym_clean = re.sub(r"[^a-zA-Z]", "", symbol.strip()).capitalize()
-    if not sym_clean:
-        sym_clean = symbol.strip().capitalize()
-    try:
-        elem = element(sym_clean)
-        val = float(elem.mass)
-        if val <= 0.0:
-            raise ValueError(f"Non-positive mass {val} for element '{sym_clean}'")
-        return val
-    except Exception as e:
-        logger.warning("Mendeleev lookup for '%s' raised %s. Retrying directly.", sym_clean, e)
-        elem = element(sym_clean)
-        return float(elem.mass)
+    """Resolve an exact assigned/principal isotope mass from dynamic Mendeleev data."""
+    from cochem_base.physics.isotopes import get_isotope_mass
+    value = symbol
+    return get_isotope_mass(value)
 
 
 def compute_inertial_tensor_and_constants(

@@ -63,9 +63,13 @@ def test_dynamic_mendeleev_mass_resolution_and_ghost_protections():
     m_h = get_dynamic_atomic_mass("H")
     m_c = get_dynamic_atomic_mass("C")
     m_o = get_dynamic_atomic_mass("O")
-    assert abs(m_h - float(mendeleev.element("H").mass)) < 1e-6
-    assert abs(m_c - float(mendeleev.element("C").mass)) < 1e-6
-    assert abs(m_o - float(mendeleev.element("O").mass)) < 1e-6
+    for symbol, actual in (("H", m_h), ("C", m_c), ("O", m_o)):
+        naturally_abundant = [isotope for isotope in mendeleev.element(symbol).isotopes
+                              if isotope.abundance is not None and isotope.abundance > 0
+                              and isotope.mass is not None]
+        principal = max(naturally_abundant,
+                        key=lambda isotope: (isotope.abundance, -isotope.mass_number))
+        assert abs(actual - float(principal.mass)) < 1e-6
 
     # Isotopes
     m_d = get_dynamic_atomic_mass("D")

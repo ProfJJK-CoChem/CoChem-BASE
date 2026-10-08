@@ -14,7 +14,16 @@ def upload_scientific_inputs(client, intake: dict, *, request_id: str,
     contents, descriptor = build_bundle(intake["files"], kind=intake["kind"],
                                         entrypoint=intake["entrypoint"], request_id=request_id,
                                         geometry_sha256=geometry_sha)
-    path = f".cochem/submissions/{request_id}/scientific-inputs.zip"
+    return upload_blob_bundle(client, contents, descriptor, request_id=request_id,
+                              assignment_sha=assignment_sha, filename="scientific-inputs.zip",
+                              schema_version="cochem.scientific-input-transport/1")
+
+
+def upload_blob_bundle(client, contents: bytes, descriptor: dict, *, request_id: str,
+                       assignment_sha: str, filename: str, schema_version: str) -> dict:
+    if filename not in {"scientific-inputs.zip", "data-inputs.zip"}:
+        raise ValueError("Select one reviewed data-only bundle name")
+    path = f".cochem/submissions/{request_id}/{filename}"
     blob = client._request(f"/repos/{client.repository}/git/blobs", method="POST",
                            body={"encoding": "base64", "content": base64.b64encode(contents).decode("ascii")})
     expected_blob = hashlib.sha1(b"blob " + str(len(contents)).encode("ascii") + b"\0" + contents).hexdigest()
@@ -27,8 +36,8 @@ def upload_scientific_inputs(client, intake: dict, *, request_id: str,
     commit = client._request(f"/repos/{client.repository}/git/commits", method="POST", body={
         "message": "CoChem scientific input data " + request_id, "tree": tree["sha"],
         "parents": [assignment_sha]})
-    branch = "cochem-input-" + request_id
+    branch = ("cochem-input-" if filename == "scientific-inputs.zip" else "cochem-data-") + request_id
     client._request(f"/repos/{client.repository}/git/refs", method="POST", body={
         "ref": "refs/heads/" + branch, "sha": commit["sha"]})
-    return {**descriptor, "schema_version": "cochem.scientific-input-transport/1",
+    return {**descriptor, "schema_version": schema_version,
             "blob_sha": blob["sha"], "commit_sha": commit["sha"], "branch": branch, "path": path}

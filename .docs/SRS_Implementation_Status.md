@@ -4,7 +4,13 @@ Baseline: [Chunk 17](SRS_Chunk_17_CoChem_BASE_Architecture.md) **plus** [BASE pr
 
 The user's scope clarification governs this pass: **BASE owns ingestion, setup, GUI and validated ecosystem integration**, within the 20-module system. Domain solvers belonging to future modules are not standalone BASE implementation obligations. BASE must faithfully validate their inputs, describe missing capabilities, preserve handoff evidence and avoid reporting unexecuted science as success. See [alpha scope and fixture corrections](BASE_Alpha_Scope.md).
 
-Local runnable acceptance, downstream scientific acceptance and platform acceptance are separate. ORCA 6.1.1 and the approved CFOUR 2.1 runtime have passed genuine Linux CPU and hosted calculations; see [ORCA setup](ORCA_Actions_Setup.md) and [CFOUR setup](CFOUR_Actions_Setup.md). Both engines remain optional and strongly recommended: missing installations disable dependent local operations while BASE and installed free engines remain usable. TOPOS/TORQ broader domain development, VPT2/anharmonic providers, GPU, Slurm and additional native-platform physical acceptance retain their separate scope. A real student-identity Classroom50/fresh Codespace pilot requires the [deployment checklist](Student_Deployment_Pilot.md). The [1.0.1 closure and release record](Release_1_0_1.md) identifies current source and validation; the [1.0.0 record](Release_1_0_0.md) is historical. Neither authorization nor deferral turns an unexecuted check into a pass.
+The current published stable version is 1.0.1. The student no-code entry point and the broader ingestion corrections are **1.1 release-candidate work**, tracked in [PR 10](https://github.com/ProfJJK-CoChem/CoChem-BASE/pull/10), the [complete obligation trace](SRS_Student_1_1_Conformance_Trace.md), and the [student workflow](Student_Research_No_Code.md). Current working-tree changes are not a published student release. Historical 1.0.1 results below cannot qualify changed 1.1 source.
+
+The current review covers molecular formats and all contained records, isotope/state identity, conformer pools, periodic cells/PAW inputs, measured Hessians, spectroscopy, trajectory/property archives and native result ingestion. Student monomer/complex geometry is one supported research path, not the complete ingestion specification. BASE manages the approved module installations, source updates, execution routes and result interface; students use its GUI rather than install module repositories or execute setup code.
+
+Local runnable acceptance, downstream scientific acceptance and platform acceptance remain distinct. ORCA 6.1.1 and the approved CFOUR 2.1 runtime have genuine historical Linux CPU and hosted calculations; see [ORCA setup](ORCA_Actions_Setup.md) and [CFOUR setup](CFOUR_Actions_Setup.md). Both engines remain optional and strongly recommended: missing installations disable dependent local operations while BASE and installed free engines remain usable. Current 1.1 native acceptance and the final immutable complete profile must be bound to the final revised source. Unavailable NBO/NAO, VPT2/anharmonic and additional Product B providers remain unavailable; placeholders do not fulfill their physical acceptance. GPU, Slurm, other native platforms and a real student-identity Classroom50/fresh Codespace pilot retain their separate acceptance. See the [deployment checklist](Student_Deployment_Pilot.md).
+
+Current hosted 1.1 jobs are blocked before execution by GitHub organization billing/spending-limit enforcement. This environment's Codespaces creation API also returns HTTP 403. Neither is a passing platform check. The [1.0.1 closure record](Release_1_0_1.md) and [1.0.0 record](Release_1_0_0.md) remain historical. Neither authorization nor deferral turns an unexecuted check into a pass.
 
 The previous snapshot (994 passed, 4 skipped, 1 failed) and its strict-scan counts are historical evidence under `/workspace/cochem-runtime/evidence/srs-pass2/`. This pass corrects the failed PES analysis, withdraws misleading fixture evidence, replaces legacy interface shells with versioned capability/handoff contracts, and replaces duplicated CI pipelines. Current-run counts and evidence follow below.
 
@@ -14,7 +20,7 @@ pilot and course rollout. It links the engine/module setup guides and preserves
 the distinction between public release evidence and institution-specific
 student acceptance.
 
-## Current 1.0.1 validation and gap closure
+## Historical 1.0.1 validation and gap closure
 
 The 2026-10-07 final SRS audit identified four connected BASE gaps: automatic
 measured-gradient grid progression, authentic live derivative records, general

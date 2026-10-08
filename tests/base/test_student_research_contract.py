@@ -24,6 +24,18 @@ def envelope():
             "options": {"topos_request": build_topos_request(WATER, operation="energy", charge=0, multiplicity=1)}}
 
 
+@pytest.mark.parametrize("module", ["topos", "torq"])
+def test_geometric_inspection_requires_actual_module_and_does_not_invent_electronic_calculation(module):
+    request = {"schema_version": SCHEMA, "module": module, "operation": "geometry_analysis",
+        "artifact": "inputs/water.xyz", "artifact_sha256": hashlib.sha256(WATER.encode()).hexdigest(), "options": {}}
+    assert validate_provider_request(request) == request
+    assert required_provider_engines(request) == []
+    assert required_provider_modules(request)[-1] == module
+    request["options"] = {"charge": 0}
+    with pytest.raises(ValueError, match="source geometry only"):
+        validate_provider_request(request)
+
+
 def test_hosted_admission_imports_without_site_packages_or_base_import_side_effects():
     source = Path(__file__).resolve().parents[2] / "src/cochem_base/interfaces/student_research.py"
     code = "import importlib.util,sys; s=importlib.util.spec_from_file_location('research',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); assert m.SCHEMA=='cochem.student-provider/1'; assert 'numpy' not in sys.modules; assert 'pydantic' not in sys.modules"
@@ -67,6 +79,18 @@ def test_missing_electronic_state_and_nonfinite_data_are_never_defaulted():
     value["options"]["topos_request"]["molecule"]["coordinates"][0][0] = float("nan")
     with pytest.raises(ValueError, match="finite"):
         validate_provider_request(value)
+
+
+def test_provider_search_cannot_inherit_looser_upstream_deduplication_defaults():
+    request = build_topos_request(WATER, operation="search", charge=0, multiplicity=1)
+    assert request["rmsd_threshold_angstrom"] == .08
+    assert request["dedup_rotational_threshold_fraction"] == .0005
+    assert request["dedup_energy_threshold_kcal_mol"] == .05
+    assert request["energy_window_kcal_mol"] == 12
+    for field, value in (("rmsd_threshold_angstrom", .125), ("dedup_rotational_threshold_fraction", .01),
+                         ("dedup_energy_threshold_kcal_mol", .1), ("energy_window_kcal_mol", 15)):
+        with pytest.raises(ValueError, match="SRS"):
+            build_topos_request(WATER, operation="search", charge=0, multiplicity=1, options={field: value})
 
 
 def test_isotope_labels_and_original_source_hash_survive_student_ingestion():

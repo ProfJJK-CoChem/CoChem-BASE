@@ -12,7 +12,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from mendeleev import element as _mendeleev_element
 from pydantic import BaseModel
 
 from cochem.mobile.job_state import ExecutionPayload, ManifestReference
@@ -137,41 +136,11 @@ def ensure_tripartite_dirs(
 
 
 def validate_xyz_structure_dynamic(xyz_block: str) -> List[Tuple[str, float, float, float, float]]:
-    """Dynamically validate XYZ coordinate elements and look up atomic masses via Mendeleev.
-
-    Returns:
-        List of tuples: (element_symbol, x, y, z, dynamic_atomic_weight)
-    """
-    lines = [ln.strip() for ln in xyz_block.strip().splitlines() if ln.strip()]
-    if not lines:
-        return []
-
-    # Check for standard XYZ header (atom count on line 0, comment on line 1)
-    coord_lines = lines
-    if len(lines) >= 2:
-        first_token = lines[0].split()[0]
-        if first_token.isdigit() and len(lines[0].split()) == 1:
-            coord_lines = lines[2:]
-
-    parsed_atoms: List[Tuple[str, float, float, float, float]] = []
-    for line in coord_lines:
-        parts = line.split()
-        if len(parts) < 4:
-            continue
-        sym = parts[0].strip()
-        # Clean symbol of non-alpha characters if any
-        clean_sym = "".join(c for c in sym if c.isalpha())
-        if not clean_sym:
-            continue
-
-        # Dynamic retrieval from mendeleev library
-        elem = _mendeleev_element(clean_sym.capitalize())
-        atomic_mass = float(elem.atomic_weight or elem.mass or 0.0)
-
-        x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
-        parsed_atoms.append((elem.symbol, x, y, z, atomic_mass))
-
-    return parsed_atoms
+    """Return validated ordered nuclides/coordinates/exact masses from one geometry."""
+    from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+    identity = parse_geometry_identity(xyz_block)
+    return [(label, *coordinates, mass) for label, coordinates, mass in
+            zip(identity.nuclides, identity.coordinates_angstrom, identity.masses_u)]
 
 
 def calculate_xyz_molecular_mass_dynamic(xyz_block: str) -> float:

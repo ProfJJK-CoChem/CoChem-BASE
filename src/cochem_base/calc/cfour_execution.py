@@ -7,6 +7,8 @@ Anharmonic and open-shell acceptance remains a downstream integration task.
 """
 from __future__ import annotations
 
+from cochem_base.core_engine.scientific_writer import scientific_producer
+
 import hashlib
 import json
 import math
@@ -18,9 +20,11 @@ from typing import Any, Callable
 
 import numpy as np
 
+from cochem_base.core.cochem_constants import BOHR_TO_ANGSTROM
+
 
 NUMBER = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[EeDd][-+]?\d+)?"
-BOHR_ANGSTROM = 0.529177210903
+BOHR_ANGSTROM = BOHR_TO_ANGSTROM
 GEOMETRY_TOLERANCE_ANGSTROM = 2e-7
 ENERGY_TOLERANCE_HARTREE = 2e-8
 FREQUENCY_TOLERANCE_CM1 = 0.25
@@ -251,6 +255,7 @@ def _accept_hessian(directory: Path, elements: list[str], coordinates: Any,
             "harmonic_frequency_provenance": "Input-nuclide mass reweighting and geometric rigid-motion projection of measured CFOUR FCMFINAL; bare elements select their principal isotope"}
 
 
+@scientific_producer
 def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directory: Path,
                   authority: Any, environment: dict[str, str], cancellation_event: Any = None,
                   on_event: Callable[[dict[str, Any]], None] | None = None,

@@ -41,7 +41,7 @@ except ImportError:
 # Exception Hierarchy (Task 1.2.1 Section 5)
 # ============================================================================
 
-class NuclideResolutionError(CoChemError):
+class NuclideResolutionError(CoChemError, ValueError):
     """Base exception for all nuclide resolution and mass evaluation errors."""
     pass
 
@@ -138,82 +138,22 @@ class NuclideToken:
 # ============================================================================
 
 def parse_nuclide(token_str: str = "", *, token: Optional[str] = None) -> NuclideToken:
-    """Deterministically parse and canonicalize a nuclide string.
-
-    Args:
-        token_str: Raw nuclide token string (e.g., '13C', 'D', 'T', '18O', 'Cl', 'c').
-        token: Optional keyword-only alias for token_str.
-
-    Returns:
-        Canonicalized NuclideToken instance.
-
-    Raises:
-        InvalidNuclideSymbolError: If syntax is malformed, contains non-alphanumeric
-            characters, non-positive mass, or the chemical symbol is not recognized in the periodic table.
-    """
+    """Return the typed real-nucleus view of the canonical alias normalizer."""
+    from cochem_base.physics.isotopes import normalize_nuclide_symbol
     raw = token if token is not None else token_str
-    if not isinstance(raw, str):
-        raise InvalidNuclideSymbolError(
-            str(raw),
-            f"Nuclide token must be a string, got {type(raw).__name__}: {raw!r}",
-        )
-
+    normalized = normalize_nuclide_symbol(raw)
+    if normalized.is_ghost:
+        raise InvalidNuclideSymbolError(str(raw), "Ghost basis centers are not real nuclei")
     cleaned = raw.strip()
-    if not cleaned:
-        raise InvalidNuclideSymbolError(raw, "Empty nuclide token is prohibited.")
-
-    match = NUCLIDE_REGEX.match(cleaned)
-    if not match:
-        raise InvalidNuclideSymbolError(
-            cleaned,
-            "Token violates regex invariant R_nuclide (^(\\d+)?([A-Za-z]+)$)",
-        )
-
-    raw_mass_num, raw_symbol = match.groups()
-
-    # Parse mass number A
-    mass_number: Optional[int] = None
-    if raw_mass_num is not None:
-        mass_number = int(raw_mass_num)
-        if mass_number <= 0:
-            raise InvalidNuclideSymbolError(
-                cleaned,
-                f"Physical mass number must be positive non-zero, got {mass_number}.",
-            )
-
-    # Canonicalize symbol casing: s[0].upper() + s[1:].lower()
-    canonical_symbol = raw_symbol[0].upper() + raw_symbol[1:].lower()
-
-    # Disambiguate Hydrogen isotope aliases ('D', 'T')
-    is_alias = False
-    upper_symbol = raw_symbol.upper()
-    if upper_symbol in H_ISOTOPE_ALIASES:
-        target_elem, alias_a = H_ISOTOPE_ALIASES[upper_symbol]
-        if mass_number is not None and mass_number != alias_a:
-            raise InvalidNuclideSymbolError(
-                cleaned,
-                f"Contradictory mass number {mass_number} specified for Hydrogen alias {upper_symbol!r} (expected {alias_a}).",
-            )
-        canonical_symbol = target_elem
-        mass_number = alias_a
-        is_alias = True
-
-    # Validate that canonical_symbol exists in periodic table via dynamic Mendeleev lookup
-    _validate_element_symbol(canonical_symbol)
-
-    return NuclideToken(
-        symbol=canonical_symbol,
-        mass_number=mass_number,
-        is_isotope_alias=is_alias,
-        raw_token=cleaned,
-    )
+    is_alias = re.fullmatch(r"(?:[0-9]+[_-]?)?[dDtT](?:[_-]?[0-9]+)?", cleaned) is not None
+    return NuclideToken(normalized.canonical_symbol, normalized.mass_number, is_alias, cleaned)
 
 
 # ============================================================================
 # Dynamic Mendeleev Binding & Validation (WBS 1.2.2)
 # ============================================================================
 
-@functools.lru_cache(maxsize=1024)
+@functools.lru_cache(maxsize=4096, typed=True)
 def get_element(symbol: str) -> Any:
     """Retrieve mendeleev Element model object with thread-safe LRU caching.
 
@@ -260,68 +200,29 @@ def _validate_element_symbol(symbol: str) -> None:
 # Mass Disambiguation & Physical Property Resolution (WBS 1.2.1 & 1.2.2)
 # ============================================================================
 
-@functools.lru_cache(maxsize=1024)
+@functools.lru_cache(maxsize=4096, typed=True)
 def disambiguate_mass(token: Union[str, NuclideToken]) -> float:
-    """Dynamically resolve exact atomic or isotopic mass in unified atomic mass units (u).
+    """Resolve a measured assigned/principal isotope, never an averaged weight.
 
-    For queries carrying an explicit mass number A, returns exact physical isotopic mass
-    from AME2020 via mendeleev (precision +/- 1e-8 u).
-    For queries without an explicit mass number, returns IUPAC standard terrestrial
-    atomic weight (elem.atomic_weight). For transuranics/synthetic elements lacking
-    terrestrial atomic weight, returns the mass of the most stable isotope (elem.mass).
-
-    Args:
-        token: Nuclide token string (e.g., '13C', 'D', '34S', 'O') or NuclideToken.
-
-    Returns:
-        Exact mass in unified atomic mass units (u, Daltons) as float.
-
-    Raises:
-        IsotopeNotFoundError: If explicit mass number A is not present in database.
-        InvalidNuclideSymbolError: If nuclide symbol syntax is invalid.
-        NuclideDatabaseError: If database query fails.
+    Elements without a measured natural isotope require an explicit assignment.
     """
     if isinstance(token, str):
         parsed = parse_nuclide(token)
     elif isinstance(token, NuclideToken):
         parsed = token
     else:
-        raise InvalidNuclideSymbolError(
-            str(token),
-            f"Expected str or NuclideToken, got {type(token).__name__}: {token!r}",
-        )
-
-    elem = get_element(parsed.symbol)
-
-    if parsed.mass_number is not None:
-        # Search for exact isotope
-        isotopes = getattr(elem, "isotopes", [])
-        matched_iso = None
-        for iso in isotopes:
-            if getattr(iso, "mass_number", None) == parsed.mass_number:
-                matched_iso = iso
-                break
-
-        if matched_iso is None or getattr(matched_iso, "mass", None) is None:
-            raise IsotopeNotFoundError(parsed.symbol, parsed.mass_number)
-        return float(matched_iso.mass)
-
-    # Fallback to IUPAC standard terrestrial atomic weight
-    atomic_weight = getattr(elem, "atomic_weight", None)
-    if atomic_weight is not None:
-        return float(atomic_weight)
-
-    # For synthetic or radioactive elements lacking standard atomic weight (e.g. Tc, Pm, transuranics)
-    nominal_mass = getattr(elem, "mass", None)
-    if nominal_mass is not None:
-        return float(nominal_mass)
-
-    raise NuclideResolutionError(
-        f"Unable to resolve standard atomic weight or isotope mass for element {parsed.symbol!r}."
-    )
+        raise InvalidNuclideSymbolError(str(token), "Expected str or NuclideToken")
+    get_element(parsed.symbol)
+    from cochem_base.physics.isotopes import get_isotope_mass
+    try:
+        return get_isotope_mass(parsed.symbol, parsed.mass_number)
+    except ValueError as error:
+        if parsed.mass_number is not None:
+            raise IsotopeNotFoundError(parsed.symbol, parsed.mass_number) from error
+        raise NuclideResolutionError(str(error)) from error
 
 
-@functools.lru_cache(maxsize=1024)
+@functools.lru_cache(maxsize=4096, typed=True)
 def resolve_covalent_radius(token: Union[str, NuclideToken]) -> Optional[float]:
     """Dynamically resolve single-bond covalent radius in Angstroms (A).
 
@@ -358,7 +259,7 @@ def resolve_covalent_radius(token: Union[str, NuclideToken]) -> Optional[float]:
     return None
 
 
-@functools.lru_cache(maxsize=1024)
+@functools.lru_cache(maxsize=4096, typed=True)
 def resolve_vdw_radius(token: Union[str, NuclideToken]) -> Optional[float]:
     """Dynamically resolve van der Waals radius in Angstroms (A).
 
@@ -387,7 +288,7 @@ def resolve_vdw_radius(token: Union[str, NuclideToken]) -> Optional[float]:
     return None
 
 
-@functools.lru_cache(maxsize=1024)
+@functools.lru_cache(maxsize=4096, typed=True)
 def get_nuclide_spin_and_quadrupole(
     token: Union[str, NuclideToken]
 ) -> Tuple[Optional[float], Optional[float]]:

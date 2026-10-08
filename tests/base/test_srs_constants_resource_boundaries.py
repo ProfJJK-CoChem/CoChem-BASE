@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 
@@ -23,12 +22,19 @@ def test_public_conversion_consumers_use_one_registry():
     from cochem_base.formatters.cochem_inertial_defect_validator import ROTATIONAL_CONVERSION_MHZ_U_ANG2
     from cochem_base.mm.conference2.a7.propagate import CONV_MHZ_AMU_ANG2, CODATA_CONV_EXACT
     from cochem_base.cochem_spcat_bridge import CODATA2022
+    from cochem_base.harvesters.scribe_aggregator import HARTREE_TO_KCAL_MOL
+    from cochem_base.orchestrator.cochem_setup_phase_10 import FACTOR_MHZ, ATOMIC_MASS_UNIT_U
+    from cochem_base.intake.cochem_topos_alignment import FACTOR_MHZ as TOPOS_FACTOR
+    from cochem_base.intake.topos_alignment import FACTOR_MHZ as LEGACY_TOPOS_FACTOR
 
     assert BOHR_TO_ANGSTROM == UnitConversionConstants.BOHR_TO_ANGSTROM == constants.BOHR_TO_ANGSTROM
     assert UnitConversionConstants.AMU_TO_KG == CODATA2022.AMU_KG == constants.ATOMIC_MASS_UNIT_KG
     assert (ROTATIONAL_CONVERSION_MHZ_U_ANG2 == CONV_MHZ_AMU_ANG2 == CODATA_CONV_EXACT
             == CODATA2022.C_ROT == UnitConversionConstants.ROTATIONAL_INERTIA_CONVERSION
             == constants.C_ROT_MHZ_U_ANG2)
+    assert FACTOR_MHZ == TOPOS_FACTOR == LEGACY_TOPOS_FACTOR == constants.C_ROT_MHZ_U_ANG2
+    assert ATOMIC_MASS_UNIT_U == constants.ATOMIC_MASS_UNIT_KG
+    assert HARTREE_TO_KCAL_MOL == constants.HARTREE_TO_KCAL_MOL
 
 
 def test_scribe_guard_cannot_be_disabled_by_environment(tmp_path):

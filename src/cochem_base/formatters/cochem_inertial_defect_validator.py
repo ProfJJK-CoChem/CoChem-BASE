@@ -29,26 +29,18 @@ from cochem_base.core import cochem_constants as _constants
 import argparse
 import datetime
 import enum
-import io
 import json
 import logging
-import math
-import os
 import pathlib
-import re
 import sys
 import time
 from dataclasses import asdict, dataclass, field
 from typing import (
     Any,
-    Callable,
     Dict,
-    Iterable,
-    Iterator,
     List,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Union,
 )
@@ -163,79 +155,10 @@ _ISOTOPE_MASS_OVERRIDES: Dict[str, Tuple[str, int]] = {
 
 
 def get_atomic_mass(symbol_or_z: Union[str, int], isotope: Optional[int] = None) -> float:
-    """Dynamically resolves atomic and isotopic masses via the Mendeleev library.
-
-    Strictly satisfies the Mendeleev Mandate: Zero hardcoded atomic weights.
-
-    Parameters
-    ----------
-    symbol_or_z : Union[str, int]
-        Chemical element symbol (e.g., 'C', '13C', 'D') or atomic number Z (e.g., 6).
-    isotope : Optional[int]
-        Mass number A for specific isotope. If None, resolves from symbol or standard weight.
-
-    Returns
-    -------
-    float
-        Atomic or isotopic mass in unified atomic mass units (u or amu) [M].
-    """
-    cache_key = f"{symbol_or_z}_{isotope}"
-    if cache_key in _MASS_CACHE:
-        return _MASS_CACHE[cache_key]
-
-    if isinstance(symbol_or_z, int):
-        elem = element(symbol_or_z)
-        if isotope is not None:
-            for iso in elem.isotopes:
-                if iso.mass_number == isotope and iso.mass is not None:
-                    val = float(iso.mass)
-                    _MASS_CACHE[cache_key] = val
-                    return val
-        val = float(elem.atomic_weight)
-        _MASS_CACHE[cache_key] = val
-        return val
-
-    sym_clean = str(symbol_or_z).strip()
-    sym_upper = sym_clean.upper()
-
-    # Check known isotope symbol overrides
-    if sym_upper in _ISOTOPE_MASS_OVERRIDES:
-        base_sym, iso_num = _ISOTOPE_MASS_OVERRIDES[sym_upper]
-        elem = element(base_sym)
-        for iso in elem.isotopes:
-            if iso.mass_number == iso_num and iso.mass is not None:
-                val = float(iso.mass)
-                _MASS_CACHE[cache_key] = val
-                return val
-
-    # Match prefixed mass numbers, e.g. "13C", "18O"
-    match = re.match(r"^(\d+)([A-Za-z]+)$", sym_clean)
-    if match:
-        iso_num = int(match.group(1))
-        elem_sym = match.group(2).capitalize()
-        elem = element(elem_sym)
-        for iso in elem.isotopes:
-            if iso.mass_number == iso_num and iso.mass is not None:
-                val = float(iso.mass)
-                _MASS_CACHE[cache_key] = val
-                return val
-        val = float(elem.atomic_weight)
-        _MASS_CACHE[cache_key] = val
-        return val
-
-    # Standard element symbol
-    elem_sym = sym_clean.capitalize()
-    elem = element(elem_sym)
-    if isotope is not None:
-        for iso in elem.isotopes:
-            if iso.mass_number == isotope and iso.mass is not None:
-                val = float(iso.mass)
-                _MASS_CACHE[cache_key] = val
-                return val
-
-    val = float(elem.atomic_weight)
-    _MASS_CACHE[cache_key] = val
-    return val
+    """Resolve an exact assigned/principal isotope; invalid assignments never average."""
+    from cochem_base.physics.isotopes import get_isotope_mass
+    symbol = element(symbol_or_z).symbol if isinstance(symbol_or_z, int) else symbol_or_z
+    return get_isotope_mass(symbol, isotope)
 
 
 # =============================================================================
@@ -1214,7 +1137,7 @@ class InertialDefectValidator:
         """Formats comment block lines for inclusion in Pickett SPFIT/SPCAT .var or .par files."""
         p = report.properties
         lines = [
-            f"# Pickett Parameter File Generated with CoChem-BASE (Stage 5.0)",
+            "# Pickett Parameter File Generated with CoChem-BASE (Stage 5.0)",
             f"# Molecule: {report.molecule_name}",
             f"# Total Mass: {p.total_mass_amu:.6f} u ({p.number_of_atoms} atoms)",
             f"# A = {p.a_mhz:13.4f} MHz | B = {p.b_mhz:13.4f} MHz | C = {p.c_mhz:13.4f} MHz",
@@ -1256,11 +1179,11 @@ class InertialDefectValidator:
             f"  Total Mass       : {p.total_mass_amu:.6f} u ({p.number_of_atoms} atoms)",
             f"  Rotor Type       : {p.rotor_type.value}",
             f"  Planarity State  : {p.planarity_class.value}",
-            f"------------------------------------------------------------------------",
+            "------------------------------------------------------------------------",
             f"  A (MHz)          : {p.a_mhz:13.4f}  |  I_a (u*A^2): {p.ia_amu_angstrom2:10.6f}",
             f"  B (MHz)          : {p.b_mhz:13.4f}  |  I_b (u*A^2): {p.ib_amu_angstrom2:10.6f}",
             f"  C (MHz)          : {p.c_mhz:13.4f}  |  I_c (u*A^2): {p.ic_amu_angstrom2:10.6f}",
-            f"------------------------------------------------------------------------",
+            "------------------------------------------------------------------------",
             f"  Inertial Defect  : {c_bold}{p.inertial_defect_amu_angstrom2:10.6f} u*Angstrom^2{c_reset}",
             f"  Planar Moments   : P_aa={p.planar_moment_paa_amu_angstrom2:.4f}, P_bb={p.planar_moment_pbb_amu_angstrom2:.4f}, P_cc={p.planar_moment_pcc_amu_angstrom2:.4f} u*A^2",
             f"  Ray's Kappa      : {p.rays_kappa:10.6f}  (b_p={p.wangs_bp:.6f}, b_o={p.wangs_bo:.6f})",

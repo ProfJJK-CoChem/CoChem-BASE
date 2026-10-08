@@ -9,9 +9,8 @@ from __future__ import annotations
 import json
 import logging
 import os
-import tempfile
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -73,9 +72,10 @@ class TopologyGraph(nx.Graph):
             calc_mass = 0.0 if mass is None else mass
         else:
             try:
-                elem = element(resolved_symbol)
+                from cochem_base.physics.isotopes import get_isotope_mass, parse_nuclide_token
+                elem = element(parse_nuclide_token(resolved_symbol)[0])
                 calc_atomic_num = int(elem.atomic_number) if atomic_number is None else atomic_number
-                calc_mass = float(elem.mass) if mass is None else mass
+                calc_mass = get_isotope_mass(resolved_symbol) if mass is None else mass
             except Exception as exc:
                 raise TopologyError(f"Unknown element symbol '{resolved_symbol}': {exc}") from exc
 

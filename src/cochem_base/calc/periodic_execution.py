@@ -6,6 +6,8 @@ inferred from the method name or from a successful SCF calculation.
 """
 from __future__ import annotations
 
+from cochem_base.core_engine.scientific_writer import scientific_producer
+
 import hashlib
 import json
 import math
@@ -191,6 +193,7 @@ def _accept_result(directory: Path, stdout: str, elements: Sequence[str], coordi
             "scf_converged": True, "xml_sha256": _sha256(xml), "stdout_sha256": _sha256(directory / "qe.out")}
 
 
+@scientific_producer
 def execute_periodic_singlepoint(elements: Sequence[str], coordinates_angstrom: Any, *,
         periodic: PeriodicCalculationConfig, workdir: str | Path, registry_path: str | Path | None = None,
         cores: int = 1, timeout_seconds: float = 180., charge: int = 0, multiplicity: int = 1,

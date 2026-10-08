@@ -28,8 +28,8 @@ def _record(labels: list[str], coordinates: Any, *, comment: str = "", **metadat
     toolchain = validate_ingestion_toolchain()
     if not labels or len(labels) > 4096:
         raise ValueError("A molecular intake record must contain between 1 and 4096 centers")
-    from cochem_base.physics.isotopes import GHOST_ATOMS
-    ghost_indices = [index for index, label in enumerate(labels) if label.upper() in GHOST_ATOMS]
+    from cochem_base.physics.isotopes import is_ghost_atom, normalize_nuclide_symbol
+    ghost_indices = [index for index, label in enumerate(labels) if is_ghost_atom(label)]
     real_labels = [label for index, label in enumerate(labels) if index not in ghost_indices]
     if not real_labels:
         raise ValueError("Molecular input requires at least one real nucleus")
@@ -39,7 +39,7 @@ def _record(labels: list[str], coordinates: Any, *, comment: str = "", **metadat
     for index in range(len(labels)):
         if index in ghost_indices:
             elements.append("Gh")
-            nuclides.append("Gh")
+            nuclides.append(normalize_nuclide_symbol(labels[index]).canonical_symbol)
             numbers.append(None)
             masses.append(0.0)
         else:
@@ -162,6 +162,7 @@ def parse_pdb_text(text: str) -> list[dict]:
     records, atoms, identifiers = [], [], set()
     model_id = None
     explicit_model = False
+    uses_model_blocks = any(line[:6].strip() == "MODEL" for line in text.removeprefix("\ufeff").splitlines())
 
     def finish() -> None:
         nonlocal atoms, identifiers
@@ -188,6 +189,8 @@ def parse_pdb_text(text: str) -> list[dict]:
             finish()
             model_id, explicit_model = None, False
         elif tag in {"ATOM", "HETATM"}:
+            if uses_model_blocks and not explicit_model:
+                raise ValueError("PDB ATOM/HETATM records must be inside MODEL/ENDMDL blocks when explicit models are present")
             if len(line) < 78 or line[16:17].strip():
                 raise ValueError("PDB requires element columns and resolved alternate locations")
             occupancy = line[54:60].strip()
@@ -236,6 +239,11 @@ def parse_qcschema_text(text: str) -> list[dict]:
     molecule = data.get("molecule", data)
     if not isinstance(molecule, dict) or not {"symbols", "geometry"}.issubset(molecule):
         raise ValueError("QCSchema requires its molecular symbols and Bohr geometry")
+    if molecule is not data:
+        if "schema_name" in molecule and molecule["schema_name"] != "qcschema_molecule":
+            raise ValueError("Nested QCSchema molecule requires a supported molecule schema name")
+        if "schema_version" in molecule and (type(molecule["schema_version"]) is not int or molecule["schema_version"] not in {1, 2}):
+            raise ValueError("Nested QCSchema molecule requires a supported schema version")
     units = molecule.get("units", "bohr")
     if not isinstance(units, str) or units.lower() not in {"bohr", "au", "a.u."}:
         raise ValueError("QCSchema geometry is defined in Bohr; explicit incompatible units are rejected")

@@ -1,67 +1,43 @@
-# Copyright 2026 CoChem Project Family. All rights reserved.
-# Apache License 2.0
-"""
-Unit test for Deliverable 5 (Suggestion #75):
-Worker-Resident GPU MLFF Model Cache Singleton.
-Verifies that WorkerModelCache returns the identical resident model object on
-consecutive calls, initializes thread-safely, and maintains persistent model weights.
-"""
+"""Resident-cache identity on the genuine official MACE-OFF24 medium checkpoint.
 
+This opt-in ML profile requires its approved scientific silo and checksum-pinned
+checkpoint; arbitrary bytes are not model evidence and never replace it.
+"""
 from __future__ import annotations
-
-import tempfile
+import concurrent.futures
+import hashlib
+import os
 from pathlib import Path
 import pytest
-
 from cochem_base.core_engine.cochem_core_parsl_executors import WorkerModelCache
 
+CHECKPOINT_SHA256 = 'e5ccf5837f685899811a68754e7c994393bfd1a81720393b03c643b46c70bc69'
 
-def test_worker_model_cache_identity_and_persistence() -> None:
-    """Verify that WorkerModelCache returns identical resident model instance
+@pytest.fixture
+def official_checkpoint():
+    value = os.environ.get('COCHEM_MACE_OFF24_CHECKPOINT')
+    if not value:
+        pytest.fail('The real ML cache profile requires COCHEM_MACE_OFF24_CHECKPOINT and its approved MACE/Torch silo')
+    path = Path(value).resolve(strict=True)
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == CHECKPOINT_SHA256
+    WorkerModelCache.clear()
+    yield path
+    WorkerModelCache.clear()
 
-    across consecutive get_model() calls and persists weights in memory.
-    """
-    with tempfile.TemporaryDirectory() as td:
-        dummy_weights = Path(td) / "mace_model.pt"
-        dummy_weights.write_bytes(b"AUTHENTIC_MODEL_WEIGHTS_COCHEM")
+def test_worker_model_cache_identity_and_persistence(official_checkpoint):
+    first = WorkerModelCache.get_model('MACE-OFF24m', official_checkpoint, 'cpu')
+    second = WorkerModelCache.get_model('MACE-OFF24m', official_checkpoint, 'cpu')
+    assert first is second
+    assert first.weights_path == official_checkpoint
+    assert callable(first.model_instance)
+    assert type(first.model_instance).__module__.startswith('mace.')
 
-        # First retrieval initializes and caches the resident model
-        model_1 = WorkerModelCache.get_model(
-            model_name="MACE-OFF24m",
-            weights_path=dummy_weights,
-            device="cpu",
-        )
-
-        # Second retrieval with identical signature must return identical cached instance
-        model_2 = WorkerModelCache.get_model(
-            model_name="MACE-OFF24m",
-            weights_path=dummy_weights,
-            device="cpu",
-        )
-
-        assert model_1 is model_2
-        assert id(model_1) == id(model_2)
-
-
-def test_worker_model_cache_multithreaded_safety() -> None:
-    """Verify thread-safety of WorkerModelCache under concurrent access."""
-    import concurrent.futures
-
-    with tempfile.TemporaryDirectory() as td:
-        weights_file = Path(td) / "aimnet2_model.pt"
-        weights_file.write_bytes(b"AIMNET2_WEIGHTS_COCHEM")
-
-        def _fetch_model() -> int:
-            m = WorkerModelCache.get_model(
-                model_name="AIMNet2",
-                weights_path=weights_file,
-                device="cpu",
-            )
-            return id(m)
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [executor.submit(_fetch_model) for _ in range(20)]
-            model_ids = [f.result() for f in futures]
-
-        # All threads must receive the exact same singleton instance
-        assert len(set(model_ids)) == 1
+def test_worker_model_cache_multithreaded_safety(official_checkpoint):
+    def retrieve():
+        model = WorkerModelCache.get_model('MACE-OFF24m', official_checkpoint, 'cpu')
+        assert callable(model.model_instance)
+        return id(model)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        identifiers = list(executor.map(lambda _: retrieve(), range(20)))
+    assert len(set(identifiers)) == 1
+    assert hashlib.sha256(official_checkpoint.read_bytes()).hexdigest() == CHECKPOINT_SHA256

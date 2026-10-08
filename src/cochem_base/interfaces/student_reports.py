@@ -172,6 +172,8 @@ def build_isomer_report(observations: list[dict], *, temperature_kelvin: float =
     if not populations:
         scope = "Native energy differences for the supplied comparable structures. A converged electronic result alone " \
                 "does not establish a minimum, a unique isomer, a complete search or thermodynamic populations."
+    else:
+        scope += " Entries are assumed to represent distinct states; duplicate or equivalent structures must be removed before interpreting isomer populations."
     report = {"schema_version": _SCHEMA, "report_type": "isomers", "title": "Isomer energy differences and populations" if populations else "Structure energy differences",
               "columns": columns, "rows": validated, "sources": sources, "energy_kind": energy_kind,
               "temperature_kelvin": temperature, "comparison": json.loads(next(iter(keys))), "scope": scope,
@@ -511,7 +513,12 @@ def discover_observations(root: str | Path) -> list[dict]:
                 if config:
                     break
             molecule = native.get("molecule", config.get("molecule", {}))
-            symbols = native.get("elements", molecule.get("symbols"))
+            symbols = native.get("nuclides") or molecule.get("isotope_symbols") or native.get("elements", molecule.get("symbols"))
+            isotopes = molecule.get("isotopes")
+            if (symbols and not native.get("nuclides") and not molecule.get("isotope_symbols")
+                    and isinstance(isotopes, list) and len(isotopes) == len(symbols)):
+                symbols = [f"{mass}{symbol}" if mass is not None else symbol
+                           for symbol, mass in zip(symbols, isotopes, strict=True)]
             if not symbols:
                 from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
                 geometry = config.get("geometry_xyz", config.get("geometry"))
@@ -534,17 +541,26 @@ def discover_observations(root: str | Path) -> list[dict]:
                     "method": {"engine": native.get("engine", config.get("engine")), "method": method, "basis": basis},
                     "electronic_state": {"charge": charge, "multiplicity": multiplicity},
                     "composition": json.dumps(dict(sorted(Counter(symbols).items())), sort_keys=True)}
-            frequencies = native.get("frequencies_cm1", native.get("vibrational_frequencies_cm1"))
-            gradients = native.get("gradients_hartree_per_bohr", native.get("gradient_hartree_bohr"))
-            gradient_verified = (isinstance(gradients, list) and len(gradients) == len(symbols)
-                and all(isinstance(row, list) and len(row) == 3 for row in gradients)
-                and max(abs(_finite(value, "gradient")) for row in gradients for value in row) <= 1e-5)
-            if (native.get("optimization_performed") is True and gradient_verified
-                    and isinstance(frequencies, list) and frequencies
-                    and all(_finite(v, "frequency") > 0 for v in frequencies)):
-                item["minimum_verified"] = True
-                key = "frequencies_cm1" if "frequencies_cm1" in native else "vibrational_frequencies_cm1"
-                item["minimum_source"] = {**item["source"], "pointer": "/" + key}
+            # Native ORCA/CFOUR spectra use harmonic_frequencies_cm1. A JSON
+            # optimization flag plus positive numbers cannot establish minimum
+            # provenance: recheck the actual retained force-Hessian and gradient.
+            frequencies = native.get("harmonic_frequencies_cm1")
+            if native.get("engine") in {"orca", "cfour"} and isinstance(frequencies, list) and frequencies:
+                from cochem_base.spectroscopy.artifacts import load_hessian_artifact, _receipt_file
+                receipt = native.get("hessian_bundle_artifact", native.get("hessian_artifact"))
+                if isinstance(receipt, dict):
+                    for base in (path.parent, path.parent.parent, path.parent.parent.parent):
+                        if not base.is_relative_to(directory):
+                            break
+                        try:
+                            tensor_path = _receipt_file(base, receipt)
+                            tensor = load_hessian_artifact(tensor_path, native_result_path=path)
+                            if tensor.qualification.get("minimum_verified") is True:
+                                item["minimum_verified"] = True
+                                item["minimum_source"] = {**item["source"], "pointer": "/harmonic_frequencies_cm1"}
+                            break
+                        except (ValueError, OSError, KeyError, TypeError):
+                            continue
             _comparison_key(item, "electronic_energy")
             observations.append(item)
         except (ValueError, KeyError, TypeError, OSError):
@@ -742,6 +758,27 @@ def load_reports(root: str | Path) -> list[dict]:
                         raise ValueError("NAO Wiberg receipt must identify its actual analysis basis and units.")
                     reports.append(build_bond_report(native["atoms"], native["coordinates_angstrom"], native["bonds"],
                         analysis_kind="wiberg_nao", source={"path": str(path), "sha256": digest, "pointer": "/result/bonds"}))
+        except (ValueError, KeyError, TypeError, OSError):
+            continue
+    # Native results should be useful immediately after the authenticated result
+    # package is retrieved. Group only identical scientific comparison protocols;
+    # unmatched methods, isotopes, states and thermal references remain separate.
+    groups = {}
+    for observation in discover_observations(directory):
+        if Path(observation["source"]["path"]).name != "operation.json":
+            continue
+        try:
+            key = _comparison_key(observation, observation["energy_kind"])
+            groups.setdefault(key, []).append(observation)
+        except (ValueError, KeyError, TypeError):
+            continue
+    for values in groups.values():
+        try:
+            kind = values[0]["energy_kind"]
+            temperature = values[0].get("temperature_kelvin", 298.15)
+            qualified = all(item.get("minimum_verified") is True for item in values)
+            reports.append(build_isomer_report(values, energy_kind=kind,
+                temperature_kelvin=temperature, populations=qualified))
         except (ValueError, KeyError, TypeError, OSError):
             continue
     unique = {}

@@ -19,9 +19,10 @@ class GradientPayload(BaseModel):
 
     model_config = ConfigDict(extra="ignore", validate_assignment=True)
 
-    energy: float = Field(default=0.0, description="Electronic energy in Hartrees")
+    energy: float = Field(..., allow_inf_nan=False, description="Measured electronic energy in Hartrees")
     energy_hartree: Optional[float] = Field(
         default=None,
+        allow_inf_nan=False,
         description="Electronic energy in true atomic units (Hartree) per Method Matrix §8C",
     )
     gradient: List[Any] = Field(
@@ -61,9 +62,12 @@ class GradientPayload(BaseModel):
     @classmethod
     def sync_energies(cls, data: Any) -> Any:
         if isinstance(data, dict):
+            data = dict(data)
             if "energy_hartree" in data and data["energy_hartree"] is not None:
-                if "energy" not in data or data["energy"] == 0.0:
+                if data.get("energy") is None:
                     data["energy"] = float(data["energy_hartree"])
+                elif float(data["energy"]) != float(data["energy_hartree"]):
+                    raise ValueError("Conflicting measured energy and energy_hartree values")
             elif "energy" in data and data["energy"] is not None:
                 data["energy_hartree"] = float(data["energy"])
         return data

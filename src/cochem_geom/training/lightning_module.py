@@ -23,51 +23,50 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
-import os
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
 
-import mendeleev
-import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import OneCycleLR
+from scipy.constants import elementary_charge as _elementary_charge
+from cochem_base.core import cochem_constants as _physical_constants
+from cochem_base.core.mendeleev_invariants import get_element as _get_element
+from cochem_base.physics.isotopes import get_isotope_mass
 
 logger = logging.getLogger("cochem_geom.training.lightning_module")
 
 
 # ==============================================================================
-# 1. Fundamental Physical Constants & Provenance Declarations (CODATA 2018/2022)
+# 1. Fundamental Physical Constants & Provenance Declarations (shared CODATA 2022)
 # ==============================================================================
 
-SPEED_OF_LIGHT_M_S: float = 299792458.0
+SPEED_OF_LIGHT_M_S: float = _physical_constants.SPEED_OF_LIGHT_M_S
 """Speed of light in vacuum in meters per second (exact) [M]."""
 
-PLANCK_CONSTANT_J_S: float = 6.62607015e-34
+PLANCK_CONSTANT_J_S: float = _physical_constants.PLANCK_CONSTANT_J_S
 """Planck constant in Joule seconds (exact) [M]."""
 
-BOLTZMANN_CONSTANT_J_K: float = 1.380649e-23
+BOLTZMANN_CONSTANT_J_K: float = _physical_constants.BOLTZMANN_CONSTANT_J_K
 """Boltzmann constant in Joules per Kelvin (exact) [M]."""
 
-BOLTZMANN_CONSTANT_EV_K: float = 8.617333262145e-5
+BOLTZMANN_CONSTANT_EV_K: float = BOLTZMANN_CONSTANT_J_K / _elementary_charge
 """Boltzmann constant in electron-volts per Kelvin [D]."""
 
-ELEMENTARY_CHARGE_C: float = 1.602176634e-19
+ELEMENTARY_CHARGE_C: float = _elementary_charge
 """Elementary charge in Coulombs (exact) [M]."""
 
-AVOGADRO_CONSTANT_MOL: float = 6.02214076e23
+AVOGADRO_CONSTANT_MOL: float = _physical_constants.AVOGADRO_CONSTANT
 """Avogadro constant per mole (exact) [M]."""
 
-ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27
+ATOMIC_MASS_UNIT_KG: float = _physical_constants.ATOMIC_MASS_UNIT_KG
 """Unified atomic mass unit / Dalton in kilograms [M]."""
 
-BOHR_RADIUS_ANGSTROM: float = 0.529177210903
+BOHR_RADIUS_ANGSTROM: float = _physical_constants.BOHR_TO_ANGSTROM
 """Bohr radius in Angstroms [M]."""
 
-HARTREE_TO_EV: float = 27.211386245988
+HARTREE_TO_EV: float = _physical_constants.HARTREE_TO_EV
 """Conversion factor from Hartree to electron-volts [D]."""
 
 EV_TO_HARTREE: float = 1.0 / HARTREE_TO_EV
@@ -112,34 +111,11 @@ DEFAULT_RBF_CUTOFF: float = 5.0
 # ==============================================================================
 
 def get_element_mass(element_identifier: Union[str, int]) -> float:
-    """Dynamically query standard atomic weight from mendeleev library [M].
-
-    Hardcoded atomic weight lookup tables are strictly forbidden by architectural mandate.
-
-    Parameters
-    ----------
-    element_identifier : Union[str, int]
-        Chemical element symbol (e.g., 'C', 'O') or atomic number Z (e.g., 6, 8).
-
-    Returns
-    -------
-    float
-        Standard atomic mass in Daltons (atomic mass units).
-    """
-    elem = mendeleev.element(element_identifier)
-    weight = elem.atomic_weight
-    if weight is not None:
-        return float(weight)
-    if elem.isotopes:
-        most_abundant = max(
-            elem.isotopes,
-            key=lambda iso: (iso.abundance if iso.abundance is not None else 0.0),
-        )
-        if most_abundant.mass is not None:
-            return float(most_abundant.mass)
-    if elem.mass is not None:
-        return float(elem.mass)
-    raise ValueError(f"Standard atomic mass not found for element '{element_identifier}'")
+    """Resolve assigned or principal measured nuclear mass through Mendeleev."""
+    if isinstance(element_identifier, bool):
+        raise ValueError("Atomic number must be an integer, not a boolean")
+    symbol = _get_element(element_identifier).symbol if isinstance(element_identifier, int) else element_identifier
+    return get_isotope_mass(symbol)
 
 
 def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:

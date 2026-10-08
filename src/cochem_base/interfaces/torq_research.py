@@ -100,7 +100,7 @@ def report_from_scan(operation_report: dict, directory: str | Path) -> dict:
     if native.get("schema_version") != "cochem.torq-rigid-scan/1":
         raise ValueError("Unsupported TORQ scan receipt.")
     root = Path(directory).resolve(strict=True)
-    composition = json.dumps(dict(sorted(Counter(native["elements"]).items())), sort_keys=True)
+    composition = json.dumps(dict(sorted(Counter(native.get("nuclides", native["elements"])).items())), sort_keys=True)
     points = []
     for item in native["points"]:
         point = {"coordinate": item["coordinate_angstrom"], "status": item["status"]}
@@ -120,7 +120,9 @@ def report_from_scan(operation_report: dict, directory: str | Path) -> dict:
                     or actual_method.get("basis") != native["method"]["basis"]
                     or (requested_method.endswith("-d4") and actual_method.get("dispersion") != "d4")
                     or observed.get("molecule", {}).get("charge") != native["electronic_state"]["charge"]
-                    or observed.get("molecule", {}).get("multiplicity") != native["electronic_state"]["multiplicity"]):
+                    or observed.get("molecule", {}).get("multiplicity") != native["electronic_state"]["multiplicity"]
+                    or observed.get("molecule", {}).get("symbols") != native["elements"]
+                    or observed.get("molecule", {}).get("isotope_symbols") != native.get("nuclides", native["elements"])):
                 raise ValueError("Native scan method, basis or electronic state differs from its receipt.")
             import numpy as np
             actual_geometry = np.asarray(observed.get("geometry_bohr"), dtype=float)

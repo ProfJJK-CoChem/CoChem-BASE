@@ -21,12 +21,9 @@ Authoritative Method Matrix v4 Standards Enforced:
 from __future__ import annotations
 
 import argparse
-import datetime
 import enum
-import io
 import logging
 import math
-import os
 import pathlib
 import re
 import sys
@@ -34,23 +31,19 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import (
     Any,
-    Callable,
     Dict,
     Iterable,
     Iterator,
     List,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Union,
 )
 
-import numpy as np
 import pandas as pd
 import pyarrow as pa  # type: ignore[import-untyped]
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
-from mendeleev import element  # type: ignore[import-untyped]
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -512,8 +505,8 @@ def calculate_isotopic_molecular_weight(chemical_formula: str) -> float:
     total_mass = 0.0
     for symbol, count_str in tokens:
         count = int(count_str) if count_str else 1
-        elem_obj = element(symbol)
-        total_mass += float(elem_obj.atomic_weight) * count
+        from cochem_base.physics.isotopes import get_isotope_mass
+        total_mass += get_isotope_mass(symbol) * count
 
     return total_mass
 
@@ -895,81 +888,73 @@ class DarkBranchFilter:
         self,
         conformers: List[Dict[str, Any]],
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        """Filters a conformer ensemble / branching DAG to eliminate dark conformers."""
+        """Retain inspected conformers without inventing thermodynamic populations.
+
+        A legacy dictionary does not establish comparable states, a common
+        energy reference, qualified minima or an ensemble temperature. The
+        canonical BASE isomer report supplies those checks and populations.
+        Unknown observations remain in the retained list with is_bright=None;
+        only a supplied complete dipole can support the nonpolar cutoff.
+        """
         start_time = time.perf_counter()
-        bright_conformers: List[Dict[str, Any]] = []
-        dark_conformers: List[Dict[str, Any]] = []
-        rejection_reasons: Dict[str, int] = {}
+        retained, dark, pending = [], [], []
+        reason = ("Population requires the verified BASE isomer comparison report: "
+                  "matched composition/state/protocol, common reference, qualified "
+                  "thermochemistry and explicit temperature/standard state")
 
-        min_e = float("inf")
-        for conf in conformers:
-            e_val = float(conf.get("relative_energy_kcal_mol", conf.get("relative_energy", 0.0)))
-            if e_val < min_e:
-                min_e = e_val
+        def finite(value: Any) -> Optional[float]:
+            if value is None or isinstance(value, bool):
+                return None
+            try:
+                number = float(value)
+            except (TypeError, ValueError, OverflowError):
+                return None
+            return number if math.isfinite(number) else None
 
-        r_kcal = 1.98720425864083e-3
-        temp_k = max(self.config.rotational_temperature_k, 1.0)
-        conformer_eval_temp_k = 298.15 if temp_k < 10.0 else temp_k
-
-        boltzmann_weights: List[float] = []
-        for conf in conformers:
-            delta_e = float(conf.get("relative_energy_kcal_mol", conf.get("relative_energy", 0.0))) - min_e
-            exponent = -delta_e / (r_kcal * conformer_eval_temp_k)
-            w = math.exp(max(exponent, -700.0))
-            boltzmann_weights.append(w)
-
-        total_q = sum(boltzmann_weights)
-        if total_q <= 0.0:
-            total_q = 1.0
-
-        for idx, conf in enumerate(conformers):
-            conf_copy = dict(conf)
-            delta_e = float(conf.get("relative_energy_kcal_mol", conf.get("relative_energy", 0.0))) - min_e
-            frac_pop = boltzmann_weights[idx] / total_q
-            conf_copy["boltzmann_weight"] = frac_pop
-            conf_copy["relative_energy_kcal_mol"] = delta_e
-
-            mu_tot = conf.get("dipole_total_debye", conf.get("dipole_debye", None))
-            if mu_tot is None:
-                mu_a = float(conf.get("mu_a", 0.0))
-                mu_b = float(conf.get("mu_b", 0.0))
-                mu_c = float(conf.get("mu_c", 0.0))
-                mu_tot = math.sqrt(mu_a**2 + mu_b**2 + mu_c**2)
+        for original in conformers:
+            record = dict(original)
+            relative = finite(original.get("relative_energy_kcal_mol"))
+            record["relative_energy_kcal_mol"] = relative
+            if relative is None:
+                record["energy_unavailable_reason"] = "Missing finite explicitly kcal/mol relative energy"
+            if "boltzmann_weight" in original:
+                record["imported_boltzmann_weight"] = original["boltzmann_weight"]
+            record["boltzmann_weight"] = None
+            record["population_unavailable_reason"] = reason
+            record["population_kind"] = "unavailable_unqualified_legacy_ensemble"
+            total = finite(original.get("dipole_total_debye", original.get("dipole_debye")))
+            if total is None:
+                components = [finite(original.get(key)) for key in ("mu_a", "mu_b", "mu_c")]
+                if all(value is not None for value in components):
+                    total = math.hypot(*components)
+            if total is not None and total < 0:
+                raise ValueError("A dipole magnitude cannot be negative")
+            record["dipole_total_debye"] = total
+            if total is None:
+                record["dipole_unavailable_reason"] = "Missing finite dipole magnitude or complete three-component vector in debye"
+            nonpolar = total is not None and total < self.config.min_dipole_debye
+            record["is_bright"] = False if nonpolar else None
+            record["rejection_reason"] = (FilterRejectionReason.NON_POLAR_CONFORMER.value
+                                          if nonpolar else "UNAVAILABLE_ENSEMBLE_QUALIFICATION")
+            if nonpolar:
+                dark.append(record)
             else:
-                mu_tot = float(mu_tot)
-            conf_copy["dipole_total_debye"] = mu_tot
-
-            is_conf_bright = True
-            rejection_reason = "PASSED"
-
-            if delta_e > self.config.max_conformer_energy_kcal_mol:
-                is_conf_bright = False
-                rejection_reason = FilterRejectionReason.HIGH_CONFORMER_ENERGY.value
-            elif frac_pop < self.config.min_conformer_boltzmann_weight:
-                is_conf_bright = False
-                rejection_reason = FilterRejectionReason.FROZEN_OUT_LOWER_STATE.value
-            elif mu_tot < self.config.min_dipole_debye:
-                is_conf_bright = False
-                rejection_reason = FilterRejectionReason.NON_POLAR_CONFORMER.value
-
-            conf_copy["is_bright"] = is_conf_bright
-            conf_copy["rejection_reason"] = rejection_reason
-
-            if is_conf_bright:
-                bright_conformers.append(conf_copy)
-            else:
-                dark_conformers.append(conf_copy)
-                rejection_reasons[rejection_reason] = rejection_reasons.get(rejection_reason, 0) + 1
-
+                retained.append(record)
+                pending.append(record)
         summary = {
             "total_conformers": len(conformers),
-            "bright_conformers_count": len(bright_conformers),
-            "dark_conformers_count": len(dark_conformers),
-            "rejection_reasons": rejection_reasons,
-            "conformer_evaluation_temperature_k": conformer_eval_temp_k,
+            "bright_conformers_count": 0,
+            "retained_conformers_count": len(retained),
+            "unclassified_conformers_count": len(pending),
+            "dark_conformers_count": len(dark),
+            "dark_conformers": dark,
+            "rejection_reasons": {FilterRejectionReason.NON_POLAR_CONFORMER.value: len(dark)} if dark else {},
+            "conformer_evaluation_temperature_k": None,
+            "configured_rotational_temperature_k": self.config.rotational_temperature_k,
+            "population_unavailable_reason": reason,
             "elapsed_seconds": time.perf_counter() - start_time,
         }
-        return bright_conformers, summary
+        return retained, summary
 
     # -------------------------------------------------------------------------
     # Internal Helpers

@@ -22,7 +22,7 @@ def test_former_heuristic_cannot_claim_a_point_group(formula):
         _geometric_fallback_point_group(atoms.positions, symbols, masses)
     # The optional backend has no role in the independent COM mathematics.
     np.testing.assert_allclose(compute_center_of_mass(atoms.positions, masses=masses),
-                               np.average(atoms.positions, axis=0, weights=masses))
+                               np.average(atoms.positions, axis=0, weights=masses), atol=np.finfo(np.float64).eps)
 
 
 @pytest.mark.parametrize("formula,point_group,sigma,centrosymmetric", [

@@ -233,6 +233,8 @@ class ChemicalSystemResult(BaseModel):
     unique_conformer_count: int
     dual_graph: DualGraphResult
     unique_conformer_names: List[str]
+    conformer_pool_sieve: Dict[str, Any] = Field(default_factory=dict)
+    qualification: str = "Retained structure observations; validated distinct minima require measured common-context energies and minimum evidence"
 
 
 # ==============================================================================
@@ -773,10 +775,11 @@ class HungarianKabschAligner:
 # ==============================================================================
 
 class JiggleQuenchDeduplicator:
-    """Performs Jiggle-Quench conformer deduplication and clustering.
-    
-    Perturbs candidate geometries by normal/random Cartesian displacements
-    (e.g., 0.05 A) and sifts redundant minima using Hungarian Kabsch RMSD sieving.
+    """Geometric clustering helper; it does not establish equivalent QM minima.
+
+    The directory ingestion API uses the source-bound canonical pool sieve.
+    This standalone coordinate API supplies no producer/state certificate and
+    must not be presented as an energy-qualified conformer search result.
     """
 
     def __init__(
@@ -928,7 +931,7 @@ class Stage2Ingestor:
         return molecules
 
     def process_directory(self, input_dir: Union[str, Path]) -> List[ChemicalSystemResult]:
-        """Scans directory, ingests coordinates, groups by formula, and executes deduplication."""
+        """Ingest all original records and preserve the canonical pool sieve lineage."""
         in_p = Path(input_dir)
         if not in_p.exists() or not in_p.is_dir():
             logger.error(f"Input path {input_dir} is not a valid directory.")
@@ -975,30 +978,31 @@ class Stage2Ingestor:
         system_results: List[ChemicalSystemResult] = []
 
         for (formula, _, _, _), mol_list in formula_groups.items():
-            coords_list = [m["coords"] for m in mol_list]
-            symbols_list = [m["symbols"] for m in mol_list]
+            from cochem_base.intake.conformer_engine import sieve_ingested_records
+            records = [dict(m, coords=np.asarray(m["coords"]).tolist(), source_filename=m.get("source_file"))
+                       for m in mol_list]
+            pool_sieve = sieve_ingested_records(records)
             names_list = [f"{m.get('source_file', 'geometry')}#{m.get('record_index', i) + 1}"
                           for i, m in enumerate(mol_list)]
-
-            # Deduplicate conformers
-            cluster_res = self.deduplicator.deduplicate(
-                conformers=coords_list,
-                symbols=symbols_list,
-                names=names_list,
-            )
+            member_names = dict(zip(pool_sieve["member_ids"], names_list, strict=True))
+            retained_ids = {row["conformer_id"] for row in pool_sieve["decisions"]
+                            if row["disposition"] in {"retained", "unranked-energy"}}
+            selected_names = [member_names[member_id] for member_id in pool_sieve["member_ids"]
+                              if member_id in retained_ids]
 
             # Build representative dual graph
-            rep_coords = coords_list[cluster_res.unique_indices[0]]
-            dual_graph = self.graph_builder.build_dual_graph(rep_coords, symbols_list[cluster_res.unique_indices[0]])
+            representative = pool_sieve["unique_records"][0]
+            dual_graph = self.graph_builder.build_dual_graph(np.asarray(representative["coords"]), representative["symbols"])
 
             system_results.append(
                 ChemicalSystemResult(
                     system_name=f"System_{formula}",
                     formula=formula,
-                    total_input_conformers=cluster_res.total_input_conformers,
-                    unique_conformer_count=cluster_res.unique_conformer_count,
+                    total_input_conformers=pool_sieve["count"],
+                    unique_conformer_count=pool_sieve["unique_count"],
                     dual_graph=dual_graph,
-                    unique_conformer_names=cluster_res.representative_names,
+                    unique_conformer_names=selected_names,
+                    conformer_pool_sieve=pool_sieve,
                 )
             )
 

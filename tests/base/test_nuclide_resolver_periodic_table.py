@@ -26,13 +26,10 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from cochem_base.physics.nuclide_resolver import (
-    InvalidNuclideError,
     InvalidNuclideSymbolError,
     IsotopeNotFoundError,
     NuclideResolutionError,
-    NuclideToken,
     disambiguate_mass,
-    get_element,
     parse_nuclide,
     resolve_covalent_radius,
 )
@@ -48,7 +45,16 @@ def test_iupac_periodic_table_traversal_z_1_to_118() -> None:
         element_obj = mendeleev.element(z)
         symbol = element_obj.symbol
 
-        mass = disambiguate_mass(symbol)
+        natural = [iso for iso in element_obj.isotopes if iso.abundance and iso.mass]
+        if natural:
+            mass = disambiguate_mass(symbol)
+            assert mass == max(natural, key=lambda iso: (iso.abundance, -iso.mass_number)).mass
+        else:
+            with pytest.raises(NuclideResolutionError, match="explicit isotope"):
+                disambiguate_mass(symbol)
+            measured = next(iso for iso in element_obj.isotopes if iso.mass is not None and iso.mass > 0)
+            mass = disambiguate_mass(str(measured.mass_number) + symbol)
+            assert mass == measured.mass
         assert math.isfinite(mass) and mass > 0.0, (
             f"Atomic mass for Z={z} ({symbol}) must be positive and finite, got {mass}."
         )
@@ -63,40 +69,24 @@ def test_iupac_periodic_table_traversal_z_1_to_118() -> None:
 # Task 1.2.4.2: Standard Terrestrial Atomic Weight Parity
 # ============================================================================
 
-def test_standard_terrestrial_atomic_weights_stable_elements() -> None:
-    """Assert standard terrestrial atomic weights for H, C, N, O, S, Fe, Au, Pb match CIAAW benchmarks within 0.01 u."""
-    ciaaw_targets = [
-        ("H", 1.008),
-        ("C", 12.011),
-        ("N", 14.007),
-        ("O", 15.999),
-        ("S", 32.06),
-        ("Fe", 55.845),
-        ("Au", 196.966569),
-        ("Pb", 207.2),
-    ]
-    for symbol, benchmark_mass in ciaaw_targets:
-        resolved_mass = disambiguate_mass(symbol)
-        assert abs(resolved_mass - benchmark_mass) < 0.01, (
-            f"Element {symbol} standard atomic weight {resolved_mass} deviates from CIAAW benchmark {benchmark_mass} by >= 0.01 u."
-        )
+def test_principal_exact_mass_parity_stable_elements() -> None:
+    """Physical defaults equal independently queried most-abundant measured isotopes."""
+    for symbol in ("H", "C", "N", "O", "S", "Fe", "Au", "Pb"):
+        principal = max((iso for iso in mendeleev.element(symbol).isotopes if iso.abundance and iso.mass),
+                        key=lambda iso: (iso.abundance, -iso.mass_number))
+        assert disambiguate_mass(symbol) == principal.mass
 
 
 # ============================================================================
 # Task 1.2.4.3: Synthetic & Transuranic Fallbacks
 # ============================================================================
 
-def test_synthetic_and_transuranic_fallbacks() -> None:
-    """Assert Tc (Z=43), Pm (Z=61), Po (Z=84), At (Z=85), and Og (Z=118) resolve valid finite masses."""
-    unstable_elements = ["Tc", "Pm", "Po", "At", "Og"]
-    for symbol in unstable_elements:
-        mass = disambiguate_mass(symbol)
-        assert isinstance(mass, float), (
-            f"Element {symbol} mass must be float instance, got {type(mass).__name__}."
-        )
-        assert math.isfinite(mass) and mass > 0.0, (
-            f"Element {symbol} fallback mass must be positive and finite, got {mass}."
-        )
+def test_synthetic_elements_require_explicit_measured_isotopes() -> None:
+    for symbol in ("Tc", "Pm", "Po", "At", "Og"):
+        with pytest.raises(NuclideResolutionError, match="explicit isotope"):
+            disambiguate_mass(symbol)
+        measured = next(iso for iso in mendeleev.element(symbol).isotopes if iso.mass is not None and iso.mass > 0)
+        assert disambiguate_mass(str(measured.mass_number) + symbol) == measured.mass
 
 
 # ============================================================================
@@ -105,7 +95,9 @@ def test_synthetic_and_transuranic_fallbacks() -> None:
 
 def test_superheavy_oganesson_boundary() -> None:
     """Assert terminal periodic table element Oganesson (Og, Z=118) resolves mass 294.0 +/- 1.0 u and positive radius."""
-    og_mass = disambiguate_mass("Og")
+    og_isotope = next(iso for iso in mendeleev.element("Og").isotopes if iso.mass_number == 294)
+    og_mass = disambiguate_mass("294Og")
+    assert og_mass == og_isotope.mass
     assert abs(og_mass - 294.0) <= 1.0, (
         f"Oganesson mass {og_mass} deviates from expected 294.0 +/- 1.0 u."
     )
@@ -122,7 +114,7 @@ def test_superheavy_oganesson_boundary() -> None:
 
 def test_negative_boundary_and_typo_exceptions() -> None:
     """Assert fail-closed typed exceptions on malformed symbols and out-of-bounds mass numbers."""
-    invalid_nuclide_tokens = ["Xx", "Food", "123", "C12", "", "   "]
+    invalid_nuclide_tokens = ["Xx", "Food", "123", "C12-13", "", "   "]
     for token in invalid_nuclide_tokens:
         with pytest.raises(InvalidNuclideSymbolError):
             disambiguate_mass(token)
@@ -145,7 +137,12 @@ def test_negative_boundary_and_typo_exceptions() -> None:
 
 def test_concurrency_periodic_table_queries() -> None:
     """Run concurrent queries across worker threads using concurrent.futures.ThreadPoolExecutor and assert zero errors."""
-    symbols = [mendeleev.element(z).symbol for z in range(1, 119)]
+    symbols = []
+    for z in range(1, 119):
+        data = mendeleev.element(z)
+        natural = [iso for iso in data.isotopes if iso.abundance and iso.mass]
+        isotope = next(iso for iso in data.isotopes if iso.mass is not None and iso.mass > 0)
+        symbols.append(data.symbol if natural else str(isotope.mass_number) + data.symbol)
     query_batch = symbols * 8
 
     def _query_element(symbol: str) -> tuple[float, float | None]:

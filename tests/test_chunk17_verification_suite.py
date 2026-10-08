@@ -137,7 +137,7 @@ def test_vr01_eckart_frame_alignment_and_proper_rotation():
     displaced_h2o = (H2O_COORDS @ R_z.T) + np.array([12.5, -4.2, 8.1])
 
     # Authentic Kahan compensated center of mass translation zeroing via translate_to_center_of_mass
-    masses = [get_atomic_mass(s) for s in H2O_SYMBOLS]
+    masses = [get_isotope_mass(s) for s in H2O_SYMBOLS]
     centered, shift_vec = translate_to_center_of_mass(displaced_h2o, symbols=H2O_SYMBOLS)
     com_residual = np.linalg.norm(np.sum(np.array(masses)[:, None] * centered, axis=0))
     assert com_residual < 1.0e-12, f"COM residual {com_residual:.2e} >= 1.0e-12 a.u."

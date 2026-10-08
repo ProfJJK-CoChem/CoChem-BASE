@@ -53,71 +53,69 @@ import abc
 import copy
 import dataclasses
 import math
-import os
-from pathlib import Path
 from typing import (
     Any,
-    Callable,
     Dict,
     List,
     Literal,
     Optional,
-    Sequence,
     Tuple,
     Union,
 )
 
-import mendeleev
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from cochem_geom.data.pyg_schema import ConformerData
+from scipy.constants import elementary_charge as _elementary_charge
+from cochem_base.core import cochem_constants as _physical_constants
+from cochem_base.core.mendeleev_invariants import get_element as _get_element
+from cochem_base.physics.isotopes import get_isotope_mass
 
 
 # ==============================================================================
-# 1. Fundamental Physical Constants & Provenance Declarations (CODATA 2018/2022)
+# 1. Fundamental Physical Constants & Provenance Declarations (shared CODATA 2022)
 # ==============================================================================
 
-SPEED_OF_LIGHT_M_S: float = 299792458.0
+SPEED_OF_LIGHT_M_S: float = _physical_constants.SPEED_OF_LIGHT_M_S
 """Speed of light in vacuum in meters per second (exact) [M]."""
 
-PLANCK_CONSTANT_J_S: float = 6.62607015e-34
+PLANCK_CONSTANT_J_S: float = _physical_constants.PLANCK_CONSTANT_J_S
 """Planck constant in Joule seconds (exact) [M]."""
 
-BOLTZMANN_CONSTANT_J_K: float = 1.380649e-23
+BOLTZMANN_CONSTANT_J_K: float = _physical_constants.BOLTZMANN_CONSTANT_J_K
 """Boltzmann constant in Joules per Kelvin (exact) [M]."""
 
-BOLTZMANN_CONSTANT_EV_K: float = 8.617333262145e-5
+BOLTZMANN_CONSTANT_EV_K: float = BOLTZMANN_CONSTANT_J_K / _elementary_charge
 """Boltzmann constant in electron-volts per Kelvin [D]."""
 
-ELEMENTARY_CHARGE_C: float = 1.602176634e-19
+ELEMENTARY_CHARGE_C: float = _elementary_charge
 """Elementary charge in Coulombs (exact) [M]."""
 
-AVOGADRO_CONSTANT_MOL: float = 6.02214076e23
+AVOGADRO_CONSTANT_MOL: float = _physical_constants.AVOGADRO_CONSTANT
 """Avogadro constant per mole (exact) [M]."""
 
-ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27
+ATOMIC_MASS_UNIT_KG: float = _physical_constants.ATOMIC_MASS_UNIT_KG
 """Unified atomic mass unit / Dalton in kilograms [M]."""
 
-BOHR_RADIUS_ANGSTROM: float = 0.529177210903
+BOHR_RADIUS_ANGSTROM: float = _physical_constants.BOHR_TO_ANGSTROM
 """Bohr radius in Angstroms [M]."""
 
-HARTREE_TO_EV: float = 27.211386245988
+HARTREE_TO_EV: float = _physical_constants.HARTREE_TO_EV
 """Conversion factor from Hartree to electron-volts [D]."""
 
 EV_TO_HARTREE: float = 1.0 / HARTREE_TO_EV
 """Conversion factor from electron-volts to Hartree [D]."""
 
-HARTREE_TO_KCAL_MOL: float = 627.5094740631
+HARTREE_TO_KCAL_MOL: float = _physical_constants.HARTREE_TO_KCAL_MOL
 """Conversion factor from Hartree to kcal/mol [D]."""
 
-KCAL_MOL_TO_EV: float = 0.0433641
+KCAL_MOL_TO_EV: float = HARTREE_TO_EV / HARTREE_TO_KCAL_MOL
 """Conversion factor from kcal/mol to electron-volts [D]."""
 
-ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ: float = 505379.0087
+ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ: float = _physical_constants.C_ROT_MHZ_U_ANG2
 """Conversion factor from inverse moment of inertia (u*Angstrom^2)^(-1) to MHz [D]."""
 
 STANDARD_TEMPERATURE_K: float = 298.15
@@ -143,84 +141,17 @@ DEFAULT_NUM_LAYERS: int = 4
 # 2. Dynamic Mendeleev Library Atomic Mass Queries (Zero-Mock Mandate)
 # ==============================================================================
 
-_DYNAMIC_MASS_CACHE: Dict[str, float] = {}
-_DYNAMIC_MONO_MASS_CACHE: Dict[str, float] = {}
-
-
 def resolve_dynamic_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically query standard atomic weight from mendeleev library [M].
-
-    Hardcoded atomic weight tables are strictly forbidden by architectural mandate.
-
-    Parameters
-    ----------
-    symbol_or_z : Union[str, int]
-        Chemical element symbol (e.g., 'C', 'O') or atomic number Z (e.g., 6, 8).
-
-    Returns
-    -------
-    float
-        Standard atomic mass in Daltons (unified atomic mass units).
-    """
-    key = str(symbol_or_z).strip().capitalize()
-    if key in _DYNAMIC_MASS_CACHE:
-        return _DYNAMIC_MASS_CACHE[key]
-
-    elem = mendeleev.element(symbol_or_z)
-    weight = elem.atomic_weight
-    if weight is not None:
-        mass_val = float(weight)
-    elif elem.isotopes:
-        most_abundant = max(
-            elem.isotopes,
-            key=lambda iso: (iso.abundance if iso.abundance is not None else 0.0),
-        )
-        if most_abundant.mass is not None:
-            mass_val = float(most_abundant.mass)
-        elif most_abundant.mass_number is not None:
-            mass_val = float(most_abundant.mass_number)
-        else:
-            mass_val = float(elem.mass) if elem.mass is not None else 1.0
-    elif elem.mass is not None:
-        mass_val = float(elem.mass)
-    else:
-        raise ValueError(f"Standard atomic mass not found for element '{symbol_or_z}'")
-
-    _DYNAMIC_MASS_CACHE[key] = mass_val
-    return mass_val
+    """Resolve assigned or principal measured nuclear mass through Mendeleev."""
+    if isinstance(symbol_or_z, bool):
+        raise ValueError("Atomic number must be an integer, not a boolean")
+    symbol = _get_element(symbol_or_z).symbol if isinstance(symbol_or_z, int) else symbol_or_z
+    return get_isotope_mass(symbol)
 
 
 def resolve_dynamic_monoisotopic_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically query exact mass of most abundant natural isotope from mendeleev [M].
-
-    Parameters
-    ----------
-    symbol_or_z : Union[str, int]
-        Chemical element symbol or atomic number Z.
-
-    Returns
-    -------
-    float
-        Monoisotopic mass in Daltons.
-    """
-    key = str(symbol_or_z).strip().capitalize()
-    if key in _DYNAMIC_MONO_MASS_CACHE:
-        return _DYNAMIC_MONO_MASS_CACHE[key]
-
-    elem = mendeleev.element(symbol_or_z)
-    if elem.isotopes:
-        most_abundant = max(
-            elem.isotopes,
-            key=lambda iso: (iso.abundance if iso.abundance is not None else 0.0),
-        )
-        if most_abundant.mass is not None:
-            mass_val = float(most_abundant.mass)
-            _DYNAMIC_MONO_MASS_CACHE[key] = mass_val
-            return mass_val
-
-    mass_val = resolve_dynamic_mass(symbol_or_z)
-    _DYNAMIC_MONO_MASS_CACHE[key] = mass_val
-    return mass_val
+    """Resolve assigned or principal measured nuclear mass without fallbacks."""
+    return resolve_dynamic_mass(symbol_or_z)
 
 
 def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:
@@ -234,7 +165,7 @@ def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:
     Returns
     -------
     torch.Tensor
-        1D tensor of standard atomic masses in Daltons of shape [N] (float32).
+        1D tensor of principal nuclear mass features in Daltons of shape [N] (float32).
     """
     z_list = atomic_numbers.detach().cpu().view(-1).tolist()
     mass_list = [resolve_dynamic_mass(int(z)) for z in z_list]

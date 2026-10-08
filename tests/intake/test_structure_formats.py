@@ -11,6 +11,7 @@ from rdkit import Chem
 
 from cochem_base.core.cochem_constants import BOHR_TO_ANGSTROM
 from cochem_base.intake import ingest_file, ingest_records, scan_batch_directory
+from cochem_base.intake import get_element_data
 from cochem_base.intake.cochem_stage2_ingestor import Stage2Ingestor
 from cochem_base.intake.structure_formats import parse_structure_text
 from cochem_base.physics.isotopes import get_isotope_mass
@@ -89,6 +90,14 @@ def test_pdb_all_models_atom_order_and_explicit_elements():
     np.testing.assert_allclose(records[0]["coords"], _water()[1], atol=0.000501)
 
 
+@pytest.mark.parametrize("outside_position", ["before", "after"])
+def test_pdb_explicit_models_reject_unmodelled_native_atoms(outside_position):
+    model = "MODEL        1\n" + _pdb() + "ENDMDL\n"
+    text = _pdb() + model if outside_position == "before" else model + _pdb()
+    with pytest.raises(ValueError, match="inside MODEL/ENDMDL"):
+        parse_structure_text(text, "pdb")
+
+
 @pytest.mark.parametrize("defect", ["alternate", "occupancy", "missing_element", "unterminated"])
 def test_pdb_rejects_ambiguous_or_incomplete_structure(defect):
     lines = _pdb().splitlines()
@@ -131,6 +140,22 @@ def test_qcschema_units_isotopes_state_and_order(version):
     assert record["symbols"] == ["18O", "2H", "2H"]
     assert record["source_coordinates_unit"] == "bohr"
     assert record["charge"] == 0 and record["multiplicity"] == 1
+    np.testing.assert_allclose(record["coords"], _water()[1], atol=1e-14)
+
+
+@pytest.mark.parametrize("metadata", [{"schema_name": "arbitrary_invalid_schema"},
+                                     {"schema_version": 999}, {"schema_version": True}])
+def test_nested_qcschema_metadata_cannot_be_overwritten_to_valid(metadata):
+    data = _schema(1)
+    data["molecule"].update(metadata)
+    with pytest.raises(ValueError, match="Nested QCSchema molecule"):
+        parse_structure_text(json.dumps(data), "qcschema")
+
+
+def test_nested_qcschema_explicit_molecule_identity_is_supported():
+    data = _schema(1)
+    data["molecule"].update(schema_name="qcschema_molecule", schema_version=2)
+    record = parse_structure_text(json.dumps(data), "qcschema")[0]
     np.testing.assert_allclose(record["coords"], _water()[1], atol=1e-14)
 
 
@@ -236,3 +261,47 @@ def test_qcschema_retains_ghost_basis_identity_separate_from_zero_mass_centers()
 def test_multi_record_bounds_reject_whole_xyz_pool_before_acceptance():
     with pytest.raises(ValueError, match="record count"):
         parse_structure_text(WATER.read_text() * 513, "xyz")
+
+
+def test_typed_payload_and_physical_cache_cannot_be_mutated_after_ingestion(tmp_path):
+    source = tmp_path / "water.xyz"
+    source.write_bytes(WATER.read_bytes())
+    payload = ingest_file(source)
+    serialized = payload.model_dump_json()
+    with pytest.raises(TypeError):
+        payload.coordinates[0][0] = 100.0
+    with pytest.raises(TypeError):
+        payload.source_metadata["ingestion_toolchain"]["jax_dtype"] = "float32"
+    owned = payload.coordinate_array
+    owned[0, 0] += 1.0
+    assert payload.model_dump_json() == serialized
+    assert type(payload).model_validate_json(serialized).model_dump_json() == serialized
+    metadata = get_element_data("18O")
+    metadata["monoisotopic_mass"] = 0.0
+    assert get_element_data("18O")["monoisotopic_mass"] == get_isotope_mass("O", 18)
+
+
+@pytest.mark.parametrize("label", ["Gh_C", "Gh-O", "Bq_H", "X_N", "C_Gh", "Ghost-C", "O-Bq"])
+def test_named_ghost_basis_centers_survive_full_xyz_intake(label, tmp_path):
+    lines = WATER.read_text().splitlines()
+    lines[0] = str(int(lines[0]) + 1)
+    text = "\n".join(lines) + f"\n{label} 5 0 0\n"
+    source = tmp_path / "named-counterpoise.xyz"
+    source.write_text(text)
+    record = parse_structure_text(text, "xyz")[0]
+    assert record["ghost_indices"] == [3] and record["requires_counterpoise_adapter"] is True
+    assert record["atomic_numbers"][-1] == 0
+    assert record["atomic_masses_daltons"][-1] == 0.0
+    payload = ingest_file(source)
+    assert payload.M_aux[-1] == 0.0 and payload.Z_aux[-1] == 0
+    assert source.read_text() == text
+    assert record["symbols"][-1].startswith("Gh_")
+
+
+@pytest.mark.parametrize("label", ["13-C", "C_13", "13_C"])
+def test_task1_normalized_isotope_spellings_retain_measured_mass(label):
+    record = parse_structure_text(f"2\nTask1 isotope normalization\n{label} 0 0 0\nH 0 0 1.1\n", "xyz")[0]
+    assert record["symbols"][0] == "13C"
+    assert record["mass_numbers"][0] == 13
+    from cochem_base.physics.isotopes import get_isotope_mass
+    assert record["atomic_masses_daltons"][0] == get_isotope_mass("C", 13)

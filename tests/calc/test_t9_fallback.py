@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import hashlib
 import os
 from pathlib import Path
 import sys
@@ -33,17 +32,17 @@ def require_pyscf() -> None:
 
 @pytest.fixture
 def audited_pyscf_registry(tmp_path: Path):
-    from cochem_base.cochem_core_registry_schema import CoChemSystemConfig, EngineInfo
-
+    from cochem_base.config_loader import resolve_config_path
+    from cochem_base.core_engine.execution_authority import authorize_engine_execution
     interpreter = config().python_executable
     if interpreter.is_file():
-        registry = CoChemSystemConfig.create_default(auto_detect_hardware=True)
-        registry.engines["pyscf"] = EngineInfo(status="found", path=str(interpreter),
-                                           hash=hashlib.sha256(interpreter.read_bytes()).hexdigest(), version="2.14.0").model_dump()
-        registry.hardware.maxcore_mb = 2048
-        registry.update_checksum()
+        # Reuse the actual eleven-phase authority on this machine. An executable
+        # hash alone cannot establish the isolated interpreter's package contract.
+        source = resolve_config_path(os.environ.get("COCHEM_ACCEPTANCE_REGISTRY"))
+        authorize_engine_execution("pyscf", registry_path=source, executable=interpreter,
+                                   cores=1, maxcore_mb=1024)
         path = tmp_path / "golden_registry.json"
-        path.write_text(registry.model_dump_json())
+        path.write_bytes(source.read_bytes())
         return path
 
 

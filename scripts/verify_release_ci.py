@@ -24,6 +24,11 @@ HOSTED_TESTS = (
     "tests/base/test_native_crash_provenance.py",
     "tests/base/test_python_hook_swmr.py",
     "tests/base/test_gradient_telemetry.py",
+    "tests/base/test_scientific_swmr_lifecycle.py",
+    "tests/base/test_micro_silo_import_boundaries.py",
+    "tests/base/test_native_free_engine_locks.py",
+    "tests/base/test_free_engine_setup_recovery.py",
+    "tests/test_bootstrap_environment.py",
     "tests/base/test_chain_integrity.py",
     "tests/calc/test_nuclide_ingress_handoff.py",
     "tests/ui/test_optional_licensed_engines.py",
@@ -31,6 +36,7 @@ HOSTED_TESTS = (
     "tests/base/test_cfour_provisioning.py",
     "tests/base/test_context_compression_contract.py",
     "tests/base/test_scribe_missing_observations.py",
+    "tests/base/test_dark_branch_measured_admission.py",
     "tests/base/test_srs_runtime_foundations.py::test_crash_tail_preserves_exact_physical_stderr",
     "tests/base/test_srs_runtime_foundations.py::test_canonical_broker_persists_exact_crash_provenance",
     "tests/base/test_srs_runtime_foundations.py::test_optional_git_failure_preserves_real_broker_crash",
@@ -41,17 +47,38 @@ HOSTED_TESTS = (
     "tests/base/test_cli_memory_budget.py",
     "tests/base/test_stage0_authority_completion.py",
     "tests/base/test_module_handoff_contract.py",
+    "tests/base/test_legacy_scientific_retirement.py",
+    "tests/base/test_physical_mass_consumers.py",
+    "tests/base/test_principal_mass_normalization.py",
+    "tests/base/test_aligned_geometry_immutability.py",
+    "tests/base/test_shared_physical_conversions.py",
+    "tests/base/test_measured_scientific_admission.py",
+    "tests/base/test_requested_worker_model_contract.py",
+    "tests/torq/test_native_quench_broker.py",
+    "tests/base/test_topology_scientific_admission.py",
+    "tests/base/test_legacy_measured_data_admission.py",
+    "tests/torq/test_retired_legacy_potential_admission.py",
     "tests/base/test_module_installer.py",
     "tests/base/test_module_execution.py",
     "tests/base/test_module_adapter_topos.py",
     "tests/base/test_module_adapter_torq.py",
     "tests/base/test_student_actions_contract.py",
+    "tests/base/test_student_hpc_contract.py",
     "tests/base/test_student_setup.py",
     "tests/base/test_student_research_contract.py",
     "tests/base/test_student_reports.py",
     "tests/base/test_scientific_inputs.py",
+    "tests/base/test_student_ingestion.py",
+    "tests/base/test_student_data_inputs.py",
     "tests/calc/test_read_hessian_frame.py",
+    "tests/intake/test_structure_formats.py",
+    "tests/base/test_ingestion_toolchain.py",
+    "tests/base/test_conformer_pool_srs.py",
+    "tests/topos/test_async_search_execution.py",
+    "tests/torq/test_goat_crest_conformer_union_pipeline.py",
     "tests/ui/test_student_entrypoint.py",
+    "tests/ui/test_scientific_input_library.py",
+    "tests/spectroscopy/test_native_property_import.py",
     "tests/base/test_ingestion_watchdog_events.py",
     "tests/base/test_trajectory_telemetry.py",
     "tests/base/test_srs_execution_authority.py",
@@ -174,6 +201,13 @@ from cochem_base import _version
 from cochem_base.core_engine.hardware_profiler import profile_hardware
 from cochem_base.calc.calculation_service import CalculationMatrixConfig
 from cochem_base.core_engine import cfour_runtime
+from cochem_base.intake.structure_formats import parse_structure_text
+from cochem_base.intake import ingest_file
+from cochem_base.validators.preflight import validate_ingestion_toolchain
+import asyncio, h5py, numpy as np
+import cochem
+import cochem.runners.async_process_runner as installed_runner
+from cochem.runners.async_process_runner import AsyncProcessRunner
 expected_version = sys.argv[2]
 assert importlib.metadata.version('CoChem-BASE') == expected_version
 installation = Path(sys.prefix).resolve()
@@ -181,8 +215,36 @@ package_roots = [Path(path).resolve() for path in cochem_base.__path__]
 assert package_roots and all(path.is_relative_to(installation) for path in package_roots)
 assert Path(_version.__file__).resolve().is_relative_to(installation)
 assert Path(cfour_runtime.__file__).resolve().is_relative_to(installation)
+assert Path(installed_runner.__file__).resolve().is_relative_to(installation)
+assert all(Path(path).resolve().is_relative_to(installation) for path in cochem.__path__)
 hardware = profile_hardware()
 root = Path(sys.argv[1])
+source_xyz = root / 'reviewed-source/tests/data/orca_6_1_1_water_hf_sto3g/water.xyz'
+original_bytes = source_xyz.read_bytes()
+# A genuine installed child completion supplies process timing, not a fabricated
+# quantum energy. This also verifies the installed HPC/runner import graph.
+with AsyncProcessRunner(root / 'reviewed-source', root / 'runner-artifacts', root / 'runner-scratch') as runner:
+    diagnostic = asyncio.run(runner.dispatch_task('installed-diagnostic',
+        [sys.executable, '-I', '-c', "print('installed process diagnostics')"], cleanup_on_completion=False))
+    assert diagnostic['exit_code'] == 0 and diagnostic['stdout'].strip() == 'installed process diagnostics'
+    with h5py.File(diagnostic['telemetry_file'], 'r', swmr=True) as stream:
+        assert np.isnan(stream['telemetry/energy'][0])
+        assert not bool(stream['telemetry/energy_available'][0])
+(root / 'installed-runner.json').write_text(json.dumps({
+    'module': str(Path(installed_runner.__file__).resolve()), 'process_executed': True,
+    'measured_quantum_energy': None, 'scope': 'Genuine diagnostic process, no chemistry execution'}))
+source_record = parse_structure_text(original_bytes.decode('utf-8'), 'xyz')[0]
+payload = ingest_file(source_xyz)
+assert payload.total_atoms == 3 and source_record['atomic_numbers'] == [8, 1, 1]
+assert source_xyz.read_bytes() == original_bytes
+toolchain = validate_ingestion_toolchain()
+assert toolchain.jax_dtype == 'float64' and toolchain.dynamic_mass_verified
+(root / 'installed-ingestion.json').write_text(json.dumps({
+    'format': 'xyz', 'records': 1, 'atoms': payload.total_atoms,
+    'source_sha256': payload.sha256_hash, 'source_unchanged': True,
+    'jax_version': toolchain.jax_version, 'jax_dtype': toolchain.jax_dtype,
+    'mendeleev_version': toolchain.mendeleev_version,
+    'scope': 'Fresh installed-wheel ingestion and live numerical/database preflight; no chemistry calculation'}))
 (root / 'hardware.json').write_text(json.dumps({'hardware': {
     'physical_cpu_cores': min(hardware.physical_cores, len(hardware.available_cpu_ids)),
     'ram_mb': hardware.available_ram_bytes // (1024 * 1024)}}))

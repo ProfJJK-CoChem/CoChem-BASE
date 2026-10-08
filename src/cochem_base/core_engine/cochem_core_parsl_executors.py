@@ -80,6 +80,7 @@ from typing import (
 import numpy as np
 import psutil
 import scipy.stats
+from cochem_base.physics.isotopes import get_isotope_mass
 from mendeleev import element
 from pydantic import (
     BaseModel,
@@ -148,6 +149,10 @@ _WORKER_CALCULATOR_LOCK = threading.Lock()
 _WORKER_CUDA_STREAMS: dict[str, Any] = {}
 
 
+class RequestedModelUnavailableError(RuntimeError):
+    """The selected scientific model cannot be loaded; no other potential may replace it."""
+
+
 def get_cached_mlff_calculator(
     model_name: str,
     model_path: Optional[Union[str, Path]] = None,
@@ -182,30 +187,29 @@ def get_cached_mlff_calculator(
             except Exception as stream_err:
                 logger.debug(f"CUDA stream initialization deferred/unavailable: {stream_err}")
 
-        # Model instantiation with zero-mock physical fallback
+        # A different potential is not a scientifically equivalent fallback.
         m_lower = model_name.lower().replace("-", "_")
         if "mace" in m_lower:
             try:
                 from mace.calculators import mace_off
                 calc = mace_off(model="medium" if model_path is None else str(model_path), device=device)
             except Exception as e:
-                logger.info(f"MACE-OFF not importable ({e}); initializing physical ASE EMT fallback.")
-                from ase.calculators.emt import EMT
-                calc = EMT()
+                raise RequestedModelUnavailableError(
+                    f"Requested MACE model {model_name!r} could not be loaded: {e}"
+                ) from e
         elif "aimnet" in m_lower:
             try:
                 from aimnet2calc import AIMNet2ASE
                 calc = AIMNet2ASE(model="aimnet2" if model_path is None else str(model_path))
             except Exception as e:
-                logger.info(f"AIMNet2 not importable ({e}); initializing physical ASE EMT fallback.")
-                from ase.calculators.emt import EMT
-                calc = EMT()
-        elif "emt" in m_lower:
+                raise RequestedModelUnavailableError(
+                    f"Requested AIMNet2 model {model_name!r} could not be loaded: {e}"
+                ) from e
+        elif m_lower == "emt":
             from ase.calculators.emt import EMT
             calc = EMT()
         else:
-            from ase.calculators.emt import EMT
-            calc = EMT()
+            raise RequestedModelUnavailableError(f"Unsupported requested scientific model {model_name!r}")
 
         if stream is not None and calc is not None:
             calc._cuda_stream = stream
@@ -848,13 +852,15 @@ class WorkerModelCache:
     @classmethod
     def _load_model(cls, model_name: str, weights_path: Path, device: str) -> Any:
         path = Path(weights_path).resolve()
-        loaded_instance = None
-        if path.exists():
-            try:
-                import torch
-                loaded_instance = torch.load(path, map_location=device, weights_only=False)
-            except Exception:
-                pass
+        if not path.is_file():
+            raise RequestedModelUnavailableError(f"Requested model checkpoint is absent: {path}")
+        try:
+            import torch
+            loaded_instance = torch.load(path, map_location=device, weights_only=False)
+        except Exception as exc:
+            raise RequestedModelUnavailableError(f"Requested model checkpoint could not be loaded: {path}: {exc}") from exc
+        if not callable(loaded_instance):
+            raise RequestedModelUnavailableError(f"Requested checkpoint does not contain an executable model: {path}")
         return ResidentModel(
             model_name=model_name,
             weights_path=path,
@@ -1309,7 +1315,7 @@ def compute_molecular_center_of_mass(
     Compute 3D center of mass dynamically using Mendeleev atomic masses.
     Enforces Mendeleev Library Mandate (Rule 1 & 2).
     """
-    masses = np.array([element(sym.strip()).mass for sym in atomic_symbols], dtype=np.float64)
+    masses = np.array([get_isotope_mass(sym) for sym in atomic_symbols], dtype=np.float64)
     total_mass = np.sum(masses)
     if total_mass <= 0.0:
         raise ValueError("Total molecular mass must be greater than zero.")

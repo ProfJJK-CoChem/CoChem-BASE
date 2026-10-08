@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import math
 import os
 import pathlib
 from typing import Any
@@ -167,10 +168,7 @@ class PayloadBuilder:
                     engines_list.append(f"{eng_name.upper()}")
 
         if not engines_list:
-            engines_summary = (
-                "ORCA 6.1.1 for electronic structure, "
-                "MACE-OFF23 for initial conformer routing"
-            )
+            engines_summary = "[MISSING DATA: engine identity and version were not supplied]"
         else:
             engines_summary = ", ".join(engines_list)
 
@@ -219,12 +217,14 @@ class PayloadBuilder:
             return
 
         def _get_rel_energy(c: dict[str, Any]) -> float:
-            return float(
-                c.get(
-                    "relative_energy_kcal_mol",
-                    c.get("relative_energy", c.get("energy_kcal_mol", 0.0)),
-                )
-            )
+            value = c.get("relative_energy_kcal_mol", c.get("relative_energy"))
+            if isinstance(value, bool) or value is None:
+                return float("inf")  # Ordering only; never serialized as a physical quantity.
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                return float("inf")
+            return numeric if math.isfinite(numeric) else float("inf")
 
         sorted_confs = sorted(confs, key=_get_rel_energy)
         pruned_confs: list[dict[str, Any]] = []
@@ -486,15 +486,16 @@ class PayloadBuilder:
         conf_lines: list[str] = []
         for c in confs:
             cid = c.get("conformer_id", "N/A")
-            rele = float(
-                c.get(
-                    "relative_energy_kcal_mol", c.get("relative_energy", 0.0)
-                )
-            )
-            sym = str(c.get("point_group_symmetry", "C1"))
+            recorded = c.get("relative_energy_kcal_mol", c.get("relative_energy"))
+            try:
+                numeric = float(recorded) if recorded is not None and not isinstance(recorded, bool) else float("nan")
+            except (ValueError, TypeError):
+                numeric = float("nan")
+            rele = f"{numeric:.3f} kcal/mol" if math.isfinite(numeric) else "[MISSING DATA]"
+            sym = str(c.get("point_group_symmetry", "[MISSING DATA]"))
             dip = c.get("dipole_moment_debye", "N/A")
             conf_lines.append(
-                f"- Conformer {cid}: Delta E = {rele:.3f} kcal/mol, "
+                f"- Conformer {cid}: Delta E = {rele}, "
                 f"Point Group = {sym}, Dipole = {dip} D"
             )
 

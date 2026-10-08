@@ -8,10 +8,10 @@ import math
 import pathlib
 from typing import Dict, List, Optional, Protocol, Tuple, Union, runtime_checkable
 
-from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from cochem.core.mendeleev_invariants import MendeleevInvariantError
+from cochem.core import cochem_constants as _physical_constants
 
 
 class QCValidationError(ValueError):
@@ -40,12 +40,12 @@ class SpinContaminationError(QCValidationError):
 
 
 # ==============================================================================
-# Frozen CODATA 2022 Physical Conversion Constants
+# Shared CODATA 2022 Physical Conversion Constants
 # ==============================================================================
-BOHR_TO_ANGSTROM: float = 0.529177210903
-ANGSTROM_TO_BOHR: float = 1.0 / 0.529177210903
-HARTREE_TO_KCAL_MOL: float = 627.5094740631
-HARTREE_TO_WAVENUMBER: float = 219474.63136320
+BOHR_TO_ANGSTROM: float = _physical_constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_BOHR: float = _physical_constants.ANGSTROM_TO_BOHR
+HARTREE_TO_KCAL_MOL: float = _physical_constants.HARTREE_TO_KCAL_MOL
+HARTREE_TO_WAVENUMBER: float = _physical_constants.HARTREE_TO_CM_INV
 
 
 # ==============================================================================
@@ -135,45 +135,19 @@ class MolecularStructureData(BaseModel):
         if iso_list is not None and len(iso_list) != n_atoms:
             raise ValueError(f"Mismatch: {n_atoms} symbols but {len(iso_list)} isotopic mass numbers provided.")
 
-        if user_masses is not None and isinstance(user_masses, list) and len(user_masses) == n_atoms:
-            for m in user_masses:
-                val = float(m)
-                if val <= 0.0 or math.isnan(val) or math.isinf(val):
-                    raise MendeleevInvariantError(f"Invalid positive atomic mass: {val}")
-                resolved_masses.append(val)
-        else:
-            for idx, sym in enumerate(syms):
-                clean_sym = str(sym).strip().capitalize()
-                try:
-                    elem = element(clean_sym)
-                except Exception as exc:
-                    raise MendeleevInvariantError(
-                        f"Dynamic element resolution failed for symbol '{clean_sym}': {exc}"
-                    ) from exc
-                target_iso = iso_list[idx] if iso_list is not None else None
-
-                if target_iso is not None:
-                    matched_mass: Optional[float] = None
-                    for iso in elem.isotopes:
-                        if iso.mass_number == target_iso and iso.mass is not None:
-                            matched_mass = float(iso.mass)
-                            break
-                    if matched_mass is not None:
-                        resolved_masses.append(matched_mass)
-                    else:
-                        weight = elem.atomic_weight or float(target_iso)
-                        resolved_masses.append(float(weight))
-                else:
-                    if elem.atomic_weight is not None and float(elem.atomic_weight) > 0.0:
-                        resolved_masses.append(float(elem.atomic_weight))
-                    elif elem.mass_number is not None and float(elem.mass_number) > 0.0:
-                        resolved_masses.append(float(elem.mass_number))
-                    else:
-                        raise MendeleevInvariantError(
-                            f"Element '{clean_sym}' lacks a standard atomic weight and default mass number in dynamic "
-                            "Mendeleev/IUPAC tables. A physical isotopic mass number must be explicitly specified in "
-                            "'isotopes' (e.g., isotopes=[252, ...]) or 'masses'."
-                        )
+        from cochem_base.physics.isotopes import get_isotope_mass
+        for idx, sym in enumerate(syms):
+            target_iso = iso_list[idx] if iso_list is not None else None
+            try:
+                resolved_masses.append(get_isotope_mass(str(sym).strip(), target_iso))
+            except ValueError as error:
+                raise MendeleevInvariantError(str(error)) from error
+        if user_masses is not None:
+            if not isinstance(user_masses, list) or len(user_masses) != n_atoms:
+                raise MendeleevInvariantError("User masses must match the ordered nuclear assignments")
+            for supplied, resolved in zip(user_masses, resolved_masses):
+                if isinstance(supplied, bool) or not math.isclose(float(supplied), resolved, rel_tol=1e-12, abs_tol=1e-12):
+                    raise MendeleevInvariantError("User mass contradicts its dynamic isotope assignment")
 
         for m in resolved_masses:
             if m <= 0.0 or math.isnan(m) or math.isinf(m):

@@ -2,12 +2,11 @@
 
 Strictly adheres to Zero-Mock mandate and dynamic Mendeleev mass queries.
 Verifies conjugated pi-system traversal, alternating cycles, formal charge conservation,
-energy penalties, and Boltzmann weights on authentic topologies (Pyrrole, Nitrobenzene).
+valid Lewis structures without invented energies or resonance populations.
 """
 
 from __future__ import annotations
 
-import pytest
 
 from cochem.topos.graph import TopologyGraph
 from cochem.topos.resonance import (
@@ -68,7 +67,7 @@ class TestResonanceEnumeration:
     def test_pyrrole_resonance_contributors(self) -> None:
         """Run on Pyrrole (assert 5 non-bipartite resonance contributors, aromatic nitrogen participating in pi-sextet)."""
         pyrrole = build_pyrrole()
-        res = ResonanceEnumerator.enumerate(pyrrole, max_structures=50, temperature_k=298.15)
+        res = ResonanceEnumerator.enumerate(pyrrole, max_structures=50)
         assert isinstance(res, ResonanceEnsembleResult)
 
         # Assert exactly 5 non-bipartite resonance contributors
@@ -78,8 +77,8 @@ class TestResonanceEnumeration:
         # Verify Pydantic v2 contract fields
         assert len(res.kekule_structures) == 5
         assert len(res.formal_charges) == 5
-        assert len(res.weights) == 5
-        assert abs(sum(res.weights) - 1.0) < 1e-4
+        assert res.weights is None
+        assert res.population_scope == "not_applicable_to_resonance_contributors"
 
         # Check aromatic nitrogen participation in pi-sextet across all contributors
         for s in res.structures:
@@ -102,14 +101,7 @@ class TestResonanceEnumeration:
                 # Overall molecular charge conservation: sum of formal charges == 0
                 assert sum(s.formal_charges.values()) == 0
 
-        # Verify Boltzmann weights sum to 1.0 within numerical precision
-        total_weight = sum(s.boltzmann_weight for s in res.structures)
-        assert abs(total_weight - 1.0) < 1e-4
-
-        # Major contributor must have the highest Boltzmann weight
-        major = max(res.structures, key=lambda s: s.boltzmann_weight)
-        assert major.formal_charges[0] == 0
-        assert major.is_major is True
+        assert all(s.boltzmann_weight is None and s.relative_energy_kcal is None and s.is_major is None for s in res.structures)
 
     def test_nitrobenzene_resonance_contributors(self) -> None:
         """Run on Nitrobenzene (assert 3 charge-separated ortho/para quinoid contributors,
@@ -117,7 +109,7 @@ class TestResonanceEnumeration:
         or ensemble size >= 3 across canonical forms, with valid formal charges recorded).
         """
         nitro = build_nitrobenzene()
-        res = ResonanceEnumerator.enumerate(nitro, max_structures=50, temperature_k=298.15)
+        res = ResonanceEnumerator.enumerate(nitro, max_structures=50)
         assert isinstance(res, ResonanceEnsembleResult)
 
         # Ensemble size >= 3 across canonical forms

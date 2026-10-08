@@ -79,6 +79,7 @@ import scipy.linalg
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from cochem_base.core import cochem_constants as _constants
 from cochem_base.exceptions import (
     CoChemError,
     FrozenMonomerViolationError,
@@ -93,10 +94,10 @@ logger = logging.getLogger(__name__)
 # ==============================================================================
 
 # Authoritative conversion constant for rotational constants: MHz * u * Angstrom^2 (Method Matrix §4.5 / CODATA 2022)
-INERTIA_CONV_MHZ_U_ANG2: float = 505379.0084350172
+INERTIA_CONV_MHZ_U_ANG2: float = _constants.C_ROT_MHZ_U_ANG2
 
 # Hartree to kcal/mol conversion factor
-HARTREE_TO_KCAL_MOL: float = 627.509474063
+HARTREE_TO_KCAL_MOL: float = _constants.HARTREE_TO_KCAL_MOL
 
 # kcal/mol to kJ/mol conversion factor
 KCAL_TO_KJ: float = 4.184
@@ -105,8 +106,8 @@ KCAL_TO_KJ: float = 4.184
 HARTREE_TO_KJ_MOL: float = HARTREE_TO_KCAL_MOL * KCAL_TO_KJ
 
 # Bohr to Angstrom conversion factor
-BOHR_TO_ANGSTROM: float = 0.529177210903
-ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM
+BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_BOHR: float = _constants.ANGSTROM_TO_BOHR
 
 # Method Matrix §4.4 Mandatory Optimization Convergence Thresholds
 TOL_E_DEFAULT: float = 1e-7
@@ -431,45 +432,15 @@ STANDARD_TEMPLATE_PARAMETERS: Dict[str, TemplateScalingParameter] = {
 # ==============================================================================
 
 def get_dynamic_atomic_mass(symbol_or_z: Union[str, int], mass_number: Optional[int] = None) -> float:
-    """Dynamically retrieve atomic or isotopic mass via Mendeleev library.
-
-    Strictly satisfies CoChem Mendeleev Library Mandate (ZERO hardcoded masses).
-
-    Args:
-        symbol_or_z: Element symbol (e.g. 'C', 'H') or atomic number (e.g. 6, 1).
-        mass_number: Optional specific isotope mass number (e.g. 13 for 13C, 2 for D).
-
-    Returns:
-        Atomic mass in unified atomic mass units (u).
-
-    Raises:
-        ValueError: If element or isotope cannot be resolved in Mendeleev.
-    """
-    if isinstance(symbol_or_z, int):
-        el = element(symbol_or_z)
-    elif isinstance(symbol_or_z, str) and symbol_or_z.strip().isdigit():
-        el = element(int(symbol_or_z.strip()))
-    else:
-        clean_sym = str(symbol_or_z).strip()
-        if clean_sym.upper() == "D":
-            clean_sym = "H"
-            mass_number = 2
-        elif clean_sym.upper() == "T":
-            clean_sym = "H"
-            mass_number = 3
-        el = element(clean_sym)
-
-    if mass_number is not None:
-        for iso in el.isotopes:
-            if iso.mass_number == mass_number:
-                if iso.mass is not None:
-                    return float(iso.mass)
-                return float(iso.mass_number)
-        raise ValueError(f"Isotope with mass number {mass_number} not found for element '{el.symbol}'.")
-
-    if el.mass is None:
-        raise ValueError(f"Atomic mass is undefined for element '{el.symbol}' in Mendeleev.")
-    return float(el.mass)
+    """Resolve an exact assigned/principal isotope mass from dynamic Mendeleev data."""
+    from cochem_base.physics.isotopes import get_isotope_mass
+    from cochem_base.physics.nuclide_resolver import get_element
+    value = symbol_or_z
+    if isinstance(value, bool):
+        raise ValueError("A Boolean is not an atomic number")
+    if isinstance(value, int) or (isinstance(value, str) and value.strip().isdigit()):
+        value = get_element(int(value)).symbol
+    return get_isotope_mass(value, mass_number)
 
 
 # ==============================================================================
@@ -975,8 +946,7 @@ def check_frozen_residual_gradients(
 
     # 2. Net torque tau_net = sum_{i in A} (r_i - R_com) x grad_i E
     if coordinates_angstrom is not None:
-        ang2bohr = 1.8897261246257702
-        coords_bohr = np.asarray(coordinates_angstrom, dtype=np.float64)[frozen_indices] * ang2bohr
+        coords_bohr = np.asarray(coordinates_angstrom, dtype=np.float64)[frozen_indices] * ANGSTROM_TO_BOHR
 
         if masses is not None:
             m_frozen = np.asarray([masses[i] for i in frozen_indices], dtype=np.float64)
@@ -1124,8 +1094,8 @@ def decompose_counterpoise_energy(
         def_total_kcal = def_A_kcal + def_B_kcal
 
     provenance = {
-        "HARTREE_TO_KCAL_MOL": "[M] CODATA 2018 (627.509474063)",
-        "CONV_ROTATIONAL": "[M] Groner (505379.0 MHz*u*A^2)",
+        "HARTREE_TO_KCAL_MOL": "[M] Central CODATA 2022 registry",
+        "CONV_ROTATIONAL": "[D] Central Method Matrix/CODATA 2022 rotational factor",
         "CP_PROTOCOL": "[D] Boys-Bernardi 3-leg monomer-frozen scheme",
     }
 

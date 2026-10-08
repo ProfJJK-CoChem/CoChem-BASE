@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import pyarrow.parquet as pq
+from cochem_base.core.cochem_constants import C_ROT_MHZ_U_ANG2
 
 from cochem_base.exceptions import (
     CoChemIntegrityError,
@@ -36,7 +37,7 @@ from cochem_base.exceptions import (
 )
 
 # Planck constant over 8*pi^2 in amu * Angstrom^2 * MHz (CODATA 2022 canonical)
-INERTIA_CONVERSION_AMU_ANG2_MHZ = 505379.0084350172
+INERTIA_CONVERSION_AMU_ANG2_MHZ = C_ROT_MHZ_U_ANG2
 
 
 def _to_float(val: Any) -> float:

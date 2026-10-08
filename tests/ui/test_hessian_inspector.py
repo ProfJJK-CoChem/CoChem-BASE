@@ -132,10 +132,11 @@ def test_gui_does_not_claim_unconnected_backends_are_active():
     assert 'role="alert"' in gui.footer_message.value
 
 
-def test_installation_requires_real_data_and_tracks_license_choice(physical_bundle):
+def test_installation_accepts_optional_real_data_and_tracks_license_choice(physical_bundle):
     path, _ = physical_bundle
     gui = CoChemGUI()
-    assert gui.run_install_btn.disabled
+    assert not gui.run_install_btn.disabled
+    assert gui._install_input_artifact is None
     assert gui.license_mode.value == "none"
     gui.install_data_path.value = str(path)
     assert gui._validate_installation_data()
@@ -144,5 +145,7 @@ def test_installation_requires_real_data_and_tracks_license_choice(physical_bund
     gui.license_mode.value = "orca"
     assert gui.license_mode.value == "orca"
     gui.install_data_path.value = str(path.with_name("missing.npz"))
-    assert gui.run_install_btn.disabled
+    assert not gui.run_install_btn.disabled
     assert not gui._validate_installation_data()
+    assert gui._install_input_artifact is None
+    assert not gui.run_install_btn.disabled

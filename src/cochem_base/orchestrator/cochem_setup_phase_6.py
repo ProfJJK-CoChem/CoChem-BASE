@@ -514,19 +514,16 @@ def provision_archive_pes_db(
     n_atoms = len(atom_symbols)
     chunk_size = filter_profile.chunk_pts
 
-    # Dynamically resolve atomic numbers and masses using Mendeleev
-    atomic_numbers: List[int] = []
-    atomic_masses: List[float] = []
-    if _HAS_MENDELEEV:
-        for s in atom_symbols:
-            try:
-                el = _mendeleev_element(s)
-                atomic_numbers.append(int(el.atomic_number))
-                atomic_masses.append(float(el.mass))
-            except Exception as exc:
-                logger.debug("Failed to query mendeleev for element %s: %s", s, exc)
-                atomic_numbers.append(0)
-                atomic_masses.append(0.0)
+    # Identity is admitted before creating an archive; a failed query cannot
+    # manufacture zero-mass nuclei or leave a partially provisioned file.
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+    from cochem_base.physics.nuclide_resolver import get_element
+    try:
+        identity = resolve_nuclear_identity(atom_symbols, allow_ghosts=True)
+        atomic_numbers = [0 if symbol == "Gh" else int(get_element(symbol).atomic_number) for symbol in identity.elements]
+        atomic_masses = list(identity.masses_u)
+    except (ValueError, RuntimeError) as error:
+        raise DatabaseProvisioningError(f"Cannot provision an archive without valid nuclear identity: {error}") from error
 
     groups_created: List[str] = []
 
@@ -542,6 +539,7 @@ def provision_archive_pes_db(
             meta.attrs["atomic_numbers"] = atomic_numbers
         if atomic_masses:
             meta.attrs["atomic_masses"] = atomic_masses
+        meta.attrs["nuclear_identity_json"] = json.dumps(identity.metadata, sort_keys=True)
         meta.attrs["created_utc"] = datetime.now(timezone.utc).isoformat()
         meta.attrs["cochem_storage_mode"] = "FAIR_QCSchema_Archive"
         groups_created.append("/meta")

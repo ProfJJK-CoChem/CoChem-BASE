@@ -103,6 +103,19 @@ def authorize_engine_execution(
                 raise ValueError("CFOUR runtime lacks complete Stage 0 authority; repeat setup")
             if runtime["runtime_seal_sha256"] != record["runtime_seal_sha256"]:
                 raise ValueError("CFOUR runtime no longer matches its Stage 0 integrity seal")
+        if name in {"pyscf", "mace"}:
+            from cochem_base.orchestrator.micro_silo_manager import MicroSiloValidationError, verify_micro_silo
+            silo_name = "cochem_calc_silo" if name == "pyscf" else "cochem_mace_silo"
+            silo = config.stage0.micro_silos.get(silo_name) if config.stage0 is not None else None
+            if (silo is None or Path(silo.python_executable).absolute() != binary.absolute()
+                    or record.get("track") != silo_name or not silo.packages):
+                raise ValueError(f"{name.upper()} requires its complete matching Stage 0 micro-silo authority; repeat setup")
+            imports = ["pyscf", "numpy", "scipy"] if name == "pyscf" else ["mace", "torch", "numpy"]
+            try:
+                verify_micro_silo(silo.root, python_version=silo.python_version,
+                    requirements=[f"{package}=={version}" for package, version in sorted(silo.packages.items())], imports=imports)
+            except MicroSiloValidationError as error:
+                raise ValueError(f"{name.upper()} micro-silo no longer satisfies its audited isolation and dependency contract: {error}") from error
         hardware = config.hardware
         from .cpu_allocation import audited_cpu_capacity
         limit, budget_unit = audited_cpu_capacity(hardware.model_dump(), config.execution)

@@ -77,8 +77,9 @@ where wsl >nul 2>&1
 if errorlevel 1 goto wsl_unavailable
 rem --cd safely passes the Windows repository path, including spaces, to WSL.
 if "%COCHEM_LAUNCH_CHECK%"=="1" goto check_wsl
-wsl --cd "%CD%" --exec bash -c "exec python3 scripts/bootstrap_environment.py --venv ~/.cochem_venv --launch --no-browser"
+wsl --cd "%CD%" --exec python3 scripts/bootstrap_environment.py --launch --no-browser
 set "COCHEM_LAUNCH_STATUS=%ERRORLEVEL%"
+if "%COCHEM_LAUNCH_STATUS%"=="0" start "" "http://127.0.0.1:8866/"
 goto finished
 
 :check_wsl

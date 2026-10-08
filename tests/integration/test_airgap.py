@@ -1,15 +1,9 @@
-"""Integration Test Suite: Air-Gap Boundary Enforcement (	ests/integration/test_airgap.py).
+"""Retained engineering, analytical and parser regressions.
 
-Verifies that all dynamic computational chemistry data operations are physically restricted
-to the dynamic data tier (pathlib.Path.home() / "CoChem_Artifacts" or configured artifact directory),
-and that zero bytes (including temporary scratch files and logs) are written to the static
-pathlib.Path.home() / "CoChem-BASE" execution repository.
-
-Strict Invariants:
-- Absolute Zero-Mock Policy: NO mocks, stubs, MagicMock, or simulated placeholders.
-- Real physical constraints: authentic Water Dimer geometry (H4O2), Method Matrix v4 compliance.
-- File I/O Monitoring: Direct OS-level and directory state snapshot tracking before and after pipeline execution.
-- Dynamic path abstraction: Using cochem_base.config_loader and pathlib.Path.home().
+Hand-written coordinates, numbers and grammar inputs in this file are test
+vectors, not measured computational-chemistry results or native engine evidence.
+Counterfeit integration/fallback-success cases were retired; genuine replacement
+coverage and native evidence are listed in .docs/Legacy_Test_Retirement_1_1.md.
 """
 
 from __future__ import annotations
@@ -50,7 +44,7 @@ from core_engine.cochem_core_subprocess_broker import (
 )
 from core_engine.cochem_core_telemetry_logger import TelemetryLogger
 
-# Authentic Cs equilibrium geometry for Water Dimer (H4O2) in Angstroms
+# Coordinate-only water-dimer grammar input in angstrom; generating method unverified
 WATER_DIMER_COORDINATES: List[Tuple[str, float, float, float]] = [
     ("O", -1.472000, -0.076000, 0.000000),   # O1 (donor)
     ("H", -0.528000, -0.086000, 0.000000),   # H1 (H-bonding donor proton)
@@ -216,7 +210,7 @@ class FileIOMonitor:
 
 
 class TestAirGapBoundaryIntegration:
-    """Zero-mock integration tests verifying the physical Air-Gap boundary between static code and dynamic data."""
+    """Engineering filesystem and encoded-data boundary checks; no native chemistry."""
 
     @pytest.fixture(autouse=True)
     def clean_process_lifecycle(self) -> Any:
@@ -364,60 +358,6 @@ class TestAirGapBoundaryIntegration:
         static_snap_before.assert_zero_modifications(static_snap_after, "Quantum Input Generation Stage")
         monitor.assert_zero_violations()
 
-    def test_airgap_boundary_subprocess_job_dispatch(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Verify real subprocess job execution operates strictly within dynamic scratch tier."""
-        static_repo = tmp_path / "CoChem-BASE"
-        static_repo.mkdir(parents=True, exist_ok=True)
-        (static_repo / "cochem_core.py").write_text("# Core code", encoding="utf-8")
-
-        dynamic_artifacts = tmp_path / "CoChem_Artifacts"
-        jobs_dir = dynamic_artifacts / "Jobs"
-        jobs_dir.mkdir(parents=True, exist_ok=True)
-
-        monkeypatch.setenv("COCHEM_BASE_ROOT", str(static_repo))
-        monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(dynamic_artifacts))
-
-        static_snap_before = DirectoryStateSnapshot(static_repo)
-        monitor = FileIOMonitor(restricted_roots=[static_repo], allowed_roots=[dynamic_artifacts])
-
-        # Execute real Python subprocess writing calculation output strictly in dynamic jobs_dir
-        sub_script = jobs_dir / "calc_runner.py"
-        sub_script.write_text(
-            "import sys\n"
-            "from pathlib import Path\n"
-            "out_file = Path(sys.argv[1])\n"
-            "out_file.write_text('*** ORCA CALCULATION TERMINATED NORMALLY ***\\nFINAL ENERGY: -152.854032\\n')\n",
-            encoding="utf-8",
-        )
-        monitor.record_write(sub_script, "write_script")
-
-        calc_out = jobs_dir / "water_dimer.out"
-        job_cfg = JobConfig(
-            command=[sys.executable, str(sub_script), str(calc_out)],
-            cwd=str(jobs_dir),
-            product_class="Product_A_DeNovo",
-            n_atoms=6,
-        )
-
-        async def _run_job() -> JobInfo:
-            job_mgr = JobManager(max_job_history=5)
-            return await job_mgr.run_job(job_cfg, timeout=30.0)
-
-        job_info = asyncio.run(_run_job())
-        assert job_info.status == "completed"
-        assert job_info.return_code == 0
-        assert calc_out.exists()
-        assert "TERMINATED NORMALLY" in calc_out.read_text(encoding="utf-8")
-        monitor.record_write(calc_out, "subprocess_output")
-
-        # Verify static repo unchanged
-        static_snap_after = DirectoryStateSnapshot(static_repo)
-        static_snap_before.assert_zero_modifications(static_snap_after, "Job Dispatch Stage")
-        monitor.assert_zero_violations()
 
     def test_airgap_boundary_telemetry_and_hdf5_persistence(
         self,
@@ -493,179 +433,3 @@ class TestAirGapBoundaryIntegration:
         static_snap_before.assert_zero_modifications(static_snap_after, "Telemetry & HDF5 Stage")
         monitor.assert_zero_violations()
 
-    def test_airgap_boundary_full_end_to_end_pipeline(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Executes a full multi-stage computational chemistry pipeline and proves 0-byte static mutation."""
-        # 1. Establish static execution repository
-        static_repo = tmp_path / "CoChem-BASE"
-        static_repo.mkdir(parents=True, exist_ok=True)
-        (static_repo / "README.md").write_text("# CoChem Static Execution Repo", encoding="utf-8")
-        (static_repo / "Method_Matrix.md").write_text("# Method Matrix v4 Guidelines", encoding="utf-8")
-        (static_repo / "pyproject.toml").write_text("[tool.pytest]\ntestpaths = ['tests']", encoding="utf-8")
-        (static_repo / "src_placeholder.py").write_text("def run(): pass", encoding="utf-8")
-
-        # 2. Establish dynamic data tier (CoChem_Artifacts)
-        dynamic_artifacts = tmp_path / "CoChem_Artifacts"
-        dynamic_artifacts.mkdir(parents=True, exist_ok=True)
-        dynamic_scratch = dynamic_artifacts / "Scratch"
-        dynamic_scratch.mkdir(parents=True, exist_ok=True)
-        dynamic_logs = dynamic_artifacts / "Logs"
-        dynamic_logs.mkdir(parents=True, exist_ok=True)
-        dynamic_registry = dynamic_artifacts / "Registry"
-        dynamic_registry.mkdir(parents=True, exist_ok=True)
-
-        monkeypatch.setenv("COCHEM_BASE_ROOT", str(static_repo))
-        monkeypatch.setenv("COCHEM_ROOT", str(dynamic_artifacts))
-        monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(dynamic_artifacts))
-
-        # Baseline snapshot of static execution repository
-        static_snap_initial = DirectoryStateSnapshot(static_repo)
-        monitor = FileIOMonitor(
-            restricted_roots=[static_repo],
-            allowed_roots=[dynamic_artifacts, tmp_path],
-        )
-
-        # ---------------------------------------------------------------------
-        # STAGE 1: Physical Hardware Discovery & Registry Ingestion
-        # ---------------------------------------------------------------------
-        cpu_cores = HardwareDiscovery.get_cpu_cores()
-        ram_gb = HardwareDiscovery.get_system_ram_gb()
-        pinning_spec = HardwareDiscovery.get_core_pinning_config()
-
-        config_path = dynamic_artifacts / "cochem_system_config.json"
-        hw_cfg = HardwareConfig(
-            physical_cpu_cores=min(cpu_cores, 8),
-            logical_cpu_cores=min(cpu_cores * 2, 16),
-            ram_gb=round(ram_gb, 2),
-            maxcore_mb=3000,
-            os_target=f"{platform.system().lower()}_{platform.machine().lower()}",
-            core_pinning=CorePinningConfig(kmp_hw_subset=pinning_spec),
-        )
-        orca_path = shutil.which("orca") or str(Path(sys.executable).parent / "orca")
-        mpirun_path = shutil.which("mpirun") or str(Path(sys.executable).parent / "mpirun")
-        xtb_path = shutil.which("xtb") or str(Path(sys.executable).parent / "xtb")
-
-        config_obj = CoChemConfig(
-            schema_version="4.0.0",
-            hardware=hw_cfg,
-            engines=EnginePaths(
-                orca=EngineInfo(status="ready", path=orca_path, version="6.1.1", hash="auto"),
-                mpirun=EngineInfo(status="ready", path=mpirun_path, version="openmpi-4.1", hash="auto"),
-                xtb=EngineInfo(status="ready", path=xtb_path, version="6.6.1", hash="auto"),
-            ),
-            silos=SiloConfig(torq_silo_active=True, gpu_silo_active=False),
-            hpc=HPCConfig(),
-            quantum_settings=QuantumSettings(),
-        )
-        config_obj.to_file(config_path)
-        monitor.record_write(config_path, "stage1_registry_write")
-
-        # ---------------------------------------------------------------------
-        # STAGE 2: Quantum Input Generation for Water Dimer (H4O2)
-        # ---------------------------------------------------------------------
-        coords_list = [atom[1:] for atom in WATER_DIMER_COORDINATES]
-        elements_list = [atom[0] for atom in WATER_DIMER_COORDINATES]
-
-        mol_input = MoleculeInput(
-            basin_id="water_dimer_e2e_airgap",
-            elements=elements_list,
-            coordinates=coords_list,
-            theory_level="B3LYP-D3 def2-SVP",
-            charge=0,
-            multiplicity=1,
-            is_weak_complex=True,
-            is_opt=True,
-        )
-        stage2_inp = generate_orca_input(mol_input, output_dir=dynamic_scratch)
-        monitor.record_write(stage2_inp, "stage2_inp_write")
-
-        # ---------------------------------------------------------------------
-        # STAGE 3: Subprocess Job Execution & Real Output Production
-        # ---------------------------------------------------------------------
-        stage3_calc = dynamic_scratch / "water_dimer_e2e.out"
-        job_script = dynamic_scratch / "run_stage3.py"
-        job_script.write_text(
-            "import sys\n"
-            "from pathlib import Path\n"
-            "Path(sys.argv[1]).write_text(\"TOTAL RUN TIME: 1.25 sec\\nFINAL SINGLE POINT ENERGY -152.854032\\n\")\n",
-            encoding="utf-8",
-        )
-        monitor.record_write(job_script, "stage3_script_write")
-
-        async def _run_e2e_job() -> JobInfo:
-            job_mgr = JobManager(max_job_history=5)
-            return await job_mgr.run_job(
-                JobConfig(
-                    command=[sys.executable, str(job_script), str(stage3_calc)],
-                    cwd=str(dynamic_scratch),
-                    n_atoms=6,
-                ),
-                timeout=30.0,
-            )
-
-        job_info = asyncio.run(_run_e2e_job())
-        assert job_info.status == "completed"
-        monitor.record_write(stage3_calc, "stage3_output_write")
-
-        # ---------------------------------------------------------------------
-        # STAGE 4: Telemetry Logging & Immutable JSON-LD
-        # ---------------------------------------------------------------------
-        telemetry = TelemetryLogger(log_dir=dynamic_logs)
-        stage4_calc_line = "TOTAL RUN TIME: 1.25 sec\nFINAL SINGLE POINT ENERGY -152.854032\n"
-        telemetry.process_stream_chunk(stage4_calc_line)
-        e2e_log_path_str = telemetry.aggregate_and_lock(
-            job_name="pipeline_telemetry_e2e",
-            stdout_history=[stage4_calc_line],
-            stderr_history=[],
-            exit_code=0,
-            active_hash="hash_water_dimer_e2e_provenance",
-        )
-        stage4_log = Path(e2e_log_path_str)
-        monitor.record_write(stage4_log, "stage4_telemetry_write")
-
-        # ---------------------------------------------------------------------
-        # STAGE 5: HDF5 Ontology State Enforcement
-        # ---------------------------------------------------------------------
-        h5_file = dynamic_registry / "cochem_state.h5"
-        enforcer = HDF5OntologyEnforcer(hdf5_path=h5_file)
-        coord_matrix = np.array([c[1:] for c in WATER_DIMER_COORDINATES], dtype=np.float64)
-        enforcer.write_record(
-            group_path="basins/H4O2_water_dimer",
-            data={
-                "molecule_name": "H4O2_water_dimer",
-                "xyz_coordinates": coord_matrix,
-                "energy": -152.854032,
-                "symmetry_group": "Cs",
-                "LAM_TRIGGER_REQUIRED": False,
-            },
-        )
-        monitor.record_write(h5_file, "stage5_hdf5_write")
-
-        # ---------------------------------------------------------------------
-        # STAGE 6: Air-Gap Boundary Assertions
-        # ---------------------------------------------------------------------
-        # 1. Assert all dynamic artifacts physically exist in dynamic tier
-        assert config_path.exists() and config_path.stat().st_size > 0
-        assert stage2_inp.exists() and stage2_inp.stat().st_size > 0
-        assert stage3_calc.exists() and stage3_calc.stat().st_size > 0
-        assert stage4_log.exists() and stage4_log.stat().st_size > 0
-        assert h5_file.exists() and h5_file.stat().st_size > 0
-
-        # 2. Assert zero boundary violations occurred across all I/O events
-        monitor.assert_zero_violations()
-
-        # 3. Assert static execution repository underwent exactly ZERO mutations (0 bytes written)
-        static_snap_final = DirectoryStateSnapshot(static_repo)
-        static_snap_initial.assert_zero_modifications(
-            static_snap_final,
-            context="End-to-End Pipeline on Static Repo Tree",
-        )
-
-        diff_static = static_snap_initial.diff(static_snap_final)
-        assert diff_static["bytes_written"] == 0, f"Bytes written to static repo: {diff_static['bytes_written']}"
-        assert len(diff_static["added_files"]) == 0
-        assert len(diff_static["modified_files"]) == 0
-        assert len(diff_static["removed_files"]) == 0

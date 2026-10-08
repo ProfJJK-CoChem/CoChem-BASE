@@ -43,11 +43,13 @@ from cochem_base.core_engine.cochem_core_dvr_solver import (
 
 def test_mendeleev_mass_resolution_and_rejection() -> None:
     """Suggestion #11 & #13: Verify dynamic mass lookup, isotopic aliases, and rejection of invalid symbols."""
-    # 1. Standard elemental symbols match IUPAC atomic weights via mendeleev
+    # 1. Physical mass uses principal isotope; descriptive CIAAW weight stays separate
     for sym in ["H", "C", "N", "O", "Ar"]:
         elem_truth = element(sym)
         resolved_mass = get_element_mass(sym)
-        assert abs(resolved_mass - float(elem_truth.atomic_weight)) < 1e-6
+        principal = max((isotope for isotope in elem_truth.isotopes if isotope.abundance and isotope.mass),
+                        key=lambda isotope: (isotope.abundance, -isotope.mass_number))
+        assert resolved_mass == float(principal.mass)
         elem_data = get_element(sym)
         assert elem_data.symbol == sym
         assert abs(elem_data.atomic_weight - float(elem_truth.atomic_weight)) < 1e-6
@@ -164,46 +166,9 @@ def test_sinc_dvr_interior_grid_and_dirichlet_boundaries() -> None:
     assert abs(eigenvalues[2] - expected_e2) / expected_e2 < 0.0001
 
 
-def test_rotational_mode_stability_defgrid3(tmp_path: Path) -> None:
-    """Suggestion #14: Verify defgrid3 mandate for harmonic frequency tasks and rotational mode stability."""
-    # 1. ORCA input generator mandates defgrid3 for frequency calculation
-    water_dimer = MoleculeInput(
-        basin_id="dimer_test",
-        elements=["O", "H", "H", "O", "H", "H"],
-        coordinates=[
-            (-1.464, -0.019, 0.000),
-            (-1.823, 0.428, 0.772),
-            (-1.823, 0.428, -0.772),
-            (1.464, 0.019, 0.000),
-            (0.823, -0.428, 0.000),
-            (1.823, -0.428, 0.772),
-        ],
-        theory_level="B3LYP-D3 def2-TZVP Freq",
-        is_opt=False,
-    )
-
-    out_file = generate_orca_input(water_dimer, output_dir=tmp_path)
-    content = out_file.read_text(encoding="utf-8")
-
-    # Assert deck contains defgrid3 and rejects defgrid1
-    assert "defgrid3" in content
-    assert "defgrid1" not in content
-
-    # 2. Rotational stability validation
-    # Construct a model harmonic calculation engine with a soft intermolecular mode (35 cm^-1)
-    stable_frequencies = np.array([35.0, 72.0, 150.0, 3650.0, 3750.0])
-
-    def stable_calc_engine(coords: np.ndarray) -> np.ndarray:
-        return stable_frequencies.copy()
-
-    geom = np.array(water_dimer.coordinates)
-    validate_rotational_mode_stability(geom, stable_calc_engine, threshold_cm1=50.0, max_delta_cm1=1.0)
-
-    # Unstable calculation engine where rotation causes the 35 cm^-1 mode to shift by 3.5 cm^-1
-    def unstable_calc_engine(coords: np.ndarray) -> np.ndarray:
-        if not np.allclose(coords, geom, atol=1e-5):
-            return np.array([38.5, 72.0, 150.0, 3650.0, 3750.0])
-        return stable_frequencies.copy()
-
-    with pytest.raises(RotationalGridInstabilityError):
-        validate_rotational_mode_stability(geom, unstable_calc_engine, threshold_cm1=50.0, max_delta_cm1=1.0)
+# Native derivative/frame regression replaces the former canned-frequency test:
+# tests/calc/test_orca_derivative_acceptance.py::
+# test_native_hessian_geometry_binding_accepts_only_proper_rigid_frame_changes
+# and ::test_genuine_harmonic_artifact_retains_native_and_principal_mass_results.
+# Grid policy/recorded promotion is covered by tests/base/test_native_grid_execution.py.
+# These replays do not establish fresh ab initio rotational quadrature convergence.

@@ -32,10 +32,11 @@ import hashlib
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from types import MappingProxyType
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from cochem_base.config_loader import load_system_config
 
@@ -61,28 +62,57 @@ class AtomMetadata(BaseModel):
     z: float
 
 
+def _freeze_metadata(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _freeze_metadata(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_metadata(item) for item in value)
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    if isinstance(value, float) and math.isfinite(value):
+        return value
+    raise ValueError("Ingestion metadata must contain finite immutable JSON values")
+
+
+def _plain_metadata(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _plain_metadata(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_plain_metadata(item) for item in value]
+    return value
+
+
 class MolecularGeometryPayload(BaseModel):
     """Standardized immutable molecular geometry payload with auxiliary tensors."""
     model_config = ConfigDict(frozen=True, extra="forbid")
     filename: str
     format: str
     sha256_hash: str
-    symbols: List[str]
-    coordinates: List[List[float]]
+    symbols: tuple[str, ...]
+    coordinates: tuple[tuple[float, float, float], ...]
     total_atoms: int
-    M_aux: List[float]
-    Z_aux: List[int]
-    R_cov_aux: List[float]
-    R_vdw_aux: List[float]
-    atoms: List[AtomMetadata]
+    M_aux: tuple[float, ...]
+    Z_aux: tuple[int, ...]
+    R_cov_aux: tuple[float, ...]
+    R_vdw_aux: tuple[float, ...]
+    atoms: tuple[AtomMetadata, ...]
     comment: str = ""
     net_charge: Optional[int] = None
     multiplicity: Optional[int] = None
     record_index: int = 0
-    nuclides: List[str]
-    mass_numbers: List[Optional[int]]
+    nuclides: tuple[str, ...]
+    mass_numbers: tuple[Optional[int], ...]
     electronic_state_source: str = "user_selection_required"
-    source_metadata: Dict[str, Any] = Field(default_factory=dict)
+    source_metadata: Mapping[str, Any] = Field(default_factory=dict)
+
+    @field_validator("source_metadata", mode="after")
+    @classmethod
+    def freeze_source_metadata(cls, value: Mapping[str, Any]) -> Mapping[str, Any]:
+        return _freeze_metadata(value)
+
+    @field_serializer("source_metadata")
+    def serialize_source_metadata(self, value: Mapping[str, Any]) -> dict[str, Any]:
+        return _plain_metadata(value)
 
     @property
     def coordinate_array(self) -> np.ndarray:
@@ -125,13 +155,13 @@ class BatchIngestionSummary(BaseModel):
 
 
 @functools.lru_cache(maxsize=4096)
-def get_element_data(symbol: str) -> Dict[str, Any]:
+def _cached_element_data(symbol: str) -> Dict[str, Any]:
     """Resolve exact labelled or most abundant isotope metadata dynamically."""
-    from cochem_base.physics.isotopes import parse_nuclide_token, get_isotope_mass
+    from cochem_base.physics.isotopes import parse_nuclide_token, get_isotope_mass, normalize_nuclide_symbol
     from cochem_base.physics.nuclide_resolver import get_element
     clean_sym, number = parse_nuclide_token(symbol)
     if clean_sym.upper() in {"GH", "BQ", "X"}:
-        return {"symbol": "Gh", "nuclide": "Gh", "mass_number": None,
+        return {"symbol": "Gh", "nuclide": normalize_nuclide_symbol(symbol).canonical_symbol, "mass_number": None,
                 "atomic_number": 0, "monoisotopic_mass": 0.0,
                 "covalent_radius": 0.0, "vdw_radius": 0.0}
     elem = get_element(clean_sym)
@@ -149,6 +179,11 @@ def get_element_data(symbol: str) -> Dict[str, Any]:
     return {"symbol": elem.symbol, "nuclide": f"{number}{elem.symbol}", "mass_number": number,
             "atomic_number": int(elem.atomic_number), "monoisotopic_mass": mass,
             "covalent_radius": float(cov) / 100.0, "vdw_radius": float(vdw) / 100.0}
+
+
+def get_element_data(symbol: str) -> Dict[str, Any]:
+    """Return owned scalar metadata without exposing the shared physical cache."""
+    return dict(_cached_element_data(symbol))
 
 
 def compute_sha256(content: Union[str, bytes]) -> str:

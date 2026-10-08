@@ -79,6 +79,19 @@ from typing import (
 
 import h5py
 import numpy as np
+from cochem_base.core.cochem_constants import (
+    ANGSTROM_TO_BOHR as ANGSTROM_TO_BOHR,
+    ANGSTROM_TO_METER as ANGSTROM_TO_METER,
+    ATOMIC_MASS_UNIT_KG,
+    BOHR_TO_ANGSTROM as BOHR_TO_ANGSTROM,
+    BOHR_TO_METER, C_ROT_MHZ_U_ANG2,
+    HARTREE_TO_CM_INV as HARTREE_TO_CM_INV,
+    HARTREE_TO_EV as HARTREE_TO_EV,
+    HARTREE_TO_JOULE,
+    PLANCK_CONSTANT_J_S as PLANCK_CONSTANT_J_S,
+    SPEED_OF_LIGHT_CM_S,
+    SPEED_OF_LIGHT_M_S as SPEED_OF_LIGHT_M_S,
+)
 from cochem_base.result_evidence import normalize_point_evidence
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -188,25 +201,11 @@ if not logger.handlers:
 # ---------------------------------------------------------------------------
 # Physical Constants & Convergence Standards (Method Matrix §4.4, §5, §8B)
 # ---------------------------------------------------------------------------
-PLANCK_CONSTANT_J_S = 6.62607015e-34       # J * s (CODATA exact)
-SPEED_OF_LIGHT_CM_S = 2.99792458e10       # cm / s (CODATA exact)
-SPEED_OF_LIGHT_M_S = 2.99792458e8         # m / s (CODATA exact)
-ATOMIC_MASS_UNIT_KG = 1.66053906660e-27   # kg / u
-ANGSTROM_TO_METER = 1.0e-10               # m / Angstrom
-BOHR_TO_ANGSTROM = 0.529177210903         # Angstrom / Bohr
-ANGSTROM_TO_BOHR = 1.0 / BOHR_TO_ANGSTROM  # Bohr / Angstrom
-BOHR_TO_METER = 0.529177210903e-10        # m / Bohr
-HARTREE_TO_JOULE = 4.3597447222071e-18    # J / Hartree
-HARTREE_TO_EV = 27.211386245988           # eV / Hartree
-HARTREE_TO_CM_INV = 219474.63136320       # cm^-1 / Hartree
-ROTATIONAL_INERTIA_CONVERSION = 505379.0084350172  # MHz * u * Angstrom^2
+ROTATIONAL_INERTIA_CONVERSION = C_ROT_MHZ_U_ANG2
 
 # Factor converting Inertia (u * Angstrom^2) to Rotational Constant (MHz):
 # B = h / (8 * pi^2 * I) * 1e-6 (Hz -> MHz)
-INERTIA_TO_MHZ_FACTOR = (
-    PLANCK_CONSTANT_J_S
-    / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_KG * (ANGSTROM_TO_METER ** 2))
-) * 1.0e-6  # ~505379.0091414361 MHz * u * Angstrom^2
+INERTIA_TO_MHZ_FACTOR = C_ROT_MHZ_U_ANG2
 
 # Factor converting Hessian eigenvalue (Hartree / (Bohr^2 * u)) to wavenumber (cm^-1):
 # f_lambda = HARTREE_TO_JOULE / (BOHR_TO_METER^2 * ATOMIC_MASS_UNIT_KG)
@@ -440,49 +439,10 @@ class BifurcatedStorageConfig(BaseModel):
 # =============================================================================
 
 def get_atomic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
-    """
-    Dynamically retrieves standard atomic weight or exact isotopic mass from the `mendeleev` library.
-    Strictly forbids hardcoding atomic masses or manually inserting CODATA mass constants.
-
-    Args:
-        symbol: Element symbol (e.g. 'C', 'H', 'O', 'Cl', 'D', 'T')
-        mass_number: Specific isotope nucleon count (e.g. 13 for 13C, 2 for 2H/D).
-                     If None, returns the standard IUPAC atomic weight.
-
-    Returns:
-        Atomic mass in unified atomic mass units (u / Da).
-    """
-    clean_sym = symbol.strip().capitalize()
-    # Normalize hydrogen isotopes
-    if clean_sym in ("D", "H2"):
-        clean_sym = "H"
-        mass_number = 2
-    elif clean_sym in ("T", "H3"):
-        clean_sym = "H"
-        mass_number = 3
-
-    try:
-        el = element(clean_sym)
-    except Exception as exc:
-        raise ValueError(f"Failed to query Mendeleev library for element '{symbol}': {exc}") from exc
-
-    if mass_number is not None:
-        for iso in el.isotopes:
-            if iso.mass_number == mass_number:
-                if iso.mass is not None:
-                    return float(iso.mass)
-                break
-        # Fallback to isotopic mass estimation if exact mass is None
-        logger.warning(
-            f"Exact isotopic mass not found in Mendeleev for {clean_sym}-{mass_number}; "
-            f"using nominal integer mass {mass_number}.0"
-        )
-        return float(mass_number)
-
-    if el.mass is not None:
-        return float(el.mass)
-
-    raise ValueError(f"Mendeleev mass is undefined for element '{symbol}' (mass_number={mass_number})")
+    """Resolve an exact assigned/principal isotope mass from dynamic Mendeleev data."""
+    from cochem_base.physics.isotopes import get_isotope_mass
+    value = symbol
+    return get_isotope_mass(value, mass_number)
 
 
 def get_atomic_masses_for_symbols(
@@ -1158,14 +1118,16 @@ class PESStore:
 
     def add_point(self, point: Any) -> None:
         """Append a single PESPointRecord into the HDF5 store in a thread-safe SWMR-compliant manner [D]."""
+        if point.energy is None or not np.isfinite(float(point.energy)):
+            raise ValueError("An evaluated PES point requires an explicitly supplied finite measured energy")
+        coordinates = np.asarray(point.coordinates, dtype=np.float64).reshape(-1)
+        if (not self.symbols or list(point.symbols) != list(self.symbols)
+                or coordinates.size != 3 * len(self.symbols) or not np.isfinite(coordinates).all()):
+            raise ValueError("PES point requires finite 3N coordinates and the datastore's explicit ordered symbols")
         with self._file_lock():
             with h5py.File(self.path, "a", libver="latest") as f:
                 pts = f.require_group("points")
-                coords = np.asarray(point.coordinates, dtype=np.float64)
-                if coords.ndim == 1:
-                    coords = coords[None, :]
-                elif coords.ndim == 2:
-                    coords = coords.reshape(1, -1)
+                coords = coordinates[None, :]
 
                 cur_len = pts["energies"].shape[0] if "energies" in pts else 0
                 new_len = cur_len + 1

@@ -82,6 +82,7 @@ import scipy.linalg
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from cochem_base.core import cochem_constants as _constants
 from cochem_base.config_loader import (
     get_artifact_dir,
     get_base_root,
@@ -105,46 +106,48 @@ logger = logging.getLogger("CoChem-CFOUR-Bridge")
 # ==============================================================================
 
 class PhysicalConstants:
-    """Exact fundamental physical constants from CODATA 2022 recommended values."""
+    """Public conversion aliases and derived factors from the central CODATA registry."""
 
     # Planck constant (exact, SI definition 2019) [J * s]
-    H_JS: float = 6.62607015e-34
+    H_JS: float = _constants.PLANCK_CONSTANT_J_S
     # Boltzmann constant (exact, SI definition 2019) [J * K^-1]
-    K_B_JK: float = 1.380649e-23
+    K_B_JK: float = _constants.BOLTZMANN_CONSTANT_J_K
     # Speed of light in vacuum (exact) [m * s^-1]
-    C_M_S: float = 299792458.0
+    C_M_S: float = _constants.SPEED_OF_LIGHT_M_S
     # Speed of light in vacuum (exact) [cm * s^-1]
-    C_CM_S: float = 29979245800.0
+    C_CM_S: float = _constants.SPEED_OF_LIGHT_CM_S
     # Rotational constant factor C_rot = h / (8 * pi^2) in [MHz * u * Angstrom^2]
     # CODATA 2022 / Method Matrix standard: 505379.0084350172 MHz * u * Angstrom^2
-    C_ROT_MHZ_U_ANG2: float = 505379.0084350172
+    C_ROT_MHZ_U_ANG2: float = _constants.C_ROT_MHZ_U_ANG2
     # Avogadro constant (exact) [mol^-1]
-    N_A: float = 6.02214076e23
+    N_A: float = _constants.AVOGADRO_CONSTANT
     # Atomic mass constant [kg]
-    AMU_KG: float = 1.66053906660e-27
+    AMU_KG: float = _constants.ATOMIC_MASS_UNIT_KG
     # Bohr to Angstrom conversion factor
-    BOHR_TO_ANGSTROM: float = 0.529177210903
-    ANGSTROM_TO_BOHR: float = 1.0 / 0.529177210903
+    BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+    ANGSTROM_TO_BOHR: float = _constants.ANGSTROM_TO_BOHR
     # Hartree to eV
-    HARTREE_TO_EV: float = 27.211386245988
+    HARTREE_TO_EV: float = _constants.HARTREE_TO_EV
     # Hartree to kcal/mol
-    HARTREE_TO_KCAL_MOL: float = 627.509474063
+    HARTREE_TO_KCAL_MOL: float = _constants.HARTREE_TO_KCAL_MOL
     # Hartree to kJ/mol
-    HARTREE_TO_KJ_MOL: float = 627.509474063 * 4.184
+    HARTREE_TO_KJ_MOL: float = HARTREE_TO_KCAL_MOL * 4.184
     # Hartree to cm^-1
-    HARTREE_TO_CM_INV: float = 219474.63136320
+    HARTREE_TO_CM_INV: float = _constants.HARTREE_TO_CM_INV
     # Electric Field Gradient (a.u.) to Nuclear Quadrupole Coupling Constant (kHz)
-    # chi (kHz) = EFG (a.u.) * Q (mbarn) * 234.96474
-    EFG_TO_CHI_KHZ: float = 234.96474
+    # e * EFG * Q / h; 1 mbarn = 1e-31 m^2 and 1 kHz = 1e3 Hz.
+    EFG_TO_CHI_KHZ: float = _constants.HARTREE_TO_JOULE / (H_JS * _constants.BOHR_TO_METER**2) * 1e-34
     # Conversion factor from sqrt(Hartree / (bohr^2 * u)) to cm^-1:
-    # 1 / (2 * pi * c) * sqrt(E_h / (a0^2 * m_u)) = 5140.487143715828
-    HESSIAN_EIGENVALUE_TO_CM_INV: float = 5140.487143715828
+    # 1 / (2 * pi * c) * sqrt(E_h / (a0^2 * m_u)), using central SI units.
+    HESSIAN_EIGENVALUE_TO_CM_INV: float = math.sqrt(
+        _constants.HARTREE_TO_JOULE / (_constants.BOHR_TO_METER**2 * AMU_KG)
+    ) / (2.0 * math.pi * C_CM_S)
 
 
 CONSTANTS = PhysicalConstants()
 
 # Standard nuclear electric quadrupole moments Q in millibarns (1 mbarn = 10^-31 m^2 = 10^-3 barn)
-# Used for exact conversion: chi (kHz) = EFG (a.u.) * Q (mbarn) * 234.96474 (Method Matrix §9.3 & §14.1)
+# chi (kHz) = EFG (a.u.) * Q (mbarn) * CONSTANTS.EFG_TO_CHI_KHZ (Method Matrix §9.3 & §14.1)
 STANDARD_NUCLEAR_QUADRUPOLE_MOMENTS_MBARN: Dict[str, float] = {
     "1H": 0.0,
     "2H": 2.860,       # Deuterium (I=1)
@@ -179,72 +182,26 @@ STANDARD_NUCLEAR_QUADRUPOLE_MOMENTS_MBARN: Dict[str, float] = {
 # ==============================================================================
 
 def get_dynamic_atomic_mass(symbol_or_z: Union[str, int], mass_number: Optional[int] = None) -> float:
-    """Dynamically retrieve atomic or isotopic mass via Mendeleev library.
-
-    Strictly satisfies CoChem Mendeleev Library Mandate (ZERO hardcoded mass constants).
-
-    Args:
-        symbol_or_z: Chemical element symbol (e.g. 'C', 'H', 'N') or atomic number Z (e.g. 6, 1).
-        mass_number: Optional specific isotope mass number (e.g. 13 for 13C, 2 for D, 18 for 18O).
-
-    Returns:
-        Exact atomic or isotopic mass in unified atomic mass units (u).
-
-    Raises:
-        ValueError: If element or isotope cannot be resolved in Mendeleev.
-    """
-    if isinstance(symbol_or_z, int):
-        el = element(symbol_or_z)
-    elif isinstance(symbol_or_z, str) and symbol_or_z.strip().isdigit():
-        el = element(int(symbol_or_z.strip()))
-    else:
-        clean_sym = str(symbol_or_z).strip()
-        if clean_sym.upper() == "D":
-            clean_sym = "H"
-            mass_number = 2
-        elif clean_sym.upper() == "T":
-            clean_sym = "H"
-            mass_number = 3
-        el = element(clean_sym)
-
-    if mass_number is not None:
-        for iso in el.isotopes:
-            if iso.mass_number == mass_number:
-                if iso.mass is not None:
-                    return float(iso.mass)
-                return float(iso.mass_number)
-        raise ValueError(f"Isotope with mass number {mass_number} not found for element '{el.symbol}'.")
-
-    if el.mass is None:
-        raise ValueError(f"Atomic mass is undefined for element '{el.symbol}' in Mendeleev.")
-    return float(el.mass)
+    """Resolve an exact assigned/principal isotope mass from dynamic Mendeleev data."""
+    from cochem_base.physics.isotopes import get_isotope_mass
+    from cochem_base.physics.nuclide_resolver import get_element
+    value = symbol_or_z
+    if isinstance(value, bool):
+        raise ValueError("A Boolean is not an atomic number")
+    if isinstance(value, int) or (isinstance(value, str) and value.strip().isdigit()):
+        value = get_element(int(value)).symbol
+    return get_isotope_mass(value, mass_number)
 
 
 def get_default_isotope_mass_number(symbol_or_z: Union[str, int]) -> int:
-    """Retrieve the mass number of the most abundant isotope dynamically from Mendeleev."""
-    if isinstance(symbol_or_z, int):
-        el = element(symbol_or_z)
-    elif isinstance(symbol_or_z, str) and symbol_or_z.strip().isdigit():
-        el = element(int(symbol_or_z.strip()))
-    else:
-        clean_sym = str(symbol_or_z).strip()
-        if clean_sym.upper() == "D":
-            return 2
-        if clean_sym.upper() == "T":
-            return 3
-        el = element(clean_sym)
-
-    best_iso = None
-    max_abundance = -1.0
-    for iso in el.isotopes:
-        if iso.abundance is not None and iso.abundance > max_abundance:
-            max_abundance = iso.abundance
-            best_iso = iso
-
-    if best_iso is not None:
-        return int(best_iso.mass_number)
-
-    return int(round(float(el.mass)))
+    """Resolve an assigned/principal mass number; never round an averaged weight."""
+    from cochem_base.physics.isotopes import get_principal_isotope_mass_number
+    from cochem_base.physics.nuclide_resolver import get_element
+    if isinstance(symbol_or_z, bool):
+        raise ValueError("A Boolean is not an atomic number")
+    if isinstance(symbol_or_z, int) or (isinstance(symbol_or_z, str) and symbol_or_z.strip().isdigit()):
+        symbol_or_z = get_element(int(symbol_or_z)).symbol
+    return get_principal_isotope_mass_number(symbol_or_z)
 
 
 # ==============================================================================

@@ -84,7 +84,6 @@ logger = logging.getLogger("cochem.calc.grid_convergence")
 
 # Conversion constant: moment of inertia (amu * Angstrom^2) to rotational constant (MHz)
 # Reference: Groner (2016); NIST CCCBDB; Method Matrix §4.1, §4.5, §5.1
-from cochem_base.core.cochem_constants import C_ROT_MHZ_U_ANG2
 
 CONV_MHZ_AMU_ANG2: float = _constants.C_ROT_MHZ_U_ANG2
 
@@ -124,9 +123,8 @@ def get_dynamic_atomic_mass(symbol: str, mass_number: Optional[int] = None) -> f
     Dynamically retrieves atomic or isotopic mass in unified atomic mass units (u/amu)
     from the `mendeleev` library. Strictly adheres to the Mendeleev Library Mandate.
     """
-    from cochem_base.physics.isotopes import get_atomic_mass, get_isotope_mass
-
-    return get_atomic_mass(symbol) if mass_number is None else get_isotope_mass(symbol, mass_number)
+    from cochem_base.physics.isotopes import get_isotope_mass
+    return get_isotope_mass(symbol, mass_number)
 
 
 def get_element_masses(symbols: Sequence[str]) -> List[float]:

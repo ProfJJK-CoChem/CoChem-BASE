@@ -5,6 +5,8 @@ and concurrency-safe Single-Writer Multiple-Reader (SWMR) HDF5 telemetry.
 """
 
 import os
+import math
+import re
 import shutil
 import time
 from pathlib import Path
@@ -13,15 +15,15 @@ from typing import Any, Callable, Dict, List, Optional
 import filelock
 import h5py
 
-from src.cochem.hpc.models import (
+from cochem.hpc.models import (
     MpiClusterExecutionConfig,
     SlurmDryRunResult,
     SlurmJobDirectiveSpec,
     SlurmResourceValidationError,
 )
-from src.cochem.hpc.slurm_generator import SlurmDryRunGenerator
-from src.cochem.runners.cuda_budget import CudaMemoryManager
-from src.cochem.runners.mpi_supervisor import MpiProcessSupervisor
+from cochem.hpc.slurm_generator import SlurmDryRunGenerator
+from cochem.runners.cuda_budget import CudaMemoryManager
+from cochem.runners.mpi_supervisor import MpiProcessSupervisor
 
 
 class AsyncProcessRunner:
@@ -57,12 +59,19 @@ class AsyncProcessRunner:
             scratch_dir if scratch_dir is not None else fallback_scratch
         ).resolve()
 
+        roots = (self.src_dir, self.artifacts_dir, self.scratch_dir)
+        for index, left in enumerate(roots):
+            for right in roots[index + 1:]:
+                if left.is_relative_to(right) or right.is_relative_to(left):
+                    raise PermissionError("Tripartite source, artifacts and scratch roots must not overlap")
+
         self.cuda_manager = cuda_manager or CudaMemoryManager()
         self.slurm_generator = slurm_generator or SlurmDryRunGenerator()
         self.mpi_supervisor = mpi_supervisor or MpiProcessSupervisor()
 
         self.telemetry_lock_path = self.scratch_dir / ".telemetry.lock"
         self._active_writers: Dict[str, h5py.File] = {}
+        self._owned_scratch: set[Path] = set()
 
         # Ensure write destinations exist
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -89,7 +98,7 @@ class AsyncProcessRunner:
 
         resolved_key = str(telemetry_file.resolve())
         with filelock.FileLock(str(self.telemetry_lock_path), timeout=30.0):
-            h5_file = h5py.File(telemetry_file, "w", libver="latest")
+            h5_file = h5py.File(telemetry_file, "x", libver="latest")
             grp = h5_file.create_group("telemetry")
             grp.create_dataset(
                 "step",
@@ -112,6 +121,9 @@ class AsyncProcessRunner:
                 dtype="float64",
                 chunks=True,
             )
+            grp.create_dataset("energy_available", shape=(0,), maxshape=(None,), dtype="bool", chunks=True)
+            grp.attrs["energy_unit"] = "hartree"
+            grp.attrs["unmeasured_energy_representation"] = "NaN with energy_available=False"
             h5_file.swmr_mode = True
             h5_file.flush()
             self._active_writers[resolved_key] = h5_file
@@ -143,28 +155,38 @@ class AsyncProcessRunner:
     def cleanup_scratch(self, task_name: Optional[str] = None) -> None:
         """Clean up ephemeral per-job scratch directory or entire scratch root safely."""
         if task_name is not None:
-            job_scratch = self.scratch_dir / task_name
-            if job_scratch.exists():
-                shutil.rmtree(job_scratch, ignore_errors=True)
+            self._validate_task_name(task_name)
+            selected = [self.scratch_dir / task_name]
         else:
-            if self.scratch_dir.exists():
-                for item in self.scratch_dir.iterdir():
-                    if item.name == ".telemetry.lock":
-                        continue
-                    if item.is_dir():
-                        shutil.rmtree(item, ignore_errors=True)
-                    else:
-                        item.unlink(missing_ok=True)
+            selected = list(self._owned_scratch)
+        for path in selected:
+            if path not in self._owned_scratch:
+                continue
+            # A changed symlink must never redirect cleanup into another job.
+            if path.is_symlink() or path.resolve().parent != self.scratch_dir:
+                raise PermissionError("Owned job scratch identity changed before cleanup")
+            if path.exists():
+                shutil.rmtree(path)
+            self._owned_scratch.discard(path)
+
+    @staticmethod
+    def _validate_task_name(task_name: str) -> None:
+        if not isinstance(task_name, str) or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", task_name) is None:
+            raise ValueError("A bounded filesystem-safe task identifier is required")
 
     def record_telemetry_metric(
         self,
         telemetry_file: Path,
         step: int,
-        energy: float,
+        energy: float | None,
         walltime: float,
     ) -> None:
         """Thread and process-safely record telemetry progress metric to SWMR HDF5."""
         self.validate_write_path(telemetry_file)
+        if energy is not None and (isinstance(energy, bool) or not math.isfinite(float(energy))):
+            raise ValueError("A measured telemetry energy must be a finite Hartree value")
+        if not math.isfinite(walltime) or walltime < 0:
+            raise ValueError("Telemetry walltime must be finite and nonnegative")
         resolved_key = str(telemetry_file.resolve())
 
         with filelock.FileLock(str(self.telemetry_lock_path), timeout=30.0):
@@ -173,6 +195,7 @@ class AsyncProcessRunner:
                 step_ds = active_handle["telemetry/step"]
                 energy_ds = active_handle["telemetry/energy"]
                 walltime_ds = active_handle["telemetry/walltime"]
+                energy_available_ds = active_handle["telemetry/energy_available"]
 
                 current_len = step_ds.shape[0]
                 new_len = current_len + 1
@@ -180,14 +203,17 @@ class AsyncProcessRunner:
                 step_ds.resize((new_len,))
                 energy_ds.resize((new_len,))
                 walltime_ds.resize((new_len,))
+                energy_available_ds.resize((new_len,))
 
                 step_ds[current_len] = step
-                energy_ds[current_len] = energy
+                energy_ds[current_len] = float("nan") if energy is None else energy
+                energy_available_ds[current_len] = energy is not None
                 walltime_ds[current_len] = walltime
 
                 step_ds.flush()
                 energy_ds.flush()
                 walltime_ds.flush()
+                energy_available_ds.flush()
                 active_handle.flush()
             else:
                 with h5py.File(telemetry_file, "a", libver="latest") as h5_file:
@@ -195,6 +221,7 @@ class AsyncProcessRunner:
                     step_ds = h5_file["telemetry/step"]
                     energy_ds = h5_file["telemetry/energy"]
                     walltime_ds = h5_file["telemetry/walltime"]
+                    energy_available_ds = h5_file["telemetry/energy_available"]
 
                     current_len = step_ds.shape[0]
                     new_len = current_len + 1
@@ -202,14 +229,17 @@ class AsyncProcessRunner:
                     step_ds.resize((new_len,))
                     energy_ds.resize((new_len,))
                     walltime_ds.resize((new_len,))
+                    energy_available_ds.resize((new_len,))
 
                     step_ds[current_len] = step
-                    energy_ds[current_len] = energy
+                    energy_ds[current_len] = float("nan") if energy is None else energy
+                    energy_available_ds[current_len] = energy is not None
                     walltime_ds[current_len] = walltime
 
                     step_ds.flush()
                     energy_ds.flush()
                     walltime_ds.flush()
+                    energy_available_ds.flush()
                     h5_file.flush()
 
     async def dispatch_task(
@@ -228,9 +258,12 @@ class AsyncProcessRunner:
         cleanup_on_completion: bool = True,
     ) -> Dict[str, Any]:
         """Dispatch a high-performance computation task adhering to tripartite and cluster invariants."""
-        # Setup job scratch space
+        # Never redirect or overwrite an earlier job's retained directory.
+        self._validate_task_name(task_name)
         job_scratch = self.scratch_dir / task_name
-        job_scratch.mkdir(parents=True, exist_ok=True)
+        self.validate_write_path(job_scratch)
+        job_scratch.mkdir(parents=False, exist_ok=False)
+        self._owned_scratch.add(job_scratch)
         execution_cwd = cwd or job_scratch
 
         # Prepare environment with Tripartite storage locations
@@ -296,7 +329,7 @@ class AsyncProcessRunner:
         self.record_telemetry_metric(
             telemetry_file=telemetry_file,
             step=1,
-            energy=0.0,
+            energy=None,
             walltime=elapsed,
         )
         self.close_telemetry(telemetry_file)

@@ -111,7 +111,8 @@ class ConformerInput(BaseModel):
             if self.is_ghost[i] or z == 0 or self.elements[i] in ("Gh", "Bq", "X"):
                 resolved.append(0.0)
             else:
-                resolved.append(float(element(z).mass))
+                from cochem_base.physics.isotopes import get_isotope_mass
+                resolved.append(get_isotope_mass(self.elements[i]))
         return resolved
 
 

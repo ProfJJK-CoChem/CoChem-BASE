@@ -10,6 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import json
+import math
 import shutil
 import sys
 import time
@@ -18,7 +19,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-import mendeleev
 import numpy as np
 
 from cochem_mobile.core.mount_resolver import (
@@ -68,6 +68,7 @@ class JobResult:
     execution_result: ExecutionResult
     provenance_hash: str
     lsn: int
+    scientific_execution_performed: bool = False
 
 
 class MobileCloudEngine:
@@ -106,21 +107,19 @@ class MobileCloudEngine:
         self.hdf5_writer = SWMRHDF5Writer(self.h5_path, enable_swmr=enable_swmr)
 
     def validate_and_compute_masses(self, symbols: Sequence[str]) -> Tuple[List[float], float]:
-        """Dynamically look up real physical atomic masses using mendeleev."""
+        """Resolve exact nuclide masses through the canonical dynamic gateway."""
         if not symbols:
             raise IngressValidationError("Molecular symbols list cannot be empty.")
 
-        masses: List[float] = []
-        for sym in symbols:
-            clean_sym = str(sym).strip().capitalize()
-            try:
-                elem = mendeleev.element(clean_sym)
-                atomic_weight = float(elem.atomic_weight)
-                masses.append(atomic_weight)
-            except Exception as exc:
-                raise IngressValidationError(f"Invalid chemical element symbol '{sym}': {exc}") from exc
-
-        total_mass = float(sum(masses))
+        from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+        try:
+            identity = resolve_nuclear_identity(list(symbols))
+        except ValueError as exc:
+            raise IngressValidationError(f"Invalid nuclear identity: {exc}") from exc
+        masses = list(identity.masses_u)
+        total_mass = math.fsum(masses)
+        if total_mass <= 0:
+            raise IngressValidationError("A center-of-mass request requires positive total nuclear mass")
         return masses, total_mass
 
     def validate_ingress(self, submission: JobSubmission) -> Tuple[List[float], float, np.ndarray]:
@@ -141,17 +140,32 @@ class MobileCloudEngine:
         # Check for NaN or Inf in coordinates
         if not np.all(np.isfinite(coords_arr)):
             raise IngressValidationError("Coordinates contain non-finite numbers (NaN or Inf).")
+        from cochem_base.intake.structure_formats import parse_structure_text
+        geometry = "\n".join([str(len(submission.symbols)), "Mobile structural input"] +
+            [symbol + " " + " ".join(format(float(value), ".17g") for value in row)
+             for symbol, row in zip(submission.symbols, coords_arr, strict=True)]) + "\n"
+        try:
+            parse_structure_text(geometry, "xyz")
+        except ValueError as exc:
+            raise IngressValidationError(str(exc)) from exc
 
         return masses, total_mass, coords_arr
 
     def submit_job(self, submission: JobSubmission, auth_token: Optional[str] = None) -> JobResult:
-        """Process, isolate, execute, and record a computation across all 3 tiers."""
+        """Run only the supported structural COM operation; never invent science."""
         # Step 1: Session Authorization
         session = self.session_manager.get_session(submission.session_id, auth_token)
         session.record_heartbeat()
 
         # Step 2: Ingress Validation & Physical Mendeleev Mass Retrieval
         masses, total_mass, coords_arr = self.validate_ingress(submission)
+        if submission.calculation_type != "center_of_mass":
+            raise IngressValidationError("This legacy mobile adapter supports only center_of_mass. Scientific jobs require the canonical CoChem-BASE calculation/provider interface and audited engine authority.")
+        try:
+            if str(uuid.UUID(submission.job_id)) != submission.job_id:
+                raise ValueError("noncanonical UUID")
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise IngressValidationError("A job identity must be a canonical UUID") from exc
 
         # Step 3: Record Ingress to Append-Only WAL
         ingress_payload = {
@@ -193,15 +207,15 @@ class MobileCloudEngine:
             # Build compute command
             run_script_path = job_sandbox_dir / "run_calc.py"
             script_content = (
-                "import json, sys\n"
+                "import json, math\n"
                 "with open('input.json', 'r') as f:\n"
                 "    data = json.load(f)\n"
                 "coords = data['coordinates']\n"
                 "masses = data['masses']\n"
                 "# Compute center of mass\n"
-                "total_m = sum(masses)\n"
-                "com = [sum(coords[i][j] * masses[i] for i in range(len(masses))) / total_m for j in range(3)]\n"
-                "print(json.dumps({'status': 'ok', 'com': com, 'total_mass': total_m}))\n"
+                "total_m = math.fsum(masses)\n"
+                "com = [math.fsum(coords[i][j] * masses[i] for i in range(len(masses))) / total_m for j in range(3)]\n"
+                "print(json.dumps({'status': 'ok', 'operation': 'center_of_mass', 'scientific_execution_performed': False, 'energy_hartree': None, 'com': com, 'total_mass': total_m}, allow_nan=False))\n"
             )
             with open(run_script_path, "w", encoding="utf-8") as f:
                 f.write(script_content)
@@ -225,10 +239,9 @@ class MobileCloudEngine:
                 status = "timed_out"
 
             # Step 5: Record Telemetry into SWMR HDF5 and WAL
-            simulated_energy = float(-1.0 * total_mass)
             self.hdf5_writer.append_telemetry(
                 coords=coords_arr,
-                energy=simulated_energy,
+                energy=None,
                 masses=np.array(masses),
                 prov_hash=exec_result.sha256_output_hash,
             )
@@ -240,6 +253,9 @@ class MobileCloudEngine:
                 "exit_code": exec_result.exit_code,
                 "output_hash": exec_result.sha256_output_hash,
                 "execution_time_seconds": exec_result.execution_time_seconds,
+                "operation": "center_of_mass",
+                "scientific_execution_performed": False,
+                "energy_hartree": None,
             }
             completion_record = self.wal.append("JOB_COMPLETED", completion_payload)
 

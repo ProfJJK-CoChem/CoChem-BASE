@@ -28,12 +28,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from ase import Atoms
+from ase.calculators.emt import EMT
 from scipy.spatial.transform import Rotation
 
 from topology.cochem_topos_wiggle import (
     JiggleQuenchArbiter,
     JiggleQuenchConfig,
     JiggleQuenchResult,
+    LightningQuenchError,
     arbitrate_basin_merge,
     execute_lightning_quench,
     jiggle_perturb_pair,
@@ -214,13 +216,14 @@ class TestLightningQuenchOptimization:
     def test_lightning_quench_energy_minimization(self) -> None:
         """Relaxed coordinates have lower or equal potential energy compared to perturbed state."""
         # Create slightly perturbed atoms
-        atoms_a = Atoms(symbols=ETHANOL_SYMBOLS, positions=ETHANOL_TRANS_COORDS.copy())
-        atoms_b = Atoms(symbols=ETHANOL_SYMBOLS, positions=ETHANOL_GAUCHE_COORDS.copy())
+        atoms_a = Atoms("Cu2", positions=[[0, 0, 0], [2.1, 0, 0]])
+        atoms_b = Atoms("Cu2", positions=[[0, 0, 0], [2.3, 0, 0]])
 
         relaxed_a, relaxed_b, energy_a, energy_b = execute_lightning_quench(
             atoms_a=atoms_a,
             atoms_b=atoms_b,
             max_steps=50,
+            calculator=EMT(),
         )
 
         assert isinstance(relaxed_a, Atoms)
@@ -235,9 +238,10 @@ class TestLightningQuenchOptimization:
         atoms_a = Atoms(symbols=DCE_SYMBOLS, positions=DCE_ANTI_COORDS.copy())
         atoms_b = Atoms(symbols=DCE_SYMBOLS, positions=DCE_GAUCHE_COORDS.copy())
 
-        rel_a, rel_b, _, _ = execute_lightning_quench(atoms_a, atoms_b, max_steps=20)
-        assert rel_a.get_chemical_symbols() == DCE_SYMBOLS
-        assert rel_b.get_chemical_symbols() == DCE_SYMBOLS
+        with pytest.raises(LightningQuenchError, match="explicit supported potential"):
+            execute_lightning_quench(atoms_a, atoms_b, max_steps=20)
+        assert atoms_a.get_chemical_symbols() == DCE_SYMBOLS
+        assert atoms_b.get_chemical_symbols() == DCE_SYMBOLS
 
 
 # ===========================================================================
@@ -344,16 +348,13 @@ class TestJiggleQuenchArbiterPipeline:
         )
         arbiter = JiggleQuenchArbiter(config=config)
 
-        # Construct ambiguous near-duplicate pair for ethanol
-        cand_a_coords = ETHANOL_TRANS_COORDS.copy()
-        cand_b_coords = ETHANOL_TRANS_COORDS.copy() + 0.02  # slightly shifted
-
         result = arbiter.process_ambiguous_pair(
-            symbols=ETHANOL_SYMBOLS,
-            coords_a=cand_a_coords,
-            coords_b=cand_b_coords,
+            symbols=["Cu", "Cu"],
+            coords_a=[[0, 0, 0], [2.1, 0, 0]],
+            coords_b=[[0, 0, 0], [2.3, 0, 0]],
             candidate_id_a="eth_a",
             candidate_id_b="eth_b",
+            calculator=EMT(),
         )
 
         assert isinstance(result, JiggleQuenchResult)

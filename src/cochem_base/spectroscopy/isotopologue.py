@@ -22,13 +22,12 @@ from scipy.constants import physical_constants, speed_of_light
 
 from cochem_base.core.cochem_constants import C_ROT_MHZ_U_ANG2
 from cochem_base.physics.isotopes import get_isotope_mass, parse_nuclide_token
-from cochem_base.physics.nuclide_resolver import get_element
 
 # One conversion factor throughout the CoChem architecture.
 ROTATIONAL_CONSTANT_CONVERSION_MHZ = C_ROT_MHZ_U_ANG2
 
 
-@functools.lru_cache(maxsize=128, typed=True)
+@functools.lru_cache(maxsize=4096, typed=True)
 def get_nuclide_mass(symbol: str, mass_number: Optional[int] = None) -> float:
     """Resolve an exact nuclide mass; bare symbols select the most abundant isotope.
 
@@ -40,12 +39,6 @@ def get_nuclide_mass(symbol: str, mass_number: Optional[int] = None) -> float:
     if mass_number is not None and parsed_number is not None and mass_number != parsed_number:
         raise ValueError(f"Contradictory isotope specification: {symbol}, {mass_number}")
     number = parsed_number if mass_number is None else mass_number
-    if number is None:
-        isotopes = [iso for iso in get_element(clean_sym).isotopes
-                    if iso.abundance is not None and iso.abundance > 0 and iso.mass is not None]
-        if not isotopes:
-            raise ValueError(f"An explicit isotope is required for {clean_sym}")
-        number = max(isotopes, key=lambda iso: (iso.abundance, -iso.mass_number)).mass_number
     mass = get_isotope_mass(clean_sym, number)
     if not math.isfinite(mass) or mass <= 0:
         raise ValueError("Spectroscopic masses must be finite and strictly positive")
@@ -100,7 +93,8 @@ class IsotopologueResult:
     I_b: float
     I_c: float
 
-    # Theoretical Equilibrium Rotational Constants (BO minimum) in MHz [M]
+    # Historical names: geometric rigid-rotor constants. They represent B_e
+    # only when the source geometry's stationarity is independently verified.
     A_e_MHz: float
     B_e_MHz: float
     C_e_MHz: float
@@ -123,6 +117,15 @@ class IsotopologueResult:
 
     rigid_mode_count: int = 0
     vibrational_correction_source: Optional[str] = None
+    equilibrium_geometry_verified: bool = False
+    physical_hessian_verified: bool = False
+    minimum_verified: bool = False
+    scientific_accuracy_established: bool = False
+    mass_convention: str = "Explicit isotopes use their dynamic nuclide mass; bare symbols select the most abundant isotope, not the atomic-weight average."
+    rotational_constant_scope: str = "Rigid-geometry rotational constants; a stationary equilibrium geometry is not established."
+    harmonic_frequency_scope: str = "No Cartesian tensor supplied."
+    ground_state_constant_scope: str = "Missing: harmonic isotope reweighting alone does not establish anharmonic ground-state rotational constants."
+    geometry_qualification: Dict = field(default_factory=dict)
     execution_walltime_ms: float = 0.0
     provenance_tags: Dict[str, str] = field(default_factory=lambda: {
         "A_e": "[M]", "B_e": "[M]", "C_e": "[M]",
@@ -145,6 +148,7 @@ class IsotopologueSpectroscopyEngine:
         symbols: List[str],
         coordinates_angstrom: Union[np.ndarray, List[List[float]]],
         cartesian_hessian: Optional[np.ndarray] = None,
+        *, hessian_qualification: Optional[Dict] = None,
     ) -> None:
         self.symbols = [str(s).strip() for s in symbols]
         self.coordinates = np.array(coordinates_angstrom, dtype=np.float64)
@@ -152,6 +156,7 @@ class IsotopologueSpectroscopyEngine:
             np.array(cartesian_hessian, dtype=np.float64) if cartesian_hessian is not None else None
         )
         self.num_atoms = len(self.symbols)
+        self.hessian_qualification = dict(hessian_qualification or {})
         if self.num_atoms == 0:
             raise ValueError("At least one atom is required")
         if self.coordinates.shape != (self.num_atoms, 3):
@@ -233,7 +238,8 @@ class IsotopologueSpectroscopyEngine:
         sorted_evals = np.sort(evals)
         I_a, I_b, I_c = float(sorted_evals[0]), float(sorted_evals[1]), float(sorted_evals[2])
 
-        # Theoretical equilibrium rotational constants in MHz
+        # Geometric rotational constants. The metadata below qualifies whether
+        # this fixed geometry has a verified Born-Oppenheimer stationary point.
         A_e = ROTATIONAL_CONSTANT_CONVERSION_MHZ / I_a if I_a > 1e-12 else math.inf
         B_e = ROTATIONAL_CONSTANT_CONVERSION_MHZ / I_b if I_b > 1e-12 else math.inf
         C_e = ROTATIONAL_CONSTANT_CONVERSION_MHZ / I_c if I_c > 1e-12 else math.inf
@@ -262,6 +268,14 @@ class IsotopologueSpectroscopyEngine:
 
         wall_ms = (time.perf_counter() - t0) * 1000.0
 
+        physical_hessian = (self.cartesian_hessian is not None
+                            and self.hessian_qualification.get("validation_kind") == "native-artifact-consistency"
+                            and self.hessian_qualification.get("physical_hessian_verified") is True)
+        equilibrium = physical_hessian and self.hessian_qualification.get("stationary_geometry_verified") is True
+        minimum = equilibrium and bool(harmonic_freqs) and min(harmonic_freqs) > 0
+        harmonic_scope = ("Isotope mass reweighting of the retained native physical force Hessian; fixed Born-Oppenheimer geometry, harmonic approximation, no new electronic calculation." if physical_hessian else
+                          "Mass reweighting of a supplied Cartesian tensor. Physical force-Hessian origin and stationary geometry are not established; model/preconditioner eigenvalues are not validated molecular vibrations." if self.cartesian_hessian is not None else
+                          "No Cartesian tensor supplied.")
         return IsotopologueResult(
             symbols=active_symbols,
             masses=masses,
@@ -283,6 +297,15 @@ class IsotopologueSpectroscopyEngine:
             harmonic_frequencies_cm1=harmonic_freqs,
             rigid_mode_count=rigid_count,
             vibrational_correction_source=correction_source if vibrational_corrections_mhz is not None else None,
+            equilibrium_geometry_verified=equilibrium,
+            physical_hessian_verified=physical_hessian,
+            minimum_verified=minimum,
+            rotational_constant_scope=("Born-Oppenheimer stationary-geometry rigid-rotor constants; isotopic masses change inertia, not the fixed electronic geometry. Experimental spectroscopic accuracy is not established." if equilibrium else
+                                       "Rigid-geometry rotational constants; a stationary equilibrium geometry is not established."),
+            harmonic_frequency_scope=harmonic_scope,
+            ground_state_constant_scope=("Mathematical sum of rigid-geometry constants and independently supplied MHz corrections; the corrections' physical validity and applicability are not certified by harmonic reanalysis." if vibrational_corrections_mhz is not None else
+                                         "Missing: harmonic isotope reweighting alone does not establish anharmonic ground-state rotational constants."),
+            geometry_qualification=dict(self.hessian_qualification),
             provenance_tags=provenance,
             execution_walltime_ms=wall_ms,
         )

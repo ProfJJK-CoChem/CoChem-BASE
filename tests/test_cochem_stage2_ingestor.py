@@ -464,9 +464,13 @@ def test_stage2_ingestor_batch_pipeline(tmp_path: Path) -> None:
     water_sys = next(s for s in batch_res if s.formula == "H2O")
     methane_sys = next(s for s in batch_res if s.formula == "CH4")
     
-    # Water system had 2 inputs, should deduplicate to 1 unique conformer
+    # Coordinates alone do not declare charge/spin, measured energies or a
+    # common protocol. Both originals remain unranked instead of inventing
+    # a scientifically qualified duplicate/minimum decision.
     assert water_sys.total_input_conformers == 2
-    assert water_sys.unique_conformer_count == 1
+    assert water_sys.unique_conformer_count == 2
+    assert len(water_sys.conformer_pool_sieve["records"]) == 2
+    assert {row["disposition"] for row in water_sys.conformer_pool_sieve["decisions"]} == {"unranked-energy"}
     
     # Methane system had 1 input
     assert methane_sys.total_input_conformers == 1

@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from src.cochem.hpc.models import MpiClusterExecutionConfig, MpiProcessSupervisorError
+from cochem.hpc.models import MpiClusterExecutionConfig, MpiProcessSupervisorError
 
 logger = logging.getLogger(__name__)
 
@@ -168,9 +168,9 @@ class MpiProcessSupervisor:
         if is_windows:
             extra_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
         else:
-            setsid = getattr(os, "setsid", None)
-            if setsid is not None:
-                extra_kwargs["preexec_fn"] = setsid
+            # Let subprocess create the process group without Python code in
+            # the child between fork and exec (unsafe with active JAX threads).
+            extra_kwargs["start_new_session"] = True
 
         run_env = dict(os.environ) if env is None else dict(env)
         stdout_lines: List[str] = []

@@ -1,72 +1,48 @@
-"""Physical Zero-Mock Test for C^2-Smooth Quintic Switching Envelope and Fallback Forces.
-
-Validates Suggestion #49:
-- C^2 energy continuity across transition boundary [r_on - 0.2 Å, r_off + 0.2 Å].
-- Zero step jumps in potential energy.
-- Strict energy-conserving analytical force derivatives matching two-point
-  numerical finite-difference gradients within 1e-4 eV/Å.
-"""
-
-import sys
+"""Retained native ORCA derivative transport; no invented OET potential or fresh-server claim."""
+import hashlib
+import json
 from pathlib import Path
+
 import numpy as np
 import pytest
 
-torq_root = Path(__file__).resolve().parents[3] / "CoChem-TORQ"
-if str(torq_root) not in sys.path:
-    sys.path.insert(0, str(torq_root))
+from cochem_base.calc.recipe_r2_execution import read_dimer_gradient
+from scripts.oet_client import OETClient, MissingRequestedDerivativeError, PhysicalOETFallbackCalculator, OETDaemonUnavailableError
 
-from scripts.oet_client import (
-    PhysicalOETFallbackCalculator,
-    get_element_covalent_radius,
-    HARTREE_TO_EV,
-    BOHR_TO_ANGSTROM,
-)
+FIXTURE = Path(__file__).parents[1] / "data" / "orca_6_1_1_water_hf_sto3g"
 
 
-def test_oet_quintic_switching_continuity_and_gradients():
-    """Assert potential energy is C0-continuous and analytical forces match FD to < 1e-4 eV/Å."""
-    calc = PhysicalOETFallbackCalculator()
-    symbols = ["O", "H"]
-    r_cov = get_element_covalent_radius("O") + get_element_covalent_radius("H")
-    r_on = 1.15 * r_cov
-    r_off = 1.45 * r_cov
+def native_response():
+    provenance = json.loads((FIXTURE / "provenance.json").read_text())
+    assert hashlib.sha256((FIXTURE / "water.engrad").read_bytes()).hexdigest() == provenance["files"]["water.engrad"]["sha256"]
+    rows = (FIXTURE / "water.xyz").read_text().splitlines()[2:]
+    symbols = [row.split()[0] for row in rows]
+    coordinates = [[float(v) for v in row.split()[1:4]] for row in rows]
+    energy, gradient = read_dimer_gradient(FIXTURE / "water.engrad", symbols, coordinates)
+    return {"status": "OK", "energy_Eh": energy, "gradient_Eh_bohr": gradient.reshape(-1).tolist()}
 
-    delta = 1e-5  # Ångströms
-    r_grid = [r_on - 0.2 + (r_off - r_on + 0.4) * (i / 49.0) for i in range(50)]
 
-    energies_ev = []
-    max_force_diff = 0.0
+def test_actual_native_derivatives_preserve_units_and_unknown_uncertainty():
+    response = native_response()
+    result = OETClient()._normalize_server_response(response, dograd=True, n_atoms=3)
+    assert result["energy_Eh"] == response["energy_Eh"]
+    assert np.array_equal(result["gradient_Eh_bohr"], response["gradient_Eh_bohr"])
+    assert result["uncertainty_energy_Eh"] is result["uncertainty_force_max"] is None
 
-    for r in r_grid:
-        # 1. Analytical calculation
-        e_eh, grad = calc.calculate(symbols, [(0.0, 0.0, 0.0), (float(r), 0.0, 0.0)])
-        e_ev = e_eh * HARTREE_TO_EV
-        energies_ev.append(e_ev)
 
-        # Force on atom 1 along x: F = -nabla E = -grad in eV/Å
-        f1_x_analytic = -grad[3] * (HARTREE_TO_EV / BOHR_TO_ANGSTROM)
+def test_missing_requested_derivative_cannot_be_padded_as_measured_zero():
+    response = native_response()
+    response.pop("gradient_Eh_bohr")
+    with pytest.raises(MissingRequestedDerivativeError, match="requested gradient"):
+        OETClient()._normalize_server_response(response, dograd=True, n_atoms=3)
+    energy_only = OETClient()._normalize_server_response(response, dograd=False, n_atoms=3)
+    assert energy_only["energy_Eh"] == response["energy_Eh"]
+    assert energy_only["gradient_Eh_bohr"] == [0.0] * 9  # Explicit ORCA energy-only file padding.
 
-        # 2. Numerical finite difference
-        e_plus_eh, _ = calc.calculate(
-            symbols, [(0.0, 0.0, 0.0), (float(r + delta), 0.0, 0.0)], dograd=False
-        )
-        e_minus_eh, _ = calc.calculate(
-            symbols, [(0.0, 0.0, 0.0), (float(r - delta), 0.0, 0.0)], dograd=False
-        )
-        f1_x_fd = -((e_plus_eh - e_minus_eh) * HARTREE_TO_EV) / (2.0 * delta)
 
-        diff = abs(f1_x_analytic - f1_x_fd)
-        if diff > max_force_diff:
-            max_force_diff = diff
-
-        assert diff < 1e-4, (
-            f"Force discrepancy at r={r:.4f} Å exceeds 1e-4 eV/Å: "
-            f"F_analytic={f1_x_analytic:.6f}, F_fd={f1_x_fd:.6f}, diff={diff:.2e}"
-        )
-
-    # 3. Assert energy curve has no step jumps (finite difference of energy values is bounded)
-    e_arr = np.array(energies_ev)
-    step_diffs = np.abs(np.diff(e_arr))
-    assert np.all(step_diffs < 20.0), "Discontinuous step jump detected in potential energy."
-    assert max_force_diff < 1e-4, f"Max force difference {max_force_diff:.2e} exceeds tolerance 1e-4 eV/Å."
+def test_retired_unparameterized_oet_surrogate_cannot_calculate():
+    rows = (FIXTURE / "water.xyz").read_text().splitlines()[2:]
+    symbols = [row.split()[0] for row in rows]
+    coordinates = [tuple(float(v) for v in row.split()[1:4]) for row in rows]
+    with pytest.raises(OETDaemonUnavailableError, match="retired"):
+        PhysicalOETFallbackCalculator().calculate(symbols, coordinates)

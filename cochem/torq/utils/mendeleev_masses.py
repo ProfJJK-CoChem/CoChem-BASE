@@ -12,37 +12,11 @@ _MONOISOTOPIC_CACHE: dict[int, float] = {}
 
 
 def query_single_monoisotopic_mass(z: int) -> float:
-    """Query pure monoisotopic mass for atomic number Z using mendeleev. [M], [D]
-
-    Ghost atoms (Z=0) are assigned 0.0 u without querying mendeleev.
-    For Z > 0, the isotope with maximum relative abundance is chosen.
-    """
+    """Resolve a measured principal isotope; ghost Z=0 has exact zero mass."""
     if z == 0:
-        return 0.0  # [M] Ghost atom mass
-
-    if z in _MONOISOTOPIC_CACHE:
-        return _MONOISOTOPIC_CACHE[z]
-
-    el = mendeleev.element(int(z))
-    isotopes = [
-        iso
-        for iso in el.isotopes
-        if iso.abundance is not None and iso.abundance > 0.0
-    ]
-    if isotopes:
-        # Maximize abundance, breaking ties with mass number [D]
-        mono_iso = max(
-            isotopes,
-            key=lambda iso: (iso.abundance or 0.0, iso.mass_number),
-        )
-        mass_val = float(mono_iso.mass)
-    else:
-        # Fallback for synthetic/radioactive elements with no stable abundance [D]
-        mono_iso = max(el.isotopes, key=lambda iso: iso.mass_number)
-        mass_val = float(mono_iso.mass)
-
-    _MONOISOTOPIC_CACHE[z] = mass_val
-    return mass_val
+        return 0.0
+    from cochem_base.physics.isotopes import get_isotope_mass
+    return get_isotope_mass(mendeleev.element(int(z)).symbol)
 
 
 def get_monoisotopic_masses(

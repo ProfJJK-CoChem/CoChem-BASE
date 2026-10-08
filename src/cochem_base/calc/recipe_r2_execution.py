@@ -7,6 +7,8 @@ or infers CCSD(T)/CBS quality from an arbitrary submitted XYZ geometry.
 
 from __future__ import annotations
 
+from cochem_base.core_engine.scientific_writer import scientific_producer
+
 import hashlib
 import json
 import math
@@ -536,6 +538,7 @@ def read_dimer_gradient(
     return energy, gradient
 
 
+@scientific_producer
 def execute_recipe_r2(
     symbols: Sequence[str],
     coordinates: Sequence[Sequence[float]],

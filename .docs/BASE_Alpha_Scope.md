@@ -46,10 +46,21 @@ Consequently, the 6.27 result is limited algebraic regression evidence. It canno
 
 ## Current student distribution
 
-Use the reviewed `v1.0.1` release after publication or the instructor-approved
-assignment commit containing its changes. Existing assignment copies and the
-older `v1.0.0` source do not update automatically. Source access, package
-installation, a supported handoff and scientific acceptance are separate
-checks. BASE does not advertise every ecosystem repository as an installed or
-fully implemented solver. Follow the [module capability catalog](Ecosystem_Modules_Setup.md)
-and [single-student deployment pilot](Student_Deployment_Pilot.md).
+Published `v1.0.1` is the historical stable source. The current no-code
+installation/update/interface work is a `1.1` release candidate in
+[PR 10](https://github.com/ProfJJK-CoChem/CoChem-BASE/pull/10), with its complete
+[SRS obligation trace](SRS_Student_1_1_Conformance_Trace.md). A working-tree fix or
+passing historical test is not a new published student release.
+
+The new BASE setup manages approved installed runtime/module updates while
+retaining original uploads, results and accepted rollback environments. A
+Classroom50 starter copy does not automatically receive changed repository
+files or organization secrets. See the
+[instructor deployment guide](Classroom50_Assignment_Deployment.md),
+[module capability catalog](Ecosystem_Modules_Setup.md) and
+[single-student deployment pilot](Student_Deployment_Pilot.md).
+
+Source access, installation, a supported handoff and actual scientific
+acceptance remain distinct checks. BASE does not advertise every ecosystem
+repository as an installed or fully implemented solver. Unsupported
+capabilities stay unavailable with their actual prerequisite/reason.

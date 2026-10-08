@@ -321,7 +321,7 @@ def test_session_manager_heartbeat_watchdog() -> None:
 
 
 def test_tripartite_engine_end_to_end_job_submission(tmp_path: Path) -> None:
-    """Verify end-to-end Tripartite Architecture execution with mendeleev dynamic masses."""
+    """Validate a structural COM operation; this is not spectral or energy work."""
     engine = MobileCloudEngine(
         workspace_root=tmp_path / "mobile_workspace",
         preferred_engine=ContainerEngine.SUBPROCESS,
@@ -345,7 +345,7 @@ def test_tripartite_engine_end_to_end_job_submission(tmp_path: Path) -> None:
     submission = JobSubmission(
         symbols=ethylene_symbols,
         coordinates=ethylene_coords,
-        calculation_type="spectral_fit",
+        calculation_type="center_of_mass",
         session_id=session.session_id,
     )
 
@@ -354,12 +354,13 @@ def test_tripartite_engine_end_to_end_job_submission(tmp_path: Path) -> None:
 
     assert isinstance(result, JobResult)
     assert result.status == "completed"
+    assert result.scientific_execution_performed is False
     assert result.session_id == session.session_id
     assert len(result.provenance_hash) == 64
 
     # Verify real physical dynamic masses from mendeleev
-    c_mass = float(mendeleev.element("C").atomic_weight)
-    h_mass = float(mendeleev.element("H").atomic_weight)
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+    c_mass, h_mass = resolve_nuclear_identity(["C", "H"]).masses_u
     expected_ethylene_mass = 2 * c_mass + 4 * h_mass
     assert np.isclose(result.total_mass_amu, expected_ethylene_mass, atol=1e-3)
 
@@ -382,6 +383,7 @@ def test_tripartite_engine_end_to_end_job_submission(tmp_path: Path) -> None:
 
     # 6. Verify SWMR HDF5 telemetry store
     stored_state = engine.hdf5_writer.read_reader_mode()
+    assert stored_state["energies"].size == 0
     assert stored_state["coordinates"].shape == (6, 3)
     assert len(stored_state["atomic_masses"]) == 6
     assert np.isclose(stored_state["atomic_masses"][0], c_mass)

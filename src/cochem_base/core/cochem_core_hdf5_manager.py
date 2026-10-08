@@ -801,7 +801,7 @@ class BasinRecord(BaseModel):
 
     molecule_name: str = Field(..., description="Name or identifier of the molecule")
     xyz_coordinates: Optional[Any] = Field(None, description="Atomic coordinates array or list")
-    energy: float = Field(..., description="Total energy of the basin in Hartrees")
+    energy: float = Field(..., allow_inf_nan=False, description="Measured total energy of the basin in Hartrees")
     symmetry_group: str = Field(default="C1", description="Point group symmetry")
     LAM_TRIGGER_REQUIRED: bool = Field(default=False, description="Large Amplitude Motion trigger flag")
 
@@ -1189,10 +1189,15 @@ class CoChemHDF5Manager:
             if "xyz_coordinates" in grp:
                 coords = grp["xyz_coordinates"][()]
 
+            if "energy" not in grp.attrs:
+                raise DatasetNotFoundError(
+                    f"Basin record '{basin_id}' has no measured energy; it cannot be read as an evaluated basin."
+                )
+
             return BasinRecord(
                 molecule_name=str(grp.attrs.get("molecule_name", "")),
                 xyz_coordinates=coords,
-                energy=float(grp.attrs.get("energy", 0.0)),
+                energy=float(grp.attrs["energy"]),
                 symmetry_group=str(grp.attrs.get("symmetry_group", "C1")),
                 LAM_TRIGGER_REQUIRED=bool(grp.attrs.get("LAM_TRIGGER_REQUIRED", False)),
             )

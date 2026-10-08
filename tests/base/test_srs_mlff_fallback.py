@@ -1,7 +1,6 @@
 """Real small CPU calculations proving both directions of the MLFF fallback."""
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -22,10 +21,15 @@ WATER = [[0., 0., 0.], [.7586, 0., .5043], [-.7586, 0., .5043]]
 
 
 def _registry(directory: Path, backends: dict[str, Path]) -> Path:
-    config = CoChemSystemConfig.create_default(auto_detect_hardware=True)
-    config.engines = {name: {"status": "found", "path": str(binary),
-                            "hash": hashlib.sha256(binary.read_bytes()).hexdigest()}
-                      for name, binary in backends.items()}
+    from cochem_base.config_loader import resolve_config_path
+    from cochem_base.core_engine.execution_authority import authorize_engine_execution
+    source = resolve_config_path(os.environ.get("COCHEM_ACCEPTANCE_REGISTRY"))
+    config = CoChemSystemConfig.model_validate_json(source.read_text(encoding="utf-8"))
+    for name, binary in backends.items():
+        authorize_engine_execution(name, registry_path=source, executable=binary, cores=1)
+    # A bounded policy selection retains genuine measured engine/silo evidence;
+    # excluded backends exercise absence, never fabricated execution results.
+    config.engines = {name: config.engines[name] for name in backends}
     config = CoChemSystemConfig.model_validate(config.model_dump())
     config.update_checksum()
     target = directory / "registry.json"

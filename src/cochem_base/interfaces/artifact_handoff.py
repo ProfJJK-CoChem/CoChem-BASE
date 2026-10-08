@@ -102,14 +102,18 @@ def _inspect(path: Path) -> tuple[str, dict]:
         details = {"engine": data["engine"], "energy_unit": "hartree",
                    "scope": data.get("scope", "producer_scope_unspecified")}
         if "nuclides" in data or "nuclear_identity" in data:
-            from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
-            identity = resolve_nuclear_identity(data.get("nuclides", []))
-            if list(identity.elements) != data.get("elements") or identity.metadata != data.get("nuclear_identity"):
+            from cochem_base.geometry.nuclide_geometry import validate_nuclear_identity_metadata
+            from cochem_base.physics.isotopes import parse_nuclide_token
+            recorded_identity = validate_nuclear_identity_metadata(
+                data.get("nuclides", []), data.get("nuclear_identity"), allow_historical=True,
+            )
+            elements = [parse_nuclide_token(label)[0] for label in recorded_identity["nuclides"]]
+            if elements != data.get("elements"):
                 raise ValueError("Calculation result isotope assignments disagree with its nuclear identity metadata")
             coordinates = np.asarray(data.get("coordinates_angstrom"), dtype=float)
-            if coordinates.shape != (len(identity.elements), 3) or not np.isfinite(coordinates).all():
+            if coordinates.shape != (len(elements), 3) or not np.isfinite(coordinates).all():
                 raise ValueError("An isotope-bound calculation result requires its complete ordered geometry")
-            details.update(elements=list(identity.elements), atom_count=len(identity.elements), **identity.metadata)
+            details.update(elements=elements, atom_count=len(elements), **recorded_identity)
         return "calculation_result", details
     raise ValueError("Supported artifacts are a single XYZ geometry, geometry-bound Hessian (.npz/.h5/.hess), or converged calculation result JSON")
 

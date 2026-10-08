@@ -6,6 +6,8 @@ its single-point evidence does not certify an interrupted optimization or Hessia
 """
 from __future__ import annotations
 
+from cochem_base.core_engine.scientific_writer import scientific_producer
+
 import hashlib
 import json
 import math
@@ -68,6 +70,7 @@ def _write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n", encoding="utf-8")
 
 
+@scientific_producer
 def run_t9_fallback(
     config: T9FallbackConfig,
     *,

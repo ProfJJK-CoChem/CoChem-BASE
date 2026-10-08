@@ -232,9 +232,11 @@ class StudentSetupService:
         rollback = (isinstance(last_update, dict) and last_update.get("status") == "applied"
                     and re.fullmatch(r"[0-9a-f]{32}", str(last_update.get("plan_id", ""))) is not None
                     and (self.state_dir / "history" / f"{last_update['plan_id']}.json").is_file())
-        return {"schema_version": SETUP_SCHEMA, "rollback_available": rollback, "ready": all(item["status"] == "installed" for item in observed.values()),
+        free_engines = _read(self.artifact_dir / "free-engines/setup-status.json", {"status": "unchecked", "engines": {},
+            "message": "Free-engine installation is checked by BASE's native setup."})
+        return {"schema_version": SETUP_SCHEMA, "rollback_available": rollback, "ready": all(item["status"] == "installed" for item in observed.values()) and free_engines.get("status") != "failed",
             "base": {"status": "ready", "revision": runtime.get("revision"), "restart_required": restart},
-            "modules": observed, "initial_setup": previous,
+            "modules": observed, "initial_setup": previous, "free_engines": free_engines,
             "operation": _read(self.state_dir / "operation.json", {"status": "idle", "action": None, "message": "Ready."}),
             "update_plan": _read(self.state_dir / "update-plan.json")}
 
@@ -244,7 +246,8 @@ class StudentSetupService:
         if not location.exists() or (location / "installation.json").exists():
             return
         current = _read(parent / "installation.json", {})
-        if isinstance(current, dict) and current.get("revision") == spec["revision"]:
+        if (isinstance(current, dict) and current.get("revision") == spec["revision"]
+                and current.get("manifest_spec_sha256") == installer._digest_json(spec)):
             return  # A valid existing installation is verified, never replaced.
         source_receipt = _read(location / "source.json")
         if source_receipt is not None:
@@ -254,12 +257,30 @@ class StudentSetupService:
             return
         location.rename(parent / f"failed-{spec['revision']}-{uuid.uuid4().hex}")
         source_pointer = _read(parent / "source.json", {})
-        if isinstance(source_pointer, dict) and source_pointer.get("revision") == spec["revision"]:
+        if (isinstance(source_pointer, dict) and source_pointer.get("revision") == spec["revision"]
+                and source_pointer.get("source_path") == str(location / "source")):
             (parent / "source.json").rename(parent / f"source.failed-{uuid.uuid4().hex}.json")
 
     def install_default_modules(self) -> dict:
         """Install TOPOS/TORQ independently; either failure leaves BASE usable."""
+        free = _read(self.artifact_dir / "free-engines/setup-status.json", {})
+        if free.get("status") == "failed":
+            self.retry_free_engines()
         return self.install_modules(DEFAULT_MODULES)
+
+    def retry_free_engines(self) -> dict:
+        """Retry actual downloads and republish all eleven authority phases."""
+        with self._operation("retry_free_engines"):
+            from scripts.hosted_dashboard import prepare_free_engines, refresh_stage0_authority
+            runtime = self._active_runtime()
+            python = Path(runtime["python_path"])
+            self._progress("retry_free_engines", "Retrying pinned free-engine downloads; BASE inputs and results remain intact.")
+            result = prepare_free_engines(python, self.artifact_dir)
+            self._progress("retry_free_engines", "Refreshing all eleven setup phases using actually available engines.")
+            evidence = refresh_stage0_authority(python, self.artifact_dir)
+            self._write("free-engine-retry.json", {"schema_version": "cochem.free-engine-retry/1",
+                "free_engines": result, "authority": evidence, "created_at": _now()})
+        return result
 
     def install_modules(self, module_ids=DEFAULT_MODULES) -> dict:
         """Install a selected reviewed set, including its actual private dependencies."""
@@ -285,7 +306,9 @@ class StudentSetupService:
                     result["modules"][module_id] = {"status": "failed", "operations": [],
                         "message": installer._redact(str(error)) + " BASE remains usable. Check module access, then click Retry setup."}
                 self._write("initial-setup.json", result)
-            result["ready"] = all(item["status"] == "installed" for item in result["modules"].values())
+            free = _read(self.artifact_dir / "free-engines/setup-status.json", {})
+            result["free_engines"] = free
+            result["ready"] = all(item["status"] == "installed" for item in result["modules"].values()) and free.get("status") != "failed"
             result["message"] = "The selected modules are installed and verified." if result["ready"] else "BASE is ready. Unavailable modules remain disabled; correct access and click Retry setup."
             self._write("initial-setup.json", result)
         return result
@@ -538,8 +561,10 @@ class StudentSetupService:
         authority.mkdir(exist_ok=True, mode=0o700)
         dashboard = authority / "dashboard"
         dashboard.mkdir(exist_ok=True, mode=0o700)
-        installer._atomic_json(dashboard / "deployment_manifest.json", {"selected_repositories": ["CoChem-BASE", "CoChem-TOPOS", "CoChem-TORQ"]})
-        from scripts.hosted_dashboard import runtime_environment, setup_build_environment
+        from scripts.hosted_dashboard import runtime_environment, setup_build_environment, requested_silos
+        installer._atomic_json(dashboard / "deployment_manifest.json", {
+            "selected_repositories": ["CoChem-BASE", "CoChem-TOPOS", "CoChem-TORQ"],
+            "requested_silos": requested_silos(self.artifact_dir)})
         env = setup_build_environment(runtime_environment(self.artifact_dir))
         env.update(COCHEM_ARTIFACT_DIR=str(authority), COCHEM_CONFIG=str(authority / "Registry/cochem_system_config.json"),
                    COCHEM_MANIFEST_PATH=str(dashboard / "deployment_manifest.json"),
@@ -549,7 +574,7 @@ class StudentSetupService:
             env[variable] = str(authority / "Silos" / name)
         # Authority is prepared under the candidate revision. Failed setup and
         # rollback leave the previous registry, engine seals and silos untouched.
-        installer._run([receipt["python_path"], "-B", str(source / "cli.py"), "setup", "--all", "--skip-heavy",
+        installer._run([receipt["python_path"], "-B", str(source / "cli.py"), "setup", "--all",
             "--artifact-dir", str(authority), "--min-disk-space-gb", "1", "--json"],
             env=env, label="Validate new BASE runtime through complete Stage 0", cwd=source)
         installer.verify_installation("base", spec, self.artifact_dir / "BaseRuntime", active=False)

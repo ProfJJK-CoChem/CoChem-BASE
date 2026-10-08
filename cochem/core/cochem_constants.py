@@ -195,6 +195,6 @@ class PhysicalConstantsRegistry:
     @staticmethod
     @functools.lru_cache(maxsize=128)
     def get_element_mass(symbol: str) -> float:
-        """Dynamically retrieve IUPAC standard atomic mass from Mendeleev."""
-        elem = element(symbol)
-        return float(elem.mass)
+        """Resolve an exact principal or explicitly assigned isotope mass."""
+        from cochem_base.physics.isotopes import get_isotope_mass
+        return get_isotope_mass(symbol)

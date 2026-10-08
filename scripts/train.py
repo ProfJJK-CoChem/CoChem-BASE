@@ -50,38 +50,39 @@ if _orig_check_help is not None:
 
 import hydra
 from hydra.utils import instantiate
-import mendeleev
-import numpy as np
 from omegaconf import DictConfig, OmegaConf
 import pytorch_lightning as pl
 from pytorch_lightning.strategies import DDPStrategy
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import OneCycleLR
 from torch.utils.data import DataLoader, Dataset
+from scipy.constants import elementary_charge as _elementary_charge
+from cochem_base.core import cochem_constants as _physical_constants
+from cochem_base.core.mendeleev_invariants import get_element as _get_element
+from cochem_base.physics.isotopes import get_isotope_mass
 
 # Configure structured logging
 logger = logging.getLogger("cochem.scripts.train")
 
 # ==============================================================================
-# 1. Fundamental Physical Constants & Provenance Declarations (CODATA 2018/2022)
+# 1. Fundamental Physical Constants & Provenance Declarations (shared CODATA 2022)
 # ==============================================================================
 
-SPEED_OF_LIGHT_M_S: float = 299792458.0  # [M] CODATA 2018/2022 standard (m/s)
-PLANCK_CONSTANT_J_S: float = 6.62607015e-34  # [M] CODATA 2018 standard (J*s)
-BOLTZMANN_CONSTANT_J_K: float = 1.380649e-23  # [M] CODATA 2018 standard (J/K)
-BOLTZMANN_CONSTANT_EV_K: float = 8.617333262145e-5  # [M] CODATA 2018 standard (eV/K)
-ELEMENTARY_CHARGE_C: float = 1.602176634e-19  # [M] CODATA 2018 standard (C)
-AVOGADRO_CONSTANT_MOL: float = 6.02214076e23  # [M] CODATA 2018 standard (1/mol)
-ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27  # [M] Unified atomic mass unit (kg)
-BOHR_RADIUS_ANGSTROM: float = 0.529177210903  # [M] Bohr radius in Angstroms
-HARTREE_TO_EV: float = 27.211386245988  # [D] Conversion Hartree to eV
+SPEED_OF_LIGHT_M_S: float = _physical_constants.SPEED_OF_LIGHT_M_S
+PLANCK_CONSTANT_J_S: float = _physical_constants.PLANCK_CONSTANT_J_S
+BOLTZMANN_CONSTANT_J_K: float = _physical_constants.BOLTZMANN_CONSTANT_J_K
+BOLTZMANN_CONSTANT_EV_K: float = BOLTZMANN_CONSTANT_J_K / _elementary_charge
+ELEMENTARY_CHARGE_C: float = _elementary_charge
+AVOGADRO_CONSTANT_MOL: float = _physical_constants.AVOGADRO_CONSTANT
+ATOMIC_MASS_UNIT_KG: float = _physical_constants.ATOMIC_MASS_UNIT_KG
+BOHR_RADIUS_ANGSTROM: float = _physical_constants.BOHR_TO_ANGSTROM
+HARTREE_TO_EV: float = _physical_constants.HARTREE_TO_EV
 EV_TO_HARTREE: float = 1.0 / HARTREE_TO_EV  # [D] Conversion eV to Hartree
-HARTREE_TO_KCAL_MOL: float = 627.5094740631  # [D] Conversion Hartree to kcal/mol
-KCAL_MOL_TO_EV: float = 0.04336411530877  # [D] Conversion kcal/mol to eV
-ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ: float = 505379.008784  # [D] Rotational constant factor (MHz*u*A^2)
+HARTREE_TO_KCAL_MOL: float = _physical_constants.HARTREE_TO_KCAL_MOL
+KCAL_MOL_TO_EV: float = HARTREE_TO_EV / HARTREE_TO_KCAL_MOL
+ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ: float = _physical_constants.C_ROT_MHZ_U_ANG2
 STANDARD_TEMPERATURE_K: float = 298.15  # [M] NIST Standard Reference Temperature (K)
 
 DEFAULT_GRADIENT_CLIP_VAL: float = 1.0  # [E] Gradient clip threshold preventing NaN collapse
@@ -97,37 +98,11 @@ DEFAULT_AMP_PRECISION: str = "bf16-mixed"  # [M] Dynamic range retaining precisi
 # ==============================================================================
 
 def get_element_mass(element_identifier: Union[str, int]) -> float:
-    """Dynamically retrieve standard atomic weight using the `mendeleev` library [M].
-
-    Hardcoded atomic weight lookup tables are strictly forbidden by architectural mandate.
-
-    Parameters
-    ----------
-    element_identifier : Union[str, int]
-        Atomic number Z (int) or chemical symbol (str).
-
-    Returns
-    -------
-    float
-        Standard atomic mass in Daltons (unified atomic mass units) [M].
-    """
-    elem = mendeleev.element(element_identifier)
-    weight = elem.atomic_weight
-    if weight is None:
-        if elem.isotopes:
-            most_abundant = max(
-                elem.isotopes,
-                key=lambda iso: (iso.abundance if iso.abundance is not None else 0.0),
-            )
-            if most_abundant.mass is not None:
-                weight = most_abundant.mass
-            elif most_abundant.mass_number is not None:
-                weight = float(most_abundant.mass_number)
-        if weight is None and elem.mass is not None:
-            weight = elem.mass
-    if weight is None:
-        raise ValueError(f"Standard atomic mass could not be dynamically resolved for '{element_identifier}'")
-    return float(weight)
+    """Resolve the assigned or principal measured nuclear mass in Daltons."""
+    if isinstance(element_identifier, bool):
+        raise ValueError("Atomic number must be an integer, not a boolean")
+    symbol = _get_element(element_identifier).symbol if isinstance(element_identifier, int) else element_identifier
+    return get_isotope_mass(symbol)
 
 
 def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:
@@ -141,7 +116,7 @@ def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:
     Returns
     -------
     torch.Tensor
-        1D Tensor of standard atomic masses in float32 [N].
+        1D Tensor of principal nuclear mass features in float32 [N].
     """
     z_list = atomic_numbers.detach().cpu().view(-1).tolist()
     mass_list = [get_element_mass(int(z)) for z in z_list]

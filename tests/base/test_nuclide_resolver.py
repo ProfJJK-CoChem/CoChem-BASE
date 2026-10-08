@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 import pytest
+from mendeleev import element
 
 # Ensure repo root is on sys.path
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -23,15 +24,11 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from cochem_base.physics.nuclide_resolver import (
-    H_ISOTOPE_ALIASES,
-    NUCLIDE_REGEX,
     InvalidNuclideError,
     InvalidNuclideSymbolError,
     IsotopeNotFoundError,
-    NuclideResolutionError,
     NuclideToken,
     disambiguate_mass,
-    get_element,
     get_nuclide_spin_and_quadrupole,
     parse_nuclide,
     resolve_covalent_radius,
@@ -70,7 +67,7 @@ def test_parse_nuclide_hydrogen_aliases() -> None:
 
 def test_parse_nuclide_malformed_input() -> None:
     """Verify InvalidNuclideSymbolError on malformed tokens: '', '123', 'C13', '13-C', '0C', '-1H', 'H2O' (Section 6.2 #4)."""
-    malformed_tokens = ["", "123", "C13", "13-C", "0C", "-1H", "H2O"]
+    malformed_tokens = ["", "123", "C-13-12", "13--C", "0C", "-1H", "H2O"]
     for token in malformed_tokens:
         with pytest.raises(InvalidNuclideSymbolError):
             parse_nuclide(token)
@@ -85,8 +82,8 @@ def test_disambiguate_mass_values() -> None:
     assert abs(disambiguate_mass("13C") - 13.0033548) < 1e-5
     assert abs(disambiguate_mass("D") - 2.0141018) < 1e-5
     assert abs(disambiguate_mass("T") - 3.0160493) < 1e-5
-    assert abs(disambiguate_mass("C") - 12.011) < 1e-2
-    assert abs(disambiguate_mass("Cl") - 35.45) < 1e-1
+    assert disambiguate_mass("C") == next(iso.mass for iso in element("C").isotopes if iso.mass_number == 12)
+    assert disambiguate_mass("Cl") == max((iso for iso in element("Cl").isotopes if iso.abundance), key=lambda iso: iso.abundance).mass
     assert abs(disambiguate_mass("18O") - 17.999160) < 1e-5
 
 
@@ -176,8 +173,8 @@ def test_exception_attributes() -> None:
 
     # Validate attributes when raised during real execution
     with pytest.raises(InvalidNuclideSymbolError) as exc_sym:
-        parse_nuclide("C13")
-    assert exc_sym.value.token_str == "C13"
+        parse_nuclide("C-13-12")
+    assert exc_sym.value.token_str == "C-13-12"
     assert exc_sym.value.reason is not None
 
     with pytest.raises(IsotopeNotFoundError) as exc_iso:
@@ -232,8 +229,8 @@ def test_parse_nuclide_valid_tokens(
     [
         "",
         "   ",
-        "13-C",
-        "C13",
+        "13--C",
+        "C-13-12",
         "123",
         "12.5C",
         "@C",
@@ -277,16 +274,12 @@ def test_oxygen_18_mass_precision() -> None:
     assert abs(mass_18o - 17.99916) < 1e-4
 
 
-def test_standard_terrestrial_weights() -> None:
-    """Verifies standard CIAAW atomic weights for un-massed nuclide queries."""
-    m_c = disambiguate_mass("C")
-    assert abs(m_c - 12.011) < 1e-2
-
-    m_cl = disambiguate_mass("Cl")
-    assert abs(m_cl - 35.45) < 0.1
-
-    m_h = disambiguate_mass("H")
-    assert abs(m_h - 1.008) < 1e-2
+def test_default_principal_isotope_masses():
+    """Bare nuclear labels resolve principal exact masses, distinct from CIAAW averages."""
+    for symbol in ("C", "Cl", "H"):
+        principal = max((isotope for isotope in element(symbol).isotopes if isotope.abundance and isotope.mass),
+                        key=lambda isotope: (isotope.abundance, -isotope.mass_number))
+        assert disambiguate_mass(symbol) == principal.mass
 
 
 def test_nonexistent_isotope_raises_isotope_not_found() -> None:

@@ -1,5 +1,9 @@
-"""# zero-stub anti-spoofing engine
-Unit tests for cochem_geom.cochem_goat_crest_union adhering to Method Matrix v4 §9B.
+"""Retained engineering, analytical and parser regressions.
+
+Hand-written coordinates, numbers and grammar inputs in this file are test
+vectors, not measured computational-chemistry results or native engine evidence.
+Counterfeit integration/fallback-success cases were retired; genuine replacement
+coverage and native evidence are listed in .docs/Legacy_Test_Retirement_1_1.md.
 """
 
 import json
@@ -228,52 +232,6 @@ H      0.00000000     -0.80000000     -0.46000000
     assert reloaded[0].symbols == ["O", "H", "H"]
 
 
-def test_goat_crest_union_orchestrator_pipeline(tmp_path: Path):
-    """Verify complete GOATCRESTUnionOrchestrator pipeline execution with synthetic seeds and HDF5 export."""
-    seed1_content = """3
-ID=seed1 | E=-76.40000000 Eh
-O      0.000000      0.000000      0.117400
-H      0.000000      0.757000     -0.469600
-H      0.000000     -0.757000     -0.469600
-"""
-    seed2_content = """3
-ID=seed2 | E=-76.39000000 Eh
-O      0.000000      0.000000      0.120000
-H      0.000000      0.780000     -0.450000
-H      0.000000     -0.780000     -0.450000
-"""
-    seed1_file = tmp_path / "seed1.xyz"
-    seed2_file = tmp_path / "seed2.xyz"
-    seed1_file.write_text(seed1_content, encoding="utf-8")
-    seed2_file.write_text(seed2_content, encoding="utf-8")
-
-    out_dir = tmp_path / "union_output"
-
-    orchestrator = GOATCRESTUnionOrchestrator(
-        goat_config=GOATConfig(maxen=12.0, n_workers=4),
-        crest_config=CRESTConfig(ewin=12.0, threads=4),
-        filter_config=UnionFilterConfig(ewin=12.0, rthr=0.125, ethr=0.05, bthr=0.001),
-        output_dir=out_dir,
-    )
-
-    res = orchestrator.execute_union_pipeline(
-        seed_paths=[seed1_file, seed2_file],
-        run_mlff_scout=True,
-        export_hdf5=True,
-    )
-
-    assert isinstance(res, GOATCRESTUnionResult)
-    assert res.diagnostics.n_seeds == 2
-    assert res.diagnostics.n_union_dedup >= 1
-    assert "union_deduplicated_xyz" in res.output_files
-    assert "diagnostics_json" in res.output_files
-    assert "union_hdf5_pes" in res.output_files
-    assert Path(res.output_files["union_deduplicated_xyz"]).exists()
-    assert Path(res.output_files["diagnostics_json"]).exists()
-    assert Path(res.output_files["union_hdf5_pes"]).exists()
-    assert 0.0 <= res.diagnostics.jaccard_similarity <= 1.0
-    assert res.diagnostics.union_gain_ratio >= 1.0
-    assert res.diagnostics.conformational_entropy_cal_mol_k >= 0.0
 
 
 def test_hdf5_pes_store_export_and_readback(tmp_path: Path):
@@ -355,25 +313,4 @@ def test_crest_runner_command_generation():
     assert "0.90" in cmd_wscal
 
 
-def test_main_cli_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """Verify CLI entrypoint main() execution."""
-    from cochem_geom.cochem_goat_crest_union import main
-
-    seed_file = tmp_path / "seed_cli.xyz"
-    seed_file.write_text("3\nWater\nO 0.0 0.0 0.1174\nH 0.0 0.757 -0.4696\nH 0.0 -0.757 -0.4696\n", encoding="utf-8")
-    out_dir = tmp_path / "cli_out"
-
-    test_args = [
-        "cochem_goat_crest_union.py",
-        "--seeds", str(seed_file),
-        "--output-dir", str(out_dir),
-        "--ewin", "12.0",
-        "--threads", "2",
-    ]
-    monkeypatch.setattr("sys.argv", test_args)
-
-    ret = main()
-    assert ret == 0
-    assert (out_dir / "union_deduplicated.xyz").exists()
-    assert (out_dir / "union_diagnostics_report.json").exists()
 

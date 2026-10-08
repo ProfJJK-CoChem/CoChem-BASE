@@ -126,30 +126,8 @@ def test_pes_store_normalized_provenance_and_swmr(tmp_path):
 
 
 
-def test_cfour_streaming_parser_parity_and_low_memory():
-    """Validates Suggestion #75: Streaming CFOUR parser matches legacy parser
-    without splitting entire file into memory.
-    """
-    log_path = Path(__file__).parent.parent / "data" / "cfour.log"
-    with open(log_path, "r") as f:
-        real_lines = f.read().splitlines()
-    
-    # Pad with 50,000 comment lines to simulate massive VPT2 output
-    full_log = "\n".join(real_lines[:4] + [" # Iteration trace padding line"] * 50000 + real_lines[4:])
-
-    # Test parsing from string iterator
-    obs_stream = CFOUROutputParser.parse_cfour_stdout(iter(full_log.splitlines()))
-
-    assert obs_stream.final_energy == pytest.approx(-76.342198421039, abs=1e-12)
-    assert obs_stream.scf_energy == pytest.approx(-76.026783918234, abs=1e-12)
-    assert obs_stream.mp2_energy == pytest.approx(-0.281923489123, abs=1e-12)
-    assert obs_stream.ccsd_t_energy == pytest.approx(-76.342198421039, abs=1e-12)
-    assert obs_stream.Ae_MHz == pytest.approx(825421.382, abs=1e-3)
-    assert obs_stream.Be_MHz == pytest.approx(435129.182, abs=1e-3)
-    assert obs_stream.Ce_MHz == pytest.approx(287192.481, abs=1e-3)
-    assert obs_stream.dipole_tot == pytest.approx(1.8542, abs=1e-4)
-
-    # Test parsing from TextIO stream
-    stream_io = io.StringIO(full_log)
-    obs_io = CFOUROutputParser.parse_cfour_stdout(stream_io)
-    assert obs_io.final_energy == obs_stream.final_energy
+# Genuine CFOUR output/units/native-axis regression is registered at
+# tests/spectroscopy/test_native_property_import.py::
+# test_actual_cfour_native_axis_triplet_preserves_mapping_and_debye_column.
+# The old absent-log/padded invented-output case established no native memory bound;
+# a large genuine CFOUR VPT2 memory profile remains separate acceptance work.

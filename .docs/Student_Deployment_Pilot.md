@@ -35,6 +35,8 @@ explicitly requesting an unavailable engine must not be reported successful.
 | Fresh Codespace | Create on the approved branch and authorize requested permissions | Actual GitHub Codespaces service record, student identity, creation time, machine and payer. |
 | Automatic setup | Wait for BASE to render its setup status | Required modules installed/verified without student commands; failures accurately disable their operations. |
 | Original ingestion | Upload their own monomer and complex XYZ, choose one of several starting files | Actual browser FileUpload, original bytes/hash, ordered nuclei/geometry and state handling. |
+| Full scientific intake | Upload a course-relevant MOL/SDF/PDB/QCSchema file; select a specific retained frame | All records, isotope/state/unit metadata and unchanged original source hashes; valid selections survive restart. |
+| Native-data inspection | Upload authentic Hessian/output/data files and inspect their labelled panels | Measured constants, original hashes, bounded arrays and missing-data/minimum qualification; no invented native execution. |
 | Validation | Upload a malformed geometry | Visible actionable error, no unexpected execution, earlier valid originals preserved. |
 | Hosted submission | Select the approved calculation and click Run on GitHub Actions | Real workflow dispatch under the available student identity, unique request ID, run URL and actual accepted source SHA. |
 | Lifecycle | Refresh status and cancel a separate bounded run | Status and cancellation bound to that request/run, not the latest unrelated run. |
@@ -58,6 +60,18 @@ It can exercise a real hosted request when a designated test repository and
 its authenticated route are available. The harness is for maintainers; its
 command line must not appear in student setup instructions.
 
+The optional intake manifest extends this same actual browser route to every
+listed molecular format, retained multi-record selections, native spectroscopy,
+geometry-bound Hessians, numerical archives, periodic structures and PAW files.
+Every Hessian analysis must display the selected source checksum in its new
+result, finish its background worker, and preserve its qualification. A visible
+result from an earlier selection cannot establish that a later analysis ran.
+
+Ordinary reloads also verify the standard XSRF cookie and authenticated shutdown
+beacon: the prior kernel must disappear while a different kernel restores the
+saved inputs. XSRF protection remains enabled. Tests record browser HTTP errors,
+JavaScript errors and failed requests instead of discarding them.
+
 Retain browser screenshots, errors, download hashes, exact source/setup reports
 and actual hosted run/artifact evidence together. Distinguish UI-only acceptance
 from real hosted calculation acceptance in the report. Never report an optional
@@ -78,6 +92,43 @@ successful Actions run needs its own service record. If the available
 integration cannot create or inspect a student Codespace, complete independent
 functional/Actions checks and state the precise unverified student step. Do not
 mark that service check passed or ask students to substitute terminal code.
+
+## Scoped intake trace and recorded browser proof
+
+The intake obligation includes the detailed
+[Task 1 architectural specification](task1_subsystems_architectural_specification.md),
+not just the XYZ example in Chunk 17. Its introduction specifies Tripos MOL2;
+§3.1.2 specifies XYZ, MDL MOL V2000/V3000, multi-molecule SDF, PDBv3.3 and
+MolSSI QCSchema v1/v2. The
+[Level 2 breakdown](task1_level2_wbs_breakdown.md) §4.4 adds the energy window,
+graph, atom-permutation and three-axis rotational-constant sieve conditions.
+
+| Obligation | Connected implementation and acceptance boundary |
+| --- | --- |
+| All specified molecular source formats and records | `intake/structure_formats.py` is the canonical parser used by Stage 2 and the input library. Actual browser file choosers admitted XYZ, MOL V2000/V3000, two-record SDF, two-MODEL PDB, MOL2 and QCSchema v1/v2; every one of their ten frames was selectable. |
+| Physical nuclear identity, isotope/state/unit handling and ghost inspection | Canonical records preserve ordered nuclides, converted coordinates, declared state and source hashes. Browser selections preserved QCSchema 18O/D identities and encoded charge/spin. Ghost centers remain inspectable with zero mass/nuclear charge and are unavailable to ordinary physical-atom methods. Numerical frame/toolchain invariants have their separate canonical tests. |
+| Conformer pool lineage and scientific comparability | `interfaces/student_ingestion.py` calls the canonical `intake/conformer_engine.py` sieve. Typed GUI context supplies an explicit state and comparison protocol; producer labels alone do not establish comparability. Unknown observations remain retained and unranked. Canonical native-pool and actual-widget tests establish this path; the full-format browser record does not claim it ran a new search. |
+| Original source retention, isolation and update continuity | Original bytes and sealed receipts remain outside the application source. The library verifies each input independently, reports corrupt receipts, and can recompute derived display metadata without changing the original receipt. Actual browser reload recovered all seventeen file hashes, starting roles/states/fragments and the sealed R2 package. |
+| Native spectroscopy and isotope inspection | The browser parsed actual retained ORCA output, kept missing B0/corrections missing, and reweighted the actual Cartesian tensor from native `.hess`, NPZ and HDF5 sources. Each result was bound to that source's checksum. Uploaded tensors remained unqualified for physical-force-field/minimum claims. |
+| Bounded numerical data and periodic inputs | Actual NPZ/HDF5 previews completed; CIF and periodic JSON were retained, and the typed form saved a request using authentic Ga/As PAW files and explicit cutoffs. Input acceptance is separate from a new periodic calculation or material-accuracy benchmark. |
+| Starting-geometry construction | The browser built a SMILES water starting guess and a complex seed from its own two uploaded monomers. Internal monomer distances were preserved. Neither route claimed a measured energy or a minimum. |
+
+The complete local browser record on 2026-10-08 is
+`student-no-code-browser-local/browser-v19/browser-summary.json`, SHA-256
+`0095e849198e19ee8a9478c41cdb635a71891a32d664209ec25dc70a4a3ccd9f`.
+It passed seventeen scientific-file uploads, ten molecular frame selections,
+three source-bound Hessian reanalyses and three authenticated kernel reloads
+with zero browser HTTP, transport or JavaScript errors. An earlier six-reload
+record independently retired all seven previous kernels, including a scientific
+input recovery reload. The focused immutable-input/transport suite passed 66
+tests without skips.
+
+This record is **locally rendered browser acceptance**. It explicitly records
+no new native engine execution, no installed-provider acceptance and no actual
+student account, GitHub Actions or Codespaces service acceptance. Separate
+native worker and hosted records must establish those claims. A source fixture
+that originated in a real calculation does not turn a later tensor preview into
+a new engine job, an equilibrium certificate or an experimental accuracy test.
 
 ## Deployment record
 

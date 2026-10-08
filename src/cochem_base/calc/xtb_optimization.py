@@ -7,6 +7,8 @@ identified as evaluations, rather than fictitious accepted optimizer steps.
 """
 from __future__ import annotations
 
+from cochem_base.core_engine.scientific_writer import scientific_producer
+
 import hashlib
 import json
 from pathlib import Path
@@ -74,6 +76,7 @@ def read_xtb_gradient(path: Path, elements: Sequence[str], coordinates_angstrom:
                 "native_to_submitted_rotation": np.eye(3).tolist()}}
 
 
+@scientific_producer
 def execute_xtb_optimization(config: Any, elements: Sequence[str], coordinates: Any, *,
                              directory: Path, authority: Any, environment: dict[str, str],
                              cancellation_event: Any = None,

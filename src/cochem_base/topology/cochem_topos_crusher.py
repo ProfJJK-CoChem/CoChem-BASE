@@ -113,13 +113,11 @@ def get_element_info(symbol: Union[str, int]) -> ElementInfoHolder:
     z = int(el.atomic_number)
     sym = str(el.symbol)
     name = str(el.name)
-    std_mass = float(el.mass if el.mass is not None else float(z * 2))
-
-    if getattr(el, "isotopes", None):
-        mai = max(el.isotopes, key=lambda i: (getattr(i, "abundance", None) or 0.0))
-        mono_mass = float(mai.mass) if getattr(mai, "mass", None) is not None else std_mass
-    else:
-        mono_mass = std_mass
+    if el.atomic_weight is None:
+        raise ValueError(f"No descriptive atomic weight is available for {sym}")
+    std_mass = float(el.atomic_weight)
+    from cochem_base.physics.isotopes import get_isotope_mass
+    mono_mass = get_isotope_mass(sym)
 
     cov_r = float(el.covalent_radius_pyykko / 100.0) if getattr(el, "covalent_radius_pyykko", None) else None
     vdw_r = float(el.vdw_radius / 100.0) if getattr(el, "vdw_radius", None) else None

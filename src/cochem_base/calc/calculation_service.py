@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator, m
 
 from cochem_base.exceptions import BinaryNotFoundError
 from cochem_base.calc.t9_fallback import T9FallbackConfig, execute_with_t9_fallback
+from cochem_base.core_engine.scientific_writer import scientific_producer
 
 logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -216,6 +217,7 @@ def validate_frozen_monomer_trajectory(
             "maximum_internal_drift_angstrom": max(drifts), "tolerance_angstrom": 1e-6}
 
 
+@scientific_producer
 def run_calculation(
     config_path: str | Path, *, scratch: str | Path | None = None,
     output: str | Path | None = None, threads: int | None = None,
@@ -257,6 +259,8 @@ def run_calculation(
         validate_job_configuration(config)
         capability = calculation_capability(config)
         pending = capability.adapter_status == "pending_integration"
+        if not dry_run and not pending and config.engine == "orca" and config.multiplicity > 1 and config.t9_fallback is None:
+            raise ValueError("Open-shell ORCA requires an explicit T9 active space before calculation so spin contamination can trigger automatic recovery without inventing orbitals or electron counts")
         if config.recipe == "R2" and not dry_run and not pending and config.r2_reference_manifest is None:
             raise ValueError("Recipe R2 production requires a validated CCSD(T)/CBS monomer reference manifest")
         if device == "cuda":

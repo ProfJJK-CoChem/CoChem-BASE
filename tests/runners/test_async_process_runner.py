@@ -6,12 +6,12 @@ from pathlib import Path
 import h5py
 import pytest
 
-from src.cochem.hpc.models import (
+from cochem.hpc.models import (
     CoChemHpcScalingError,
     SlurmJobDirectiveSpec,
     SlurmResourceValidationError,
 )
-from src.cochem.runners.async_process_runner import AsyncProcessRunner
+from cochem.runners.async_process_runner import AsyncProcessRunner
 
 
 @pytest.fixture
@@ -61,8 +61,13 @@ def test_swmr_hdf5_telemetry_streaming(tripartite_dirs: tuple[Path, Path, Path])
         telemetry_file = scratch_dir / "telemetry.h5"
         runner.init_telemetry(telemetry_file)
 
-        # Step 1 written
-        runner.record_telemetry_metric(telemetry_file, step=1, energy=-76.421, walltime=0.45)
+        # Replay two actually recorded native rows; this tests transport,
+        # not a newly executed electronic calculation or physical accuracy.
+        import re
+        native_source = Path(__file__).parents[1] / "data/orca_6_1_1_water_hf_sto3g/water.out.txt"
+        native_energies = [float(value) for value in re.findall(r"FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)", native_source.read_text())]
+        assert len(native_energies) >= 2
+        runner.record_telemetry_metric(telemetry_file, step=1, energy=native_energies[0], walltime=0.45)
 
         # Concurrent reader opens file while writer is actively attached
         with h5py.File(telemetry_file, "r", swmr=True, libver="latest") as h5_reader:
@@ -70,10 +75,10 @@ def test_swmr_hdf5_telemetry_streaming(tripartite_dirs: tuple[Path, Path, Path])
             energies = h5_reader["telemetry/energy"][:]
             assert len(steps) == 1
             assert steps[0] == 1
-            assert abs(energies[0] - (-76.421)) < 1e-5
+            assert energies[0] == native_energies[0]
 
             # Step 2 written while reader handle is currently held open
-            runner.record_telemetry_metric(telemetry_file, step=2, energy=-76.435, walltime=0.92)
+            runner.record_telemetry_metric(telemetry_file, step=2, energy=native_energies[1], walltime=0.92)
 
             # Reader refreshes datasets and verifies streamed record
             h5_reader["telemetry/step"].refresh()
@@ -82,7 +87,7 @@ def test_swmr_hdf5_telemetry_streaming(tripartite_dirs: tuple[Path, Path, Path])
             energies_updated = h5_reader["telemetry/energy"][:]
             assert len(steps_updated) == 2
             assert steps_updated[1] == 2
-            assert abs(energies_updated[1] - (-76.435)) < 1e-5
+            assert energies_updated[1] == native_energies[1]
 
         runner.close_telemetry(telemetry_file)
 
@@ -103,11 +108,11 @@ def test_async_process_runner_dispatch_task(tripartite_dirs: tuple[Path, Path, P
 
         # Create input file in src
         input_file = src_dir / "data.txt"
-        input_file.write_text("HYDROGEN_1_008", encoding="utf-8")
+        input_file.write_text("Actual process diagnostics input", encoding="utf-8")
 
         py_code = (
             "import sys\n"
-            "print('Worker computing energy rank 0', flush=True)\n"
+            "print('Actual worker diagnostics', flush=True)\n"
         )
 
         # 1. Execution retaining scratch for inspection
@@ -118,7 +123,7 @@ def test_async_process_runner_dispatch_task(tripartite_dirs: tuple[Path, Path, P
         )
 
         assert result["exit_code"] == 0
-        assert "Worker computing energy" in result["stdout"]
+        assert "Actual worker diagnostics" in result["stdout"]
         assert Path(result["telemetry_file"]).exists()
 
         # Explicit scratch cleanup

@@ -16,6 +16,7 @@
   ],
   "postCreateCommand": "bash scripts/setup_devcontainer.sh",
   "postStartCommand": "python3 scripts/hosted_dashboard.py start",
+  "postAttachCommand": "python3 scripts/hosted_dashboard.py workspace",
   "forwardPorts": [
     8866
   ],

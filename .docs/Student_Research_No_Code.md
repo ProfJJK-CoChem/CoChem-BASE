@@ -6,9 +6,11 @@ results back. You do not open other CoChem repositories, install Python
 packages, enter access tokens or type terminal commands.
 
 Your instructor supplies the assignment link and approved scientific protocol.
-**You supply your own monomer or complex starting structures**, made in
-Avogadro 2 or another approved molecular editor. An example used during setup
-is only an installation check.
+**You supply your own starting structures and scientific inputs.** For this
+course, monomer and complex geometries made in Avogadro 2 are common starting
+points. BASE also ingests the other molecular, periodic, Hessian, spectroscopy
+and numerical data described under **Input library** below. An example used
+during setup is only an installation check.
 
 ## Start your workspace
 
@@ -67,6 +69,108 @@ complex arrangements, freezing monomer coordinates, scanning a coordinate and
 computing interaction energies are distinct operations. Select a capability
 that is actually available in the interface. A missing provider or required
 input leaves that operation unavailable with an explanation.
+
+## Use the scientific input library
+
+XYZ is the usual Avogadro 2 route for this course. BASE also accepts complete
+scientific source files through **Input library**. You choose files and frames;
+BASE retains the untouched original alongside its validated interpretation.
+
+| Your source file | What BASE retains and exposes |
+| --- | --- |
+| XYZ or a multi-frame XYZ | All ordered frames and isotope labels. A coordinate-only ensemble remains starting structures. |
+| MOL V2000/V3000 or multi-record SDF | Every molecular record, explicit hydrogens, isotope labels, formal charges and any declared spin state. |
+| MOL2 | Ordered atoms, Cartesian coordinates, Tripos types, bonds and recorded partial charges. Partial charges do not supply a molecular spin or formal charge. |
+| PDB | All unambiguous MODEL records and their atom order. Resolve alternate locations or partial occupancy before import. |
+| MolSSI QCSchema v1/v2 JSON | Ordered nuclei, source Bohr coordinates converted to ångströms, declared charge/spin, isotope and fragment information. |
+| CIF or an explicitly unit-labelled periodic structure | Ordered species, lattice, periodic boundaries, source units and source hash. Resolve disorder or partial occupancy first. |
+| ORCA .hess or a geometry-bound NPZ/HDF5 Hessian | Ordered geometry, complete Cartesian Hessian, source evidence and units. An imported matrix alone does not establish a physical minimum. |
+| Native ORCA/CFOUR spectroscopy output | Actually printed constants and corrections, with missing observables kept missing. |
+| Canonical trajectory HDF5 or numerical NPZ/HDF5 | Bounded dataset previews, measured records and declared units/provenance. External file references and pickled arrays are rejected. |
+| PAW UPF pseudopotential | Untouched potential, element, header and hash; the selected calculation must separately pass its native scientific checks. |
+
+1. Choose **Input library** on the left.
+2. Leave **Scientific input type → Detect from file** for ordinary structures,
+   or select the appropriate type for a Hessian, spectroscopy output or data
+   archive. Choose **Upload scientific inputs** and select your files.
+3. Read the validation message and **Verified retained scientific inputs**
+   table. A rejected file stays out of calculation choices; valid earlier
+   uploads remain available. Keep the error for your instructor.
+4. Choose the file under **Retained input** and the desired **Structure / frame**.
+   SDF and multi-frame files keep every record; selecting one does not delete
+   the others.
+5. Choose **Use selected starting geometry**. BASE opens the molecule panel
+   with that ordered frame. Confirm charge and multiplicity in **Base Config**
+   when the source did not declare them. Supply the scientific state explicitly
+   before running a calculation.
+
+Counterpoise/ghost centers are preserved during inspection with zero mass and
+nuclear charge. A normal physical-atom calculation cannot select them as real
+nuclei; it requires an available counterpoise-capable adapter.
+
+For a file already in VS Code, drag it into **Student input inbox** in the
+Explorer sidebar, alongside **CoChem-BASE**, then choose
+**Import files from VS Code inbox**. **Watch VS Code inbox** imports completed
+new files; **Stop watching inbox** stops that watcher. The original files,
+record selections and source hashes remain available when the dashboard restarts.
+
+### Import and compare conformer pools
+
+Choose **Scientific input type → CREST / ORCA GOAT conformer pool**, select the
+actual **Pool producer** and its **Recorded energy unit**, and upload the native
+ensemble. Every energy-bearing frame needs its recorded finite energy. Use
+**Explicit energy labels and units** for an independently supplied pool with
+explicit energy/unit declarations in every comment.
+
+Choose the intended **Conformer pools**, enter any verified common charge,
+spin and comparison protocol requested by the form, and choose **Merge and
+sieve native conformer pools**. Compare only energies produced under compatible
+methods, bases and conditions. The result preserves every original observation
+and explains which representative was retained, which duplicate was grouped,
+which comparable member was outside the energy window and which member remains
+unranked. Missing energies, states or protocols remain unranked and retained.
+A geometric sieve does not certify minima, thermodynamic populations or chemical
+accuracy; those require their own accepted calculation evidence.
+
+### Inspect measured outputs and isotope changes
+
+Choose **Data Inspector (Ab-Initio)**, upload/select **Native output** and choose
+**Parse Observables**. The panel distinguishes constants from the supplied
+geometry, validated equilibrium results when evidence exists, and measured
+vibrational corrections. It keeps an absent ground-state constant or correction
+marked as missing.
+
+For harmonic isotope analysis, open **Isotopic Re-analysis**, choose **Upload
+hessian** or an existing **Retained Hessian**, then **Load geometry and Hessian**.
+Choose the isotope substitutions and **Re-analyze Isotopologue**. This reuses
+the supplied Cartesian force field without another electronic calculation.
+Anharmonic corrections and stationary-minimum qualification need additional
+native evidence; an uploaded model Hessian is not presented as an accepted
+physical force field.
+
+For a numerical archive, choose **HDF5 SWMR Store**, upload/select **Physical
+data**, and choose **Inspect HDF5 / NPZ data**. Check dataset names, dimensions,
+units and source alongside the bounded values. Missing units/provenance are
+shown explicitly.
+
+### Prepare a periodic request
+
+Use **Periodic structures** only for an assigned periodic-materials project.
+Upload/select the ordered periodic structure and inspect its cell and species.
+Upload the authentic **PAW files**, assign one compatible PBE PAW potential per
+species, and enter the instructor's wavefunction/density cutoffs and k-grid in
+the labelled controls. Review the complete request before submitting it through
+BASE. The interface and worker validate original source hashes and potential
+headers; an accepted input alone does not certify the required band-gap or
+lattice accuracy.
+
+### Build an initial molecule in BASE
+
+The **Molecule Builder** also accepts an explicit SMILES string or a supported
+chemical name under **Name or SMILES**. Choose **Build starting geometry** and
+inspect the generated structure, resolved identity and builder provenance.
+This produces an initial guess. It does not provide a measured energy or claim
+a minimum. Your own Avogadro 2 structures remain the usual course inputs.
 
 ## Run your calculation
 

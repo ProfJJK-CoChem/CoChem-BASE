@@ -55,31 +55,17 @@ logger = logging.getLogger("CoChem-TORQ.Engine")
 # ============================================================================
 
 def get_atomic_mass(symbol: str) -> float:
-    """
-    Dynamically retrieves standard atomic weight (mass in amu) using mendeleev.
-    Strictly prohibits hardcoded mass lookups under Mendeleev Mandate.
-    """
-    clean_sym = symbol.strip().rstrip(":").capitalize()
-    el = element(clean_sym)
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    if el.mass is not None:
-        return float(el.mass)
-    raise ValueError(f"Could not retrieve atomic mass for element symbol '{symbol}'.")
+    """Resolve the exact assigned or principal isotope mass dynamically."""
+    from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
+    return get_nuclide_mass(symbol.strip().rstrip(":"))
 
 
 def get_isotopic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
     """
     Dynamically retrieves isotopic mass using mendeleev.
     """
-    clean_sym = symbol.strip().rstrip(":").capitalize()
-    el = element(clean_sym)
-    if mass_number is None:
-        return get_atomic_mass(symbol)
-    for iso in el.isotopes:
-        if iso.mass_number == mass_number:
-            return float(iso.mass)
-    return get_atomic_mass(symbol)
+    from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
+    return get_nuclide_mass(symbol.strip().rstrip(":"), mass_number)
 
 
 def get_atomic_number(symbol: str) -> int:

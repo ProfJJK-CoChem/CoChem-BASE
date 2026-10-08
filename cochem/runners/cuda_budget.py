@@ -13,7 +13,7 @@ import time
 from typing import Dict, Optional, Union
 import warnings
 
-from src.cochem.hpc.models import CudaMemoryExhaustionError, CudaResourceBudget
+from cochem.hpc.models import CudaMemoryExhaustionError, CudaResourceBudget
 
 # Filter legacy pynvml deprecation/future warnings
 warnings.filterwarnings("ignore", category=FutureWarning, message=r".*pynvml.*")

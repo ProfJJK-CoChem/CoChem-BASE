@@ -10,37 +10,26 @@ from __future__ import annotations
 
 from functools import lru_cache
 from numbers import Integral
-from typing import Optional, Union
+from typing import Union
 
 import mendeleev
-from cochem_base.core.exceptions import CoChemError, IsotopeMassResolutionError
+from cochem_base.core.exceptions import IsotopeMassResolutionError
 
 
-@lru_cache(maxsize=256, typed=True)
+@lru_cache(maxsize=4096, typed=True)
 def get_dynamic_atomic_mass(symbol_or_z: Union[str, int]) -> float:
-    """Returns standard atomic weight from Mendeleev with LRU memory caching.
-
-    Reduces latency from ~100 us (SQLite I/O) to ~50 ns (in-memory lookup) [M].
-    """
+    """Return a dynamically measured assigned/principal isotope mass."""
     try:
-        el = mendeleev.element(symbol_or_z)
+        from cochem_base.physics.isotopes import get_isotope_mass
+        symbol = mendeleev.element(symbol_or_z).symbol if isinstance(symbol_or_z, int) else symbol_or_z
+        return get_isotope_mass(symbol)
     except Exception as exc:
         raise IsotopeMassResolutionError(
             f"Element '{symbol_or_z}' cannot be resolved via Mendeleev: {exc}",
             details={"element": symbol_or_z},
         ) from exc
 
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    if el.mass is not None:
-        return float(el.mass)
-    raise IsotopeMassResolutionError(
-        f"Atomic weight unavailable for element '{symbol_or_z}'.",
-        details={"element": symbol_or_z},
-    )
-
-
-@lru_cache(maxsize=256, typed=True)
+@lru_cache(maxsize=4096, typed=True)
 def get_dynamic_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
     """Returns exact physical isotopic nuclear mass from Mendeleev with LRU memory caching.
 
@@ -49,22 +38,14 @@ def get_dynamic_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) ->
     if isinstance(mass_number, bool) or not isinstance(mass_number, Integral) or mass_number <= 0:
         raise IsotopeMassResolutionError("Isotope mass number must be a positive integer.")
     try:
-        el = mendeleev.element(symbol_or_z)
+        from cochem_base.physics.isotopes import get_isotope_mass
+        symbol = mendeleev.element(symbol_or_z).symbol if isinstance(symbol_or_z, int) else symbol_or_z
+        return get_isotope_mass(symbol, mass_number)
     except Exception as exc:
         raise IsotopeMassResolutionError(
             f"Element '{symbol_or_z}' cannot be resolved via Mendeleev: {exc}",
             details={"element": symbol_or_z, "mass_number": mass_number},
         ) from exc
-
-    for iso in el.isotopes:
-        if iso.mass_number == int(mass_number):
-            if iso.mass is not None and float(iso.mass) > 0.0:
-                return float(iso.mass)
-    raise IsotopeMassResolutionError(
-        f"Isotope '{el.symbol}-{mass_number}' cannot be resolved to a physical mass.",
-        details={"element": el.symbol, "mass_number": mass_number},
-    )
-
 
 __all__ = [
     "get_dynamic_atomic_mass",

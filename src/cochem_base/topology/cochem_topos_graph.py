@@ -139,12 +139,10 @@ def get_covalent_radius(element: str | int) -> float:
 
 @lru_cache(maxsize=256)
 def get_atomic_mass(element: str | int) -> float:
-    """Returns standard atomic weight in amu dynamically from mendeleev."""
-    elem = get_mendeleev_element(element)
-    mass = elem.mass
-    if mass is None:
-        raise ValueError(f"Could not dynamically retrieve atomic mass from mendeleev for element '{element}'")
-    return float(mass)
+    """Resolve a physical principal/assigned isotope mass for geometry."""
+    from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
+    symbol = get_mendeleev_element(element).symbol if isinstance(element, int) else element
+    return get_nuclide_mass(symbol)
 
 
 @lru_cache(maxsize=256)

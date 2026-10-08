@@ -6,6 +6,8 @@ stage is never advertised as converged merely because an earlier one converged.
 """
 from __future__ import annotations
 
+from cochem_base.core_engine.scientific_writer import scientific_producer
+
 from dataclasses import asdict
 import hashlib
 import json
@@ -121,6 +123,7 @@ def _stage_model(molecule: Any, stage: int, coordinates: Any) -> Any:
     return MoleculeInput.model_validate(data)
 
 
+@scientific_producer
 def execute_orca_calculation(
     config: Any, molecule: Any, *, directory: Path, authority: Any,
     environment: dict[str, str], capability: Any, registry_path: str | Path | None,

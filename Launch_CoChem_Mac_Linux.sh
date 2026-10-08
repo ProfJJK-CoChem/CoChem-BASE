@@ -29,8 +29,8 @@ echo "to 'Open in Browser' once the server starts on port 8866."
 echo ""
 
 # The bootstrap resolves its own repository path, including when invoked elsewhere.
-if [[ "$(uname -s)" == "Darwin" ]]; then
-    exec python3 "$SCRIPT_DIR/scripts/bootstrap_environment.py" --launch
-else
+if [[ "${CODESPACES:-false}" == "true" ]]; then
     exec python3 "$SCRIPT_DIR/scripts/bootstrap_environment.py" --launch --no-browser
+else
+    exec python3 "$SCRIPT_DIR/scripts/bootstrap_environment.py" --launch
 fi

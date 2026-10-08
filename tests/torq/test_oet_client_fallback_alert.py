@@ -1,7 +1,7 @@
 # Copyright 2026 CoChem Project Family. All rights reserved.
 # Apache License 2.0
 """
-Physical Integration Test: OET Client Atomic Fallback Alerting & Uncertainty Marker Protocol.
+Runtime rejection test: OET outage retains diagnostics and never invents a replacement potential.
 Validates Suggestion #141 (Deliverable 1) under Method Matrix v4 §10.2, §10.5, §10.8 [M], [E].
 Adheres strictly to the CoChem Zero-Mock Protocol.
 """
@@ -48,19 +48,12 @@ def test_oet_client_connection_failure_triggers_atomic_alert(tmp_path: Path) -> 
         artifacts_dir=artifacts_dir,
     )
 
-    result = client.calculate_remote(
-        symbols=symbols,
-        coordinates=coords,
-        charge=0,
-        multiplicity=1,
-        dograd=True,
-        xyz_file=xyz_file,
-        calculation_base="water",
-    )
-
-    assert result["status"] == "OK"
-    assert result["fallback_active"] is True
-    assert result["provenance_tag"] == "[E]"
+    with pytest.raises(OETDaemonUnavailableError, match="unavailable"):
+        client.calculate_remote(
+            symbols=symbols, coordinates=coords, charge=0, multiplicity=1,
+            dograd=True, xyz_file=xyz_file, calculation_base="water",
+        )
+    assert client.last_manifest is not None
 
     # Verify alert JSON in ephemeral scratch
     alert_file = scratch_dir / "water_EXT.fallback_alert.json"
@@ -69,7 +62,7 @@ def test_oet_client_connection_failure_triggers_atomic_alert(tmp_path: Path) -> 
     alert_data = json.loads(alert_file.read_text(encoding="utf-8"))
     assert alert_data["event"] == "OET_DAEMON_FALLBACK_TRIGGERED"
     assert alert_data["provenance_tag"] == "[E]"
-    assert alert_data["active_fallback"] == "PhysicalOETFallbackCalculator"
+    assert alert_data["active_fallback"] == "unavailable-no-authorized-provider"
     assert alert_data["investigator_action_required"] is True
 
     # Validate ISO-8601 timestamp

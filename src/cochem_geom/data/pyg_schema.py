@@ -879,7 +879,7 @@ class ConformerData(Data):
         weight = (
             torch.tensor([record.boltzmann_weight], dtype=torch.float32)
             if record.boltzmann_weight is not None
-            else torch.tensor([1.0], dtype=torch.float32)
+            else None
         )
         forces = torch.tensor(record.forces, dtype=torch.float32) if record.forces is not None else None
         dipole = torch.tensor(record.dipole, dtype=torch.float32) if record.dipole is not None else None
@@ -896,6 +896,7 @@ class ConformerData(Data):
 
         metadata = dict(record.metadata)
         metadata["relative_energy"] = record.relative_energy
+        metadata["boltzmann_weight"] = record.boltzmann_weight
         if record.qm_method:
             metadata["qm_method"] = record.qm_method
 
@@ -935,14 +936,12 @@ class ConformerData(Data):
         if y_tensor is not None and y_tensor.numel() > 0:
             energy = float(y_tensor.flatten()[0].item())
         else:
-            energy = 0.0
+            energy = None
         meta = self.metadata if getattr(self, "metadata", None) is not None else {}
-        relative_energy = float(meta.get("relative_energy", 0.0))
-        w_tensor = getattr(self, "weight", None)
-        if w_tensor is not None and w_tensor.numel() > 0:
-            boltzmann_weight = float(w_tensor.flatten()[0].item())
-        else:
-            boltzmann_weight = 1.0
+        relative_val = meta.get("relative_energy")
+        relative_energy = float(relative_val) if relative_val is not None else None
+        recorded_weight = meta.get("boltzmann_weight")
+        boltzmann_weight = float(recorded_weight) if recorded_weight is not None else None
 
         f_tensor = getattr(self, "forces", None)
         forces = f_tensor.detach().cpu().numpy().astype(np.float64) if f_tensor is not None else None

@@ -313,7 +313,8 @@ def test_validate_product_b_asymmetry_drift_exceeded() -> None:
 
 def test_dynamic_mass_resolution_mendeleev() -> None:
     """Verifies Mendeleev dynamic mass resolution protocol."""
-    c_weight = float(element("C").atomic_weight)
+    c_weight = max((iso for iso in element("C").isotopes if iso.abundance and iso.mass),
+                   key=lambda iso: (iso.abundance, -iso.mass_number)).mass
     c_retrieved = get_atomic_mass("C")
     assert math.isclose(c_retrieved, c_weight, rel_tol=1e-7)
 

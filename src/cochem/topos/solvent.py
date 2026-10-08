@@ -15,7 +15,6 @@ from typing import Any
 
 import numpy as np
 import scipy.constants as const
-from mendeleev import element
 from scipy.spatial import cKDTree
 from scipy.spatial.transform import Rotation
 
@@ -97,8 +96,9 @@ class ExplicitSolventBuilder:
     @classmethod
     def get_tip3p_water_mass(cls) -> float:
         """Dynamically computes TIP3P water molar mass (g/mol) via Mendeleev."""
-        mass_o = float(element("O").mass)
-        mass_h = float(element("H").mass)
+        from cochem_base.physics.isotopes import get_isotope_mass
+        mass_o = get_isotope_mass("O")
+        mass_h = get_isotope_mass("H")
         return float(mass_o + 2.0 * mass_h)
 
     @classmethod

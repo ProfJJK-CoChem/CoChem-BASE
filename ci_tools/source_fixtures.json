@@ -231,6 +231,27 @@
       "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
       "provenance_status": "recorded_engine_output",
       "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
+    },
+    {
+      "path": "tests/data/cfour_2_1_water_hf_sto3g/water.out.txt",
+      "sha256": "c01956fd438912b4c946eb4f6492eececd7d49fa2de127c6da6833b62f862e43",
+      "purpose": "Authentic CFOUR native-axis/units and harmonic artifact parser regression; replay is not fresh execution or experimental accuracy acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified approved CFOUR 2.1 HF/STO-3G water output from ProfJJK-CoChem/CoChem-BASE Actions run37692395742 attempt1, commit f01c25a0bda238ac0db62573bbecc69fab9e8bfc, student-job/calculation/cfour/evaluation-0007/output.dat. Native result SHA256 52543ba9b68445c98bc2378b13c9d6a2c4f6c64cf93368e281139cf0f0ef9a8c; see adjacent provenance.json. Original and retained stdout bytes were compared."
+    },
+    {
+      "path": "tests/data/cfour_2_1_water_hf_sto3g/provenance.json",
+      "sha256": "ab36ba826c960bd6cba0b6e2d47614cb1499510a0cd9fa51033b0fda7596b586",
+      "purpose": "Authentic CFOUR native-axis/units and harmonic artifact parser regression; replay is not fresh execution or experimental accuracy acceptance",
+      "provenance_status": "native_execution_provenance",
+      "provenance": "Unmodified approved CFOUR 2.1 HF/STO-3G water output from ProfJJK-CoChem/CoChem-BASE Actions run37692395742 attempt1, commit f01c25a0bda238ac0db62573bbecc69fab9e8bfc, student-job/calculation/cfour/evaluation-0007/output.dat. Native result SHA256 52543ba9b68445c98bc2378b13c9d6a2c4f6c64cf93368e281139cf0f0ef9a8c; see adjacent provenance.json. Original and retained stdout bytes were compared."
+    },
+    {
+      "path": "tests/data/conformer_pool_native_topos_xtb.json",
+      "sha256": "1d0808975c86b7f13a55da072a00fc29bd9528448f695a3dfbedf15c98800cd9",
+      "purpose": "Full-lineage conformer union and geometric invariance regression on real retained TOPOS/xTB observations; replay and rigid transforms are not new quantum calculations",
+      "provenance_status": "recorded_native_conformer_observations",
+      "provenance": "Copies exact native candidates (molecule, energy_hartree, comparison_protocol, status) from BASE-managed TOPOS f63249fa32c5350bd53d285758994c9ebc7154eb, xTB6.7.1, student-topos-final-pair-baseline/student-monomers-complex-search/executed/execution/result.json SHA256 0294ecdba8b0a584d3e063cb0985e9fde26af7aa172c5d08828c48c1c085de4e. Candidate equality and source digest were independently verified; provenance metadata retains physical quantities and artifact manifest references."
     }
   ]
 }

@@ -21,21 +21,23 @@ from __future__ import annotations
 
 import logging
 import math
+import hashlib
+import inspect
+import json
+from pathlib import Path
 from collections.abc import Sequence
-from typing import Any, Optional, Union
+from typing import Any, Optional, Literal
 
-import mendeleev  # type: ignore[import-untyped]
 import numpy as np
 from ase import Atoms, units
-from ase.calculators.lj import LennardJones
-from ase.optimize import BFGS, LBFGS
+from ase.io.jsonio import encode
+from ase.optimize import LBFGS
 from pydantic import BaseModel, ConfigDict, Field
 
 try:
     from .cochem_topos_crusher import (
         align_to_eckart_frame,
         compute_mass_weighted_eckart_rmsd,
-        get_element_info,
         get_monoisotopic_masses,
         normalize_element_symbol,
     )
@@ -43,12 +45,31 @@ except ImportError:
     from topology.cochem_topos_crusher import (
         align_to_eckart_frame,
         compute_mass_weighted_eckart_rmsd,
-        get_element_info,
         get_monoisotopic_masses,
         normalize_element_symbol,
     )
 
 logger = logging.getLogger("CoChem.TOPOS.Wiggle")
+
+
+class LightningQuenchError(RuntimeError):
+    """An explicit selected potential could not establish stationary geometry."""
+
+
+def _calculator_receipt(calculator: Any) -> dict:
+    import ase
+    if calculator is None:
+        raise LightningQuenchError("Choose an explicit supported potential; an unavailable model is never replaced by Lennard-Jones")
+    if type(calculator).__module__ not in {"ase.calculators.emt", "ase.calculators.lj"}:
+        raise LightningQuenchError("This selected model has no audited lightning-quench contract; use BASE's verified native provider rather than replacing it with another potential")
+    try:
+        source = Path(inspect.getfile(type(calculator)))
+        parameters = json.loads(encode(calculator.todict()))
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    except (TypeError, ValueError, OSError, AttributeError) as error:
+        raise LightningQuenchError("The selected potential lacks a serializable actual implementation/parameter receipt") from error
+    return {"method_scope": "explicit_empirical_potential_not_quantum_chemistry", "module": type(calculator).__module__, "class": type(calculator).__qualname__,
+            "source_sha256": digest, "parameters": parameters, "ase_version": ase.__version__}
 
 
 # ===========================================================================
@@ -110,6 +131,9 @@ class JiggleQuenchResult(BaseModel):
     )
     relaxed_energy_a_kcal: float = Field(..., description="Relaxed potential energy of Candidate A (kcal/mol)")
     relaxed_energy_b_kcal: float = Field(..., description="Relaxed potential energy of Candidate B (kcal/mol)")
+    minimum_qualification: Literal["not_performed"] = "not_performed"
+    energy_scope: Literal["caller_supplied_unverified", "selected_calculator_native_evaluation"] = "caller_supplied_unverified"
+    quench_provenance: dict = Field(default_factory=dict)
 
 
 # ===========================================================================
@@ -218,43 +242,42 @@ def execute_lightning_quench(
         atoms_b: Second ASE Atoms structure.
         max_steps: Maximum geometry optimization steps.
         fmax_ev_angstrom: Force convergence threshold in eV/A.
-        calculator: Optional ASE calculator; defaults to LennardJones if none attached.
+        calculator: Explicit selected ASE potential, or matching attached potentials.
 
     Returns:
         tuple[Atoms, Atoms, float, float]: (relaxed_atoms_a, relaxed_atoms_b, energy_a_kcal, energy_b_kcal).
     """
     rel_a = atoms_a.copy()
     rel_b = atoms_b.copy()
-
-    # Attach calculator if none exists
-    if rel_a.calc is None:
-        rel_a.calc = calculator or LennardJones()
-    if rel_b.calc is None:
-        rel_b.calc = calculator or LennardJones()
-
-    # Set Method Matrix compliance info
-    rel_a.info["InHess"] = "XTB2"
-    rel_a.info["Calc_Hess"] = False
-    rel_b.info["InHess"] = "XTB2"
-    rel_b.info["Calc_Hess"] = False
-
-    # Optimize Structure A
-    try:
-        opt_a = LBFGS(rel_a, logfile=None)
-        opt_a.run(fmax=fmax_ev_angstrom, steps=max_steps)
-        e_a_ev = rel_a.get_potential_energy()
-    except Exception as exc:
-        logger.warning(f"Lightning quench on Structure A optimization warning: {exc}")
-        e_a_ev = rel_a.get_potential_energy() if rel_a.calc else 0.0
-
-    # Optimize Structure B
-    try:
-        opt_b = LBFGS(rel_b, logfile=None)
-        opt_b.run(fmax=fmax_ev_angstrom, steps=max_steps)
-        e_b_ev = rel_b.get_potential_energy()
-    except Exception as exc:
-        logger.warning(f"Lightning quench on Structure B optimization warning: {exc}")
-        e_b_ev = rel_b.get_potential_energy() if rel_b.calc else 0.0
+    if (type(max_steps) is not int or not 1 <= max_steps <= 500 or type(fmax_ev_angstrom) not in (int, float)
+            or not math.isfinite(fmax_ev_angstrom) or fmax_ev_angstrom <= 0 or not len(rel_a)
+            or rel_a.get_chemical_symbols() != rel_b.get_chemical_symbols()):
+        raise LightningQuenchError("Quench requires matched real nuclei and a finite bounded optimization allocation")
+    rel_a.calc = calculator if calculator is not None else atoms_a.calc
+    rel_b.calc = calculator if calculator is not None else atoms_b.calc
+    protocol = _calculator_receipt(rel_a.calc)
+    if _calculator_receipt(rel_b.calc) != protocol:
+        raise LightningQuenchError("Conformer comparison requires the same explicit potential and actual parameters")
+    energies = []
+    for label, atoms in (("A", rel_a), ("B", rel_b)):
+        if not np.all(np.isfinite(atoms.positions)):
+            raise LightningQuenchError("Quench geometry must contain finite real coordinates")
+        try:
+            optimizer = LBFGS(atoms, logfile=None)
+            converged = optimizer.run(fmax=fmax_ev_angstrom, steps=max_steps)
+            forces = np.asarray(atoms.get_forces(), dtype=float)
+            energy = float(atoms.get_potential_energy())
+            maximum = float(np.max(np.linalg.norm(forces, axis=1)))
+            if (not isinstance(converged, (bool, np.bool_)) or not bool(converged) or not np.all(np.isfinite(forces)) or forces.shape != (len(atoms), 3)
+                    or not math.isfinite(energy) or maximum > fmax_ev_angstrom):
+                raise LightningQuenchError("The selected potential did not establish finite force convergence")
+        except Exception as error:
+            raise LightningQuenchError("Selected potential quench failed for Structure " + label + "; no relaxed geometry or substitute model is accepted") from error
+        atoms.info["cochem_quench"] = {"optimizer": "ASE LBFGS", "converged": True, "steps": optimizer.nsteps,
+            "maximum_force_ev_angstrom": maximum, "force_threshold_ev_angstrom": fmax_ev_angstrom,
+            "energy_ev": energy, "potential": protocol, "minimum_qualification": "not_performed"}
+        energies.append(energy)
+    e_a_ev, e_b_ev = energies
 
     # Convert eV to kcal/mol: 1 eV = 23.060541945329334 kcal/mol
     ev_to_kcal = units.mol / units.kcal
@@ -350,8 +373,8 @@ class JiggleQuenchArbiter:
         coords_b: np.ndarray | Sequence[Sequence[float]],
         candidate_id_a: str = "cand_a",
         candidate_id_b: str = "cand_b",
-        energy_a_kcal: float = 0.0,
-        energy_b_kcal: float = 0.0,
+        energy_a_kcal: float | None = None,
+        energy_b_kcal: float | None = None,
         calculator: Any = None,
     ) -> JiggleQuenchResult:
         """Process suspect ambiguous conformer pair through the full Jiggle-Quench protocol.
@@ -379,6 +402,9 @@ class JiggleQuenchArbiter:
         # 2. Convert to ASE Atoms for relaxation
         atoms_a = Atoms(symbols=syms, positions=jiggle_a)
         atoms_b = Atoms(symbols=syms, positions=jiggle_b)
+        masses = get_monoisotopic_masses(symbols)
+        atoms_a.set_masses(masses)
+        atoms_b.set_masses(masses)
 
         # 3. Lightning Quench
         rel_atoms_a, rel_atoms_b, relaxed_e_a, relaxed_e_b = execute_lightning_quench(
@@ -390,17 +416,19 @@ class JiggleQuenchArbiter:
         )
 
         # 4. Basin Merge Arbitration
-        return arbitrate_basin_merge(
+        result = arbitrate_basin_merge(
             symbols=syms,
             coords_a=c_a,
             coords_b=c_b,
             relaxed_coords_a=rel_atoms_a.positions,
             relaxed_coords_b=rel_atoms_b.positions,
-            energy_a_kcal=relaxed_e_a if relaxed_e_a != 0.0 else energy_a_kcal,
-            energy_b_kcal=relaxed_e_b if relaxed_e_b != 0.0 else energy_b_kcal,
+            energy_a_kcal=relaxed_e_a,
+            energy_b_kcal=relaxed_e_b,
             candidate_id_a=candidate_id_a,
             candidate_id_b=candidate_id_b,
             merge_threshold_angstrom=self.config.merge_rmsd_threshold_angstrom,
             perturbed_coords_a=jiggle_a,
             perturbed_coords_b=jiggle_b,
         )
+        return result.model_copy(update={"energy_scope": "selected_calculator_native_evaluation",
+            "quench_provenance": {"a": rel_atoms_a.info["cochem_quench"], "b": rel_atoms_b.info["cochem_quench"]}})

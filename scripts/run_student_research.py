@@ -15,6 +15,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+# Direct script execution starts on scripts/, while the cheap readiness path
+# deliberately runs before BASE installation. Import only helpers from this
+# exact reviewed checkout, independent of ambient PYTHONPATH or caller cwd.
+_CHECKOUT_ROOT = Path(__file__).resolve().parents[1]
+if str(_CHECKOUT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_CHECKOUT_ROOT))
+
 
 def _local_contract(name: str):
     path = Path(__file__).resolve().parents[1] / "src/cochem_base/interfaces" / (name + ".py")
@@ -54,7 +61,7 @@ def _identity(request: dict) -> dict:
 
 
 def preflight(output: Path) -> dict:
-    request = contract.decode_request(os.environ["REQUEST_BASE64"], os.environ["REQUEST_SHA256"])
+    request = contract.decode_transport_request(os.environ["REQUEST_BASE64"], os.environ["REQUEST_SHA256"])
     if (request["request_id"] != os.environ["REQUEST_ID"]
             or request["repository"] != os.environ["GITHUB_REPOSITORY"]
             or request["source_sha"] != os.environ["GITHUB_SHA"]
@@ -67,15 +74,6 @@ def preflight(output: Path) -> dict:
     output.mkdir(parents=True, exist_ok=False)
     _atomic_json(output / "request.json", request)
     _atomic_json(output / "student-result.json", _identity(request))
-    inputs = output / "inputs"
-    inputs.mkdir()
-    for name, item in request["files"].items():
-        destination = inputs / name
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(base64.b64decode(item["content_base64"], validate=True))
-        destination.chmod(0o600)
-    if request["calculation"] is not None:
-        _atomic_json(inputs / "calculation.json", request["calculation"])
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a", encoding="utf-8") as stream:
@@ -86,7 +84,9 @@ def preflight(output: Path) -> dict:
 def approve_worker(output: Path) -> dict:
     """Approve only an instructor-controlled canonical revision, never a user ref."""
     request = contract.strict_json((output / "request.json").read_bytes())
-    contract.validate_request(request)
+    transported = contract.decode_transport_request(os.environ["REQUEST_BASE64"], os.environ["REQUEST_SHA256"])
+    if request != transported:
+        raise ValueError("The saved request differs from the submitted transport bytes")
     token = os.environ.get("COCHEM_SOURCE_READ_TOKEN", "")
     if not token:
         raise ValueError("The instructor must authorize this assignment for BASE source-reader access")
@@ -164,17 +164,62 @@ def approve_worker(output: Path) -> dict:
     return report
 
 
+def _preflight_periodic(calculation: dict) -> None:
+    """Reject unsupported Product B operations before installing the free solver."""
+    import math
+    if (calculation.get("product_class") != "B" or calculation.get("method") != "PBE"
+            or calculation.get("basis_set") not in {"PAW", "plane_wave"}
+            or calculation.get("charge", 0) != 0 or calculation.get("multiplicity", 1) != 1
+            or any(calculation.get(field) for field in ("is_opt", "is_freq", "is_vpt2", "recipe", "implicit_solvation",
+                "frozen_monomer_indices", "hessian_file", "r2_reference_manifest", "t9_fallback", "theory_tier", "cbs_cardinal_pair", "grid_stage"))):
+        raise ValueError("The connected QE worker supports neutral closed-shell Product B PBE PAW SCF only")
+    periodic = calculation["periodic"]
+    allowed = {"cell_angstrom", "pbc", "pseudopotentials", "ecutwfc_ry", "ecutrho_ry", "kpoints", "conv_thr_ry",
+               "max_scf_steps", "structure_provenance"}
+    if set(periodic) - allowed or periodic.get("pbc", [True] * 3) != [True, True, True]:
+        raise ValueError("QE requires three periodic boundaries and typed plane-wave controls")
+    limits = {"ecutwfc_ry": (45, 1000), "ecutrho_ry": (360, 10000), "conv_thr_ry": (1e-8, 1e-6)}
+    for name, (default, ceiling) in limits.items():
+        value = periodic.get(name, default)
+        if type(value) not in (int, float) or not math.isfinite(value) or not 0 < value <= ceiling:
+            raise ValueError("QE cutoff/convergence values must be finite and within the native adapter bounds")
+    if periodic.get("ecutrho_ry", 360) < 4 * periodic.get("ecutwfc_ry", 45):
+        raise ValueError("The PAW density cutoff must be at least four times its wavefunction cutoff")
+    mesh = periodic.get("kpoints", [2, 2, 2])
+    if (not isinstance(mesh, list) or len(mesh) != 3 or any(type(point) is not int or not 1 <= point <= 32 for point in mesh)
+            or math.prod(mesh) > 4096):
+        raise ValueError("QE requires a finite native-adapter reciprocal mesh")
+    cycles = periodic.get("max_scf_steps", 100)
+    if type(cycles) is not int or not 1 <= cycles <= 1000:
+        raise ValueError("QE needs a finite SCF iteration limit")
+
+
 def verify_worker_checkout(output: Path) -> dict:
     import subprocess
     request = contract.strict_json((output / "request.json").read_bytes())
     if hashlib.sha256(contract.canonical_json(request)).hexdigest() != os.environ["REQUEST_SHA256"]:
         raise ValueError("The approved student request changed before canonical worker checkout")
+    contract.validate_request(request)
     source = Path(__file__).resolve().parents[1]
     actual = subprocess.run(["git", "-C", str(source), "rev-parse", "HEAD"],
                             stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True, timeout=15).stdout.strip()
     approval = contract.strict_json((output / "worker-approval.json").read_bytes())
     if actual != request["worker_source_sha"] or approval["worker_source_sha"] != actual:
         raise ValueError("The canonical worker checkout differs from the approved request")
+    inputs = output / "inputs"
+    inputs.mkdir(exist_ok=True)
+    for name, item in request["files"].items():
+        destination = inputs / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        data = base64.b64decode(item["content_base64"], validate=True)
+        if destination.exists():
+            if destination.is_symlink() or destination.read_bytes() != data:
+                raise ValueError("The materialized inline source changed before worker execution")
+        else:
+            destination.write_bytes(data)
+            destination.chmod(0o600)
+    if request["calculation"] is not None:
+        _atomic_json(inputs / "calculation.json", request["calculation"])
     if request["capability_probe"] is not None:
         engines, modules = [], []
     elif request["calculation"] is not None:
@@ -201,12 +246,21 @@ def verify_worker_checkout(output: Path) -> dict:
                         raise ValueError("The connected R2 protocol requires wB97M-V/def2-QZVPP frozen-monomer optimization")
                     admissible["recipe"] = None
             _local_contract("actions_jobs").preflight_configuration(admissible)
-        else:
+        elif calculation["engine"] == "xtb":
             if str(calculation.get("method", "")).upper() not in {"GFN2-XTB", "GFN-FF"}:
                 raise ValueError("The hosted xTB adapter supports GFN2-xTB and GFN-FF")
             for field in ("hessian_file", "r2_reference_manifest", "t9_fallback", "periodic", "recipe"):
                 if calculation.get(field) is not None:
                     raise ValueError(f"The self-contained xTB request cannot include {field}")
+        elif calculation["engine"] == "qe":
+            _preflight_periodic(calculation)
+        elif calculation["engine"] == "pyscf":
+            if any(calculation.get(field) is not None for field in ("periodic", "recipe", "hessian_file", "r2_reference_manifest", "t9_fallback")):
+                raise ValueError("The self-contained PySCF request cannot include external executable/checkpoint paths")
+            if (calculation.get("method", "").upper() not in {"HF", "RHF"}
+                    or calculation.get("multiplicity", 1) != 1
+                    or any(calculation.get(field) for field in ("is_opt", "is_freq", "is_vpt2", "implicit_solvation"))):
+                raise ValueError("The native PySCF worker supports explicitly requested restricted-HF single-point energy/gradients")
         engines, modules = [calculation["engine"]], []
         if request["t9_request"] is not None:
             engines.append("pyscf")
@@ -216,7 +270,7 @@ def verify_worker_checkout(output: Path) -> dict:
         provider_contract.validate_provider_resources(request["provider"], request["resources"])
         engines = provider_contract.required_provider_engines(request["provider"])
         modules = provider_contract.required_provider_modules(request["provider"])
-    if any(engine not in {"orca", "cfour", "xtb", "pyscf", "crest"} for engine in engines):
+    if any(engine not in {"orca", "cfour", "xtb", "pyscf", "crest", "qe"} for engine in engines):
         raise ValueError("A requested provider engine has no reviewed hosted installer")
     if any(module not in {"topos", "torq"} for module in modules):
         raise ValueError("A requested provider module has no reviewed student installation")
@@ -224,8 +278,10 @@ def verify_worker_checkout(output: Path) -> dict:
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
             for key, value in {"orca": str("orca" in engines).lower(), "cfour": str("cfour" in engines).lower(),
                                "pyscf": str("pyscf" in engines).lower(), "crest": str("crest" in engines).lower(),
+                               "qe": str("qe" in engines).lower(),
                                "probe": str(request["capability_probe"] is not None).lower(),
                                "scientific_inputs": str(request["scientific_inputs"] is not None).lower(),
+                               "data_inputs": str(request["data_inputs"] is not None).lower(),
                                "modules": " ".join(modules)}.items():
                 stream.write(f"{key}={value}\n")
     module_manifest = source / "scripts/module-distribution.json"
@@ -250,7 +306,29 @@ def _run_xtb(request: dict, output: Path, registry: Path) -> dict:
                              threads=resources["cores"], maxcore_mb=resources["maxcore_mb"], device="cpu")
     if result.get("status") != "EXECUTION_VERIFIED":
         raise RuntimeError("xTB did not publish a verified scientific result")
+    _retain_native_archive(contract.strict_json((output / "native/result.json").read_bytes()), output, registry)
     return result
+
+
+def _retain_native_archive(accepted: dict, output: Path, registry: Path) -> None:
+    """Retain the actual completed SWMR store and audited registry for students."""
+    import shutil
+    store = Path(accepted["telemetry_path"])
+    if store.is_symlink() or not store.is_file():
+        raise ValueError("Native scientific telemetry must be a real regular datastore")
+    def digest(path: Path) -> str:
+        with path.open("rb") as stream:
+            return hashlib.file_digest(stream, "sha256").hexdigest()
+    target = output / "complexes.h5"
+    original_digest = digest(store)
+    shutil.copy2(store, target)
+    if digest(target) != original_digest or digest(store) != original_digest:
+        raise ValueError("Native scientific telemetry changed during publication")
+    shutil.copy2(registry, output / "stage0-registry.json")
+    _atomic_json(output / "telemetry-publication.json", {"archive": "complexes.h5",
+        "sha256": original_digest, "telemetry_job_id": accepted["telemetry_job_id"],
+        "original_runner_store": str(store), "registry": "stage0-registry.json",
+        "registry_sha256": hashlib.sha256(registry.read_bytes()).hexdigest()})
 
 
 def capability_probe(output: Path) -> dict:
@@ -266,13 +344,8 @@ def capability_probe(output: Path) -> dict:
     return identity
 
 
-def download_scientific_inputs(output: Path) -> dict:
-    """Fetch only the sealed input blob; never execute a data-branch checkout."""
-    request = contract.strict_json((output / "request.json").read_bytes())
-    descriptor = request["scientific_inputs"]
-    contract.validate_request(request)
-    if descriptor is None:
-        raise ValueError("This request has no scientific input bundle")
+def _download_git_bundle(request: dict, descriptor: dict) -> bytes:
+    """Read an exact sealed data blob; never check out or import its branch."""
     token = os.environ.get("GITHUB_TOKEN", "")
     if not token:
         raise ValueError("Assignment input retrieval requires the job's read-only repository identity")
@@ -310,12 +383,37 @@ def download_scientific_inputs(output: Path) -> dict:
             tree_sha = entry["sha"]
         elif entry["type"] != "blob" or entry["mode"] != "100644" or entry["sha"] != descriptor["blob_sha"]:
             raise ValueError("The input commit's blob differs from the sealed request")
-    blob = get("/git/blobs/" + descriptor["blob_sha"], maximum=24 * 1024 * 1024)
+    blob = get("/git/blobs/" + descriptor["blob_sha"], maximum=90 * 1024 * 1024)
     if blob.get("encoding") != "base64" or blob.get("size") != descriptor["bundle_size_bytes"]:
         raise ValueError("The scientific input blob size or encoding is invalid")
     contents = base64.b64decode(blob["content"].replace("\n", ""), validate=True)
     if len(contents) != descriptor["bundle_size_bytes"] or hashlib.sha256(contents).hexdigest() != descriptor["bundle_sha256"]:
         raise ValueError("The downloaded scientific ZIP differs from the submitted bytes")
+    return contents
+
+
+def download_data_inputs(output: Path) -> dict:
+    request = contract.strict_json((output / "request.json").read_bytes())
+    contract.validate_request(request)
+    descriptor = request["data_inputs"]
+    if descriptor is None:
+        raise ValueError("This request has no original ingestion bundle")
+    from cochem_base.interfaces.student_data_inputs import extract_data_bundle
+    receipt = extract_data_bundle(_download_git_bundle(request, descriptor), output / "data-inputs",
+        request_id=request["request_id"], geometry_sha256=descriptor["geometry_sha256"], kind=descriptor["kind"])
+    _atomic_json(output / "data-inputs.json", receipt)
+    _bind_original_inputs(request, output)
+    return receipt
+
+
+def download_scientific_inputs(output: Path) -> dict:
+    """Fetch only the sealed input blob; never execute a data-branch checkout."""
+    request = contract.strict_json((output / "request.json").read_bytes())
+    descriptor = request["scientific_inputs"]
+    contract.validate_request(request)
+    if descriptor is None:
+        raise ValueError("This request has no scientific input bundle")
+    contents = _download_git_bundle(request, descriptor)
     from cochem_base.interfaces.scientific_inputs import extract_bundle
     extracted = extract_bundle(contents, output / "scientific-inputs", request_id=request["request_id"],
                                geometry_sha256=descriptor["geometry_sha256"], kind=descriptor["kind"],
@@ -326,6 +424,42 @@ def download_scientific_inputs(output: Path) -> dict:
                "scientific_validation_performed": False}
     _atomic_json(output / "scientific-inputs.json", receipt)
     return receipt
+
+
+def _bind_original_inputs(request: dict, output: Path) -> dict | None:
+    """Compatibility wrapper for the shared installed BASE input-binding authority."""
+    from cochem_base.interfaces.student_original_inputs import bind_original_inputs
+    return bind_original_inputs(request, output)
+
+
+def _run_free_native(request: dict, output: Path, registry: Path) -> dict:
+    import math
+    from cochem_base.calc.calculation_service import CalculationMatrixConfig, run_calculation
+    from cochem_base.interfaces.scientific_jobs import validate_job_configuration, calculation_capability
+    raw = _bind_original_inputs(request, output)
+    contents = contract.canonical_json(raw)
+    config = CalculationMatrixConfig.model_validate_json(contents, strict=True)
+    validate_job_configuration(config)
+    if calculation_capability(config).adapter_status != "connected":
+        raise ValueError("This free-engine operation has no connected native acceptance adapter")
+    path = output / "inputs/worker-calculation.json"
+    _atomic_json(path, raw)
+    result = run_calculation(path, scratch=output / "native-scratch", output=output / "native",
+        registry_path=registry, threads=request["resources"]["cores"], maxcore_mb=request["resources"]["maxcore_mb"], device="cpu")
+    if result.get("status") != "EXECUTION_VERIFIED":
+        raise RuntimeError("The free native scientific operation did not complete")
+    accepted = contract.strict_json((output / "native/result.json").read_bytes())
+    if (not math.isfinite(accepted.get("energy_hartree", float("nan")))
+            or accepted.get("scf_converged", accepted.get("converged")) is not True):
+        raise RuntimeError("Native free-engine result lacks converged finite energy")
+    from cochem_base.core_engine.scientific_telemetry import read_scientific_results
+    telemetry = read_scientific_results(accepted["telemetry_job_id"], store_path=Path(accepted["telemetry_path"]))
+    if (not len(telemetry["energy_hartree"]) or float(telemetry["energy_hartree"][-1]) != accepted["energy_hartree"]
+            or telemetry["elements"] != accepted["elements"]
+            or telemetry["coordinates_angstrom"][-1].tolist() != accepted["coordinates_angstrom"]):
+        raise RuntimeError("Native free-engine HDF5 evidence contradicts its published result")
+    _retain_native_archive(accepted, output, registry)
+    return result
 
 
 def _run_advanced_orca(request: dict, output: Path, registry: Path) -> dict:
@@ -374,8 +508,19 @@ def _run_advanced_orca(request: dict, output: Path, registry: Path) -> dict:
                 or telemetry["elements"] != accepted["elements"]
                 or telemetry["coordinates_angstrom"][-1].tolist() != accepted["coordinates_angstrom"]):
             raise RuntimeError("Advanced native scientific archive differs from its published result")
-    elif result.get("original_single_reference_rejected") is not True:
-        raise RuntimeError("The alternative T9 method lacks explicit rejection of its original single-reference result")
+        _retain_native_archive(accepted, output, registry)
+    else:
+        if result.get("original_single_reference_rejected") is not True:
+            raise RuntimeError("The alternative T9 method lacks explicit rejection of its original single-reference result")
+        fallback = result["fallback"]
+        from cochem_base.core_engine.scientific_telemetry import read_scientific_results
+        telemetry = read_scientific_results(fallback["telemetry_job_id"], store_path=Path(fallback["telemetry_path"]))
+        if (not len(telemetry["energy_hartree"])
+                or float(telemetry["energy_hartree"][-1]) != fallback["energy_hartree"]
+                or telemetry["nuclides"] != fallback["nuclides"]
+                or telemetry["metadata"][-1].get("tier") != "T9"):
+            raise RuntimeError("The alternative T9 result contradicts its native scientific archive")
+        _retain_native_archive(fallback, output, registry)
     return result
 
 
@@ -389,15 +534,19 @@ def execute(output: Path, registry: Path, module_root: Path | None = None) -> di
     try:
         if request["calculation"] is not None:
             engine = request["calculation"]["engine"]
+            _bind_original_inputs(request, output)
             if engine == "orca" and (request["scientific_inputs"] is not None or request["t9_request"] is not None):
                 result = _run_advanced_orca(request, output, registry)
             elif engine in {"orca", "cfour"}:
                 from scripts.run_actions_calculation import run_job
                 result = run_job(output / "inputs", "calculation.json", registry=registry,
                                  output=output / "native", engine=engine, **request["resources"])
-            else:
+            elif engine == "xtb":
                 result = _run_xtb(request, output, registry)
+            else:
+                result = _run_free_native(request, output, registry)
         else:
+            _bind_original_inputs(request, output)
             from cochem_base.interfaces.student_research import execute_provider_request
             result = execute_provider_request(request["provider"], output / "inputs", output / "provider",
                                               root=module_root, registry=registry,
@@ -436,6 +585,7 @@ def finalize(output: Path) -> dict:
                 "reason": f"Actual {engine.upper()} provisioning failed in this calculation job. Recheck instructor asset access before retrying."}
             report["failure_category"] = "engine_provisioning"
             _atomic_json(report_path, report)
+    _retain_crash_records(output)
     files = {}
     total = 0
     for path in sorted(output.rglob("*")):
@@ -463,7 +613,44 @@ def finalize(output: Path) -> dict:
     return manifest
 
 
+def _retain_crash_records(output: Path) -> None:
+    """Copy authentic immutable diagnostic JSON before scratch deletion."""
+    retained = output / "crash-provenance"
+    records = {}
+    for source in output.rglob("crash-*.json"):
+        if "CrashRecords" not in source.relative_to(output).parts:
+            continue
+        if source.is_symlink() or not source.is_file() or source.stat().st_size > 1024 * 1024:
+            raise ValueError("Crash provenance must be a bounded regular immutable JSON record")
+        contents = source.read_bytes()
+        record = contract.strict_json(contents)
+        digest = record.pop("sha256", None)
+        canonical = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        if (record.get("event") != "process_crash" or record.get("@type") != "Event"
+                or digest != hashlib.sha256(canonical).hexdigest()):
+            raise ValueError("Immutable crash provenance does not match its own recorded SHA-256")
+        name = "crash-" + hashlib.sha256(contents).hexdigest() + ".json"
+        if name not in records:
+            retained.mkdir(exist_ok=True)
+            destination = retained / name
+            if destination.exists():
+                if destination.is_symlink() or destination.read_bytes() != contents:
+                    raise ValueError("Retained immutable crash provenance differs from its original record")
+            else:
+                with destination.open("xb") as stream:
+                    stream.write(contents)
+            destination.chmod(0o444)
+            records[name] = {"source_path": str(source), "record_sha256": digest,
+                             "file_sha256": hashlib.sha256(contents).hexdigest()}
+    if records:
+        _atomic_json(output / "crash-provenance-receipt.json", {"records": records,
+            "scientific_execution_claimed_from_crash": False, "licensed_input_dependencies": "hash_only"})
+
+
 def main(argv=None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if callable(getattr(stream, "reconfigure", None)):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--registry", type=Path)
@@ -475,6 +662,7 @@ def main(argv=None) -> int:
     modes.add_argument("--verify-worker-only", action="store_true")
     modes.add_argument("--capability-probe", action="store_true")
     modes.add_argument("--download-scientific-inputs", action="store_true")
+    modes.add_argument("--download-data-inputs", action="store_true")
     args = parser.parse_args(argv)
     try:
         if args.preflight_only:
@@ -490,6 +678,8 @@ def main(argv=None) -> int:
             capability_probe(args.output)
         elif args.download_scientific_inputs:
             download_scientific_inputs(args.output)
+        elif args.download_data_inputs:
+            download_data_inputs(args.output)
         else:
             if args.registry is None:
                 parser.error("Execution requires the fresh Stage 0 registry")

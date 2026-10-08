@@ -412,7 +412,10 @@ class PESPointRecord(BaseModel):
     symbols: List[str] = Field(default_factory=list, description="Ordered IUPAC elemental symbols")
     method: str = Field(default="unknown", description="Electronic structure method")
     basis: Optional[str] = Field(default=None, description="Primary basis set")
-    energy: float = Field(default=0.0, description="Electronic energy in Hartrees")
+    energy: Optional[float] = Field(
+        default=None, allow_inf_nan=False,
+        description="Measured electronic energy in Hartrees; None for an unevaluated geometry",
+    )
     gradient: Optional[List[float]] = Field(None, description="Flat 1D gradient in Hartree/Bohr (size 3*N)")
     units: Literal["bohr", "angstrom"] = Field(default="bohr", description="Physical unit of spatial coordinates")
     converged: Optional[bool] = Field(default=None, strict=True, description="Reported convergence status; None when not established")

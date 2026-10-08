@@ -7,13 +7,8 @@ thermodynamic filtering, and thread-safe HDF5 persistence [M][D][E].
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-import time
 import filelock
 import h5py
-from mendeleev import element
-import numpy as np
 from pydantic import ValidationError
 import pytest
 from rdkit import Chem
@@ -23,6 +18,7 @@ from cochem.topos.tautomer import (
     GhostAtomSanitizationError,
     InvalidTopologyInputError,
     QuantumChemistryHandshakeError,
+    TautomerThermodynamicsUnavailableError,
     TautomerCandidate,
     TautomerCanonicalizationError,
     TautomerCombinatorialLimitExceededError,
@@ -34,7 +30,6 @@ from cochem.topos.tautomer import (
     TopologyInput,
     ToposPerceptionError,
     ValenceConservationError,
-    compute_patterson_score,
     enumerate_tautomers,
     filter_tautomers_thermodynamics,
     load_tautomer_ensemble_from_hdf5,
@@ -212,7 +207,7 @@ def test_ghost_atom_bsse_exclusion():
 
 
 def test_qm_handshake_and_thermodynamic_filtering(tmp_path):
-    """REQ-TOPOS-014.5: Verify 3D conformer generation (ETKDGv3) and thermodynamic pre-filtering adapter [M][D]."""
+    """Structural data cannot silently become unmatched thermal populations."""
     acac = TopologyInput(
         molecule_id="acac",
         smiles="CC(=O)CC(=O)C",
@@ -222,11 +217,12 @@ def test_qm_handshake_and_thermodynamic_filtering(tmp_path):
     config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2, energy_cutoff_kcal_mol=15.0)
     ens = enumerate_tautomers(acac, config)
 
-    filtered_ens = filter_tautomers_thermodynamics(ens, config, scratch_dir=tmp_path)
-    assert filtered_ens.total_generated >= 1
-    for c in filtered_ens.candidates:
-        if c.relative_energy_kcal_mol is not None:
-            assert c.relative_energy_kcal_mol <= config.energy_cutoff_kcal_mol + 1e-4
+    original = ens.model_dump(mode="json")
+    with pytest.raises(TautomerThermodynamicsUnavailableError, match="no candidates were recalculated or discarded"):
+        filter_tautomers_thermodynamics(ens, config, scratch_dir=tmp_path)
+    assert ens.model_dump(mode="json") == original
+    assert all(c.relative_energy_kcal_mol is None for c in ens.candidates)
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_hdf5_threadsafe_concurrency_persistence(tmp_path):
@@ -269,9 +265,9 @@ def test_dynamic_mendeleev_mass_invariants():
         bonds=[(0, 1, 1.0), (0, 2, 1.0)],
     )
     # Check dynamic mendeleev values against live library
-    assert np.isclose(top.masses[0], float(element(6).mass), atol=1e-4)
-    assert np.isclose(top.masses[1], float(element(8).mass), atol=1e-4)
-    assert np.isclose(top.masses[2], float(element(7).mass), atol=1e-4)
+    from cochem_base.physics.isotopes import get_isotope_mass
+    assert top.masses[:3] == [get_isotope_mass(symbol) for symbol in ("C", "O", "N")]
+    assert top.masses[0] == 12.0
     assert top.masses[3] == 0.0
 
 

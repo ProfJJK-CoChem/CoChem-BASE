@@ -178,25 +178,19 @@ class TestPhysicalConstantsAndMendeleev:
     def test_dynamic_mendeleev_mass_resolution(self) -> None:
         """Verify dynamic atomic mass resolution across representative periodic elements [M]."""
         test_elements = [
-            ("H", 1, 1.0, 1.01),
-            ("C", 6, 12.0, 12.02),
-            ("N", 7, 14.0, 14.01),
-            ("O", 8, 15.99, 16.01),
-            ("F", 9, 18.99, 19.01),
-            ("Na", 11, 22.98, 23.00),
-            ("P", 15, 30.97, 30.98),
-            ("S", 16, 32.05, 32.08),
-            ("Cl", 17, 35.44, 35.46),
-            ("Fe", 26, 55.84, 55.86),
-            ("Br", 35, 79.90, 79.91),
-            ("I", 53, 126.90, 126.91),
+            ("H", 1), ("C", 6), ("N", 7), ("O", 8), ("F", 9), ("Na", 11),
+            ("P", 15), ("S", 16), ("Cl", 17), ("Fe", 26), ("Br", 35), ("I", 53),
         ]
 
-        for sym, z, low, high in test_elements:
+        for sym, z in test_elements:
             mass_sym = resolve_dynamic_mass(sym)
             mass_z = resolve_dynamic_mass(z)
             assert mass_sym == mass_z, f"Mass mismatch between symbol '{sym}' and Z={z}"
-            assert low <= mass_sym <= high, f"Mass {mass_sym} for '{sym}' out of physical range [{low}, {high}]"
+            isotopes = [isotope for isotope in mendeleev.element(sym).isotopes
+                        if isotope.abundance is not None and isotope.abundance > 0
+                        and isotope.mass is not None]
+            principal = max(isotopes, key=lambda isotope: (isotope.abundance, -isotope.mass_number))
+            assert mass_sym == float(principal.mass)
 
     def test_dynamic_monoisotopic_mass(self) -> None:
         """Verify monoisotopic mass queries from Mendeleev [M]."""

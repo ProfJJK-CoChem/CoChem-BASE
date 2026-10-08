@@ -54,7 +54,7 @@ def verify_micro_silo(
     python = root / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     pins = validate_pins(requirements)
     script = """
-import importlib, importlib.metadata, json, pathlib, re, site, sys
+import importlib, importlib.metadata, json, pathlib, re, site, sys, sysconfig
 contract = json.loads(sys.argv[1])
 root = pathlib.Path(contract['root']).resolve()
 assert pathlib.Path(sys.prefix).resolve() == root, 'interpreter prefix is outside silo'
@@ -72,15 +72,35 @@ for entry in sys.path:
     assert path.is_relative_to(root) or path.is_relative_to(pathlib.Path(sys.base_prefix).resolve()), 'sys.path leaked an external directory'
 versions = {name: importlib.metadata.version(name) for name in contract['pins']}
 assert versions == contract['pins'], 'installed dependency version drift'
+stdlib_roots = {pathlib.Path(sysconfig.get_path(name)).resolve() for name in ('stdlib', 'platstdlib')}
+distribution_map = importlib.metadata.packages_distributions()
 for name in contract['imports']:
     module = importlib.import_module(name)
     origin = getattr(module, '__file__', None)
-    if origin and pathlib.Path(origin).resolve().is_relative_to(root):
-        distributions = importlib.metadata.packages_distributions().get(name.split('.')[0], [])
-        assert distributions, 'unversioned import inside silo'
-        for distribution in distributions:
-            key = re.sub(r'[-_.]+', '-', distribution).lower()
-            assert key in contract['pins'], 'imported dependency is not pinned'
+    locations = list(getattr(module, '__path__', ()))
+    top = name.split('.')[0]
+    def standard_path(value):
+        path = pathlib.Path(value).resolve()
+        return (top in sys.stdlib_module_names and
+                not {'site-packages', 'dist-packages'}.intersection(path.parts) and
+                any(path.is_relative_to(standard) for standard in stdlib_roots))
+    spec = getattr(module, '__spec__', None)
+    intrinsic = origin is None and not locations and spec is not None and spec.origin in {'built-in', 'frozen'}
+    if intrinsic:
+        assert top in sys.stdlib_module_names, 'nonstandard intrinsic import is outside silo'
+        continue
+    paths = ([origin] if origin else []) + locations
+    assert paths, 'import has no verifiable origin or namespace paths'
+    inside = all(pathlib.Path(path).resolve().is_relative_to(root) for path in paths)
+    standard = all(standard_path(path) for path in paths)
+    assert inside or standard, 'import origin or namespace path is outside silo'
+    if standard:
+        continue
+    distributions = distribution_map.get(top, [])
+    assert distributions, 'unversioned import inside silo'
+    for distribution in distributions:
+        key = re.sub(r'[-_.]+', '-', distribution).lower()
+        assert key in contract['pins'], 'imported dependency is not pinned'
 print(json.dumps({'python_version': version, 'packages': versions, 'imports': contract['imports']}))
 """
     contract = json.dumps({"root": str(root), "version": python_version, "pins": pins, "imports": list(imports)})

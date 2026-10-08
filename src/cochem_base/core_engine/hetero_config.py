@@ -120,6 +120,7 @@ import numpy as np
 import psutil
 import scipy.stats
 from mendeleev import element
+from cochem_base.core import cochem_constants as _constants
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", category=FutureWarning)
@@ -140,14 +141,14 @@ except (ImportError, Exception):
 # ---------------------------------------------------------------------------
 # Physical Constants & Hardware Parameters (Method Matrix §8, §8A.1, §8A.4)
 # ---------------------------------------------------------------------------
-PLANCK_CONSTANT_J_S: float = 6.62607015e-34       # J * s (CODATA exact)
-SPEED_OF_LIGHT_CM_S: float = 2.99792458e10       # cm / s (CODATA exact)
-ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27   # kg / u
-ANGSTROM_TO_METER: float = 1.0e-10               # m / Angstrom
-BOHR_TO_ANGSTROM: float = 0.529177210903         # Angstrom / Bohr
-HARTREE_TO_EV: float = 27.211386245988           # eV / Hartree
-HARTREE_TO_KCAL_MOL: float = 627.5094740631      # kcal/mol / Hartree
-EV_TO_KCAL_MOL: float = 23.060541945329          # kcal/mol / eV
+PLANCK_CONSTANT_J_S: float = _constants.PLANCK_CONSTANT_J_S
+SPEED_OF_LIGHT_CM_S: float = _constants.SPEED_OF_LIGHT_CM_S
+ATOMIC_MASS_UNIT_KG: float = _constants.ATOMIC_MASS_UNIT_KG
+ANGSTROM_TO_METER: float = _constants.ANGSTROM_TO_METER
+BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+HARTREE_TO_EV: float = _constants.HARTREE_TO_EV
+HARTREE_TO_KCAL_MOL: float = _constants.HARTREE_TO_KCAL_MOL
+EV_TO_KCAL_MOL: float = HARTREE_TO_KCAL_MOL / HARTREE_TO_EV
 
 # Hardware Specifications (Setup 2: Intel i7-13700K + NVIDIA RTX 3090)
 SETUP2_CPU_MODEL: str = "Intel Core i7-13700K"
@@ -205,27 +206,10 @@ if not logger.handlers:
 _MASS_CACHE: Dict[str, float] = {}
 
 def get_atomic_mass(symbol: str) -> float:
-    """
-    Dynamically retrieve the atomic mass of an element via Mendeleev library.
-    Enforces the CoChem Mendeleev Mandate: strictly zero hardcoded atomic masses.
-
-    Args:
-        symbol: Chemical symbol of the element (e.g. 'H', 'C', 'N', 'O').
-
-    Returns:
-        Atomic mass in atomic mass units (u / Da).
-    """
-    clean_symbol = symbol.strip().capitalize()
-    if clean_symbol in _MASS_CACHE:
-        return _MASS_CACHE[clean_symbol]
-
-    elem_data = element(clean_symbol)
-    if elem_data is None or elem_data.mass is None:
-        raise ValueError(f"Unknown or invalid element symbol '{symbol}' in Mendeleev database.")
-
-    mass_val = float(elem_data.mass)
-    _MASS_CACHE[clean_symbol] = mass_val
-    return mass_val
+    """Resolve an exact assigned/principal isotope mass from dynamic Mendeleev data."""
+    from cochem_base.physics.isotopes import get_isotope_mass
+    value = symbol
+    return get_isotope_mass(value)
 
 
 # ---------------------------------------------------------------------------

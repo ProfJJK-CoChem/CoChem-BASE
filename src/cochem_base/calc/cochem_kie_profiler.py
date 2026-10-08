@@ -14,7 +14,7 @@ except ImportError:
     molsym = None
 
 from collections.abc import Mapping
-from cochem_base.physics.isotopes import get_atomic_mass, get_isotope_mass
+from cochem_base.physics.isotopes import get_isotope_mass
 
 _TARGET_HEAVY_MASS_NUMBERS = {
     "H": 2,    # Deuterium
@@ -152,7 +152,7 @@ def auto_kie_profiling(hdf5_path: str, group_name: str) -> None:
         if len(symbols) * 3 != H.shape[0]:
             raise ValueError("Dimension mismatch between symbols and Hessian.")
 
-        base_masses = np.array([get_atomic_mass(s) for s in symbols])
+        base_masses = np.array([get_isotope_mass(s) for s in symbols])
 
         # Find symmetrically equivalent atoms
         mol = molsym.Molecule(symbols, coords, base_masses)

@@ -211,11 +211,17 @@ class PESStore:
                 )
 
             # Extract return energy
-            energy = 0.0
+            energy = None
             for e_key in ("y", "return_energy", "energy", "totalenergy"):
                 if e_key in conf_data and conf_data[e_key] is not None:
                     energy = float(conf_data[e_key])
                     break
+
+            if energy is None or not np.isfinite(energy):
+                raise ValueError(
+                    f"Conformer at batch index {i} has no finite measured energy; "
+                    "unevaluated geometries cannot be archived as measured PES points."
+                )
 
             parsed_batch.append((z, pos, energy))
 

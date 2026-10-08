@@ -48,11 +48,11 @@ from pathlib import Path
 import re
 import sys
 import time
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from types import MappingProxyType
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-import mendeleev
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, ValidationInfo
 
 # Try importing molsym library
 try:
@@ -79,19 +79,21 @@ logger = logging.getLogger("CoChem-MolSymEckartAligner")
 # NIST CODATA 2022 / 2026 Fundamental Physical Constants & Conversion Factors
 # ==============================================================================
 
-PLANCK_H: float = 6.62607015e-34          # J * s (exact SI standard)
-SPEED_OF_LIGHT_C: float = 299792458.0     # m / s (exact SI standard)
-ATOMIC_MASS_UNIT_U: float = 1.66053906892e-27  # kg / u (CODATA 2022/2026)
-ANGSTROM_TO_M: float = 1.0e-10            # m / Angstrom
+from cochem_base.core.cochem_constants import (
+    ANGSTROM_TO_METER as ANGSTROM_TO_M,
+    ATOMIC_MASS_UNIT_KG as ATOMIC_MASS_UNIT_U,
+    C_ROT_MHZ_U_ANG2,
+    PLANCK_CONSTANT_J_S as PLANCK_H,
+    SPEED_OF_LIGHT_CM_S,
+    SPEED_OF_LIGHT_M_S as SPEED_OF_LIGHT_C,
+)
 
 # Rotational constant factor: B = h / (8 * pi^2 * I)
 # FACTOR_HZ: [J * s] / [kg * m^2] = [1 / s] = Hz
-from cochem_base.core.cochem_constants import C_ROT_MHZ_U_ANG2
-
 FACTOR_MHZ: float = C_ROT_MHZ_U_ANG2
 FACTOR_HZ: float = FACTOR_MHZ * 1.0e6
 FACTOR_GHZ: float = FACTOR_HZ / 1.0e9
-FACTOR_CM1: float = FACTOR_HZ / (SPEED_OF_LIGHT_C * 100.0)
+FACTOR_CM1: float = FACTOR_HZ / SPEED_OF_LIGHT_CM_S
 
 
 # ==============================================================================
@@ -158,7 +160,7 @@ class AlignmentStatus(str, Enum):
 # ==============================================================================
 
 class DynamicMendeleevMassMap(Mapping):
-    """Dynamic standard atomic weight mapping backed strictly by the Mendeleev library."""
+    """Physical principal/explicit nuclide masses from the Mendeleev authority."""
 
     def __getitem__(self, key: str) -> float:
         if not key or not isinstance(key, str):
@@ -167,7 +169,7 @@ class DynamicMendeleevMassMap(Mapping):
         if not clean:
             raise KeyError(key)
 
-        from cochem_base.physics.isotopes import get_atomic_mass, get_isotope_mass
+        from cochem_base.physics.isotopes import get_isotope_mass
 
         try:
             # Preserve the legacy underscore/colon notation, while routing every
@@ -181,7 +183,7 @@ class DynamicMendeleevMassMap(Mapping):
                 mass_number = prefix or suffix
                 if mass_number:
                     return get_isotope_mass(symbol, int(mass_number))
-            return get_atomic_mass(clean)
+            return get_isotope_mass(clean)
         except (ValueError, RuntimeError) as exc:
             raise KeyError(f"Chemical element or isotope '{key}' could not be resolved in Mendeleev library.") from exc
 
@@ -259,7 +261,7 @@ def is_ghost_symbol(symbol: str) -> bool:
 
 
 def get_dynamic_atomic_mass(symbol: str) -> float:
-    """Retrieves authentic standard atomic or isotopic mass dynamically from mendeleev.
+    """Retrieve the physical principal or explicitly requested isotope mass.
 
     Ghost atoms strictly return 0.0.
 
@@ -479,9 +481,104 @@ class CenterOfMassEngine:
 # 5. Moment of Inertia Tensor & Spectroscopic Top Engine
 # ==============================================================================
 
-class InertiaTensorResult(BaseModel):
+class _ImmutableResultArray(np.ndarray):
+    """An owned numeric snapshot whose values and shape cannot be changed."""
+
+    def __new__(cls, value: Any) -> "_ImmutableResultArray":
+        original = np.asarray(value)
+        if original.dtype.kind not in {'i', 'u', 'f'}:
+            raise ValueError('Aligned result arrays require real numerical values')
+        numeric = np.asarray(original, dtype=np.float64)
+        if not np.isfinite(numeric).all():
+            raise ValueError('Aligned result arrays require finite numerical values')
+        # Read-only flags on an owning ndarray can be reversed. Immutable bytes
+        # supply an independent backing store that cannot become writable.
+        snapshot = np.frombuffer(numeric.tobytes(order='C'), dtype=np.float64).reshape(numeric.shape)
+        return snapshot.view(cls)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise TypeError('Aligned result array metadata is immutable')
+
+    def resize(self, *args: Any, **kwargs: Any) -> None:
+        raise ValueError('Aligned result arrays cannot be resized')
+
+
+def _freeze_result_value(value: Any) -> Any:
+    if isinstance(value, _ImmutableResultArray) and not value.flags.writeable:
+        backing = value
+        while isinstance(backing, np.ndarray):
+            backing = backing.base
+        if isinstance(backing, bytes):
+            return value
+    if isinstance(value, np.ndarray):
+        return _ImmutableResultArray(value)
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _freeze_result_value(item) for key, item in value.items()})
+    if isinstance(value, (tuple, list)):
+        return tuple(_freeze_result_value(item) for item in value)
+    return value
+
+
+def _serialize_result_value(value: Any) -> Any:
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, Mapping):
+        return {key: _serialize_result_value(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_serialize_result_value(item) for item in value]
+    return value
+
+
+class _ImmutableAlignmentResult(BaseModel):
+    """Deeply frozen Task1 records with portable JSON representations."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra='ignore', frozen=True,
+        validate_default=True, revalidate_instances='always')
+
+    @field_validator('*', mode='before')
+    @classmethod
+    def _restore_numerical_arrays(cls, value: Any, info: ValidationInfo) -> Any:
+        if info.field_name in {'raw_coords', 'aligned_coords', 'rotation_matrix', 'inertia_tensor',
+                               'symmetrized_coords', 'projector_matrix'} and value is not None:
+            return _ImmutableResultArray(value)
+        return value
+
+    @field_validator('*', mode='after')
+    @classmethod
+    def _freeze_nested_values(cls, value: Any) -> Any:
+        return _freeze_result_value(value)
+
+    @field_serializer('*')
+    def _serialize_nested_values(self, value: Any) -> Any:
+        return _serialize_result_value(value)
+
+    def model_copy(self, *, update: Mapping[str, Any] | None = None, deep: bool = False) -> "_ImmutableAlignmentResult":
+        # Pydantic's ordinary copy(update=...) skips validators. Revalidate the
+        # new record so a mutable caller array or dictionary cannot enter it.
+        fields = {name: getattr(self, name) for name in type(self).model_fields}
+        fields.update(update or {})
+        return type(self).model_validate(fields)
+
+    @classmethod
+    def model_construct(cls, _fields_set: set[str] | None = None, **values: Any) -> "_ImmutableAlignmentResult":
+        """Result construction always validates and freezes the complete record."""
+        return cls.model_validate(values)
+
+    def copy(self, *, include: Any = None, exclude: Any = None,
+             update: Mapping[str, Any] | None = None, deep: bool = False) -> "_ImmutableAlignmentResult":
+        if include is not None or exclude is not None:
+            raise ValueError('Alignment copies must preserve the complete record; use model_dump for selected fields')
+        return self.model_copy(update=update, deep=deep)
+
+    def __copy__(self) -> "_ImmutableAlignmentResult":
+        return self.model_copy()
+
+    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> "_ImmutableAlignmentResult":
+        return self.model_copy(deep=True)
+
+
+class InertiaTensorResult(_ImmutableAlignmentResult):
     """Pydantic model containing principal moments of inertia and rotational constants."""
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
     eigenvalues_amu_angstrom2: Tuple[float, float, float] = Field(
         ..., description="Sorted principal moments of inertia Ia <= Ib <= Ic in amu * Angstrom^2"
@@ -795,27 +892,26 @@ class InertiaTensorEngine:
 # 6. MolSym Point-Group Symmetry & Character Table Engine
 # ==============================================================================
 
-class MolSymProfile(BaseModel):
+class MolSymProfile(_ImmutableAlignmentResult):
     """Pydantic model containing point-group symmetry, character table, and SEAs."""
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
     point_group: str = Field(..., description="Detected Schoenflies point group symbol (e.g. C2v, D6h, Td, C1)")
     schoenflies_symbol: str = Field(..., description="Canonical Schoenflies symbol")
     rotational_symmetry_number: int = Field(..., description="Rotational symmetry number sigma")
-    symmetrically_equivalent_atoms: List[List[int]] = Field(
+    symmetrically_equivalent_atoms: Tuple[Tuple[int, ...], ...] = Field(
         ..., description="Atom indices partitioned into Symmetrically Equivalent Atom (SEA) orbits"
     )
-    symmetry_elements: List[str] = Field(default_factory=list, description="Labels of symmetry operations / symels")
-    classes: List[str] = Field(default_factory=list, description="Symmetry conjugacy classes")
-    irreps: List[str] = Field(default_factory=list, description="Irreducible representation labels")
-    character_table: Dict[str, Dict[str, float]] = Field(
+    symmetry_elements: Tuple[str, ...] = Field(default_factory=tuple, description="Labels of symmetry operations / symels")
+    classes: Tuple[str, ...] = Field(default_factory=tuple, description="Symmetry conjugacy classes")
+    irreps: Tuple[str, ...] = Field(default_factory=tuple, description="Irreducible representation labels")
+    character_table: Mapping[str, Mapping[str, float]] = Field(
         default_factory=dict, description="Character table mapping: {irrep: {class_label: character}}"
     )
     is_abelian: bool = Field(default=True, description="Whether the point group is Abelian")
     is_linear: bool = Field(default=False, description="Whether the molecule is linear (Cinfv or Dinfh)")
     is_centrosymmetric: bool = Field(default=False, description="Whether the group contains inversion center Ci")
     is_chiral: bool = Field(default=False, description="Whether the group is chiral (lacks Sn improper rotations)")
-    nuclear_spin_weights: Dict[str, float] = Field(
+    nuclear_spin_weights: Mapping[str, float] = Field(
         default_factory=dict, description="Independently computed nuclear spin weights; empty when unavailable"
     )
     symmetrized_coords: Optional[Any] = Field(
@@ -823,7 +919,7 @@ class MolSymProfile(BaseModel):
     )
     source: str = Field(default="molsym", description="Verified symmetry backend or analytic isolated-atom result")
     backend_version: Optional[str] = None
-    unavailable_properties: List[str] = Field(default_factory=list)
+    unavailable_properties: Tuple[str, ...] = Field(default_factory=tuple)
 
     @field_serializer("symmetrized_coords", check_fields=False)
     def _serialize_numpy(self, val: Any) -> Any:
@@ -1050,9 +1146,8 @@ class MolSymEngine:
 # 7. Mass-Weighted Eckart Frame Alignment Engine
 # ==============================================================================
 
-class EckartAlignmentResult(BaseModel):
+class EckartAlignmentResult(_ImmutableAlignmentResult):
     """Pydantic model containing mass-weighted Eckart frame alignment results."""
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
     aligned_coords: Any = Field(
         ..., description="Target coordinates transformed into reference Eckart frame (N, 3)"
@@ -1224,9 +1319,8 @@ class EckartFrameAligner:
 # 8. Vibrational Projector & Hessian Projection Engine
 # ==============================================================================
 
-class VibrationalProjectorResult(BaseModel):
+class VibrationalProjectorResult(_ImmutableAlignmentResult):
     """Pydantic model containing vibrational projection matrix details."""
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
     projector_matrix: Any = Field(..., description="(3N, 3N) idempotent vibrational projector matrix P_vib")
     trace: float = Field(..., description="Calculated trace of P_vib matrix")
@@ -1499,15 +1593,14 @@ class VibrationalProjectorEngine:
 # 9. Unified Master Pipeline & MolSymEckartAlignmentResult
 # ==============================================================================
 
-class MolSymEckartAlignmentResult(BaseModel):
+class MolSymEckartAlignmentResult(_ImmutableAlignmentResult):
     """Unified master container for molecular symmetry, inertia, and Eckart frame alignment."""
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
-    symbols: List[str] = Field(..., description="Atomic element symbols (including ghost atoms)")
+    symbols: Tuple[str, ...] = Field(..., description="Atomic element symbols (including ghost atoms)")
     raw_coords: Any = Field(..., description="Original input Cartesian coordinates (N, 3)")
     aligned_coords: Any = Field(..., description="Standardized Cartesian coordinates in principal or Eckart frame (N, 3)")
-    masses_amu: List[float] = Field(..., description="Atomic masses in amu dynamically resolved via Mendeleev")
-    center_of_mass: List[float] = Field(..., description="Calculated center of mass vector of input structure")
+    masses_amu: Tuple[float, ...] = Field(..., description="Atomic masses in amu dynamically resolved via Mendeleev")
+    center_of_mass: Tuple[float, float, float] = Field(..., description="Calculated center of mass vector of input structure")
     n_atoms: int = Field(..., description="Total atom count")
     n_ghost_atoms: int = Field(..., description="Count of ghost / dummy atoms with 0.0 mass")
     total_mass_amu: float = Field(..., description="Total non-ghost molecular mass in amu")

@@ -19,8 +19,9 @@ Contract Specifications (Method Matrix v4 §10.1-10.8):
     Energy gradient in Eh/bohr (Hartree/bohr) (atom1_x, atom1_y, atom1_z, atom2_x, ...)
 - Units & Sign (Method Matrix §10.3):
     Input coordinates: Angstrom
-    Output energy: Hartree (Eh) = E_eV / 27.211386245988
-    Output gradient: Eh/bohr = (-Force_eV_per_Angstrom) * 0.529177210903 / 27.211386245988
+    Output energy: Hartree (Eh) = E_eV / HARTREE_TO_EV
+    Output gradient: Eh/bohr = (-Force_eV_per_Angstrom) * BOHR_TO_ANGSTROM / HARTREE_TO_EV
+    Both factors come from the installed BASE CODATA 2022 registry.
     Sign flip is mandatory: ASE returns forces F, ORCA requires energy gradients (nabla E = -F).
 - Model & Precision (Method Matrix §10.7 & §4.4):
     Default model: 'off24-medium' (official MACE-OFF24 release v0.2, pinned checkpoint)
@@ -36,6 +37,8 @@ Contract Specifications (Method Matrix v4 §10.1-10.8):
     Supports committee ensemble predictions, calculating mean energy E_bar, mean gradient g_bar,
     normalized energy uncertainty sigma_E, and max atomic force uncertainty U_F.
 - Physical Mass Mandate: Dynamic atomic mass resolution strictly via `mendeleev` library.
+- Runtime dependency: The verified installed CoChem-BASE package supplies constants
+  and nuclear identity. A copied script alone is not a supported calculation runtime.
 """
 
 from __future__ import annotations
@@ -44,7 +47,6 @@ import argparse
 import json
 import logging
 import math
-import os
 import socket
 import sys
 from collections.abc import Sequence
@@ -53,16 +55,18 @@ from pathlib import Path
 from typing import Any
 
 import mendeleev
+from cochem_base.core import cochem_constants as _physical_constants
+from cochem_base.physics.isotopes import get_isotope_mass
 
 # Physical conversion constants (Method Matrix v4 §10.3 & NIST CODATA 2022)
-BOHR_TO_ANGSTROM: float = 0.529177210903
-ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM  # ~1.8897261246257708
-HARTREE_TO_EV: float = 27.211386245988
+BOHR_TO_ANGSTROM: float = _physical_constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_BOHR: float = _physical_constants.ANGSTROM_TO_BOHR
+HARTREE_TO_EV: float = _physical_constants.HARTREE_TO_EV
 EV_TO_HARTREE: float = 1.0 / HARTREE_TO_EV
 EH_PER_EV: float = EV_TO_HARTREE
 BOHR_PER_A: float = ANGSTROM_TO_BOHR
-HARTREE_TO_KCAL_MOL: float = 627.5094740631
-HARTREE_TO_KJ_MOL: float = 2625.4996394799
+HARTREE_TO_KCAL_MOL: float = _physical_constants.HARTREE_TO_KCAL_MOL
+HARTREE_TO_KJ_MOL: float = HARTREE_TO_KCAL_MOL * 4.184
 EV_PER_ANG_TO_EH_PER_BOHR: float = EH_PER_EV / BOHR_PER_A
 MACE_OFF24_MEDIUM_URL = (
     "https://raw.githubusercontent.com/ACEsuit/mace-off/"
@@ -120,16 +124,8 @@ class MACEOFFConfig:
 
 
 def get_element_atomic_mass(symbol: str) -> float:
-    """Retrieve dynamic atomic mass for an element symbol using Mendeleev.
-
-    Strictly complies with CoChem Mendeleev Mass Mandate.
-    """
-    clean_sym = symbol.strip().capitalize()
-    elem = mendeleev.element(clean_sym)
-    mass = elem.mass
-    if mass is None:
-        raise ValueError(f"Unknown atomic mass for element symbol '{symbol}' via Mendeleev.")
-    return float(mass)
+    """Resolve the assigned or principal measured isotope through Mendeleev."""
+    return get_isotope_mass(symbol)
 
 
 def get_element_atomic_number(symbol: str) -> int:

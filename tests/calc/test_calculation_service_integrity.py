@@ -84,3 +84,21 @@ def test_composite_method_cannot_silently_change_basis() -> None:
     with pytest.raises(ValueError, match="built-in composite basis"):
         MoleculeInput(basin_id="hydrogen", elements=["H", "H"], coordinates=[(0, 0, 0), (0, 0, 0.74)],
                       theory_level="r2SCAN-3c def2-SVP")
+
+
+def test_open_shell_native_admission_requires_scientific_t9_before_process(tmp_path: Path) -> None:
+    from cochem_base.calc.calculation_service import CalculationMatrixConfig, run_calculation
+
+    # The bent H3 starting geometry is an input, not a fabricated quantum result.
+    # Portable configuration can be serialized before the remote worker binds its
+    # audited PySCF executable; a physical native run must already have that bind.
+    values = dict(geometry="H 0 0 0\nH 0 0 0.9\nH 0.7 0 1.4", engine="orca",
+                  method="UHF", basis_set="6-31g", multiplicity=2, is_opt=False)
+    configuration = CalculationMatrixConfig(**values)
+    assert configuration.t9_fallback is None
+    source = tmp_path / "request.json"
+    source.write_text(configuration.model_dump_json())
+    with pytest.raises(ValueError, match="explicit T9 active space"):
+        run_calculation(source, scratch=tmp_path / "scratch", output=tmp_path / "results")
+    assert not (tmp_path / "scratch").exists()
+    assert not (tmp_path / "results").exists()

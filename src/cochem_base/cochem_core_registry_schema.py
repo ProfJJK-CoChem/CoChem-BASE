@@ -27,7 +27,6 @@ import math
 import os
 import platform
 import re
-import shutil
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -55,10 +54,10 @@ def get_registry_atomic_mass(symbol_or_z: Union[str, int], mass_number: Optional
     """Dynamic IUPAC/CIAAW mass resolver honoring the Mendeleev Mandate [M]."""
     import mendeleev
     from cochem_base.core.exceptions import IsotopeStabilityError
-    from cochem_base.physics.isotopes import get_atomic_mass, get_isotope_mass
+    from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
     symbol = mendeleev.element(symbol_or_z).symbol if isinstance(symbol_or_z, int) else symbol_or_z
     try:
-        return get_isotope_mass(symbol, mass_number) if mass_number is not None else get_atomic_mass(symbol)
+        return get_nuclide_mass(symbol, mass_number)
     except ValueError as exc:
         raise IsotopeStabilityError(f"Isotope {symbol}-{mass_number} not found in Mendeleev: {exc}") from exc
 

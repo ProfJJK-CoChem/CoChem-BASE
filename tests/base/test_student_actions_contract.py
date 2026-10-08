@@ -5,8 +5,11 @@ import base64
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import stat
+import subprocess
+import sys
 import zipfile
 
 import pytest
@@ -26,7 +29,7 @@ def _request():
             "calculation": {"engine": "xtb", "method": "GFN2-xTB", "basis_set": None,
                             "geometry": "2\ntransport-only structure\nH 0 0 0\nH 0 0 0.74\n",
                             "timeout_seconds": 60}, "provider": None, "capability_probe": None,
-            "scientific_inputs": None, "t9_request": None, "files": {}}
+            "scientific_inputs": None, "data_inputs": None, "t9_request": None, "files": {}}
 
 
 def _archive(request, *, change_report=False, extra_path=None, corrupt_file=False, false_completion=False):
@@ -228,6 +231,22 @@ def test_t9_cannot_choose_a_worker_executable():
         encode_request(request)
 
 
+def test_open_shell_orca_requires_portable_t9_science_without_executable_path():
+    request = _request()
+    request["calculation"].update(engine="orca", method="UHF", basis_set="6-31g", multiplicity=2,
+        geometry="3\nStarting H3 input\nH 0 0 0\nH 0 0 0.9\nH 0.7 0 1.4\n")
+    with pytest.raises(ValueError, match="explicit portable T9 active space"):
+        encode_request(request)
+    request["t9_request"] = {"pyscf_version": "2.14.0", "method": "NEVPT2", "basis": "6-31g",
+        "active_electrons": 3, "active_orbitals": [0, 1, 2],
+        "active_space_rationale": "All three 1s-derived MOs and three electrons of neutral H3",
+        "threads": 1, "memory_mb": 128, "timeout_seconds": 60, "max_cycle": 100}
+    encoded, digest = encode_request(request)
+    accepted = decode_request(encoded, digest)
+    assert accepted["t9_request"] == request["t9_request"]
+    assert "python_executable" not in accepted["t9_request"]
+
+
 def test_t9_recovery_cannot_exceed_the_job_allocation():
     request = _request()
     request["calculation"]["engine"] = "orca"
@@ -292,3 +311,17 @@ def test_primary_and_t9_recovery_share_one_finite_time_budget():
                              "threads": 1, "memory_mb": 128, "timeout_seconds": 601, "max_cycle": 100}
     with pytest.raises(ValueError, match="allocation"):
         encode_request(request)
+
+
+def test_preinstallation_worker_probe_uses_only_reviewed_checkout_and_stdlib(tmp_path):
+    worker = Path(__file__).resolve().parents[2] / "scripts/run_student_research.py"
+    program = ("import runpy; runpy.run_path(" + repr(str(worker)) + ",run_name='worker_import_only'); "
+               "from scripts.probe_student_engines import probe_engines; "
+               "r=probe_engines(['orca','cfour']); "
+               "assert r['installed'] is False and r['scientific_execution_performed'] is False; "
+               "assert all(not item['provisionable'] for item in r['engines'].values())")
+    environment = {key: value for key, value in os.environ.items()
+                   if key not in {"PYTHONPATH", "PRIVATE_ORCA_ASSET_CREDENTIAL", "PRIVATE_CFOUR_ASSET_CREDENTIAL"}}
+    completed = subprocess.run([sys.executable, "-I", "-S", "-c", program], env=environment,
+                               cwd=tmp_path, capture_output=True, text=True, timeout=30, check=False)
+    assert completed.returncode == 0, completed.stderr

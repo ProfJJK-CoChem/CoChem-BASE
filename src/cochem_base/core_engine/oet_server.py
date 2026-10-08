@@ -118,112 +118,54 @@ def parse_ensemble_xyz(xyz_content_or_path: Union[str, Path]) -> List[Tuple[str,
 
     Returns list of tuples: (comment_line, coordinates_array, atom_symbols)
     """
-    if isinstance(xyz_content_or_path, (str, Path)) and os.path.isfile(str(xyz_content_or_path)):
-        with open(xyz_content_or_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
+    from cochem_base.intake.structure_formats import parse_xyz_records
+    if isinstance(xyz_content_or_path, Path) or "\n" not in str(xyz_content_or_path) and Path(str(xyz_content_or_path)).is_file():
+        text = Path(xyz_content_or_path).read_text(encoding="utf-8-sig")
     else:
-        lines = str(xyz_content_or_path).splitlines(keepends=True)
-
-    conformers = []
-    idx = 0
-    total_lines = len(lines)
-
-    while idx < total_lines:
-        line = lines[idx].strip()
-        if not line:
-            idx += 1
-            continue
-
-        try:
-            num_atoms = int(line)
-        except ValueError:
-            idx += 1
-            continue
-
-        idx += 1
-        if idx >= total_lines:
-            break
-        comment = lines[idx].strip()
-        idx += 1
-
-        symbols = []
-        coords = []
-        for _ in range(num_atoms):
-            if idx >= total_lines:
-                break
-            atom_line = lines[idx].strip().split()
-            if len(atom_line) >= 4:
-                symbols.append(atom_line[0])
-                try:
-                    coords.append([float(atom_line[1]), float(atom_line[2]), float(atom_line[3])])
-                except ValueError:
-                    coords.append([0.0, 0.0, 0.0])
-            idx += 1
-
-        if len(coords) == num_atoms:
-            conformers.append((comment, np.array(coords, dtype=np.float64), symbols))
-
-    return conformers
+        text = str(xyz_content_or_path)
+    return [(record["comment"], np.asarray(record["coords"], dtype=np.float64), list(record["symbols"]))
+            for record in parse_xyz_records(text)]
 
 
 def stream_ensemble_xyz(
     xyz_path: Union[str, Path],
-) -> Generator[Tuple[str, float, np.ndarray, List[str]], None, None]:
+) -> Generator[Tuple[str, Optional[float], np.ndarray, List[str]], None, None]:
     """
     Streaming line iterator for parsing large ORCA .finalensemble.xyz files without memory spikes. [M], [D]
 
     Yields:
         Tuple of (comment_header, energy_hartree, coordinates_array, atom_symbols)
     """
-    p = Path(xyz_path)
-    if not p.is_file():
-        return
-
-    with open(p, "r", encoding="utf-8", errors="replace") as f:
+    import re
+    from cochem_base.intake.structure_formats import parse_xyz_records
+    path = Path(xyz_path)
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    with path.open(encoding="utf-8-sig") as stream:
         while True:
-            line = f.readline()
-            if not line:
-                break
-            line_str = line.strip()
-            if not line_str:
+            header = stream.readline()
+            if not header:
+                return
+            if not header.strip():
                 continue
-
-            try:
-                num_atoms = int(line_str)
-            except ValueError:
-                continue
-
-            comment = f.readline().strip()
-            energy_val = 0.0
-            for part in comment.split():
-                if "energy=" in part.lower():
-                    try:
-                        clean_part = part.lower().replace("energy=", "").replace("hartree", "").strip()
-                        energy_val = float(clean_part)
-                    except ValueError:
-                        pass
-                else:
-                    try:
-                        energy_val = float(part)
-                    except ValueError:
-                        pass
-
-            symbols = []
-            coords = []
-            for _ in range(num_atoms):
-                atom_line = f.readline()
-                if not atom_line:
-                    break
-                parts = atom_line.strip().split()
-                if len(parts) >= 4:
-                    symbols.append(parts[0])
-                    try:
-                        coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
-                    except ValueError:
-                        coords.append([0.0, 0.0, 0.0])
-
-            if len(coords) == num_atoms:
-                yield (comment, energy_val, np.array(coords, dtype=np.float64), symbols)
+            if not header.strip().isdigit() or not 1 <= int(header.strip()) <= 50000:
+                raise ValueError("An ensemble frame requires a bounded positive atom count")
+            count = int(header.strip())
+            comment = stream.readline()
+            if not comment:
+                raise ValueError("An ensemble frame is missing its comment")
+            rows = [stream.readline() for _ in range(count)]
+            if any(not row for row in rows):
+                raise ValueError("An ensemble frame has truncated coordinates")
+            record = parse_xyz_records(header + comment + "".join(rows))[0]
+            # Explicit native ORCA energy field only; plain numbers may be frame IDs.
+            match = re.fullmatch(r"\s*energy\s*=\s*([-+0-9.eEdD]+)\s*(?:Eh|Hartree)\s*", comment, re.IGNORECASE)
+            if re.search(r"\benergy\s*=", comment, re.IGNORECASE) and not match:
+                raise ValueError("An explicitly reported ensemble energy requires a finite Hartree value and unit")
+            energy = float(match[1].replace("D", "E").replace("d", "e")) if match else None
+            if energy is not None and not np.isfinite(energy):
+                raise ValueError("An explicitly reported ensemble energy must be finite")
+            yield (record["comment"], energy, np.asarray(record["coords"], dtype=np.float64), list(record["symbols"]))
 
 
 def deduplicate_conformers(

@@ -22,11 +22,10 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence, Tuple
 
-import mendeleev
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 try:
     from cochem_topos.topology import AtomModel
@@ -40,15 +39,15 @@ logger = logging.getLogger("CoChem-ToposAlignment")
 # NIST CODATA 2022 / 2026 Fundamental Physical Constants & Conversion Factors
 # ==============================================================================
 
-PLANCK_H: float = 6.62607015e-34          # J * s (exact SI standard)
-SPEED_OF_LIGHT_C: float = 299792458.0     # m / s (exact SI standard)
-ATOMIC_MASS_UNIT_U: float = 1.66053906892e-27  # kg / u (CODATA 2022/2026)
-ANGSTROM_TO_M: float = 1.0e-10            # m / Angstrom
+from cochem_base.core import cochem_constants as _constants
 
-# Conversion factor: factor_hz / I(amu * A^2) = B (Hz)
-# B = h / (8 * pi^2 * I)
-FACTOR_HZ: float = PLANCK_H / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_U * (ANGSTROM_TO_M ** 2))
-FACTOR_MHZ: float = FACTOR_HZ / 1.0e6
+PLANCK_H: float = _constants.PLANCK_CONSTANT_J_S
+SPEED_OF_LIGHT_C: float = _constants.SPEED_OF_LIGHT_M_S
+ATOMIC_MASS_UNIT_U: float = _constants.ATOMIC_MASS_UNIT_KG
+ANGSTROM_TO_M: float = _constants.ANGSTROM_TO_METER
+
+FACTOR_MHZ: float = _constants.C_ROT_MHZ_U_ANG2
+FACTOR_HZ: float = FACTOR_MHZ * 1.0e6
 FACTOR_GHZ: float = FACTOR_HZ / 1.0e9
 FACTOR_CM1: float = FACTOR_HZ / (SPEED_OF_LIGHT_C * 100.0)
 
@@ -87,49 +86,14 @@ def is_ghost_symbol(symbol: str) -> bool:
 
 
 def get_physical_mass(symbol: str) -> float:
-    """Retrieves authentic standard atomic weight from mendeleev.
-    
-    Ghost atoms strictly return 0.0.
-    
-    Parameters
-    ----------
-    symbol : str
-        Chemical element or ghost symbol.
-        
-    Returns
-    -------
-    float
-        Standard atomic mass in unified atomic mass units (u / Da).
-        
-    Raises
-    ------
-    ValueError
-        If the symbol is empty, unrecognized, or invalid.
-    """
-    if not symbol or not isinstance(symbol, str) or not symbol.strip():
+    """Resolve an exact assigned/principal nuclear mass; ghost centers have zero mass."""
+    if not isinstance(symbol, str) or not symbol.strip():
         raise ValueError("[MISSING DATA] Atomic symbol cannot be empty.")
-        
     clean = symbol.strip()
     if is_ghost_symbol(clean):
         return 0.0
-        
-    # Standard Mendeleev lookup
-    try:
-        elem = mendeleev.element(clean)
-        if elem is not None and elem.mass is not None:
-            return float(elem.mass)
-    except Exception:
-        import re
-        match = re.match(r"^([A-Z][a-z]?)", clean)
-        if match:
-            try:
-                elem = mendeleev.element(match.group(1))
-                if elem is not None and elem.mass is not None:
-                    return float(elem.mass)
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-                
-    raise ValueError(f"[INVALID DATA] Unrecognized chemical element symbol: '{symbol}'.")
+    from cochem_base.physics.isotopes import get_isotope_mass
+    return get_isotope_mass(clean)
 
 
 def resolve_atomic_masses(

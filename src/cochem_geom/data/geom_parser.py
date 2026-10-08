@@ -23,16 +23,15 @@ import hashlib
 import io
 import logging
 import math
-import os
 from pathlib import Path
 import pickle
 import re
-from typing import Any, Dict, Generator, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 
 from mendeleev import element
 import msgpack
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 import torch
 
 try:
@@ -41,26 +40,15 @@ except ImportError:
     Chem = None  # Optional fallback if rdkit is omitted in lightweight environments
 
 from cochem_geom.data.featurizer import (
-    ATOMIC_MASS_UNIT_KG,
     ATOMIC_NUMBER_TO_SYMBOL,
     BOLTZMANN_CONSTANT_EV_K,
-    BOLTZMANN_CONSTANT_J_K,
-    DEFAULT_ELEMENT_TYPES,
-    DEFAULT_GRAPH_CUTOFF_ANGSTROM,
-    DEFAULT_MAX_NEIGHBORS,
-    ELEMENT_TYPE_TO_INDEX,
-    EV_TO_CM_MINUS_ONE,
     EV_TO_HARTREE,
     EV_TO_KCAL_MOL,
     HARTREE_TO_EV,
     HARTREE_TO_KCAL_MOL,
-    HARTREE_TO_KJ_MOL,
-    INDEX_TO_ELEMENT_TYPE,
     KCAL_MOL_TO_EV,
     KCAL_MOL_TO_HARTREE,
-    PLANCK_CONSTANT_J_S,
     ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ,
-    SPEED_OF_LIGHT_M_S,
     STANDARD_TEMPERATURE_K,
     SYMBOL_TO_ATOMIC_NUMBER,
     MolecularData,
@@ -90,78 +78,29 @@ DEFAULT_CHUNK_SIZE_BYTES: int = 65536
 
 @functools.lru_cache(maxsize=256)
 def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically query standard atomic weight from mendeleev [M].
-
-    Parameters
-    ----------
-    symbol_or_z : Union[str, int]
-        Chemical element symbol (e.g., 'C', 'O') or atomic number Z (e.g., 6, 8).
-
-    Returns
-    -------
-    float
-        Standard atomic mass in Daltons.
-    """
-    el = element(symbol_or_z)
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    if el.isotopes:
-        return float(el.isotopes[0].mass)
-    raise ValueError(f"Standard atomic mass not found for element '{symbol_or_z}'")
+    """Resolve a dynamic measured principal or assigned isotope mass."""
+    from mendeleev import element
+    from cochem_base.physics.isotopes import get_isotope_mass
+    symbol = element(int(symbol_or_z)).symbol if isinstance(symbol_or_z, (int, np.integer)) else symbol_or_z
+    return get_isotope_mass(symbol)
 
 
 @functools.lru_cache(maxsize=256)
 def get_monoisotopic_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically query exact mass of most abundant natural isotope from mendeleev [M].
-
-    Parameters
-    ----------
-    symbol_or_z : Union[str, int]
-        Chemical element symbol or atomic number Z.
-
-    Returns
-    -------
-    float
-        Monoisotopic mass in Daltons.
-    """
-    el = element(symbol_or_z)
-    if el.isotopes:
-        most_abundant = max(
-            el.isotopes,
-            key=lambda iso: (iso.abundance if iso.abundance is not None else 0.0),
-        )
-        if most_abundant.mass is not None:
-            return float(most_abundant.mass)
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    raise ValueError(f"Monoisotopic mass not found for element '{symbol_or_z}'")
+    """Resolve a dynamic measured principal or assigned isotope mass."""
+    from mendeleev import element
+    from cochem_base.physics.isotopes import get_isotope_mass
+    symbol = element(int(symbol_or_z)).symbol if isinstance(symbol_or_z, (int, np.integer)) else symbol_or_z
+    return get_isotope_mass(symbol)
 
 
 @functools.lru_cache(maxsize=512)
 def get_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
-    """Dynamically query exact mass of a specific isotope from mendeleev [M].
-
-    Parameters
-    ----------
-    symbol_or_z : Union[str, int]
-        Chemical element symbol or atomic number Z.
-    mass_number : int
-        Isotopic mass number A (protons + neutrons).
-
-    Returns
-    -------
-    float
-        Exact isotopic mass in Daltons.
-    """
-    el = element(symbol_or_z)
-    for iso in el.isotopes:
-        if iso.mass_number == mass_number:
-            if iso.mass is not None:
-                return float(iso.mass)
-            return float(iso.mass_number)
-    raise ValueError(
-        f"Isotope with mass number {mass_number} not found for element '{symbol_or_z}'"
-    )
+    """Resolve an exact measured isotope without any average fallback."""
+    from mendeleev import element
+    from cochem_base.physics.isotopes import get_isotope_mass
+    symbol = element(int(symbol_or_z)).symbol if isinstance(symbol_or_z, (int, np.integer)) else symbol_or_z
+    return get_isotope_mass(symbol, mass_number)
 
 
 @functools.lru_cache(maxsize=256)
@@ -528,9 +467,9 @@ class ConformerRecord:
 
     conformer_id: int
     coords: np.ndarray
-    energy: float
-    relative_energy: float
-    boltzmann_weight: float
+    energy: Optional[float]
+    relative_energy: Optional[float]
+    boltzmann_weight: Optional[float]
     forces: Optional[np.ndarray] = None
     dipole: Optional[np.ndarray] = None
     rotational_constants: Optional[np.ndarray] = None
@@ -541,6 +480,10 @@ class ConformerRecord:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        for name in ("energy", "relative_energy", "boltzmann_weight"):
+            value = getattr(self, name)
+            if value is not None and not math.isfinite(float(value)):
+                raise ValueError(f"Conformer {name} must be finite when supplied")
         if self.coords.ndim != 2 or self.coords.shape[1] != 3:
             raise ValueError(f"Conformer coordinates must have shape (N, 3), got {self.coords.shape}")
         if self.forces is not None:
@@ -1451,7 +1394,7 @@ def parse_qm_log_text(
         converged=converged,
         total_energy_hartree=total_energy_hartree,
         total_energy_ev=total_energy_ev,
-        relative_energy_ev=0.0,
+        relative_energy_ev=0.0 if total_energy_ev is not None else None,
         symbols=symbols,
         atomic_numbers=atomic_numbers,
         positions=positions_arr,
@@ -1643,12 +1586,14 @@ def conformer_to_molecular_data(
             if conformer.rotational_constants is not None
             else None
         ),
-        weight=conformer.boltzmann_weight,
+        weight=conformer.boltzmann_weight if conformer.boltzmann_weight is not None else 1.0,
         tags=molecule.tags,
     )
 
     data = featurizer.featurize(mol_input)
     data.metadata["conformer_id"] = conformer.conformer_id
+    data.metadata["relative_energy"] = conformer.relative_energy
+    data.metadata["boltzmann_weight"] = conformer.boltzmann_weight
     data.metadata["smiles"] = molecule.smiles
     if conformer.source_hash:
         data.metadata["source_hash"] = conformer.source_hash
@@ -1700,8 +1645,10 @@ def molecular_data_to_conformer(
         Extracted ConformerRecord.
     """
     coords_np = data.pos.detach().cpu().numpy().astype(np.float32)
-    energy_val = float(data.y.item()) if data.y is not None else 0.0
-    weight_val = float(data.weight.item()) if data.weight is not None else 1.0
+    energy_val = float(data.y.item()) if data.y is not None else None
+    recorded_weight = data.metadata.get("boltzmann_weight")
+    weight_val = float(recorded_weight) if recorded_weight is not None else None
+    relative_val = data.metadata.get("relative_energy")
 
     forces_np = data.forces.detach().cpu().numpy().astype(np.float32) if data.forces is not None else None
     dipole_np = data.dipole.detach().cpu().numpy().astype(np.float32) if data.dipole is not None else None
@@ -1715,7 +1662,7 @@ def molecular_data_to_conformer(
         conformer_id=conformer_id,
         coords=coords_np,
         energy=energy_val,
-        relative_energy=0.0,
+        relative_energy=float(relative_val) if relative_val is not None else None,
         boltzmann_weight=weight_val,
         forces=forces_np,
         dipole=dipole_np,

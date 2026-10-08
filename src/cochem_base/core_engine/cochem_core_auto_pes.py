@@ -97,6 +97,7 @@ from cochem_base.schemas import (
     KrrRegularizationConfig,
     PipSymmetryConfig,
 )
+from cochem_base.core import cochem_constants as _constants
 
 # Configure module logging
 logger = logging.getLogger(__name__)
@@ -109,34 +110,21 @@ if not logger.handlers:
 # =============================================================================
 # Physical & Spectroscopic Constants (Zero Hardcoded Atomic Masses)
 # =============================================================================
-HARTREE_TO_EV: float = 27.211386245988
-EV_TO_CM1: float = 8065.54429
-HARTREE_TO_CM1: float = 219474.63136320
-HARTREE_TO_KCAL_MOL: float = 627.5094740631
-KCAL_MOL_TO_CM1: float = 349.755011
-BOHR_TO_ANGSTROM: float = 0.529177210903
-ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM
-MEV_PER_HARTREE: float = 27211.386245988
+HARTREE_TO_EV: float = _constants.HARTREE_TO_EV
+HARTREE_TO_CM1: float = _constants.HARTREE_TO_CM_INV
+EV_TO_CM1: float = HARTREE_TO_CM1 / HARTREE_TO_EV
+HARTREE_TO_KCAL_MOL: float = _constants.HARTREE_TO_KCAL_MOL
+KCAL_MOL_TO_CM1: float = HARTREE_TO_CM1 / HARTREE_TO_KCAL_MOL
+BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_BOHR: float = _constants.ANGSTROM_TO_BOHR
+MEV_PER_HARTREE: float = HARTREE_TO_EV * 1000.0
 
 
 def get_dynamic_atomic_mass(symbol: str) -> float:
-    """
-    Dynamically retrieves the atomic mass of an element or isotope using mendeleev.
-    Strictly satisfies the CoChem Mendeleev Library Mandate (ZERO hardcoded masses).
-    """
-    clean_sym = symbol.strip()
-    if clean_sym in ("D", "2H"):
-        return float(element("H").isotopes[1].mass)
-    if clean_sym in ("T", "3H"):
-        return float(element("H").isotopes[2].mass)
-    try:
-        el = element(clean_sym)
-        return float(el.mass)
-    except Exception as exc:
-        raise CoChemError(
-            f"Failed to resolve atomic mass dynamically for symbol '{symbol}': {exc}",
-            error_code=ProvenanceErrorCode.MISSING_DATA,
-        ) from exc
+    """Resolve an exact assigned/principal isotope mass from dynamic Mendeleev data."""
+    from cochem_base.physics.isotopes import get_isotope_mass
+    value = symbol
+    return get_isotope_mass(value)
 
 
 def get_dynamic_atomic_number(symbol: str) -> int:

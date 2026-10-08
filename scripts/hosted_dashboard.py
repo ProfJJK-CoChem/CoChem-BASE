@@ -14,6 +14,7 @@ import urllib.parse
 from pathlib import Path
 import socket
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -92,12 +93,48 @@ def runtime_environment(artifact_dir: Path) -> dict[str, str]:
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["COCHEM_HEADLESS"] = "1"
     env["PYTHONDONTWRITEBYTECODE"] = "1"
+    for relative in ("free-engines", "free-engines/downloads", "free-engines/xtb/xtb-dist", "free-engines/crest/crest", "free-engines/native"):
+        owned = artifact_dir / relative
+        if owned.is_symlink() or not owned.resolve().is_relative_to(artifact_dir):
+            raise ValueError("Free-engine runtime files must remain inside their external profile")
+    free_status_path = artifact_dir / "free-engines/setup-status.json"
+    if free_status_path.is_symlink() or (free_status_path.is_file() and free_status_path.stat().st_size > 4 * 1024 * 1024):
+        raise ValueError("Free-engine setup status is redirected or exceeds its size budget")
+    free_status = json.loads(free_status_path.read_text(encoding="utf-8")) if free_status_path.is_file() else {}
+    failed_engines = {name for name, record in free_status.get("engines", {}).items()
+                      if record.get("status") == "failed"}
+    for name in failed_engines:
+        owned = artifact_dir / "free-engines"
+        variables = ("XTB_CMD", "COCHEM_XTB_BIN", "XTBPATH") if name == "xtb" else ("CREST_CMD", "COCHEM_CREST_BIN")
+        for variable in variables:
+            if env.get(variable) and Path(env[variable]).expanduser().absolute().is_relative_to(owned):
+                env.pop(variable)
+        env["PATH"] = os.pathsep.join(entry for entry in env.get("PATH", "").split(os.pathsep)
+            if not Path(entry).expanduser().absolute().is_relative_to(owned / name)
+            and not Path(entry).expanduser().absolute().is_relative_to(owned / "native"))
     xtb_root = artifact_dir / "free-engines" / "xtb" / "xtb-dist"
-    if (xtb_root / "bin" / "xtb").is_file():
+    if "xtb" not in failed_engines and (xtb_root / "bin" / "xtb").is_file():
         env["XTB_CMD"] = str(xtb_root / "bin" / "xtb")
         env["COCHEM_XTB_BIN"] = env["XTB_CMD"]
         env["XTBPATH"] = str(xtb_root / "share" / "xtb")
         env["PATH"] = str(xtb_root / "bin") + os.pathsep + env.get("PATH", "")
+    crest = artifact_dir / "free-engines/crest/crest/crest"
+    if "crest" not in failed_engines and crest.is_file():
+        env["CREST_CMD"] = str(crest)
+        env["COCHEM_CREST_BIN"] = str(crest)
+    native_root = artifact_dir / "free-engines/native"
+    if not failed_engines and (native_root / "installation.json").is_file():
+        try:
+            from scripts.install_native_free_engines import verify_native_runtime
+        except ModuleNotFoundError:
+            from install_native_free_engines import verify_native_runtime
+        native = verify_native_runtime(native_root)
+        prefix = Path(native["prefix"])
+        env.update(XTB_CMD=native["engines"]["xtb"]["path"],
+            COCHEM_XTB_BIN=native["engines"]["xtb"]["path"],
+            CREST_CMD=native["engines"]["crest"]["path"],
+            COCHEM_CREST_BIN=native["engines"]["crest"]["path"], XTBPATH=str(prefix / "share/xtb"))
+        env["PATH"] = str(prefix / "bin") + os.pathsep + env.get("PATH", "")
     for variable, directory in {
         "JUPYTER_DATA_DIR": "jupyter-data",
         "JUPYTER_RUNTIME_DIR": "jupyter-runtime",
@@ -107,28 +144,110 @@ def runtime_environment(artifact_dir: Path) -> dict[str, str]:
         "TMPDIR": "scratch",
     }.items():
         path = artifact_dir / "dashboard" / directory
+        if not path.resolve().is_relative_to(artifact_dir):
+            raise ValueError("Dashboard runtime directories must remain inside the external artifact directory")
         path.mkdir(parents=True, exist_ok=True, mode=0o700)
         env[variable] = str(path)
     return env
+
+
+def prepare_free_engines(python: Path, artifact_dir: Path, *, environment: dict[str, str] | None = None) -> dict:
+    """Keep BASE ingestion usable when a genuine free-engine download fails."""
+    import platform
+    try:
+        from scripts.manage_modules import _atomic_json, _redact
+    except ModuleNotFoundError:
+        from manage_modules import _atomic_json, _redact
+    runtime = runtime_environment(artifact_dir)
+    env = setup_build_environment(runtime if environment is None else {**runtime, **environment})
+    engines = {}
+    if platform.system() == "Linux" and platform.machine() in {"x86_64", "AMD64"}:
+        commands = [(name, [str(python), str(REPO_ROOT / "scripts/install_free_engines.py"),
+            "--root", str(artifact_dir / "free-engines"), "--engines", name,
+            "--output", str(artifact_dir / f"free-engines/{name}-installation.json")]) for name in ("xtb", "crest")]
+    elif platform.system() == "Darwin":
+        commands = [("native", [str(python), str(REPO_ROOT / "scripts/install_native_free_engines.py"),
+            "--root", str(artifact_dir / "free-engines/native")])]
+    else:
+        commands = []
+    for name, command in commands:
+        names = ("xtb", "crest") if name == "native" else (name,)
+        try:
+            completed = subprocess.run(command, cwd=REPO_ROOT, env=env, check=True,
+                capture_output=True, text=True, timeout=1200)
+            if name == "native":
+                observed = json.loads(completed.stdout)["engines"]
+            else:
+                observed = json.loads((artifact_dir / f"free-engines/{name}-installation.json").read_text())["engines"]
+            for engine in names:
+                record = observed[engine]
+                engines[engine] = {"status": "installed", "version": record["version"], "path": record["path"],
+                    "message": "Pinned package integrity and actual executable version verified."}
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+            message = _redact((getattr(error, "stderr", "") or str(error))[-2000:])
+            for engine in names:
+                engines[engine] = {"status": "failed", "message": message,
+                    "scientific_execution_verified": False}
+    failed = any(record["status"] == "failed" for record in engines.values())
+    result = {"schema_version": "cochem.free-engine-setup/1", "status": "failed" if failed else ("ready" if engines else "not_applicable"),
+        "engines": engines, "message": "BASE remains available. Unavailable free-engine methods are disabled; choose Retry setup to retry downloads and refresh execution authority." if failed else
+        ("Pinned free-engine installations verified." if engines else "Local free-engine binaries are not available for this host; supported remote calculation routes remain available.")}
+    _atomic_json(artifact_dir / "free-engines/setup-status.json", result)
+    return result
 
 
 def python_path(venv: Path) -> Path:
     return venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 
+def configure_student_workspace(artifact_dir: Path) -> dict:
+    """Show the owned ingestion inbox in VS Code without changing SOURCE."""
+    env = runtime_environment(artifact_dir)
+    inbox = artifact_dir / "Input_Files/Inbox"
+    if inbox.is_symlink() or not inbox.resolve().is_relative_to(artifact_dir.resolve()):
+        raise ValueError("The student inbox must remain inside the external artifact directory")
+    inbox.mkdir(parents=True, exist_ok=True, mode=0o750)
+    workspace = artifact_dir / "dashboard/CoChem.code-workspace"
+    receipt = artifact_dir / "dashboard/student-workspace.json"
+    if workspace.is_symlink() or receipt.is_symlink():
+        raise ValueError("Student workspace records may not redirect to another file")
+    workspace.write_text(json.dumps({"folders": [
+        {"name": "CoChem-BASE", "path": env["COCHEM_ASSIGNMENT_ROOT"]},
+        {"name": "Student input inbox", "path": str(inbox)},
+    ]}, indent=2) + "\n", encoding="utf-8")
+    executable = shutil.which("code")
+    record = {"schema_version": "cochem.student-workspace/1", "inbox": str(inbox), "workspace": str(workspace)}
+    if executable:
+        result = subprocess.run([executable, "--add", str(inbox)], env=setup_build_environment(env),
+            capture_output=True, text=True, timeout=30, check=False)
+        record["status"] = "attached" if result.returncode == 0 else "workspace_saved"
+        record["editor_exit_code"] = result.returncode
+    else:
+        record["status"] = "workspace_saved"
+    receipt.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    return record
+
+
 def validate_setup(python: Path, artifact_dir: Path) -> dict:
-    """Require current full Stage 0 evidence and actual xTB executable authority."""
+    """Require full Stage 0 and report only genuinely authorized free engines."""
     probe = """import json
 from cochem_base.core.cochem_core_registry_manager import load_system_config
 from cochem_base.core_engine.execution_authority import authorize_engine_execution
 from cochem_base.config_loader import resolve_config_path
 config = load_system_config(resolve_config_path())
-if config.stage0 is None:
+if config.stage0 is None or len(config.stage0.phases) != 11:
     raise RuntimeError('Complete eleven-phase Stage 0 authority is required')
-authority = authorize_engine_execution('xtb', cores=1)
-print(json.dumps({'status': config.status, 'registry_path': authority.registry_path,
-                  'xtb_path': authority.executable, 'xtb_sha256': authority.binary_sha256,
-                  'phases': len(config.stage0.phases)}))
+if config.status not in {'LOCKED','ACTIVE','PASSED','DEGRADED_OPERATIONAL'} or not config.verify_checksum():
+    raise RuntimeError('Stage 0 did not publish a verified operational Golden Registry')
+engines={}
+for name in ('xtb','crest','pyscf'):
+    record=config.model_dump(mode='json').get('engines',{}).get(name,{})
+    if record.get('status') in {'found','ready'}:
+        authority=authorize_engine_execution(name,cores=1)
+        engines[name]={'path':authority.executable,'sha256':authority.binary_sha256}
+print(json.dumps({'status':config.status,'registry_path':str(resolve_config_path()),
+    'xtb_path':engines.get('xtb',{}).get('path'),'xtb_sha256':engines.get('xtb',{}).get('sha256'),
+    'engines':engines,'phases':len(config.stage0.phases)}))
 """
     completed = subprocess.run(
         [str(python), "-B", "-c", probe], cwd=REPO_ROOT, env=runtime_environment(artifact_dir),
@@ -148,6 +267,26 @@ def setup_build_environment(env: dict[str, str]) -> dict[str, str]:
     return result
 
 
+def requested_silos(artifact_dir: Path) -> list[str]:
+    """Preserve explicit optional ML choices and provision supported CPU science."""
+    names = {"cochem_core_silo", "cochem_ui_silo", "cochem_calc_silo", "cochem_mace_silo"}
+    configured = os.environ.get("COCHEM_REQUESTED_SILOS")
+    if configured:
+        selected = configured.replace(",", " ").split()
+    else:
+        manifest = Path(runtime_environment(artifact_dir)["COCHEM_MANIFEST_PATH"])
+        previous = json.loads(manifest.read_text(encoding="utf-8")) if manifest.is_file() else {}
+        selected = previous.get("requested_silos")
+        if selected is None:
+            selected = ["cochem_core_silo", "cochem_ui_silo"]
+            if os.name != "nt":
+                selected.append("cochem_calc_silo")
+    if (not isinstance(selected, list) or not all(isinstance(name, str) and name in names for name in selected)
+            or len(set(selected)) != len(selected)):
+        raise ValueError("Only the four reviewed micro-silo identities may be selected.")
+    return sorted(set(selected) | {"cochem_core_silo", "cochem_ui_silo"})
+
+
 def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) -> None:
     """Install the bounded CPU dashboard and publish genuine execution authority."""
     env = runtime_environment(artifact_dir)
@@ -163,11 +302,9 @@ def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) 
         "-r", "requirements.txt", "-r", "requirements-ui.txt",
     ], cwd=REPO_ROOT, env=build_env, check=True)
     subprocess.run([str(python), "-m", "pip", "check"], env=build_env, check=True)
-    subprocess.run([
-        str(python), str(REPO_ROOT / "scripts/install_free_engines.py"),
-        "--root", str(artifact_dir / "free-engines"), "--engines", "xtb",
-        "--output", str(artifact_dir / "free-engines" / "installation.json"),
-    ], cwd=REPO_ROOT, env=build_env, check=True)
+    free_engines = prepare_free_engines(python, artifact_dir)
+    if free_engines["status"] == "failed":
+        print(free_engines["message"])
     manifest = artifact_dir / "dashboard" / "deployment_manifest.json"
     selected_repositories = ["CoChem-BASE"]
     requested_modules = os.environ.get("COCHEM_MODULES", "").replace(",", " ").split()
@@ -208,20 +345,28 @@ print(json.dumps(result))
                 "modules": {name: {"status": "failed", "operations": [], "message": _redact(completed.stderr[-4000:])}
                             for name in requested_modules}})
         print("Optional module setup completed; unavailable modules can be retried in the interface.")
-    manifest.write_text(json.dumps({"selected_repositories": selected_repositories}) + "\n", encoding="utf-8")
+    manifest.write_text(json.dumps({"selected_repositories": selected_repositories,
+        "requested_silos": requested_silos(artifact_dir)}) + "\n", encoding="utf-8")
+    refresh_stage0_authority(python, artifact_dir, min_disk_space_gb)
+
+
+def refresh_stage0_authority(python: Path, artifact_dir: Path, min_disk_space_gb: float = 1.0) -> dict:
+    """Publish fresh complete authority after a genuine engine setup or retry."""
     env = runtime_environment(artifact_dir)  # Include the newly installed binary.
+    authority = Path(env["COCHEM_CONFIG"]).parent.parent
     with (artifact_dir / "dashboard" / "setup-command.json").open("w", encoding="utf-8") as output:
         subprocess.run([
-            str(python), str(REPO_ROOT / "cli.py"), "setup", "--all", "--skip-heavy",
-            "--artifact-dir", str(artifact_dir), "--min-disk-space-gb", str(min_disk_space_gb), "--json",
+            str(python), str(REPO_ROOT / "cli.py"), "setup", "--all",
+            "--artifact-dir", str(authority), "--min-disk-space-gb", str(min_disk_space_gb), "--json",
         ], cwd=REPO_ROOT, env=setup_build_environment(env), stdout=output, check=True)
     evidence = validate_setup(python, artifact_dir)
     evidence["min_disk_space_gb"] = min_disk_space_gb
-    evidence["scope"] = "BASE dashboard and native xTB CPU screening; optional heavy engines excluded"
+    evidence["scope"] = "BASE dashboard with full Stage 0 and supported native CPU science; optional ML is provisioned only when selected"
     (artifact_dir / "dashboard" / "setup-validation.json").write_text(
         json.dumps(evidence, indent=2) + "\n", encoding="utf-8",
     )
     print(f"Dashboard setup validated all {evidence['phases']} phases: {evidence['status']}.")
+    return evidence
 
 
 def page_ready(port: int) -> bool:
@@ -268,8 +413,9 @@ print(json.dumps(identity))
 
 
 def server_command(python: Path, port: int, source_root: Path | None = None) -> list[str]:
+    source = source_root or REPO_ROOT
     return [
-        str(python), "-B", "-m", "voila", str((source_root or REPO_ROOT) / "Start_Here.ipynb"),
+        str(python), "-B", str(source / "scripts/student_voila.py"), str(source / "Start_Here.ipynb"),
         "--no-browser", f"--port={port}", "--Voila.ip=0.0.0.0",
         "--Voila.port_retries=0",
     ]
@@ -321,6 +467,10 @@ def start_dashboard(python: Path, artifact_dir: Path, port: int, timeout: float)
         # Snapshots preserve files but not processes. A missing, unrelated, or
         # reused PID proves this record is stale; never signal that process.
     with socket.socket() as probe:
+        # A managed restart can follow authenticated browser requests while
+        # the old listener's connections remain in TIME_WAIT. A live listener
+        # still prevents this bind; do not require students to wait or retry.
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         probe.bind(("127.0.0.1", port))
     log = artifact_dir / "dashboard" / "voila.log"
     command = server_command(python, port)
@@ -430,6 +580,9 @@ def stop_dashboard(python: Path, artifact_dir: Path) -> None:
         if previous_running is not None:
             _validate_runtime_metadata(previous_running, artifact_dir)
             candidates.append(server_command(Path(previous_running["python_path"]), record["port"], Path(previous_running["source_path"])))
+    # Retained servers from before authenticated XSRF-cookie initialization used
+    # upstream's module entry point. The source/interpreter paths remain fixed.
+    candidates += [[*candidate[:2], "-m", "voila", *candidate[3:]] for candidate in list(candidates)]
     # Upgrade servers launched before immutable runtime bytecode suppression.
     # Every legacy variant still has the same verified source/interpreter paths.
     candidates += [[argument for argument in candidate if argument != "-B"] for candidate in list(candidates)]
@@ -464,7 +617,7 @@ def stop_dashboard(python: Path, artifact_dir: Path) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("setup", "start", "check", "restart", "stop"))
+    parser.add_argument("command", choices=("setup", "start", "check", "restart", "stop", "workspace"))
     parser.add_argument("--artifacts", type=Path, default=Path(os.environ.get("COCHEM_ARTIFACT_DIR", "~/CoChem_Artifacts")))
     parser.add_argument("--venv", type=Path)
     parser.add_argument("--port", type=int, default=8866)
@@ -475,6 +628,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     artifacts = args.artifacts.expanduser().resolve()
     env = runtime_environment(artifacts)
+    if args.command == "workspace":
+        print(json.dumps(configure_student_workspace(artifacts)))
+        return 0
     if args.restart_delay < 0 or args.restart_delay > 5:
         parser.error("Restart delay must be between zero and five seconds")
     if args.restart_delay:

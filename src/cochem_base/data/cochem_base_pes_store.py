@@ -101,7 +101,28 @@ class PESStore:
         if energy_hartree is None and energy_ev is not None:
             energy_hartree = convert_ev_to_hartree(energy_ev)
         elif energy_hartree is None:
-            energy_hartree = 0.0
+            raise ValueError("A measured PES point requires an explicit finite electronic energy")
+        if not np.isfinite(float(energy_hartree)) or energy_ev is not None and not np.isfinite(float(energy_ev)):
+            raise ValueError("Measured PES energies must be finite")
+        if energy_ev is not None and not np.isclose(convert_ev_to_hartree(energy_ev), energy_hartree, rtol=1e-12, atol=1e-12):
+            raise ValueError("Conflicting measured Hartree/eV energies")
+        protected = {"electronic_energy_hartree", "energy_hartree", "electronic_energy_ev", "energy_ev", "energy", "symbols", "tier"}
+        if extra_attrs and protected.intersection(extra_attrs):
+            raise ValueError("extra_attrs cannot overwrite measured quantities or declared state metadata")
+        prepared = {}
+        for name, value in (("coordinates", coordinates), ("gradient", gradient), ("hessian", hessian)):
+            if value is None:
+                continue
+            array = np.asarray(value, dtype=np.float64)
+            if not np.all(np.isfinite(array)):
+                raise ValueError(f"Measured {name} must be finite")
+            if name in {"coordinates", "gradient"} and (array.ndim != 2 or array.shape[1] != 3 or not array.shape[0]):
+                raise ValueError(f"Measured {name} requires an ordered N-by-3 array")
+            if name == "hessian" and (array.ndim != 2 or array.shape[0] != array.shape[1] or array.shape[0] % 3):
+                raise ValueError("Measured Hessian requires a square 3N-by-3N array")
+            if symbols is not None and array.shape[0] != (3 * len(symbols) if name == "hessian" else len(symbols)):
+                raise ValueError(f"Measured {name} does not match the declared atom order")
+            prepared[name] = array
 
         point_key = str(point_id)
         with self._file_lock.acquire(timeout=self.timeout):
@@ -122,24 +143,25 @@ class PESStore:
                 if energy_ev is not None:
                     grp.attrs["electronic_energy_ev"] = float(energy_ev)
                     grp.attrs["energy_ev"] = float(energy_ev)
+                if energy_ev is None:
+                    grp.attrs["electronic_energy_ev"] = convert_hartree_to_ev(energy_hartree)
+                    grp.attrs["energy_ev"] = convert_hartree_to_ev(energy_hartree)
                 if tier is not None:
                     grp.attrs["tier"] = str(tier)
-                else:
-                    grp.attrs["electronic_energy_ev"] = convert_hartree_to_ev(energy_hartree)
 
                 if symbols is not None:
                     grp.attrs["symbols"] = json.dumps(list(symbols))
 
                 if coordinates is not None:
-                    c_arr = np.asarray(coordinates, dtype=np.float64)
+                    c_arr = prepared["coordinates"]
                     grp.create_dataset("coordinates", data=c_arr, compression="gzip")
 
                 if gradient is not None:
-                    g_arr = np.asarray(gradient, dtype=np.float64)
+                    g_arr = prepared["gradient"]
                     grp.create_dataset("gradient", data=g_arr, compression="gzip")
 
                 if hessian is not None:
-                    h_arr = np.asarray(hessian, dtype=np.float64)
+                    h_arr = prepared["hessian"]
                     grp.create_dataset("hessian", data=h_arr, compression="gzip")
 
                 if extra_attrs:
@@ -189,11 +211,21 @@ class PESStore:
             if point_key not in h5:
                 raise KeyError(f"Point '{point_key}' not found in PESStore at {self.storage_path}.")
             grp = h5[point_key]
+            if "electronic_energy_hartree" not in grp.attrs:
+                raise ValueError("The archived PES point has no measured Hartree energy")
+            measured = float(grp.attrs["electronic_energy_hartree"])
+            if not np.isfinite(measured):
+                raise ValueError("The archived PES point has a nonfinite measured energy")
+            if "energy_hartree" in grp.attrs and float(grp.attrs["energy_hartree"]) != measured:
+                raise ValueError("The archived Hartree energy aliases conflict")
+            if "energy" in grp and float(grp["energy"][()]) != measured:
+                raise ValueError("The archived energy dataset conflicts with its measured quantity")
+            measured_ev = convert_hartree_to_ev(measured)
+            if "electronic_energy_ev" in grp.attrs and not np.isclose(float(grp.attrs["electronic_energy_ev"]), measured_ev, rtol=1e-12, atol=1e-12):
+                raise ValueError("The archived PES energy units are inconsistent")
             res: Dict[str, Any] = {
-                "electronic_energy_hartree": float(grp.attrs.get("electronic_energy_hartree", 0.0)),
-                "energy_hartree": float(grp.attrs.get("electronic_energy_hartree", 0.0)),
-                "electronic_energy_ev": float(grp.attrs.get("electronic_energy_ev", 0.0)),
-                "energy_ev": float(grp.attrs.get("electronic_energy_ev", 0.0)),
+                "electronic_energy_hartree": measured, "energy_hartree": measured,
+                "electronic_energy_ev": measured_ev, "energy_ev": measured_ev,
             }
             for attr_name in grp.attrs:
                 if attr_name not in res:

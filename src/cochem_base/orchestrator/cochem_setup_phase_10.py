@@ -37,6 +37,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Mapping
+from dataclasses import asdict
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -44,7 +45,6 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
-import atexit
 import logging
 
 try:
@@ -55,7 +55,10 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
+from cochem_base.process_cleanup import reap_owned_children
+
+# Retain the public Phase 10 ownership-safe process cleanup entry point.
+sweep_zombies = reap_owned_children
 
 
 # Try importing h5py for PySCF .chk validation
@@ -79,14 +82,16 @@ except ImportError:
 # NIST CODATA 2022 / 2026 Fundamental Physical Constants & Conversion Factors
 # =============================================================================
 
-PLANCK_H: float = 6.62607015e-34  # J * s (exact SI standard)
-SPEED_OF_LIGHT_C: float = 299792458.0  # m / s (exact SI standard)
-ATOMIC_MASS_UNIT_U: float = 1.66053906892e-27  # kg / u (CODATA 2022/2026)
-ANGSTROM_TO_M: float = 1.0e-10  # m / Angstrom
+from cochem_base.core import cochem_constants as _constants
+
+PLANCK_H: float = _constants.PLANCK_CONSTANT_J_S
+SPEED_OF_LIGHT_C: float = _constants.SPEED_OF_LIGHT_M_S
+ATOMIC_MASS_UNIT_U: float = _constants.ATOMIC_MASS_UNIT_KG
+ANGSTROM_TO_M: float = _constants.ANGSTROM_TO_METER
 
 # Rotational conversion factor: B = h / (8 * pi^2 * I)
-FACTOR_HZ: float = PLANCK_H / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_U * (ANGSTROM_TO_M ** 2))
-FACTOR_MHZ: float = FACTOR_HZ / 1.0e6
+FACTOR_MHZ: float = _constants.C_ROT_MHZ_U_ANG2
+FACTOR_HZ: float = FACTOR_MHZ * 1.0e6
 FACTOR_GHZ: float = FACTOR_HZ / 1.0e9
 FACTOR_CM1: float = FACTOR_HZ / (SPEED_OF_LIGHT_C * 100.0)
 
@@ -470,6 +475,12 @@ class Phase10AuditReport(BaseModel):
     alignment_engine_ready: bool = Field(
         default=True, description="Whether MolSym and Eckart alignment engines are verified and operational"
     )
+    mass_cache_warmup: Dict[str, Any] = Field(
+        default_factory=dict, description="Actual dynamic database cache seeding and CPU timing measurements"
+    )
+    mass_cache_telemetry: Dict[str, Any] = Field(
+        default_factory=dict, description="Actual cache hit/miss counters and measured lookup latency"
+    )
     injected_env_vars: Dict[str, str] = Field(
         default_factory=dict, description="Environment variable injection mapping for runtime execution"
     )
@@ -581,78 +592,21 @@ def audit_or_provision_molsym_silo(
 # =============================================================================
 
 class _DynamicMendeleevMassMap(Mapping):
-    """Dynamic standard atomic weight mapping backed by the Mendeleev library."""
+    """Exact assigned/principal isotope masses backed by dynamic Mendeleev data."""
 
     def __getitem__(self, key: str) -> float:
-        if not key or not isinstance(key, str):
-            raise KeyError(key)
-        clean = key.strip()
-        if not clean:
-            raise KeyError(key)
-
-        if clean.upper() in {"D", "2H"}:
-            if _HAS_MENDELEEV and mendeleev is not None:
-                try:
-                    for iso in getattr(mendeleev.element("H"), "isotopes", []):
-                        if iso.mass_number == 2:
-                            return float(iso.mass)
-                except (AttributeError, KeyError, ValueError, TypeError) as _e:
-                    logger.debug(f"Ignored exception: {_e}")
-            return 2.01410177812
-
-        if clean.upper() in {"T", "3H"}:
-            if _HAS_MENDELEEV and mendeleev is not None:
-                try:
-                    for iso in getattr(mendeleev.element("H"), "isotopes", []):
-                        if iso.mass_number == 3:
-                            return float(iso.mass)
-                except (AttributeError, KeyError, ValueError, TypeError) as _e:
-                    logger.debug(f"Ignored exception: {_e}")
-            return 3.01604928132
-
-        import re
-        m = re.match(r"^([A-Za-z]{1,2})[0-9_\-:]*$", clean)
-        sym_head = m.group(1).capitalize() if m else clean.capitalize()
-
-        if _HAS_MENDELEEV and mendeleev is not None:
-            try:
-                elem = mendeleev.element(sym_head)
-                if elem is not None and elem.mass is not None:
-                    return float(elem.mass)
-            except (AttributeError, KeyError, ValueError, TypeError) as _e:
-                logger.debug(f"Ignored exception: {_e}")
-
-        raise KeyError(key)
+        from cochem_base.physics.isotopes import get_isotope_mass
+        try:
+            return get_isotope_mass(key)
+        except (ValueError, TypeError, RuntimeError) as error:
+            raise KeyError(key) from error
 
     def __iter__(self):
-        return iter([
-            "H", "HE", "LI", "BE", "B", "C", "N", "O", "F", "NE", "NA", "MG",
-            "AL", "SI", "P", "S", "CL", "AR", "K", "CA", "SC", "TI", "V", "CR",
-            "MN", "FE", "CO", "NI", "CU", "ZN", "GA", "GE", "AS", "SE", "BR", "KR",
-            "RB", "SR", "Y", "ZR", "NB", "MO", "TC", "RU", "RH", "PD", "AG", "CD",
-            "IN", "SN", "SB", "TE", "I", "XE", "CS", "BA", "LA", "CE", "PR", "ND",
-            "PM", "SM", "EU", "GD", "TB", "DY", "HO", "ER", "TM", "YB", "LU", "HF",
-            "TA", "W", "RE", "OS", "IR", "PT", "AU", "HG", "TL", "PB", "BI", "TH",
-            "PA", "U", "PU"
-        ])
+        from cochem_base.physics.nuclide_resolver import get_element
+        return (get_element(number).symbol for number in range(1, 119))
 
     def __len__(self):
         return 118
-
-    def __contains__(self, key: object) -> bool:
-        if not isinstance(key, str):
-            return False
-        try:
-            self[key]
-            return True
-        except (KeyError, Exception):
-            return False
-
-    def get(self, key: str, default: Any = None) -> Any:
-        try:
-            return self[key]
-        except KeyError:
-            return default
 
 
 _STANDARD_ATOMIC_WEIGHTS: Mapping[str, float] = _DynamicMendeleevMassMap()
@@ -690,55 +644,13 @@ def is_ghost_symbol(symbol: str) -> bool:
 
 
 def get_physical_mass(symbol: str) -> float:
-    """
-    Retrieve standard atomic mass in amu (u / Da) dynamically using Mendeleev library.
-    Ghost atoms strictly return 0.0.
-    """
-    if not symbol or not isinstance(symbol, str) or not symbol.strip():
+    """Resolve exact physical masses; counterpoise ghost centers contribute zero."""
+    if not isinstance(symbol, str) or not symbol.strip():
         raise ValueError("Atomic symbol cannot be empty.")
-
-    clean = symbol.strip()
-    if is_ghost_symbol(clean):
+    if is_ghost_symbol(symbol):
         return 0.0
-
-    # Hydrogen isotopes
-    if clean.upper() in {"D", "2H"}:
-        if _HAS_MENDELEEV and mendeleev is not None:
-            try:
-                for iso in getattr(mendeleev.element("H"), "isotopes", []):
-                    if iso.mass_number == 2:
-                        return float(iso.mass)
-            except (AttributeError, KeyError, ValueError, TypeError) as _e:
-                logger.debug(f"Ignored exception: {_e}")
-        return 2.01410177812
-
-    if clean.upper() in {"T", "3H"}:
-        if _HAS_MENDELEEV and mendeleev is not None:
-            try:
-                for iso in getattr(mendeleev.element("H"), "isotopes", []):
-                    if iso.mass_number == 3:
-                        return float(iso.mass)
-            except (AttributeError, KeyError, ValueError, TypeError) as _e:
-                logger.debug(f"Ignored exception: {_e}")
-        return 3.01604928132
-
-    # Check isotope or numbered notation (e.g. C12, Cl35, O_16, H-2, C:1)
-    import re
-    m = re.match(r"^([A-Za-z]{1,2})[0-9_\-:]*$", clean)
-    sym_head = m.group(1).capitalize() if m else clean.capitalize()
-
-    if _HAS_MENDELEEV and mendeleev is not None:
-        try:
-            elem = mendeleev.element(sym_head)
-            if elem is not None and elem.mass is not None:
-                return float(elem.mass)
-        except (AttributeError, KeyError, ValueError, TypeError) as _e:
-            logger.debug(f"Ignored exception: {_e}")
-
-    if clean.upper() in _STANDARD_ATOMIC_WEIGHTS:
-        return float(_STANDARD_ATOMIC_WEIGHTS[clean.upper()])
-
-    raise ValueError(f"Unrecognized chemical element symbol: '{symbol}'.")
+    from cochem_base.physics.isotopes import get_isotope_mass
+    return get_isotope_mass(symbol)
 
 
 def resolve_atomic_masses(
@@ -2144,6 +2056,19 @@ def run_phase_10_audit(
 
     p10_path = resolve_p10_registry_path(output_dir=output_dir, env=target_env)
 
+    # Seed the authoritative database before any Cartesian benchmark. Historical
+    # records without these fields remain historical; they are not new evidence.
+    mass_cache_warmup: Dict[str, Any] = {}
+    mass_cache_telemetry: Dict[str, Any] = {}
+    try:
+        from cochem_base.physics.isotopes import get_mass_cache_telemetry, warmup_mass_cache
+        mass_cache_warmup = warmup_mass_cache()
+        mass_cache_telemetry = asdict(get_mass_cache_telemetry())
+        if not mass_cache_warmup["cached_query_under_500_ns"]:
+            warnings.append("Measured CPU cached isotope lookup exceeds the Task 1 500 ns target.")
+    except Exception as exc:
+        errors.append(f"Authoritative mass cache startup failed: {exc}")
+
     # 1. Scaffold Ephemeral Sandbox
     try:
         sandbox_profile = scaffold_ephemeral_sandbox(base_dir=sandbox_base_dir, env=target_env)
@@ -2327,7 +2252,8 @@ def run_phase_10_audit(
     if errors or not sandbox_profile.is_created or not sandbox_profile.is_writable or eckart_report.overall_status == EckartVerificationStatus.FAILED:
         status = PhaseStatus.FAILED
     elif (
-        iops_profile.status in (IOPSBenchmarkStatus.DEGRADED, IOPSBenchmarkStatus.NOT_RUN)
+        not mass_cache_warmup.get("cached_query_under_500_ns", False)
+        or iops_profile.status in (IOPSBenchmarkStatus.DEGRADED, IOPSBenchmarkStatus.NOT_RUN)
         or eckart_report.overall_status == EckartVerificationStatus.NOT_RUN
         or not state_chain_profile.chain_intact
         or checkpoint_report.corrupt_count > 0
@@ -2349,6 +2275,8 @@ def run_phase_10_audit(
         molsym_silo_profile=molsym_profile,
         eckart_verification_report=eckart_report,
         alignment_engine_ready=alignment_engine_ready,
+        mass_cache_warmup=mass_cache_warmup,
+        mass_cache_telemetry=mass_cache_telemetry,
         injected_env_vars=injected_env,
         warnings=warnings,
         errors=errors,

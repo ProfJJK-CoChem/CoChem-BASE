@@ -6,11 +6,11 @@ Verifies sub-microhertz rotational constant agreement across all five core calcu
 from __future__ import annotations
 
 import numpy as np
-import pytest
 import torch
 from mendeleev import element
 
 from cochem_base.core.cochem_constants import C_ROT_MHZ_U_ANG2
+from cochem_base.physics.isotopes import get_isotope_mass
 from cochem_base.core_engine.cochem_core_frozen_monomer import compute_rotational_constants
 from cochem_base.cochem_torq_alignment import diagonalize_principal_axes
 from cochem_base.core_engine.cochem_core_cfour_bridge import compute_equilibrium_rotational_constants
@@ -29,7 +29,7 @@ def test_rotational_constants_unification_water_monomer() -> None:
     ], dtype=np.float64)
 
     # Mendeleev Mandate: dynamically retrieve masses
-    masses = [float(element(sym).mass) for sym in symbols]
+    masses = [get_isotope_mass(sym) for sym in symbols]
     atomic_numbers = [int(element(sym).atomic_number) for sym in symbols]
 
     # 1. cochem_core_frozen_monomer
@@ -81,7 +81,7 @@ def test_rotational_constants_unification_water_dimer() -> None:
         [1.772, -0.758, -0.412],
     ], dtype=np.float64)
 
-    masses = [float(element(sym).mass) for sym in symbols]
+    masses = [get_isotope_mass(sym) for sym in symbols]
     atomic_numbers = [int(element(sym).atomic_number) for sym in symbols]
 
     # 1. cochem_core_frozen_monomer

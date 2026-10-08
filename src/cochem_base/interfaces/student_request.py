@@ -17,7 +17,7 @@ SCHEMA = "cochem.student-request/1"
 MAX_PAYLOAD_BASE64_BYTES = 50 * 1024
 MAX_FILE_BYTES = 24 * 1024
 MAX_FILES = 16
-MAX_ATOMS = 50
+MAX_ATOMS = 4096
 REPOSITORY_PATTERN = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 SHA_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
@@ -71,10 +71,10 @@ def validate_xyz(contents: bytes) -> None:
         raise ValueError("Upload a complete Avogadro XYZ with its atom-count and comment lines")
     count = int(lines[0].strip())
     if not 0 < count <= MAX_ATOMS or len(lines) != count + 2:
-        raise ValueError("A hosted structure requires one complete XYZ of 1–50 atoms")
+        raise ValueError("A hosted structure requires one complete XYZ of 1–4096 atoms within the transport budget")
     for line in lines[2:]:
         fields = line.split()
-        if (len(fields) != 4 or not re.fullmatch(r"(?:\d+)?[A-Z][a-z]?(?:-?\d+)?", fields[0])
+        if (len(fields) != 4 or not re.fullmatch(r"(?:\d+)?[A-Za-z]{1,2}(?:-?\d+)?", fields[0])
                 or not all(math.isfinite(float(value)) for value in fields[1:])):
             raise ValueError("Each XYZ atom requires an element/isotope and three finite coordinates")
 
@@ -102,9 +102,39 @@ def decode_request(encoded: str, expected_sha256: str) -> dict:
     return request
 
 
+def decode_transport_request(encoded: str, expected_sha256: str) -> dict:
+    """Stable assignment dispatcher checks identity, never a stale science menu.
+
+    The approved canonical worker subsequently applies its full scientific
+    schema before installations. Unknown future scientific fields are retained
+    as hash-bound data and cannot become commands in this transport stage.
+    """
+    if (not isinstance(encoded, str) or len(encoded) > MAX_PAYLOAD_BASE64_BYTES
+            or not SHA_PATTERN.fullmatch(expected_sha256)):
+        raise ValueError("Invalid or oversized hosted request")
+    contents = base64.b64decode(encoded, validate=True)
+    if hashlib.sha256(contents).hexdigest() != expected_sha256:
+        raise ValueError("The submitted request SHA-256 differs from the uploaded bytes")
+    request = strict_json(contents)
+    if canonical_json(request) != contents or request.get("schema_version") != SCHEMA:
+        raise ValueError("Unsupported transport schema or noncanonical bytes")
+    if (not isinstance(request.get("request_id"), str)
+            or str(uuid.UUID(request["request_id"])) != request["request_id"]
+            or not REPOSITORY_PATTERN.fullmatch(request.get("repository", ""))
+            or not COMMIT_PATTERN.fullmatch(request.get("source_sha", ""))
+            or not COMMIT_PATTERN.fullmatch(request.get("worker_source_sha", ""))):
+        raise ValueError("The transport has no immutable request/repository/source identity")
+    allocation = request.get("resources")
+    if (not isinstance(allocation, dict) or set(allocation) != {"cores", "maxcore_mb"}
+            or type(allocation["cores"]) is not int or allocation["cores"] not in (1, 2)
+            or type(allocation["maxcore_mb"]) is not int or not 1 <= allocation["maxcore_mb"] <= 1024):
+        raise ValueError("The transport requires finite authorized CPU/memory allocation")
+    return request
+
+
 def validate_request(request: dict) -> dict:
     fields = {"schema_version", "request_id", "repository", "source_sha", "worker_source_sha", "submitted_at",
-              "resources", "calculation", "provider", "capability_probe", "scientific_inputs", "t9_request", "files"}
+              "resources", "calculation", "provider", "capability_probe", "scientific_inputs", "data_inputs", "t9_request", "files"}
     if set(request) != fields or request.get("schema_version") != SCHEMA:
         raise ValueError("Unsupported student-request schema or fields")
     request_id = request["request_id"]
@@ -134,14 +164,47 @@ def validate_request(request: dict) -> dict:
                 or any(engine not in {"orca", "cfour"} for engine in probe["engines"])):
             raise ValueError("A readiness check accepts only the optional ORCA and CFOUR engines")
     if calculation is not None:
-        if not isinstance(calculation, dict) or calculation.get("engine") not in {"orca", "cfour", "xtb"}:
-            raise ValueError("Select a connected ORCA, CFOUR or xTB calculation")
+        if not isinstance(calculation, dict) or calculation.get("engine") not in {"orca", "cfour", "xtb", "qe", "pyscf"}:
+            raise ValueError("Select a connected ORCA, CFOUR, xTB, QE or PySCF calculation")
         timeout = calculation.get("timeout_seconds")
         if type(timeout) not in (float, int) or not math.isfinite(timeout) or not 0 < timeout <= 1800:
             raise ValueError("Hosted calculation time must be positive and no greater than 1800 seconds")
         if not isinstance(calculation.get("geometry"), str):
             raise ValueError("The calculation requires its complete geometry")
         validate_xyz(calculation["geometry"].encode("utf-8"))
+    data_inputs = request["data_inputs"]
+    if data_inputs is not None:
+        if probe is not None or not isinstance(data_inputs, dict):
+            raise ValueError("Original ingestion data belongs to a scientific calculation or provider")
+        geometry = (calculation["geometry"].encode("utf-8") if calculation is not None else
+                    base64.b64decode(request["files"][provider["artifact"]]["content_base64"], validate=True))
+        if (set(data_inputs) != {"schema_version", "kind", "bundle_sha256", "bundle_size_bytes",
+                                "geometry_sha256", "blob_sha", "commit_sha", "branch", "path"}
+                or data_inputs.get("schema_version") != "cochem.student-data-transport/1"
+                or data_inputs.get("kind") not in {"molecular_ingestion", "periodic_inputs"}
+                or not COMMIT_PATTERN.fullmatch(data_inputs.get("blob_sha", ""))
+                or not COMMIT_PATTERN.fullmatch(data_inputs.get("commit_sha", ""))
+                or not SHA_PATTERN.fullmatch(data_inputs.get("bundle_sha256", ""))
+                or data_inputs.get("path") != f".cochem/submissions/{request_id}/data-inputs.zip"
+                or data_inputs.get("branch") != "cochem-data-" + request_id
+                or type(data_inputs.get("bundle_size_bytes")) is not int
+                or not 0 < data_inputs["bundle_size_bytes"] <= 64 * 1024 * 1024
+                or data_inputs.get("geometry_sha256") != hashlib.sha256(geometry).hexdigest()):
+            raise ValueError("Original ingestion bundle identity/geometry/size is invalid")
+    if calculation is not None and calculation["engine"] == "qe":
+        if not data_inputs or data_inputs["kind"] != "periodic_inputs":
+            raise ValueError("QE requires original periodic structure and uploaded authenticated PAW files")
+        periodic = calculation.get("periodic")
+        if not isinstance(periodic, dict) or not isinstance(periodic.get("pseudopotentials"), dict):
+            raise ValueError("QE requires typed periodic plane-wave/PAW settings")
+        for element, potential in periodic["pseudopotentials"].items():
+            if (not re.fullmatch(r"[A-Z][a-z]?", element) or not isinstance(potential, dict)
+                    or set(potential) != {"path", "sha256"}
+                    or potential["path"] != "pseudopotentials/" + element + ".UPF"
+                    or not SHA_PATTERN.fullmatch(potential["sha256"])):
+                raise ValueError("QE PAW inputs require portable element-bound relative files and exact hashes")
+    elif data_inputs is not None and data_inputs["kind"] == "periodic_inputs":
+        raise ValueError("Periodic PAW input bundles require a connected QE calculation")
     scientific = request["scientific_inputs"]
     if scientific is not None:
         if calculation is None or calculation["engine"] != "orca" or not isinstance(scientific, dict):
@@ -161,6 +224,8 @@ def validate_request(request: dict) -> dict:
             raise ValueError("Scientific bundle provenance or bounded inventory is invalid")
         safe_relative_path(scientific.get("entrypoint"))
     recovery = request["t9_request"]
+    if calculation is not None and calculation["engine"] == "orca" and calculation.get("multiplicity", 1) > 1 and recovery is None:
+        raise ValueError("Open-shell ORCA requires an explicit portable T9 active space before submission")
     if recovery is not None:
         if calculation is None or calculation["engine"] != "orca" or not isinstance(recovery, dict):
             raise ValueError("T9 recovery requires an ORCA calculation and explicit scientific active space")

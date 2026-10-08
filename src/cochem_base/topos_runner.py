@@ -19,6 +19,7 @@ import sys
 import time
 import uuid
 from contextlib import ExitStack
+from dataclasses import asdict, replace
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
@@ -29,13 +30,14 @@ import psutil
 from pydantic import BaseModel, ConfigDict, Field
 
 from cochem_base.config_loader import get_artifact_dir, resolve_executable
-from cochem_base.intake.conformer_deduplication import ConformerCandidate, ConformerDeduplicator
+from cochem_base.intake.conformer_deduplication import ConformerCandidate, ConformerDeduplicator, conformer_metadata_dict
 from cochem_base.core_engine.execution_authority import authorize_engine_execution
 from cochem_base.core_engine.cochem_core_subprocess_broker import sanitize_mpi_environment
 from cochem_base.core_engine.scientific_telemetry import append_scientific_result
 from cochem_base.physics.eckart_aligner import align_coordinates, verify_com_residual, verify_eckart_residual
 from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
 from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+from cochem_base.physics.nuclide_resolver import get_element
 
 
 class TOPOSJobStatus(str, Enum):
@@ -61,6 +63,7 @@ class TOPOSSearchConfig(BaseModel):
     charge: int = 0
     multiplicity: int = Field(default=1, ge=1)
     threads_per_engine: int = Field(default=1, ge=1)
+    energy_window_kcal: float = Field(default=12, gt=0, le=12, allow_inf_nan=False)
     crest_binary: str | None = None
     orca_binary: str | None = None
 
@@ -91,8 +94,9 @@ def _parse_xyz(path: Path, *, require_energy: bool) -> list[ConformerCandidate]:
     values and bare native numeric comments are accepted; other units are rejected.
     """
     frames: list[ConformerCandidate] = []
+    source_digest = hashlib.sha256(path.read_bytes()).hexdigest()
     number = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[EeDd][-+]?\d+)?"
-    with path.open(encoding="utf-8") as stream:
+    with path.open(encoding="utf-8-sig") as stream:
         while True:
             first = stream.readline()
             if not first:
@@ -108,7 +112,7 @@ def _parse_xyz(path: Path, *, require_energy: bool) -> list[ConformerCandidate]:
             comment = stream.readline()
             if not comment:
                 raise ValueError("Incomplete XYZ comment")
-            energy = 0.0
+            energy = None
             if require_energy:
                 if re.search(r"kcal|kJ|\beV\b", comment, re.IGNORECASE):
                     raise ValueError("Engine ensemble energies must be in Hartree")
@@ -137,6 +141,7 @@ def _parse_xyz(path: Path, *, require_energy: bool) -> list[ConformerCandidate]:
             frames.append(ConformerCandidate(
                 conformer_id=f"{path.parent.name}:{len(frames)}",
                 symbols=list(resolve_nuclear_identity(symbols).nuclides), coordinates=np.asarray(positions), energy=energy,
+                source=source_digest, metadata={"source_frame": len(frames)},
             ))
     if not frames:
         raise ValueError(f"Empty XYZ file: {path}")
@@ -229,6 +234,9 @@ class TOPOSExecutionBroker:
         seeds = _parse_xyz(source, require_energy=False)
         if len(seeds) != 1 or len(seeds[0].symbols) != config.atom_count:
             raise ValueError("Input must contain one XYZ frame matching atom_count")
+        electrons = sum(int(get_element(symbol).atomic_number) for symbol in resolve_nuclear_identity(seeds[0].symbols).elements) - config.charge
+        if electrons < config.multiplicity - 1 or (electrons - config.multiplicity + 1) % 2:
+            raise ValueError("Conformer search electronic state contradicts the nuclear electron count")
         config = config.model_copy(deep=True)
         if config.protocol in ("CREST_GOAT", "CREST_NCI"):
             config.crest_binary = _resolve_engine("crest", config.crest_binary)
@@ -321,8 +329,18 @@ class TOPOSExecutionBroker:
                 raise FileExistsError(f"Job artifacts are already promoted: {target}")
             staging.mkdir()
             try:
-                for name in ("conformer_ensemble.xyz", "telemetry.json", "provenance.jsonld"):
+                for name in ("conformer_ensemble.xyz", "telemetry.json", "provenance.jsonld", "pool-sieve.json",
+                             "input.original.xyz", "input.xyz", "ingress.json"):
                     shutil.copy2(job_scratch / name, staging / name)
+                pools = staging / "source-pools"
+                pools.mkdir()
+                for engine, source in data.get("source_pools", {}).items():
+                    if engine not in {"CREST", "GOAT"}:
+                        raise ValueError("Unexpected native source pool identity")
+                    path = (job_scratch / source["path"]).resolve(strict=True)
+                    if not path.is_relative_to(job_scratch) or hashlib.sha256(path.read_bytes()).hexdigest() != source["sha256"]:
+                        raise ValueError("Native source pool changed before immutable promotion")
+                    shutil.copy2(path, pools / (engine.lower() + ".xyz"))
                 os.replace(staging, target)
             finally:
                 if staging.exists():
@@ -338,6 +356,7 @@ def _run_worker(config_path: Path) -> int:
     processes: dict[str, subprocess.Popen[Any]] = {}
     commands: dict[str, list[str]] = {}
     ensembles: dict[str, Path] = {}
+    producer_contexts: dict[str, dict[str, Any]] = {}
     started = time.monotonic()
 
     def interrupted(signum: int, frame: Any) -> None:
@@ -369,6 +388,9 @@ def _run_worker(config_path: Path) -> int:
                     "crest" if engine == "CREST" else "orca", command=command,
                     cores=config.threads_per_engine * concurrent_engines,
                 )
+                producer_contexts[engine] = {"engine": engine, "method": "GFN2-xTB", "charge": config.charge,
+                    "multiplicity": config.multiplicity, "executable_sha256": authority.binary_sha256,
+                    "registry_sha256": hashlib.sha256(Path(authority.registry_path).read_bytes()).hexdigest()}
                 engine_index = len(processes)
                 pins = authority.cpu_affinity[
                     engine_index * config.threads_per_engine:(engine_index + 1) * config.threads_per_engine
@@ -420,8 +442,12 @@ def _run_worker(config_path: Path) -> int:
             if any(tuple(frame.symbols) != identity.elements for frame in parsed):
                 raise ValueError(f"{name} ensemble changed the ordered electronic atom identities")
             for index, candidate in enumerate(parsed):
-                candidate.symbols = list(identity.nuclides)
-                candidate.coordinates, alignment = _normalize_ingress(candidate.symbols, candidate.coordinates)
+                coordinates, alignment = _normalize_ingress(list(identity.nuclides), candidate.coordinates)
+                candidate = replace(candidate, symbols=identity.nuclides, coordinates=coordinates,
+                    charge=config.charge, multiplicity=config.multiplicity,
+                    comparison_protocol=hashlib.sha256(json.dumps(producer_contexts[name], sort_keys=True).encode()).hexdigest(),
+                    metadata={**conformer_metadata_dict(candidate), "producer_context": producer_contexts[name],
+                              "alignment": alignment, "qualification": "native screening pool; minimum/convergence is not certified"})
                 archive = append_scientific_result(
                     f"{data['job_id']}_{name}", candidate.symbols, candidate.coordinates, candidate.energy,
                     metadata={"engine": name, "ensemble_frame": index,
@@ -429,8 +455,19 @@ def _run_worker(config_path: Path) -> int:
                               "alignment": alignment, "nuclear_identity": identity.metadata, "scope": "conformer screening"},
                 )
                 data["scientific_telemetry_archive"] = str(archive)
-            candidates.extend(parsed)
-        unique = ConformerDeduplicator().deduplicate(candidates)
+                candidates.append(candidate)
+        sieve = ConformerDeduplicator(energy_window_kcal=config.energy_window_kcal).sieve(candidates, require_comparable_protocol=True)
+        unique = sieve.retained
+        pool_sieve = {"schema_version": "cochem.conformer-pool-sieve/1",
+            "members": [{"conformer_id": candidate.conformer_id, "symbols": candidate.symbols,
+                         "coordinates": candidate.coordinates.tolist(), "energy_hartree": candidate.energy,
+                         "source_sha256": candidate.source, "charge": candidate.charge,
+                         "multiplicity": candidate.multiplicity, "comparison_protocol": candidate.comparison_protocol,
+                         "metadata": conformer_metadata_dict(candidate)} for candidate in candidates],
+            "decisions": [asdict(decision) for decision in sieve.decisions],
+            "retained_ids": [candidate.conformer_id for candidate in unique],
+            "scope": "Native producer pools retain complete lineage. Distinct producer binary/method contexts remain separate until a common measured refinement qualifies their energies for comparison."}
+        _write_json(job / "pool-sieve.json", pool_sieve)
         output = job / "conformer_ensemble.xyz"
         with output.open("w", encoding="utf-8") as stream:
             for candidate in unique:
@@ -445,10 +482,16 @@ def _run_worker(config_path: Path) -> int:
             "cochem:commands": commands, "cochem:energyUnit": "hartree",
             "cochem:ingress": _read_json(job / "ingress.json"),
             "cochem:ensembleSha256": digest,
+            "cochem:poolSieveSha256": hashlib.sha256((job / "pool-sieve.json").read_bytes()).hexdigest(),
+            "cochem:producerContexts": producer_contexts,
             "cochem:scope": "conformer screening; production electronic relaxation remains required",
         }
         _write_json(job / "provenance.jsonld", provenance)
-        data.update(status="COMPLETED", candidates_found=len(candidates), deduplicated_count=len(unique), lowest_energy_hartree=min(conf.energy for conf in unique), ensemble_sha256=digest, end_time=time.time())
+        data.update(status="COMPLETED", candidates_found=len(candidates), deduplicated_count=len(unique),
+                    lowest_energy_hartree=min(conf.energy for conf in unique) if len(producer_contexts) == 1 else None,
+                    energy_ranking_scope="per matched native producer context",
+                    source_pools={name: {"path": str(path.relative_to(job)), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+                                  for name, path in ensembles.items()}, ensemble_sha256=digest, end_time=time.time())
         _write_json(telemetry_path, data)
         return 0
     except Exception as exc:

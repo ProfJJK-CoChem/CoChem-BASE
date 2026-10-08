@@ -15,7 +15,7 @@ import pytest
 from scripts import manage_modules as installer
 from scripts.hosted_dashboard import setup_build_environment, _validate_runtime_metadata
 from cochem_base.interfaces.student_setup import StudentSetupService, StudentSetupError, resolve_worker_source, RUNTIME_SCHEMA
-import test_module_installer as offline_installer
+from tests.base import test_module_installer as offline_installer
 
 
 @pytest.fixture
@@ -304,3 +304,64 @@ def test_private_science_source_pin_rejects_moving_or_invalid_identity(student_s
     with pytest.raises(StudentSetupError, match="exact Git revision"):
         service._private_base_wheel("1.1.0", revision)
     assert not (service.artifact_dir / "DependencyRuntime").exists()
+
+
+def test_actual_failed_candidate_setup_preserves_previous_execution_authority(student_service):
+    service, _catalog, origin = student_service
+    (origin / "pyproject.toml").write_text('[build-system]\nrequires=[]\nbuild-backend="backend"\nbackend-path=["."]\n'
+        '[project]\nname="CoChem-BASE"\nversion="1.1.0"\n')
+    (origin / "backend.py").write_text(offline_installer.BACKEND.replace("cochem_installer_fixture", "cochem_base")
+        .replace("cochem-installer-fixture", "CoChem-BASE").replace("1.2.3", "1.1.0"))
+    # A real setup process writes its own candidate authority before failing.
+    # The previous interface and engine registry must survive this interruption.
+    (origin / "cli.py").write_text('import os,sys\nfrom pathlib import Path\n'
+        'path=Path(os.environ["COCHEM_CONFIG"])\npath.parent.mkdir(parents=True,exist_ok=True)\n'
+        'path.write_text("candidate interrupted during setup\\n")\n'
+        'sys.exit(7)\n')
+    offline_installer.git(origin, "add", ".")
+    offline_installer.git(origin, "-c", "user.name=CoChem boundary test", "-c", "user.email=boundary@example.invalid", "commit", "-m", "Real interrupted setup process boundary")
+    revision = offline_installer.git(origin, "rev-parse", "HEAD")
+    (origin.parent / "offline-git.conf").write_text(f'[url "{origin.as_uri()}"]\n\tinsteadOf = https://github.com/ProfJJK-CoChem/CoChem-BASE.git\n')
+    registry = service.artifact_dir / "Registry/cochem_system_config.json"
+    registry.parent.mkdir()
+    prior = b'{"engines":"previous verified physical execution authority"}\n'
+    registry.write_bytes(prior)
+    prior_runtime = (service.state_dir / "assignment-runtime.json").read_bytes()
+    code = """import json,sys
+from pathlib import Path
+from cochem_base.interfaces.student_setup import StudentSetupService,_base_spec
+from scripts import manage_modules as installer
+s=StudentSetupService(sys.argv[1],sys.argv[2])
+source=installer.fetch_module('base',_base_spec(sys.argv[3]),s.artifact_dir/'BaseRuntime',activate=False)
+try:
+    s._prepare_base({'base':{'revision':sys.argv[3],'source_path':source['source_path'],'tag':'v1.1.0'}})
+except installer.ModuleInstallationError as error:
+    print(json.dumps({'error':str(error)}))
+else:
+    raise AssertionError('The actual failing setup process unexpectedly succeeded')
+"""
+    result = subprocess.run([sys.executable, "-B", "-c", code, str(service.artifact_dir), str(service.repository_root), revision],
+        env=offline_installer.offline_environment(origin), cwd=installer.REPOSITORY_ROOT,
+        capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr
+    assert "exit 7" in json.loads(result.stdout)["error"]
+    candidate = service.artifact_dir / "BaseRuntime/base" / revision / "authority/Registry/cochem_system_config.json"
+    assert candidate.read_text() == "candidate interrupted during setup\n"
+    assert registry.read_bytes() == prior
+    assert (service.state_dir / "assignment-runtime.json").read_bytes() == prior_runtime
+    assert not (service.state_dir / "active-runtime.json").exists()
+
+
+def test_real_same_source_approved_policy_update_preserves_environment_and_rolls_back(repository):
+    origin, old, root = repository
+    accepted = installation_command(origin, old, root, activate=True)
+    revised = dict(old, operations=[])
+    prepared = installation_command(origin, revised, root, activate=False)
+    assert prepared["revision"] == accepted["revision"]
+    assert Path(prepared["python_path"]).is_relative_to(root / "fixture" / old["revision"] / "policies" / installer._digest_json(revised))
+    assert installer.verify_installation("fixture", old, root) == accepted
+    installer.activate_installation("fixture", revised, root)
+    assert installer.verify_installation("fixture", revised, root) == prepared
+    installer.activate_installation("fixture", old, root)
+    assert installer.verify_installation("fixture", old, root) == accepted
+    assert installer.verify_installation("fixture", revised, root, active=False) == prepared

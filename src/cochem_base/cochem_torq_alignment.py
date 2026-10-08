@@ -19,12 +19,13 @@ import numpy as np
 
 from cochem.core.exceptions import MissingDataError
 from cochem.core.mendeleev_invariants import get_element_mass
+from cochem_base.core.cochem_constants import C_ROT_MHZ_U_ANG2
 
 logger = logging.getLogger("CoChem-TORQ.Alignment")
 
 # Fundamental Conversion Constant:
 # h / (8 * pi^2 * u * A^2) in MHz (CODATA 2022 / Method Matrix Standard)
-INERTIA_CONVERSION_AMU_ANG2_MHZ: float = 505379.0084350172
+INERTIA_CONVERSION_AMU_ANG2_MHZ: float = C_ROT_MHZ_U_ANG2
 
 
 def translate_com_to_origin(

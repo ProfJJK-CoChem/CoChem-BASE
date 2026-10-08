@@ -2,7 +2,8 @@
 
 Pure in-memory BFS state traversal, directional SMIRKS transforms, Patterson scoring,
 BSSE ghost-atom exclusion, dynamic Mendeleev atomic masses and covalent radii,
-downstream semi-empirical thermodynamic filtering, and thread-safe HDF5 persistence [M][D][E].
+structural canonicalization and thread-safe HDF5 persistence. Quantitative
+thermodynamics requires matched native calculations in the verified provider.
 """
 
 from __future__ import annotations
@@ -13,21 +14,19 @@ import hashlib
 import logging
 import os
 from pathlib import Path
-import shutil
-import subprocess
-import sys
-import tempfile
 import threading
 import time
-from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import filelock
 import h5py
 from mendeleev import element
+from cochem_base.physics.isotopes import get_isotope_mass
+from cochem_base.physics.nuclide_resolver import parse_nuclide, get_element
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rdkit import Chem
-from rdkit.Chem import AllChem, rdDistGeom
+from rdkit.Chem import AllChem
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +112,10 @@ class GhostAtomSanitizationError(ToposPerceptionError):
         super().__init__(message)
 
 
+class TautomerThermodynamicsUnavailableError(QuantumChemistryHandshakeError):
+    """Structural candidates do not have matched native thermodynamic evidence."""
+
+
 # ============================================================================
 # PYDANTIC V2 DOMAIN MODELS
 # ============================================================================
@@ -171,8 +174,7 @@ class TopologyInput(BaseModel):
                     if ghost or z == 0:
                         computed_masses.append(0.0)
                     else:
-                        elem_obj = element(int(z))
-                        computed_masses.append(float(elem_obj.mass))
+                        computed_masses.append(get_isotope_mass(elements_list[len(computed_masses)]))
                 data["masses"] = computed_masses
 
         return data
@@ -219,11 +221,11 @@ class TautomerCandidate(BaseModel):
     smiles: str = Field(..., min_length=1, description="Canonical SMILES of the tautomer")
     inchi_key: str = Field(..., min_length=27, max_length=27, description="Standard InChIKey (27 chars)")
     fixed_h_inchi_key: str = Field(..., min_length=27, max_length=27, description="Fixed-H InChIKey (27 chars)")
-    canonical_score: float = Field(..., description="Patterson score (higher is more favorable)")
-    relative_energy_kcal_mol: Optional[float] = Field(
-        default=None, description="Relative electronic energy from xTB"
-    )
-    is_canonical: bool = Field(default=False, description="Flag indicating highest-ranking canonical tautomer")
+    canonical_score: float = Field(..., description="Patterson structural canonicalization heuristic; not an energy or population")
+    relative_energy_kcal_mol: None = Field(default=None, description="No native thermodynamic evidence is attached to structural enumeration")
+    unvalidated_legacy_energy_kcal_mol: Optional[float] = Field(default=None, allow_inf_nan=False,
+        description="Imported historical number with unknown method/provenance; excluded from ranking and populations")
+    is_canonical: bool = Field(default=False, description="Deterministic structural canonical tautomer; does not identify the thermodynamic minimum")
     transform_depth: int = Field(..., ge=0, description="Number of elementary prototropic shifts from parent")
     transform_history: List[str] = Field(default_factory=list, description="Sequence of SMIRKS applied")
 
@@ -253,6 +255,8 @@ class TautomerEnsemble(BaseModel):
     total_generated: int = Field(..., ge=1, description="Total unique tautomers identified")
     candidates: List[TautomerCandidate] = Field(..., min_length=1, description="List of generated tautomer candidates")
     execution_duration_seconds: float = Field(..., ge=0.0, description="Wall-clock runtime for enumeration")
+    acceptance_scope: Literal["structural_enumeration_only"] = "structural_enumeration_only"
+    thermodynamic_validation_performed: Literal[False] = False
 
     @model_validator(mode="after")
     def validate_ensemble_consistency(self) -> "TautomerEnsemble":
@@ -374,6 +378,12 @@ def _build_rdkit_mol_from_topology(top: TopologyInput) -> Chem.Mol:
         ghost = top.is_ghost[i]
         atom = Chem.Atom(0 if (ghost or z == 0) else int(z))
         atom.SetFormalCharge(top.formal_charges[i])
+        if not ghost and z != 0:
+            nuclear = parse_nuclide(top.elements[i])
+            if int(get_element(nuclear.symbol).atomic_number) != z:
+                raise InvalidTopologyInputError("Nuclear label differs from the explicit atomic number")
+            if nuclear.mass_number is not None:
+                atom.SetIsotope(nuclear.mass_number)
         em.AddAtom(atom)
 
     if top.bonds:
@@ -401,7 +411,9 @@ def _build_rdkit_mol_from_topology(top: TopologyInput) -> Chem.Mol:
             else:
                 el = element(int(top.atomic_numbers[i]))
                 cov_pm = el.covalent_radius_pyykko
-                covalent_radii.append(float(cov_pm) / 100.0 if cov_pm is not None else 0.77)
+                if cov_pm is None or not np.isfinite(cov_pm) or cov_pm <= 0:
+                    raise InvalidTopologyInputError("A dynamically queried Pyykko radius is required; no guessed radius is permitted")
+                covalent_radii.append(float(cov_pm) / 100.0)
 
         for i in range(n_atoms):
             if top.is_ghost[i] or top.atomic_numbers[i] == 0:
@@ -411,7 +423,9 @@ def _build_rdkit_mol_from_topology(top: TopologyInput) -> Chem.Mol:
                     continue
                 dist = float(np.linalg.norm(coords_arr[i] - coords_arr[j]))
                 r0 = covalent_radii[i] + covalent_radii[j]
-                if dist <= r0 + 0.40:
+                if not np.isfinite(dist) or dist <= .40:
+                    raise InvalidTopologyInputError("Real nuclei require finite non-overlapping input coordinates")
+                if dist <= 1.28 * r0:
                     em.AddBond(i, j, Chem.BondType.SINGLE)
         mol = em.GetMol()
     else:
@@ -679,106 +693,16 @@ def filter_tautomers_thermodynamics(
     config: TautomerEnumerationConfig,
     scratch_dir: Path,
 ) -> TautomerEnsemble:
-    """Downstream adapter: generates 3D ETKDGv3 conformers and filters via GFN2-xTB / MMFF94 [M][D].
+    """Refuse an unsupported thermal filter without pruning any structure.
 
-    Computes relative electronic energies Delta E_elec relative to the canonical tautomer,
-    pruning candidates exceeding config.energy_cutoff_kcal_mol.
+    This historical interface provides no explicit spin, geometry/minimum,
+    method, temperature, standard state or matched native provenance contract.
+    ETKDG guesses and candidate-specific xTB/MMFF/UFF fallbacks cannot supply
+    that evidence. BASE's verified TOPOS optimize/frequency/thermochemistry
+    workflow is the scientific route; its reports compare qualified protocols.
     """
-    scratch_dir = Path(scratch_dir)
-    scratch_dir.mkdir(parents=True, exist_ok=True)
-
-    xtb_bin = shutil.which("xtb")
-    raw_energies: Dict[str, float] = {}
-
-    for cand in ensemble.candidates:
-        mol = Chem.MolFromSmiles(cand.smiles)
-        if mol is None:
-            continue
-        mol_h = Chem.AddHs(mol)
-
-        # 3D Conformer generation via ETKDGv3
-        params = rdDistGeom.ETKDGv3()
-        params.randomSeed = 42
-        cid = rdDistGeom.EmbedMolecule(mol_h, params)
-        if cid < 0:
-            cid = rdDistGeom.EmbedMolecule(mol_h, useRandomCoords=True)
-            if cid < 0:
-                continue
-
-        # Energy evaluation: try xTB if available, else physical MMFF94 / UFF fallback
-        energy_computed: Optional[float] = None
-
-        if xtb_bin is not None:
-            cand_scratch = scratch_dir / f"xtb_{cand.candidate_id}"
-            cand_scratch.mkdir(parents=True, exist_ok=True)
-            xyz_file = cand_scratch / "coord.xyz"
-            Chem.MolToXYZFile(mol_h, str(xyz_file))
-            try:
-                res = subprocess.run(
-                    [xtb_bin, "coord.xyz", "--sp"],
-                    cwd=cand_scratch,
-                    capture_output=True,
-                    text=True,
-                    timeout=30.0,
-                )
-                if res.returncode == 0:
-                    for line in res.stdout.splitlines():
-                        if "TOTAL ENERGY" in line:
-                            # Parse Hartree and convert to kcal/mol (1 Hartree = 627.5095 kcal/mol)
-                            hartree = float(line.split()[3])
-                            energy_computed = hartree * 627.5095
-                            break
-            except Exception as xtb_exc:
-                logger.warning("xTB execution failed for %s: %s; falling back to MMFF94", cand.candidate_id, xtb_exc)
-
-        if energy_computed is None:
-            # Physical MMFF94 / UFF force field evaluation
-            try:
-                mp = AllChem.MMFFGetMoleculeProperties(mol_h, mmffVariant="MMFF94")
-                if mp is not None:
-                    ff = AllChem.MMFFGetMoleculeForceField(mol_h, mp)
-                    ff.Initialize()
-                    ff.Minimize(maxIts=500)
-                    energy_computed = float(ff.CalcEnergy())
-                else:
-                    ff = AllChem.UFFGetMoleculeForceField(mol_h)
-                    ff.Initialize()
-                    ff.Minimize(maxIts=500)
-                    energy_computed = float(ff.CalcEnergy())
-            except Exception as ff_exc:
-                logger.warning("Force field evaluation failed for %s: %s", cand.candidate_id, ff_exc)
-
-        if energy_computed is not None:
-            raw_energies[cand.candidate_id] = energy_computed
-
-    # Reference energy: canonical tautomer energy if available, else min energy
-    canon_id = ensemble.canonical_tautomer_id
-    ref_energy = raw_energies.get(canon_id, min(raw_energies.values()) if raw_energies else 0.0)
-
-    # Filter candidates: retain canonical unconditionally; prune any exceeding energy cutoff
-    filtered_candidates: List[TautomerCandidate] = []
-    for cand in ensemble.candidates:
-        if cand.candidate_id in raw_energies:
-            delta_e = raw_energies[cand.candidate_id] - ref_energy
-            if cand.is_canonical or delta_e <= (config.energy_cutoff_kcal_mol + 1e-4):
-                filtered_candidates.append(
-                    cand.model_copy(update={"relative_energy_kcal_mol": round(delta_e, 4)})
-                )
-        elif cand.is_canonical:
-            # Always retain canonical tautomer
-            filtered_candidates.append(cand)
-
-    if not filtered_candidates:
-        filtered_candidates = [
-            c for c in ensemble.candidates if c.is_canonical
-        ]
-
-    return TautomerEnsemble(
-        parent_id=ensemble.parent_id,
-        canonical_tautomer_id=ensemble.canonical_tautomer_id,
-        total_generated=len(filtered_candidates),
-        candidates=filtered_candidates,
-        execution_duration_seconds=ensemble.execution_duration_seconds,
+    raise TautomerThermodynamicsUnavailableError(
+        "Tautomer structural enumeration cannot perform thermodynamic filtering: request matched native optimization, minimum qualification and thermochemistry through BASE's verified TOPOS provider; no candidates were recalculated or discarded"
     )
 
 
@@ -842,6 +766,9 @@ def save_tautomer_ensemble_to_hdf5(
                         grp.create_dataset("fixed_h_inchi_key", data=fik_arr, dtype=s32_dt, chunks=chunks, compression="gzip", compression_opts=4)
                         grp.create_dataset("canonical_score", data=scores_arr, dtype=np.float64, chunks=chunks, compression="gzip", compression_opts=4)
                         grp.create_dataset("relative_energy_kcal_mol", data=rel_e_arr, dtype=np.float64, chunks=chunks, compression="gzip", compression_opts=4)
+                        legacy_e_arr = np.array([c.unvalidated_legacy_energy_kcal_mol if c.unvalidated_legacy_energy_kcal_mol is not None else np.nan for c in ensemble.candidates], dtype=np.float64)
+                        grp.create_dataset("unvalidated_legacy_energy_kcal_mol", data=legacy_e_arr, dtype=np.float64, chunks=chunks, compression="gzip", compression_opts=4)
+                        grp.attrs["energy_scope"] = "structural_enumeration_only; legacy_numbers_unverified"
                         grp.create_dataset("is_canonical", data=is_canon_arr, dtype=np.bool_, chunks=chunks, compression="gzip", compression_opts=4)
                         grp.create_dataset("transform_depth", data=depths_arr, dtype=np.int32, chunks=chunks, compression="gzip", compression_opts=4)
 
@@ -892,6 +819,7 @@ def load_tautomer_ensemble_from_hdf5(
                         fik_arr = grp["fixed_h_inchi_key"][:]
                         scores_arr = grp["canonical_score"][:]
                         rel_e_arr = grp["relative_energy_kcal_mol"][:]
+                        legacy_e_arr = grp["unvalidated_legacy_energy_kcal_mol"][:] if "unvalidated_legacy_energy_kcal_mol" in grp else rel_e_arr
                         is_canon_arr = grp["is_canonical"][:]
                         depths_arr = grp["transform_depth"][:]
 
@@ -902,7 +830,7 @@ def load_tautomer_ensemble_from_hdf5(
                             ik = ik_arr[i].decode("utf-8") if isinstance(ik_arr[i], bytes) else str(ik_arr[i])
                             fik = fik_arr[i].decode("utf-8") if isinstance(fik_arr[i], bytes) else str(fik_arr[i])
                             sc = float(scores_arr[i])
-                            re = float(rel_e_arr[i])
+                            re = float(legacy_e_arr[i])
                             rel_e = None if np.isnan(re) else re
                             is_c = bool(is_canon_arr[i])
                             dep = int(depths_arr[i])
@@ -914,7 +842,8 @@ def load_tautomer_ensemble_from_hdf5(
                                     inchi_key=ik,
                                     fixed_h_inchi_key=fik,
                                     canonical_score=sc,
-                                    relative_energy_kcal_mol=rel_e,
+                                    relative_energy_kcal_mol=None,
+                                    unvalidated_legacy_energy_kcal_mol=rel_e,
                                     is_canonical=is_c,
                                     transform_depth=dep,
                                     transform_history=[],

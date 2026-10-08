@@ -85,8 +85,7 @@ import math
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -159,39 +158,9 @@ class PropagationComplianceError(MethodMatrixComplianceError):
 # Mendeleev Dynamic Atomic Mass Retrieval (Mendeleev Mandate)
 # ---------------------------------------------------------------------------
 def get_atomic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
-    """
-    Dynamically retrieves atomic or isotopic mass in unified atomic mass units (u/amu)
-    from the `mendeleev` library. Strictly adheres to the Mendeleev Library Mandate.
-    """
-    if not _MENDELEEV_AVAILABLE or _mendeleev_element is None:
-        raise RuntimeError(
-            "The 'mendeleev' library is strictly required by the Mendeleev Mandate "
-            "but is not available in the current environment."
-        )
-
-    clean_sym = symbol.strip().capitalize()
-    # Handle hydrogen isotope naming conventions
-    if clean_sym in ("D", "H2"):
-        clean_sym = "H"
-        mass_number = 2
-    elif clean_sym in ("T", "H3"):
-        clean_sym = "H"
-        mass_number = 3
-
-    el = _mendeleev_element(clean_sym)
-    if mass_number is not None:
-        for iso in getattr(el, "isotopes", []):
-            if getattr(iso, "mass_number", None) == mass_number:
-                iso_mass = getattr(iso, "mass", None)
-                if iso_mass is not None:
-                    return float(iso_mass)
-                break
-
-    el_mass = getattr(el, "mass", None) or getattr(el, "atomic_weight", None)
-    if el_mass is not None:
-        return float(el_mass)
-
-    raise ValueError(f"Could not retrieve dynamic mass for element '{symbol}' (mass_number={mass_number})")
+    """Resolve a measured exact assigned/principal isotope without fallback."""
+    from cochem_base.physics.isotopes import get_isotope_mass
+    return get_isotope_mass(symbol, mass_number)
 
 
 def get_reduced_mass(

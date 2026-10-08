@@ -1,13 +1,9 @@
-"""
-CoChem-TORQ: Comprehensive Unit Test Suite (Phases 1 through 5)
-================================================================
-Authentic Physical Unit Tests covering all 11 Modules and Deliverables:
-- Phase 1: cochem_torq_init, cochem_torq_schema, cochem_h5_healer
-- Phase 2: cochem_torq_vault, cochem_torq_topology, cochem_torq_alignment
-- Phase 3: cochem_torq_mace, cochem_torq_quench
-- Phase 4: cochem_torq_slicer
-- Phase 5: cochem_torq_engine, cochem_torq_watchdog
-- Proxy Interface Layer: cochem_base.* re-exports
+"""Retained engineering, analytical and parser regressions.
+
+Hand-written coordinates, numbers and grammar inputs in this file are test
+vectors, not measured computational-chemistry results or native engine evidence.
+Counterfeit integration/fallback-success cases were retired; genuine replacement
+coverage and native evidence are listed in .docs/Legacy_Test_Retirement_1_1.md.
 """
 
 from __future__ import annotations
@@ -686,53 +682,7 @@ class TestTorqMace:
         rotated_180 = rotate_dihedral_angle(coords, (0, 1, 2, 3), 180.0)
         assert rotated_180[3, 1] == pytest.approx(-1.0, abs=1e-4)
 
-    def test_evaluate_pes_point(self) -> None:
-        symbols = ["C", "C", "H", "H", "H", "H", "H", "H"]
-        coords = np.array(
-            [
-                [-0.75, 0.0, 0.0],
-                [0.75, 0.0, 0.0],
-                [-1.15, 1.0, 0.0],
-                [-1.15, -0.5, 0.86],
-                [-1.15, -0.5, -0.86],
-                [1.15, 1.0, 0.0],
-                [1.15, -0.5, 0.86],
-                [1.15, -0.5, -0.86],
-            ],
-            dtype=np.float64,
-        )
 
-        energy = evaluate_pes_point(symbols, coords)
-        assert isinstance(energy, float)
-
-    def test_generate_adaptive_grid(self) -> None:
-        symbols = ["C", "C", "H", "H", "H", "H", "H", "H"]
-        coords = np.array(
-            [
-                [-0.75, 0.0, 0.0],
-                [0.75, 0.0, 0.0],
-                [-1.15, 1.0, 0.0],
-                [-1.15, -0.5, 0.86],
-                [-1.15, -0.5, -0.86],
-                [1.15, 1.0, 0.0],
-                [1.15, -0.5, 0.86],
-                [1.15, -0.5, -0.86],
-            ],
-            dtype=np.float64,
-        )
-
-        grid_res = generate_adaptive_grid(
-            symbols=symbols,
-            coordinates=coords,
-            dihedral_indices=(2, 0, 1, 5),
-            coarse_points=8,
-            gradient_threshold=0.0001,
-        )
-
-        assert "angles_deg" in grid_res
-        assert "energies_hartree" in grid_res
-        assert "gradients_hartree_per_deg" in grid_res
-        assert grid_res["adaptive_point_count"] >= grid_res["coarse_point_count"]
 
     def test_onnx_cpu_fallback(self) -> None:
         cfg = onnx_cpu_fallback(device_preference="cpu")
@@ -749,60 +699,6 @@ class TestTorqMace:
 # ==============================================================================
 
 
-class TestTorqQuench:
-    """Test suite for cochem_torq_quench.py."""
-
-    def test_detect_covalent_clashes_and_soft_quench(self) -> None:
-        symbols = ["C", "C", "H", "H"]
-        coords = np.array(
-            [
-                [-0.75, 0.0, 0.0],
-                [0.75, 0.0, 0.0],
-                [0.00, 0.20, 0.0],
-                [0.00, 0.35, 0.0],
-            ],
-            dtype=np.float64,
-        )
-
-        initial_clashes = detect_covalent_clashes(symbols, coords, clash_ratio=0.70)
-        assert len(initial_clashes) >= 1
-
-        quench_res = execute_soft_quench(
-            symbols=symbols,
-            coordinates=coords,
-            frozen_dihedrals=[(2, 0, 1, 3)],
-            max_steps=50,
-            damping=0.2,
-        )
-
-        assert quench_res["converged"] is True
-        assert quench_res["final_clash_count"] == 0
-        relaxed_coords = quench_res["relaxed_coordinates"]
-        dist = np.linalg.norm(relaxed_coords[2] - relaxed_coords[3])
-        assert dist > 0.40
-
-    def test_execute_jiggle_quench(self) -> None:
-        symbols = ["C", "C", "H", "H"]
-        coords = np.array(
-            [
-                [-0.75, 0.0, 0.0],
-                [0.75, 0.0, 0.0],
-                [0.00, 0.20, 0.0],
-                [0.00, 0.35, 0.0],
-            ],
-            dtype=np.float64,
-        )
-
-        jiggle_res = execute_jiggle_quench(
-            symbols=symbols,
-            coordinates=coords,
-            jiggle_amplitude=0.03,
-            max_steps=40,
-        )
-        assert (
-            jiggle_res["final_clash_count"] < jiggle_res["initial_clash_count"]
-            or jiggle_res["converged"]
-        )
 
 
 # ==============================================================================
@@ -927,54 +823,7 @@ class TestTorqEngine:
             validate_method_matrix_compliance({"compliance": True, "calc_hess": True, "grid": "defgrid1"})
         assert exc_info.value.error_code == ProvenanceErrorCode.INVALID_HESSIAN_STRATEGY
 
-    def test_route_method_matrix_success(self) -> None:
-        calc_spec = {
-            "method": "r2SCAN-3c",
-            "grid": "defgrid1",
-            "hessian_strategy": "InHess XTB2",
-            "threads": 4,
-            "maxcore_mb": 2048,
-            "opt": True,
-            "frozen_monomer": True,
-            "bsse_counterpoise": True,
-            "simulated_energy": -228.19284,
-        }
-        result = route_method_matrix(calc_spec)
-        assert result["status"] == "SUCCESS"
-        assert result["provenance"] == "[E]"
-        assert "defgrid1" in result["input_deck"]
-        assert "Constraints" in result["input_deck"]
-        assert "BSSE true" in result["input_deck"]
 
-    def test_route_method_matrix_provenance_distinction(self) -> None:
-        """Verifies Method Matrix §12.5 & §21 provenance tagging rules."""
-        # Simulated/estimated energy yields [E]
-        spec_sim = {
-            "method": "r2SCAN-3c",
-            "grid": "defgrid1",
-            "simulated_energy": -154.283910,
-        }
-        res_sim = route_method_matrix(spec_sim)
-        assert res_sim["provenance"] == "[E]"
-
-        # Authentic converged quantum calculation yields [M]
-        spec_conv = {
-            "method": "r2SCAN-3c",
-            "grid": "defgrid1",
-            "converged_energy": -154.283910,
-        }
-        res_conv = route_method_matrix(spec_conv)
-        assert res_conv["provenance"] == "[M]"
-
-        # Explicit derived provenance is preserved
-        spec_derived = {
-            "method": "r2SCAN-3c",
-            "grid": "defgrid1",
-            "energy_hartree": -154.283910,
-            "provenance": "[D]",
-        }
-        res_derived = route_method_matrix(spec_derived)
-        assert res_derived["provenance"] == "[D]"
 
     def test_opi_persistent_threading(self, tmp_path: Path) -> None:
         scratch = tmp_path / "scratch"

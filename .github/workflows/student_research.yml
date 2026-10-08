@@ -127,6 +127,16 @@ jobs:
             --output "$RUNNER_TEMP/cochem-student-evidence/crest-installation.json"
           echo "CREST_CMD=$COCHEM_ARTIFACT_DIR/free-engines/crest/crest/crest" >> "$GITHUB_ENV"
           echo "$COCHEM_ARTIFACT_DIR/free-engines/crest/crest" >> "$GITHUB_PATH"
+      - name: Provision the exact free Quantum ESPRESSO build when requested
+        if: steps.worker.outputs.qe == 'true'
+        run: |
+          sudo apt-get install --yes liblapack3 libblas3 libfftw3-double3 libopenmpi-dev libgomp1
+          python .scripts/install_qe_paw.py --prefix "$COCHEM_ARTIFACT_DIR/qe" \
+            --pseudo-dir "$COCHEM_ARTIFACT_DIR/qe-example-pseudos" \
+            > "$RUNNER_TEMP/cochem-student-evidence/qe-installation.log"
+          cp "$COCHEM_ARTIFACT_DIR/qe/installation-manifest.json" \
+            "$RUNNER_TEMP/cochem-student-evidence/qe-installation.json"
+          echo "COCHEM_QE_BIN=$COCHEM_ARTIFACT_DIR/qe/usr/bin/pw.x" >> "$GITHUB_ENV"
       - name: Install BASE, free engines and every Stage 0 phase
         if: steps.worker.outputs.probe != 'true'
         env:
@@ -165,6 +175,13 @@ jobs:
         run: |
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/run_student_research.py \
             --download-scientific-inputs --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Reparse original molecular or periodic inputs and authenticate the PAW files
+        if: steps.worker.outputs.data_inputs == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/run_student_research.py \
+            --download-data-inputs --output "$RUNNER_TEMP/cochem-student-evidence"
       - name: Check optional licensed archive access without installing an engine
         if: steps.worker.outputs.probe == 'true'
         env:

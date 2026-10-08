@@ -42,7 +42,7 @@ except ImportError:
 
 logger = logging.getLogger("CoChem.TOPOS.FAIRExporter")
 
-from cochem_base.core.glossary import HARTREE_TO_KCAL_MOL
+from cochem_base.core.glossary import HARTREE_TO_KCAL_MOL as HARTREE_TO_KCAL_MOL
 
 # Physical Constants (CODATA 2018 / 2022)
 GAS_CONSTANT_KCAL_MOL_K: float = 1.98720425864083e-3  # R in kcal/(mol*K)
@@ -176,7 +176,7 @@ LATEX_SI_TEMPLATE: str = r"""\documentclass[11pt, a4paper]{article}
 \DeclareSIUnit\kcalmol{kcal\per\mol}
 \DeclareSIUnit\mhz{\mega\hertz}
 
-\title{CoChem-TOPOS: High-Precision Conformational Supporting Information}
+\title{CoChem: Supplied Archive Quantities and Provenance}
 \author{CoChem Automated Pipeline Engine}
 \date{\today}
 
@@ -184,18 +184,18 @@ LATEX_SI_TEMPLATE: str = r"""\documentclass[11pt, a4paper]{article}
 \maketitle
 
 \section{Introduction}
-This document contains the verified structural coordinates, thermodynamic corrections, rotational constants, and single-point electronic energies resulting from the multi-tier Method Matrix Cascade. All quantum chemistry calculations and tensor operations strictly follow Stage 5.1 FAIR reporting protocols.
+This document transcribes supplied archive quantities. Missing quantities are shown as --. A bare archive does not establish stationary minima, matched electronic-state and method protocols, or thermodynamic populations. Qualified scientific comparisons are produced through the canonical BASE student-report contract with retained native source receipts.
 
-\section{Optimized Isomer Energetics and Thermodynamics}
+\section{Supplied Structure Quantities}
 \begin{table}[htbp]
 \centering
-\caption{Optimized Isomer Energetics, Relative Enthalpies ($\Delta H$), Dipole Moments ($\mu$), Rotational Constants ($A, B, C$), and Boltzmann Populations at \SI{298.15}{\kelvin}}
+\caption{Supplied energies and properties; unavailable relative thermochemistry and populations are not inferred}
 \begin{tabular}{l l S[table-format=-5.6] S[table-format=3.3] S[table-format=2.3] S[table-format=7.1] S[table-format=7.1] S[table-format=7.1] S[table-format=3.2]}
 \toprule
 \textbf{Isomer ID} & \textbf{Terminal Tier} & {\textbf{Energy (\si{\hartree})}} & {\textbf{$\Delta H$ (\si{\kcalmol})}} & {\textbf{$\mu$ (\si{\debye})}} & {\textbf{$A$ (\si{\mega\hertz})}} & {\textbf{$B$ (\si{\mega\hertz})}} & {\textbf{$C$ (\si{\mega\hertz})}} & {\textbf{Pop. (\%)}} \\
 \midrule
 {% for rec in records %}
-{{ rec.sanitized_id }} & {{ rec.sanitized_tier }} & {{ "%.6f"|format(rec.energy) }} & {{ "%.3f"|format(rec.rel_enthalpy_kcal) }} & {{ "%.3f"|format(rec.dipole) }} & {{ "%.1f"|format(rec.rot_constants[0]) }} & {{ "%.1f"|format(rec.rot_constants[1]) }} & {{ "%.1f"|format(rec.rot_constants[2]) }} & {{ "%.2f"|format(rec.boltzmann_pop_percent) }} \\
+{{ rec.sanitized_id }} & {{ rec.sanitized_tier }} & {{ rec.energy|scientific_number(6) }} & {{ rec.rel_enthalpy_kcal|scientific_number(3) }} & {{ rec.dipole|scientific_number(3) }} & {{ rec.rot_constants[0]|scientific_number(1) }} & {{ rec.rot_constants[1]|scientific_number(1) }} & {{ rec.rot_constants[2]|scientific_number(1) }} & {{ rec.boltzmann_pop_percent|scientific_number(2) }} \\
 {% endfor %}
 \bottomrule
 \end{tabular}
@@ -231,7 +231,7 @@ LATEX_SI_TABLES_TEMPLATE: str = r"""% CoChem-TOPOS Publication-Grade LaTeX Table
 \textbf{Isomer ID} & \textbf{Tier} & {\textbf{Electronic Energy ($E_h$)}} & {\textbf{$\Delta H$ (kcal/mol)}} & {\textbf{Dipole (D)}} & {\textbf{$A$ (MHz)}} & {\textbf{$B$ (MHz)}} & {\textbf{$C$ (MHz)}} & {\textbf{Boltzmann (\%)}} \\
 \midrule
 {% for rec in records %}
-{{ rec.sanitized_id }} & {{ rec.sanitized_tier }} & {{ "%.6f"|format(rec.energy) }} & {{ "%.3f"|format(rec.rel_enthalpy_kcal) }} & {{ "%.3f"|format(rec.dipole) }} & {{ "%.1f"|format(rec.rot_constants[0]) }} & {{ "%.1f"|format(rec.rot_constants[1]) }} & {{ "%.1f"|format(rec.rot_constants[2]) }} & {{ "%.2f"|format(rec.boltzmann_pop_percent) }} \\
+{{ rec.sanitized_id }} & {{ rec.sanitized_tier }} & {{ rec.energy|scientific_number(6) }} & {{ rec.rel_enthalpy_kcal|scientific_number(3) }} & {{ rec.dipole|scientific_number(3) }} & {{ rec.rot_constants[0]|scientific_number(1) }} & {{ rec.rot_constants[1]|scientific_number(1) }} & {{ rec.rot_constants[2]|scientific_number(1) }} & {{ rec.boltzmann_pop_percent|scientific_number(2) }} \\
 {% endfor %}
 \bottomrule
 \end{tabular}
@@ -240,80 +240,15 @@ LATEX_SI_TABLES_TEMPLATE: str = r"""% CoChem-TOPOS Publication-Grade LaTeX Table
 
 
 def get_atomic_mass(symbol: str) -> float:
-    """
-    Dynamically retrieves standard atomic weight using the mendeleev library
-    in strict compliance with the Mendeleev Atomic Mass Mandate.
-    Handles standard elements as well as Hydrogen isotopes (D, T).
-    """
-    sym = symbol.strip()
-    if not sym:
-        return 0.0
-
-    # Handle Deuterium (D, 2H) and Tritium (T, 3H) dynamically via Mendeleev
-    if sym.upper() in {"D", "2H"}:
-        try:
-            if mendeleev_element is not None:
-                h_el = mendeleev_element("H")
-            else:
-                from mendeleev import element
-                h_el = element("H")
-            for iso in getattr(h_el, "isotopes", []):
-                if iso.mass_number == 2:
-                    return float(iso.mass)
-        except Exception as _e:
-            logger.debug(f"Ignored exception: {_e}")
-        return 2.0141017778
-
-    if sym.upper() in {"T", "3H"}:
-        try:
-            if mendeleev_element is not None:
-                h_el = mendeleev_element("H")
-            else:
-                from mendeleev import element
-                h_el = element("H")
-            for iso in getattr(h_el, "isotopes", []):
-                if iso.mass_number == 3:
-                    return float(iso.mass)
-        except Exception as _e:
-            logger.debug(f"Ignored exception: {_e}")
-        return 3.0160492813
-
-    # Normalize chemical symbol (e.g., "cl" -> "Cl", "FE" -> "Fe")
-    norm_sym = sym.capitalize()
-    if mendeleev_element is not None:
-        try:
-            return float(mendeleev_element(norm_sym).mass)
-        except Exception as _e:
-            logger.debug(f"Ignored exception: {_e}")
-    try:
-        from mendeleev import element
-        return float(element(norm_sym).mass)
-    except Exception as e:
-        logger.warning(f"Could not retrieve atomic mass for '{symbol}' via mendeleev: {e}")
-        return 0.0
+    """Resolve a dynamic assigned/principal isotope mass for physical exports."""
+    from cochem_base.physics.isotopes import get_isotope_mass
+    return get_isotope_mass(symbol)
 
 
 def compute_molecular_mass_from_xyz(xyz_content: str) -> float:
-    """
-    Parses Cartesian coordinates and calculates total molecular mass
-    using dynamic atomic masses from mendeleev.
-    """
-    if not xyz_content.strip():
-        return 0.0
-    lines = [line.strip() for line in xyz_content.strip().splitlines() if line.strip()]
-    if not lines:
-        return 0.0
-    start_idx = 0
-    if lines[0].isdigit():
-        start_idx = 2
-    total_mass = 0.0
-    for line in lines[start_idx:]:
-        tokens = line.split()
-        if tokens:
-            sym = tokens[0]
-            if sym.isalpha():
-                total_mass += get_atomic_mass(sym)
-    return total_mass
+    """Sum exact nuclear masses from one validated XYZ or coordinate block."""
+    from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+    return sum(parse_geometry_identity(xyz_content).masses_u)
 
 
 def _compute_sha256(file_path: str | Path) -> str:
@@ -441,21 +376,14 @@ def calculate_boltzmann_weights(
     """
     if not energies_kcal:
         return []
-
-    min_energy = min(energies_kcal)
-    rt = GAS_CONSTANT_KCAL_MOL_K * temperature_k
-
-    if rt <= 0:
-        return [1.0 if e == min_energy else 0.0 for e in energies_kcal]
-
-    rel_energies = [e - min_energy for e in energies_kcal]
-    exp_factors = [math.exp(-de / rt) for de in rel_energies]
-    sum_exp = sum(exp_factors)
-
-    if sum_exp <= 0.0:
-        return [1.0 / len(energies_kcal)] * len(energies_kcal)
-
-    return [ef / sum_exp for ef in exp_factors]
+    if not math.isfinite(temperature_k) or temperature_k <= 0:
+        raise ValueError("Statistical weights require a finite positive temperature")
+    if any(not math.isfinite(value) for value in energies_kcal):
+        raise ValueError("Statistical weights require finite explicitly supplied energies")
+    minimum = min(energies_kcal)
+    factors = [math.exp(-(value - minimum) / (GAS_CONSTANT_KCAL_MOL_K * temperature_k)) for value in energies_kcal]
+    total = sum(factors)
+    return [factor / total for factor in factors]
 
 
 class TOPOSFAIRExporter:
@@ -490,6 +418,7 @@ class TOPOSFAIRExporter:
             lstrip_blocks=True,
         )
         self.jinja_env.filters["sanitize_latex"] = sanitize_latex
+        self.jinja_env.filters["scientific_number"] = lambda value, places: (r"\multicolumn{1}{c}{--}" if value is None else format(float(value), f".{places}f"))
 
     def query_crossref_doi(
         self,
@@ -706,158 +635,65 @@ class TOPOSFAIRExporter:
         return bib_path
 
     def _extract_isomer_records(self) -> list[dict[str, Any]]:
-        """
-        Traverses landscape.h5 and extracts deduplicated energies, thermodynamic
-        corrections, rotational constants, dipole moments, and geometries.
+        """Transcribe finite supplied properties without inventing missing science.
+
+        This legacy HDF5 layout lacks the native source/state/minimum receipts
+        required by student_reports.build_isomer_report. It cannot independently
+        certify relative thermochemistry or populations, even if energies exist.
         """
         records: list[dict[str, Any]] = []
-
-        try:
-            f_h5 = h5py.File(self.hdf5_path, "r", libver="latest", swmr=True)
-        except OSError:
-            f_h5 = h5py.File(self.hdf5_path, "r")
-
-        with f_h5 as f:
-            base_group = f["deduplicated_isomers"] if "deduplicated_isomers" in f else f
-            for geom_id in base_group.keys():
-                geom_group = base_group[geom_id]
-                if not isinstance(geom_group, h5py.Group):
+        with h5py.File(self.hdf5_path, "r", libver="latest", swmr=True) as handle:
+            base = handle["deduplicated_isomers"] if "deduplicated_isomers" in handle else handle
+            for identifier, geometry in base.items():
+                if not isinstance(geometry, h5py.Group):
                     continue
-
-                available_tiers = [k for k, v in geom_group.items() if isinstance(v, h5py.Group)]
-                if not available_tiers:
+                tiers = [name for name, node in geometry.items() if isinstance(node, h5py.Group)]
+                if not tiers:
                     continue
-
-                def extract_tier_sort_key(t: str) -> tuple[int, str]:
-                    match = re.search(r"\d+", t)
-                    num = int(match.group()) if match else 0
-                    return (num, t)
-
-                available_tiers.sort(key=extract_tier_sort_key)
-                terminal_tier = available_tiers[-1]
-                tier_grp = geom_group[terminal_tier]
-
-                # 1. Electronic Energy (Hartree)
-                energy: float | None = None
-                for k in ["electronic_energy_hartree", "energy", "scf_energy"]:
-                    if k in tier_grp.attrs and tier_grp.attrs[k] is not None:
-                        energy = float(tier_grp.attrs[k])
-                        break
-                    elif k in tier_grp and isinstance(tier_grp[k], h5py.Dataset):
-                        val = tier_grp[k][()]
-                        if val is not None:
-                            energy = float(val)
-                            break
-
-                if energy is None:
-                    logger.warning(
-                        f"Missing electronic energy for geometry '{geom_id}' at tier '{terminal_tier}'. Defaulting to 0.0 Hartree."
-                    )
-                    energy = 0.0
-
-                # 2. Enthalpy & Gibbs Free Energy (Hartree)
-                enthalpy: float | None = None
-                for k in ["enthalpy_hartree", "enthalpy"]:
-                    if k in tier_grp.attrs and tier_grp.attrs[k] is not None:
-                        enthalpy = float(tier_grp.attrs[k])
-                        break
-                    elif k in tier_grp and isinstance(tier_grp[k], h5py.Dataset):
-                        val = tier_grp[k][()]
-                        if val is not None:
-                            enthalpy = float(val)
-                            break
-
-                gibbs: float | None = None
-                for k in ["free_energy_hartree", "gibbs_free_energy", "gibbs_energy"]:
-                    if k in tier_grp.attrs and tier_grp.attrs[k] is not None:
-                        gibbs = float(tier_grp.attrs[k])
-                        break
-                    elif k in tier_grp and isinstance(tier_grp[k], h5py.Dataset):
-                        val = tier_grp[k][()]
-                        if val is not None:
-                            gibbs = float(val)
-                            break
-
-                # 3. Zero-Point Energy (Hartree)
-                zpe: float | None = None
-                for k in ["zpe_hartree", "zero_point_energy", "zpve"]:
-                    if k in tier_grp.attrs and tier_grp.attrs[k] is not None:
-                        zpe = float(tier_grp.attrs[k])
-                        break
-                    elif k in tier_grp and isinstance(tier_grp[k], h5py.Dataset):
-                        val = tier_grp[k][()]
-                        if val is not None:
-                            zpe = float(val)
-                            break
-
-                # 4. Dipole Moment (Debye)
-                dipole: float | None = None
-                for k in ["dipole_moment_debye", "dipole_magnitude", "dipole"]:
-                    if k in tier_grp.attrs and tier_grp.attrs[k] is not None:
-                        dipole = float(tier_grp.attrs[k])
-                        break
-                    elif k in tier_grp and isinstance(tier_grp[k], h5py.Dataset):
-                        val = tier_grp[k][()]
-                        if isinstance(val, (np.ndarray, list, tuple)):
-                            dipole = float(math.sqrt(sum(float(x) ** 2 for x in val)))
-                        elif val is not None:
-                            dipole = float(val)
-                        break
-
-                # 5. Rotational Constants (MHz)
-                rot_constants: tuple[float, float, float] | None = None
-                for k in ["rotational_constants_mhz", "rotational_constants", "rot_constants"]:
-                    if k in tier_grp.attrs and tier_grp.attrs[k] is not None:
-                        val = tier_grp.attrs[k]
-                        if isinstance(val, (np.ndarray, list, tuple)) and len(val) >= 3:
-                            rot_constants = (float(val[0]), float(val[1]), float(val[2]))
-                            break
-                    elif k in tier_grp and isinstance(tier_grp[k], h5py.Dataset):
-                        val = tier_grp[k][()]
-                        if isinstance(val, (np.ndarray, list, tuple)) and len(val) >= 3:
-                            rot_constants = (float(val[0]), float(val[1]), float(val[2]))
-                            break
-
-                # 6. Geometry XYZ
-                xyz_str = ""
-                if "geometry_xyz" in tier_grp:
-                    xyz_val = tier_grp["geometry_xyz"][()]
-                    xyz_str = xyz_val.decode("utf-8") if hasattr(xyz_val, "decode") else str(xyz_val)
-
+                def tier_order(name: str) -> tuple[int, str]:
+                    match = re.search(r"\d+", name)
+                    return (int(match.group()) if match else 0, name)
+                tier = sorted(tiers, key=tier_order)[-1]
+                node = geometry[tier]
+                def quantity(names: list[str], vector: bool = False):
+                    for name in names:
+                        if name in node.attrs:
+                            value = node.attrs[name]
+                        elif name in node and isinstance(node[name], h5py.Dataset):
+                            value = node[name][()]
+                        else:
+                            continue
+                        values = np.asarray(value, dtype=np.float64)
+                        if not np.all(np.isfinite(values)):
+                            raise ValueError(f"Nonfinite supplied {name} for {identifier}")
+                        if vector:
+                            if values.shape != (3,):
+                                raise ValueError(f"Supplied {name} requires three ordered components")
+                            return tuple(float(component) for component in values)
+                        if values.ndim:
+                            if name in {"dipole", "dipole_magnitude", "dipole_moment_debye"} and values.shape == (3,):
+                                return float(np.linalg.norm(values))
+                            raise ValueError(f"Supplied {name} requires a scalar")
+                        return float(values)
+                    return None
+                rot = quantity(["rotational_constants_mhz", "rotational_constants", "rot_constants"], vector=True)
+                xyz = node["geometry_xyz"][()] if "geometry_xyz" in node else ""
+                xyz = xyz.decode("utf-8") if isinstance(xyz, bytes) else str(xyz)
                 records.append({
-                    "id": geom_id,
-                    "sanitized_id": sanitize_latex(geom_id),
-                    "tier": terminal_tier,
-                    "sanitized_tier": sanitize_latex(terminal_tier),
-                    "energy": energy,
-                    "enthalpy": enthalpy if enthalpy is not None else energy,
-                    "gibbs": gibbs if gibbs is not None else energy,
-                    "zpe": zpe if zpe is not None else 0.0,
-                    "dipole": dipole if dipole is not None else 0.0,
-                    "rot_constants": rot_constants if rot_constants is not None else (0.0, 0.0, 0.0),
-                    "xyz": xyz_str,
+                    "id": identifier, "sanitized_id": sanitize_latex(identifier),
+                    "tier": tier, "sanitized_tier": sanitize_latex(tier),
+                    "energy": quantity(["electronic_energy_hartree", "energy", "scf_energy"]),
+                    "enthalpy": quantity(["enthalpy_hartree", "enthalpy"]),
+                    "gibbs": quantity(["free_energy_hartree", "gibbs_free_energy", "gibbs_energy"]),
+                    "zpe": quantity(["zpe_hartree", "zero_point_energy", "zpve"]),
+                    "dipole": quantity(["dipole_moment_debye", "dipole_magnitude", "dipole"]),
+                    "rot_constants": rot if rot is not None else (None, None, None), "xyz": xyz,
+                    "rel_energy_kcal": None, "rel_enthalpy_kcal": None, "rel_gibbs_kcal": None,
+                    "boltzmann_pop_percent": None,
+                    "qualification": "supplied archive quantities; no authenticated comparison/minimum protocol",
+                    "population_unavailable_reason": "Qualified native state, minimum, temperature and standard-state receipts are required by the canonical student-report contract",
                 })
-
-        records.sort(key=lambda x: str(x["id"]))
-
-        # Compute relative enthalpies and Boltzmann weights
-        if records:
-            min_e = min(r["energy"] for r in records)
-            min_h = min(r["enthalpy"] for r in records)
-            min_g = min(r["gibbs"] for r in records)
-
-            for r in records:
-                r["rel_energy_kcal"] = (r["energy"] - min_e) * HARTREE_TO_KCAL_MOL
-                r["rel_enthalpy_kcal"] = (r["enthalpy"] - min_h) * HARTREE_TO_KCAL_MOL
-                r["rel_gibbs_kcal"] = (r["gibbs"] - min_g) * HARTREE_TO_KCAL_MOL
-
-            gibbs_kcal_list = [r["rel_gibbs_kcal"] for r in records]
-            boltzmann_weights = calculate_boltzmann_weights(gibbs_kcal_list, DEFAULT_TEMPERATURE_K)
-
-            for r, bw in zip(records, boltzmann_weights, strict=False):
-                r["boltzmann_pop_percent"] = bw * 100.0
-
-        return records
+        return sorted(records, key=lambda record: str(record["id"]))
 
     def generate_latex_si(self, filename: str = "TOPOS_Supporting_Information.tex") -> Path:
         """
@@ -881,18 +717,18 @@ class TOPOSFAIRExporter:
             "jinja2_version": str(getattr(jinja2, "__version__", "unknown")),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "database_sha256": db_hash,
-            "pipeline": "CoChem-TOPOS v4.0 (Stage 5.1)",
-            "env_matrix": "6-Tier Tripartite Air-Gap Verified Matrix",
+            "pipeline": "CoChem-BASE supplied-archive exporter",
+            "env_matrix": "Export host only; calculation environment admission is not established by this archive",
         }
         provenance_json = json.dumps(provenance_metadata, sort_keys=True)
         provenance_hash = hashlib.sha256(provenance_json.encode("utf-8")).hexdigest()
 
         provenance_context = {
-            "pipeline": "CoChem-TOPOS v4.0 (Stage 5.1)",
+            "pipeline": "CoChem-BASE supplied-archive exporter",
             "database_sha256": db_hash,
             "execution_sha256": provenance_hash,
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "env_matrix": "6-Tier Tripartite Air-Gap Verified Matrix",
+            "env_matrix": "Export host only; calculation environment admission is not established by this archive",
             "python_version": platform.python_version(),
             "numpy_version": str(getattr(np, "__version__", "unknown")),
             "h5py_version": str(getattr(h5py, "__version__", "unknown")),

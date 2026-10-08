@@ -1,7 +1,8 @@
 """Resonance Structure Enumeration Subsystem.
 
-Provides conjugated pi-system traversal, alternating cycle matching, resonance contributor
-generation, energy penalty evaluation, and Boltzmann-weighted ensemble distribution.
+Provides bounded structural Lewis contributor enumeration. Resonance contributors
+are representations of one electronic state; they are not thermally occupied
+isomers. This module neither assigns guessed energies nor Boltzmann populations.
 """
 
 from __future__ import annotations
@@ -9,17 +10,23 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-import networkx as nx
-import numpy as np
-from pydantic import BaseModel, Field
+from typing import Literal
 
-from cochem.topos.exceptions import ResonanceEnumerationError
+from pydantic import BaseModel, ConfigDict, Field
+from rdkit import Chem
+
+from cochem.topos.exceptions import TopologyError
 from cochem.topos.graph import TopologyGraph
 from cochem.topos.rings import perceive_aromaticity, perceive_cycle_basis
 
 logger = logging.getLogger("cochem.topos.resonance")
 
-GAS_CONSTANT_KCAL: float = 0.00198720425864083  # kcal / (mol * K)
+class ResonanceEnumerationError(TopologyError):
+    """A bounded chemical-structure enumeration or validation failure."""
+
+
+class ResonanceThermodynamicsUnavailableError(ResonanceEnumerationError):
+    """Lewis contributors cannot be assigned equilibrium-isomer populations."""
 
 
 class ResonanceStructure(BaseModel):
@@ -31,19 +38,10 @@ class ResonanceStructure(BaseModel):
     formal_charges: dict[int, int] = Field(
         description="Formal charge assigned to each participating topological node."
     )
-    relative_energy_kcal: float = Field(
-        ge=0.0,
-        description="Relative energetic penalty in kcal/mol computed from valence and charge separation.",
-    )
-    boltzmann_weight: float = Field(
-        ge=0.0,
-        le=1.0001,
-        description="Normalized Boltzmann weight at specified thermodynamic temperature.",
-    )
-    is_major: bool = Field(
-        default=False,
-        description="True if this contributor corresponds to the lowest energy dominant state.",
-    )
+    model_config = ConfigDict(extra="forbid")
+    relative_energy_kcal: None = Field(default=None, description="Unavailable: no resonance-contributor energy was calculated")
+    boltzmann_weight: None = Field(default=None, description="Not applicable to Lewis resonance contributors")
+    is_major: None = Field(default=None, description="No wavefunction-derived contributor ranking is available")
 
 
 class ResonanceEnsembleResult(BaseModel):
@@ -56,18 +54,21 @@ class ResonanceEnsembleResult(BaseModel):
     formal_charges: list[dict[int, int]] = Field(
         default_factory=list, description="Per-atom formal charge mapping for each resonance contributor."
     )
-    weights: list[float] = Field(
-        default_factory=list, description="Normalized contribution weights."
-    )
+    weights: None = Field(default=None, description="No thermodynamic populations apply to resonance contributors")
     structures: list[ResonanceStructure] = Field(
         default_factory=list,
-        description="List of enumerated resonance contributors ordered by Boltzmann weight descending.",
+        description="Structurally valid contributors, without an energetic or population ranking.",
     )
     pi_system_nodes: list[int] = Field(
         default_factory=list,
         description="Topological node indices participating in conjugated pi-system.",
     )
-    temperature_k: float = Field(default=298.15, description="Thermodynamic temperature in Kelvin.")
+    temperature_k: None = None
+    acceptance_scope: Literal["structural_enumeration_only"] = "structural_enumeration_only"
+    scientific_execution_performed: Literal[False] = False
+    enumeration_truncated: bool = False
+    excluded_ghost_nodes: list[int] = Field(default_factory=list)
+    population_scope: Literal["not_applicable_to_resonance_contributors"] = "not_applicable_to_resonance_contributors"
 
 
 class ResonanceEnumerator:
@@ -78,24 +79,22 @@ class ResonanceEnumerator:
         cls,
         graph: TopologyGraph,
         max_structures: int = 50,
-        temperature_k: float = 298.15,
+        temperature_k: float | None = None,
     ) -> ResonanceEnsembleResult:
-        """Enumerates valid resonance contributors and calculates Boltzmann weights.
+        """Enumerate Lewis forms without pretending they are separate isomers.
 
-        Parameters
-        ----------
-        graph : TopologyGraph
-            Chemical topology graph.
-        max_structures : int
-            Maximum number of canonical structures to enumerate.
-        temperature_k : float
-            Thermodynamic temperature in Kelvin.
-
-        Returns
-        -------
-        ResonanceEnsembleResult
-            Enumerated ensemble of resonance contributors with Boltzmann distribution.
+        The historical temperature argument explicitly refuses thermal ranking.
+        Quantitative resonance weights require an authentic wavefunction analysis.
         """
+        if temperature_k is not None:
+            raise ResonanceThermodynamicsUnavailableError(
+                "Resonance contributors are not thermally occupied isomers; Boltzmann populations and temperature-dependent rankings are not defined by this structural enumeration"
+            )
+        if type(max_structures) is not int or not 1 <= max_structures <= 10000:
+            raise ResonanceEnumerationError("Use a positive bounded structural enumeration limit")
+        graph = graph.copy()
+        ghosts = [node for node, data in graph.nodes(data=True) if data.get("is_ghost") or data.get("atomic_number") == 0]
+        graph.remove_nodes_from(ghosts)
         if graph.number_of_nodes() == 0:
             raise ResonanceEnumerationError("Cannot enumerate resonance structures for an empty graph.")
 
@@ -113,19 +112,16 @@ class ResonanceEnumerator:
             single_struct = ResonanceStructure(
                 bond_orders=base_orders,
                 formal_charges=base_charges,
-                relative_energy_kcal=0.0,
-                boltzmann_weight=1.0,
-                is_major=True,
             )
+            cls._validate_structure(graph, single_struct)
             kekule = [[(u, v, int(round(bo))) for (u, v), bo in base_orders.items()]]
             return ResonanceEnsembleResult(
                 ensemble_size=1,
                 kekule_structures=kekule,
                 formal_charges=[base_charges],
-                weights=[1.0],
                 structures=[single_struct],
                 pi_system_nodes=[],
-                temperature_k=temperature_k,
+                excluded_ghost_nodes=ghosts,
             )
 
         # Specialized recognition for heteroaromatic 5-rings and conjugated nitroarenes
@@ -141,24 +137,26 @@ class ResonanceEnumerator:
             structures = cls._generate_nitrobenzene_contributors(graph, temperature_k)
 
         else:
-            structures = cls._generate_general_contributors(graph, pi_nodes, temperature_k)
+            structures = cls._generate_general_contributors(graph, pi_nodes, temperature_k, max_structures)
 
+        for structure in structures:
+            cls._validate_structure(graph, structure)
+        truncated = len(structures) > max_structures
         structures = structures[:max_structures]
         kekule_structures = [
             [(u, v, int(round(bo))) for (u, v), bo in s.bond_orders.items()]
             for s in structures
         ]
         formal_charges = [s.formal_charges for s in structures]
-        weights = [s.boltzmann_weight for s in structures]
 
         return ResonanceEnsembleResult(
             ensemble_size=len(structures),
             kekule_structures=kekule_structures,
             formal_charges=formal_charges,
-            weights=weights,
             structures=structures,
             pi_system_nodes=sorted(pi_nodes),
-            temperature_k=temperature_k,
+            enumeration_truncated=truncated,
+            excluded_ghost_nodes=ghosts,
         )
 
     @classmethod
@@ -224,74 +222,44 @@ class ResonanceEnumerator:
         def make_structure(
             ring_bonds: dict[tuple[int, int], float],
             charge_shifts: dict[int, int],
-            penalty: float,
-        ) -> tuple[dict[tuple[int, int], float], dict[int, int], float]:
+        ) -> ResonanceStructure:
             bonds = dict(base_bonds)
             for (u, v), bo in ring_bonds.items():
                 bonds[tuple(sorted((u, v)))] = float(bo)
             charges = dict(base_charges)
             for node, q in charge_shifts.items():
                 charges[node] = q
-            return bonds, charges, penalty
+            return ResonanceStructure(bond_orders=bonds, formal_charges=charges)
 
         specs = [
-            # 1. Neutral major contributor
+            # 1. Neutral Lewis contributor
             (
                 {(h, c1): 1.0, (c1, c2): 2.0, (c2, c3): 1.0, (c3, c4): 2.0, (c4, h): 1.0},
                 {h: 0, c1: 0, c2: 0, c3: 0, c4: 0},
-                0.0,
             ),
             # 2. Charge-separated: N=C1 double bond, negative charge at C2
             (
                 {(h, c1): 2.0, (c1, c2): 1.0, (c2, c3): 1.0, (c3, c4): 2.0, (c4, h): 1.0},
                 {h: 1, c1: 0, c2: -1, c3: 0, c4: 0},
-                18.0,
             ),
             # 3. Charge-separated: N=C1, C2=C3, negative charge at C4
             (
                 {(h, c1): 2.0, (c1, c2): 1.0, (c2, c3): 2.0, (c3, c4): 1.0, (c4, h): 1.0},
                 {h: 1, c1: 0, c2: 0, c3: 0, c4: -1},
-                18.0,
             ),
             # 4. Charge-separated: N=C4 double bond, negative charge at C3
             (
                 {(h, c1): 1.0, (c1, c2): 2.0, (c2, c3): 1.0, (c3, c4): 1.0, (c4, h): 2.0},
                 {h: 1, c1: 0, c2: 0, c3: -1, c4: 0},
-                18.0,
             ),
             # 5. Charge-separated: N=C4, C3=C2, negative charge at C1
             (
                 {(h, c1): 1.0, (c1, c2): 1.0, (c2, c3): 2.0, (c3, c4): 1.0, (c4, h): 2.0},
                 {h: 1, c1: -1, c2: 0, c3: 0, c4: 0},
-                18.0,
             ),
         ]
 
-        # Calculate Boltzmann weights
-        raw_structs = [make_structure(b, c, p) for b, c, p in specs]
-        energies = [p for _, _, p in raw_structs]
-        min_e = min(energies)
-        rt = GAS_CONSTANT_KCAL * temperature_k
-        boltz_factors = [float(np.exp(-(e - min_e) / rt)) for e in energies]
-        total_boltz = sum(boltz_factors)
-        weights = [b / total_boltz for b in boltz_factors]
-
-        result_structures: list[ResonanceStructure] = []
-        for i, (bonds, charges, penalty) in enumerate(raw_structs):
-            is_major = (i == 0)
-            result_structures.append(
-                ResonanceStructure(
-                    bond_orders=bonds,
-                    formal_charges=charges,
-                    relative_energy_kcal=penalty,
-                    boltzmann_weight=weights[i],
-                    is_major=is_major,
-                )
-            )
-
-        # Sort descending by Boltzmann weight
-        result_structures.sort(key=lambda s: s.boltzmann_weight, reverse=True)
-        return result_structures
+        return [make_structure(bonds, charges) for bonds, charges in specs]
 
     @classmethod
     def _is_nitroarene(cls, graph: TopologyGraph) -> bool:
@@ -343,15 +311,14 @@ class ResonanceEnumerator:
         def make_structure(
             ring_bonds: dict[tuple[int, int], float],
             charge_shifts: dict[int, int],
-            penalty: float,
-        ) -> tuple[dict[tuple[int, int], float], dict[int, int], float]:
+        ) -> ResonanceStructure:
             bonds = dict(base_bonds)
             for (u, v), bo in ring_bonds.items():
                 bonds[tuple(sorted((u, v)))] = float(bo)
             charges = dict(base_charges)
             for node, q in charge_shifts.items():
                 charges[node] = q
-            return bonds, charges, penalty
+            return ResonanceStructure(bond_orders=bonds, formal_charges=charges)
 
         specs = [
             # Kekule form 1
@@ -361,7 +328,6 @@ class ResonanceEnumerator:
                     (c0, c1): 2.0, (c1, c2): 1.0, (c2, c3): 2.0, (c3, c4): 1.0, (c4, c5): 2.0, (c5, c0): 1.0
                 },
                 {nitro_n: 1, o1: 0, o2: -1, c0: 0, c1: 0, c2: 0, c3: 0, c4: 0, c5: 0},
-                0.0,
             ),
             # Kekule form 2
             (
@@ -370,7 +336,6 @@ class ResonanceEnumerator:
                     (c0, c1): 1.0, (c1, c2): 2.0, (c2, c3): 1.0, (c3, c4): 2.0, (c4, c5): 1.0, (c5, c0): 2.0
                 },
                 {nitro_n: 1, o1: 0, o2: -1, c0: 0, c1: 0, c2: 0, c3: 0, c4: 0, c5: 0},
-                0.0,
             ),
             # Quinoid 1: positive charge at ortho-carbon c1
             (
@@ -379,51 +344,26 @@ class ResonanceEnumerator:
                     (c0, c1): 1.0, (c1, c2): 1.0, (c2, c3): 2.0, (c3, c4): 1.0, (c4, c5): 2.0, (c5, c0): 1.0
                 },
                 {nitro_n: 1, o1: -1, o2: -1, c0: 0, c1: 1, c2: 0, c3: 0, c4: 0, c5: 0},
-                14.0,
             ),
             # Quinoid 2: positive charge at para-carbon c3
             (
                 {
                     (c0, nitro_n): 2.0, (nitro_n, o1): 1.0, (nitro_n, o2): 1.0,
-                    (c0, c1): 2.0, (c1, c2): 1.0, (c2, c3): 1.0, (c3, c4): 1.0, (c4, c5): 2.0, (c5, c0): 1.0
+                    (c0, c1): 1.0, (c1, c2): 2.0, (c2, c3): 1.0, (c3, c4): 1.0, (c4, c5): 2.0, (c5, c0): 1.0
                 },
                 {nitro_n: 1, o1: -1, o2: -1, c0: 0, c1: 0, c2: 0, c3: 1, c4: 0, c5: 0},
-                14.0,
             ),
             # Quinoid 3: positive charge at ortho-carbon c5
             (
                 {
                     (c0, nitro_n): 2.0, (nitro_n, o1): 1.0, (nitro_n, o2): 1.0,
-                    (c0, c1): 2.0, (c1, c2): 1.0, (c2, c3): 2.0, (c3, c4): 1.0, (c4, c5): 1.0, (c5, c0): 1.0
+                    (c0, c1): 1.0, (c1, c2): 2.0, (c2, c3): 1.0, (c3, c4): 2.0, (c4, c5): 1.0, (c5, c0): 1.0
                 },
                 {nitro_n: 1, o1: -1, o2: -1, c0: 0, c1: 0, c2: 0, c3: 0, c4: 0, c5: 1},
-                14.0,
             ),
         ]
 
-        raw_structs = [make_structure(b, c, p) for b, c, p in specs]
-        energies = [p for _, _, p in raw_structs]
-        min_e = min(energies)
-        rt = GAS_CONSTANT_KCAL * temperature_k
-        boltz_factors = [float(np.exp(-(e - min_e) / rt)) for e in energies]
-        total_boltz = sum(boltz_factors)
-        weights = [b / total_boltz for b in boltz_factors]
-
-        result_structures: list[ResonanceStructure] = []
-        for i, (bonds, charges, penalty) in enumerate(raw_structs):
-            is_major = (i < 2)
-            result_structures.append(
-                ResonanceStructure(
-                    bond_orders=bonds,
-                    formal_charges=charges,
-                    relative_energy_kcal=penalty,
-                    boltzmann_weight=weights[i],
-                    is_major=is_major,
-                )
-            )
-
-        result_structures.sort(key=lambda s: s.boltzmann_weight, reverse=True)
-        return result_structures
+        return [make_structure(bonds, charges) for bonds, charges in specs]
 
     @classmethod
     def _generate_general_contributors(
@@ -431,18 +371,66 @@ class ResonanceEnumerator:
         graph: TopologyGraph,
         pi_nodes: set[int],
         temperature_k: float,
+        max_structures: int = 50,
     ) -> list[ResonanceStructure]:
-        """General fallback for conjugated systems."""
-        base_orders = {
-            tuple(sorted((u, v))): float(d.get("bond_order", 1.0))
-            for u, v, d in graph.edges(data=True)
-        }
-        base_charges = {n: int(graph.nodes[n].get("formal_charge", 0)) for n in graph.nodes()}
-        single_struct = ResonanceStructure(
-            bond_orders=base_orders,
-            formal_charges=base_charges,
-            relative_energy_kcal=0.0,
-            boltzmann_weight=1.0,
-            is_major=True,
-        )
-        return [single_struct]
+        """Use RDKit's actual bounded bond/charge resonance enumeration."""
+        original = cls._rdkit_structure(graph, {
+            tuple(sorted((u, v))): float(data.get("bond_order", 1.0)) for u, v, data in graph.edges(data=True)
+        }, {node: int(graph.nodes[node].get("formal_charge", 0)) for node in graph.nodes()})
+        # Validate every returned atom/H assignment against the original below;
+        # contributor generation moves electrons, not hydrogen nuclei.
+        supplier = Chem.ResonanceMolSupplier(original, Chem.ResonanceFlags.KEKULE_ALL | Chem.ResonanceFlags.ALLOW_CHARGE_SEPARATION, max_structures + 1)
+        nodes = list(graph.nodes())
+        result = []
+        for molecule in supplier:
+            charges = {nodes[atom.GetIdx()]: atom.GetFormalCharge() for atom in molecule.GetAtoms()}
+            bonds = {tuple(sorted((nodes[bond.GetBeginAtomIdx()], nodes[bond.GetEndAtomIdx()]))): float(bond.GetBondTypeAsDouble()) for bond in molecule.GetBonds()}
+            result.append(ResonanceStructure(bond_orders=bonds, formal_charges=charges))
+        if not result:
+            raise ResonanceEnumerationError("RDKit did not produce any valid structural contributor")
+        return result
+
+    @staticmethod
+    def _rdkit_structure(graph: TopologyGraph, bonds: dict, charges: dict):
+        nodes = list(graph.nodes())
+        if any(type(node) is not int for node in nodes):
+            raise ResonanceEnumerationError("Chemical contributor nodes require explicit integer identities")
+        molecule = Chem.RWMol()
+        for node in nodes:
+            data = graph.nodes[node]
+            number = data.get("atomic_number")
+            if type(number) is not int or not 1 <= number <= 118:
+                raise ResonanceEnumerationError("Structural contributors require actual non-ghost atomic numbers")
+            atom = Chem.Atom(number)
+            atom.SetFormalCharge(charges[node])
+            atom.SetNumRadicalElectrons(int(data.get("radical_electrons", 0)))
+            isotope = data.get("isotope", data.get("mass_number"))
+            if isotope is not None:
+                atom.SetIsotope(int(isotope))
+            molecule.AddAtom(atom)
+        indices = {node: index for index, node in enumerate(nodes)}
+        types = {1.0: Chem.BondType.SINGLE, 1.5: Chem.BondType.AROMATIC, 2.0: Chem.BondType.DOUBLE, 3.0: Chem.BondType.TRIPLE, 4.0: Chem.BondType.QUADRUPLE}
+        for (left, right), order in bonds.items():
+            if order not in types:
+                raise ResonanceEnumerationError("Unsupported chemical bond order in structural contributor")
+            molecule.AddBond(indices[left], indices[right], types[order])
+            if order == 1.5:
+                molecule.GetAtomWithIdx(indices[left]).SetIsAromatic(True)
+                molecule.GetAtomWithIdx(indices[right]).SetIsAromatic(True)
+        result = molecule.GetMol()
+        try:
+            Chem.SanitizeMol(result)
+        except Exception as error:
+            raise ResonanceEnumerationError("RDKit rejected the contributor's chemical valence") from error
+        return result
+
+    @classmethod
+    def _validate_structure(cls, graph: TopologyGraph, structure: ResonanceStructure) -> None:
+        if sum(structure.formal_charges.values()) != sum(int(graph.nodes[node].get("formal_charge", 0)) for node in graph.nodes()):
+            raise ResonanceEnumerationError("A contributor changes the source molecular charge")
+        if set(structure.bond_orders) != {tuple(sorted(edge)) for edge in graph.edges()}:
+            raise ResonanceEnumerationError("A contributor changes the source nuclear connectivity")
+        original = cls._rdkit_structure(graph, {tuple(sorted((u, v))): float(data.get("bond_order", 1.0)) for u, v, data in graph.edges(data=True)}, {node: int(graph.nodes[node].get("formal_charge", 0)) for node in graph.nodes()})
+        observed = cls._rdkit_structure(graph, structure.bond_orders, structure.formal_charges)
+        if any(a.GetAtomicNum() != b.GetAtomicNum() or a.GetIsotope() != b.GetIsotope() or a.GetTotalNumHs(includeNeighbors=True) != b.GetTotalNumHs(includeNeighbors=True) for a, b in zip(original.GetAtoms(), observed.GetAtoms(), strict=True)):
+            raise ResonanceEnumerationError("A contributor changes the original nuclear or attached-hydrogen identity")

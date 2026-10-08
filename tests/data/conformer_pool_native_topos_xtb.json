@@ -1,0 +1,591 @@
+{
+  "source_kind": "authentic BASE-installed TOPOS/xTB native acceptance",
+  "source_result_sha256": "0294ecdba8b0a584d3e063cb0985e9fde26af7aa172c5d08828c48c1c085de4e",
+  "source_result_evidence_path": "student-topos-final-pair-baseline/student-monomers-complex-search/executed/execution/result.json",
+  "source_module_revision": "f63249fa32c5350bd53d285758994c9ebc7154eb",
+  "source_artifact_sha256": "8ae3ded0c75a7832e91c1fb06ce03e1b91f7a12be1907df22e3a460986d80562",
+  "engine": "xtb",
+  "engine_version": "6.7.1",
+  "derivation": "Exact candidate molecule, measured energy, comparison protocol, status and calculation-completed marker copied from result.result.record.candidates; native provenance copied from real attempts. No fitted, synthetic or zero-filled values. Tests apply explicitly mathematical rigid transforms only.",
+  "candidates": [
+    {
+      "candidate_id": "candidate_1d2e484aff6c4a908c3e699ea85ed855",
+      "molecule": {
+        "symbols": [
+          "O",
+          "H",
+          "H",
+          "O",
+          "H",
+          "H"
+        ],
+        "coordinates": [
+          [
+            0.4279545047095,
+            -0.72885551169518,
+            -2.676416e-08
+          ],
+          [
+            1.30910158831134,
+            -0.33545323569136,
+            5.9770628e-07
+          ],
+          [
+            -0.1911907644904,
+            0.00319535082589,
+            -2.9315706e-07
+          ],
+          [
+            3.10656654207013,
+            0.37047654803515,
+            -3.7191517e-07
+          ],
+          [
+            3.64005811062378,
+            -0.42783664277129,
+            9.0943812e-07
+          ],
+          [
+            3.70751001877595,
+            1.11847349129537,
+            -8.1530894e-07
+          ]
+        ],
+        "coordinate_units": "angstrom",
+        "charge": 0,
+        "multiplicity": 1,
+        "isotopes": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "atom_ids": [
+          "atom-0",
+          "atom-1",
+          "atom-2",
+          "atom-3",
+          "atom-4",
+          "atom-5"
+        ],
+        "fragments": [
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            3,
+            4,
+            5
+          ]
+        ],
+        "fragment_states": [
+          {
+            "atom_indices": [
+              0,
+              1,
+              2
+            ],
+            "charge": 0,
+            "multiplicity": 1
+          },
+          {
+            "atom_indices": [
+              3,
+              4,
+              5
+            ],
+            "charge": 0,
+            "multiplicity": 1
+          }
+        ],
+        "bonds": [],
+        "stereochemistry": {},
+        "environment": {},
+        "name": null
+      },
+      "energy_hartree": -10.148095578362,
+      "comparison_protocol": "a73c97dcedf300d0a7ca1aea7062f68f2a2886e55b13a87b2092d9f93e0dbe1b",
+      "status": "eligible",
+      "metadata": {
+        "calculation_completed": true
+      }
+    },
+    {
+      "candidate_id": "candidate_0f662487afb5459e8f48bceb8f9ed40b",
+      "molecule": {
+        "symbols": [
+          "O",
+          "H",
+          "H",
+          "O",
+          "H",
+          "H"
+        ],
+        "coordinates": [
+          [
+            0.35944405246044,
+            -0.04550079708014,
+            0.32113443534594
+          ],
+          [
+            1.27366067418811,
+            0.01168583016994,
+            0.00535882287434
+          ],
+          [
+            -0.18472720665112,
+            0.34796304665236,
+            -0.36264890554004
+          ],
+          [
+            3.12075397945472,
+            -0.02541582132702,
+            -0.32216012180814
+          ],
+          [
+            3.3632634823289,
+            -0.95132713923563,
+            -0.24749751837872
+          ],
+          [
+            3.5160974219778,
+            0.43398734840024,
+            0.42236452341574
+          ]
+        ],
+        "coordinate_units": "angstrom",
+        "charge": 0,
+        "multiplicity": 1,
+        "isotopes": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "atom_ids": [
+          "atom-0",
+          "atom-1",
+          "atom-2",
+          "atom-3",
+          "atom-4",
+          "atom-5"
+        ],
+        "fragments": [
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            3,
+            4,
+            5
+          ]
+        ],
+        "fragment_states": [
+          {
+            "atom_indices": [
+              0,
+              1,
+              2
+            ],
+            "charge": 0,
+            "multiplicity": 1
+          },
+          {
+            "atom_indices": [
+              3,
+              4,
+              5
+            ],
+            "charge": 0,
+            "multiplicity": 1
+          }
+        ],
+        "bonds": [],
+        "stereochemistry": {},
+        "environment": {},
+        "name": null
+      },
+      "energy_hartree": -10.149006530461,
+      "comparison_protocol": "a73c97dcedf300d0a7ca1aea7062f68f2a2886e55b13a87b2092d9f93e0dbe1b",
+      "status": "eligible",
+      "metadata": {
+        "calculation_completed": true
+      }
+    }
+  ],
+  "native_attempt_provenance": [
+    {
+      "attempt_id": "attempt_b8869664f73f447392223a376f1d272c",
+      "engine": "xtb",
+      "engine_version": "6.7.1",
+      "method": "GFN2-xTB",
+      "status": "completed",
+      "converged": true,
+      "quantities": [
+        {
+          "name": "electronic_energy",
+          "value": -10.148095578362,
+          "units": "hartree",
+          "definition": "electronic potential energy at recorded output geometry; no ZPE or thermal corrections",
+          "geometry_id": "candidate_1d2e484aff6c4a908c3e699ea85ed855",
+          "attempt_id": "attempt_b8869664f73f447392223a376f1d272c",
+          "method": "GFN2-xTB",
+          "parser": "topos.engines/0.1.0",
+          "validity": "validated-for-protocol",
+          "metadata": {}
+        },
+        {
+          "name": "cartesian_gradient",
+          "value": [
+            [
+              -2.6985080515965e-05,
+              -0.00025404438713973,
+              -1.1182258411479e-08
+            ],
+            [
+              0.00016372605655332,
+              6.498568918678e-05,
+              1.390944710827e-08
+            ],
+            [
+              -0.00010749668830214,
+              0.00018161379172497,
+              2.0663512245875e-09
+            ],
+            [
+              -0.00043240059609408,
+              6.0403052760977e-05,
+              -9.8369782115421e-09
+            ],
+            [
+              0.00019868760398272,
+              -0.00022178640729377,
+              3.6084723823741e-09
+            ],
+            [
+              0.00020446870437616,
+              0.00016882826076074,
+              1.4349659077899e-09
+            ]
+          ],
+          "units": "hartree/bohr",
+          "definition": "dE/dx at the output geometry",
+          "geometry_id": "candidate_1d2e484aff6c4a908c3e699ea85ed855",
+          "attempt_id": "attempt_b8869664f73f447392223a376f1d272c",
+          "method": "GFN2-xTB",
+          "parser": "topos.engines/0.1.0",
+          "validity": "validated-for-protocol",
+          "metadata": {}
+        }
+      ],
+      "artifacts": [
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/.xtboptok",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size_bytes": 0,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/charges",
+          "sha256": "7049b2fa8bf57e1c5f343b69080fbd8dd3e1b9c9102928a38781ed588b136fd4",
+          "size_bytes": 90,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/energy",
+          "sha256": "18eb708501dd9a1145d23b416f00aa4594fa1b3ce5aba2dbfab6100c5ca5f37b",
+          "size_bytes": 74,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/engine.stderr",
+          "sha256": "db41edc1c74dad5a3527d5c6e4a48bfce3c2cabc0f0ad20acb5e420ad2a68ea9",
+          "size_bytes": 26,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/engine.stdout",
+          "sha256": "5384760e89e562bc9ab350c7a3431b4982d772b8b9b2b1e46243a4c3dbfe3ecf",
+          "size_bytes": 62783,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/gradient",
+          "sha256": "6c42e47cd6909de0381932e1cb61888049c1fbaf9dee6a45932a691f827982c0",
+          "size_bytes": 926,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/input.engrad",
+          "sha256": "dc31ecbe40ee870979baaffe368e72a813a2553adf10f23da80041f24258d49f",
+          "size_bytes": 852,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/input.xyz",
+          "sha256": "7cf6f6acfa59a2acc8eab4987935665c69197aeb8bbd35f5884ca58d4d515052",
+          "size_bytes": 190,
+          "role": "engine-input",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/version.stderr",
+          "sha256": "db41edc1c74dad5a3527d5c6e4a48bfce3c2cabc0f0ad20acb5e420ad2a68ea9",
+          "size_bytes": 26,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/version.stdout",
+          "sha256": "f47686023e4be88b6e2241c9a2660fffe132a193f8873d3890594b8f9ca0dd91",
+          "size_bytes": 660,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/wbo",
+          "sha256": "39bf1b614d99176a1c868310f15a29440aa3161e5c76c9b6455f8756eb3de175",
+          "size_bytes": 196,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/xtbopt.log",
+          "sha256": "0249d7f8f15a20932fe25fd8f0f0e24e711a2c4a9ad164065be775c743ce462f",
+          "size_bytes": 18326,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/xtbopt.xyz",
+          "sha256": "11fcc3d1d086473940370158e6b39418326eb69f8de27c3f85e3e97e198f25c8",
+          "size_bytes": 539,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/xtbout.json",
+          "sha256": "285774e8e4970c133feff538a4321173b37e8bd4331cef7b196c9573ebed6d8f",
+          "size_bytes": 2194,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/xtbrestart",
+          "sha256": "fc5a19eccf281e3f6fc9a634a532cf2e3afbaef722323aa7d30bac9f54806517",
+          "size_bytes": 576,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_b8869664f73f447392223a376f1d272c/xtbtopo.mol",
+          "sha256": "c8f15da30c89216db8659c363ee6a20b8ff920d0ee232dabb789922593197974",
+          "size_bytes": 601,
+          "role": "raw-output",
+          "media_type": null
+        }
+      ],
+      "executable_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "execution_kind": "real",
+      "comparison_protocol": "a73c97dcedf300d0a7ca1aea7062f68f2a2886e55b13a87b2092d9f93e0dbe1b"
+    },
+    {
+      "attempt_id": "attempt_5aff271d9960478cb30d110ad73bb910",
+      "engine": "xtb",
+      "engine_version": "6.7.1",
+      "method": "GFN2-xTB",
+      "status": "completed",
+      "converged": true,
+      "quantities": [
+        {
+          "name": "electronic_energy",
+          "value": -10.149006530461,
+          "units": "hartree",
+          "definition": "electronic potential energy at recorded output geometry; no ZPE or thermal corrections",
+          "geometry_id": "candidate_0f662487afb5459e8f48bceb8f9ed40b",
+          "attempt_id": "attempt_5aff271d9960478cb30d110ad73bb910",
+          "method": "GFN2-xTB",
+          "parser": "topos.engines/0.1.0",
+          "validity": "validated-for-protocol",
+          "metadata": {}
+        },
+        {
+          "name": "cartesian_gradient",
+          "value": [
+            [
+              5.4436863441284e-05,
+              -5.2138508581819e-05,
+              9.2384663426791e-05
+            ],
+            [
+              -1.5028778774327e-05,
+              -5.2090899381489e-06,
+              -4.2332938784551e-06
+            ],
+            [
+              -1.1964386103894e-05,
+              4.5731578691984e-05,
+              -8.7342067287649e-05
+            ],
+            [
+              8.7736770523138e-06,
+              -2.02289962694e-05,
+              6.270025228817e-05
+            ],
+            [
+              -2.7546805392281e-05,
+              -2.5096644584663e-06,
+              -3.7609847302173e-05
+            ],
+            [
+              -8.670570223108e-06,
+              3.4354680555837e-05,
+              -2.5899707246688e-05
+            ]
+          ],
+          "units": "hartree/bohr",
+          "definition": "dE/dx at the output geometry",
+          "geometry_id": "candidate_0f662487afb5459e8f48bceb8f9ed40b",
+          "attempt_id": "attempt_5aff271d9960478cb30d110ad73bb910",
+          "method": "GFN2-xTB",
+          "parser": "topos.engines/0.1.0",
+          "validity": "validated-for-protocol",
+          "metadata": {}
+        }
+      ],
+      "artifacts": [
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/.xtboptok",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "size_bytes": 0,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/charges",
+          "sha256": "dd90360daf45d604b57767bcb16dc326c1050a7b1825f98c036f54d5b4d03eb7",
+          "size_bytes": 90,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/energy",
+          "sha256": "a28d3591a785856e3532bf551493d7ee0721eab3592ca7c6060c19f46a1058b3",
+          "size_bytes": 74,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/engine.stderr",
+          "sha256": "db41edc1c74dad5a3527d5c6e4a48bfce3c2cabc0f0ad20acb5e420ad2a68ea9",
+          "size_bytes": 26,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/engine.stdout",
+          "sha256": "65d623eb2d8d1aa9dd48f5bf4243c1b6558637f0e3173416fee4ee5c9d37d470",
+          "size_bytes": 109521,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/gradient",
+          "sha256": "b91dc293947cd1d70c7f7f796526df33a9591454d3a326957d8c1fff48c57215",
+          "size_bytes": 926,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/input.engrad",
+          "sha256": "35a09521c6cef4e68016a267689fca513af164c4fa504ecf01c840b67c9c6e58",
+          "size_bytes": 852,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/input.xyz",
+          "sha256": "a810bbbab3d73030587b7e2fd1733a8acc6dfcd27c3d5b01363d033881ffe69f",
+          "size_bytes": 410,
+          "role": "engine-input",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/version.stderr",
+          "sha256": "db41edc1c74dad5a3527d5c6e4a48bfce3c2cabc0f0ad20acb5e420ad2a68ea9",
+          "size_bytes": 26,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/version.stdout",
+          "sha256": "f47686023e4be88b6e2241c9a2660fffe132a193f8873d3890594b8f9ca0dd91",
+          "size_bytes": 660,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/wbo",
+          "sha256": "73a8693c036627d3d03a664c6d7553c2efac85aa07982a738830d3f72567ea2a",
+          "size_bytes": 196,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/xtbopt.log",
+          "sha256": "fffb5d76b7288e9438fdeb9bbf04b09632cb98e7acb5b4a968275d614d5d5203",
+          "size_bytes": 40964,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/xtbopt.xyz",
+          "sha256": "b0265668f9d65361b80423fbace5b37f4681683bb8f85ba1a05a841e61dd7672",
+          "size_bytes": 539,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/xtbout.json",
+          "sha256": "abae6f0ba81280d2c34dd116028aae5111f327a1961575c9f035839f2c1f0b2e",
+          "size_bytes": 2194,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/xtbrestart",
+          "sha256": "eecf5ad1782cd0a286dedbd464ba74d7aa4b94f5a44b35780081a8298227dc20",
+          "size_bytes": 576,
+          "role": "raw-output",
+          "media_type": null
+        },
+        {
+          "path": "attempts/attempt_5aff271d9960478cb30d110ad73bb910/xtbtopo.mol",
+          "sha256": "93a4da871805e913b87261c0c270bd18c6fcbb0a522392172c1ca3c5b2b59944",
+          "size_bytes": 601,
+          "role": "raw-output",
+          "media_type": null
+        }
+      ],
+      "executable_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "execution_kind": "real",
+      "comparison_protocol": "a73c97dcedf300d0a7ca1aea7062f68f2a2886e55b13a87b2092d9f93e0dbe1b"
+    }
+  ],
+  "scope": "Retained measured optimization candidates for mathematical sieve regression; no Hessian minimum or experimental accuracy certification."
+}

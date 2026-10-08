@@ -2,24 +2,27 @@
 
 from __future__ import annotations
 
+from cochem_base.core import cochem_constants as _constants
+
 # Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical
 
 # Energy Conversions [M]
-HARTREE_TO_EV: float = 27.211386245988  # [M] Exact CODATA 2022 Hartree energy in eV
-EV_TO_JOULE: float = 1.602176634e-19  # [M] CODATA 2022 exact elementary charge / Joule definition
+HARTREE_TO_EV: float = _constants.HARTREE_TO_EV
+EV_TO_JOULE: float = _constants.HARTREE_TO_JOULE / HARTREE_TO_EV
 
 # Length Conversions [M]
-BOHR_TO_ANGSTROM: float = 0.529177210903  # [M] CODATA 2022 Bohr radius in Angstroms
-ANGSTROM_TO_METER: float = 1.0e-10  # [M] Exact Angstrom definition in meters
+BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_METER: float = _constants.ANGSTROM_TO_METER
 
 # Force Conversions [D], [M]
 HARTREE_PER_BOHR_TO_EV_PER_ANGSTROM: float = (
     HARTREE_TO_EV / BOHR_TO_ANGSTROM
 )  # ~51.4220674763 eV/Angstrom [D]
-EV_PER_ANGSTROM_TO_NEWTON: float = 1.602176634e-9  # [M] 1 eV/Angstrom in Newtons
+EV_PER_ANGSTROM_TO_NEWTON: float = EV_TO_JOULE / ANGSTROM_TO_METER
 
 # Stress and Pressure Conversions [M], [D]
-EV_PER_ANGSTROM3_TO_GPA: float = 160.21766208  # [M] 1 eV/Angstrom^3 in Gigapascals
+EV_PER_ANGSTROM3_TO_GPA: float = EV_TO_JOULE / ANGSTROM_TO_METER**3 / 1e9
 
 # Multipole Moment Conversions [M]
-DEBYE_PER_EAA: float = 4.80320427  # [M] Conversion factor from e*Angstrom to Debye (1 e*Angstrom = 4.80320427 Debye)
+# The Debye is exactly 10^-21/c coulomb metre; avoid a rounded second table.
+DEBYE_PER_EAA: float = EV_TO_JOULE * ANGSTROM_TO_METER / (1e-21 / _constants.SPEED_OF_LIGHT_M_S)

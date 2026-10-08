@@ -323,6 +323,7 @@ class StudentActionsClient:
     def submit(self, calculation: dict | None, *, xyz_files: dict[str, str | bytes] | None = None,
                provider: dict | None = None, capability_probe: dict | None = None,
                scientific_inputs: dict | None = None, t9_request: dict | None = None,
+               ingestion_inputs: dict | None = None, periodic_inputs: dict | None = None,
                cores: int = 2, maxcore_mb: int = 512) -> dict:
         prepared = self.preflight()
         files = {}
@@ -333,6 +334,28 @@ class StudentActionsClient:
         request_id = str(uuid.uuid4())
         submitted_at = datetime.now(timezone.utc).isoformat()
         scientific_descriptor = None
+        data_descriptor = None
+        if ingestion_inputs is not None and periodic_inputs is not None:
+            raise ValueError("Select a molecular source or a periodic PAW source for this job")
+        if ingestion_inputs is not None or periodic_inputs is not None:
+            from copy import deepcopy
+            from .student_data_inputs import build_data_bundle
+            from .student_input_transport import upload_blob_bundle
+            if periodic_inputs is not None:
+                if calculation is None or calculation.get("engine") != "qe":
+                    raise ValueError("Periodic PAW inputs require a QE calculation")
+                calculation = deepcopy(calculation)
+                calculation["periodic"]["pseudopotentials"] = {
+                    element: {"path": "pseudopotentials/" + element + ".UPF", "sha256": entry["sha256"]}
+                    for element, entry in periodic_inputs["pseudopotentials"].items()}
+            geometry = (calculation["geometry"].encode("utf-8") if calculation is not None else
+                        base64.b64decode(files[provider["artifact"]]["content_base64"], validate=True))
+            contents, metadata = build_data_bundle(periodic_inputs if periodic_inputs is not None else ingestion_inputs,
+                kind="periodic_inputs" if periodic_inputs is not None else "molecular_ingestion",
+                request_id=request_id, geometry_sha256=hashlib.sha256(geometry).hexdigest())
+            data_descriptor = upload_blob_bundle(self, contents, metadata, request_id=request_id,
+                assignment_sha=prepared["source_sha"], filename="data-inputs.zip",
+                schema_version="cochem.student-data-transport/1")
         if scientific_inputs is not None:
             if calculation is None:
                 raise ValueError("Reference/Hessian inputs belong to an explicit calculation")
@@ -344,7 +367,7 @@ class StudentActionsClient:
                    "worker_source_sha": prepared["worker_source_sha"],
                    "submitted_at": submitted_at, "resources": {"cores": cores, "maxcore_mb": maxcore_mb},
                    "calculation": calculation, "provider": provider, "capability_probe": capability_probe, "files": files}
-        request.update(scientific_inputs=scientific_descriptor, t9_request=t9_request)
+        request.update(scientific_inputs=scientific_descriptor, data_inputs=data_descriptor, t9_request=t9_request)
         if provider is not None:
             from .student_research import validate_provider_request
             validate_provider_request(provider, files)
@@ -354,6 +377,8 @@ class StudentActionsClient:
                 "worker_source_sha": prepared["worker_source_sha"],
                 "payload_sha256": digest, "submitted_at": submitted_at, "run_id": None,
                 "url": f"https://github.com/{self.repository}/actions", "status": "prepared"}
+        submission["request_kind"] = ("capability_probe" if capability_probe is not None
+                                      else "provider" if provider is not None else "calculation")
         # Save correlation identity before the POST. A lost acknowledgement must
         # never turn a successfully accepted request into a blind duplicate.
         self._persist_submission(submission)

@@ -1449,89 +1449,9 @@ class RegistryManager:
 
     @staticmethod
     def get_isotopic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
-        """Dynamically fetches exact isotopic masses via Mendeleev, QCElemental, or periodic tables."""
-        if symbol is None or not isinstance(symbol, str) or not symbol.strip():
-            raise ValueError("Chemical element symbol cannot be empty or None.")
-
-        clean_sym = symbol.strip()
-        formatted_sym = clean_sym.capitalize() if len(clean_sym) <= 2 else clean_sym
-
-        if mass_number is not None and not isinstance(mass_number, int):
-            raise ValueError("Mass number must be an integer.")
-
-        if clean_sym.upper() == "D":
-            if mass_number is not None and mass_number != 2:
-                raise ValueError(f"Isotope {mass_number}D not found in Mendeleev database.")
-            clean_sym = "H"
-            formatted_sym = "H"
-            mass_number = 2
-        elif clean_sym.upper() == "T":
-            if mass_number is not None and mass_number != 3:
-                raise ValueError(f"Isotope {mass_number}T not found in Mendeleev database.")
-            clean_sym = "H"
-            formatted_sym = "H"
-            mass_number = 3
-
-        if element is not None:
-            try:
-                try:
-                    elem = element(formatted_sym)
-                except Exception:
-                    try:
-                        elem = element(clean_sym)
-                    except Exception:
-                        elem = None
-
-                if elem is not None:
-                    if mass_number is not None:
-                        for iso in elem.isotopes:
-                            if iso.mass_number == mass_number:
-                                if iso.mass is None:
-                                    raise IsotopeStabilityError(
-                                        f"Isotope {mass_number}{clean_sym} has no stable mass record in Mendeleev."
-                                    )
-                                return float(iso.mass)
-                        raise ValueError(
-                            f"Isotope {mass_number}{clean_sym} not found in Mendeleev database."
-                        )
-
-                    if hasattr(elem, "mass") and elem.mass is not None:
-                        return float(elem.mass)
-                    raise IsotopeStabilityError(
-                        f"Element {clean_sym} lacks a valid default atomic mass binding."
-                    )
-            except (ValueError, IsotopeStabilityError):
-                raise
-            except Exception as e:
-                logger.debug(f"Mendeleev query failed for '{clean_sym}', attempting fallback: {e}")
-
-        if pt is not None:
-            try:
-                if mass_number is not None:
-                    target = f"{formatted_sym}{mass_number}"
-                    try:
-                        return float(pt.to_mass(target))
-                    except Exception as e:
-                        raise ValueError(
-                            f"Isotope {mass_number}{clean_sym} not found in Mendeleev database."
-                        ) from e
-                try:
-                    return float(pt.to_mass(formatted_sym))
-                except Exception as e:
-                    raise IsotopeStabilityError(
-                        f"Element {clean_sym} not found in Mendeleev."
-                    ) from e
-            except (ValueError, IsotopeStabilityError):
-                raise
-            except Exception as e:
-                logger.error(f"Failed to query QCElemental for symbol '{clean_sym}': {e}")
-                raise IsotopeStabilityError(
-                    f"Isotopic mass resolution failed for {clean_sym}: {e}"
-                ) from e
-
-        raise IsotopeStabilityError(
-            f"Element {clean_sym} not found in Mendeleev or QCElemental database."
-        )
+        """Resolve a measured exact assigned/principal isotope from Mendeleev."""
+        from cochem_base.physics.isotopes import get_isotope_mass
+        return get_isotope_mass(symbol, mass_number)
 
     @staticmethod
     def get_all_isotopes(symbol: str) -> List[Dict[str, Any]]:

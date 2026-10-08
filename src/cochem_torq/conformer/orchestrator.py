@@ -1,219 +1,116 @@
-"""CoChem-TORQ: Conformer Generation Orchestrator & Union Deduplication Pipeline.
+"""Compatibility entry point for BASE's canonical physical conformer search.
 
-Compliant with Method Matrix v4 §8A, §9B.1-§9B.3, Anti-Spoofing Protocol v2, and Zero-Mock Mandate.
-Implements the standard ConformerGenerator interface combining ORCA GOAT and CREST.
+The old implementation's fabricated zero-energy seed and swallowed engine errors
+have been removed. The owned BASE broker executes the actual CREST/ORCA GOAT
+request; every native member and sieve decision remains in retained artifacts.
 """
-
 from __future__ import annotations
 
-import logging
-import os
-import shutil
-import tempfile
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+import time
+import uuid
+from typing import Any, Sequence
 
 import numpy as np
 
-from cochem_base.environment import BinaryRegistry, PathRegistry
+from cochem_base.config_loader import get_artifact_dir
+from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+from cochem_base.intake.conformer_deduplication import (
+    ConformerCandidate, ConformerDeduplicator, kabsch_quaternion_rmsd,
+)
 from cochem_base.interfaces.conformer import ConformerGenerator
 from cochem_base.schemas import ConformerEnsemblePayload
-
-logger = logging.getLogger("TorqConformerOrchestrator")
-if not logger.handlers:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: [CoChem-TORQ-Conformer] %(message)s")
+from cochem_base.topos_runner import TOPOSExecutionBroker, TOPOSSearchConfig, _read_json
 
 
 def kabsch_rmsd(p: np.ndarray, q: np.ndarray) -> float:
-    """Calculate Kabsch root-mean-square deviation (RMSD) between two aligned coordinate sets."""
-    p_centered = p - np.mean(p, axis=0)
-    q_centered = q - np.mean(q, axis=0)
-    h = np.dot(p_centered.T, q_centered)
-    u, s, vt = np.linalg.svd(h)
-    d = np.linalg.det(np.dot(vt.T, u.T))
-    e = np.diag([1.0, 1.0, 1.0 if d > 0 else -1.0])
-    r = np.dot(vt.T, np.dot(e, u.T))
-    rotated_p = np.dot(p_centered, r)
-    diff = rotated_p - q_centered
-    return float(np.sqrt(np.mean(np.sum(diff**2, axis=-1))))
+    """Delegate to the canonical proper-rotation Horn RMSD implementation."""
+    return kabsch_quaternion_rmsd(p, q)
 
 
-def deduplicate_union_ensemble(
-    conformers: Sequence[Dict[str, Any]],
-    delta_b_rel_threshold: float = 0.005,
-    rmsd_threshold: float = 0.15,
-) -> List[Dict[str, Any]]:
-    """Execute two-stage union deduplication protocol adhering strictly to Method Matrix §9B.1-§9B.3:
+def deduplicate_union_ensemble(conformers: Sequence[dict[str, Any]],
+                               delta_b_rel_threshold: float = .0005,
+                               rmsd_threshold: float = .08) -> list[dict[str, Any]]:
+    """Keep the list API while enforcing the complete canonical scientific sieve.
 
-    1. Rotational Constant Clustering: Delta B / B < 0.005 (0.5%) for all principal axes [M].
-    2. Heavy-Atom RMSD Filtering: Kabsch coordinate superposition with RMSD < 0.15 Angstrom [M].
-
-    Parameters
-    ----------
-    conformers : Sequence[Dict[str, Any]]
-        List of candidate conformer dictionaries.
-    delta_b_rel_threshold : float
-        Rotational constant clustering threshold (default 0.005 = 0.5%).
-    rmsd_threshold : float
-        Heavy-atom Kabsch RMSD merge threshold in Angstroms (default 0.15 A).
-
-    Returns
-    -------
-    List[Dict[str, Any]]
-        Deduplicated unique conformer ensemble pool.
+    Caller-supplied rotational constants are recomputed. Missing energy, state or
+    comparison protocol retains the observation unranked rather than guessing.
+    Use intake.conformer_engine for the complete source-bound lineage contract.
     """
-    if not conformers:
-        return []
-
-    # Sort candidates by energy if available, otherwise preserve order
-    sorted_candidates = sorted(
-        conformers,
-        key=lambda c: float(c.get("energy_hartree") or c.get("energy", 0.0)),
-    )
-
-    unique_pool: List[Dict[str, Any]] = []
-
-    for candidate in sorted_candidates:
-        cand_coords = np.asarray(candidate["coordinates"], dtype=np.float64)
-        cand_syms = candidate.get("symbols", [])
-        cand_rot = candidate.get("rotational_constants_mhz")
-
-        # Heavy-atom indices (Z > 1, i.e., non-hydrogen)
-        heavy_indices = [
-            i for i, s in enumerate(cand_syms) if s.strip().capitalize() != "H"
-        ]
-        if not heavy_indices:
-            heavy_indices = list(range(len(cand_coords)))
-
-        cand_heavy = cand_coords[heavy_indices]
-        is_duplicate = False
-
-        for existing in unique_pool:
-            exist_coords = np.asarray(existing["coordinates"], dtype=np.float64)
-            exist_heavy = exist_coords[heavy_indices]
-            exist_rot = existing.get("rotational_constants_mhz")
-
-            # 1. Rotational constant clustering check (Delta B / B < 0.005)
-            rot_match = False
-            has_rot = False
-            if cand_rot and exist_rot and len(cand_rot) == 3 and len(exist_rot) == 3:
-                has_rot = True
-                a_diff = abs(cand_rot[0] - exist_rot[0]) / max(exist_rot[0], 1e-6)
-                b_diff = abs(cand_rot[1] - exist_rot[1]) / max(exist_rot[1], 1e-6)
-                c_diff = abs(cand_rot[2] - exist_rot[2]) / max(exist_rot[2], 1e-6)
-                if (
-                    a_diff < delta_b_rel_threshold
-                    and b_diff < delta_b_rel_threshold
-                    and c_diff < delta_b_rel_threshold
-                ):
-                    rot_match = True
-
-            # 2. Heavy-atom RMSD check (RMSD < 0.15 Angstrom)
-            rmsd_val = kabsch_rmsd(cand_heavy, exist_heavy)
-            if has_rot:
-                # Two-stage: MUST match rotational clustering (< 0.005) AND RMSD (< 0.15 A)
-                if rot_match and rmsd_val < rmsd_threshold:
-                    is_duplicate = True
-                    break
-            else:
-                if rmsd_val < rmsd_threshold:
-                    is_duplicate = True
-                    break
-
-
-        if not is_duplicate:
-            unique_pool.append(candidate)
-
-    return unique_pool
+    candidates = []
+    for index, row in enumerate(conformers):
+        energy = row.get("energy_hartree")
+        unit = "hartree"
+        if energy is None and row.get("energy") is not None:
+            energy, unit = row["energy"], row.get("energy_unit")
+            if unit not in {"hartree", "kcal/mol"}:
+                raise ValueError("Conformer energy requires an explicit supported unit")
+        candidates.append(ConformerCandidate(str(index), list(row["symbols"]),
+            np.asarray(row.get("coordinates", row.get("coords")), dtype=float), energy,
+            energy_unit=unit, charge=row.get("charge"), multiplicity=row.get("multiplicity"),
+            comparison_protocol=row.get("comparison_protocol")))
+    sieve = ConformerDeduplicator(rmsd_threshold=rmsd_threshold,
+        rotational_constant_threshold=delta_b_rel_threshold).sieve(candidates, require_comparable_protocol=True)
+    return [conformers[int(candidate.conformer_id)] for candidate in sieve.retained]
 
 
 class ConformerOrchestrator(ConformerGenerator):
-    """Coordinates independent GOAT and CREST conformer search engines and performs union deduplication."""
+    """Synchronous compatibility wrapper around BASE's owned physical broker."""
 
     def __init__(self, ewin_kcal: float = 12.0) -> None:
-        self.ewin_kcal = ewin_kcal
+        if isinstance(ewin_kcal, bool) or not np.isfinite(ewin_kcal) or not 0 < ewin_kcal <= 12:
+            raise ValueError("The SRS conformer energy window must be positive and at most 12 kcal/mol")
+        self.ewin_kcal = float(ewin_kcal)
 
-    def generate_conformers(
-        self,
-        symbols: Sequence[str],
-        coordinates: Union[Sequence[Sequence[float]], np.ndarray],
-        **kwargs: Any,
-    ) -> ConformerEnsemblePayload:
-        """Execute Stage 3 conformer exploration DAG combining GOAT and CREST."""
-        coords_arr = np.asarray(coordinates, dtype=np.float64)
-        scratch_dir = PathRegistry.create_scratch_dir("conformer_orchestrator")
-        seed_xyz = scratch_dir / "seed.xyz"
-
-        with open(seed_xyz, "w", encoding="utf-8") as f:
-            f.write(f"{len(symbols)}\nSeed structure\n")
-            for s, pos in zip(symbols, coords_arr):
-                f.write(f"{s:<3} {pos[0]:14.8f} {pos[1]:14.8f} {pos[2]:14.8f}\n")
-
-        raw_pool: List[Dict[str, Any]] = []
-
-        # 1. Execute ORCA GOAT exploration
+    def generate_conformers(self, symbols: Sequence[str], coordinates: Sequence[Sequence[float]] | np.ndarray,
+                            **kwargs: Any) -> ConformerEnsemblePayload:
+        permitted = {"charge", "multiplicity", "ensemble_id", "max_hours", "threads_per_engine", "protocol",
+                     "scratch_root", "store_root", "cancel_event"}
+        if set(kwargs) - permitted:
+            raise ValueError("Unsupported compatibility search options")
+        if type(kwargs.get("charge")) is not int or type(kwargs.get("multiplicity")) is not int or kwargs["multiplicity"] < 1:
+            raise ValueError("Conformer search requires explicit integer charge and multiplicity")
+        identity = resolve_nuclear_identity(symbols)
+        coords = np.asarray(coordinates, dtype=float)
+        if coords.shape != (len(identity.nuclides), 3) or not np.isfinite(coords).all():
+            raise ValueError("Conformer search requires complete finite coordinates")
+        artifact_root = get_artifact_dir()
+        source_dir = artifact_root / "Scratch" / ("compat-input-" + uuid.uuid4().hex)
+        source_dir.mkdir(parents=True, exist_ok=False)
+        source = source_dir / "input.xyz"
+        source.write_text(str(len(symbols)) + "\nExplicit legacy API caller geometry; no observed energy\n" +
+            "".join(label + " " + " ".join(format(value, ".17g") for value in position) + "\n"
+                    for label, position in zip(identity.nuclides, coords, strict=True)), encoding="utf-8")
+        broker = TOPOSExecutionBroker(kwargs.get("scratch_root"), kwargs.get("store_root"))
+        config = TOPOSSearchConfig(input_xyz_path=str(source), atom_count=len(symbols),
+            charge=kwargs["charge"], multiplicity=kwargs["multiplicity"], energy_window_kcal=self.ewin_kcal,
+            protocol=kwargs.get("protocol", "CREST_GOAT"), max_hours=kwargs.get("max_hours", 2.0),
+            threads_per_engine=kwargs.get("threads_per_engine", 1))
+        job_id = broker.launch_search(config)
         try:
-            from Libraries.cochem_torq_goat import GoatRunner
-            goat_runner = GoatRunner()
-            goat_records = goat_runner.run_goat_on_seed(seed_xyz=seed_xyz, scratch_dir=scratch_dir)
-            for gr in goat_records:
-                raw_pool.append({
-                    "symbols": gr.symbols,
-                    "coordinates": gr.coordinates,
-                    "energy_hartree": gr.energy_hartree,
-                    "rotational_constants_mhz": gr.rotational_constants_mhz,
-                    "origin": "GOAT",
-                })
-        except Exception as e:
-            logger.info(f"GOAT conformer generator notice: {e}")
-
-        # 2. Execute CREST search
-        try:
-            from Libraries.cochem_torq_crest import CrestRunner
-            crest_runner = CrestRunner()
-            crest_container = crest_runner.run_crest(
-                input_xyz=seed_xyz,
-                work_dir=scratch_dir / "crest",
-                flags="--nci --nocross --noreftopo",
-            )
-            for cr in crest_container.records:
-                raw_pool.append({
-                    "symbols": cr.symbols,
-                    "coordinates": cr.coordinates,
-                    "energy_hartree": cr.energy_hartree,
-                    "rotational_constants_mhz": cr.rotational_constants_mhz,
-                    "origin": "CREST",
-                })
-        except Exception as e:
-            logger.info(f"CREST conformer generator notice: {e}")
-
-        # If no conformers found from external tools, retain input seed as baseline
-        if not raw_pool:
-            raw_pool.append({
-                "symbols": list(symbols),
-                "coordinates": coords_arr.tolist(),
-                "energy_hartree": 0.0,
-                "origin": "SEED",
-            })
-
-        # 3. Two-stage union deduplication (Delta B / B < 0.005, RMSD < 0.15 A)
-        deduped = deduplicate_union_ensemble(
-            raw_pool,
-            delta_b_rel_threshold=0.005,
-            rmsd_threshold=0.15,
-        )
-
-        return ConformerEnsemblePayload(
-            ensemble_id=kwargs.get("ensemble_id", "union_ensemble_01"),
-            conformers=deduped,
-            origin_engine="UNION",
-            provenance_tag="[M]",
-            metadata={"n_raw": len(raw_pool), "n_unique": len(deduped)},
-        )
+            while True:
+                status = broker.poll_telemetry(job_id)
+                if status["status"] != "RUNNING":
+                    break
+                event = kwargs.get("cancel_event")
+                if event is not None and event.is_set():
+                    broker.cancel_search(job_id)
+                    raise RuntimeError("Physical conformer search was cancelled")
+                time.sleep(.1)
+            if status["status"] != "COMPLETED":
+                raise RuntimeError("Physical conformer search did not complete: " + str(status.get("error") or status["status"]))
+            promoted = broker.promote_artifacts(job_id)
+            sieve = _read_json(promoted["promoted_dir"] / "pool-sieve.json")
+            members = {row["conformer_id"]: row for row in sieve["members"]}
+            return ConformerEnsemblePayload(ensemble_id=kwargs.get("ensemble_id", job_id),
+                conformers=[members[member_id] for member_id in sieve["retained_ids"]],
+                origin_engine=config.protocol, provenance_tag="[M]",
+                metadata={"job_id": job_id, "artifact_directory": str(promoted["promoted_dir"]),
+                          "n_raw": len(members), "n_unique": len(sieve["retained_ids"]),
+                          "sieve": sieve, "scope": "Native screening; production relaxation and genuine minimum qualification remain required"})
+        except BaseException:
+            if broker.poll_telemetry(job_id)["status"] == "RUNNING":
+                broker.cancel_search(job_id)
+            raise
 
 
-__all__ = [
-    "kabsch_rmsd",
-    "deduplicate_union_ensemble",
-    "ConformerOrchestrator",
-]
+__all__ = ["kabsch_rmsd", "deduplicate_union_ensemble", "ConformerOrchestrator"]

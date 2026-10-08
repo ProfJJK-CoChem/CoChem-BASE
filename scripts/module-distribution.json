@@ -173,7 +173,9 @@
         "thermochemistry",
         "association",
         "matrix"
-      ]
+      ],
+      "science_base_version": "1.1.0",
+      "science_base_revision": "e6955f863ea79036c674ce46122a301e5db8ab1e"
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
@@ -190,7 +192,9 @@
       "operations": [
         "geometry_analysis",
         "research_scan",
-        "wiberg_lowdin"
+        "wiberg_lowdin",
+        "nbo_analysis",
+        "wiberg_nao"
       ]
     }
   }

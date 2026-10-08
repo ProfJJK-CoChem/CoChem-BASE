@@ -304,6 +304,15 @@ def test_skipped_phase10_benchmarks_do_not_become_measurements(tmp_path):
     assert not report.alignment_engine_ready
     assert "COCHEM_IOPS_WRITE_IOPS" not in report.injected_env_vars
     assert report.injected_env_vars["COCHEM_ALIGNMENT_ENGINE_READY"] == "0"
+    assert report.mass_cache_warmup["mass_source"] == "dynamic_mendeleev"
+    assert report.mass_cache_warmup["measured_isotope_count"] > 0
+    assert report.mass_cache_warmup["cached_query_median_ns"] > 0
+    assert report.mass_cache_telemetry["hit_count"] > 0
+    assert report.mass_cache_telemetry["miss_count"] > 0
+    assert report.mass_cache_telemetry["avg_latency_ns"] > 0
+    persisted = json.loads(Path(report.artifact_path).read_text())
+    assert persisted["mass_cache_warmup"] == report.mass_cache_warmup
+    assert persisted["mass_cache_telemetry"] == report.mass_cache_telemetry
 
 
 def test_phase9_does_not_fabricate_measured_scout_latency(tmp_path):

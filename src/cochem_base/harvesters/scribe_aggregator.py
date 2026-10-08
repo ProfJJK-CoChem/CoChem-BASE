@@ -41,8 +41,8 @@ try:
 except ImportError:
     mendeleev = None
 
-# Conversion factor: exact CODATA 1 Hartree in kcal/mol
-HARTREE_TO_KCAL_MOL: float = 627.5094740631
+# The unit authority is shared with native calculation and report consumers.
+from cochem_base.core.cochem_constants import HARTREE_TO_KCAL_MOL as HARTREE_TO_KCAL_MOL
 
 logger = logging.getLogger("cochem.scribe.aggregator")
 

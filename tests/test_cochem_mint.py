@@ -326,11 +326,11 @@ def test_single_xyz_ingestion(tmp_path: Path) -> None:
         coords_h2o = np.array([[a["x"], a["y"], a["z"]] for a in payload_h2o["atoms"]])
     elif coords_h2o is None and hasattr(payload_h2o, "atoms"):
         coords_h2o = np.array([[a.x, a.y, a.z] for a in payload_h2o.atoms])
-    elif isinstance(coords_h2o, list):
+    elif isinstance(coords_h2o, (list, tuple)):
         coords_h2o = np.array(coords_h2o)
 
     assert total_atoms_h2o == 3
-    assert symbols_h2o == ["O", "H", "H"]
+    assert list(symbols_h2o) == ["O", "H", "H"]
     assert isinstance(coords_h2o, np.ndarray)
     assert coords_h2o.shape == (3, 3)
     np.testing.assert_allclose(coords_h2o[0], [0.0, 0.0, 0.1173], atol=1e-5)
@@ -364,7 +364,7 @@ def test_single_xyz_ingestion(tmp_path: Path) -> None:
     symbols_ch4 = getattr(payload_ch4, "symbols", None) or (payload_ch4.get("symbols") if isinstance(payload_ch4, dict) else None) or [a["symbol"] for a in (payload_ch4.get("atoms", []) if isinstance(payload_ch4, dict) else getattr(payload_ch4, "atoms", []))]
     total_atoms_ch4 = getattr(payload_ch4, "total_atoms", None) or (payload_ch4.get("total_atoms") if isinstance(payload_ch4, dict) else len(symbols_ch4))
     assert total_atoms_ch4 == 5
-    assert symbols_ch4 == ["C", "H", "H", "H", "H"]
+    assert list(symbols_ch4) == ["C", "H", "H", "H", "H"]
 
     ref_c = get_mendeleev_reference("C")
     m_aux_ch4 = getattr(payload_ch4, "M_aux", None) or (payload_ch4.get("M_aux") if isinstance(payload_ch4, dict) else None)
@@ -401,14 +401,14 @@ def test_non_destructive_cartesian_indexing(tmp_path: Path) -> None:
     ])
 
     symbols = getattr(payload, "symbols", None) or (payload.get("symbols") if isinstance(payload, dict) else None) or [a["symbol"] for a in (payload.get("atoms", []) if isinstance(payload, dict) else getattr(payload, "atoms", []))]
-    assert symbols == expected_symbols, f"Cartesian row order was permuted! Got {symbols}, expected {expected_symbols}"
+    assert list(symbols) == expected_symbols, f"Cartesian row order was permuted! Got {symbols}, expected {expected_symbols}"
 
     coords = getattr(payload, "coordinates", None)
     if coords is None and isinstance(payload, dict) and "atoms" in payload:
         coords = np.array([[a["x"], a["y"], a["z"]] for a in payload["atoms"]])
     elif coords is None and hasattr(payload, "atoms"):
         coords = np.array([[a.x, a.y, a.z] for a in payload.atoms])
-    elif isinstance(coords, list):
+    elif isinstance(coords, (list, tuple)):
         coords = np.array(coords)
 
     assert isinstance(coords, np.ndarray)
@@ -482,7 +482,7 @@ def test_mol_format_ingestion(tmp_path: Path) -> None:
     symbols_w = getattr(payload_water, "symbols", None) or (payload_water.get("symbols") if isinstance(payload_water, dict) else None) or [a["symbol"] for a in (payload_water.get("atoms", []) if isinstance(payload_water, dict) else getattr(payload_water, "atoms", []))]
     total_w = getattr(payload_water, "total_atoms", None) or (payload_water.get("total_atoms") if isinstance(payload_water, dict) else len(symbols_w))
     assert total_w == 3
-    assert symbols_w == ["O", "H", "H"]
+    assert list(symbols_w) == ["O", "H", "H"]
 
     # 2. Aspirin MOL (21 atoms)
     aspirin_mol_file = tmp_path / "aspirin.mol"
@@ -699,14 +699,14 @@ def test_co2_h2o_complex_ingestion(tmp_path: Path) -> None:
     symbols = getattr(payload, "symbols", None) or (payload.get("symbols") if isinstance(payload, dict) else None) or [a["symbol"] for a in (payload.get("atoms", []) if isinstance(payload, dict) else getattr(payload, "atoms", []))]
     total_atoms = getattr(payload, "total_atoms", None) or (payload.get("total_atoms") if isinstance(payload, dict) else len(symbols))
     assert total_atoms == 6
-    assert symbols == ["C", "O", "O", "O", "H", "H"]
+    assert list(symbols) == ["C", "O", "O", "O", "H", "H"]
 
     coords = getattr(payload, "coordinates", None)
     if coords is None and isinstance(payload, dict) and "atoms" in payload:
         coords = np.array([[a["x"], a["y"], a["z"]] for a in payload["atoms"]])
     elif coords is None and hasattr(payload, "atoms"):
         coords = np.array([[a.x, a.y, a.z] for a in payload.atoms])
-    elif isinstance(coords, list):
+    elif isinstance(coords, (list, tuple)):
         coords = np.array(coords)
 
     # Intermolecular distance between C(0) and O_water(3) should be 2.836 A
@@ -734,7 +734,7 @@ def test_benzene_planar_geometry_ingestion(tmp_path: Path) -> None:
         coords = np.array([[a["x"], a["y"], a["z"]] for a in payload["atoms"]])
     elif coords is None and hasattr(payload, "atoms"):
         coords = np.array([[a.x, a.y, a.z] for a in payload.atoms])
-    elif isinstance(coords, list):
+    elif isinstance(coords, (list, tuple)):
         coords = np.array(coords)
 
     # Planarity check: z coordinates all zero

@@ -48,7 +48,7 @@ Architectural Overview:
    - Breadcrumb header hierarchy navigation (#, ##, ###) preserving tables, code blocks, and LaTeX formulas.
 
 7. Dynamic Mendeleev Property Resolution:
-   - Mass-weighted molecular geometry summarization using dynamic mendeleev.element(sym).mass.
+   - Mass-weighted molecular geometry summarization using dynamic dynamic assigned/principal isotope masses.
 """
 
 from __future__ import annotations
@@ -92,6 +92,7 @@ except ImportError:
 
 import numpy as np
 import psutil
+from cochem_base.physics.isotopes import get_isotope_mass
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -2161,7 +2162,7 @@ def compress_molecular_geometry(
     if n_atoms != coords.shape[0]:
         raise ValueError(f"Mismatch between symbol count ({n_atoms}) and coordinate count ({coords.shape[0]})")
 
-    masses = np.array([float(element(sym).mass) for sym in symbols], dtype=np.float64)
+    masses = np.array([get_isotope_mass(sym) for sym in symbols], dtype=np.float64)
     total_mass = float(np.sum(masses))
 
     if compute_com and total_mass > 0:

@@ -25,8 +25,9 @@ Contract Specifications (Method Matrix v4 §10.1-10.8):
     Energy gradient in Eh/bohr (Hartree/bohr) (atom1_x, atom1_y, atom1_z, ...)
 - Units & Sign Conventions (§10.3):
     Input coordinates: Angstrom (A)
-    Output energy: Hartree (Eh) = E_eV / 27.211386245988
-    Output gradient: Eh/bohr = (-Force_eV_per_A) * 0.529177210903 / 27.211386245988
+    Output energy: Hartree (Eh) = E_eV / HARTREE_TO_EV
+    Output gradient: Eh/bohr = (-Force_eV_per_A) * BOHR_TO_ANGSTROM / HARTREE_TO_EV
+    Both factors come from the installed BASE CODATA 2022 registry.
     MANDATORY SIGN FLIP: Gradient = -Force (\\nabla E = -F). ASE/models return
     forces F; ORCA optimizers require the potential energy gradient.
 - Persistent Daemon Architecture (§8A.2 & §9B.4):
@@ -40,8 +41,10 @@ Contract Specifications (Method Matrix v4 §10.1-10.8):
     atomic force uncertainty U_F, writing an uncertainty marker file if exceeding
     eps_E / eps_F.
 - Physical Mass Mandate: Dynamic atomic mass and property resolution via `mendeleev`.
-- Zero-Mock Policy: Authentic socket IPC, robust retry mechanism, and genuine
-  analytical physical molecular mechanics potential fallback when remote is offline.
+- Provider outage: Authentic socket IPC and bounded retries preserve diagnostics;
+  unavailable requested providers refuse execution without inventing a replacement potential.
+- Runtime dependency: The verified installed CoChem-BASE package supplies constants
+  and nuclear identity. A copied script alone is not a supported calculation runtime.
 """
 
 from __future__ import annotations
@@ -67,6 +70,8 @@ from typing import Any, Final, Optional, Union
 
 import mendeleev  # type: ignore[import-untyped]
 import numpy as np
+from cochem_base.core import cochem_constants as _physical_constants
+from cochem_base.physics.isotopes import get_isotope_mass
 
 try:
     from cochem_base.schemas import OETFallbackAlertManifest
@@ -207,15 +212,15 @@ def emit_fallback_alert(
 
 
 # Physical conversion constants (Method Matrix v4 §10.3 & NIST CODATA 2022)
-BOHR_TO_ANGSTROM: Final[float] = 0.529177210903
-ANGSTROM_TO_BOHR: Final[float] = 1.0 / BOHR_TO_ANGSTROM  # ~1.8897261246257708
-HARTREE_TO_EV: Final[float] = 27.211386245988
+BOHR_TO_ANGSTROM: Final[float] = _physical_constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_BOHR: Final[float] = _physical_constants.ANGSTROM_TO_BOHR
+HARTREE_TO_EV: Final[float] = _physical_constants.HARTREE_TO_EV
 EV_TO_HARTREE: Final[float] = 1.0 / HARTREE_TO_EV
 EH_PER_EV: Final[float] = EV_TO_HARTREE
 BOHR_PER_A: Final[float] = ANGSTROM_TO_BOHR
 EV_PER_ANG_TO_EH_PER_BOHR: Final[float] = EH_PER_EV / BOHR_PER_A
-HARTREE_TO_KCAL_MOL: Final[float] = 627.5094740631
-HARTREE_TO_KJ_MOL: Final[float] = 2625.4996394799
+HARTREE_TO_KCAL_MOL: Final[float] = _physical_constants.HARTREE_TO_KCAL_MOL
+HARTREE_TO_KJ_MOL: Final[float] = HARTREE_TO_KCAL_MOL * 4.184
 
 # Logger setup
 logger = logging.getLogger("cochem.torq.oet_client")
@@ -226,23 +231,10 @@ logger = logging.getLogger("cochem.torq.oet_client")
 # =============================================================================
 
 
-@functools.lru_cache(maxsize=128)
+@functools.lru_cache(maxsize=4096)
 def get_element_atomic_mass(symbol: str) -> float:
-    """Retrieve dynamic atomic mass for an element symbol using Mendeleev.
-
-    Strictly complies with the CoChem Mendeleev Mass Mandate (no hardcoded masses).
-    """
-    clean_sym = symbol.strip().capitalize()
-    try:
-        elem = mendeleev.element(clean_sym)
-        mass = elem.mass
-        if mass is None:
-            raise ValueError(f"Mendeleev mass is None for '{clean_sym}'")
-        return float(mass)
-    except Exception as err:
-        raise ValueError(
-            f"Failed to get atomic mass for '{symbol}' via Mendeleev: {err}"
-        ) from err
+    """Resolve the assigned or principal measured isotope through Mendeleev."""
+    return get_isotope_mass(symbol)
 
 
 @functools.lru_cache(maxsize=128)
@@ -556,7 +548,7 @@ def convert_ase_forces_to_orca_gradient(
 
     MANDATORY SIGN FLIP (Method Matrix v4 §10.3):
     \\nabla E = -F
-    g_Eh_a0 = (-F_eV_per_A) * 0.529177210903 / 27.211386245988
+    g_Eh_a0 = (-F_eV_per_A) * BOHR_TO_ANGSTROM / HARTREE_TO_EV
     """
     forces_arr = np.asarray(forces_ev_per_ang, dtype=np.float64)
     grad_arr = (-forces_arr) * EV_PER_ANG_TO_EH_PER_BOHR
@@ -579,18 +571,23 @@ def convert_orca_gradient_to_ase_forces(
 # =============================================================================
 
 
-class PhysicalOETFallbackCalculator:
-    """Authentic analytical physical molecular potential calculator.
+class MissingRequestedDerivativeError(ValueError):
+    """The selected external provider omitted a requested finite Cartesian gradient."""
 
-    Complies strictly with the CoChem Zero-Mock Anti-Spoofing Protocol.
-    Computes genuine molecular potential energy E(R) (Hartree) and analytic
-    gradients nabla E = -F (Eh/bohr) directly using dynamic Mendeleev masses,
-    covalent radii, and vdW radii.
+
+class PhysicalOETFallbackCalculator:
+    """Retired legacy interface; a missing provider cannot be replaced with guessed physics.
+
+    Method Matrix section 10 requires an actual selected external-method provider.
+    The former charge/radius formula was not a parameterized molecular method.
     """
 
     def __init__(self, eps_dispersion: float = 0.05, k_bond: float = 0.35) -> None:
-        self.eps_dispersion = eps_dispersion
-        self.k_bond = k_bond
+        self.unavailable_reason = (
+            "The legacy analytical OET surrogate is retired. Configure an actual "
+            "selected external-method server or use the verified MACE-OFF wrapper. "
+            "No energy, gradient, or uncertainty has been computed."
+        )
 
     def calculate(
         self,
@@ -600,99 +597,7 @@ class PhysicalOETFallbackCalculator:
         multiplicity: int = 1,
         dograd: bool = True,
     ) -> tuple[float, list[float]]:
-        """Calculate authentic physical potential energy and analytical gradients."""
-        n_atoms = len(symbols)
-        if n_atoms == 0:
-            return 0.0, []
-
-        if n_atoms == 1:
-            z = get_element_atomic_number(symbols[0])
-            e_atom = -0.5 * (z**2) * (1.0 - 0.1 * charge)
-            return float(e_atom), [0.0, 0.0, 0.0] if dograd else []
-
-        coords_arr = np.array(coordinates, dtype=np.float64)
-        cov_radii = np.array(
-            [get_element_covalent_radius(s) for s in symbols], dtype=np.float64
-        )
-        vdw_radii = np.array(
-            [get_element_vdw_radius(s) for s in symbols], dtype=np.float64
-        )
-        z_vals = np.array(
-            [get_element_atomic_number(s) for s in symbols], dtype=np.float64
-        )
-
-        e_ref = -float(np.sum(0.5 * (z_vals**1.85)))
-
-        total_energy_kcal = 0.0
-        forces_kcal_ang = np.full((n_atoms, 3), 0.0, dtype=np.float64)
-
-        for i in range(n_atoms):
-            for j in range(i + 1, n_atoms):
-                rij_vec = coords_arr[i] - coords_arr[j]
-                rij = float(np.linalg.norm(rij_vec))
-                if rij < 1e-6:
-                    rij = 1e-6
-                    rij_vec = np.array([1e-6, 0.0, 0.0])
-
-                unit_vec = rij_vec / rij
-
-                r_cov = cov_radii[i] + cov_radii[j]
-                r_vdw = vdw_radii[i] + vdw_radii[j]
-
-                # Covalent contribution (Morse / harmonic)
-                d_e = 80.0 * (z_vals[i] * z_vals[j]) ** 0.35
-                delta_r = rij - r_cov
-                e_cov = 0.5 * self.k_bond * 100.0 * (delta_r**2) - d_e
-                de_cov_dr = self.k_bond * 100.0 * delta_r
-
-                # Non-bonded contribution (buffered Lennard-Jones 12-6 + Coulomb)
-                sigma = r_vdw * 0.890898718
-                eps = self.eps_dispersion * math.sqrt(z_vals[i] * z_vals[j])
-                sr6 = (sigma / rij) ** 6
-                sr12 = sr6**2
-                e_lj = 4.0 * eps * (sr12 - sr6)
-
-                q_i = (charge / n_atoms) + (0.1 if z_vals[i] == 1 else -0.1)
-                q_j = (charge / n_atoms) + (0.1 if z_vals[j] == 1 else -0.1)
-                e_coul = (332.0637 * q_i * q_j) / rij
-                e_nb = e_lj + e_coul
-                de_nb_dr = -(24.0 * eps / rij) * (2.0 * sr12 - sr6) - (332.0637 * q_i * q_j) / (rij**2)
-
-                # C^2-continuous quintic polynomial switching envelope (Method Matrix v4 §10.2, §10.3)
-                r_on = 1.15 * r_cov
-                r_off = 1.45 * r_cov
-
-                if rij <= r_on:
-                    s = 1.0
-                    ds_dr = 0.0
-                elif rij >= r_off:
-                    s = 0.0
-                    ds_dr = 0.0
-                else:
-                    delta_range = r_off - r_on
-                    u = (rij - r_on) / delta_range
-                    s = 1.0 - 10.0 * (u**3) + 15.0 * (u**4) - 6.0 * (u**5)
-                    ds_dr = (1.0 / delta_range) * (-30.0 * (u**2) + 60.0 * (u**3) - 30.0 * (u**4))
-
-                # Composite potential energy: V(rij) = S*V_cov + (1 - S)*V_nb
-                v_pair = s * e_cov + (1.0 - s) * e_nb
-                total_energy_kcal += v_pair
-
-                # Analytical conservative force: F_i = -nabla_i V = -(dV/dr) * unit_vec
-                # dV/dr = S * (de_cov/dr) + (1 - S) * (de_nb/dr) + (dS/dr) * (e_cov - e_nb)
-                dv_dr = s * de_cov_dr + (1.0 - s) * de_nb_dr + ds_dr * (e_cov - e_nb)
-                f_pair_mag = -dv_dr
-
-                forces_kcal_ang[i] += f_pair_mag * unit_vec
-                forces_kcal_ang[j] -= f_pair_mag * unit_vec
-
-        e_pot_eh = total_energy_kcal / HARTREE_TO_KCAL_MOL
-        total_energy_eh = e_ref + e_pot_eh
-
-        forces_ev_ang = forces_kcal_ang * (1.0 / 23.06054801)
-        grad_eh_bohr = convert_ase_forces_to_orca_gradient(forces_ev_ang)
-
-        return float(total_energy_eh), grad_eh_bohr if dograd else []
+        raise OETDaemonUnavailableError(self.unavailable_reason)
 
 
 # =============================================================================
@@ -900,36 +805,14 @@ end
             clean_base = clean_base[:-4]
 
         if self.standalone:
-            logger.info(
-                "Executing in Standalone Mode via Physical Fallback Calculator (§10.5)."
-            )
-            manifest = emit_fallback_alert(
+            self.last_manifest = emit_fallback_alert(
                 calculation_base=clean_base,
-                trigger_event="StandaloneModeActivated",
-                fallback_calculator="PhysicalOETFallbackCalculator",
+                trigger_event="Standalone requested without an actual external-method provider",
+                fallback_calculator="unavailable-no-authorized-provider",
                 scratch_dir=self.scratch_dir,
                 artifacts_dir=self.artifacts_dir,
             )
-            self.last_manifest = manifest
-
-            e_eh, grad_eh_bohr = self.fallback_calc.calculate(
-                symbols=symbols,
-                coordinates=coordinates,
-                charge=charge,
-                multiplicity=multiplicity,
-                dograd=dograd,
-            )
-            return {
-                "status": "OK",
-                "energy_Eh": e_eh,
-                "gradient_Eh_bohr": grad_eh_bohr,
-                "num_atoms": len(symbols),
-                "uncertainty_energy_Eh": 0.0,
-                "uncertainty_force_max": 0.0,
-                "fallback_active": True,
-                "provenance_tag": "[E]",
-                "manifest": manifest,
-            }
+            raise OETDaemonUnavailableError(self.fallback_calc.unavailable_reason)
 
         payload: dict[str, Any] = {
             "command": "calculate",
@@ -956,39 +839,18 @@ end
                     f"fallback disabled or strict provenance active: {conn_err}"
                 ) from conn_err
 
-            logger.info(
-                "OET server at %s:%d offline. Activating Physical Fallback (§10.5).",
-                self.host,
-                self.port,
-            )
-            manifest = emit_fallback_alert(
+            self.last_manifest = emit_fallback_alert(
                 calculation_base=clean_base,
-                trigger_event=f"SocketConnectionError: {conn_err}",
-                fallback_calculator="PhysicalOETFallbackCalculator",
+                trigger_event=f"SocketConnectionError: {conn_err}; no authorized fallback provider",
+                fallback_calculator="unavailable-no-authorized-provider",
                 socket_target=f"{self.host}:{self.port}",
                 scratch_dir=self.scratch_dir,
                 artifacts_dir=self.artifacts_dir,
             )
-            self.last_manifest = manifest
-
-            e_eh, grad_eh_bohr = self.fallback_calc.calculate(
-                symbols=symbols,
-                coordinates=coordinates,
-                charge=charge,
-                multiplicity=multiplicity,
-                dograd=dograd,
-            )
-            return {
-                "status": "OK",
-                "energy_Eh": e_eh,
-                "gradient_Eh_bohr": grad_eh_bohr,
-                "num_atoms": len(symbols),
-                "uncertainty_energy_Eh": 0.0,
-                "uncertainty_force_max": 0.0,
-                "fallback_active": True,
-                "provenance_tag": "[E]",
-                "manifest": manifest,
-            }
+            raise OETDaemonUnavailableError(
+                f"OET server at {self.host}:{self.port} is unavailable. "
+                + self.fallback_calc.unavailable_reason
+            ) from conn_err
 
     def _normalize_server_response(
         self,
@@ -1011,6 +873,8 @@ end
         else:
             raise ValueError(f"OET response missing energy field: {resp.keys()}")
 
+        if not math.isfinite(energy_eh):
+            raise ValueError("OET provider returned a non-finite measured energy")
         gradient_eh_bohr: list[float] = []
         if dograd:
             if "gradient_Eh_bohr" in resp:
@@ -1029,8 +893,11 @@ end
                 forces_arr = np.asarray(resp["forces"], dtype=np.float64)
                 gradient_eh_bohr = convert_ase_forces_to_orca_gradient(forces_arr)
             else:
-                gradient_eh_bohr = [0.0] * (n_atoms * 3)
+                raise MissingRequestedDerivativeError("OET provider did not return the requested gradient")
+            if len(gradient_eh_bohr) != n_atoms * 3 or not np.isfinite(gradient_eh_bohr).all():
+                raise MissingRequestedDerivativeError("OET provider gradient must contain 3N finite Eh/bohr values")
         else:
+            # ORCA energy-only file slots are explicitly unmeasured protocol padding.
             gradient_eh_bohr = [0.0] * (n_atoms * 3)
 
         u_energy = resp.get("uncertainty_energy_Eh") or resp.get("sigma_E")

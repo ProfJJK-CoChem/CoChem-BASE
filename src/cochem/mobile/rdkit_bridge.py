@@ -398,7 +398,9 @@ def serialize_standard_xyz(
         sym = atom.GetSymbol()
         symbols.append(sym)
         # Dynamic Mendeleev atomic weight lookup (Zero hardcoding)
-        mass = float(mendeleev.element(sym).atomic_weight)
+        from cochem_base.physics.isotopes import get_isotope_mass
+        label = f"{atom.GetIsotope()}{sym}" if atom.GetIsotope() else sym
+        mass = get_isotope_mass(label)
         masses.append(mass)
 
         pos = conf.GetAtomPosition(idx)

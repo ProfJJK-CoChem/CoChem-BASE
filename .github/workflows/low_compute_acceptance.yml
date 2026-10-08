@@ -53,6 +53,28 @@ jobs:
           --root "${{ runner.temp }}/cochem-free-engines"
           --engines xtb pyscf
           --output "${{ runner.temp }}/cochem-evidence/verification.json"
+      - name: Publish fresh Stage 0 authority for the genuine calculation silo
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          from scripts.hosted_dashboard import runtime_environment, setup_build_environment
+          artifacts = Path(os.environ['COCHEM_ARTIFACT_DIR'])
+          manifest = artifacts / 'dashboard/deployment_manifest.json'
+          manifest.write_text(json.dumps({'selected_repositories': ['CoChem-BASE'],
+              'requested_silos': ['cochem_core_silo', 'cochem_ui_silo', 'cochem_calc_silo']}) + '\n')
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'cochem-evidence'
+          env = setup_build_environment(runtime_environment(artifacts))
+          with (evidence / 'fresh-calculation-stage0.json').open('w') as log:
+              subprocess.run([str(artifacts / 'ui-env/bin/python'), 'cli.py', 'setup', '--all',
+                  '--artifact-dir', str(artifacts), '--min-disk-space-gb', '1', '--json'],
+                  env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+          from cochem_base.core_engine.execution_authority import authorize_engine_execution
+          authority = authorize_engine_execution('pyscf', registry_path=artifacts / 'Registry/cochem_system_config.json',
+              cores=1, maxcore_mb=512)
+          if authority.executable != str(artifacts / 'Silos/cochem_calc_silo/bin/python'):
+              raise RuntimeError('Fresh PySCF authority did not bind the actual isolated calculation silo')
+          PY
       - name: Verify bounded regressions with actual outcomes and unchanged source
         env:
           XTB_CMD: ${{ runner.temp }}/cochem-artifacts/free-engines/xtb/xtb-dist/bin/xtb

@@ -13,10 +13,17 @@ scientific records needed to assess a result.
 to prepare the release template, configure access, pilot one student and roll
 the assignment out to the course. **Students: start with the
 [graphical research guide](.docs/Student_Research_No_Code.md).**
+Open **your accepted Classroom50 repository → Code → Codespaces → Create codespace**,
+wait for automatic setup, then open the private **8866 CoChem Voilà dashboard**
+from VS Code's Ports panel. The student route uses buttons and file uploads.
 Students upload their own Avogadro 2 monomers or complexes. BASE automatically
 installs its approved modules and provides calculation submission, monitoring,
 result retrieval, scientific reports and compatible updates in the GUI.
-Students using the instructor's provisioned route do not enter tokens in CoChem.
+Students using the instructor's provisioned route do not enter tokens in CoChem,
+type terminal commands, edit Python/JSON or obtain another CoChem repository.
+The [complete input-library guide](.docs/Student_Research_No_Code.md#use-the-scientific-input-library)
+also covers MOL V2000/V3000, multi-record SDF, MOL2, PDB, QCSchema,
+conformer pools, periodic structures, native outputs and geometry-bound Hessians.
 
 For CFOUR runtime access, classroom setup and host compatibility, follow the
 [CFOUR setup guide](.docs/CFOUR_Actions_Setup.md). **ORCA and CFOUR are optional,
@@ -51,7 +58,7 @@ before rolling a new template out to the course.
 
 | Route | How to use it | Validation boundary |
 | --- | --- | --- |
-| Classroom50 / GitHub Actions | Accept the assignment, open BASE in Codespaces, upload XYZ and select **Run with GitHub Actions**. | Exact submitted structures and approved scientific worker revisions bind the retained results. Hosted execution is distinct from actual student Codespaces acceptance. |
+| Classroom50 / GitHub Actions | Accept the assignment, open BASE in Codespaces, upload XYZ and select **Run on GitHub Actions**. | Exact submitted structures and approved scientific worker revisions bind the retained results. Hosted execution is distinct from actual student Codespaces acceptance. |
 | Local Linux CPU | Complete Stage 0 and select an audited installed engine. | Local tests and real bounded calculations provide evidence for documented operations. |
 | Windows / WSL2 | Submit Actions jobs from the interface; use WSL2 for local Linux ORCA. | The Linux archive does not run natively on Windows. WSL acceptance is separate from Linux cloud tests. |
 | macOS | Use Actions or install the matching macOS engine build and complete setup. | Native macOS acceptance needs an appropriate host. Linux binaries and registries are not portable to it. |
@@ -89,8 +96,10 @@ disable their dependent operations rather than returning illustrative numbers.
 The course workflow supports bounded molecular single points, optimizations
 and harmonic frequencies: up to 50 atoms, one or two processes, at most 1024 MB
 per process and 1800 seconds of chemistry execution. Defaults are two processes
-and 512 MB per process. External checkpoints, R2 references, T9 recovery,
-periodic calculations and VPT2 require other workflows.
+and 512 MB per process. The same BASE entrypoint also provides typed R2/READ input uploads, explicit T9
+recovery and supported periodic requests, with original-source transport and
+operation-specific scientific checks. VPT2 and other unavailable provider
+operations remain explicitly gated; a successful upload does not certify them.
 
 Examples are [water single point](examples/jobs/water-single-point.json),
 [water optimization](examples/jobs/water-optimization.json), and
@@ -99,12 +108,12 @@ These HF/STO-3G examples validate execution, not research-level chemical accurac
 A harmonic calculation at supplied coordinates does not certify a stationary
 geometry; optimize first when appropriate.
 
-## Launch the interface from source
+## Expert local and developer setup
 
-Use Python 3.12 for the pinned Stage 0 environments. Classroom50 users should
-clone their **accepted assignment repository**, using its **Code → Local** HTTPS
-URL, and run the launcher inside that checkout. The clone example below is for
-upstream development; it does not create or select your course assignment.
+The commands below prepare local workstations and development checkouts. Use
+Python 3.12 for the pinned Stage 0 environments. Students using Classroom50
+and Codespaces follow the graphical guide above; automatic BASE setup prepares
+their workspace and hidden ecosystem components.
 
 From an upstream development checkout:
 

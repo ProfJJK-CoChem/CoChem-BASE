@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import networkx as nx
 import numpy as np
 
-from cochem_torq_topology import build_molecular_graph
+from cochem_base.cochem_torq_topology import build_molecular_graph
 
 logger = logging.getLogger("CoChem-TORQ.MACE")
 
@@ -86,59 +86,42 @@ def rotate_dihedral_angle(
     return coords
 
 
+class RequestedPotentialUnavailableError(RuntimeError):
+    """The selected scientific potential has no available evaluation receiver."""
+
+
 def evaluate_pes_point(
     symbols: Sequence[str],
     coordinates: np.ndarray,
     model_wrapper: Optional[Any] = None,
 ) -> float:
-    """
-    Evaluates the potential energy of a single geometric configuration.
-    If a custom model_wrapper is provided, queries the model; otherwise,
-    evaluates an authentic Lennard-Jones + 1-4 electrostatic physical force field.
-    Returns energy in Hartree (1 Hartree = 627.509 kcal/mol).
-    """
-    if model_wrapper is not None and hasattr(model_wrapper, "evaluate"):
-        return float(model_wrapper.evaluate(symbols, coordinates))
+    """Evaluate only the explicitly supplied potential, returning Hartree.
 
-    # Authentic Lennard-Jones + Torsional classical surrogate model
+    An ASE calculator is an explicit model selection; its native eV result is
+    converted once. A provider receiver must return a finite Hartree quantity
+    with method and provenance. No unrequested force field substitutes for MACE.
+    """
     coords = np.asarray(coordinates, dtype=np.float64)
-    n_atoms = len(symbols)
-    energy_kcal = 0.0
-
-    # Non-bonded Lennard-Jones parameters (sigma in Angstrom, epsilon in kcal/mol)
-    lj_params = {
-        "H": (1.00, 0.02),
-        "C": (1.70, 0.10),
-        "N": (1.55, 0.15),
-        "O": (1.52, 0.16),
-        "F": (1.47, 0.08),
-        "Cl": (1.75, 0.25),
-        "S": (1.80, 0.20),
-    }
-
-    for a in range(n_atoms):
-        sym_a = symbols[a].capitalize()
-        sig_a, eps_a = lj_params.get(sym_a, (1.6, 0.1))
-        for b in range(a + 1, n_atoms):
-            sym_b = symbols[b].capitalize()
-            sig_b, eps_b = lj_params.get(sym_b, (1.6, 0.1))
-
-            r = float(np.linalg.norm(coords[a] - coords[b]))
-            if r < 0.1:
-                r = 0.1
-
-            sig_ab = 0.5 * (sig_a + sig_b)
-            eps_ab = math.sqrt(eps_a * eps_b)
-
-            # 12-6 Lennard-Jones potential
-            sr6 = (sig_ab / r) ** 6
-            sr12 = sr6**2
-            v_lj = 4.0 * eps_ab * (sr12 - sr6)
-            energy_kcal += v_lj
-
-    # Convert kcal/mol to Hartree (1 Hartree = 627.509474 kcal/mol)
-    energy_hartree = energy_kcal / 627.509474
-    return energy_hartree
+    if coords.shape != (len(symbols), 3) or not np.all(np.isfinite(coords)):
+        raise ValueError("Potential evaluation requires finite ordered N-by-3 coordinates")
+    if model_wrapper is None:
+        raise RequestedPotentialUnavailableError("A selected executable potential is required; no replacement model is authorized")
+    from ase.calculators.calculator import BaseCalculator
+    if isinstance(model_wrapper, BaseCalculator):
+        from ase import Atoms
+        from cochem_base.core.cochem_constants import HARTREE_TO_EV
+        atoms = Atoms(symbols=list(symbols), positions=coords, calculator=model_wrapper)
+        energy = float(atoms.get_potential_energy()) / HARTREE_TO_EV
+    elif callable(getattr(model_wrapper, "evaluate", None)):
+        result = model_wrapper.evaluate(symbols, coords)
+        if not isinstance(result, dict) or not result.get("method") or not result.get("provenance") or "energy_hartree" not in result:
+            raise RequestedPotentialUnavailableError("A provider must return energy_hartree, its actual method and provenance")
+        energy = float(result["energy_hartree"])
+    else:
+        raise RequestedPotentialUnavailableError("The selected potential has no compatible scientific receiver")
+    if not np.isfinite(energy):
+        raise ValueError("The selected potential returned a nonfinite measured energy")
+    return energy
 
 
 def onnx_cpu_fallback(

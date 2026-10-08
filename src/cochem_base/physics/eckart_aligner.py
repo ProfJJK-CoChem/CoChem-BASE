@@ -21,7 +21,8 @@ except ImportError:
         """Fallback root exception if cochem_base.exceptions is unavailable."""
         pass
 
-from cochem_base.physics.nuclide_resolver import disambiguate_mass
+from cochem_base.physics.nuclide_resolver import disambiguate_mass as disambiguate_mass
+from cochem_base.physics.isotopes import get_nuclide_mass, is_ghost_atom, ZeroMassSystemError
 
 
 # ============================================================================
@@ -59,6 +60,28 @@ class CollinearDegeneracyError(NumericalInvariantBreach, ValueError):
 # ============================================================================
 # Core Vectorized COM Accumulator (WBS 1.3.1.1)
 # ============================================================================
+
+def _validate_mass_signs(masses: np.ndarray, symbols: Optional[Sequence[str]]) -> None:
+    """Zero mass is legal only for explicitly declared counterpoise centers."""
+    minimum = float(masses.min())
+    if minimum < 0:
+        raise ValueError("All physical atomic masses must be strictly positive (> 0).")
+    if symbols is None:
+        if minimum == 0:
+            raise ValueError("All physical atomic masses must be strictly positive (> 0); zero requires a declared ghost center.")
+        return
+    if masses.ndim == 2 and masses.shape[-1] == 1 and len(symbols) != masses.shape[-1]:
+        masses = masses.reshape(-1)
+    if isinstance(symbols, str) or len(symbols) != masses.shape[-1]:
+        raise ValueError("Nuclear labels must match the ordered mass vector")
+    for index, label in enumerate(symbols):
+        column = masses[index] if masses.ndim == 1 else masses[:, index]
+        if is_ghost_atom(label):
+            if not np.all(column == 0):
+                raise ValueError("Declared ghost centers require exactly zero mass")
+        elif np.any(column == 0):
+            raise ValueError("All physical atomic masses must be strictly positive (> 0).")
+
 
 def compute_center_of_mass(
     coordinates: np.ndarray,
@@ -132,7 +155,7 @@ def compute_center_of_mass(
             raise ValueError(
                 f"Number of chemical symbols ({len(symbols)}) does not match number of atoms ({n_atoms})."
             )
-        resolved_masses = [disambiguate_mass(s) for s in symbols]
+        resolved_masses = [get_nuclide_mass(s) for s in symbols]
         mass_arr = np.asarray(resolved_masses, dtype=np.float64)
     else:
         if isinstance(masses, np.ndarray) and masses.dtype == np.float64:
@@ -160,12 +183,11 @@ def compute_center_of_mass(
             raise ValueError(
                 f"For unbatched coordinates of shape {coords.shape}, masses must have shape ({n_atoms},), got {mass_arr.shape}."
             )
-        if np.any(mass_arr <= 0.0):
-            raise ValueError("All individual atomic masses must be strictly positive (> 0).")
+        _validate_mass_signs(mass_arr, symbols)
 
         total_mass = float(np.sum(mass_arr))
         if total_mass <= 0.0:
-            raise ValueError("Total molecular mass must be strictly positive (> 0).")
+            raise ZeroMassSystemError("Total molecular mass must be strictly positive (> 0).")
         r_com = (mass_arr @ coords) / total_mass
         return r_com.astype(np.float64)
     else:
@@ -189,13 +211,12 @@ def compute_center_of_mass(
                 f"For batched coordinates, masses must have 1 or 2 dimensions, got {mass_arr.ndim}D with shape {mass_arr.shape}."
             )
 
-        if np.any(mass_arr <= 0.0):
-            raise ValueError("All individual atomic masses must be strictly positive (> 0).")
+        _validate_mass_signs(mass_arr, symbols)
 
         if mass_arr.ndim == 1:
             total_mass = float(np.sum(mass_arr))
             if total_mass <= 0.0:
-                raise ValueError("Total molecular mass must be strictly positive (> 0).")
+                raise ZeroMassSystemError("Total molecular mass must be strictly positive (> 0).")
             r_com = (mass_arr @ coords) / total_mass
             return r_com.astype(np.float64)
         else:
@@ -286,7 +307,7 @@ def translate_to_center_of_mass(
             raise ValueError(
                 f"Number of chemical symbols ({len(symbols)}) does not match number of atoms ({n_atoms})."
             )
-        resolved_masses = [disambiguate_mass(s) for s in symbols]
+        resolved_masses = [get_nuclide_mass(s) for s in symbols]
         mass_arr = np.asarray(resolved_masses, dtype=np.float64)
     else:
         if isinstance(masses, np.ndarray) and masses.dtype == np.float64:
@@ -299,9 +320,6 @@ def translate_to_center_of_mass(
 
         if mass_arr.size == 0:
             raise ValueError("Masses array must not be empty.")
-
-    if not np.all(np.isfinite(mass_arr)):
-        raise ValueError("Masses must not contain NaN or Inf values.")
 
     tol_sq = tol * tol
 
@@ -318,13 +336,12 @@ def translate_to_center_of_mass(
                 f"For unbatched coordinates of shape {coords.shape}, masses must have shape ({n_atoms},), got {mass_arr.shape}."
             )
 
-        total_mass = float(np.sum(mass_arr))
+        total_mass = float(mass_arr.sum())
         if not np.isfinite(total_mass):
             raise ValueError("Masses must not contain NaN or Inf values.")
-        if np.any(mass_arr <= 0.0):
-            raise ValueError("All individual atomic masses must be strictly positive (> 0).")
+        _validate_mass_signs(mass_arr, symbols)
         if total_mass <= 0.0:
-            raise ValueError("Total molecular mass must be strictly positive (> 0).")
+            raise ZeroMassSystemError("Total molecular mass must be strictly positive (> 0).")
 
         r_com = (mass_arr @ coords) / total_mass
         centered = coords - r_com
@@ -344,9 +361,11 @@ def translate_to_center_of_mass(
                 f"Center of mass residual norm {res_norm:.4e} u*Angstrom exceeds invariant tolerance {tol:.4e} u*Angstrom (VR-01-T01 breach)."
             )
 
-        return centered, r_com.astype(np.float64)
+        return centered, r_com
 
     else:
+        if not np.isfinite(mass_arr.sum()):
+            raise ValueError("Masses must not contain NaN or Inf values.")
         batch_size = coords.shape[0]
         if mass_arr.ndim == 1:
             if mass_arr.shape[0] != n_atoms:
@@ -367,13 +386,12 @@ def translate_to_center_of_mass(
                 f"For batched coordinates, masses must have 1 or 2 dimensions, got {mass_arr.ndim}D with shape {mass_arr.shape}."
             )
 
-        if np.any(mass_arr <= 0.0):
-            raise ValueError("All individual atomic masses must be strictly positive (> 0).")
+        _validate_mass_signs(mass_arr, symbols)
 
         if mass_arr.ndim == 1:
-            total_mass = float(np.sum(mass_arr))
+            total_mass = float(mass_arr.sum())
             if total_mass <= 0.0:
-                raise ValueError("Total molecular mass must be strictly positive (> 0).")
+                raise ZeroMassSystemError("Total molecular mass must be strictly positive (> 0).")
             r_com = (mass_arr @ coords) / total_mass
             centered = coords - r_com[:, None, :]
             res_vecs = mass_arr @ centered
@@ -408,7 +426,7 @@ def translate_to_center_of_mass(
                 f"Maximum batch center of mass residual norm {max_res:.4e} u*Angstrom exceeds invariant tolerance {tol:.4e} u*Angstrom (VR-01-T01 breach)."
             )
 
-        return centered, r_com.astype(np.float64)
+        return centered, r_com
 
 
 def verify_com_residual(
@@ -450,8 +468,10 @@ def verify_com_residual(
         raise ValueError("Centered coordinates must not contain NaN or Inf values.")
     if not np.isfinite(m_arr.sum()):
         raise ValueError("Masses must not contain NaN or Inf values.")
-    if np.any(m_arr <= 0.0):
-        raise ValueError("All individual atomic masses must be strictly positive (> 0).")
+    if np.any(m_arr < 0.0):
+        raise ValueError("All physical atomic masses must be strictly positive (> 0).")
+    if m_arr.sum() <= 0:
+        raise ZeroMassSystemError("All atoms are ghost centers; center of mass undefined.")
 
     if coords.ndim == 2:
         if m_arr.ndim == 2 and m_arr.shape == (coords.shape[0], 1):
@@ -646,7 +666,7 @@ def compute_mass_weighted_covariance_matrix(
             raise ValueError(
                 f"Number of chemical symbols ({len(symbols)}) does not match number of atoms ({n_atoms})."
             )
-        resolved_masses = [disambiguate_mass(s) for s in symbols]
+        resolved_masses = [get_nuclide_mass(s) for s in symbols]
         mass_arr = np.asarray(resolved_masses, dtype=np.float64)
     else:
         if isinstance(masses, np.ndarray) and masses.dtype == np.float64:
@@ -662,8 +682,7 @@ def compute_mass_weighted_covariance_matrix(
         if not np.isfinite(mass_arr.sum()):
             raise ValueError("Masses must not contain NaN or Inf values.")
 
-    if np.any(mass_arr <= 0.0):
-        raise ValueError("All individual atomic masses must be strictly positive (> 0).")
+    _validate_mass_signs(mass_arr, symbols)
 
     # Validate mass array shape
     if not is_batched:
@@ -701,10 +720,10 @@ def compute_mass_weighted_covariance_matrix(
     # 6. Centering coordinates if requested
     if center:
         ref_centered, _ = translate_to_center_of_mass(
-            ref_expanded, masses=mass_arr, enforce_residual_gate=True, tol=tol
+            ref_expanded, masses=mass_arr, symbols=symbols, enforce_residual_gate=True, tol=tol
         )
         target_centered, _ = translate_to_center_of_mass(
-            target_expanded, masses=mass_arr, enforce_residual_gate=True, tol=tol
+            target_expanded, masses=mass_arr, symbols=symbols, enforce_residual_gate=True, tol=tol
         )
     else:
         ref_centered = ref_expanded
@@ -1149,7 +1168,7 @@ def align_coordinates(
     if masses is None:
         if symbols is None:
             raise ValueError("Either masses or symbols must be provided.")
-        mass_arr = np.asarray([disambiguate_mass(s) for s in symbols], dtype=np.float64)
+        mass_arr = np.asarray([get_nuclide_mass(s) for s in symbols], dtype=np.float64)
     else:
         mass_arr = np.asarray(masses, dtype=np.float64)
 

@@ -1,0 +1,278 @@
+{
+  "schema_version": "cochem.native-free-engine-lock/1",
+  "platform": "osx-arm64",
+  "minimum_macos": "11.0",
+  "engines": {
+    "xtb": "6.7.1",
+    "crest": "3.0.2"
+  },
+  "manager": {
+    "version": "2.9.0",
+    "url": "https://github.com/mamba-org/micromamba-releases/releases/download/2.9.0-0/micromamba-osx-arm64",
+    "sha256": "ec2a072f028e1a7cf20f3e2e74d5a8127cf5a5f27636375b5359811565f4e5be"
+  },
+  "provenance": {
+    "solver": "micromamba2.9.0 actual dry-run",
+    "channel": "https://conda.anaconda.org/conda-forge",
+    "metadata_source": "official conda-forge repodata via verified TLS",
+    "native_execution_verified": false
+  },
+  "packages": [
+    {
+      "name": "llvm-openmp",
+      "version": "23.1.3",
+      "build_string": "hdb3d66b_0",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/llvm-openmp-23.1.3-hdb3d66b_0.conda",
+      "sha256": "b8114cade9167d9f0ec927af9b0552b035777c231742d16a18f66bbb8661a303",
+      "md5": "46400897b481f8ca92d4047d16b0690a",
+      "depends": [
+        "__osx >=11.0"
+      ]
+    },
+    {
+      "name": "_openmp_mutex",
+      "version": "4.5",
+      "build_string": "8_kmp_llvm",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/_openmp_mutex-4.5-8_kmp_llvm.conda",
+      "sha256": "c7c98ce74f6a7ff25aaa4706d06fa41d63a333add4d697b73aa4d8d2d7ad7651",
+      "md5": "a2d706b4a7d603524133037c34f7fb76",
+      "depends": [
+        "llvm-openmp >=9.0.1"
+      ]
+    },
+    {
+      "name": "libgcc",
+      "version": "16.2.0",
+      "build_string": "h3cf6597_7",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libgcc-16.2.0-h3cf6597_7.conda",
+      "sha256": "deacf62bd6cbbe05eb085dd69a2ca120053597c37066d53c8f7cf6815f26e9eb",
+      "md5": "f100c8baeb0c816052b0d43948555bf6",
+      "depends": [
+        "_openmp_mutex"
+      ]
+    },
+    {
+      "name": "libgfortran5",
+      "version": "16.2.0",
+      "build_string": "hdb7a957_7",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libgfortran5-16.2.0-hdb7a957_7.conda",
+      "sha256": "19297e5cf39de976cdd1a46499a4e15fdf54d249d3231f3b2a9d43af3be0bc66",
+      "md5": "c9d80dd8775b8fe76e825d63d8ccaf1b",
+      "depends": [
+        "libgcc >=16.2.0"
+      ]
+    },
+    {
+      "name": "libgfortran",
+      "version": "16.2.0",
+      "build_string": "h07b0088_7",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libgfortran-16.2.0-h07b0088_7.conda",
+      "sha256": "a5b4b63d0ef4c7c59c37225b9f0307b5cd2a3a8499b2a40b6ddd2b9f072712a8",
+      "md5": "2efa9518e126c501a7c7d638b2fa3a21",
+      "depends": [
+        "libgfortran5 16.2.0 hdb7a957_7"
+      ]
+    },
+    {
+      "name": "libopenblas",
+      "version": "0.3.34",
+      "build_string": "openmp_h5e6e99c_1",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libopenblas-0.3.34-openmp_h5e6e99c_1.conda",
+      "sha256": "18f167fdaa26f67a123c59766f4730b41866d2c0920b5c29d74a93d3a2e92a96",
+      "md5": "9c874eb9d4441a658ef3acf6ac56dc3e",
+      "depends": [
+        "__osx >=11.0",
+        "libgcc >=15",
+        "libgfortran",
+        "libgfortran5 >=15.3.0",
+        "llvm-openmp >=21.1.8"
+      ]
+    },
+    {
+      "name": "toml-f",
+      "version": "0.4.3",
+      "build_string": "h4b6e51f_0",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/toml-f-0.4.3-h4b6e51f_0.conda",
+      "sha256": "9ebc3e8c7212fd24965fb4dbdaa61e6a65b739fd2a89cfc075f9b4cd8503f372",
+      "md5": "87459f57f544db861e42db23aaba2cc4",
+      "depends": [
+        "__osx >=11.0",
+        "libgfortran",
+        "libgfortran5 >=14.3.0"
+      ]
+    },
+    {
+      "name": "mctc-lib",
+      "version": "0.4.1",
+      "build_string": "hdbc710d_0",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/mctc-lib-0.4.1-hdbc710d_0.conda",
+      "sha256": "f942cc8fc5f9f2ed9cd3ed8381e6dd6adf1f3f512fe186bed814c5557c281a76",
+      "md5": "62791c653beed7341f8e7a19be03f528",
+      "depends": [
+        "__osx >=11.0",
+        "libgfortran >=5",
+        "libgfortran5 >=13.3.0",
+        "llvm-openmp >=18.1.8"
+      ]
+    },
+    {
+      "name": "libblas",
+      "version": "3.11.0",
+      "build_string": "11_h51639a9_openblas",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libblas-3.11.0-11_h51639a9_openblas.conda",
+      "sha256": "718c3e1a16ad946caeeba041520dc18b7af461226bd8c28faef78b181920dbb4",
+      "md5": "364639b771dbb4ede335d965f55a23ac",
+      "depends": [
+        "libopenblas >=0.3.34,<0.3.35.0a0",
+        "libopenblas >=0.3.34,<1.0a0"
+      ]
+    },
+    {
+      "name": "simple-dftd3",
+      "version": "1.2.1",
+      "build_string": "hb42fc24_1",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/simple-dftd3-1.2.1-hb42fc24_1.conda",
+      "sha256": "5293c8f35c9c97b57a90581353e22389c912869e94af3a144532069a81b1b798",
+      "md5": "975878cfb1573e7032a1ed4f49229096",
+      "depends": [
+        "__osx >=11.0",
+        "libgfortran >=5",
+        "libgfortran5 >=13.3.0",
+        "libgfortran5 >=14.2.0",
+        "llvm-openmp >=18.1.8",
+        "llvm-openmp >=20.1.2",
+        "mctc-lib >=0.4.1,<0.5.0a0",
+        "toml-f >=0.4.2,<0.5.0a0"
+      ]
+    },
+    {
+      "name": "liblapack",
+      "version": "3.11.0",
+      "build_string": "11_hd9741b5_openblas",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/liblapack-3.11.0-11_hd9741b5_openblas.conda",
+      "sha256": "e7697df761eeb243272801a8c883dc1de6018a7f738746b443ef1396f0a78075",
+      "md5": "d67ef1462e77d20cd3e0d27c876c3c9a",
+      "depends": [
+        "libblas 3.11.0 11_h51639a9_openblas"
+      ]
+    },
+    {
+      "name": "multicharge",
+      "version": "0.3.0",
+      "build_string": "hb3fdf34_2",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/multicharge-0.3.0-hb3fdf34_2.conda",
+      "sha256": "cd9fa1268cfbddfc5d6af682b3d4a0680b9ea3c62b33e58d108be30a7e960121",
+      "md5": "bbd3b4ec94e240568b45c226bb090f95",
+      "depends": [
+        "__osx >=11.0",
+        "libblas >=3.9.0,<4.0a0",
+        "libgfortran >=5",
+        "libgfortran5 >=13.3.0",
+        "libgfortran5 >=14.2.0",
+        "liblapack >=3.9.0,<4.0a0",
+        "llvm-openmp >=18.1.8",
+        "llvm-openmp >=20.1.2",
+        "mctc-lib >=0.4.1,<0.5.0a0"
+      ]
+    },
+    {
+      "name": "dftd4",
+      "version": "3.7.0",
+      "build_string": "hb3fdf34_4",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/dftd4-3.7.0-hb3fdf34_4.conda",
+      "sha256": "2004a633a4cd43e4d6e6bf04d51cdeb3891dbcab6957b9ef18a4cca816a342dc",
+      "md5": "e7e9063f48c0834850c49824153e3c44",
+      "depends": [
+        "__osx >=11.0",
+        "libblas >=3.9.0,<4.0a0",
+        "libgfortran >=5",
+        "libgfortran5 >=13.3.0",
+        "libgfortran5 >=14.2.0",
+        "liblapack >=3.9.0,<4.0a0",
+        "llvm-openmp >=18.1.8",
+        "llvm-openmp >=20.1.2",
+        "mctc-lib >=0.4.1,<0.5.0a0",
+        "multicharge >=0.3.0,<0.4.0a0"
+      ]
+    },
+    {
+      "name": "tblite",
+      "version": "0.4.0",
+      "build_string": "hb3fdf34_2",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/tblite-0.4.0-hb3fdf34_2.conda",
+      "sha256": "d12940b7559ceff3546f07f04362cfeca493a9b494d628661020251005ad9100",
+      "md5": "044c07431d95c06e039b063b1483954a",
+      "depends": [
+        "__osx >=11.0",
+        "dftd4 >=3.7.0,<3.8.0a0",
+        "libblas >=3.9.0,<4.0a0",
+        "libgfortran >=5",
+        "libgfortran5 >=13.3.0",
+        "libgfortran5 >=14.2.0",
+        "liblapack >=3.9.0,<4.0a0",
+        "llvm-openmp >=18.1.8",
+        "llvm-openmp >=20.1.2",
+        "mctc-lib >=0.4.1,<0.5.0a0",
+        "simple-dftd3 >=1.2.1,<1.3.0a0",
+        "toml-f >=0.4.2,<0.5.0a0"
+      ]
+    },
+    {
+      "name": "xtb",
+      "version": "6.7.1",
+      "build_string": "h1aae681_4",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/xtb-6.7.1-h1aae681_4.conda",
+      "sha256": "9565ec61d2a8530188fc5e8a9a24ed7d4d9fc20b8c1740b04e503fdb95162da3",
+      "md5": "231c2dfa8d6032fbcbb817b68cb2d799",
+      "depends": [
+        "__osx >=11.0",
+        "dftd4 >=3.7.0,<3.8.0a0",
+        "libblas >=3.9.0,<4.0a0",
+        "libgfortran",
+        "libgfortran5 >=14.3.0",
+        "libgfortran5 >=15.1.0",
+        "liblapack >=3.9.0,<4.0a0",
+        "llvm-openmp >=19.1.7",
+        "llvm-openmp >=21.1.0",
+        "mctc-lib >=0.4.1,<0.5.0a0",
+        "multicharge >=0.3.0,<0.4.0a0",
+        "tblite >=0.4.0,<0.5.0a0"
+      ]
+    },
+    {
+      "name": "crest",
+      "version": "3.0.2",
+      "build_string": "hb2118c8_1",
+      "subdir": "osx-arm64",
+      "url": "https://conda.anaconda.org/conda-forge/osx-arm64/crest-3.0.2-hb2118c8_1.conda",
+      "sha256": "5b0b090de9127310ebe7fbd0d6e8689f075223db2721af03e1b793045982e436",
+      "md5": "48f10e05e3a3f793b65b7f36148ea88c",
+      "depends": [
+        "__osx >=11.0",
+        "libblas >=3.9.0,<4.0a0",
+        "libgfortran",
+        "libgfortran5 >=14.3.0",
+        "libgfortran5 >=15.1.0",
+        "liblapack >=3.9.0,<4.0a0",
+        "llvm-openmp >=19.1.7",
+        "llvm-openmp >=20.1.8",
+        "xtb"
+      ]
+    }
+  ]
+}

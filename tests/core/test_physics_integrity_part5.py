@@ -154,9 +154,11 @@ def test_pes_point_coordinate_unit_enveloping() -> None:
 
 def test_codata_constant_precision() -> None:
     """Validate full-precision CODATA 2018/2022 constants and CP-FTMW microwave benchmarks (Suggestion #48)."""
-    assert UnitConversionConstants.HARTREE_TO_KCAL_MOL == 627.5094740631
-    assert UnitConversionConstants.ROTATIONAL_INERTIA_CONVERSION == 505379.0084350172
-    assert UnitConversionConstants.BOHR_TO_ANGSTROM == 0.529177210903
+    from cochem_base.core import cochem_constants as authoritative
+    assert UnitConversionConstants.HARTREE_TO_KCAL_MOL == authoritative.HARTREE_TO_KCAL_MOL
+    assert authoritative.HARTREE_TO_KCAL_MOL == authoritative.HARTREE_TO_JOULE * authoritative.AVOGADRO_CONSTANT / 4184.0
+    assert UnitConversionConstants.ROTATIONAL_INERTIA_CONVERSION == authoritative.C_ROT_MHZ_U_ANG2
+    assert UnitConversionConstants.BOHR_TO_ANGSTROM == authoritative.BOHR_TO_METER / 1e-10
     assert math.isclose(
         UnitConversionConstants.ANGSTROM_TO_BOHR * UnitConversionConstants.BOHR_TO_ANGSTROM,
         1.0,

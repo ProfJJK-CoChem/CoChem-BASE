@@ -12,7 +12,6 @@ import numpy as np
 
 from cochem.mobile.assembly.constants import (
     get_covalent_radius_angstrom,
-    get_standard_atomic_weight,
 )
 from cochem.mobile.assembly.exceptions import (
     KabschReflectionError,
@@ -296,13 +295,13 @@ def align_ligand_to_template(
                             aligned_coords[h_idx] = d_pos + w_corr
 
     # Validate physical asymptotic distance bounds: 1.5 A <= R_COM <= 12.0 A
+    from cochem_base.physics.isotopes import get_isotope_mass
     weights = np.array(
-        [get_standard_atomic_weight(sym) for sym in ligand.atomic_symbols], dtype=np.float64
+        [get_isotope_mass(sym) for sym in ligand.atomic_symbols], dtype=np.float64
     )
     total_mass = float(np.sum(weights))
     if total_mass <= 0:
-        total_mass = float(len(weights))
-        weights = np.ones(len(weights), dtype=np.float64)
+        raise ValueError("Physical ligand alignment requires positive measured nuclear masses")
 
     com = np.sum(aligned_coords * weights[:, np.newaxis], axis=0) / total_mass
     r_com = float(np.linalg.norm(com))

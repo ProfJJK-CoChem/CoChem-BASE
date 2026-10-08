@@ -13,7 +13,7 @@ The detailed access explanation is in [BASE-managed module setup](Ecosystem_Modu
 Before class-wide rollout complete the [student deployment pilot](Student_Deployment_Pilot.md).
 
 The instructions require the BASE source containing **CoChem setup and
-updates**, working XYZ uploads and **Run on GitHub Actions**. The earlier
+updates**, the complete scientific **Input library**, working XYZ uploads and **Run on GitHub Actions**. The earlier
 `v1.0.1` release used an export/manual-dispatch route; its acceptance evidence
 does not by itself validate this newer no-code route. Use the reviewed release
 or course revision that actually contains the controls described here.

@@ -31,15 +31,13 @@ from cochem_base.exceptions import (
     ProvenanceErrorCode,
 )
 
-from collections.abc import Mapping
 try:
     from mendeleev import element as _mendeleev_element
 except ImportError:
     _mendeleev_element = None
 
-from cochem_tensor_extractor import CIAAW_ISOTOPIC_MASSES
-from cochem.core.exceptions import MissingDataError
-from cochem.core.mendeleev_invariants import get_element, get_element_mass, get_isotope_mass
+from cochem.core.mendeleev_invariants import get_element, get_element_mass
+from cochem.core.mendeleev_invariants import get_isotope_mass as get_isotope_mass
 
 logger = logging.getLogger("CoChem-TORQ")
 
@@ -291,6 +289,9 @@ def fetch_topos_matrices(
 
     with h5py.File(target, "r") as fp:
         conformers_group = fp.get("conformers")
+        selection_group = conformers_group if conformers_group is not None else fp
+        if conformer_id is not None and conformer_id not in selection_group:
+            raise KeyError(f"Requested conformer is absent from the archive: {conformer_id}")
         if conformers_group is None:
             conf_keys = list(fp.keys())
             if not conf_keys:
@@ -317,11 +318,15 @@ def fetch_topos_matrices(
         coords = np.array(conf_node["coordinates"], dtype=np.float64)
         raw_symbols = conf_node["symbols"]
         symbols = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in raw_symbols]
+        if coords.shape != (len(symbols), 3) or not np.all(np.isfinite(coords)):
+            raise ValueError("Archived geometry must preserve finite ordered N-by-3 coordinates")
         energy = (
-            float(conf_node.attrs.get("energy_hartree", 0.0))
+            float(conf_node.attrs["energy_hartree"])
             if "energy_hartree" in conf_node.attrs
-            else (float(conf_node["energy"][()]) if "energy" in conf_node else 0.0)
+            else (float(conf_node["energy"][()]) if "energy" in conf_node else None)
         )
+        if energy is not None and not np.isfinite(energy):
+            raise ValueError("Archived conformer energy must be finite when supplied")
         gbw_path = str(conf_node.attrs.get("gbw_path", ""))
 
     masses = []
@@ -345,6 +350,7 @@ def fetch_topos_matrices(
         "masses": np.array(masses, dtype=np.float64),
         "atomic_numbers": np.array(atomic_numbers, dtype=np.int32),
         "energy_hartree": energy,
+        "energy_status": "supplied" if energy is not None else "uncomputed",
         "gbw_path": gbw_path,
         "dataframe": df,
         "arrow_table": arrow_table,

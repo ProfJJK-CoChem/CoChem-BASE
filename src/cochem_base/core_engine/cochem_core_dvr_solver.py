@@ -78,6 +78,7 @@ import scipy.sparse.linalg
 from mendeleev import element
 
 from cochem_base.exceptions import MethodMatrixViolationError, MissingDataError
+from cochem_base.core import cochem_constants as _constants
 
 # Configure logger
 logger = logging.getLogger("cochem.core_dvr_solver")
@@ -101,36 +102,36 @@ except Exception:
 
 
 # =============================================================================
-# 1. PHYSICAL CONSTANTS & CONVERSION FACTORS (CODATA 2018 / 2022)
+# 1. PHYSICAL CONSTANTS & CONVERSION FACTORS (CENTRAL CODATA 2022 REGISTRY)
 # =============================================================================
 
-PLANCK_CONSTANT_J_S: float = 6.62607015e-34       # J * s (exact)
-HBAR_J_S: float = 1.054571817e-34                 # J * s (exact h / 2pi)
-SPEED_OF_LIGHT_CM_S: float = 2.99792458e10       # cm / s (exact)
-SPEED_OF_LIGHT_M_S: float = 2.99792458e8         # m / s (exact)
-ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27   # kg / u
-ELECTRON_MASS_KG: float = 9.1093837015e-31       # kg
-BOHR_TO_ANGSTROM: float = 0.529177210903         # Angstrom / Bohr
-ANGSTROM_TO_BOHR: float = 1.88972612462577       # Bohr / Angstrom
-BOHR_TO_METER: float = 0.529177210903e-10        # m / Bohr
-ANGSTROM_TO_METER: float = 1.0e-10               # m / Angstrom
+PLANCK_CONSTANT_J_S: float = _constants.PLANCK_CONSTANT_J_S
+HBAR_J_S: float = PLANCK_CONSTANT_J_S / (2.0 * math.pi)
+SPEED_OF_LIGHT_CM_S: float = _constants.SPEED_OF_LIGHT_CM_S
+SPEED_OF_LIGHT_M_S: float = _constants.SPEED_OF_LIGHT_M_S
+ATOMIC_MASS_UNIT_KG: float = _constants.ATOMIC_MASS_UNIT_KG
+ELECTRON_MASS_KG: float = _constants.PhysicalConstantsRegistry.get_constant("electron mass").value
+BOHR_TO_ANGSTROM: float = _constants.BOHR_TO_ANGSTROM
+ANGSTROM_TO_BOHR: float = _constants.ANGSTROM_TO_BOHR
+BOHR_TO_METER: float = _constants.BOHR_TO_METER
+ANGSTROM_TO_METER: float = _constants.ANGSTROM_TO_METER
 
-HARTREE_TO_JOULE: float = 4.3597447222071e-18    # J / Hartree
-HARTREE_TO_EV: float = 27.211386245988           # eV / Hartree
-HARTREE_TO_CM_INV: float = 219474.63136320       # cm^-1 / Hartree
-HARTREE_TO_KJ_MOL: float = 2625.499638           # kJ / mol / Hartree
-HARTREE_TO_KCAL_MOL: float = 627.509474          # kcal / mol / Hartree
+HARTREE_TO_JOULE: float = _constants.HARTREE_TO_JOULE
+HARTREE_TO_EV: float = _constants.HARTREE_TO_EV
+HARTREE_TO_CM_INV: float = _constants.HARTREE_TO_CM_INV
+HARTREE_TO_KCAL_MOL: float = _constants.HARTREE_TO_KCAL_MOL
+HARTREE_TO_KJ_MOL: float = HARTREE_TO_KCAL_MOL * 4.184
 
-CM_INV_TO_MHZ: float = 29979.2458                # MHz / cm^-1 (c in cm/s * 1e-6)
+CM_INV_TO_MHZ: float = SPEED_OF_LIGHT_CM_S * 1e-6
 MHZ_TO_CM_INV: float = 1.0 / CM_INV_TO_MHZ       # cm^-1 / MHz
 CM_INV_TO_JOULE: float = PLANCK_CONSTANT_J_S * SPEED_OF_LIGHT_CM_S  # J / cm^-1
 
-# AMU to Atomic Units of Mass (m_e): m_u / m_e = 1822.888486209
+# AMU to atomic units of mass (m_e), derived from the shared CODATA masses.
 AMU_TO_AU_MASS: float = ATOMIC_MASS_UNIT_KG / ELECTRON_MASS_KG
 
 # Inertia (u * Angstrom^2) to Rotational Constant (MHz):
 # Authoritative derived rotational conversion constant (Method Matrix §4.5 / CODATA 2022)
-INERTIA_TO_MHZ_FACTOR: float = 505379.0084350172
+INERTIA_TO_MHZ_FACTOR: float = _constants.C_ROT_MHZ_U_ANG2
 
 # Inertia (u * Angstrom^2) to Rotational Constant (cm^-1):
 INERTIA_TO_CM_INV_FACTOR: float = INERTIA_TO_MHZ_FACTOR / CM_INV_TO_MHZ  # ~16.857629 cm^-1 * u * A^2
@@ -347,38 +348,10 @@ class TorsionalRotorResult:
 # =============================================================================
 
 def get_dynamic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
-    """Dynamically retrieves atomic or isotopic mass in unified atomic mass units (u) via Mendeleev.
-
-    Strictly complies with the Mendeleev Library Mandate: ZERO hardcoded masses.
-
-    Args:
-        symbol: Elemental symbol (e.g. 'H', 'C', 'O', 'Cl', 'D', 'T').
-        mass_number: Optional mass number for specific isotope (e.g. 1, 2, 13, 18, 35).
-
-    Returns:
-        Atomic / isotopic mass in unified atomic mass units (u).
-
-    Raises:
-        ValueError: If element or isotope cannot be resolved.
-    """
-    clean_sym = symbol.strip().capitalize()
-    if clean_sym in ("D", "H2"):
-        clean_sym = "H"
-        mass_number = 2
-    elif clean_sym in ("T", "H3"):
-        clean_sym = "H"
-        mass_number = 3
-
-    el = element(clean_sym)
-    if mass_number is not None:
-        for iso in el.isotopes:
-            if iso.mass_number == mass_number:
-                if iso.mass is not None:
-                    return float(iso.mass)
-                break
-    if el.mass is not None:
-        return float(el.mass)
-    raise ValueError(f"Could not retrieve dynamic mass for '{symbol}' (mass_number={mass_number}) via Mendeleev.")
+    """Resolve an exact assigned/principal isotope mass from dynamic Mendeleev data."""
+    from cochem_base.physics.isotopes import get_isotope_mass
+    value = symbol
+    return get_isotope_mass(value, mass_number)
 
 
 def compute_reduced_mass_pair(

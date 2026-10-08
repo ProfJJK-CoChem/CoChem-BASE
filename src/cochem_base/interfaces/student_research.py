@@ -16,7 +16,7 @@ from threading import Event
 from typing import Any
 
 SCHEMA = "cochem.student-provider/1"
-TOPOS_OPERATIONS = frozenset({"energy", "gradient", "optimize", "search", "frequency", "thermochemistry", "association", "matrix"})
+TOPOS_OPERATIONS = frozenset({"geometry_analysis", "energy", "gradient", "optimize", "search", "frequency", "thermochemistry", "association", "matrix"})
 TORQ_OPERATIONS = frozenset({"geometry_analysis", "research_scan", "wiberg_lowdin", "nbo_analysis", "wiberg_nao"})
 ENGINES = frozenset({"xtb", "orca", "cfour", "pyscf", "mace", "aimnet2"})
 MAX_INPUT_BYTES = 2_000_000
@@ -120,7 +120,10 @@ def validate_provider_request(provider: dict, files_metadata: Any = None) -> dic
     options = provider["options"]
     if not isinstance(options, dict):
         raise ValueError("Research operation options must be a JSON object")
-    if provider["module"] == "topos":
+    if provider["operation"] == "geometry_analysis":
+        if options:
+            raise ValueError("Geometry analysis accepts its source geometry only; no scientific result is inferred")
+    elif provider["module"] == "topos":
         if set(options) != {"topos_request"} or not isinstance(options["topos_request"], dict):
             raise ValueError("TOPOS research requires its complete typed topos_request")
         request = options["topos_request"]
@@ -140,6 +143,14 @@ def validate_provider_request(provider: dict, files_metadata: Any = None) -> dic
             raise ValueError("Matrix execution requires its exact source revision, recipe row, product and typed input choices")
         if not isinstance(request.get("method"), str) or not request["method"].strip():
             raise ValueError("An explicit scientific method is required")
+        if provider["operation"] in {"search", "association", "matrix"}:
+            for field, maximum in (("rmsd_threshold_angstrom", .08),
+                                   ("dedup_rotational_threshold_fraction", .0005),
+                                   ("dedup_energy_threshold_kcal_mol", .05),
+                                   ("energy_window_kcal_mol", 12.0)):
+                value = request.get(field)
+                if type(value) not in {int, float} or not math.isfinite(value) or not 0 < value <= maximum:
+                    raise ValueError("TOPOS research requires its explicit SRS conformer sieve boundary: " + field)
         for field, low in (("threads", 1), ("memory_mb", 64), ("budget_seconds", 0)):
             value = request.get(field)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < low or (field == "budget_seconds" and value == 0):
@@ -183,7 +194,9 @@ def required_provider_modules(provider: dict) -> list[str]:
 
 def required_provider_engines(provider: dict) -> list[str]:
     request = validate_provider_request(provider)
-    if request["module"] == "topos":
+    if request["operation"] == "geometry_analysis":
+        return []
+    if request["module"] == "topos" and request["operation"] != "geometry_analysis":
         result = [request["options"]["topos_request"]["engine"]]
         sampler = request["options"]["topos_request"].get("search_algorithm", "jiggle-quench")
         if sampler in {"crest", "union"}:
@@ -207,7 +220,7 @@ def validate_provider_resources(provider: dict, resources: dict) -> None:
     if memory is None and cores is not None and resources.get("maxcore_mb") is not None:
         memory = cores * resources["maxcore_mb"]
     budget = resources.get("budget_seconds", 1800)
-    if request["module"] == "topos":
+    if request["module"] == "topos" and request["operation"] != "geometry_analysis":
         actual = request["options"]["topos_request"]
         comparisons = (("threads", actual["threads"], cores), ("memory_mb", actual["memory_mb"], memory),
                        ("budget_seconds", actual["budget_seconds"], budget))
@@ -231,7 +244,7 @@ def build_topos_request(geometry_xyz: str, *, operation: str, charge: int, multi
     """Build explicit provider chemistry from a student's uploaded XYZ bytes."""
     from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
 
-    if operation not in TOPOS_OPERATIONS:
+    if operation not in TOPOS_OPERATIONS or operation == "geometry_analysis":
         raise ValueError("Unsupported TOPOS scientific operation")
     raw = geometry_xyz.encode("utf-8")
     if len(raw) > MAX_INPUT_BYTES:
@@ -250,6 +263,8 @@ def build_topos_request(geometry_xyz: str, *, operation: str, charge: int, multi
     request = {"molecule": molecule, "engine": engine, "method": method, "purpose": operation,
                "threads": 2, "memory_mb": 1024, "budget_seconds": 600,
                "n_candidates": 4 if operation in {"search", "association"} else 1,
+               "rmsd_threshold_angstrom": .08, "dedup_rotational_threshold_fraction": .0005,
+               "dedup_energy_threshold_kcal_mol": .05, "energy_window_kcal_mol": 12.0,
                "profile_id": "screening-v1" if engine == "xtb" else "orca-mapping-v4.1",
                "presentation_environment": "base", "calculation_environment": "local"}
     if options:
@@ -368,7 +383,7 @@ def execute_provider_request(provider: dict, input_directory: str | Path, output
     options = request["options"]
     if resources:
         validate_provider_resources(request, resources)
-    if request["module"] == "topos":
+    if request["module"] == "topos" and request["operation"] != "geometry_analysis":
         declared = options["topos_request"]
         verified = build_topos_request(artifact.read_text(encoding="utf-8"), operation=request["operation"],
                                       charge=declared["molecule"]["charge"], multiplicity=declared["molecule"]["multiplicity"],

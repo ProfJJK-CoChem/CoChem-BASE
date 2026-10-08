@@ -20,7 +20,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
@@ -135,27 +134,17 @@ class DynamicIsotopeRecord(BaseModel):
     @classmethod
     def from_mendeleev(cls, symbol: str, mass_number: Optional[int] = None) -> DynamicIsotopeRecord:
         """Dynamically query mendeleev for element/isotope mass."""
-        el = element(symbol)
-        if mass_number is not None:
-            exact_m = None
-            if hasattr(el, "isotopes") and el.isotopes:
-                for iso in el.isotopes:
-                    if getattr(iso, "mass_number", None) == mass_number:
-                        exact_m = getattr(iso, "mass", None)
-                        break
-            if exact_m is None:
-                exact_m = float(el.mass)
-            return cls(symbol=symbol, mass_number=mass_number, exact_mass_amu=float(exact_m))
-        else:
-            return cls(symbol=symbol, mass_number=None, exact_mass_amu=float(el.mass))
+        from cochem_base.physics.isotopes import get_isotope_mass, parse_nuclide_token
+        clean, parsed = parse_nuclide_token(symbol)
+        mass = get_isotope_mass(symbol, mass_number)
+        return cls(symbol=clean, mass_number=parsed if mass_number is None else mass_number, exact_mass_amu=mass)
 
     @classmethod
     def calculate_molecular_mass(cls, formula_or_atoms: List[Tuple[str, int]]) -> float:
         """Calculate exact molecular mass dynamically using mendeleev."""
         total_mass = 0.0
         for sym, count in formula_or_atoms:
-            el = element(sym)
-            total_mass += float(el.mass) * count
+            total_mass += cls.from_mendeleev(sym).exact_mass_amu * count
         return total_mass
 
 

@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
-from mendeleev import element
+from cochem_base.physics.nuclide_resolver import get_element
 
 from cochem_base.exceptions import MethodologyViolationError
 
@@ -29,7 +29,7 @@ from cochem_base.exceptions import MethodologyViolationError
 @functools.lru_cache(maxsize=128)
 def get_covalent_radius_angstrom(symbol_or_atomic_number: Union[str, int]) -> float:
     """Retrieves covalent radius in Angstroms dynamically via mendeleev. [M]"""
-    el = element(symbol_or_atomic_number)
+    el = get_element(symbol_or_atomic_number)
     # mendeleev reports covalent_radius in picometers (pm), convert to Angstroms
     r_pm = el.covalent_radius_pyykko or el.covalent_radius
     if r_pm is None:

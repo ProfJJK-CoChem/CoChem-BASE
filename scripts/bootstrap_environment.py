@@ -160,6 +160,8 @@ def ensure_dependencies(python: Path) -> None:
             "pip",
             "install",
             "--disable-pip-version-check",
+            "-e",
+            ".[ui,symmetry]",
             "-r",
             str(REQUIREMENTS_FILE),
             "-r",

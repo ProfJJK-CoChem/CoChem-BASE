@@ -40,9 +40,12 @@ OPEN_SHELL_START = b"3\nConnected H3 active-space admission starting example; no
 
 
 def select_prefix(control, prefix: str) -> str:
-    expect(control.locator("option").filter(has_text=re.compile("^" + re.escape(prefix)))).to_have_count(1, timeout=30000)
+    # ipywidgets renders dropdown spaces as NBSP; match equivalent display whitespace.
+    prefix_pattern = "^" + r"\s+".join(re.escape(part) for part in prefix.split())
+    expect(control.locator("option").filter(has_text=re.compile(prefix_pattern))).to_have_count(1, timeout=30000)
     options = control.locator("option").all_text_contents()
-    matches = [item for item in options if item.startswith(prefix)]
+    normalized_prefix = " ".join(prefix.split())
+    matches = [item for item in options if " ".join(item.split()).startswith(normalized_prefix)]
     if len(matches) != 1:
         raise AssertionError(f"Expected one {prefix!r} choice, observed {matches!r}")
     control.select_option(label=matches[0])

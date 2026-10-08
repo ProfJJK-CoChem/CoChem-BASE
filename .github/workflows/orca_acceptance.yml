@@ -1,66 +1,17 @@
 name: ORCA 6.1.1 calculation acceptance
-
-on:
+'on':
   workflow_dispatch:
     inputs:
       topos_ref:
-        description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
-        required: false
-        default: ''
-        type: string
-      torq_ref:
-        description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
-        required: false
-        default: d7a4739a5f7d6f22ed659b32eeb4706bef16225e
-        type: string
-  workflow_call:
-    inputs:
-      topos_ref:
-        description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
-        required: false
-        default: ''
-        type: string
-      torq_ref:
-        description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
-        required: false
-        default: d7a4739a5f7d6f22ed659b32eeb4706bef16225e
-        type: string
-      base_repository:
-        description: Repository containing the reviewed BASE source for a reusable call.
-        required: false
-        default: ProfJJK-CoChem/CoChem-BASE
-        type: string
-      base_ref:
-        description: Full CoChem-BASE commit SHA providing the shared installer and BASE acceptance.
+        description: Exact reviewed current TOPOS source including native-test profile activation
         required: true
         type: string
-    secrets:
-      COCHEM_SOURCE_READ_TOKEN:
-        description: Read-only access to reviewed TOPOS and TORQ source revisions.
-        required: false
-      PRIVATE_ORCA_ASSET_CREDENTIAL:
-        required: true
-      BASE_SOURCE_READ_TOKEN:
-        description: Optional read-only access when a reusable caller cannot read the private BASE source.
-        required: false
-  push:
-    branches: [codex/orca-6.1.1-actions]
-    paths:
-      - '.github/actions/setup-orca/**'
-      - '.github/workflows/orca_acceptance.yml'
-      - 'scripts/*orca*'
-      - 'scripts/install_openmpi.py'
-      - 'tests/base/test_orca_provisioning.py'
-      - 'tests/base/test_openmpi_installer_contract.py'
-      - 'tests/calc/test_orca_cli_execution.py'
-
+        default: ef750eaaf6a990a3b9e1d65eca240ac89b6632ce
 permissions:
   contents: read
-
 concurrency:
   group: orca-acceptance-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   licensed-calculations:
     runs-on: ubuntu-24.04
@@ -72,218 +23,295 @@ jobs:
       QT_QPA_PLATFORM: offscreen
       COCHEM_HEADLESS: '1'
       COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
+      TOPOS_REQUIRE_BASE: '1'
+      TOPOS_EXECUTION_BACKEND: base
+      BLIS_NUM_THREADS: '1'
     steps:
-      - name: Validate optional downstream source identities
-        env:
-          TOPOS_REF: ${{ inputs.topos_ref }}
-          TORQ_REF: ${{ inputs.torq_ref }}
-          CONTROLLER_PRIVATE: ${{ github.event.repository.private }}
-        run: |
-          if [[ -n "$TOPOS_REF" ]]; then
-            test "$CONTROLLER_PRIVATE" = true
-            [[ "$TOPOS_REF" =~ ^[0-9a-f]{40}$ ]]
-            [[ "$TORQ_REF" =~ ^[0-9a-f]{40}$ ]]
-          fi
-      - name: Validate configured downstream source credential
-        if: inputs.topos_ref != ''
-        env:
-          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
-          BASE_SOURCE_READ_TOKEN: ${{ secrets.BASE_SOURCE_READ_TOKEN }}
-        run: |
-          if [[ -z "$COCHEM_SOURCE_READ_TOKEN" && -z "$BASE_SOURCE_READ_TOKEN" ]]; then
-            echo '::error::TOPOS acceptance requires COCHEM_SOURCE_READ_TOKEN or BASE_SOURCE_READ_TOKEN exposed to this BASE workflow with private TOPOS/TORQ Contents read access.'
-            exit 1
-          fi
-      - name: Validate a reusable caller's BASE revision
-        env:
-          BASE_REF: ${{ inputs.base_ref }}
-        run: |
-          if [[ -n "$BASE_REF" && ! "$BASE_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo '::error::Reusable callers must pin base_ref to a full CoChem-BASE commit SHA.'
-            exit 1
-          fi
-      - uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.base_repository || github.repository }}
-          ref: ${{ inputs.base_ref || github.sha }}
-          token: ${{ secrets.BASE_SOURCE_READ_TOKEN || github.token }}
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Record the real runner CPU topology and scheduling limits
-        run: |
-          python - <<'PY'
-          import json, os, subprocess
-          from pathlib import Path
-          limits = {}
-          for name in ('cpu.max', 'cpuset.cpus.effective'):
-              path = Path('/sys/fs/cgroup') / name
-              limits[name] = path.read_text().strip() if path.is_file() else None
-          topology = subprocess.run(['lscpu', '--json'], capture_output=True, text=True, check=True, timeout=10)
-          print(json.dumps({'runner_environment': os.environ.get('RUNNER_ENVIRONMENT'),
-              'cpu_allocation_policy': os.environ.get('COCHEM_CPU_ALLOCATION_POLICY'),
-              'logical_cpus': os.cpu_count(), 'affinity_cpu_ids': sorted(os.sched_getaffinity(0)),
-              'kernel_limits': limits, 'lscpu': json.loads(topology.stdout)}, indent=2))
-          PY
-      - name: Prepare external evidence and registry locations
-        run: |
-          mkdir -p "$RUNNER_TEMP/orca-evidence"
-          echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
-          echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
-          git rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/base-commit.txt"
-      - name: Audit the checked-out BASE source
-        run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/orca-evidence/source-audit"
-      - name: Install native build prerequisites
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes build-essential libgfortran5
-      - name: Reserve disk for the complete licensed distribution
-        env:
-          RUNNER_HOST_KIND: ${{ runner.environment }}
-        run: |
-          set -euo pipefail
-          if [[ "$RUNNER_HOST_KIND" != "github-hosted" || "$RUNNER_OS" != "Linux" ]]; then
-            echo '::error::Preinstalled SDK cleanup is restricted to this ephemeral GitHub-hosted Linux job.'
-            exit 1
-          fi
-          # The verified 471 MB archive expands to over 16 GiB. These unrelated
-          # SDKs belong to the disposable runner image, never a user workstation.
-          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/ghc
-          df -h "$RUNNER_TEMP"
-      - uses: ./.github/actions/setup-orca
-        with:
-          asset-token: ${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}
-      - name: Install BASE and execute all eleven Stage 0 phases
-        run: |
-          if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
-              > "$RUNNER_TEMP/orca-evidence/stage0-setup.log" 2>&1; then
-            tail -n 20 "$RUNNER_TEMP/orca-evidence/stage0-setup.log"
-          else
-            status=$?
-            tail -n 100 "$RUNNER_TEMP/orca-evidence/stage0-setup.log"
-            exit "$status"
-          fi
-      - name: Record the fresh registry CPU allocation evidence
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          registry = json.loads(Path(os.environ['COCHEM_CONFIG']).read_text())
-          print(json.dumps({'hardware': registry['hardware'],
-              'cpu_allocation': (registry.get('execution') or {}).get('cpu_allocation')}, indent=2))
-          PY
-      - name: Run actual serial and parallel ORCA calculations through BASE
-        env:
-          # These CLI tests use pytest itself; unrelated installed GUI plugins
-          # must not require a display/Qt runtime before collection.
-          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
-        run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -m pytest \
-            tests/calc/test_orca_cli_execution.py \
-            --basetemp "$RUNNER_TEMP/orca-evidence/pytest" \
-            --junitxml "$RUNNER_TEMP/orca-evidence/results.xml" -q
-      - name: Validate actual staged grids, live derivatives and isotope-bound harmonics
-        run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/verify_srs_completion.py \
-            --engine orca --registry "$COCHEM_CONFIG" \
-            --output "$RUNNER_TEMP/orca-evidence/srs-completion.json"
-      - name: Check out the reviewed TOPOS candidate
-        if: inputs.topos_ref != ''
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: ProfJJK-CoChem/CoChem-TOPOS
-          ref: ${{ inputs.topos_ref }}
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
-          path: .cochem-ecosystem/topos
-          persist-credentials: false
-      - name: Check out the mandatory TORQ source
-        if: inputs.topos_ref != ''
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: ProfJJK-CoChem/CoChem-TORQ
-          ref: ${{ inputs.torq_ref }}
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
-          path: .cochem-ecosystem/torq
-          persist-credentials: false
-      - name: Isolate and identify all mandatory source checkouts
-        if: inputs.topos_ref != ''
-        env:
-          TOPOS_REF: ${{ inputs.topos_ref }}
-          TORQ_REF: ${{ inputs.torq_ref }}
-        run: |
-          test "$(git -C .cochem-ecosystem/topos rev-parse HEAD)" = "$TOPOS_REF"
-          test "$(git -C .cochem-ecosystem/torq rev-parse HEAD)" = "$TORQ_REF"
-          test ! -e "$RUNNER_TEMP/cochem-sources"
-          mkdir -p "$RUNNER_TEMP/cochem-sources"
-          mv .cochem-ecosystem/topos "$RUNNER_TEMP/cochem-sources/topos"
-          mv .cochem-ecosystem/torq "$RUNNER_TEMP/cochem-sources/torq"
-          git -C "$RUNNER_TEMP/cochem-sources/topos" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/topos-commit.txt"
-          git -C "$RUNNER_TEMP/cochem-sources/torq" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/torq-commit.txt"
-      - name: Complete mandatory package setup using the audited BASE installation
-        id: mandatory
-        if: inputs.topos_ref != ''
-        run: |
-          python "$RUNNER_TEMP/cochem-sources/topos/scripts/setup_ecosystem.py" \
-            --base-root "$GITHUB_WORKSPACE" \
-            --torq-root "$RUNNER_TEMP/cochem-sources/torq" \
-            --artifacts "$COCHEM_ARTIFACT_DIR" --min-disk-space-gb 1 --existing-environment
-      - name: Require genuine TOPOS ORCA scientific acceptance
-        if: inputs.topos_ref != ''
-        run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_topos.py" \
-            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence" \
-            --threads 2 --memory-mb 2048 --budget-seconds 10800 --include-counterpoise --include-goat
-      - name: Execute native correlated and anharmonic acceptance
-        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
-        run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_extended.py" \
-            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-extended" \
-            --threads 2 --memory-mb 4096 --budget-seconds 7200
-      - name: Retain source-bound licensed pytest results
-        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
-        run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_pytest.py" \
-            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence"
-      - name: Retain TOPOS native calculation and setup evidence
-        if: always() && inputs.topos_ref != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: topos-orca-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/topos-orca-evidence/
-            ${{ runner.temp }}/topos-orca-extended/
-            ${{ runner.temp }}/cochem-artifacts/setup-logs/
-            ${{ runner.temp }}/cochem-artifacts/setup-receipt.json
-            ${{ runner.temp }}/cochem-artifacts/mandatory-validation.json
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 14
-      - name: Retain calculation, registry and installation evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: orca-6.1.1-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/orca-evidence/**/*.json
-            ${{ runner.temp }}/orca-evidence/**/*.xml
-            ${{ runner.temp }}/orca-evidence/**/*.txt
-            ${{ runner.temp }}/orca-evidence/**/*.log
-            ${{ runner.temp }}/orca-evidence/**/*.out
-            ${{ runner.temp }}/orca-evidence/**/*.inp
-            ${{ runner.temp }}/orca-evidence/**/*.xyz
-            ${{ runner.temp }}/orca-evidence/**/*.gbw
-            ${{ runner.temp }}/orca-evidence/**/*.npz
-            ${{ runner.temp }}/orca-evidence/**/*.hess
-            ${{ runner.temp }}/orca-evidence/**/*.engrad
-            ${{ runner.temp }}/orca-evidence/**/*.sha256
-            ${{ runner.temp }}/orca-evidence/**/*.h5
-            ${{ runner.temp }}/orca-evidence/**/gradient
-            ${{ runner.temp }}/cochem-openmpi-build/**/*.log
-            ${{ runner.temp }}/cochem-artifacts/Registry/*.json
-            ${{ runner.temp }}/cochem-artifacts/Registry/*.sha256
-          if-no-files-found: error
-          retention-days: 14
-      - name: Remove the job-local licensed installation
-        if: always()
-        run: rm -rf -- "$RUNNER_TEMP/cochem-orca-install" "$RUNNER_TEMP/cochem-orca-download"
+    - name: Require exact reviewed private manual source pins
+      env:
+        CONTROLLER_PRIVATE: ${{ github.event.repository.private }}
+        TOPOS_REF: ${{ inputs.topos_ref }}
+      run: 'set -euo pipefail
+
+        test "$CONTROLLER_PRIVATE" = true
+
+        [[ "$TOPOS_REF" =~ ^[0-9a-f]{40}$ ]]
+
+        test "$TOPOS_REF" = ef750eaaf6a990a3b9e1d65eca240ac89b6632ce
+
+        '
+    - name: Validate configured downstream source credential
+      env:
+        COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+        BASE_SOURCE_READ_TOKEN: ${{ secrets.BASE_SOURCE_READ_TOKEN }}
+      run: "if [[ -z \"$COCHEM_SOURCE_READ_TOKEN\" && -z \"$BASE_SOURCE_READ_TOKEN\" ]]; then\n  echo '::error::TOPOS\
+        \ acceptance requires COCHEM_SOURCE_READ_TOKEN or BASE_SOURCE_READ_TOKEN exposed to this BASE workflow with\
+        \ private TOPOS/TORQ Contents read access.'\n  exit 1\nfi\n"
+    - name: Check out exact controller
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - name: Record actual controller identity
+      env:
+        CONTROLLER_PRIVATE: ${{ github.event.repository.private }}
+      run: "python - <<'PY'\nimport hashlib,json,os,shutil,subprocess\nfrom pathlib import Path\nroot=Path(os.environ['GITHUB_WORKSPACE']);out=Path(os.environ['RUNNER_TEMP'])/'orca-evidence';out.mkdir(parents=True,exist_ok=True)\n\
+        head=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()\nassert head==os.environ['GITHUB_SHA']==os.environ['GITHUB_WORKFLOW_SHA']\n\
+        assert os.environ['CONTROLLER_PRIVATE']=='true'\nworkflow=root/'.github/workflows/orca_acceptance.yml'\n\
+        shutil.copyfile(workflow,out/'controller-workflow.yml')\n(out/'controller.json').write_text(json.dumps({'head_sha':head,'workflow_sha256':hashlib.sha256(workflow.read_bytes()).hexdigest(),\n\
+        \ 'repository':os.environ['GITHUB_REPOSITORY'],'repository_private':True,'event':os.environ['GITHUB_EVENT_NAME'],\n\
+        \ 'run_id':os.environ['GITHUB_RUN_ID'],'run_attempt':os.environ['GITHUB_RUN_ATTEMPT'],'workflow_ref':os.environ['GITHUB_WORKFLOW_REF']},indent=2)+'\\\
+        n')\nPY\n"
+    - name: Check out exact scientific BASE B1 source
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        repository: ProfJJK-CoChem/CoChem-BASE
+        ref: 397d48d806d2f5fed2605cd68ca4a21dac470e23
+        token: ${{ secrets.BASE_SOURCE_READ_TOKEN || github.token }}
+        path: .cochem-ecosystem/base
+        persist-credentials: false
+    - name: Verify BASE and unchanged approved licensed provisioner
+      run: "set -euo pipefail\ntest \"$(git -C .cochem-ecosystem/base rev-parse HEAD)\" = 397d48d806d2f5fed2605cd68ca4a21dac470e23\n\
+        test ! -e \"$RUNNER_TEMP/cochem-sources\"\nmkdir -p \"$RUNNER_TEMP/cochem-sources\"\nmv .cochem-ecosystem/base\
+        \ \"$RUNNER_TEMP/cochem-sources/base\"\npython - <<'PY'\nimport hashlib,os\nfrom pathlib import Path\ncontroller=Path(os.environ['GITHUB_WORKSPACE']);science=Path(os.environ['RUNNER_TEMP'])/'cochem-sources/base'\n\
+        for relative in ['.github/actions/setup-orca/action.yml','scripts/provision_orca.py','scripts/orca-distribution.json','scripts/install_openmpi.py']:\n\
+        \ assert hashlib.sha256((controller/relative).read_bytes()).hexdigest()==hashlib.sha256((science/relative).read_bytes()).hexdigest(),relative\n\
+        PY\n"
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Record the real runner CPU topology and scheduling limits
+      run: "python - <<'PY'\nimport json, os, subprocess\nfrom pathlib import Path\nlimits = {}\nfor name in ('cpu.max',\
+        \ 'cpuset.cpus.effective'):\n    path = Path('/sys/fs/cgroup') / name\n    limits[name] = path.read_text().strip()\
+        \ if path.is_file() else None\ntopology = subprocess.run(['lscpu', '--json'], capture_output=True, text=True,\
+        \ check=True, timeout=10)\nprint(json.dumps({'runner_environment': os.environ.get('RUNNER_ENVIRONMENT'),\n\
+        \    'cpu_allocation_policy': os.environ.get('COCHEM_CPU_ALLOCATION_POLICY'),\n    'logical_cpus': os.cpu_count(),\
+        \ 'affinity_cpu_ids': sorted(os.sched_getaffinity(0)),\n    'kernel_limits': limits, 'lscpu': json.loads(topology.stdout)},\
+        \ indent=2))\nPY\n"
+      working-directory: ${{ runner.temp }}/cochem-sources/base
+    - name: Prepare external evidence and registry locations
+      run: 'mkdir -p "$RUNNER_TEMP/orca-evidence"
+
+        echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
+
+        echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
+
+        git rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/base-commit.txt"
+
+        '
+      working-directory: ${{ runner.temp }}/cochem-sources/base
+    - name: Audit the checked-out BASE source
+      run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/orca-evidence/source-audit"
+      working-directory: ${{ runner.temp }}/cochem-sources/base
+    - name: Install native build prerequisites
+      run: 'sudo apt-get update
+
+        sudo apt-get install --yes build-essential libgfortran5
+
+        '
+      working-directory: ${{ runner.temp }}/cochem-sources/base
+    - name: Reserve disk for the complete licensed distribution
+      env:
+        RUNNER_HOST_KIND: ${{ runner.environment }}
+      run: "set -euo pipefail\nif [[ \"$RUNNER_HOST_KIND\" != \"github-hosted\" || \"$RUNNER_OS\" != \"Linux\" ]];\
+        \ then\n  echo '::error::Preinstalled SDK cleanup is restricted to this ephemeral GitHub-hosted Linux job.'\n\
+        \  exit 1\nfi\n# The verified 471 MB archive expands to over 16 GiB. These unrelated\n# SDKs belong to the\
+        \ disposable runner image, never a user workstation.\nsudo rm -rf -- /usr/local/lib/android /usr/share/dotnet\
+        \ /usr/local/.ghcup /opt/ghc\ndf -h \"$RUNNER_TEMP\"\n"
+      working-directory: ${{ runner.temp }}/cochem-sources/base
+    - uses: ./.github/actions/setup-orca
+      with:
+        asset-token: ${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}
+    - name: Install BASE and execute all eleven Stage 0 phases
+      run: "if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \\\n    > \"$RUNNER_TEMP/orca-evidence/stage0-setup.log\"\
+        \ 2>&1; then\n  tail -n 20 \"$RUNNER_TEMP/orca-evidence/stage0-setup.log\"\nelse\n  status=$?\n  tail -n\
+        \ 100 \"$RUNNER_TEMP/orca-evidence/stage0-setup.log\"\n  exit \"$status\"\nfi\n"
+      working-directory: ${{ runner.temp }}/cochem-sources/base
+    - name: Record the fresh registry CPU allocation evidence
+      run: "python - <<'PY'\nimport json, os\nfrom pathlib import Path\nregistry = json.loads(Path(os.environ['COCHEM_CONFIG']).read_text())\n\
+        print(json.dumps({'hardware': registry['hardware'],\n    'cpu_allocation': (registry.get('execution') or\
+        \ {}).get('cpu_allocation')}, indent=2))\nPY\n"
+      working-directory: ${{ runner.temp }}/cochem-sources/base
+    - name: Run actual serial and parallel ORCA calculations through BASE
+      env:
+        PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+      run: "\"$COCHEM_ARTIFACT_DIR/ui-env/bin/python\" -m pytest \\\n  tests/calc/test_orca_cli_execution.py \\\n\
+        \  --basetemp \"$RUNNER_TEMP/orca-evidence/pytest\" \\\n  --junitxml \"$RUNNER_TEMP/orca-evidence/results.xml\"\
+        \ -q\n"
+      working-directory: ${{ runner.temp }}/cochem-sources/base
+    - name: Validate actual staged grids, live derivatives and isotope-bound harmonics
+      run: "\"$COCHEM_ARTIFACT_DIR/ui-env/bin/python\" scripts/verify_srs_completion.py \\\n  --engine orca --registry\
+        \ \"$COCHEM_CONFIG\" \\\n  --output \"$RUNNER_TEMP/orca-evidence/srs-completion.json\"\n"
+      working-directory: ${{ runner.temp }}/cochem-sources/base
+    - name: Check out the reviewed TOPOS candidate
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        repository: ProfJJK-CoChem/CoChem-TOPOS
+        ref: ef750eaaf6a990a3b9e1d65eca240ac89b6632ce
+        token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+        path: .cochem-ecosystem/topos
+        persist-credentials: false
+    - name: Check out the mandatory TORQ source
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        repository: ProfJJK-CoChem/CoChem-TORQ
+        ref: 79fbb111125e50627a1a2c129888a45496f368d4
+        token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+        path: .cochem-ecosystem/torq
+        persist-credentials: false
+    - name: Isolate and identify all mandatory source checkouts
+      env:
+        TOPOS_REF: ef750eaaf6a990a3b9e1d65eca240ac89b6632ce
+        TORQ_REF: 79fbb111125e50627a1a2c129888a45496f368d4
+      run: 'test "$(git -C .cochem-ecosystem/topos rev-parse HEAD)" = "$TOPOS_REF"
+
+        test "$(git -C .cochem-ecosystem/torq rev-parse HEAD)" = "$TORQ_REF"
+
+        test ! -e "$RUNNER_TEMP/cochem-sources/topos"
+
+        test ! -e "$RUNNER_TEMP/cochem-sources/torq"
+
+        mkdir -p "$RUNNER_TEMP/cochem-sources"
+
+        mv .cochem-ecosystem/topos "$RUNNER_TEMP/cochem-sources/topos"
+
+        mv .cochem-ecosystem/torq "$RUNNER_TEMP/cochem-sources/torq"
+
+        git -C "$RUNNER_TEMP/cochem-sources/topos" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/topos-commit.txt"
+
+        git -C "$RUNNER_TEMP/cochem-sources/torq" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/torq-commit.txt"
+
+        echo "ORCA_SCIENTIFIC_BASE_ROOT=$RUNNER_TEMP/cochem-sources/base" >> "$GITHUB_ENV"
+
+        echo "COCHEM_TOPOS_ROOT=$RUNNER_TEMP/cochem-sources/topos" >> "$GITHUB_ENV"
+
+        echo "COCHEM_TORQ_ROOT=$RUNNER_TEMP/cochem-sources/torq" >> "$GITHUB_ENV"
+
+        '
+    - name: Complete mandatory package setup using the audited BASE installation
+      id: mandatory
+      run: "python \"$RUNNER_TEMP/cochem-sources/topos/scripts/setup_ecosystem.py\" \\\n  --base-root \"$RUNNER_TEMP/cochem-sources/base\"\
+        \ \\\n  --torq-root \"$RUNNER_TEMP/cochem-sources/torq\" \\\n  --artifacts \"$COCHEM_ARTIFACT_DIR\" --min-disk-space-gb\
+        \ 1 --existing-environment\n"
+      working-directory: ${{ runner.temp }}
+    - name: Materialize exact reviewed outside evidence guard
+      run: "python - <<'PY'\nimport hashlib,os\nfrom pathlib import Path\ncontroller=Path(os.environ['GITHUB_WORKSPACE'])/'ci_tools/topos_current_acceptance'\n\
+        out=Path(os.environ['RUNNER_TEMP'])/'orca-evidence'\nassets={'guard.py':('acceptance-evidence-guard.py','e1fbede2e4913896b7357988606bd5159126f62f877f61f2dfcf3e428981e2dd'),\n\
+        \ 'expected-full-source-manifest.json':('expected-full-source-manifest.json','b24a1fa1c544b7480fbef72193eff4472e6f7daea60c1c087f853c48875d6ed3')}\n\
+        for name,(target,wanted) in assets.items():\n source=controller/name\n assert source.is_file() and not source.is_symlink()\n\
+        \ raw=source.read_bytes()\n assert hashlib.sha256(raw).hexdigest()==wanted,name\n with (out/target).open('xb')\
+        \ as stream:stream.write(raw)\nPY\n"
+    - name: Verify audited current source before calculations
+      working-directory: ${{ runner.temp }}
+      env:
+        CONTROLLER_PRIVATE: ${{ github.event.repository.private }}
+        GUARD_EXPECTED_SHA256: e1fbede2e4913896b7357988606bd5159126f62f877f61f2dfcf3e428981e2dd
+        SOURCE_MANIFEST_SHA256: b24a1fa1c544b7480fbef72193eff4472e6f7daea60c1c087f853c48875d6ed3
+      run: '"$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/orca-evidence/acceptance-evidence-guard.py" --phase
+        preflight --topos-commit ef750eaaf6a990a3b9e1d65eca240ac89b6632ce --output "$RUNNER_TEMP/orca-evidence"
+
+        '
+      id: native_preflight
+    - name: Require genuine TOPOS ORCA scientific acceptance
+      run: "\"$COCHEM_ARTIFACT_DIR/ui-env/bin/python\" \"$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_topos.py\"\
+        \ \\\n  --registry \"$COCHEM_CONFIG\" --output \"$RUNNER_TEMP/topos-orca-evidence\" \\\n  --threads 2 --memory-mb\
+        \ 2048 --budget-seconds 10800 --include-counterpoise --include-goat\n"
+      working-directory: ${{ runner.temp }}
+    - name: Execute native correlated and anharmonic acceptance
+      if: always() && steps.native_preflight.outcome == 'success'
+      run: "\"$COCHEM_ARTIFACT_DIR/ui-env/bin/python\" \"$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_extended.py\"\
+        \ \\\n  --registry \"$COCHEM_CONFIG\" --output \"$RUNNER_TEMP/topos-orca-extended\" \\\n  --threads 2 --memory-mb\
+        \ 4096 --budget-seconds 7200 --case 'native-hessian' --case 'native-vpt2' --case 'MP2' --case 'MP2-optimization'\
+        \ --case 'CCSD(T)' --case 'AUTOCI-CCSD(T)' --case 'DLPNO-CCSD(T1)' --case 'CCSD(T)-F12D/RI' --case 'F12-MP2'\
+        \ --case 'F12-RI-MP2' --case 'DLPNO-counterpoise' --case 'F12-composite'\n"
+      working-directory: ${{ runner.temp }}
+    - name: Retain source-bound licensed pytest results
+      if: always() && steps.native_preflight.outcome == 'success'
+      run: "\"$COCHEM_ARTIFACT_DIR/ui-env/bin/python\" \"$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_pytest.py\"\
+        \ \\\n  --registry \"$COCHEM_CONFIG\" --output \"$RUNNER_TEMP/topos-orca-evidence\"\n"
+      working-directory: ${{ runner.temp }}
+    - name: Require every native case and all three named licensed tests with zero skips
+      working-directory: ${{ runner.temp }}
+      env:
+        CONTROLLER_PRIVATE: ${{ github.event.repository.private }}
+        GUARD_EXPECTED_SHA256: e1fbede2e4913896b7357988606bd5159126f62f877f61f2dfcf3e428981e2dd
+        SOURCE_MANIFEST_SHA256: b24a1fa1c544b7480fbef72193eff4472e6f7daea60c1c087f853c48875d6ed3
+      run: '"$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/orca-evidence/acceptance-evidence-guard.py" --phase
+        postflight --topos-commit ef750eaaf6a990a3b9e1d65eca240ac89b6632ce --output "$RUNNER_TEMP/orca-evidence"
+
+        '
+      if: always() && steps.native_preflight.outcome == 'success'
+    - name: Retain TOPOS native calculation and setup evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: topos-orca-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+        path: '${{ runner.temp }}/topos-orca-evidence/
+
+          ${{ runner.temp }}/topos-orca-extended/
+
+          ${{ runner.temp }}/cochem-artifacts/setup-logs/
+
+          ${{ runner.temp }}/cochem-artifacts/setup-receipt.json
+
+          ${{ runner.temp }}/cochem-artifacts/mandatory-validation.json
+
+
+          ${{ runner.temp }}/cochem-artifacts/Registry/*.json
+
+          '
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 14
+    - name: Retain calculation, registry and installation evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: orca-6.1.1-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+        path: '${{ runner.temp }}/orca-evidence/**/*.json
+
+          ${{ runner.temp }}/orca-evidence/**/*.xml
+
+          ${{ runner.temp }}/orca-evidence/**/*.txt
+
+          ${{ runner.temp }}/orca-evidence/**/*.log
+
+          ${{ runner.temp }}/orca-evidence/**/*.out
+
+          ${{ runner.temp }}/orca-evidence/**/*.inp
+
+          ${{ runner.temp }}/orca-evidence/**/*.xyz
+
+          ${{ runner.temp }}/orca-evidence/**/*.gbw
+
+          ${{ runner.temp }}/orca-evidence/**/*.npz
+
+          ${{ runner.temp }}/orca-evidence/**/*.hess
+
+          ${{ runner.temp }}/orca-evidence/**/*.engrad
+
+          ${{ runner.temp }}/orca-evidence/**/*.sha256
+
+          ${{ runner.temp }}/orca-evidence/**/*.h5
+
+          ${{ runner.temp }}/orca-evidence/**/gradient
+
+          ${{ runner.temp }}/cochem-openmpi-build/**/*.log
+
+          ${{ runner.temp }}/cochem-artifacts/Registry/*.json
+
+          ${{ runner.temp }}/cochem-artifacts/Registry/*.sha256
+
+
+          ${{ runner.temp }}/orca-evidence/controller-workflow.yml
+
+          ${{ runner.temp }}/orca-evidence/acceptance-evidence-guard.py
+
+          '
+        if-no-files-found: error
+        retention-days: 14
+    - name: Remove licensed executables and download locations
+      if: always()
+      run: 'rm -rf -- "$RUNNER_TEMP/cochem-orca-install" "$RUNNER_TEMP/cochem-orca-download"
+
+        '

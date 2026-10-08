@@ -126,6 +126,111 @@
       "purpose": "Student module geometry ingestion and rigid-geometry interface example; not an accuracy reference",
       "provenance_status": "constructed_geometry_input",
       "provenance": "Explicit O/H coordinates chosen for an asymmetric water-shaped geometry. No geometry optimization, energy or experimental accuracy is asserted; used for actual TOPOS connectivity and TORQ geometry API acceptance."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfn2/gradient",
+      "sha256": "2d9e399482ea8acfeca5545ca70a5ea6f263789cdb85432f36c9bd5a7d529e90",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN2-xTB water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfn2."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfn2/input.xyz",
+      "sha256": "43ec3a3de3c77940c77c04fbc003d1ddc12a1b06c1d8638217837edec34319b2",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN2-xTB water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfn2."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json",
+      "sha256": "6193959d8adbb6b5ee1b2dd3450e65d1bddec7986aea10b9470c536258df0158",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_provenance",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN2-xTB water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfn2."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfn2/stderr.txt",
+      "sha256": "db41edc1c74dad5a3527d5c6e4a48bfce3c2cabc0f0ad20acb5e420ad2a68ea9",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN2-xTB water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfn2."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfn2/stdout.txt",
+      "sha256": "f3d2bb3321e5d755f106feb431f666df318a53773d8be28196f9a8e937922096",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN2-xTB water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfn2."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfnff/gradient",
+      "sha256": "f1c99fd85230db1ea4a51aed1005bfee8bb8fc20d7ac57b863be9ba5e4c5d008",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN-FF water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfnff."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfnff/input.xyz",
+      "sha256": "43ec3a3de3c77940c77c04fbc003d1ddc12a1b06c1d8638217837edec34319b2",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN-FF water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfnff."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json",
+      "sha256": "9ea3c3a55acfaeddd5f98c75c32c3cdc1066dc558c39ed4575d2cb714a0f176a",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_provenance",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN-FF water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfnff."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfnff/stderr.txt",
+      "sha256": "db41edc1c74dad5a3527d5c6e4a48bfce3c2cabc0f0ad20acb5e420ad2a68ea9",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN-FF water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfnff."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfnff/stdout.txt",
+      "sha256": "5692811f56e3b40afb0201f757e4dc60dfc84f86346a51d1253b0c51fed3334b",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN-FF water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfnff."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_stationary_trah_dft/provenance.json",
+      "sha256": "8b0b2130a315d81d22a42d6a9051486849a654df23d181bffda74ecc59881b59",
+      "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_stationary_trah_dft/stationary.engrad",
+      "sha256": "4df8281024bd6185398ca71e0be606050e505bc17325e58ec2ba401d7c8e7041",
+      "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_stationary_trah_dft/stationary.inp",
+      "sha256": "5cfc6eb83330a5d817f78770b22c833ab87b171a85b6735f9396600fb2649d09",
+      "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_stationary_trah_dft/stationary.out.txt",
+      "sha256": "8207b6f2fb87127ca5afa66a4cff7c998deb3ed411ad97f3773b1614351abb54",
+      "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_stationary_trah_dft/stationary.xyz",
+      "sha256": "9d8a3cc77c476d65bbdeb4ff3939925dd4ead9c7d5bea43d8387ef90c79bfbc4",
+      "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
     }
   ]
 }

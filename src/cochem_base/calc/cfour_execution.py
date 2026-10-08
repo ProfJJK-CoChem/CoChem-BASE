@@ -189,8 +189,13 @@ def read_cfour_gradient(path: Path, elements: list[str], target_coordinates: Any
 
 
 def _accept_hessian(directory: Path, elements: list[str], coordinates: Any,
-                    text: str, root: Path, runtime: dict[str, Any] | None = None) -> dict[str, Any]:
+                    text: str, root: Path, runtime: dict[str, Any] | None = None,
+                    *, nuclides: list[str] | None = None) -> dict[str, Any]:
     from cochem_base.spectroscopy.isotopologue import IsotopologueSpectroscopyEngine, projected_harmonic_frequencies
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+    identity = resolve_nuclear_identity(nuclides if nuclides is not None else elements)
+    if list(identity.elements) != elements:
+        raise ValueError("CFOUR harmonic nuclide assignments differ from the submitted electronic elements")
     path = directory / "FCMFINAL"
     tokens = path.read_text(encoding="utf-8").split()
     n, dimension = len(elements), 3 * len(elements)
@@ -217,15 +222,17 @@ def _accept_hessian(directory: Path, elements: list[str], coordinates: Any,
     if not re.search(r"CPHF converged after\s+\d+\s+iterations", text):
         raise ValueError("CFOUR analytic Hessian lacks response-equation convergence")
     principal = IsotopologueSpectroscopyEngine(elements, native_coordinates, matrix).compute_observables()
+    selected = IsotopologueSpectroscopyEngine(list(identity.nuclides), native_coordinates, matrix).compute_observables()
     bundle = directory / "harmonic-hessian.npz"
     source = {"engine": "cfour", "method": "HF", "coordinates_frame": "Native GRD/FCMFINAL Cartesian frame",
               "raw_artifacts": {name: _record(directory / name, root) for name in ("ZMAT", "GRD", "FCMFINAL", "output.dat")},
-              "runtime_seal_sha256": runtime.get("runtime_seal_sha256") if runtime else None}
-    np.savez_compressed(bundle, symbols=np.asarray(elements), coordinates_angstrom=native_coordinates,
+              "runtime_seal_sha256": runtime.get("runtime_seal_sha256") if runtime else None,
+              "nuclear_identity": identity.metadata}
+    np.savez_compressed(bundle, symbols=np.asarray(identity.nuclides), coordinates_angstrom=native_coordinates,
                         hessian_hartree_bohr2=matrix, source=np.asarray(json.dumps(source, sort_keys=True)))
     from cochem_base.spectroscopy.artifacts import load_hessian_artifact
     canonical = load_hessian_artifact(bundle)
-    if list(canonical.symbols) != elements or not np.array_equal(canonical.hessian_hartree_bohr2, matrix):
+    if canonical.symbols != identity.nuclides or not np.array_equal(canonical.hessian_hartree_bohr2, matrix):
         raise ValueError("The published CFOUR harmonic bundle differs from its measured native Hessian")
     evidence = {**_record(path, root, "hartree/bohr^2"), "shape": list(matrix.shape),
                 "coordinates_angstrom": native_coordinates.tolist(), "native_masses_u": masses.tolist(),
@@ -237,9 +244,11 @@ def _accept_hessian(directory: Path, elements: list[str], coordinates: Any,
     return {"hessian_artifact": evidence,
             "hessian_bundle_artifact": {**_record(bundle, root, "hartree/bohr^2"), "coordinates_unit": "angstrom",
                                          "scope": "Geometry-bound measured harmonic Hessian; no anharmonic force field"},
-            "harmonic_frequencies_cm1": principal.harmonic_frequencies_cm1,
+            "harmonic_frequencies_cm1": selected.harmonic_frequencies_cm1,
+            "harmonic_nuclides": list(identity.nuclides),
+            "harmonic_isotope_masses_u": selected.masses,
             "principal_isotope_masses_u": principal.masses,
-            "harmonic_frequency_provenance": "Principal-isotope mass reweighting and geometric rigid-motion projection of measured CFOUR FCMFINAL"}
+            "harmonic_frequency_provenance": "Input-nuclide mass reweighting and geometric rigid-motion projection of measured CFOUR FCMFINAL; bare elements select their principal isotope"}
 
 
 def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directory: Path,
@@ -248,6 +257,10 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
                   telemetry_job_id: str | None = None) -> dict[str, Any]:
     """Execute native checkpoints, preserving every process and optimizer step."""
     from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+    from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+    nuclear_identity = parse_geometry_identity(config.geometry)
+    if list(nuclear_identity.elements) != elements:
+        raise ValueError("CFOUR input nuclear assignments differ from the submitted ordered electronic elements")
     from cochem_base.core_engine.cfour_runtime import verify_cfour_runtime
     from cochem_base.core_engine.scientific_telemetry import append_scientific_result
     if not supported_cfour_request(config):
@@ -306,7 +319,8 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
                             gradient_artifact={**_record(work / "GRD", directory.parent, "hartree/bohr"),
                                                "native_to_submitted_rotation": derivatives["native_to_submitted_rotation"]})
         if harmonic:
-            accepted.update(_accept_hessian(work, elements, xyz, proc.stdout or "", directory.parent, runtime))
+            accepted.update(_accept_hessian(work, elements, xyz, proc.stdout or "", directory.parent, runtime,
+                                           nuclides=list(nuclear_identity.nuclides)))
         runs.append(accepted)
         (directory / "native_evaluations.json").write_text(json.dumps(runs, indent=2, allow_nan=False), encoding="utf-8")
         return accepted
@@ -326,7 +340,7 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
             trajectory.append(frame)
             (directory / "optimization_trajectory.json").write_text(json.dumps(trajectory, indent=2, allow_nan=False), encoding="utf-8")
             if telemetry_job_id is not None:
-                append_scientific_result(telemetry_job_id, elements, positions, result["energy_hartree"],
+                append_scientific_result(telemetry_job_id, nuclear_identity.nuclides, positions, result["energy_hartree"],
                                          gradients=gradient, metadata={"engine": "cfour", "method": config.method,
                                             "record_kind": "optimization_gradient_evaluation", "optimizer": "SciPy BFGS"})
             # SciPy's variables are Angstrom, whereas native GRD is Eh/bohr.
@@ -369,10 +383,11 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
               "runtime_provenance": runtime,
               "scientific_accuracy_established": False}
     result.update({key: final[key] for key in ("gradients_hartree_per_bohr", "gradient_artifact", "hessian_artifact", "hessian_bundle_artifact",
-                                              "harmonic_frequencies_cm1", "principal_isotope_masses_u", "harmonic_frequency_provenance") if key in final})
+                                              "harmonic_frequencies_cm1", "harmonic_nuclides", "harmonic_isotope_masses_u", "principal_isotope_masses_u", "harmonic_frequency_provenance") if key in final})
     if optimization:
         result["optimization_evidence"] = optimization
     result["metadata"] = {key: result[key] for key in ("gradient_artifact", "hessian_artifact", "hessian_bundle_artifact", "optimization_evidence",
-                           "harmonic_frequencies_cm1", "principal_isotope_masses_u", "parallel_model") if key in result}
+                           "harmonic_frequencies_cm1", "harmonic_nuclides", "harmonic_isotope_masses_u", "principal_isotope_masses_u", "parallel_model") if key in result}
+    result.update(nuclides=list(nuclear_identity.nuclides), nuclear_identity=nuclear_identity.metadata)
     _raise_if_cancelled(cancellation_event)
     return result

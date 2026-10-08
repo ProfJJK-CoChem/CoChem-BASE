@@ -10,7 +10,7 @@ Implements:
 - Global sys.excepthook interception with structured crash diagnostics & JSON-LD provenance
 - Real-time psutil RAM RSS / CPU load & pynvml NVIDIA GPU VRAM telemetry on crash
 - Emergency .flush() and .close() on all open HDF5 pointers during hard crashes
-- Strict zero-SWMR enforcement (swmr=True prohibited under all circumstances)
+- Read-only SWMR support and single-master, lock-protected HDF5 writes
 - Original hook (sys.__excepthook__) chaining preserving Jupyter Notebook visual tracebacks
 - Plaintext RotatingFileHandler with strict 5 MB file size limit and 3 rolling backups
 - Exit Code 139 / Segfault / Access Violation recognition with 256-byte stderr hex-dumping
@@ -71,8 +71,8 @@ logger = logging.getLogger("CoChem-TelemetryLogger")
 
 # Comprehensive cross-platform segmentation fault, abort, access violation, and stack overflow codes
 CRITICAL_SEGFAULT_EXIT_CODES = {
-    139, 134, 135, 136,             # POSIX SIGSEGV, SIGABRT, SIGBUS, SIGFPE
-    -11, -6, -7, -8,                 # Subprocess negative signals
+    132, 139, 134, 135, 136, 137,   # POSIX SIGILL, SIGSEGV, SIGABRT, SIGBUS, SIGFPE, SIGKILL
+    -4, -11, -6, -7, -8, -9,       # Subprocess negative signals
     0xC0000005, 3221225477, -1073741819,  # Windows STATUS_ACCESS_VIOLATION (unsigned & signed)
     0xC00000FD, 3221225725, -1073741571,  # Windows STATUS_STACK_OVERFLOW
     0xC000001D, 3221225501, -1073741795,  # Windows STATUS_ILLEGAL_INSTRUCTION
@@ -257,24 +257,57 @@ def safe_h5py_open(
     **kwargs: Any,
 ) -> Iterator[Any]:
     """
-    Context manager for HDF5 files enforcing strict closure on exit and crash.
-    Mandates zero SWMR usage: raises ValueError if swmr=True under any circumstances.
+    Open HDF5 with the canonical single-master writer and reader policy.
+
+    Read-only SWMR opens use the latest file format. Ordinary writes hold the
+    same ten-second lock as ``CoChemHDF5Manager`` for the complete context.
+    Streaming writers must use that manager's ``swmr_writer`` context after
+    preallocating their dataset topology.
     """
-    if swmr or kwargs.get("swmr", False):
+    if swmr and mode != "r":
         raise ValueError(
-            "CRITICAL METHOD MATRIX VIOLATION: swmr=True is strictly prohibited for HDF5 in CoChem under any circumstances. "
-            "Use SQLite WAL or ZeroMQ for concurrent metadata state instead."
+            "swmr=True is supported only for read-only HDF5 opens; "
+            "use CoChemHDF5Manager.swmr_writer() for streaming writes."
         )
+    if swmr:
+        if libver is not None and libver != "latest":
+            raise ValueError("SWMR readers require libver='latest'.")
+        libver = "latest"
+
     import h5py
-    f = h5py.File(str(name), mode=mode, driver=driver, libver=libver, userblock_size=userblock_size, swmr=False, **kwargs)
-    try:
-        yield f
-    finally:
-        if getattr(f, "id", None) is not None and getattr(f.id, "valid", False):
-            try:
-                f.flush()
-            finally:
-                f.close()
+
+    target = Path(name).resolve()
+    if mode != "r":
+        from cochem.core.context import assert_writable_path
+        from cochem_base.core.cochem_core_hdf5_manager import (
+            NonMasterWriteRejectionError,
+            is_master_node,
+        )
+        from cochem_base.core.cochem_core_registry_manager import AtomicFileLock
+
+        if not is_master_node():
+            raise NonMasterWriteRejectionError(
+                f"Write transaction denied: Process is not the master node. Target: {target}"
+            )
+        assert_writable_path(target)
+        access_guard = AtomicFileLock(str(target) + ".lock", timeout=10.0)
+    else:
+        access_guard = contextlib.nullcontext()
+
+    with access_guard:
+        f = h5py.File(
+            str(target), mode=mode, driver=driver, libver=libver,
+            userblock_size=userblock_size, swmr=swmr, **kwargs,
+        )
+        try:
+            yield f
+        finally:
+            if getattr(f, "id", None) is not None and getattr(f.id, "valid", False):
+                try:
+                    if mode != "r":
+                        f.flush()
+                finally:
+                    f.close()
 
 
 def get_plaintext_rotating_handler(
@@ -831,7 +864,7 @@ class TelemetryLogger:
     - Rotating JSON-LD provenance log handler ($COCHEM_SCRATCH_DIR/CoChem_Artifacts/Logs/cochem_telemetry_stream.jsonl)
     - Plaintext RotatingFileHandler with strict 5 MB file size limit and 3 backups (cochem_execution.log)
     - Global sys.excepthook interception & structured crash diagnostics (psutil RSS RAM/CPU + pynvml GPU VRAM)
-    - Emergency HDF5 pointer flushing and closure on hard crash with strict zero-SWMR mandate
+    - Emergency HDF5 pointer flushing and closure on hard crash
     - Cross-platform Exit Code 139 / Access Violation 256-byte stderr hex-dumps
     - Cryptographic HMAC-SHA256 signing preventing log tampering
     - Real-time numerical instability regex traps (NaN, Infinity, overlap, saddle points)
@@ -1165,6 +1198,8 @@ class TelemetryLogger:
         stderr_history: Sequence[str],
         exit_code: int,
         active_hash: str,
+        *,
+        stderr_bytes: Optional[bytes] = None,
     ) -> str:
         """
         Assembles the final log, performs 256-byte hex dumping if a segfault occurred,
@@ -1187,13 +1222,12 @@ class TelemetryLogger:
             if exit_code in CRITICAL_SEGFAULT_EXIT_CODES:
                 f.write(f"\n\n!!! CRITICAL SEGMENTATION FAULT / CRASH (Exit Code: {exit_code}) !!!\n")
                 f.write("Dumping last 256 bytes of STDERR as Hexadecimal Trace:\n")
-                raw_err = "".join(stderr_history[-20:]).encode('utf-8', errors='replace')
-                if not raw_err:
-                    raw_err = b"Segmentation fault (core dumped)\n"
-                
-                # Take last 256 bytes, zero-padded if buffer is shorter
-                target_bytes = raw_err[-256:] if len(raw_err) >= 256 else raw_err.ljust(256, b"\x00")
-                for i in range(0, 256, 16):
+                raw_err = (stderr_bytes if stderr_bytes is not None else
+                           "".join(stderr_history[-20:]).encode('utf-8', errors='replace'))
+                target_bytes = raw_err[-256:]
+                source = "raw process bytes" if stderr_bytes is not None else "decoded history"
+                f.write(f"Captured tail bytes: {len(target_bytes)}; source: {source}\n")
+                for i in range(0, len(target_bytes), 16):
                     chunk = target_bytes[i:i + 16]
                     hex_str = chunk.hex(' ')
                     f.write(f"0x{i:04X}: {hex_str}\n")

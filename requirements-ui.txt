@@ -5,6 +5,7 @@ h5py
 ipykernel
 ipywidgets
 jinja2
+jax[cpu]==0.8.1
 mendeleev>=1.2.0
 matplotlib
 networkx>=3.6.1
@@ -18,3 +19,5 @@ requests
 scipy>=1.17.1
 voila
 watchdog>=6.0.0
+
+qcelemental>=0.51.2,<0.52

@@ -14,15 +14,80 @@ from __future__ import annotations
 
 from typing import Optional, Union, Sequence
 from collections import deque
+from dataclasses import dataclass
+import importlib.metadata
+import math
+import sys
+from threading import RLock
 import numpy as np
 from mendeleev import element
 from cochem_base.analysis.electronic_sanitizer import ElectronicSanitizer
 
-from cochem_base.exceptions import (
-    PreflightValidationError,
-    RedundantDispersionError,
-    MissingDispersionError,
-)
+from cochem_base.exceptions import PreflightValidationError
+
+
+@dataclass(frozen=True)
+class IngestionToolchainReport:
+    """Real interpreter, numerical precision and dynamic database evidence."""
+
+    python_version: str
+    jax_version: str
+    jaxlib_version: str
+    jax_dtype: str
+    jax_backend: str
+    mendeleev_version: str
+    dynamic_mass_verified: bool
+
+
+_TOOLCHAIN_LOCK = RLock()
+_TOOLCHAIN_REPORT: IngestionToolchainReport | None = None
+
+
+def validate_ingestion_toolchain() -> IngestionToolchainReport:
+    """Apply Task1§3.1.4 before scientific ingestion, preserving raw uploads.
+
+    JAX's first numerical operation follows x64 initialization. Expensive backend
+    and database checks are cached, while every call verifies the current thread's
+    precision context. Changing an established context to float32 fails closed.
+    """
+    global _TOOLCHAIN_REPORT
+    if sys.version_info < (3, 11):
+        raise PreflightValidationError("Scientific ingestion requires Python 3.11 or newer.")
+    try:
+        import jax
+    except ImportError as error:
+        raise PreflightValidationError("Scientific ingestion requires the installed CPU JAX precision toolchain. Original source files are not modified.") from error
+    with _TOOLCHAIN_LOCK:
+        if _TOOLCHAIN_REPORT is not None:
+            if not jax.config.jax_enable_x64:
+                raise PreflightValidationError("The current JAX precision context is not float64; scientific ingestion has been stopped.")
+            return _TOOLCHAIN_REPORT
+        # This is the first JAX operation, before importing its numerical array
+        # namespace or admitting any coordinates into downstream calculations.
+        jax.config.update("jax_enable_x64", True)
+        if not jax.config.jax_enable_x64:
+            raise PreflightValidationError("JAX could not establish its mandatory float64 context.")
+        import jax.numpy as jnp
+        exact = float.fromhex("0x1.0000000000001p0")
+        with jax.default_device(jax.devices("cpu")[0]):
+            probe = jnp.asarray(exact, dtype=jnp.float64)
+        if str(probe.dtype) != "float64" or float(probe) != exact:
+            raise PreflightValidationError("The actual JAX numerical backend does not preserve float64 precision.")
+        try:
+            hydrogen = element("H")
+            dynamic_mass = float(hydrogen.atomic_weight)
+            if hydrogen.atomic_number != 1 or not math.isfinite(dynamic_mass) or dynamic_mass <= 0:
+                raise ValueError("The dynamic elemental database returned invalid physical data")
+        except Exception as error:
+            raise PreflightValidationError("The dynamic Mendeleev database could not verify physical elemental data.") from error
+        _TOOLCHAIN_REPORT = IngestionToolchainReport(
+            python_version=".".join(map(str, sys.version_info[:3])),
+            jax_version=importlib.metadata.version("jax"),
+            jaxlib_version=importlib.metadata.version("jaxlib"),
+            jax_dtype=str(probe.dtype), jax_backend=probe.device.platform,
+            mendeleev_version=importlib.metadata.version("mendeleev"), dynamic_mass_verified=True,
+        )
+        return _TOOLCHAIN_REPORT
 
 
 class PreflightGeometryValidator:
@@ -36,7 +101,7 @@ class PreflightGeometryValidator:
         if rad is None:
             rad = el.atomic_radius
         if rad is None:
-            return 1.0
+            raise PreflightValidationError(f"No dynamic covalent radius is available for {symbol}.")
         return float(rad) / 100.0  # pm to Å
 
     @classmethod

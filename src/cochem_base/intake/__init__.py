@@ -20,6 +20,8 @@ if _mint_path.is_file():
         CoChemMInt = _mod.CoChemMInt
         IngestionEngine = _mod.IngestionEngine
         ingest_file = _mod.ingest_file
+        ingest_records = _mod.ingest_records
+        ingest_string_records = _mod.ingest_string_records
         ingest_xyz = _mod.ingest_xyz
         ingest_mol = _mod.ingest_mol
         ingest_string = _mod.ingest_string
@@ -27,6 +29,7 @@ if _mint_path.is_file():
         resolve_io_scratch_directory = _mod.resolve_io_scratch_directory
         bind_system_config = _mod.bind_system_config
         compute_sha256 = _mod.compute_sha256
+        get_element_data = _mod.get_element_data
 
 __all__ = [
     "CoChemIngestionError",
@@ -37,6 +40,8 @@ __all__ = [
     "CoChemMInt",
     "IngestionEngine",
     "ingest_file",
+    "ingest_records",
+    "ingest_string_records",
     "ingest_xyz",
     "ingest_mol",
     "ingest_string",
@@ -44,4 +49,5 @@ __all__ = [
     "resolve_io_scratch_directory",
     "bind_system_config",
     "compute_sha256",
+    "get_element_data",
 ]

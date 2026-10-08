@@ -26,27 +26,32 @@ import logging
 logger = logging.getLogger(__name__)
 
 import concurrent.futures
+import functools
+import math
 import hashlib
 import os
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import mendeleev
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from cochem_base.config_loader import load_system_config
 
 
 class CoChemIngestionError(Exception):
     """Exception raised for errors in the ingestion pipeline."""
-    pass
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
 
 
 class AtomMetadata(BaseModel):
     """Metadata container for individual atomic centers."""
+    model_config = ConfigDict(frozen=True, extra="forbid")
     symbol: str
+    nuclide: str
+    mass_number: Optional[int] = None
     atomic_number: int
     monoisotopic_mass: float
     covalent_radius: float
@@ -58,6 +63,7 @@ class AtomMetadata(BaseModel):
 
 class MolecularGeometryPayload(BaseModel):
     """Standardized immutable molecular geometry payload with auxiliary tensors."""
+    model_config = ConfigDict(frozen=True, extra="forbid")
     filename: str
     format: str
     sha256_hash: str
@@ -70,8 +76,13 @@ class MolecularGeometryPayload(BaseModel):
     R_vdw_aux: List[float]
     atoms: List[AtomMetadata]
     comment: str = ""
-    net_charge: int = 0
-    multiplicity: int = 1
+    net_charge: Optional[int] = None
+    multiplicity: Optional[int] = None
+    record_index: int = 0
+    nuclides: List[str]
+    mass_numbers: List[Optional[int]]
+    electronic_state_source: str = "user_selection_required"
+    source_metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @property
     def coordinate_array(self) -> np.ndarray:
@@ -108,48 +119,36 @@ class BatchIngestionSummary(BaseModel):
     payloads: List[MolecularGeometryPayload]
     sha256_registry: List[str]
     valid_graphs: List[MolecularGeometryPayload]
+    successful_files: int = 0
+    duplicate_files: int = 0
+    errors: Dict[str, str] = Field(default_factory=dict)
 
 
-# In-memory cache for Mendeleev elemental queries
-_ELEMENT_CACHE: Dict[str, Dict[str, Any]] = {}
-
-
+@functools.lru_cache(maxsize=4096)
 def get_element_data(symbol: str) -> Dict[str, Any]:
-    """Retrieve elemental data via mendeleev with thread-safe caching."""
-    clean_sym = symbol.strip().capitalize()
-    if clean_sym in _ELEMENT_CACHE:
-        return _ELEMENT_CACHE[clean_sym]
-
-    try:
-        elem = mendeleev.element(clean_sym)
-
-        z = int(elem.atomic_number)
-        isotopes = elem.isotopes
-        if isotopes:
-            abundant_iso = max(isotopes, key=lambda iso: iso.abundance or 0.0) if any(iso.abundance for iso in isotopes) else isotopes[0]
-            mono_mass = float(abundant_iso.mass)
-        else:
-            mono_mass = float(elem.mass)
-
-        cov_rad = float(elem.covalent_radius_pyykko or elem.covalent_radius or 0.0)
-        if cov_rad > 10.0:
-            cov_rad = cov_rad / 100.0
-
-        vdw_rad = float(elem.vdw_radius or 0.0)
-        if vdw_rad > 10.0:
-            vdw_rad = vdw_rad / 100.0
-
-        data = {
-            "symbol": elem.symbol,
-            "atomic_number": z,
-            "monoisotopic_mass": mono_mass,
-            "covalent_radius": cov_rad,
-            "vdw_radius": vdw_rad,
-        }
-        _ELEMENT_CACHE[clean_sym] = data
-        return data
-    except Exception as e:
-        raise ValueError(f"Invalid element symbol '{symbol}': {e}") from e
+    """Resolve exact labelled or most abundant isotope metadata dynamically."""
+    from cochem_base.physics.isotopes import parse_nuclide_token, get_isotope_mass
+    from cochem_base.physics.nuclide_resolver import get_element
+    clean_sym, number = parse_nuclide_token(symbol)
+    if clean_sym.upper() in {"GH", "BQ", "X"}:
+        return {"symbol": "Gh", "nuclide": "Gh", "mass_number": None,
+                "atomic_number": 0, "monoisotopic_mass": 0.0,
+                "covalent_radius": 0.0, "vdw_radius": 0.0}
+    elem = get_element(clean_sym)
+    if number is None:
+        measured = [iso for iso in elem.isotopes if iso.mass is not None and iso.abundance is not None and iso.abundance > 0]
+        if not measured:
+            raise ValueError(f"No naturally abundant isotope for {clean_sym}; choose an explicit physical isotope")
+        number = int(max(measured, key=lambda iso: (iso.abundance, -iso.mass_number)).mass_number)
+    mass = get_isotope_mass(clean_sym, number)
+    # Mendeleev radii are picometres; never guess units from their magnitude.
+    cov = elem.covalent_radius_pyykko or elem.covalent_radius
+    vdw = elem.vdw_radius
+    if cov is None or vdw is None or not math.isfinite(float(cov)) or not math.isfinite(float(vdw)):
+        raise ValueError(f"Mendeleev lacks required physical radii for {clean_sym}")
+    return {"symbol": elem.symbol, "nuclide": f"{number}{elem.symbol}", "mass_number": number,
+            "atomic_number": int(elem.atomic_number), "monoisotopic_mass": mass,
+            "covalent_radius": float(cov) / 100.0, "vdw_radius": float(vdw) / 100.0}
 
 
 def compute_sha256(content: Union[str, bytes]) -> str:
@@ -205,185 +204,69 @@ def get_scratch_dir(custom_path: Optional[Union[str, Path]] = None) -> Path:
     return resolve_io_scratch_directory(custom_path)
 
 
-def ingest_string(content: str, format: str, filename: str) -> MolecularGeometryPayload:
-    """Parse raw string content of xyz or mol/sdf format into MolecularGeometryPayload."""
-    sha256_hash = compute_sha256(content)
-    content_stripped = content.strip()
-    if not content_stripped:
-        raise ValueError("Empty file content")
-
-    fmt = format.lower()
-    if fmt == "xyz":
-        lines = content.splitlines()
-        if len(lines) < 3:
-            raise ValueError("Invalid XYZ format: too few lines")
-        try:
-            total_atoms = int(lines[0].strip())
-        except ValueError as e:
-            raise ValueError("Invalid XYZ format: first line must be atom count") from e
-
-        comment = lines[1].strip()
-
-        symbols: List[str] = []
-        coords: List[List[float]] = []
-        atoms: List[AtomMetadata] = []
-        m_aux: List[float] = []
-        z_aux: List[int] = []
-        r_cov_aux: List[float] = []
-        r_vdw_aux: List[float] = []
-
-        if len(lines) < total_atoms + 2:
-            raise ValueError(f"Truncated coordinate lines. Expected {total_atoms}, got {len(lines) - 2}")
-
-        for i in range(2, 2 + total_atoms):
-            parts = lines[i].split()
-            if len(parts) < 4:
-                raise ValueError(f"Invalid atom line: {lines[i]}")
-            sym = parts[0]
-            try:
-                x = float(parts[1])
-                y = float(parts[2])
-                z = float(parts[3])
-            except ValueError as e:
-                raise ValueError(f"Non-numeric coordinates on line {i + 1}: {lines[i]}") from e
-
-            edata = get_element_data(sym)
-            symbols.append(edata["symbol"])
-            coords.append([x, y, z])
-            m_aux.append(edata["monoisotopic_mass"])
-            z_aux.append(edata["atomic_number"])
-            r_cov_aux.append(edata["covalent_radius"])
-            r_vdw_aux.append(edata["vdw_radius"])
-
-            atoms.append(AtomMetadata(
-                symbol=edata["symbol"],
-                atomic_number=edata["atomic_number"],
-                monoisotopic_mass=edata["monoisotopic_mass"],
-                covalent_radius=edata["covalent_radius"],
-                vdw_radius=edata["vdw_radius"],
-                x=x, y=y, z=z
-            ))
-
-    elif fmt in ["mol", "sdf"]:
-        lines = content.splitlines()
-        if len(lines) < 4:
-            raise ValueError("Invalid MOL format: too few lines")
-        comment = lines[0].strip()
-
-        counts_line = lines[3]
-        if len(counts_line) < 3:
-            raise ValueError("Invalid MOL counts line")
-        try:
-            total_atoms = int(counts_line[0:3].strip())
-        except ValueError as e:
-            raise ValueError("Invalid MOL counts line: atom count not integer") from e
-
-        symbols = []
-        coords = []
-        atoms = []
-        m_aux = []
-        z_aux = []
-        r_cov_aux = []
-        r_vdw_aux = []
-
-        if len(lines) < 4 + total_atoms:
-            raise ValueError(f"Truncated MOL coordinates. Expected {total_atoms} atoms.")
-
-        for i in range(4, 4 + total_atoms):
-            line = lines[i]
-            if len(line) >= 34:
-                try:
-                    x = float(line[0:10].strip())
-                    y = float(line[10:20].strip())
-                    z = float(line[20:30].strip())
-                    sym = line[31:34].strip()
-                except ValueError:
-                    parts = line.split()
-                    if len(parts) >= 4:
-                        x = float(parts[0])
-                        y = float(parts[1])
-                        z = float(parts[2])
-                        sym = parts[3]
-                    else:
-                        raise ValueError(f"Invalid MOL atom line: {line}") from None
-            else:
-                parts = line.split()
-                if len(parts) >= 4:
-                    x = float(parts[0])
-                    y = float(parts[1])
-                    z = float(parts[2])
-                    sym = parts[3]
-                else:
-                    raise ValueError(f"Invalid MOL atom line: {line}")
-
-            edata = get_element_data(sym)
-            symbols.append(edata["symbol"])
-            coords.append([x, y, z])
-            m_aux.append(edata["monoisotopic_mass"])
-            z_aux.append(edata["atomic_number"])
-            r_cov_aux.append(edata["covalent_radius"])
-            r_vdw_aux.append(edata["vdw_radius"])
-
-            atoms.append(AtomMetadata(
-                symbol=edata["symbol"],
-                atomic_number=edata["atomic_number"],
-                monoisotopic_mass=edata["monoisotopic_mass"],
-                covalent_radius=edata["covalent_radius"],
-                vdw_radius=edata["vdw_radius"],
-                x=x, y=y, z=z
-            ))
-    else:
-        raise ValueError(f"Unsupported format: {format}")
-
+def _payload(record: dict, *, filename: str, format: str, digest: str) -> MolecularGeometryPayload:
+    atoms = []
+    for label, coordinates in zip(record["symbols"], record["coords"], strict=True):
+        data = get_element_data(label)
+        atoms.append(AtomMetadata(**data, x=float(coordinates[0]), y=float(coordinates[1]), z=float(coordinates[2])))
     return MolecularGeometryPayload(
-        filename=filename,
-        format=format,
-        sha256_hash=sha256_hash,
-        symbols=symbols,
-        coordinates=coords,
-        total_atoms=total_atoms,
-        M_aux=m_aux,
-        Z_aux=z_aux,
-        R_cov_aux=r_cov_aux,
-        R_vdw_aux=r_vdw_aux,
-        atoms=atoms,
-        comment=comment
+        filename=filename, format=format, sha256_hash=digest,
+        symbols=[a.symbol for a in atoms], nuclides=[a.nuclide for a in atoms],
+        mass_numbers=[a.mass_number for a in atoms],
+        coordinates=record["coords"].tolist(), total_atoms=len(atoms),
+        M_aux=[a.monoisotopic_mass for a in atoms], Z_aux=[a.atomic_number for a in atoms],
+        R_cov_aux=[a.covalent_radius for a in atoms], R_vdw_aux=[a.vdw_radius for a in atoms],
+        atoms=atoms, comment=record["comment"], net_charge=record.get("charge"),
+        multiplicity=record.get("multiplicity"), record_index=record.get("record_index", 0),
+        electronic_state_source=record.get("electronic_state_source", "user_selection_required"),
+        source_metadata={k: v for k, v in record.items() if k not in {"coords", "symbols", "elements", "nuclear_identity"}},
     )
 
 
-def ingest_file(file_path: Union[str, Path]) -> MolecularGeometryPayload:
-    """Ingest a file automatically determining format from its extension."""
+def ingest_string_records(content: str, format: str, filename: str) -> List[MolecularGeometryPayload]:
+    """Preserve all molecular records instead of selecting the first silently."""
+    from cochem_base.intake.structure_formats import parse_structure_text
+    records = parse_structure_text(content, format)
+    digest = compute_sha256(content)
+    return [_payload(dict(record, record_index=index), filename=filename, format=format, digest=digest)
+            for index, record in enumerate(records)]
+
+
+def ingest_string(content: str, format: str, filename: str) -> MolecularGeometryPayload:
+    """Single-record compatibility boundary; ensembles require the batch API."""
+    payloads = ingest_string_records(content, format, filename)
+    if len(payloads) != 1:
+        raise ValueError("This input contains multiple records; use ingest_records to retain the complete ensemble")
+    return payloads[0]
+
+
+def ingest_records(file_path: Union[str, Path]) -> List[MolecularGeometryPayload]:
+    """Read every record and bind it to the exact original file-byte digest."""
     path = Path(file_path)
     if not path.is_file():
         raise FileNotFoundError(f"File not found: {path}")
+    raw = path.read_bytes()
+    digest = compute_sha256(raw)
+    payloads = ingest_string_records(raw.decode("utf-8-sig", errors="strict"), path.suffix.lstrip("."), path.name)
+    if compute_sha256(path.read_bytes()) != digest:
+        raise ValueError("Molecular source changed during ingestion")
+    return [payload.model_copy(update={"sha256_hash": digest}) for payload in payloads]
 
-    ext = path.suffix.lower()
-    if ext == ".xyz":
-        return ingest_xyz(path)
-    elif ext in [".mol", ".sdf"]:
-        return ingest_mol(path)
-    else:
-        raise ValueError(f"Unsupported file extension: {ext}")
+
+def ingest_file(file_path: Union[str, Path]) -> MolecularGeometryPayload:
+    """Single-record compatibility interface for every supported source format."""
+    payloads = ingest_records(file_path)
+    if len(payloads) != 1:
+        raise ValueError("This input contains multiple records; use ingest_records to retain the complete ensemble")
+    return payloads[0]
 
 
 def ingest_xyz(file_path: Union[str, Path]) -> MolecularGeometryPayload:
-    """Ingest an XYZ geometry file."""
-    path = Path(file_path)
-    raw_bytes = path.read_bytes()
-    content = raw_bytes.decode("utf-8")
-    payload = ingest_string(content, format="xyz", filename=path.name)
-    payload.sha256_hash = compute_sha256(raw_bytes)
-    return payload
+    return ingest_file(file_path)
 
 
 def ingest_mol(file_path: Union[str, Path]) -> MolecularGeometryPayload:
-    """Ingest a MOL/SDF geometry file."""
-    path = Path(file_path)
-    raw_bytes = path.read_bytes()
-    content = raw_bytes.decode("utf-8")
-    payload = ingest_string(content, format="mol", filename=path.name)
-    payload.sha256_hash = compute_sha256(raw_bytes)
-    return payload
+    return ingest_file(file_path)
 
 
 def scan_batch_directory(
@@ -399,10 +282,11 @@ def scan_batch_directory(
     if not path.is_dir():
         raise ValueError(f"Input directory not found: {path}")
 
+    from cochem_base.intake.structure_formats import FORMATS
     files_to_process: List[Path] = []
     iterator = path.rglob("*") if recursive else path.iterdir()
     for item in iterator:
-        if item.is_file() and item.suffix.lower() in [".xyz", ".mol", ".sdf"]:
+        if item.is_file() and item.suffix.lower().lstrip(".") in FORMATS:
             files_to_process.append(item)
 
     files_to_process.sort(key=lambda p: p.name)
@@ -410,27 +294,29 @@ def scan_batch_directory(
     payloads: List[MolecularGeometryPayload] = []
     sha256_registry: List[str] = []
     seen_hashes = set()
-
+    errors: Dict[str, str] = {}
+    successful_files = duplicate_files = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(ingest_file, f) for f in files_to_process]
-        for future in futures:
+        futures = [(source, executor.submit(ingest_records, source)) for source in files_to_process]
+        for source, future in futures:
             try:
-                payload = future.result()
-                if payload.sha256_hash not in seen_hashes:
-                    seen_hashes.add(payload.sha256_hash)
-                    payloads.append(payload)
-                    sha256_registry.append(payload.sha256_hash)
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
+                records = future.result()
+                digest = records[0].sha256_hash
+                successful_files += 1
+                if digest in seen_hashes:
+                    duplicate_files += 1
+                    continue
+                seen_hashes.add(digest)
+                payloads.extend(records)
+                sha256_registry.append(digest)
+            except Exception as error:
+                errors[str(source.relative_to(path))] = f"{type(error).__name__}: {error}"
 
     return BatchIngestionSummary(
-        input_directory=str(path),
-        total_files_scanned=len(files_to_process),
-        successful_ingestions=len(payloads),
-        failed_ingestions=len(files_to_process) - len(payloads),
-        payloads=payloads,
-        sha256_registry=sha256_registry,
-        valid_graphs=payloads
+        input_directory=str(path), total_files_scanned=len(files_to_process),
+        successful_ingestions=len(payloads), failed_ingestions=len(errors),
+        successful_files=successful_files, duplicate_files=duplicate_files, errors=errors,
+        payloads=payloads, sha256_registry=sha256_registry, valid_graphs=payloads,
     )
 
 

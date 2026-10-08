@@ -17,6 +17,7 @@ dependencies = [
     "filelock>=3.32.5",
     "h5py>=3.9.0",
     "jinja2",
+    "jax[cpu]==0.8.1",
     "mendeleev>=1.2.0",
     "mmh3>=5.3.0",
     "msgpack>=1.0",
@@ -30,6 +31,7 @@ dependencies = [
     "pyvista",
     "pyvistaqt",
     "rdkit>=2026.3.5",
+    "qcelemental>=0.51.2,<0.52",
     "scipy>=1.17.1",
     "tenacity>=8.2",
     "vtk",
@@ -41,7 +43,6 @@ cochem-cli = "cochem_base.cli:entrypoint"
 [project.optional-dependencies]
 dev = [
     "parsl",
-    "qcelemental>=0.29",
     "pytest",
     "pytest-qt",
     "pytest-asyncio",

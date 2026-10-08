@@ -17,12 +17,12 @@ Authoritative Standards:
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import math
 from pathlib import Path
 import re
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import mendeleev
 import networkx as nx
@@ -269,7 +269,6 @@ class CovalentGraphBuilder:
         bonds due to spurious unphysical hydrogen contacts.
         """
         clean_graph = graph.copy()
-        n_atoms = len(symbols)
 
         # Sort nodes by maximum physical valency ascending (e.g. H=1 first, then O=3, C=4)
         node_order = sorted(
@@ -873,83 +872,15 @@ XYZ_LINE_PATTERN = re.compile(r"^\s*([A-Za-z]{1,2})\s+([-+]?\d*\.?\d+(?:[eE][-+]
 
 
 def parse_xyz_text(text: str) -> List[Dict[str, Any]]:
-    """Parse XYZ frames while preserving validated ordered nuclide labels.
-
-    Blank comments are legitimate XYZ lines. A malformed frame is rejected,
-    rather than losing a labelled atom and ingesting a different molecule.
-    """
-    from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
-    molecules: List[Dict[str, Any]] = []
-    lines = text.splitlines()
-    i = 0
-    while i < len(lines):
-        if not lines[i].strip():
-            i += 1
-            continue
-        try:
-            num_atoms = int(lines[i].strip())
-        except ValueError as error:
-            raise ValueError("XYZ frame requires an explicit atom count") from error
-        stop = i + num_atoms + 2
-        if num_atoms < 1 or stop > len(lines):
-            raise ValueError("XYZ frame is incomplete or has a nonpositive atom count")
-        identity = parse_geometry_identity("\n".join(lines[i:stop]))
-        molecules.append({
-            "comment": lines[i + 1].strip(), "symbols": list(identity.nuclides),
-            "elements": list(identity.elements), "nuclear_identity": identity.metadata,
-            "coords": np.asarray(identity.coordinates_angstrom, dtype=np.float64),
-            "num_atoms": num_atoms,
-        })
-        i = stop
-    return molecules
+    """Read all complete ordered XYZ frames through the canonical intake boundary."""
+    from cochem_base.intake.structure_formats import parse_xyz_records
+    return parse_xyz_records(text)
 
 
 def parse_sdf_text(text: str) -> List[Dict[str, Any]]:
-    """Parses V2000 / V3000 formatted SDF/MOL text."""
-    molecules: List[Dict[str, Any]] = []
-    blocks = text.split("$$$$") if "$$$$" in text else [text]
-    v2000_pattern = re.compile(r"^\s*(\d+)\s+(\d+)\s+.*V2000", re.IGNORECASE)
-    atom_pattern = re.compile(r"^\s*([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s+([A-Za-z]{1,2})")
-
-    for block in blocks:
-        lines = [line.strip() for line in block.splitlines() if line.strip()]
-        if not lines:
-            continue
-
-        title = lines[0]
-        num_atoms: Optional[int] = None
-        start_idx: Optional[int] = None
-
-        for idx, line in enumerate(lines):
-            match = v2000_pattern.match(line)
-            if match:
-                num_atoms = int(match.group(1))
-                start_idx = idx + 1
-                break
-
-        if num_atoms is not None and start_idx is not None:
-            symbols: List[str] = []
-            coords_list: List[List[float]] = []
-            for line in lines[start_idx : start_idx + num_atoms]:
-                m = atom_pattern.match(line)
-                if m:
-                    coords_list.append([
-                        float(m.group(1)),
-                        float(m.group(2)),
-                        float(m.group(3)),
-                    ])
-                    symbols.append(m.group(4).capitalize())
-
-            if len(coords_list) == num_atoms and num_atoms > 0:
-                molecules.append({
-                    "comment": title,
-                    "symbols": symbols,
-                    "coords": np.array(coords_list, dtype=np.float64),
-                    "num_atoms": num_atoms,
-                })
-
-    return molecules
-
+    """Canonical strict V2000/V3000 intake preserving every molecular record."""
+    from cochem_base.intake.structure_formats import parse_mdl_text
+    return parse_mdl_text(text)
 
 
 # ==============================================================================
@@ -975,26 +906,26 @@ class Stage2Ingestor:
         self.aligner = HungarianKabschAligner()
 
     def process_file(self, file_path: Path) -> List[Dict[str, Any]]:
-        """Parses a single file (.xyz or .sdf) and returns raw molecular dictionaries."""
+        """Read complete structure records with immutable original-byte provenance."""
+        import hashlib
+        from cochem_base.intake.structure_formats import FORMATS, parse_structure_text
         p = Path(file_path)
-        if not p.exists() or not p.is_file():
-            return []
-
-        try:
-            content = p.read_text(encoding="utf-8", errors="ignore")
-        except Exception as e:
-            logger.error(f"Failed to read file {p.name}: {e}")
-            return []
-
-        if p.suffix.lower() == ".sdf" or p.suffix.lower() == ".mol":
-            mols = parse_sdf_text(content)
-        else:
-            mols = parse_xyz_text(content)
-
-        for m in mols:
-            m["source_file"] = p.name
-
-        return mols
+        if not p.is_file():
+            raise FileNotFoundError(f"Molecular source is not a regular file: {p}")
+        if p.suffix.lower().lstrip(".") not in FORMATS:
+            raise ValueError(f"Unsupported molecular source format: {p.suffix}")
+        raw = p.read_bytes()
+        if not raw:
+            raise ValueError("Molecular source must be nonempty")
+        digest = hashlib.sha256(raw).hexdigest()
+        molecules = parse_structure_text(raw.decode("utf-8-sig", errors="strict"), p.suffix)
+        if hashlib.sha256(p.read_bytes()).hexdigest() != digest:
+            raise ValueError("Molecular source changed during ingestion")
+        for index, molecule in enumerate(molecules):
+            molecule.update(source_file=p.name, source_sha256=digest, provenance_hash=digest,
+                            source_size_bytes=len(raw), source_format=p.suffix.lower().lstrip("."),
+                            record_index=index)
+        return molecules
 
     def process_directory(self, input_dir: Union[str, Path]) -> List[ChemicalSystemResult]:
         """Scans directory, ingests coordinates, groups by formula, and executes deduplication."""
@@ -1003,22 +934,24 @@ class Stage2Ingestor:
             logger.error(f"Input path {input_dir} is not a valid directory.")
             return []
 
-        files = list(in_p.glob("*.xyz")) + list(in_p.glob("*.sdf")) + list(in_p.glob("*.mol"))
+        from cochem_base.intake.structure_formats import FORMATS
+        files = sorted((p for p in in_p.iterdir() if p.is_file() and p.suffix.lower().lstrip(".") in FORMATS
+                        and not p.name.endswith(".starting-geometry.json")),
+                       key=lambda p: p.name)
         logger.info(f"Stage 2.0 Ingestor processing {len(files)} files with {self.max_workers} workers...")
 
         all_mols: List[Dict[str, Any]] = []
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            future_to_file = {executor.submit(self.process_file, f): f for f in files}
-            for future in as_completed(future_to_file):
+            futures = [(path, executor.submit(self.process_file, path)) for path in files]
+            for path, future in futures:
                 try:
-                    res = future.result()
-                    all_mols.extend(res)
+                    all_mols.extend(future.result())
                 except Exception as exc:
-                    logger.error(f"Worker exception: {exc}")
+                    raise ValueError(f"Ingestion rejected {path.name}: {exc}") from exc
 
         # Group by stoichiometry / formula
-        formula_groups: Dict[str, List[Dict[str, Any]]] = {}
+        formula_groups: Dict[tuple, List[Dict[str, Any]]] = {}
         for m in all_mols:
             syms = [normalize_symbol(s) for s in m["symbols"]]
             from collections import Counter
@@ -1035,15 +968,17 @@ class Stage2Ingestor:
                 f_parts.append(f"{elem}{cnt if cnt > 1 else ''}")
             formula = "".join(f_parts) or "Unknown"
 
-            formula_groups.setdefault(formula, []).append(m)
+            nuclear_composition = tuple(sorted(m["symbols"]))
+            key = (formula, nuclear_composition, m.get("charge"), m.get("multiplicity"))
+            formula_groups.setdefault(key, []).append(m)
 
         system_results: List[ChemicalSystemResult] = []
 
-        for formula, mol_list in formula_groups.items():
+        for (formula, _, _, _), mol_list in formula_groups.items():
             coords_list = [m["coords"] for m in mol_list]
             symbols_list = [m["symbols"] for m in mol_list]
-            names_list = [m.get("source_file", f"conf_{i}") for i, m in enumerate(mol_list)]
-            ref_symbols = symbols_list[0]
+            names_list = [f"{m.get('source_file', 'geometry')}#{m.get('record_index', i) + 1}"
+                          for i, m in enumerate(mol_list)]
 
             # Deduplicate conformers
             cluster_res = self.deduplicator.deduplicate(
@@ -1054,7 +989,7 @@ class Stage2Ingestor:
 
             # Build representative dual graph
             rep_coords = coords_list[cluster_res.unique_indices[0]]
-            dual_graph = self.graph_builder.build_dual_graph(rep_coords, ref_symbols)
+            dual_graph = self.graph_builder.build_dual_graph(rep_coords, symbols_list[cluster_res.unique_indices[0]])
 
             system_results.append(
                 ChemicalSystemResult(

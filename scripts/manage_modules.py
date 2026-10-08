@@ -94,7 +94,20 @@ def _paths(module_id: str, spec: dict, root: Path) -> tuple[Path, Path, Path, Pa
         raise ValueError("Module installation root must be outside the BASE source checkout.")
     parent = root / module_id
     location = parent / spec["revision"]
-    for path in (parent, location, location / "source", location / "env", parent / "installation.json", parent / "source.json", location / "installation.json", location / "source.json", location / "wheels"):
+    initial_location = location
+    if parent.is_symlink() or location.is_symlink() or (location / "policies").is_symlink():
+        raise ValueError("Module installation paths may not use redirected symbolic links.")
+    initial_receipt = location / "installation.json"
+    if module_id != "base" and initial_receipt.exists():
+        if initial_receipt.is_symlink() or not initial_receipt.resolve().is_relative_to(root):
+            raise ValueError("Module installation receipts may not redirect to another file.")
+        accepted = _read_receipt(initial_receipt)
+        if accepted.get("manifest_spec_sha256") != _digest_json(spec):
+            # A BASE science hotfix can change an approved dependency policy
+            # while the provider's own Git source remains unchanged. Keep the
+            # already accepted environment immutable and prepare a separate one.
+            location = location / "policies" / _digest_json(spec)
+    for path in (parent, initial_location, location, location / "source", location / "env", parent / "installation.json", parent / "source.json", location / "installation.json", location / "source.json", location / "wheels"):
         if path.is_symlink() or not path.resolve().is_relative_to(root):
             raise ValueError("Module installation paths may not use redirected symbolic links.")
     return parent, location, location / "source", location / "env"
@@ -348,7 +361,9 @@ def fetch_module(module_id: str, spec: dict, root: Path, *, activate: bool = Tru
                 "repository": spec["repository"], "revision": spec["revision"],
                 "manifest_spec_sha256": _digest_json(spec), "source_path": str(source)}
     retained_path = location / "source.json"
-    existing_path = receipt_path if receipt_path.exists() and _read_receipt(receipt_path).get("revision") == spec["revision"] else retained_path
+    pointer = _read_receipt(receipt_path) if receipt_path.exists() else {}
+    existing_path = receipt_path if (pointer.get("revision") == spec["revision"]
+        and pointer.get("source_path") == str(source)) else retained_path
     if existing_path.exists():
         existing = _read_receipt(existing_path)
         if existing.get("revision") == spec["revision"]:
@@ -367,6 +382,7 @@ def fetch_module(module_id: str, spec: dict, root: Path, *, activate: bool = Tru
                 _atomic_json(receipt_path, existing)
             return existing
     parent.mkdir(parents=True, exist_ok=True)
+    location.parent.mkdir(parents=True, exist_ok=True)
     # Atomic directory creation also excludes simultaneous installs at this pin.
     try:
         location.mkdir()
@@ -390,7 +406,8 @@ def install_module(module_id: str, spec: dict, root: Path, *, activate: bool = T
     receipt_path = parent / "installation.json"
     if receipt_path.exists():
         existing = _read_receipt(receipt_path)
-        if existing.get("revision") == spec["revision"]:
+        if (existing.get("revision") == spec["revision"]
+                and existing.get("manifest_spec_sha256") == _digest_json(spec)):
             receipt = verify_installation(module_id, spec, root)
             if not (location / "installation.json").exists():
                 _atomic_json(location / "installation.json", receipt)

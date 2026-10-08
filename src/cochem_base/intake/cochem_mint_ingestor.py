@@ -10,6 +10,10 @@ Purpose: Jupyter-native unified GUI and backend for directory scanning, structur
 from __future__ import annotations
 
 import importlib
+import hashlib
+import html
+import os
+import uuid
 import json
 import logging
 import re
@@ -19,7 +23,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import ipywidgets as widgets
@@ -36,7 +40,6 @@ except ImportError:
     safe_subprocess_run: Any = None  # type: ignore
 
 try:
-    from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
     HAS_WATCHDOG = True
 except ImportError:
@@ -45,11 +48,11 @@ except ImportError:
 
 def bootstrap_watchdog() -> bool:
     """Attempts dynamic installation and import of the watchdog library."""
-    global HAS_WATCHDOG, FileSystemEventHandler, Observer
+    global HAS_WATCHDOG, Observer
     if HAS_WATCHDOG:
         return True
     try:
-        cmd = [sys.executable, "-m", "pip", "install", "watchdog"]
+        cmd = [sys.executable, "-m", "pip", "install", "watchdog==6.0.0"]
         if safe_subprocess_run is not None:
             safe_subprocess_run(cmd, timeout=60.0, check=True)
         else:
@@ -57,9 +60,7 @@ def bootstrap_watchdog() -> bool:
         importlib.invalidate_caches()
         importlib.reload(site)
 
-        watchdog_events = importlib.import_module("watchdog.events")
         watchdog_observers = importlib.import_module("watchdog.observers")
-        globals()["FileSystemEventHandler"] = watchdog_events.FileSystemEventHandler
         globals()["Observer"] = watchdog_observers.Observer
         HAS_WATCHDOG = True
         return True
@@ -73,7 +74,7 @@ def print_status(msg: str, status: str = "info") -> None:
     colors = {"success": "green", "warning": "orange", "fail": "red", "info": "blue"}
     color = colors.get(status, "black")
     try:
-        display(widgets.HTML(f"<span style='color:{color}; font-weight:bold;'>[{status.upper()}]</span> {msg}"))
+        display(widgets.HTML(f"<span style='color:{color}; font-weight:bold;'>[{status.upper()}]</span> {html.escape(str(msg))}"))
     except Exception as _e:
         logger.debug(f"Ignored exception: {_e}")
 
@@ -161,7 +162,7 @@ def generate_3d_geometry(
     smiles_or_name: str, output_path: Optional[Path] = None, optimize_mmff: bool = True
 ) -> Path:
     """Generates 3D coordinates using RDKit and saves them to an XYZ file."""
-    smiles, _ = resolve_smiles(smiles_or_name)
+    smiles, source = resolve_smiles(smiles_or_name)
     if not smiles:
         raise ValueError(f"Could not resolve SMILES for '{smiles_or_name}'")
 
@@ -178,18 +179,51 @@ def generate_3d_geometry(
     mol = Chem.AddHs(mol)
     params = AllChem.ETKDGv3()
     params.useRandomCoords = False
-    AllChem.EmbedMolecule(mol, params)
-
+    embedding = AllChem.EmbedMolecule(mol, params)
+    if embedding < 0 or mol.GetNumConformers() != 1:
+        raise ValueError("RDKit ETKDG could not construct a complete 3D starting geometry")
+    forcefield = "not_requested"
     if optimize_mmff:
-        try:
-            AllChem.MMFFOptimizeMolecule(mol)
-        except Exception as _e:
-            logger.debug(f"Ignored exception: {_e}")
+        if AllChem.MMFFHasAllMoleculeParams(mol):
+            status = AllChem.MMFFOptimizeMolecule(mol, maxIters=1000)
+            if status != 0:
+                raise ValueError(f"RDKit MMFF starting-geometry relaxation did not converge (status {status})")
+            forcefield = "MMFF94_converged"
+        else:
+            forcefield = "MMFF_parameters_unavailable_embedding_only"
 
-    out_p = Path(output_path) if output_path is not None else Path(f"{sanitize_project_name(smiles_or_name)}.xyz")
+    out_p = (Path(output_path) if output_path is not None else
+             get_artifact_dir() / "Input_Files" / "Generated" / f"{sanitize_project_name(smiles_or_name)}.xyz")
+    from cochem.core.context import assert_writable_path
+    assert_writable_path(out_p.resolve())
     out_p.parent.mkdir(parents=True, exist_ok=True)
     from cochem_base.geometry.nuclide_geometry import rdkit_geometry_xyz
-    out_p.write_text(rdkit_geometry_xyz(mol), encoding="utf-8")
+    raw = rdkit_geometry_xyz(mol, comment=f"RDKit ETKDG starting geometry; {forcefield}; quantum_optimized=false").encode("utf-8")
+    from cochem_base.intake.structure_formats import parse_structure_text
+    record = parse_structure_text(raw.decode("utf-8"), "xyz")[0]
+    receipt = {"schema_version": "cochem.generated-starting-geometry/1", "query": smiles_or_name,
+               "resolved_smiles": smiles, "resolution_source": source, "embedding": "ETKDGv3",
+               "forcefield": forcefield, "quantum_optimized": False,
+               "charge": sum(a.GetFormalCharge() for a in mol.GetAtoms()),
+               "atom_radical_electrons": [a.GetNumRadicalElectrons() for a in mol.GetAtoms()],
+               "nuclear_identity": record["nuclear_identity"], "sha256": hashlib.sha256(raw).hexdigest()}
+    if out_p.exists():
+        if out_p.read_bytes() != raw:
+            raise FileExistsError("Generated input name already holds different geometry; choose a new input name")
+    else:
+        with out_p.open("xb") as output:
+            output.write(raw)
+            output.flush()
+            os.fsync(output.fileno())
+    receipt_path = out_p.with_suffix(".starting-geometry.json")
+    serialized = json.dumps(receipt, indent=2, allow_nan=False).encode("utf-8") + b"\n"
+    if receipt_path.exists() and receipt_path.read_bytes() != serialized:
+        raise FileExistsError("Generated input provenance already exists with different content")
+    if not receipt_path.exists():
+        with receipt_path.open("xb") as output:
+            output.write(serialized)
+            output.flush()
+            os.fsync(output.fileno())
     return out_p
 
 
@@ -200,17 +234,16 @@ def scan_workspace_geometries(workspace_dir: Path) -> List[Dict[str, Any]]:
     if not p.exists():
         return results
 
-    for f in sorted(p.glob("*.xyz")):
+    from cochem_base.intake.structure_formats import FORMATS
+    from cochem_base.intake.cochem_stage2_ingestor import Stage2Ingestor
+    for f in sorted(p.iterdir()):
+        if not f.is_file() or f.suffix.lower().lstrip(".") not in FORMATS or f.name.endswith(".starting-geometry.json"):
+            continue
         try:
-            content = f.read_text(encoding="utf-8")
-            is_valid, count, comment = validate_xyz_content(content)
-            results.append({
-                "name": f.name,
-                "path": str(f),
-                "valid": is_valid,
-                "atom_count": count,
-                "comment": comment,
-            })
+            records = Stage2Ingestor().process_file(f)
+            results.append({"name": f.name, "path": str(f), "valid": True,
+                "atom_count": records[0]["num_atoms"], "record_count": len(records),
+                "comment": records[0]["comment"], "sha256": records[0]["source_sha256"]})
         except Exception as e:
             results.append({
                 "name": f.name,
@@ -223,32 +256,45 @@ def scan_workspace_geometries(workspace_dir: Path) -> List[Dict[str, Any]]:
 
 
 def save_uploaded_geometries(uploaded_files: Any, target_dir: Path) -> List[Path]:
-    """Extracts and writes uploaded geometries supporting ipywidgets v7 and v8 schemas."""
-    target_p = Path(target_dir).resolve()
-    target_p.mkdir(parents=True, exist_ok=True)
-    saved_paths = []
-
+    """Validate all uploaded records before immutable, air-gapped byte storage."""
+    from cochem.core.context import assert_writable_path
+    from cochem_base.intake.structure_formats import FORMATS, parse_structure_text
+    target = Path(target_dir).resolve()
+    assert_writable_path(target)
     if isinstance(uploaded_files, dict):
-        for fname, item in uploaded_files.items():
-            content = item.get("content", b"")
-            if isinstance(content, memoryview):
-                content = content.tobytes()
-            safe_name = Path(fname).name
-            dest = target_p / safe_name
-            dest.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
-            saved_paths.append(dest)
+        incoming = [(name, item.get("content", b"")) for name, item in uploaded_files.items()]
     elif isinstance(uploaded_files, (list, tuple)):
-        for item in uploaded_files:
-            fname = getattr(item, "name", None) or (item.get("name") if isinstance(item, dict) else "geometry.xyz")
-            content = getattr(item, "content", None) or (item.get("content") if isinstance(item, dict) else b"")
-            if isinstance(content, memoryview):
-                content = content.tobytes()
-            safe_name = Path(fname).name
-            dest = target_p / safe_name
-            dest.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
-            saved_paths.append(dest)
-
-    return saved_paths
+        incoming = [(item.get("name"), item.get("content", b"")) if isinstance(item, dict)
+                    else (item.name, item.content) for item in uploaded_files]
+    else:
+        raise ValueError("Uploads must use the supported ipywidgets file collection")
+    if len(incoming) > 128:
+        raise ValueError("Molecular upload batch exceeds 128 files")
+    validated, names = [], set()
+    for name, content in incoming:
+        if not isinstance(name, str) or not name or "\x00" in name:
+            raise ValueError("A molecular upload requires its actual filename")
+        safe_name = PureWindowsPath(Path(name).name).name
+        suffix = Path(safe_name).suffix.lower().lstrip(".")
+        if not safe_name or safe_name in names or suffix not in FORMATS:
+            raise ValueError("Molecular upload names/formats must be unique and supported")
+        names.add(safe_name)
+        raw = content.tobytes() if isinstance(content, memoryview) else content.encode("utf-8") if isinstance(content, str) else content
+        if not isinstance(raw, bytes) or not 0 < len(raw) <= 32 * 1024 * 1024:
+            raise ValueError("A molecular upload requires bounded nonempty original bytes")
+        parse_structure_text(raw.decode("utf-8-sig", errors="strict"), suffix)
+        dest = target / safe_name
+        if dest.is_symlink() or dest.exists() and (not dest.is_file() or dest.read_bytes() != raw):
+            raise FileExistsError("This input filename already holds different bytes; choose a new input name")
+        validated.append((dest, raw))
+    target.mkdir(parents=True, exist_ok=True)
+    for dest, raw in validated:
+        if not dest.exists():
+            with dest.open("xb") as output:
+                output.write(raw)
+                output.flush()
+                os.fsync(output.fileno())
+    return [dest for dest, _ in validated]
 
 
 class IngestionWatchdog:
@@ -318,7 +364,7 @@ class CoChemMIntUI:
         )
 
         self.file_upload = widgets.FileUpload(
-            accept='.xyz',
+            accept='.xyz,.mol,.sdf,.mol2,.pdb,.json',
             multiple=True,
             description='Drop Geometries',
             button_style='primary'
@@ -381,10 +427,22 @@ class CoChemMIntUI:
 
         files = scan_workspace_geometries(workspace)
         if not files:
-            self._ui_log("No .xyz files found in the active workspace.")
+            self._ui_log("No supported molecular inputs found in the active workspace.")
             return
 
-        self._ui_log(f"Found {len(files)} files. Handoff to Stage 2.0 Ingestor initiated.")
+        from cochem_base.intake.cochem_stage2_ingestor import Stage2Ingestor
+        try:
+            systems = Stage2Ingestor().process_directory(workspace)
+        except (ValueError, OSError) as error:
+            self._ui_log(f"Ingestion rejected: {error}")
+            return
+        receipt_root = self.artifact_dir / "Processed" / sanitize_project_name(self.project_name.value)
+        receipt_root.mkdir(parents=True, exist_ok=True)
+        receipt = receipt_root / f"stage2-ingestion-{uuid.uuid4().hex}.json"
+        receipt.write_text(json.dumps({"schema_version": "cochem.stage2-ingestion/1",
+            "systems": [system.model_dump(mode="json") for system in systems],
+            "sources": files, "scientific_calculation_executed": False}, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+        self._ui_log(f"Stage 2 actually ingested {len(systems)} systems; receipt: {receipt.name}")
 
     def _on_build_clicked(self, b: Any) -> None:
         target_name = self.molecule_name_input.value.strip()

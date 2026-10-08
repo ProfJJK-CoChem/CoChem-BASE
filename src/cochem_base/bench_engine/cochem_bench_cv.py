@@ -1,28 +1,11 @@
 #!/usr/bin/env python3
-r"""Stage 3.0: Core-Valence (CV) Correlation Correction Engine.
+"""Compatibility data helpers for core-valence correlation corrections.
 
-Authoritative Implementation: bench_engine.cochem_bench_cv
-System Domain: CoChem-BENCH Scientific Engine
-
-Key Capabilities:
-1. CoreValenceMapper: Dynamically maps appropriate core-polarized basis sets
-   (e.g., aug-cc-pwCVnZ, cc-pCVnZ) and inspects elemental core electron configurations
-   via the Mendeleev library.
-2. DualCorrelationEngine: Formulates and executes dual single-point evaluations
-   comparing Frozen-Core (FC) against All-Electron (AE with NoFrozenCore) treatments,
-   enforcing CUDA accelerator isolation (CUDA_VISIBLE_DEVICES="") and %maxcore memory limits.
-   Executes jobs via subprocess.run([BenchRunContext.orca_binary_path, input_file]) with
-   safe parameter extraction.
-3. DeltaExtractor: Extracts FINAL SINGLE POINT ENERGY floats from authentic ORCA standard
-   outputs and mathematically derives Delta_E_CV = E_Total^(AE) - E_Total^(FC).
-4. EphemeralScratchPurge: Tripartite scratch workspace manager executing explicit sweeps
-   and unlinking of .gbw, .tmp, and intermediate files immediately after energy extraction.
-5. HDF5 Persistence: Commits computed CV corrections atomically to landscape.h5.
-
-Authoritative Standards:
-- D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 5 CBS Extrapolation & Composite Protocol Math (Stages 2.0 - 4.0).txt
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task5_cv.md
+These helpers build decks, parse supplied observations, calculate AE minus FC,
+and store numeric records. They do not execute calculations or establish that
+the supplied observations form a physically validated core-valence protocol.
+Native calculations belong to the canonical registry-authorized BASE broker and
+the separately installed, verified scientific provider.
 """
 
 from __future__ import annotations
@@ -30,12 +13,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 import datetime
+import hashlib
+import json
 import math
+from numbers import Real
 import os
 import re
-import shlex
-import shutil
-import subprocess
+import stat
+import sys
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -43,7 +28,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import filelock
 import h5py
 from mendeleev import element
+import psutil
 from pydantic import BaseModel, Field
+
+from cochem.core.context import AirGapViolationError, assert_writable_path
+from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
 
 
 # ==============================================================================
@@ -139,11 +128,10 @@ class CoreValenceMapper:
         total_core_electrons = 0
         elements_present: List[str] = []
 
-        for item in coords:
-            sym = str(item[0]).strip().rstrip(":").capitalize()
+        identity = resolve_nuclear_identity([str(item[0]).strip() for item in coords])
+        for sym, mass in zip(identity.elements, identity.masses_u):
             elem_data = element(sym)
             z = int(elem_data.atomic_number)
-            mass = float(elem_data.mass)
 
             total_mass += mass
             total_electrons += z
@@ -179,6 +167,7 @@ class CoreValenceMapper:
             "total_electrons": total_electrons,
             "total_mass": total_mass,
             "elements": elements_present,
+            "nuclear_identity": identity.metadata,
         }
 
 
@@ -187,7 +176,7 @@ class CoreValenceMapper:
 # ==============================================================================
 
 class DualCorrelationEngine:
-    """Manages dual Frozen-Core vs All-Electron single-point ORCA calculation configurations."""
+    """Builds frozen-core/all-electron input data; does not launch an engine."""
 
     def __init__(
         self,
@@ -219,7 +208,7 @@ class DualCorrelationEngine:
         return min(candidate, max_allowed)
 
     def prepare_execution_env(self) -> Dict[str, str]:
-        """Prepares child subprocess execution environment, air-gapping GPUs via CUDA_VISIBLE_DEVICES=''."""
+        """Returns a CPU-only environment specification without launching a process."""
         env = os.environ.copy()
         env["CUDA_VISIBLE_DEVICES"] = ""
         return env
@@ -231,7 +220,7 @@ class DualCorrelationEngine:
         mult: int = 1,
         output_dir: Optional[Union[str, Path]] = None,
     ) -> Dict[str, Any]:
-        """Generates authentic ORCA 6.1.1 input decks for Frozen-Core and All-Electron calculations."""
+        """Builds candidate FC/AE decks; native acceptance belongs to the provider."""
         mapper = CoreValenceMapper()
         mapped_basis = mapper.map_basis_set(self.base_basis)
         maxcore_mb = self.calculate_maxcore_per_thread()
@@ -313,119 +302,6 @@ class DualCorrelationEngine:
 
         return "\n".join(lines)
 
-    def execute_job(
-        self,
-        input_text: str,
-        orca_binary_path: Union[str, Path, List[str], Any],
-        scratch_dir: Union[str, Path],
-        job_prefix: str = "job",
-        timeout_seconds: int = 7200,
-    ) -> Tuple[str, str, int]:
-        """Executes ORCA binary via subprocess inside isolated scratch with GPU air-gapping."""
-        if hasattr(orca_binary_path, "orca_binary_path") and orca_binary_path.orca_binary_path:
-            resolved_bin = orca_binary_path.orca_binary_path
-        elif hasattr(orca_binary_path, "orca_path") and orca_binary_path.orca_path:
-            resolved_bin = orca_binary_path.orca_path
-        else:
-            resolved_bin = orca_binary_path
-
-        scratch_path = Path(scratch_dir)
-        scratch_path.mkdir(parents=True, exist_ok=True)
-        inp_file = scratch_path / f"{job_prefix}.inp"
-        inp_file.write_text(input_text, encoding="utf-8")
-
-        env = self.prepare_execution_env()
-
-        if isinstance(resolved_bin, (list, tuple)):
-            cmd = [str(x) for x in resolved_bin] + [str(inp_file)]
-        else:
-            cmd_str = str(resolved_bin).strip()
-            if " " in cmd_str and not Path(cmd_str).exists():
-                cmd = shlex.split(cmd_str, posix=False) + [str(inp_file)]
-            else:
-                cmd = [cmd_str, str(inp_file)]
-
-        from cochem_base.core_engine.engine_environment import engine_runtime_environment
-        env = engine_runtime_environment("orca", env, executable=cmd[0])
-        proc = subprocess.run(
-            cmd,
-            cwd=str(scratch_path),
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-            check=False,
-        )
-        return proc.stdout, proc.stderr, proc.returncode
-
-    def execute_dual_sp(
-        self,
-        coords: Union[List[Tuple[str, float, float, float]], List[List[Any]]],
-        orca_binary: Union[str, Path, List[str], Any],
-        charge: int = 0,
-        mult: int = 1,
-        node_id: str = "node_0",
-        scratch_dir: Optional[Union[str, Path]] = None,
-        timeout_seconds: int = 7200,
-        auto_purge: bool = True,
-    ) -> CVCorrectionResult:
-        """Dispatches dual single-point jobs: Job A (Frozen-Core) and Job B (All-Electron).
-        
-        Executes via subprocess.run using the validated engine path, isolates accelerators,
-        extracts FINAL SINGLE POINT ENERGY from stdout, and purges intermediate scratch files.
-        """
-        purger = EphemeralScratchPurge()
-        if scratch_dir is None:
-            job_scratch = purger.create_scratch_dir()
-        else:
-            job_scratch = Path(scratch_dir)
-            job_scratch.mkdir(parents=True, exist_ok=True)
-
-        decks = self.generate_input_decks(coords=coords, charge=charge, mult=mult)
-
-        try:
-            # Job A: Frozen-Core
-            stdout_fc, stderr_fc, code_fc = self.execute_job(
-                input_text=decks["fc_input"],
-                orca_binary_path=orca_binary,
-                scratch_dir=job_scratch,
-                job_prefix="orca_fc",
-                timeout_seconds=timeout_seconds,
-            )
-            if code_fc != 0:
-                raise CVExecutionError(
-                    f"Job A (Frozen-Core) execution failed with exit code {code_fc}: {stderr_fc}"
-                )
-
-            # Job B: All-Electron (NoFrozenCore)
-            stdout_ae, stderr_ae, code_ae = self.execute_job(
-                input_text=decks["ae_input"],
-                orca_binary_path=orca_binary,
-                scratch_dir=job_scratch,
-                job_prefix="orca_ae",
-                timeout_seconds=timeout_seconds,
-            )
-            if code_ae != 0:
-                raise CVExecutionError(
-                    f"Job B (All-Electron) execution failed with exit code {code_ae}: {stderr_ae}"
-                )
-
-            # Extract energies and compute delta
-            extractor = DeltaExtractor()
-            result = extractor.extract_from_outputs(
-                stdout_fc=stdout_fc,
-                stdout_ae=stdout_ae,
-                basis_set=decks["basis_set"],
-                original_basis=decks["original_basis"],
-                method=self.method,
-                node_id=node_id,
-            )
-            return result
-        finally:
-            if auto_purge:
-                purger.purge_scratch_dir(job_scratch, remove_dir=True)
-
-
 # ==============================================================================
 # 3. DeltaExtractor
 # ==============================================================================
@@ -436,10 +312,10 @@ class DeltaExtractor:
     @staticmethod
     def parse_final_energy_from_stdout(stdout_text: str) -> float:
         """Parses FINAL SINGLE POINT ENERGY from standard ORCA output."""
-        match = re.search(r"FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)", stdout_text)
-        if not match:
+        matches = re.findall(r"FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)", stdout_text)
+        if not matches:
             raise CVParsingError("ORCA output did not contain 'FINAL SINGLE POINT ENERGY' marker.")
-        return float(match.group(1))
+        return float(matches[-1])
 
     @staticmethod
     def extract_delta(
@@ -453,6 +329,9 @@ class DeltaExtractor:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> CVCorrectionResult:
         """Mathematically derives Delta_E_CV = E_Total^(AE) - E_Total^(FC)."""
+        if any(isinstance(value, bool) or not isinstance(value, Real)
+               or not math.isfinite(float(value)) for value in (e_total_fc, e_total_ae)):
+            raise CVParsingError("Both FC and AE observations must be finite real energies.")
         delta_hartree = float(e_total_ae) - float(e_total_fc)
         delta_kcal = delta_hartree * HARTREE_TO_KCAL_MOL
 
@@ -500,11 +379,28 @@ class DeltaExtractor:
 # ==============================================================================
 
 class EphemeralScratchPurge:
-    """Manages tripartite scratch workspace creation and sweeps intermediate scratch files."""
+    """Reclaims only intermediates in a directory created by this process.
+
+    The generation marker is corroborated by the creator's inode record, not
+    accepted as authority supplied by a caller. Unknown inputs/results remain.
+    """
+
+    _marker_name = ".cochem-cv-scratch-owner.json"
+    _created: Dict[str, Dict[str, Any]] = {}
+
+    @staticmethod
+    def _ancestors(path: Path) -> List[Tuple[str, int, int]]:
+        observed = []
+        for ancestor in reversed((path, *path.parents)):
+            info = ancestor.lstat()
+            if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+                raise CVScratchPurgeError("Scratch paths require nonsymlink directory ancestors.")
+            observed.append((str(ancestor), info.st_dev, info.st_ino))
+        return observed
 
     @staticmethod
     def create_scratch_dir(base_artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
-        """Creates a dedicated UUID-scoped scratch directory."""
+        """Creates a new externally located directory with private creator authority."""
         if base_artifacts_dir:
             base_dir = Path(base_artifacts_dir)
         else:
@@ -514,8 +410,36 @@ class EphemeralScratchPurge:
             )
             base_dir = Path(base_env)
 
-        scratch_dir = base_dir / "BENCH_Workspace" / "Scratch" / f"job_{uuid.uuid4()}"
-        scratch_dir.mkdir(parents=True, exist_ok=True)
+        base_dir = Path(os.path.abspath(base_dir))
+        try:
+            assert_writable_path(base_dir)
+        except AirGapViolationError as error:
+            raise CVScratchPurgeError(str(error)) from error
+        source_root = Path(__file__).resolve().parents[3]
+        for protected in (source_root, Path(sys.prefix).resolve()):
+            if base_dir == protected or protected in base_dir.parents:
+                raise CVScratchPurgeError("Scratch must be outside source and installed runtime roots.")
+        for ancestor in (base_dir, *base_dir.parents):
+            if ancestor.is_symlink():
+                raise CVScratchPurgeError("Scratch paths require nonsymlink directory ancestors.")
+        parent = base_dir / "BENCH_Workspace" / "Scratch"
+        parent.mkdir(parents=True, exist_ok=True)
+        EphemeralScratchPurge._ancestors(parent)
+        generation = str(uuid.uuid4())
+        scratch_dir = parent / f"job_{generation}"
+        scratch_dir.mkdir(mode=0o700)
+        marker = scratch_dir / EphemeralScratchPurge._marker_name
+        payload = json.dumps({"generation": generation, "path": str(scratch_dir)}, sort_keys=True).encode()
+        with marker.open("xb") as output:
+            output.write(payload)
+        info = marker.lstat()
+        EphemeralScratchPurge._created[str(scratch_dir)] = {
+            "creator_pid": os.getpid(),
+            "creator_create_time": psutil.Process().create_time(),
+            "ancestors": EphemeralScratchPurge._ancestors(scratch_dir),
+            "marker_inode": (info.st_dev, info.st_ino),
+            "marker_sha256": hashlib.sha256(payload).hexdigest(),
+        }
         return scratch_dir
 
     @staticmethod
@@ -523,35 +447,59 @@ class EphemeralScratchPurge:
         scratch_dir: Union[str, Path],
         remove_dir: bool = True,
     ) -> Dict[str, Any]:
-        """Sweeps and unlinks intermediate simulation files (.gbw, .tmp, .densities, etc.)."""
-        scratch_path = Path(scratch_dir)
-        if not scratch_path.exists():
-            return {"status": "not_found", "purged_count": 0}
+        """Validate the unchanged creator generation before deleting intermediates.
+
+        Refuse unknown/replaced directories and links before any deletion. An
+        input, result, or subdirectory prevents removal of the owned directory.
+        """
+        scratch_path = Path(os.path.abspath(scratch_dir))
+        owner = EphemeralScratchPurge._created.get(str(scratch_path))
+        if owner is None:
+            raise CVScratchPurgeError("Scratch deletion requires this process's exact creator authority.")
+        if (os.getpid() != owner["creator_pid"]
+                or psutil.Process().create_time() != owner["creator_create_time"]):
+            raise CVScratchPurgeError("Scratch deletion is reserved to its creating process generation.")
+        marker = scratch_path / EphemeralScratchPurge._marker_name
+        try:
+            if EphemeralScratchPurge._ancestors(scratch_path) != owner["ancestors"]:
+                raise CVScratchPurgeError("Scratch directory generation or ancestors changed.")
+            info = marker.lstat()
+            if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                    or (info.st_dev, info.st_ino) != owner["marker_inode"]
+                    or hashlib.sha256(marker.read_bytes()).hexdigest() != owner["marker_sha256"]):
+                raise CVScratchPurgeError("Scratch creator marker changed.")
+            members = list(scratch_path.rglob("*"))
+            if any(member.is_symlink() for member in members):
+                raise CVScratchPurgeError("Scratch contains a symlink; no deletion is authorized.")
+        except CVScratchPurgeError:
+            raise
+        except OSError as error:
+            raise CVScratchPurgeError("Scratch creator generation is unavailable.") from error
 
         purged_files: List[str] = []
-        extensions_to_purge = [
-            "*.gbw", "*.tmp", "*.densities", "*.bso", "*.prop",
-            "*.core", "*.host", "*.ges", "*.int", "*.uco",
-        ]
-
-        for ext in extensions_to_purge:
-            for p in scratch_path.glob(ext):
-                try:
-                    p.unlink()
-                    purged_files.append(p.name)
-                except OSError as _e:
-                    logger.debug(f"Ignored exception: {_e}")
-
-        if remove_dir:
-            try:
-                shutil.rmtree(str(scratch_path), ignore_errors=True)
-            except OSError as _e:
-                logger.debug(f"Ignored exception: {_e}")
+        extensions_to_purge = {".gbw", ".tmp", ".densities", ".bso", ".prop",
+                               ".core", ".host", ".ges", ".int", ".uco"}
+        candidates = [member for member in members if member.parent == scratch_path
+                      and member.suffix in extensions_to_purge]
+        if any(not stat.S_ISREG(member.lstat().st_mode) or member.lstat().st_nlink != 1
+               for member in candidates):
+            raise CVScratchPurgeError("Only private regular intermediate files may be deleted.")
+        for member in candidates:
+            member.unlink()
+            purged_files.append(member.name)
+        retained = [member.name for member in scratch_path.iterdir() if member != marker]
+        directory_removed = bool(remove_dir and not retained)
+        if directory_removed:
+            marker.unlink()
+            scratch_path.rmdir()
+            del EphemeralScratchPurge._created[str(scratch_path)]
 
         return {
             "status": "purged",
             "purged_count": len(purged_files),
             "purged_files": purged_files,
+            "directory_removed": directory_removed,
+            "retained_files": retained,
         }
 
 
@@ -560,18 +508,38 @@ class EphemeralScratchPurge:
 # ==============================================================================
 
 def resolve_hdf5_path(h5_path: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves target landscape.h5 path dynamically adhering to Air-Gap mandate."""
-    if h5_path is not None:
+    """Admit an explicit external data file; never guess a source/CWD store."""
+    artifact_root = os.environ.get("COCHEM_ARTIFACT_DIR") or os.environ.get("COCHEM_ARTIFACTS_DIR")
+    if h5_path is None:
+        if not artifact_root:
+            raise CVCorrectionError("An explicit HDF5 target or configured external artifact root is required.")
+        target = Path(artifact_root) / "BENCH_Workspace" / "landscape.h5"
+    else:
         target = Path(h5_path)
-        if not target.is_absolute() and "COCHEM_ARTIFACTS_DIR" in os.environ and os.environ["COCHEM_ARTIFACTS_DIR"]:
-            return (Path(os.environ["COCHEM_ARTIFACTS_DIR"]) / target).resolve()
-        return target.resolve()
-
-    if "COCHEM_ARTIFACTS_DIR" in os.environ and os.environ["COCHEM_ARTIFACTS_DIR"]:
-        artifacts_dir = Path(os.environ["COCHEM_ARTIFACTS_DIR"]).resolve()
-        return (artifacts_dir / "BENCH_Workspace" / "landscape.h5").resolve()
-
-    return Path("BENCH_Workspace/landscape.h5").resolve()
+        if not target.is_absolute():
+            if not artifact_root:
+                raise CVCorrectionError("A relative HDF5 target requires a configured external artifact root.")
+            target = Path(artifact_root) / target
+    if not target.is_absolute():
+        raise CVCorrectionError("The configured artifact root must be absolute.")
+    target = Path(os.path.abspath(target))
+    try:
+        assert_writable_path(target)
+    except AirGapViolationError as error:
+        raise CVCorrectionError(str(error)) from error
+    for protected in (Path(__file__).resolve().parents[3], Path(sys.prefix).resolve()):
+        if target == protected or protected in target.parents:
+            raise CVCorrectionError("HDF5 data must be outside source and installed runtime roots.")
+    lock_path = target.with_name(target.name + ".lock")
+    for candidate in (target, lock_path, *target.parents):
+        if candidate.is_symlink():
+            raise CVCorrectionError("HDF5 data and lock paths require nonsymlink ancestors and targets.")
+    for candidate in (target, lock_path):
+        if candidate.exists():
+            info = candidate.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise CVCorrectionError("HDF5 data and locks must be private regular files.")
+    return target
 
 
 def commit_cv_to_hdf5(
@@ -579,7 +547,11 @@ def commit_cv_to_hdf5(
     result: CVCorrectionResult,
     timeout: float = 120.0,
 ) -> Path:
-    """Commits computed Core-Valence correction results atomically to landscape.h5 using FileLock."""
+    """Write a numeric CV record to an admitted local file under a writer lock.
+
+    This compatibility store does not certify a native scientific protocol or
+    provide an atomic replacement/SWMR ledger publication service.
+    """
     target_path = resolve_hdf5_path(h5_path)
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -620,7 +592,7 @@ def read_cv_from_hdf5(
     node_id: str,
     timeout: float = 120.0,
 ) -> Dict[str, Any]:
-    """Reads back computed Core-Valence correction results atomically from landscape.h5 using FileLock."""
+    """Read a numeric compatibility record under the same local writer lock."""
     target_path = resolve_hdf5_path(h5_path)
     if not target_path.exists():
         raise FileNotFoundError(f"HDF5 file does not exist: {target_path}")
@@ -650,62 +622,3 @@ def read_cv_from_hdf5(
                 "node_id": str(node_grp.attrs.get("node_id", "")),
             }
             return data
-
-
-def run_cv_pipeline(
-    coords: Union[List[Tuple[str, float, float, float]], List[List[Any]]],
-    e_total_fc: Optional[float] = None,
-    e_total_ae: Optional[float] = None,
-    orca_binary: Optional[Union[str, Path, List[str], Any]] = None,
-    base_basis: str = "aug-cc-pVQZ",
-    method: str = "DLPNO-CCSD(T)",
-    node_id: str = "node_0",
-    h5_path: Optional[Union[str, Path]] = None,
-    node_max_gb: float = 16.0,
-    nprocs: int = 4,
-    charge: int = 0,
-    mult: int = 1,
-    scratch_dir: Optional[Union[str, Path]] = None,
-) -> CVCorrectionResult:
-    """End-to-end pipeline orchestrator for Stage 3.0 Core-Valence (CV) Correction."""
-    mapper = CoreValenceMapper()
-    mapped_basis = mapper.map_basis_set(base_basis)
-    core_info = mapper.inspect_elemental_core(coords)
-
-    if e_total_fc is not None and e_total_ae is not None:
-        extractor = DeltaExtractor()
-        result = extractor.extract_delta(
-            e_total_fc=e_total_fc,
-            e_total_ae=e_total_ae,
-            basis_set=mapped_basis,
-            original_basis=base_basis,
-            method=method,
-            has_core_electrons=core_info["has_core_electrons"],
-            node_id=node_id,
-            metadata={"core_info": core_info},
-        )
-    elif orca_binary is not None:
-        engine = DualCorrelationEngine(
-            method=method,
-            base_basis=base_basis,
-            node_max_gb=node_max_gb,
-            nprocs=nprocs,
-        )
-        result = engine.execute_dual_sp(
-            coords=coords,
-            orca_binary=orca_binary,
-            charge=charge,
-            mult=mult,
-            node_id=node_id,
-            scratch_dir=scratch_dir,
-        )
-        result.metadata["core_info"] = core_info
-    else:
-        raise CVCorrectionError(
-            "run_cv_pipeline requires either (e_total_fc, e_total_ae) or orca_binary to be supplied."
-        )
-
-    if h5_path:
-        commit_cv_to_hdf5(h5_path=h5_path, result=result)
-
-    return result

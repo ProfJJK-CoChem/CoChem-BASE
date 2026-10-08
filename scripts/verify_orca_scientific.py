@@ -101,6 +101,91 @@ def verify_telemetry(result: dict, elements: list[str], *, optimization: bool = 
             "HDF5 energy differs from accepted native evidence")
 
 
+def verify_grid_lifecycle(directory: Path, config: dict, result: dict) -> dict:
+    """Verify every actual stage and its native derivatives/restart provenance."""
+    from cochem_base.calc.cochem_calc_input_generator import build_internal_coordinate_constraints
+    from cochem_base.calc.cochem_calc_output_parser import QuantumParser
+    from cochem_base.calc.grid_execution import _native_constraint_state, _promotion_evidence
+    from cochem_base.calc.orca_derivatives import accept_gradient
+
+    lifecycle = read_json(directory / "grid_lifecycle.json")
+    require(lifecycle["status"] == "EXECUTION_VERIFIED" and lifecycle["method_unchanged"] is True,
+            "Quadrature lifecycle did not complete unchanged")
+    initial = config["grid_stage"]
+    expected = list(range(initial, 4)) if config["is_opt"] and config.get("recipe") == "R1" else [initial]
+    require(lifecycle["stages"] == expected and lifecycle["grids"] == [f"DEFGRID{s}" for s in expected]
+            and lifecycle["dynamic"] is (len(expected) > 1), "Actual grid progression differs from the requested operation")
+    require(result["grid_lifecycle"]["completed_stages"] == lifecycle["completed_stages"]
+            and result["grid_lifecycle"]["final_grid"] == f"DEFGRID{expected[-1]}", "Result lost its measured grid provenance")
+    completed = lifecycle["completed_stages"]
+    require(len(completed) == len(expected), "One or more native refinement stages are missing")
+    elements, original = parse_run_geometry(config["geometry"])
+    constraints = build_internal_coordinate_constraints(elements, original, list(range(len(elements)))) if config.get("recipe") else []
+    original_state, previous_wavefunction = None, None
+    checks = []
+    for index, (stage, record) in enumerate(zip(expected, completed, strict=True)):
+        native = directory / record["directory"]
+        require(native.resolve().is_relative_to(directory.resolve()), "Native grid evidence escaped publication")
+        decks, logs, waves = list(native.glob("*_job.inp")), list(native.glob("*_job.out")), list(native.glob("*_job.gbw"))
+        require(len(decks) == len(logs) == len(waves) == 1, "Grid stage lacks unique actual input/output/wavefunction")
+        require(record["grid"] == f"DEFGRID{stage}" and record["converged"] is True
+                and record["input_sha256"] == sha256(decks[0]) and record["log_sha256"] == sha256(logs[0])
+                and record["wavefunction_sha256"] == sha256(waves[0]), "Grid stage native artifact provenance differs")
+        keywords = next(line.split() for line in decks[0].read_text().splitlines() if line.startswith("!"))
+        require([token for token in keywords if token.startswith("DEFGRID")] == [f"DEFGRID{stage}"],
+                "A refinement stage executed a different native grid")
+        parser = QuantumParser(str(native))
+        require(parser.verify_scf_convergence(logs[0]), "A refinement stage lacks independently accepted native SCF evidence")
+        energies = re.findall(r"FINAL SINGLE POINT ENERGY\s+([-+\d.EeDd]+)", logs[0].read_text())
+        require(bool(energies) and float(energies[-1].replace("D", "E").replace("d", "e")) == record["energy_hartree"],
+                "Grid energy differs from its actual native output")
+        if config["is_opt"]:
+            convergence = parser.verify_geometry_convergence(logs[0])
+            require(convergence == record["native_quintuple_convergence"], "Refinement convergence table provenance differs")
+            stage_result = read_json(native / "stage_result.json")
+            derivative = accept_gradient(native / stage_result["gradient_artifact"]["filename"], elements,
+                                         stage_result["coordinates_angstrom"], stage_result["energy_hartree"], required=True)
+            require(derivative["gradients_hartree_per_bohr"] == stage_result["gradients_hartree_per_bohr"],
+                    "Stage gradients differ from its actual geometry-bound native checkpoint")
+            if constraints:
+                state = _native_constraint_state(decks[0], constraints, read_json(native / "stage_handoff.json")["geometry"]["coordinates_angstrom"])
+                if original_state is None:
+                    original_state = state
+                state["original_input_sha256"] = original_state["original_input_sha256"]
+                projected = stage_result["constraint_gradient_artifact"]
+                require(sha256(directory / projected["filename"]) == projected["sha256"], "Derived Wilson gradient artifact changed")
+                decomposition = read_json(directory / projected["filename"])
+                require(decomposition["gradient_checkpoint_sha256"] == derivative["gradient_artifact"]["sha256"]
+                        and decomposition["raw_gradients_hartree_per_bohr"] == derivative["gradients_hartree_per_bohr"]
+                        and decomposition["original_input_sha256"] == original_state["original_input_sha256"],
+                        "Wilson decomposition lost its original input or actual raw gradient provenance")
+            else:
+                state = None
+            if stage < expected[-1]:
+                trajectory = list(native.glob("*_job_trj.xyz"))
+                require(len(trajectory) == 1, "Stage lacks its actual optimizer trajectory")
+                # Actual XYZ frames supply displacement; they never stand in for derivatives.
+                lines = trajectory[0].read_text().splitlines()
+                frames = [parse_run_geometry("\n".join(lines[i:i + len(elements) + 2]))[1]
+                          for i in range(0, len(lines), len(elements) + 2)]
+                promotion = _promotion_evidence(stage, stage_result,
+                    [{"coordinates_angstrom": frame} for frame in frames], convergence, constraint_state=state)
+                require(promotion["next_grid"] == record["promotion"]["next_grid"] and record["promotion"]["accepted"] is True,
+                        "Refinement lacks measured promotion through the unchanged scientific gate")
+                require(promotion["measured_max_gradient_hartree_per_bohr"] == record["promotion"]["measured_max_gradient_hartree_per_bohr"],
+                        "Promotion gradient differs from the accepted actual checkpoint")
+        handoff = read_json(native / "stage_handoff.json")
+        if index:
+            wave = handoff["wavefunction"]
+            require(wave["source_sha256"] == previous_wavefunction and wave["native_readback_verified"] is True
+                    and wave["after_execution_sha256"] == sha256(native / "previous-stage.gbw"), "Native wavefunction handoff changed")
+        previous_wavefunction = sha256(waves[0])
+        checks.append({"grid": record["grid"], "energy_hartree": record["energy_hartree"],
+                       "input_sha256": record["input_sha256"], "output_sha256": record["log_sha256"],
+                       "gradient_evaluations": record["gradient_evaluations"], "promotion": record.get("promotion")})
+    return {"grids": lifecycle["grids"], "final_grid": lifecycle["grids"][-1], "stages": checks}
+
+
 def verify_native(directory: Path, config: dict, binary_hash: str) -> dict:
     execution, result = read_json(directory / "execution.json"), read_json(directory / "result.json")
     authority = read_json(directory / "execution_authority.json")
@@ -109,11 +194,12 @@ def verify_native(directory: Path, config: dict, binary_hash: str) -> dict:
     require(result["method"] == config["method"] and result["engine"] == "orca", "Method provenance changed")
     require(authority["binary_sha256"] == binary_hash and authority["cores"] == 1 and authority["maxcore_mb"] == 1024,
             "Native execution authority differs from requested binary/resources")
+    lifecycle = verify_grid_lifecycle(directory, config, result)
     decks, logs, schemas = list(directory.glob("*_job.inp")), list(directory.glob("*_job.out")), list(directory.glob("*_qcschema.json"))
     require(len(decks) == len(logs) == len(schemas) == 1, "Missing unique ORCA input/output/QCSchema")
     deck, log = decks[0].read_text(), logs[0].read_text(errors="replace")
     keywords = next(line.split() for line in deck.splitlines() if line.startswith("!"))
-    require([word for word in keywords if word.startswith("DEFGRID")] == [f"DEFGRID{config['grid_stage']}"],
+    require([word for word in keywords if word.startswith("DEFGRID")] == [lifecycle["final_grid"]],
             "Actual native deck used a different quadrature grid")
     if config["method"] == "B3LYP-D4":
         require("B3LYP" in keywords and "D4" in keywords and "B3LYP-D4" not in keywords,
@@ -140,6 +226,7 @@ def verify_native(directory: Path, config: dict, binary_hash: str) -> dict:
     verify_telemetry(result, elements, optimization=config["is_opt"])
     evidence = {"energy_hartree": energy, "scf_cycles": [int(value) for value in cycles],
                 "input_sha256": sha256(decks[0]), "output_sha256": sha256(logs[0]),
+                "grid_lifecycle": lifecycle,
                 "telemetry_path": result["telemetry_path"], "telemetry_job_id": result["telemetry_job_id"]}
     if config.get("recipe") == "R1":
         require("THE OPTIMIZATION HAS CONVERGED" in log, "R1 lacks actual optimization convergence")

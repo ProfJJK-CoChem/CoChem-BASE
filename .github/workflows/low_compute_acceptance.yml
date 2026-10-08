@@ -41,6 +41,12 @@ jobs:
           echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
           echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
           echo "COCHEM_PYSCF_PYTHON=$RUNNER_TEMP/cochem-free-engines/pyscf/bin/python" >> "$GITHUB_ENV"
+          echo "COCHEM_QE_PSEUDO_DIR=$RUNNER_TEMP/cochem-artifacts/free-engines/qe-paw" >> "$GITHUB_ENV"
+      - name: Provision official checksum-verified Ga and As PAW input data
+        run: >-
+          python -B scripts/install_qe_paw_inputs.py
+          --pseudo-dir "$COCHEM_QE_PSEUDO_DIR"
+          --output "$RUNNER_TEMP/cochem-evidence/qe-paw-inputs.json"
       - name: Install headless Qt runtime libraries required by the packaged dashboard
         run: |
           sudo apt-get update

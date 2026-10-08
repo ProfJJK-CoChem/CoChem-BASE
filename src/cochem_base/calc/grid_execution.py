@@ -11,6 +11,7 @@ from cochem_base.core_engine.scientific_writer import scientific_producer
 from dataclasses import asdict
 import hashlib
 import json
+import logging
 from pathlib import Path
 import re
 import shutil
@@ -81,13 +82,113 @@ def _lifecycle_telemetry_summary(path: Path, lifecycle: dict[str, Any]) -> dict[
             ) if key in stage} for stage in lifecycle["completed_stages"]]}
 
 
+def _native_constraint_state(deck: Path, expected: list[str], original_coordinates: Any) -> dict[str, Any] | None:
+    """Bind the compiler's original constraints to their actual serialized deck."""
+    from cochem_base.schemas import ConstraintPayload
+
+    blocks = re.findall(r"(?ms)^[ \t]*Constraints[ \t]*\n(.*?)^[ \t]*end[ \t]*$", deck.read_text())
+    if len(blocks) > 1:
+        raise GridSpecificationError("A grid stage must have one unambiguous internal constraint block")
+    lines = [line.strip() for line in blocks[0].splitlines() if line.strip()] if blocks else []
+    if lines != expected or len(lines) != len(set(lines)):
+        raise GridSpecificationError("Native frozen constraints differ from the original compiler constraint set")
+    if not lines:
+        return None
+    entries: dict[str, list] = {"bonds": [], "angles": [], "dihedrals": []}
+    for line in lines:
+        matched = re.fullmatch(r"\{([BAD]) ((?:\d+ ){1,3})C\}", line)
+        if matched is None:
+            raise GridSpecificationError("Unsupported native frozen internal coordinate")
+        kind, values = matched.groups()
+        indices = tuple(int(value) for value in values.split())
+        field, size = {"B": ("bonds", 2), "A": ("angles", 3), "D": ("dihedrals", 4)}[kind]
+        if len(indices) != size:
+            raise GridSpecificationError("Native internal coordinate has the wrong number of atoms")
+        entries[field].append(indices)
+    payload = ConstraintPayload.model_validate(entries)
+    basis = _constraint_normal_basis(payload, original_coordinates)
+    return {"serialized_constraints": lines, "payload": payload.model_dump(),
+            "original_rank": len(basis), "original_input_sha256": _digest(deck)}
+
+
+def _constraint_normal_basis(payload: Any, coordinates: Any) -> np.ndarray:
+    """Use the Wilson row space; redundant coordinates keep their physical rank."""
+    from cochem_base.geometry.constraints import build_wilson_b_matrix
+    from cochem_base.exceptions import FrozenMonomerViolationError
+
+    try:
+        matrix = build_wilson_b_matrix(payload, coordinates)
+        lengths = np.linalg.norm(matrix, axis=1)
+        if not len(matrix) or not np.isfinite(matrix).all() or np.any(lengths <= 0):
+            raise ValueError("Missing or degenerate Wilson constraint derivatives")
+        # Row scaling preserves the tangent while avoiding mixed bond/angle units.
+        _, singular, vectors = np.linalg.svd(matrix / lengths[:, None], full_matrices=False)
+        rank = int(np.count_nonzero(singular > np.finfo(float).eps * max(matrix.shape) * singular[0]))
+        if not 0 < rank < matrix.shape[1]:
+            raise ValueError("The Wilson constraints have no valid free Cartesian tangent")
+        return vectors[:rank]
+    except (ValueError, FrozenMonomerViolationError, np.linalg.LinAlgError) as error:
+        raise GridSpecificationError(f"Invalid frozen constraint tangent: {error}") from error
+
+
+def _constraint_gradient_summary(evidence: dict[str, Any]) -> dict[str, Any]:
+    """Keep dense derived vectors in their hash-bound artifact, not HDF5 metadata."""
+    return {key: value for key, value in evidence.items()
+            if key not in {"raw_gradients_hartree_per_bohr", "active_gradients_hartree_per_bohr",
+                           "normal_reaction_gradients_hartree_per_bohr", "serialized_constraints"}}
+
+
+def _constraint_gradient_evidence(gradient: Any, coordinates: Any, state: dict[str, Any],
+                                  *, checkpoint_sha256: str) -> dict[str, Any]:
+    """Separate actual constrained reaction forces from the optimized tangent."""
+    from cochem_base.schemas import ConstraintPayload
+
+    raw, geometry = np.asarray(gradient, dtype=float), np.asarray(coordinates, dtype=float)
+    if raw.shape != geometry.shape or raw.ndim != 2 or raw.shape[1] != 3 or not np.isfinite(raw).all():
+        raise GridSpecificationError("Frozen promotion needs matching finite geometry-bound Cartesian derivatives")
+    if (not state.get("serialized_constraints")
+            or not re.fullmatch(r"[0-9a-f]{64}", state.get("original_input_sha256", ""))
+            or not re.fullmatch(r"[0-9a-f]{64}", checkpoint_sha256)):
+        raise GridSpecificationError("Frozen promotion is missing its original native constraint provenance")
+    if type(state.get("original_rank")) is not int or state["original_rank"] <= 0 or not isinstance(state.get("payload"), dict):
+        raise GridSpecificationError("Frozen promotion is missing a valid original Wilson constraint state")
+    basis = _constraint_normal_basis(ConstraintPayload.model_validate(state["payload"]), geometry)
+    if len(basis) != state.get("original_rank"):
+        raise GridSpecificationError("The actual final geometry changed the original Wilson constraint rank")
+    # P = I - B.T (B B.T)^+ B, evaluated through an orthonormal Wilson row basis.
+    # The raw checkpoint gradient is retained unchanged, including reaction forces.
+    normal = (basis.T @ (basis @ raw.ravel())).reshape(raw.shape)
+    active = raw - normal
+    return {"gradient_frame": "Accepted geometry-bound Cartesian checkpoint frame",
+            "projection": "Wilson constraint Cartesian tangent; unweighted Euclidean projector",
+            "serialized_constraints": state["serialized_constraints"],
+            "gradient_checkpoint_sha256": checkpoint_sha256,
+            "original_input_sha256": state["original_input_sha256"], "constraint_rank": len(basis),
+            "active_cartesian_dimension": raw.size - len(basis),
+            "raw_max_gradient_hartree_per_bohr": float(np.max(np.abs(raw))),
+            "raw_gradient_norm_hartree_per_bohr": float(np.linalg.norm(raw)),
+            "raw_gradients_hartree_per_bohr": raw.tolist(),
+            "active_gradients_hartree_per_bohr": active.tolist(),
+            "active_max_gradient_hartree_per_bohr": float(np.max(np.abs(active))),
+            "active_gradient_norm_hartree_per_bohr": float(np.linalg.norm(active)),
+            "normal_reaction_gradients_hartree_per_bohr": normal.tolist(),
+            "normal_reaction_max_gradient_hartree_per_bohr": float(np.max(np.abs(normal))),
+            "normal_reaction_gradient_norm_hartree_per_bohr": float(np.linalg.norm(normal)),
+            "frozen_residual_warning_threshold_hartree_per_bohr": 1e-4,
+            "frozen_residual_warning": bool(np.linalg.norm(normal) > 1e-4)}
+
+
 def _promotion_evidence(stage: int, accepted: dict[str, Any], records: list[dict[str, Any]],
-                        convergence: dict[str, float]) -> dict[str, Any]:
+                        convergence: dict[str, float], *, constraint_state: dict[str, Any] | None = None) -> dict[str, Any]:
     """Require measured final derivatives and displacement before tightening."""
     gradient = np.asarray(accepted["gradients_hartree_per_bohr"], dtype=float)
     if not records or gradient.ndim != 2 or gradient.shape[1] != 3 or not np.isfinite(gradient).all():
         raise GridSpecificationError("Grid promotion requires measured Cartesian gradient telemetry")
-    maximum = float(np.max(np.abs(gradient)))
+    tangent = (_constraint_gradient_evidence(gradient, accepted["coordinates_angstrom"], constraint_state,
+                                            checkpoint_sha256=accepted["gradient_artifact"]["sha256"])
+               if constraint_state is not None else None)
+    maximum = (tangent["active_max_gradient_hartree_per_bohr"] if tangent is not None
+               else float(np.max(np.abs(gradient))))
     # The final table is a native within-stage energy change, unlike the energy
     # offset between two different integration grids.
     energy_change = float(convergence["Energy change"])
@@ -100,6 +201,8 @@ def _promotion_evidence(stage: int, accepted: dict[str, Any], records: list[dict
     if int(next_stage) != stage + 1:
         raise GridSpecificationError("The measured gradient/energy/displacement did not permit grid promotion")
     return {"measured_max_gradient_hartree_per_bohr": maximum,
+            "gradient_subspace": "frozen_constraint_tangent" if tangent is not None else "unconstrained_Cartesian",
+            "constraint_gradient_evidence": _constraint_gradient_summary(tangent) if tangent is not None else None,
             "native_within_stage_energy_change_hartree": energy_change,
             "measured_last_step_cartesian_rmsd_angstrom": rmsd,
             "next_grid": f"DEFGRID{int(next_stage)}", "accepted": True}
@@ -137,6 +240,7 @@ def execute_orca_calculation(
         _accept_orca_result, parse_run_geometry, validate_frozen_monomer_trajectory,
     )
     from cochem_base.calc.cochem_calc_input_generator import generate_orca_input
+    from cochem_base.calc.cochem_calc_input_generator import build_internal_coordinate_constraints
     from cochem_base.calc.cochem_calc_output_parser import QuantumParser
     from cochem_base.calc.orca_derivatives import accept_gradient, accept_harmonic_hessian
     from cochem_base.core_engine.cochem_core_subprocess_broker import (
@@ -151,6 +255,10 @@ def execute_orca_calculation(
     deadline = started + config.timeout_seconds
     coordinates = molecule.coordinates
     previous: tuple[Path, str] | None = None
+    expected_constraints = build_internal_coordinate_constraints(
+        molecule.elements, molecule.coordinates, molecule.frozen_monomer_indices or [],
+    )
+    original_constraint_state = None
     stage_results = []
     accepted = None
 
@@ -210,6 +318,11 @@ def execute_orca_calculation(
                 "The original READ checkpoint is bound to the first-stage geometry; "
                 "the next stage uses a Lindh model at its actual transferred geometry.")
         _write_json(stage_dir / "stage_handoff.json", transfers)
+        constraint_state = _native_constraint_state(deck, expected_constraints, molecule.coordinates)
+        if original_constraint_state is None:
+            original_constraint_state = constraint_state
+        elif constraint_state is not None:
+            constraint_state["original_input_sha256"] = original_constraint_state["original_input_sha256"]
         spin = SpinContaminationStreamValidator(config.multiplicity)
         stream = ORCAGradientStream(
             telemetry_job_id, data.elements, nuclides=nuclides,
@@ -267,6 +380,29 @@ def execute_orca_calculation(
             stage_dir / f"{data.basin_id}_job.engrad", elements, final, accepted["energy_hartree"],
             required=config.is_opt or bool(re.search(r"\bENGRAD\b", data.theory_level, re.I)),
         ))
+        if config.is_opt and constraint_state is not None:
+            if expected_constraints != constraint_state["serialized_constraints"]:
+                raise GridSpecificationError("Frozen grid-stage constraints changed before derivative acceptance")
+            derivative_evidence = _constraint_gradient_evidence(
+                accepted["gradients_hartree_per_bohr"], final, constraint_state,
+                checkpoint_sha256=accepted["gradient_artifact"]["sha256"],
+            )
+            derivative_path = stage_dir / "constraint_gradient_evidence.json"
+            _write_json(derivative_path, derivative_evidence)
+            accepted["constraint_gradient_evidence"] = _constraint_gradient_summary(derivative_evidence)
+            accepted["constraint_gradient_artifact"] = {
+                "filename": str(derivative_path.relative_to(directory)), "sha256": _digest(derivative_path),
+                "unit": "hartree/bohr", "scope": "Actual checkpoint raw/tangent/normal gradients",
+            }
+            if accepted["constraint_gradient_evidence"]["frozen_residual_warning"]:
+                logging.getLogger(__name__).warning(
+                    "Frozen-coordinate native reaction gradient norm %.6g Eh/bohr exceeds the %.1e residual warning threshold",
+                    accepted["constraint_gradient_evidence"]["normal_reaction_gradient_norm_hartree_per_bohr"], 1e-4,
+                )
+                emit({"kind": "warning", "code": "FROZEN_COORDINATE_RESIDUAL", "grid": f"DEFGRID{stage}",
+                      "normal_reaction_gradient_norm_hartree_per_bohr":
+                          accepted["constraint_gradient_evidence"]["normal_reaction_gradient_norm_hartree_per_bohr"],
+                      "threshold_hartree_per_bohr": 1e-4})
         if config.is_freq:
             accepted.update(accept_harmonic_hessian(
                 stage_dir / f"{data.basin_id}_job.hess", stage_dir / f"{data.basin_id}_job.out",
@@ -283,7 +419,9 @@ def execute_orca_calculation(
             convergence = QuantumParser(str(stage_dir)).verify_geometry_convergence(stage_dir / f"{data.basin_id}_job.out")
             evidence["native_quintuple_convergence"] = convergence
             if plan["dynamic"] and stage < 3:
-                evidence["promotion"] = _promotion_evidence(stage, accepted, stream.records, convergence)
+                evidence["promotion"] = _promotion_evidence(
+                    stage, accepted, stream.records, convergence, constraint_state=constraint_state,
+                )
         _write_json(stage_dir / "stage_result.json", {**accepted, "grid_evidence": evidence})
         stage_results.append(evidence)
         _write_json(directory / "grid_lifecycle.json", {**plan, "completed_stages": stage_results,

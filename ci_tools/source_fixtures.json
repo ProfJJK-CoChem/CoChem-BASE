@@ -252,6 +252,48 @@
       "purpose": "Full-lineage conformer union and geometric invariance regression on real retained TOPOS/xTB observations; replay and rigid transforms are not new quantum calculations",
       "provenance_status": "recorded_native_conformer_observations",
       "provenance": "Copies exact native candidates (molecule, energy_hartree, comparison_protocol, status) from BASE-managed TOPOS f63249fa32c5350bd53d285758994c9ebc7154eb, xTB6.7.1, student-topos-final-pair-baseline/student-monomers-complex-search/executed/execution/result.json SHA256 0294ecdba8b0a584d3e063cb0985e9fde26af7aa172c5d08828c48c1c085de4e. Candidate equality and source digest were independently verified; provenance metadata retains physical quantities and artifact manifest references."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/dimer.inp",
+      "sha256": "38c782051d9da50050f54dd2cc2a84e92626d082f745b8af9fd84d66dea28ebf",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/dimer.out.txt",
+      "sha256": "44f576adbe8ffafc002e033742436abd86cc7f7dc302d07b04408f5aeb1e08a4",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/dimer.engrad",
+      "sha256": "7ab9ccc153be6cecc04d6b7384f3efcbe4a2c217f9be4df7812831d88f0d66bf",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/dimer.xyz",
+      "sha256": "9334c44f6f309240d92e3dfe7cf8eb5a9bf4bfe9d7aef5b3fc9e8420b04b5fff",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/dimer_trj.xyz",
+      "sha256": "4160eea91c9cfa7205b3546619fb4054d34777e3b98789d3ed62264a38e66a47",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/provenance.json",
+      "sha256": "6004f2ee1678fb5b05dc70db266dee7fe90065971d4870909a742c920e2215da",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_provenance",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
     }
   ]
 }

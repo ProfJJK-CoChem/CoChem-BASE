@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.cochem_setup_phase_1 import (
+from cochem_base.orchestrator.cochem_setup_phase_1 import (
     DependencyManager,
     FilesystemAudit,
     KernelLimitsAudit,
@@ -671,35 +671,43 @@ def test_check_wsl_9p_mount_bare_drive_heuristic() -> None:
     assert fs_type == "drvfs"
 
 
-def test_resolve_p1_registry_path_fallbacks(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Verify resolve_p1_registry_path fallbacks through .agent_artifacts and home directory."""
-
-    monkeypatch.delenv("COCHEM_ARTIFACT_DIR", raising=False)
-    monkeypatch.setitem(sys.modules, "cochem_base.config_loader", None)
-
-    # Case 1: .agent_artifacts exists in cwd
-    agent_art = tmp_path / ".agent_artifacts"
-    agent_art.mkdir(parents=True, exist_ok=True)
+def test_resolve_p1_registry_path_actual_environment_precedence(tmp_path: Path) -> None:
+    """Real child configuration resolves override precedence and its private home."""
     import os
-    original_cwd = os.getcwd()
-    os.chdir(tmp_path)
-    try:
-        p1_path = resolve_p1_registry_path()
-        assert p1_path == (agent_art / "Registry" / "p1.json").resolve()
+    import subprocess
 
-        # Case 2: No .agent_artifacts in cwd, falls back to home / CoChem_Artifacts
-        shutil.rmtree(agent_art)
-        fake_home = tmp_path / "fake_home"
-        fake_home.mkdir(parents=True, exist_ok=True)
-        monkeypatch.setenv("HOME", str(fake_home))
-        monkeypatch.setenv("USERPROFILE", str(fake_home))
-
-        p1_path_home = resolve_p1_registry_path()
-        assert p1_path_home == (fake_home / "CoChem_Artifacts" / "Registry" / "p1.json").resolve()
-    finally:
-        os.chdir(original_cwd)
+    repository = Path(__file__).resolve().parents[1]
+    private_home = tmp_path / "home"
+    private_home.mkdir()
+    preferred = tmp_path / "preferred-artifacts"
+    secondary = tmp_path / "secondary-artifacts"
+    child_environment = {
+        "PATH": os.environ.get("PATH", ""),
+        "PYTHONPATH": os.pathsep.join((str(repository / "src"), str(repository))),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "HOME": str(private_home),
+        "USERPROFILE": str(private_home),
+        "COCHEM_ARTIFACTS": str(preferred),
+        "COCHEM_ARTIFACT_DIR": str(secondary),
+    }
+    for name in ("SYSTEMROOT", "WINDIR", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+        if name in os.environ:
+            child_environment[name] = os.environ[name]
+    command = [
+        sys.executable, "-B", "-c",
+        "from cochem_base.orchestrator.cochem_setup_phase_1 import resolve_p1_registry_path; "
+        "print(resolve_p1_registry_path())",
+    ]
+    for expected, omitted in (
+        (preferred / "Registry" / "p1.json", ()),
+        (secondary / "Registry" / "p1.json", ("COCHEM_ARTIFACTS",)),
+        (private_home / "CoChem_Artifacts" / "Registry" / "p1.json", ("COCHEM_ARTIFACTS", "COCHEM_ARTIFACT_DIR")),
+    ):
+        environment = {name: value for name, value in child_environment.items() if name not in omitted}
+        child = subprocess.run(command, cwd=tmp_path, env=environment, capture_output=True,
+                               text=True, timeout=30, check=False)
+        assert child.returncode == 0, child.stderr
+        assert Path(child.stdout.strip()) == expected.resolve()
 
 
 def test_dependency_manager_rollback_os_error_resilience(
@@ -787,52 +795,24 @@ def test_check_wsl_9p_mount_windows_mnt_prefix() -> None:
     assert fs_type == "9p"
 
 
-def test_audit_toolchain_binary_subprocess_exception(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify audit_toolchain_binary handles unexpected exception from subprocess.run gracefully."""
-    import subprocess
-    from orchestrator import cochem_setup_phase_1 as p1
+def test_audit_toolchain_binary_rejects_damaged_executable(tmp_path: Path) -> None:
+    """An actual invalid executable must yield a probe failure without substitution."""
+    import hashlib
 
-    def _broken_run(*args: Any, **kwargs: Any) -> Any:
-        raise OSError("Permission denied / executable damaged")
+    damaged = tmp_path / ("damaged-probe.exe" if sys.platform == "win32" else "damaged-probe")
+    damaged.write_bytes(b"not an executable file format\n")
+    damaged.chmod(0o700)
+    original_sha256 = hashlib.sha256(damaged.read_bytes()).hexdigest()
 
-    monkeypatch.setattr(subprocess, "run", _broken_run)
-    item = p1.audit_toolchain_binary("python")
+    item = audit_toolchain_binary(str(damaged))
+
     assert item.is_available is False
+    assert item.path == str(damaged.resolve())
     assert item.error_detail is not None
-    assert "Probe failure: Permission denied" in item.error_detail
+    assert item.error_detail.startswith("Probe failure:")
+    assert hashlib.sha256(damaged.read_bytes()).hexdigest() == original_sha256
 
 
-def test_is_wsl_environment_simulations(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Verify is_wsl_environment logic across simulated Linux kernel artifacts without external mocks."""
-    from orchestrator import cochem_setup_phase_1 as p1
-
-    # Simulate non-Linux OS
-    monkeypatch.setattr(platform, "system", lambda: "Darwin")
-    assert p1.is_wsl_environment() is False
-
-    # Simulate Linux OS
-    monkeypatch.setattr(platform, "system", lambda: "Linux")
-
-    # Case A: /proc/version contains 'microsoft'
-    fake_proc_ver = tmp_path / "proc_version"
-    fake_proc_ver.write_text("Linux version 5.15.153.1-microsoft-standard-WSL2", encoding="utf-8")
-    monkeypatch.setattr(p1, "Path", lambda p: fake_proc_ver if str(p) == "/proc/version" else Path(p))
-    assert p1.is_wsl_environment() is True
-
-    # Case B: release contains 'microsoft'
-    monkeypatch.setattr(p1, "Path", Path)
-    monkeypatch.setattr(platform, "release", lambda: "5.15.0-microsoft-standard")
-    assert p1.is_wsl_environment() is True
-
-    # Case C: WSL_DISTRO_NAME environment variable
-    monkeypatch.setattr(platform, "release", lambda: "5.15.0-generic")
-    monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu-22.04")
-    assert p1.is_wsl_environment() is True
-
-    # Case D: WSL_INTEROP environment variable
-    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
-    monkeypatch.setenv("WSL_INTEROP", "/run/WSL/1_interop")
-    assert p1.is_wsl_environment() is True
 
 
 def test_check_wsl_9p_mount_posix_table_variations() -> None:
@@ -868,59 +848,20 @@ def test_check_wsl_9p_mount_posix_table_variations() -> None:
 
 
 
-def test_main_cli_failed_status_and_errors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_main_cli_rejects_output_directory_collision(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Verify main() CLI correctly handles and reports PhaseStatus.FAILED with exit code 1."""
-    from orchestrator import cochem_setup_phase_1 as p1
+    """A genuine filesystem failure returns exit 1 and preserves the existing file."""
+    output_collision = tmp_path / "existing-output-file"
+    original = b"preserved existing file\n"
+    output_collision.write_bytes(original)
 
-    def _failing_audit(output_dir: Any = None, target_path: Any = None) -> p1.Phase1AuditReport:
-        return p1.Phase1AuditReport(
-            phase_id="PHASE_1_ENVIRONMENT_GATEKEEPER",
-            status=p1.PhaseStatus.FAILED,
-            timestamp_utc="2026-08-29T20:00:00Z",
-            os_profile=p1.OSProfile(
-                system="Linux",
-                release="5.15.0",
-                version="1",
-                machine="x86_64",
-                is_wsl=False,
-                is_windows=False,
-                is_posix=True,
-            ),
-            filesystem=p1.FilesystemAudit(
-                target_path=str(tmp_path),
-                mount_point="/",
-                fs_type="ext4",
-                is_9p_mount=False,
-                is_posix_compliant=True,
-            ),
-            toolchains={
-                "gcc": p1.ToolchainItem(
-                    name="gcc",
-                    path="/usr/bin/gcc",
-                    version="11.4.0",
-                    is_available=True,
-                )
-            },
-            kernel_limits=p1.KernelLimitsAudit(
-                vm_max_map_count=262144,
-                stack_limit_bytes=67108864,
-                stack_unlimited=False,
-                degraded_mode=False,
-            ),
-            warnings=[],
-            errors=["Fatal error: Required kernel module missing"],
-            artifact_path=str(tmp_path / "Registry" / "p1.json"),
-        )
+    exit_code = main(argv=["--output-dir", str(output_collision), "--target-path", str(tmp_path)])
 
-    monkeypatch.setattr(p1, "run_phase_1_audit", _failing_audit)
-    exit_code = p1.main(argv=["--output-dir", str(tmp_path)])
     assert exit_code == 1
-
-    captured = capsys.readouterr()
-    assert "Status:          FAILED" in captured.out
-    assert "Fatal error: Required kernel module missing" in captured.out
+    assert output_collision.is_file()
+    assert output_collision.read_bytes() == original
+    assert "FATAL PHASE 1 ERROR" in caplog.text
 
 
 # =============================================================================

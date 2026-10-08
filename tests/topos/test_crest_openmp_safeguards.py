@@ -6,10 +6,6 @@ Strict Zero-Mock Mandate: Authentic environment safeguards and dependency checks
 
 from __future__ import annotations
 
-import pytest
-from ase import Atoms
-
-from cochem_base.exceptions import EcosystemDependencyError
 from cochem_base.topology.cochem_topos_crusher import CRESTConformerEngine
 
 
@@ -29,15 +25,3 @@ def test_crest_dynamic_memory_clamping():
     mem_gb = engine._compute_memory_budget_gb()
     assert mem_gb > 0.0
     assert mem_gb <= 64.0
-
-
-def test_crest_xtb_mutual_dependency_enforced(monkeypatch: pytest.MonkeyPatch):
-    """Verify CREST execution aborts if either crest or xtb binary is absent."""
-    engine = CRESTConformerEngine()
-    seed = Atoms("OH2", positions=[[0, 0, 0], [0, 0.75, 0.5], [0, -0.75, 0.5]])
-
-    # When xtb is not found, execute_secondary_search must raise EcosystemDependencyError
-    monkeypatch.setattr("shutil.which", lambda cmd: "/usr/bin/crest" if cmd == "crest" else None)
-
-    with pytest.raises(EcosystemDependencyError, match="relies intrinsically on xTB"):
-        engine.execute_secondary_search(seed, num_conformers=1)

@@ -43,7 +43,8 @@ def _project_identity(root: Path) -> str | None:
     return value.lower().replace("_", "-").replace(".", "-") if isinstance(value, str) else None
 
 
-def _foreign_checkout_source(path: Any, state: dict[str, Any], projects: dict[Path, str | None]) -> bool:
+def _foreign_checkout_source(path: Any, state: dict[str, Any], projects: dict[Path, str | None],
+                             *, resolved: Path | None = None) -> bool:
     """Recognize aliases from an actual other BASE checkout by file ownership.
 
     Discovery reads only ancestor metadata and reviewed relative source paths.
@@ -53,8 +54,8 @@ def _foreign_checkout_source(path: Any, state: dict[str, Any], projects: dict[Pa
     if not state.get("project_identity"):
         return False
     try:
-        actual = Path(path).resolve()
-        if inside(actual, state["copied"]):
+        actual = Path(path).resolve() if resolved is None else resolved
+        if actual.is_relative_to(state["copied"]):
             return False
         for ancestor in actual.parents:
             if ancestor not in projects:
@@ -80,14 +81,28 @@ def loaded_origins(state: dict[str, Any]) -> dict[str, Any]:
         filename = getattr(module, "__file__", None)
         if filename:
             paths.append(filename)
+        # Re-resolve on every observation so moved symlinks remain visible.
+        # Resolving once per module path avoids filesystem work for each
+        # retired root without caching authority across observations.
+        resolved_paths: list[Path | None] = []
+        for path in paths:
+            try:
+                resolved_paths.append(Path(path).resolve())
+            except (TypeError, ValueError, OSError):
+                resolved_paths.append(None)
         owned = name.split(".")[0] in state["owned"]
-        foreign_source = any(inside(path, root) for path in paths for root in state.get("retired_roots", ()))
+        foreign_source = any(path is not None and path.is_relative_to(root)
+                             for path in resolved_paths for root in state.get("retired_roots", ()))
         if not foreign_source:
-            foreign_source = any(_foreign_checkout_source(path, state, projects) for path in paths)
-        if owned or foreign_source or any(inside(path, state["copied"]) for path in paths):
+            foreign_source = any(path is not None and _foreign_checkout_source(path, state, projects, resolved=path)
+                                 for path in resolved_paths)
+        if owned or foreign_source or any(path is not None and path.is_relative_to(state["copied"])
+                                         for path in resolved_paths):
             origins[name] = paths
-        if foreign_source or any(inside(path, state["original"]) for path in paths) or (
-                owned and any(not inside(path, state["copied"]) for path in paths)):
+        if foreign_source or any(path is not None and path.is_relative_to(state["original"])
+                                 for path in resolved_paths) or (
+                owned and any(path is None or not path.is_relative_to(state["copied"])
+                              for path in resolved_paths)):
             escaped.append(name)
     if _active is state:
         os.environ[FORBIDDEN_ROOTS_KEY] = json.dumps(sorted(str(root) for root in state["retired_roots"]))

@@ -378,10 +378,68 @@ def test_sketcher_widget_asset_integrity_and_checksums() -> None:
     assert SketcherWidget._css is not None
 
 
-def test_sketcher_widget_offline_verification(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify strict air-gapped zero external CDN check under COCHEM_OFFLINE=1."""
-    monkeypatch.setenv("COCHEM_OFFLINE", "1")
-    assert verify_offline_compliance() is True
+def _offline_package_probe(tmp_path, *, invalid_asset: bool):
+    """Run the real scanner against an owned package copy with original Python bytes."""
+    import hashlib
+    import json
+    import os
+    from pathlib import Path
+    import shutil
+    import subprocess
+    import sys
+
+    package_source = ESM_PATH.parent.parent
+    namespace_source = package_source.parent
+    namespace_copy = tmp_path / "package" / "cochem"
+    namespace_copy.mkdir(parents=True)
+    shutil.copy2(namespace_source / "__init__.py", namespace_copy / "__init__.py")
+    package_copy = namespace_copy / "mobile"
+    shutil.copytree(package_source, package_copy, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    original_asset = ESM_PATH.read_bytes()
+    original_asset_sha256 = hashlib.sha256(original_asset).hexdigest()
+    source_hashes = {}
+    for source in package_source.rglob("*.py"):
+        relative = source.relative_to(package_source)
+        source_hashes[str(relative)] = hashlib.sha256(source.read_bytes()).hexdigest()
+        assert hashlib.sha256((package_copy / relative).read_bytes()).hexdigest() == source_hashes[str(relative)]
+    if invalid_asset:
+        (package_copy / "assets" / ESM_PATH.name).write_text(
+            "import 'https://cdn.example.com/lib.js';", encoding="utf-8"
+        )
+    repository_source = namespace_source.parent
+    environment = {
+        "PATH": os.environ.get("PATH", ""),
+        "PYTHONPATH": os.pathsep.join((str(namespace_copy.parent), str(repository_source))),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "COCHEM_OFFLINE": "1",
+    }
+    for name in ("SYSTEMROOT", "WINDIR", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+        if name in os.environ:
+            environment[name] = os.environ[name]
+    child = subprocess.run(
+        [
+            sys.executable, "-B", "-c",
+            "import importlib.util, json; "
+            "print(json.dumps({'source': importlib.util.find_spec('cochem.mobile.sketcher_widget').origin}), flush=True); "
+            "from cochem.mobile.sketcher_widget import verify_offline_compliance; "
+            "assert verify_offline_compliance() is True; print('OFFLINE_ASSETS_ACCEPTED')",
+        ],
+        cwd=tmp_path, env=environment, capture_output=True, text=True,
+        timeout=45, check=False,
+    )
+    observed_origin = json.loads(child.stdout.splitlines()[0])["source"]
+    assert Path(observed_origin) == package_copy / "sketcher_widget.py"
+    assert hashlib.sha256(ESM_PATH.read_bytes()).hexdigest() == original_asset_sha256
+    for relative, digest in source_hashes.items():
+        assert hashlib.sha256((package_copy / relative).read_bytes()).hexdigest() == digest
+    return child
+
+
+def test_sketcher_widget_offline_verification(tmp_path) -> None:
+    """The genuine unchanged asset package passes in a child offline environment."""
+    observed = _offline_package_probe(tmp_path, invalid_asset=False)
+    assert observed.returncode == 0, observed.stderr
+    assert "OFFLINE_ASSETS_ACCEPTED" in observed.stdout
 
 
 def test_sketcher_widget_async_execution() -> None:
@@ -465,23 +523,13 @@ def test_asset_checksum_missing_file_error(tmp_path: pytest.TempPathFactory) -> 
         compute_file_sha256(non_existent)
 
 
-def test_offline_violation_error(
-    tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Verify verify_offline_compliance detects banned external references."""
-    monkeypatch.setenv("COCHEM_OFFLINE", "1")
-    # Temporarily monkeypatch ESM_PATH with file containing external URL
-    non_compliant_asset = tmp_path / "non_compliant_sketcher.esm.js"  # type: ignore[operator]
-    non_compliant_asset.write_text(
-        "import 'https://cdn.example.com/lib.js';", encoding="utf-8"
-    )
-
-    import cochem.mobile.sketcher_widget as widget_mod
-
-    monkeypatch.setattr(widget_mod, "ESM_PATH", non_compliant_asset)
-
-    with pytest.raises(RuntimeError, match="air-gap violation"):
-        verify_offline_compliance()
+def test_offline_violation_error(tmp_path) -> None:
+    """A real malformed package asset refuses without replacing paths or functions."""
+    observed = _offline_package_probe(tmp_path, invalid_asset=True)
+    assert observed.returncode != 0
+    assert "air-gap violation" in observed.stderr
+    assert "External reference 'https://'" in observed.stderr
+    assert "OFFLINE_ASSETS_ACCEPTED" not in observed.stdout
 
 
 def test_sketcher_widget_malformed_payload_string() -> None:

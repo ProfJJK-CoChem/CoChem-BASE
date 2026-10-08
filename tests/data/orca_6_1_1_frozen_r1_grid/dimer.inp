@@ -1,0 +1,50 @@
+# =====================================================================
+# CoChem-CORE Cryptographic Provenance Stamp: b89756389aa840f1edfeaea47675d5c6b2201d9679cff1547af85ad06c0cf5d4
+# Basin ID: job_ca6c90befeb14a9694b9bd510199269e | Engine Target: ORCA 6.1.1
+# Nuclear assignments (electronic XYZ symbols remain canonical): ["O", "H", "H", "O", "H", "H"]
+# Nuclear assignment SHA-256: eb8bc8634bcd91d801dd1c4e8ab8a64bcd9c1e5870016f1a29640b3167772def
+
+# =====================================================================
+! r2SCAN-3c Opt DEFGRID1  NoSym TightSCF
+
+%pal
+ nprocs 1
+end
+
+%maxcore 1024
+
+%scf
+ TolE 1.0e-10
+ Thresh 1.0e-12
+ ConvCheckMode 0
+ ConvForced true
+ MaxIter 200
+end
+
+%geom
+  TolE 1e-8
+  TolMaxG 1e-6
+  TolRMSG 3e-7
+  TolMaxD 1e-5
+  TolRMSD 5e-6
+  MaxIter 200
+  InHess XTB2
+  Constraints
+    {B 0 1 C}
+    {B 0 2 C}
+    {A 1 0 2 C}
+    {B 3 4 C}
+    {B 3 5 C}
+    {A 4 3 5 C}
+  end
+end
+
+
+* xyz 0 1
+  O    -9.2908512134192736e-17 1.7103897362078037e-16 -1.5405821157287574
+  H    -5.7063737871831377e-17 0.75700000000000001 -0.95458211572875729
+  H    -5.7063737871831414e-17 -0.75699999999999978 -0.95458211572875773
+  O    8.7538730312848179e-17 -1.5647681864364076e-16 1.4094178842712424
+  H    0.75700000000000012 -2.2153588788667489e-16 1.9954178842712422
+  H    -0.7569999999999999 -2.2153588788667489e-16 1.9954178842712422
+*

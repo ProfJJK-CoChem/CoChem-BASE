@@ -103,7 +103,7 @@ def runtime_environment(artifact_dir: Path) -> dict[str, str]:
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["COCHEM_HEADLESS"] = "1"
     env["PYTHONDONTWRITEBYTECODE"] = "1"
-    for relative in ("free-engines", "free-engines/downloads", "free-engines/xtb/xtb-dist", "free-engines/crest/crest", "free-engines/native"):
+    for relative in ("free-engines", "free-engines/downloads", "free-engines/xtb/xtb-dist", "free-engines/crest/crest", "free-engines/native", "free-engines/qe-paw"):
         owned = artifact_dir / relative
         if owned.is_symlink() or not owned.resolve().is_relative_to(artifact_dir):
             raise ValueError("Free-engine runtime files must remain inside their external profile")
@@ -145,6 +145,25 @@ def runtime_environment(artifact_dir: Path) -> dict[str, str]:
             CREST_CMD=native["engines"]["crest"]["path"],
             COCHEM_CREST_BIN=native["engines"]["crest"]["path"], XTBPATH=str(prefix / "share/xtb"))
         env["PATH"] = str(prefix / "bin") + os.pathsep + env.get("PATH", "")
+    paw_root = artifact_dir / "free-engines/qe-paw"
+    paw_receipt = paw_root / "installation.json"
+    if paw_receipt.is_symlink() or (paw_receipt.is_file() and paw_receipt.stat().st_size > 64 * 1024):
+        raise ValueError("PAW input setup receipt is redirected or exceeds its size budget")
+    if paw_receipt.is_file():
+        paw_status = json.loads(paw_receipt.read_text(encoding="utf-8"))
+        if paw_status.get("status") == "verified":
+            try:
+                from scripts.install_qe_paw_inputs import verify_inputs
+            except ModuleNotFoundError as error:
+                if error.name != "scripts":
+                    raise
+                from install_qe_paw_inputs import verify_inputs
+            verify_inputs(paw_root)
+            # Explicit local/HPC configuration remains authoritative. The owned
+            # example inputs supply the default only after actual revalidation.
+            env.setdefault("COCHEM_QE_PSEUDO_DIR", str(paw_root))
+        elif env.get("COCHEM_QE_PSEUDO_DIR") and Path(env["COCHEM_QE_PSEUDO_DIR"]).expanduser().absolute().is_relative_to(paw_root):
+            env.pop("COCHEM_QE_PSEUDO_DIR")
     for variable, directory in {
         "JUPYTER_DATA_DIR": "jupyter-data",
         "JUPYTER_RUNTIME_DIR": "jupyter-runtime",
@@ -204,6 +223,33 @@ def prepare_free_engines(python: Path, artifact_dir: Path, *, environment: dict[
         ("Pinned free-engine installations verified." if engines else "Local free-engine binaries are not available for this host; supported remote calculation routes remain available.")}
     _atomic_json(artifact_dir / "free-engines/setup-status.json", result)
     return result
+
+
+def prepare_paw_inputs(python: Path, artifact_dir: Path, *, environment: dict[str, str] | None = None) -> dict:
+    """Authenticate official free PAW data without requiring a local QE engine."""
+    try:
+        from scripts.manage_modules import _atomic_json, _redact
+    except ModuleNotFoundError:
+        from manage_modules import _atomic_json, _redact
+    runtime = runtime_environment(artifact_dir)
+    env = setup_build_environment(runtime if environment is None else {**runtime, **environment})
+    root = Path(runtime["COCHEM_ARTIFACT_DIR"]) / "free-engines/qe-paw"
+    receipt = root / "installation.json"
+    try:
+        subprocess.run([str(python), "-B", str(REPO_ROOT / "scripts/install_qe_paw_inputs.py"),
+            "--pseudo-dir", str(root), "--output", str(receipt)], cwd=REPO_ROOT, env=env,
+            check=True, capture_output=True, text=True, timeout=240)
+        return json.loads(receipt.read_text(encoding="utf-8"))
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        # Molecular ingestion and installed engines remain usable after a real
+        # network failure; periodic jobs still require authenticated PAW inputs.
+        result = {"schema_version": "cochem.qe-paw-inputs/1", "status": "failed",
+            "directory": str(root), "pseudopotentials": {},
+            "scientific_accuracy_established": False, "native_execution_verified": False,
+            "error": _redact((getattr(error, "stderr", "") or str(error))[-2000:]),
+            "message": "Official PAW input download failed. Periodic calculations require verified PAW inputs; rerun setup to retry."}
+        _atomic_json(receipt, result)
+        return result
 
 
 def python_path(venv: Path) -> Path:
@@ -312,6 +358,9 @@ def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) 
         "-r", "requirements.txt", "-r", "requirements-ui.txt",
     ], cwd=REPO_ROOT, env=build_env, check=True)
     subprocess.run([str(python), "-m", "pip", "check"], env=build_env, check=True)
+    paw_inputs = prepare_paw_inputs(python, artifact_dir)
+    if paw_inputs["status"] == "failed":
+        print(paw_inputs["message"])
     free_engines = prepare_free_engines(python, artifact_dir)
     if free_engines["status"] == "failed":
         print(free_engines["message"])

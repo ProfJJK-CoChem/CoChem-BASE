@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "scope": "Recorded genuine constrained ORCA stage for algebra/parser regression, not a fresh calculation or general accuracy certificate",
+  "software": "ORCA",
+  "version": "6.1.1",
+  "method": "r2SCAN-3c",
+  "native_grid": "DEFGRID1",
+  "cores": 1,
+  "maxcore_mb": 1024,
+  "source_revision": "4d4834dcac8a07786e691ba667cbb8d66e650925",
+  "native_engine_binary_sha256": "335aef8bacd939620522d757016dcdb3107a9f0f4e71faad9e7764aa95bdc4ea",
+  "native_stage_converged": true,
+  "whole_c17_lifecycle_accepted": false,
+  "whole_lifecycle_rejection": "Full unconstrained Cartesian gradient was erroneously used for frozen-coordinate grid promotion",
+  "native_energy_hartree": -152.842528171486,
+  "files_unmodified": true,
+  "files": {
+    "dimer.inp": {
+      "sha256": "38c782051d9da50050f54dd2cc2a84e92626d082f745b8af9fd84d66dea28ebf",
+      "original_file": "/tmp/cochem-c17-dedicated-native-4d4834d-20261008b/orca/orca-scientific-_pbish25/r1-water-dimer/scratch/job_ca6c90befeb14a9694b9bd510199269e/grid_stages/defgrid1/job_ca6c90befeb14a9694b9bd510199269e_job.inp",
+      "bytes": 1351
+    },
+    "dimer.out.txt": {
+      "sha256": "44f576adbe8ffafc002e033742436abd86cc7f7dc302d07b04408f5aeb1e08a4",
+      "original_file": "/tmp/cochem-c17-dedicated-native-4d4834d-20261008b/orca/orca-scientific-_pbish25/r1-water-dimer/scratch/job_ca6c90befeb14a9694b9bd510199269e/grid_stages/defgrid1/job_ca6c90befeb14a9694b9bd510199269e_job.out",
+      "bytes": 179864
+    },
+    "dimer.engrad": {
+      "sha256": "7ab9ccc153be6cecc04d6b7384f3efcbe4a2c217f9be4df7812831d88f0d66bf",
+      "original_file": "/tmp/cochem-c17-dedicated-native-4d4834d-20261008b/orca/orca-scientific-_pbish25/r1-water-dimer/scratch/job_ca6c90befeb14a9694b9bd510199269e/grid_stages/defgrid1/job_ca6c90befeb14a9694b9bd510199269e_job.engrad",
+      "bytes": 850
+    },
+    "dimer.xyz": {
+      "sha256": "9334c44f6f309240d92e3dfe7cf8eb5a9bf4bfe9d7aef5b3fc9e8420b04b5fff",
+      "original_file": "/tmp/cochem-c17-dedicated-native-4d4834d-20261008b/orca/orca-scientific-_pbish25/r1-water-dimer/scratch/job_ca6c90befeb14a9694b9bd510199269e/grid_stages/defgrid1/job_ca6c90befeb14a9694b9bd510199269e_job.xyz",
+      "bytes": 539
+    },
+    "dimer_trj.xyz": {
+      "sha256": "4160eea91c9cfa7205b3546619fb4054d34777e3b98789d3ed62264a38e66a47",
+      "original_file": "/tmp/cochem-c17-dedicated-native-4d4834d-20261008b/orca/orca-scientific-_pbish25/r1-water-dimer/scratch/job_ca6c90befeb14a9694b9bd510199269e/grid_stages/defgrid1/job_ca6c90befeb14a9694b9bd510199269e_job_trj.xyz",
+      "bytes": 2226
+    }
+  },
+  "original_report": "/tmp/cochem-c17-dedicated-native-4d4834d-20261008b/orca/scientific-acceptance.json",
+  "original_diagnosis": "/tmp/cochem-c17-dedicated-native-4d4834d-20261008b/orca/r1-grid-failure-diagnosis.json"
+}

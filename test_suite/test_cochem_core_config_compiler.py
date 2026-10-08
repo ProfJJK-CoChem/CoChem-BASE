@@ -37,7 +37,7 @@ from typing import Any, Dict, List, Tuple
 import pytest
 from packaging import version
 
-from core_engine.cochem_core_config_compiler import (
+from cochem_base.core_engine.cochem_core_config_compiler import (
     AsyncTemplateRenderer,
     BinaryNotFoundError,
     BinaryVerificationResult,
@@ -842,27 +842,45 @@ def test_handshake_manager_expired_token_fails() -> None:
     assert "expired" in (result.reason or "").lower()
 
 
-def test_handshake_manager_async_session() -> None:
-    """Test end-to-end async execution handshake session."""
-    async def _test() -> None:
-        manager = ExecutionHandshakeManager(secret_key="session_secret")
-        payload = {"job": "benchmark_1"}
 
-        async def runner_callback(token: HandshakeToken) -> Dict[str, Any]:
-            assert token.job_id == "session_job_1"
-            return {"status": "SUCCESS", "exit_code": 0, "energy": -123.456}
 
-        session_result = await manager.execute_handshake_session(
-            job_id="session_job_1",
-            config_payload=payload,
-            runner_callback=runner_callback,
+
+@pytest.mark.parametrize("child_exit_code", [0, 7])
+def test_handshake_manager_actual_async_diagnostic_session(child_exit_code: int) -> None:
+    """Handshake verifies a real diagnostic child without inventing chemistry."""
+    async def execute() -> None:
+        manager = ExecutionHandshakeManager(secret_key="local_diagnostic_handshake_key")
+        payload = {"operation": "diagnostic_child", "expected_exit_code": child_exit_code}
+
+        async def run_diagnostic(token: HandshakeToken) -> Dict[str, Any]:
+            child = await asyncio.create_subprocess_exec(
+                sys.executable, "-B", "-c",
+                "import sys; print(sys.argv[1], flush=True); raise SystemExit(int(sys.argv[2]))",
+                token.job_id, str(child_exit_code),
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                stdout, stderr = await asyncio.wait_for(child.communicate(), timeout=30)
+            finally:
+                if child.returncode is None:
+                    child.kill()
+                    await child.wait()
+            return {"returncode": child.returncode, "stdout": stdout.decode("utf-8"),
+                    "stderr": stderr.decode("utf-8"), "pid": child.pid}
+
+        result = await manager.execute_handshake_session(
+            job_id="actual_diagnostic_session", config_payload=payload,
+            runner_callback=run_diagnostic,
         )
+        assert result["returncode"] == child_exit_code
+        assert result["stdout"].strip() == "actual_diagnostic_session"
+        assert result["stderr"] == ""
+        assert result["pid"] > 0
+        assert result["handshake_verification"]["is_valid"] is True
+        assert "energy" not in result
+        assert "status" not in result
 
-        assert session_result["status"] == "SUCCESS"
-        assert session_result["exit_code"] == 0
-        assert session_result["handshake_verification"]["is_valid"] is True
-
-    asyncio.run(_test())
+    asyncio.run(execute())
 
 
 # =============================================================================

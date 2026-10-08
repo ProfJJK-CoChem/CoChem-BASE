@@ -46,46 +46,51 @@ def test_exception_hierarchy():
     assert isinstance(spin_err, ValueError)
 
 
-def test_binary_registry_and_path_registry(tmp_path, monkeypatch):
-    """Verify BinaryRegistry.resolve and PathRegistry scratch/artifact directories."""
-    from cochem_base.environment import BinaryRegistry, PathRegistry
+def test_binary_registry_and_path_registry(tmp_path):
+    """Inspect real missing-binary errors and child-owned artifact/scratch paths."""
+    import json
+    import subprocess
+
+    from cochem_base.environment import BinaryRegistry
     from cochem_base.exceptions import BinaryNotFoundError
 
-    # Non-existent binary raises BinaryNotFoundError with [MISSING DATA]
     with pytest.raises(BinaryNotFoundError) as excinfo:
         BinaryRegistry.resolve("non_existent_binary_xyz_123")
     assert "[MISSING DATA]" in str(excinfo.value)
     assert "non_existent_binary_xyz_123" in str(excinfo.value)
 
-    # Resolve via custom environment variable using a real physical binary (Python itself)
-    test_bin = Path(sys.executable)
-    monkeypatch.setenv("COCHEM_CREST_BIN", str(test_bin))
-
-    resolved = BinaryRegistry.resolve("crest")
-    assert resolved == test_bin.resolve()
-
-    # CFOUR_ROOT resolution using a real physical binary
-    cfour_root = test_bin.parent
-    monkeypatch.setenv("CFOUR_ROOT", str(cfour_root))
-    # We set CFOUR_PATH directly to the python executable for testing resolution
-    monkeypatch.setenv("CFOUR_PATH", str(test_bin))
-    
-    # We skip testing xcfour directly unless we enforce it's sys.executable for testing
-    # Since we can't easily mock, we just test the registry logic
-    try:
-        resolved_cfour = BinaryRegistry.resolve("xcfour")
-    except BinaryNotFoundError:
-        pass
-
-    # PathRegistry artifacts and scratch dir
-    artifacts_dir = PathRegistry.get_artifacts_dir()
-    assert artifacts_dir.exists()
-    assert artifacts_dir.is_dir()
-
-    scratch_dir = PathRegistry.create_scratch_dir("test_run")
-    assert scratch_dir.exists()
-    assert scratch_dir.is_dir()
-    assert "test_run" in scratch_dir.name
+    repository = Path(__file__).resolve().parents[2]
+    artifacts = tmp_path / "artifacts"
+    scratch = tmp_path / "scratch"
+    child_environment = {
+        "PATH": os.environ.get("PATH", ""),
+        "PYTHONPATH": os.pathsep.join((str(repository / "src"), str(repository))),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "COCHEM_ARTIFACTS_DIR": str(artifacts),
+        "COCHEM_SCRATCH_DIR": str(scratch),
+    }
+    for name in ("SYSTEMROOT", "WINDIR", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+        if name in os.environ:
+            child_environment[name] = os.environ[name]
+    child = subprocess.run(
+        [
+            sys.executable, "-B", "-c",
+            "import json; from cochem_base.environment import PathRegistry; "
+            "artifacts = PathRegistry.get_artifacts_dir(); "
+            "scratch = PathRegistry.create_scratch_dir('test_run'); "
+            "print(json.dumps({'artifacts': str(artifacts), 'scratch': str(scratch)}))",
+        ],
+        cwd=tmp_path, env=child_environment, capture_output=True, text=True,
+        timeout=30, check=False,
+    )
+    assert child.returncode == 0, child.stderr
+    observed = json.loads(child.stdout)
+    assert Path(observed["artifacts"]) == artifacts.resolve()
+    scratch_directory = Path(observed["scratch"])
+    assert scratch_directory.parent == scratch.resolve()
+    assert scratch_directory.name.startswith("test_run_")
+    assert artifacts.is_dir()
+    assert scratch_directory.is_dir()
 
 
 def test_schemas_gradient_payload_optional_hessian():

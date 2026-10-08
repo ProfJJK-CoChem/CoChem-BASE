@@ -10,7 +10,8 @@ import pytest
 
 from cochem_base.calc.cochem_calc_input_generator import MoleculeInput
 from cochem_base.calc.grid_execution import (
-    _lifecycle_telemetry_summary, _promotion_evidence, _stage_model, execute_orca_calculation, quadrature_execution_plan,
+    _constraint_gradient_summary, _lifecycle_telemetry_summary, _native_constraint_state,
+    _promotion_evidence, _stage_model, execute_orca_calculation, quadrature_execution_plan,
 )
 from cochem_base.exceptions import GridSpecificationError
 from cochem_base.mm.quadrature_manager import GridStage, QuadratureManager
@@ -117,6 +118,103 @@ def test_grid_promotion_rejects_damaged_measurements(damage):
 def test_proposal_measured_screening_gate_is_not_weaker_than_1e_minus_4():
     assert QuadratureManager.determine_next_stage(1, 1.0001e-4, 1e-8) == GridStage.STAGE_1
     assert QuadratureManager.determine_next_stage(1, 1e-4, 1e-8) == GridStage.STAGE_2
+
+
+def recorded_frozen_dimer_evidence():
+    import hashlib, json, re
+    import numpy as np
+    from cochem_base.calc.calculation_service import parse_run_geometry
+    from cochem_base.calc.cochem_calc_input_generator import build_internal_coordinate_constraints
+    from cochem_base.calc.cochem_calc_output_parser import QuantumParser
+    from cochem_base.calc.orca_derivatives import accept_gradient
+    from cochem_base.calc.recipe_r2_execution import read_dimer_gradient
+
+    directory = Path(__file__).parents[1] / "data" / "orca_6_1_1_frozen_r1_grid"
+    provenance = json.loads((directory / "provenance.json").read_text())
+    assert provenance["native_stage_converged"] and not provenance["whole_c17_lifecycle_accepted"]
+    for name, record in provenance["files"].items():
+        assert hashlib.sha256((directory / name).read_bytes()).hexdigest() == record["sha256"]
+    elements, final = parse_run_geometry((directory / "dimer.xyz").read_text())
+    energy, _ = read_dimer_gradient(directory / "dimer.engrad", elements, np.asarray(final))
+    accepted = {"coordinates_angstrom": final,
+                **accept_gradient(directory / "dimer.engrad", elements, final, energy, required=True)}
+    native_geometry = re.search(r"(?ms)^\* xyz[^\n]*\n(.*?)^\*", (directory / "dimer.inp").read_text()).group(1)
+    original_elements, original = parse_run_geometry(native_geometry)
+    assert original_elements == elements
+    expected = build_internal_coordinate_constraints(elements, original, list(range(len(elements))))
+    state = _native_constraint_state(directory / "dimer.inp", expected, original)
+    trajectory = (directory / "dimer_trj.xyz").read_text().splitlines()
+    records = [{"coordinates_angstrom": parse_run_geometry("\n".join(trajectory[i:i + len(elements) + 2]))[1]}
+               for i in range(0, len(trajectory), len(elements) + 2)]
+    parser = QuantumParser(str(directory))
+    assert parser.verify_scf_convergence(directory / "dimer.out.txt")
+    convergence = parser.verify_geometry_convergence(directory / "dimer.out.txt")
+    return accepted, records, convergence, state
+
+
+def test_authentic_frozen_r1_reaction_forces_are_preserved_and_only_actual_tangent_controls_promotion():
+    import numpy as np
+    accepted, records, convergence, state = recorded_frozen_dimer_evidence()
+    before = deepcopy(accepted)
+    assert np.max(np.abs(accepted["gradients_hartree_per_bohr"])) > 1e-2
+    # The genuinely observed C17 defect: an unconstrained threshold rejects the
+    # converged constrained stage. This replay is not a fresh engine execution.
+    with pytest.raises(GridSpecificationError):
+        _promotion_evidence(1, accepted, records, convergence)
+    for stage in (1, 2):
+        promotion = _promotion_evidence(stage, accepted, records, convergence, constraint_state=state)
+        assert promotion["next_grid"] == f"DEFGRID{stage + 1}"
+        assert promotion["gradient_subspace"] == "frozen_constraint_tangent"
+        evidence = promotion["constraint_gradient_evidence"]
+        assert evidence["constraint_rank"] == 6 and evidence["active_cartesian_dimension"] == 12
+        assert evidence["raw_max_gradient_hartree_per_bohr"] > 1e-2
+        assert evidence["active_max_gradient_hartree_per_bohr"] < 1e-7
+        assert evidence["normal_reaction_gradient_norm_hartree_per_bohr"] > 1e-2
+        assert evidence["frozen_residual_warning"]
+        assert evidence["gradient_checkpoint_sha256"] == accepted["gradient_artifact"]["sha256"]
+    assert accepted == before
+
+
+@pytest.mark.parametrize("damage", ["active_force", "rank_change", "degenerate_geometry", "missing_source", "missing_constraints"])
+def test_actual_recorded_frozen_stage_cannot_promote_with_damaged_tangent_or_provenance(damage):
+    accepted, records, convergence, state = recorded_frozen_dimer_evidence()
+    accepted, state = deepcopy(accepted), deepcopy(state)
+    if damage == "active_force":
+        # Corrupt one actual checkpoint component: this is a rejection control.
+        accepted["gradients_hartree_per_bohr"][0][0] += .01
+    elif damage == "rank_change":
+        accepted["coordinates_angstrom"][1] = [(a + b) / 2 for a, b in
+            zip(accepted["coordinates_angstrom"][0], accepted["coordinates_angstrom"][2], strict=True)]
+    elif damage == "degenerate_geometry":
+        accepted["coordinates_angstrom"][1] = list(accepted["coordinates_angstrom"][0])
+    elif damage == "missing_source":
+        state["original_input_sha256"] = ""
+    else:
+        state["serialized_constraints"] = []
+    with pytest.raises(GridSpecificationError):
+        _promotion_evidence(1, accepted, records, convergence, constraint_state=state)
+
+
+def test_native_frozen_deck_must_match_the_exact_original_compiler_constraint_set():
+    accepted, records, convergence, state = recorded_frozen_dimer_evidence()
+    directory = Path(__file__).parents[1] / "data" / "orca_6_1_1_frozen_r1_grid"
+    with pytest.raises(GridSpecificationError):
+        _native_constraint_state(directory / "dimer.inp", state["serialized_constraints"][:-1],
+                                 accepted["coordinates_angstrom"])
+    with pytest.raises(GridSpecificationError):
+        _native_constraint_state(directory / "dimer.inp", [], accepted["coordinates_angstrom"])
+
+
+def test_dense_constraint_vectors_remain_separate_from_bounded_telemetry_metadata():
+    from cochem_base.calc.grid_execution import _constraint_gradient_evidence
+    accepted, records, convergence, state = recorded_frozen_dimer_evidence()
+    full = _constraint_gradient_evidence(accepted["gradients_hartree_per_bohr"],
+        accepted["coordinates_angstrom"], state, checkpoint_sha256=accepted["gradient_artifact"]["sha256"])
+    summary = _constraint_gradient_summary(full)
+    assert "raw_gradients_hartree_per_bohr" in full and "raw_gradients_hartree_per_bohr" not in summary
+    assert "active_gradients_hartree_per_bohr" not in summary
+    assert "normal_reaction_gradients_hartree_per_bohr" not in summary
+    assert summary["active_max_gradient_hartree_per_bohr"] == full["active_max_gradient_hartree_per_bohr"]
 
 
 def test_cancelled_lifecycle_never_launches_or_authorizes_an_engine(tmp_path):

@@ -19,6 +19,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HOSTED_TESTS = (
+    "tests/test_cochem_bench_cv.py",
+    "tests/base/test_qe_paw_input_provisioning.py",
     "tests/base/test_native_grid_execution.py",
     "tests/base/test_native_crash_provenance.py",
     "tests/base/test_python_hook_swmr.py",

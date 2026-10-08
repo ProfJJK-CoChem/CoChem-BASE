@@ -64,7 +64,6 @@ _EXPORTS = {
     "DualCorrelationEngine": ("cochem_base.bench_engine.cochem_bench_cv", "DualCorrelationEngine"),
     "commit_cv_to_hdf5": ("cochem_base.bench_engine.cochem_bench_cv", "commit_cv_to_hdf5"),
     "read_cv_from_hdf5": ("cochem_base.bench_engine.cochem_bench_cv", "read_cv_from_hdf5"),
-    "run_cv_pipeline": ("cochem_base.bench_engine.cochem_bench_cv", "run_cv_pipeline"),
     "DeltaRelExtractor": ("cochem_base.bench_engine.cochem_bench_rel", "DeltaRelExtractor"),
     "RelCorrectionResult": ("cochem_base.bench_engine.cochem_bench_rel", "RelCorrectionResult"),
     "RelativisticExecutionError": (
@@ -150,7 +149,6 @@ __all__ = [
     "CVCorrectionResult",
     "commit_cv_to_hdf5",
     "read_cv_from_hdf5",
-    "run_cv_pipeline",
     # Stage 4.0 Relativistic & SOC
     "RelativisticHamiltonianInjector",
     "X2CHandler",

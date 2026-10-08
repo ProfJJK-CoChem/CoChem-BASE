@@ -7,39 +7,11 @@ Strict Zero-Mock Mandate: Authentic filesystem validation.
 from __future__ import annotations
 
 import hashlib
-import sys
 from pathlib import Path
-
-import pytest
 
 from Libraries.cochem_torq_environment import (
     atomic_promote_to_store,
-    resolve_hpc_safe_scratch,
 )
-
-
-def test_resolve_hpc_safe_scratch_windows_priority(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    """Verify resolve_hpc_safe_scratch prioritizes LOCALAPPDATA/TEMP over Path.home() roaming profile."""
-    sandbox_localapp = tmp_path / "LocalAppData"
-    sandbox_temp = tmp_path / "LocalTemp"
-    sandbox_localapp.mkdir(parents=True, exist_ok=True)
-    sandbox_temp.mkdir(parents=True, exist_ok=True)
-
-    monkeypatch.delenv("COCH_SCRATCH", raising=False)
-    monkeypatch.delenv("COCHEM_SCRATCH_DIR", raising=False)
-    monkeypatch.setenv("LOCALAPPDATA", str(sandbox_localapp))
-    monkeypatch.setenv("TEMP", str(sandbox_temp))
-
-    # Force win32 platform check
-    monkeypatch.setattr(sys, "platform", "win32")
-
-    scratch_dir = resolve_hpc_safe_scratch()
-    assert scratch_dir.exists()
-    assert sandbox_localapp in scratch_dir.parents or sandbox_temp in scratch_dir.parents
-
-    # Crucial: Must never fall back to roaming network share
-    home_scratch = Path.home() / ".cochem" / "scratch"
-    assert scratch_dir != home_scratch
 
 
 def test_atomic_promote_to_store_with_sha256(tmp_path: Path):

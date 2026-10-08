@@ -400,3 +400,82 @@ def test_isolated_child_refuses_untracked_script_before_execution(tmp_path):
     assert result.returncode != 0
     assert "must be tracked reviewed source" in result.stderr
     assert not marker.exists()
+
+
+def test_source_observations_reresolve_actual_moving_module_symlink(tmp_path):
+    """A real module alias cannot retain copied authority after its link moves."""
+    source = '''import json, os, pathlib, subprocess, sys
+def test_changed_real_module_origin_is_refused():
+    program = r"""
+import hashlib, importlib.util, json, os, pathlib, sys
+from ci_tools.source_quarantine import activate_from_environment, loaded_origins
+state = activate_from_environment()
+root = pathlib.Path.cwd()
+copied_module = root / 'src/cochem_base/orchestrator/silo_dependency_pins.py'
+foreign_module = pathlib.Path(os.environ['CONTROL_FOREIGN_PIN_MODULE'])
+link = pathlib.Path(os.environ['CONTROL_MOVING_MODULE_LINK'])
+link.symlink_to(copied_module)
+spec = importlib.util.spec_from_file_location('actual_moving_module_alias', link)
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+assert {'calc', 'core', 'mace', 'ui'}.issubset(module.DEFAULT_PINS)
+before = loaded_origins(state)
+assert spec.name in before['origins'] and spec.name not in before['escaped']
+assert before['origins'][spec.name] == [str(link)]
+copied_sha = hashlib.sha256(copied_module.read_bytes()).hexdigest()
+link.unlink()
+link.symlink_to(foreign_module)
+after = loaded_origins(state)
+assert spec.name in after['escaped']
+assert after['origins'][spec.name] == [str(link)]
+assert hashlib.sha256(copied_module.read_bytes()).hexdigest() == copied_sha
+assert any(foreign_module.is_relative_to(path) for path in state['retired_roots'])
+print(json.dumps({'alias': spec.name, 'raw_origin': str(link),
+    'before_resolved': str(copied_module.resolve()), 'after_resolved': str(link.resolve()),
+    'copied_source_sha256': copied_sha, 'foreign_source_sha256': hashlib.sha256(foreign_module.read_bytes()).hexdigest(),
+    'before_refused': spec.name in before['escaped'], 'after_refused': spec.name in after['escaped']}), flush=True)
+"""
+    evidence = pathlib.Path(os.environ['CONTROL_MOVING_CHILD_EVIDENCE'])
+    evidence.mkdir(mode=0o700)
+    environment = dict(os.environ, COCHEM_SOURCE_QUARANTINE_EVIDENCE=str(evidence))
+    result = subprocess.run([sys.executable, '-B', '-c', program], capture_output=True,
+        text=True, timeout=30, env=environment)
+    pathlib.Path(os.environ['CONTROL_MOVING_RESULT']).write_text(json.dumps(
+        {'returncode': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}))
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert '[HARD_ABORT: SOURCE QUARANTINE ESCAPE]' in result.stderr
+    observed = json.loads(result.stdout)
+    assert not observed['before_refused'] and observed['after_refused']
+    assert pathlib.Path(observed['before_resolved']).is_relative_to(pathlib.Path.cwd())
+    assert observed['after_resolved'] == os.environ['CONTROL_FOREIGN_PIN_MODULE']
+    final = [json.loads(path.read_text()) for path in evidence.glob('*-final.json')]
+    assert len(final) == 1 and not final[0]['passed']
+    assert observed['alias'] in final[0]['escaped']
+    assert final[0]['origins'][observed['alias']] == [observed['raw_origin']]
+'''
+    root, _ = repository(tmp_path, source)
+    original = Path(__file__).resolve().parents[2]
+    relative = Path("src/cochem_base/orchestrator/silo_dependency_pins.py")
+    actual_module = original / relative
+    copied_module = root / relative
+    copied_module.parent.mkdir(parents=True)
+    shutil.copy2(actual_module, copied_module)
+    shutil.copy2(original / "pyproject.toml", root / "pyproject.toml")
+    review_ring(root)
+    revision = commit(root)
+    output = tmp_path / "moving-symlink-origin-evidence"
+    observed = tmp_path / "moving-symlink-observation.json"
+    environment = dict(os.environ, CONTROL_FOREIGN_PIN_MODULE=str(actual_module),
+        CONTROL_MOVING_MODULE_LINK=str(tmp_path / "actual-moving-module.py"),
+        CONTROL_MOVING_CHILD_EVIDENCE=str(tmp_path / "actual-moving-child-receipts"),
+        CONTROL_MOVING_RESULT=str(observed))
+    before = tracked_source_snapshot(root)
+    report = run_profile(root, output, controls=True, expected_revision=revision,
+        timeout=60, strict_deferred=True, environment=environment)
+    assert report["passed"], _profile_diagnostic(report, output)
+    assert report["passed_tests"] == 1 and report["source_origins_verified"]
+    assert tracked_source_snapshot(root) == before
+    actual = json.loads(observed.read_text())
+    assert actual["returncode"] == 1
+    assert json.loads(actual["stdout"])["after_refused"]

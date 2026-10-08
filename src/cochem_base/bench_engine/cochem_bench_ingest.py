@@ -61,14 +61,7 @@ from pydantic import (
     model_validator,
 )
 
-from cochem_bench.bench_libraries.subprocess_reaper import (
-    DEFAULT_MIN_FREE_SCRATCH_BYTES,
-    PreFlightScratchVerifier,
-    ResourceGuardError as SubprocessResourceGuardError,
-)
-from cochem_core_registry_schema import (
-    BYPASS_TOKENS,
-    EngineInfo,
+from cochem_base.cochem_core_registry_schema import (
     EnginePaths,
     EnvironmentSchema,
     HPCConfig,
@@ -76,6 +69,7 @@ from cochem_core_registry_schema import (
     RoutingPolicy,
     SiloConfig,
 )
+from cochem_base.core_engine.hardware_observations import synchronize_avx512_observation
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -132,8 +126,8 @@ class BenchHardwareSchema(BaseModel):
     available_ram_gb: Optional[float] = Field(default=None, ge=0.0)
     vram_gb: float = Field(default=0.0, ge=0.0)
     gpu_profile: Optional[str] = Field(default="None")
-    avx512_support: bool = Field(default=False)
-    avx_512_capable: bool = Field(default=False)
+    avx512_support: Optional[bool] = Field(default=None)
+    avx_512_capable: Optional[bool] = Field(default=None)
     numa_nodes: int = Field(default=1, ge=1)
     host_id: Optional[str] = Field(default=None)
     os_target: Optional[str] = Field(default=None)
@@ -166,10 +160,7 @@ class BenchHardwareSchema(BaseModel):
                 logger.debug(f"Ignored exception: {_e}")
 
         # Synchronize AVX-512
-        if "avx_512_capable" in d and "avx512_support" not in d:
-            d["avx512_support"] = bool(d["avx_512_capable"])
-        elif "avx512_support" in d and "avx_512_capable" not in d:
-            d["avx_512_capable"] = bool(d["avx512_support"])
+        synchronize_avx512_observation(d)
 
         return d
 
@@ -490,6 +481,17 @@ def PreFlightVerification(
             ) from err
 
     # 5. Verify scratch space via PreFlightScratchVerifier
+    try:
+        from cochem_bench.bench_libraries.subprocess_reaper import (
+            PreFlightScratchVerifier,
+        )
+        from cochem_bench.bench_libraries.subprocess_reaper import (
+            ResourceGuardError as SubprocessResourceGuardError,
+        )
+    except ImportError as err:
+        raise PreFlightVerificationError(
+            "The separately installed CoChem-BENCH runtime is required for scratch verification."
+        ) from err
     try:
         verifier = PreFlightScratchVerifier(artifacts_dir=resolved_artifacts)
         scratch_report = verifier.verify(min_free_bytes=min_scratch_bytes)

@@ -87,7 +87,7 @@ class JSONLDHardwareMicroarchitecture(BaseModel):
     physical_cores: int = Field(..., ge=1, description="Physical CPU cores")
     logical_cores: int = Field(..., ge=1, description="Logical/hyperthreaded CPU cores")
     total_ram_gb: float = Field(..., ge=0.0, description="Total host RAM in GB")
-    avx512_support: bool = Field(..., description="Whether AVX-512 SIMD instructions are supported")
+    avx512_support: Optional[bool] = Field(..., description="Whether AVX-512 SIMD instructions are supported")
     avx512_details: Dict[str, Any] = Field(
         default_factory=dict, description="Detailed AVX-512 instruction flags"
     )
@@ -227,66 +227,21 @@ def get_software_version_hashes(timeout_seconds: float = 30.0) -> Dict[str, Any]
 
 def _detect_avx512(
     config_path: Optional[Union[str, Path]] = None,
-) -> Tuple[bool, Dict[str, Any]]:
-    """Detects AVX-512 CPU support and instruction set flags across architectures."""
-    details: Dict[str, Any] = {
-        "detection_method": "none",
-        "flags": [],
+) -> Tuple[Optional[bool], Dict[str, Any]]:
+    """Record the actual native ISA observation; a configured flag is not proof.
+
+    The argument is retained for public call compatibility. Registry authority
+    governs calculation allocation, while this stamp describes the current host.
+    """
+    from cochem_base.core_engine.environment_detector import detect_environment
+    from cochem_base.core_engine.hardware_profiler import probe_avx512
+
+    observation, status = probe_avx512(detect_environment())
+    return observation, {
+        "detection_method": status,
+        "observation_status": "unavailable" if observation is None else "measured",
+        "flags": ["AVX512F"] if observation is True else [],
     }
-    avx512_found = False
-
-    # Check numpy CPU features if available
-    if HAS_NUMPY:
-        try:
-            if hasattr(np, "show_config"):
-                conf: Any = {}
-                if hasattr(np.show_config, "__code__"):
-                    conf = np.show_config(mode="dicts")
-                simd = conf.get("SIMD Extensions", {}) if isinstance(conf, dict) else {}
-                found_simd = simd.get("found", []) + simd.get("baseline", [])
-                for ext in found_simd:
-                    if "AVX512" in str(ext).upper() or "AVX_512" in str(ext).upper():
-                        avx512_found = True
-                        details["flags"].append(str(ext))
-                        details["detection_method"] = "numpy_simd"
-        except Exception as _e:
-            logger.debug(f"Ignored exception: {_e}")
-
-    # Check Linux /proc/cpuinfo if on Linux
-    if platform.system() == "Linux":
-        cpuinfo_path = Path("/proc/cpuinfo")
-        if cpuinfo_path.is_file():
-            try:
-                content = cpuinfo_path.read_text(encoding="utf-8", errors="ignore")
-                for line in content.splitlines():
-                    if line.startswith("flags"):
-                        flags = line.split(":", 1)[1].strip().split()
-                        avx512_flags = [f for f in flags if f.startswith("avx512")]
-                        if avx512_flags:
-                            avx512_found = True
-                            details["flags"] = sorted(set(details["flags"] + avx512_flags))
-                            details["detection_method"] = "/proc/cpuinfo"
-                        break
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-
-    # Check Windows processor features or config file
-    if not avx512_found:
-        try:
-            cfg_path = resolve_config_path(
-                Path(config_path) if config_path is not None else None
-            )
-            if cfg_path.is_file():
-                cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
-                hw = cfg_data.get("hardware", {})
-                if hw.get("avx512_support") is True or hw.get("avx_512_capable") is True:
-                    avx512_found = True
-                    details["detection_method"] = "cochem_system_config"
-                    details["flags"].append("AVX512_CONFIGURED")
-        except Exception as _e:
-            logger.debug(f"Ignored exception: {_e}")
-
-    return avx512_found, details
 
 
 def _detect_blas_lapack() -> Dict[str, Any]:

@@ -61,7 +61,7 @@ runs:
       run: |
         set -euo pipefail
         if [[ -z "$GH_TOKEN" ]]; then
-          echo 'PRIVATE_CFOUR_ASSET_CREDENTIAL is unavailable; CFOUR-dependent operations will remain disabled.'
+          echo 'Instructor-configured CFOUR archive access is unavailable; CFOUR-dependent operations will remain disabled.'
           exit 1
         fi
         mkdir -p "$RUNNER_TEMP/cochem-cfour-download"
@@ -105,7 +105,7 @@ runs:
             if os.environ['COCHEM_IDENTITY_OUTCOME'] != 'success':
                 reason = 'The reviewed CFOUR distribution identity could not be loaded.'
             elif os.environ['COCHEM_DOWNLOAD_OUTCOME'] != 'success':
-                reason = 'The private CFOUR runtime could not be downloaded; check PRIVATE_CFOUR_ASSET_CREDENTIAL access and the pinned release asset.'
+                reason = 'The private CFOUR runtime could not be downloaded; check instructor-configured archive access and the pinned release asset.'
             else:
                 reason = 'CFOUR runtime verification or installation failed; see the provisioning step for the precise error.'
         report = Path(os.environ['RUNNER_TEMP']) / 'cfour-evidence/installation.json'

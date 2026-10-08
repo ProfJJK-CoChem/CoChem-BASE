@@ -8,11 +8,10 @@ status polling does not wait for calculation completion.
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timedelta, timezone
 import hashlib
 import io
 import os
-from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
@@ -22,9 +21,18 @@ import urllib.parse
 import urllib.request
 import uuid
 import zipfile
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-from .student_request import (COMMIT_PATTERN, REPOSITORY_PATTERN, SHA_PATTERN, canonical_json,
-                              encode_request, safe_relative_path, strict_json)
+from .student_request import (
+    COMMIT_PATTERN,
+    REPOSITORY_PATTERN,
+    SHA_PATTERN,
+    canonical_json,
+    encode_request,
+    safe_relative_path,
+    strict_json,
+)
 
 WORKFLOW = "student_research.yml"
 CANONICAL_BASE = "ProfJJK-CoChem/CoChem-BASE"
@@ -204,13 +212,22 @@ class StudentActionsClient:
     """Use the student's GitHub identity; keep source-reader secrets in Actions."""
 
     def __init__(self, repository: str, branch: str | None = None, token: str | None = None, *,
-                 repository_root: Path | None = None, artifact_dir: Path | None = None):
+                 repository_root: Path | None = None, artifact_dir: Path | None = None,
+                 api_url: str = "https://api.github.com", allow_loopback: bool = False):
         if not isinstance(repository, str) or not REPOSITORY_PATTERN.fullmatch(repository):
             raise ValueError("Select the owner/name of your assignment repository")
+        parsed = urllib.parse.urlsplit(api_url)
+        local_test = (allow_loopback and parsed.scheme == "http"
+                      and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+                      and not parsed.username and not parsed.password and not parsed.query
+                      and not parsed.fragment and not parsed.path)
+        if api_url != "https://api.github.com" and not local_test:
+            raise ValueError("Student access uses GitHub's verified HTTPS API")
         self.repository = repository
         self.branch = branch
         self.repository_root = Path(repository_root or Path.cwd()).expanduser().resolve()
         self.artifact_dir = artifact_dir
+        self._api_url = api_url
         self._token = _credential(token)
         self._opener = urllib.request.build_opener(_NoRedirect())
 
@@ -218,7 +235,7 @@ class StudentActionsClient:
                  binary: bool = False):
         if not path.startswith("/") or path.startswith("//"):
             raise ValueError("GitHub API paths must be relative to api.github.com")
-        request = urllib.request.Request("https://api.github.com" + path,
+        request = urllib.request.Request(self._api_url + path,
             data=canonical_json(body) if body is not None else None, method=method,
             headers={"Authorization": "Bearer " + self._token, "Accept": "application/vnd.github+json",
                      "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "CoChem-BASE-student-actions",
@@ -304,8 +321,13 @@ class StudentActionsClient:
     def _resolve_worker_source(self) -> dict:
         """Student work stays in its repository; science comes from approved BASE."""
         from .student_setup import resolve_worker_source
-        resolved = resolve_worker_source(repository_root=self.repository_root, artifact_dir=self.artifact_dir,
-                                         token=self._token)
+        # The private access controller maintains these target-project bindings.
+        # Resolve them through the student's own authorized identity on every
+        # submission, rather than guessing that latest main matches the course.
+        resolved = self._project_worker_approval()
+        if resolved is None:
+            resolved = resolve_worker_source(repository_root=self.repository_root, artifact_dir=self.artifact_dir,
+                                             token=self._token)
         # A missing worker in a frozen course/stable revision must never silently
         # switch that student's scientific version to a different revision.
         try:
@@ -319,6 +341,56 @@ class StudentActionsClient:
         if not COMMIT_PATTERN.fullmatch(resolved.get("revision", "")):
             raise StudentActionsError("The canonical BASE worker has no immutable approved source identity")
         return resolved
+
+    def _project_worker_approval(self) -> dict | None:
+        """Read current nonsecret course approval, without inspecting secrets."""
+        def variable(name: str) -> str:
+            try:
+                metadata = self._request(f"/repos/{self.repository}/actions/variables/{name}")
+            except StudentActionsError as exc:
+                if exc.http_status == 404:
+                    return ""
+                raise StudentActionsError(
+                    "The project's current course approval could not be read. Your authorized GitHub identity "
+                    "needs Variables read access; no alternate BASE revision was selected.",
+                    http_status=exc.http_status) from None
+            if (not isinstance(metadata, dict) or metadata.get("name") != name
+                    or not isinstance(metadata.get("value"), str)):
+                raise StudentActionsError("GitHub returned invalid project course-approval metadata")
+            return metadata["value"]
+
+        revision = variable("COCHEM_APPROVED_BASE_SHA")
+        if revision:
+            if not COMMIT_PATTERN.fullmatch(revision):
+                raise StudentActionsError("The instructor-approved project BASE revision is invalid")
+            approval = "instructor-actions-variable"
+            label = "Instructor-approved BASE " + revision[:12]
+        else:
+            channel = variable("COCHEM_COURSE_CHANNEL")
+            if not channel:
+                return None
+            if not re.fullmatch(r"\.cochem/course-channels/[a-z0-9][a-z0-9_-]*\.json", channel):
+                raise StudentActionsError("The project course channel must name canonical BASE approval data")
+            document = self._request(f"/repos/{CANONICAL_BASE}/contents/{channel}")
+            if (not isinstance(document, dict) or document.get("type") != "file"
+                    or document.get("encoding") != "base64"
+                    or not isinstance(document.get("content"), str)):
+                raise StudentActionsError("The canonical project course channel is not a JSON data file")
+            try:
+                course = strict_json(base64.b64decode(document["content"], validate=False))
+            except (ValueError, TypeError):
+                raise StudentActionsError("The canonical project course channel has invalid approval data") from None
+            if (not isinstance(course, dict) or course.get("schema_version") != "cochem.course-approval/1"
+                    or course.get("repository", CANONICAL_BASE) != CANONICAL_BASE
+                    or not COMMIT_PATTERN.fullmatch(str(course.get("approved_base_revision", "")))):
+                raise StudentActionsError("The canonical project course channel has no immutable approved BASE revision")
+            revision = course["approved_base_revision"]
+            approval = "instructor-course-channel"
+            label = "Instructor course channel " + channel
+        commit = self._request(f"/repos/{CANONICAL_BASE}/commits/{revision}")
+        if not isinstance(commit, dict) or commit.get("sha") != revision:
+            raise StudentActionsError("Canonical BASE did not verify the project's exact approved worker revision")
+        return {"revision": revision, "approval": approval, "label": label, "repository": CANONICAL_BASE}
 
     def submit(self, calculation: dict | None, *, xyz_files: dict[str, str | bytes] | None = None,
                provider: dict | None = None, capability_probe: dict | None = None,
@@ -339,6 +411,7 @@ class StudentActionsClient:
             raise ValueError("Select a molecular source or a periodic PAW source for this job")
         if ingestion_inputs is not None or periodic_inputs is not None:
             from copy import deepcopy
+
             from .student_data_inputs import build_data_bundle
             from .student_input_transport import upload_blob_bundle
             if periodic_inputs is not None:

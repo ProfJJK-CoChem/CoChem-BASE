@@ -18,6 +18,9 @@ on:
         type: string
 
 # Calculations never need write access to source, students' reports or secrets.
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 permissions:
   contents: read
 
@@ -28,7 +31,9 @@ concurrency:
 jobs:
   research:
     # A changed default branch/source hash is rejected again by request preflight.
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (github.event.repository.private == true || github.repository == 'ProfJJK-CoChem/CoChem-BASE')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     defaults:
@@ -70,7 +75,7 @@ jobs:
       - name: Verify the instructor-approved canonical worker revision
         working-directory: assignment
         env:
-          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          COCHEM_SOURCE_CREDENTIAL: ${{ secrets[vars.COCHEM_SOURCE_ACCESS_SECRET] }}
           COCHEM_APPROVED_BASE_SHA: ${{ vars.COCHEM_APPROVED_BASE_SHA }}
           COCHEM_COURSE_CHANNEL: ${{ vars.COCHEM_COURSE_CHANNEL }}
         run: |
@@ -82,15 +87,23 @@ jobs:
           repository: ProfJJK-CoChem/CoChem-BASE
           ref: ${{ steps.request.outputs.worker_sha }}
           path: worker
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          token: ${{ secrets[vars.COCHEM_SOURCE_ACCESS_SECRET] }}
           persist-credentials: false
+      - name: Audit the approved BASE source before application imports
+        env:
+          COCHEM_EXPECTED_REVISION: ${{ steps.request.outputs.worker_sha }}
+        run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "$RUNNER_TEMP/cochem-student-audit"
       - name: Revalidate scientific capabilities and resources in the approved worker
         id: worker
         run: |
           python scripts/run_student_research.py --verify-worker-only \
             --output "$RUNNER_TEMP/cochem-student-evidence"
-      - name: Audit the approved BASE source
-        run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/cochem-student-audit"
+      - name: Recheck the current private project before provisioning access
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python -B scripts/run_student_research.py --verify-project-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
       - name: Install native prerequisites on the disposable runner
         if: steps.worker.outputs.probe != 'true'
         env:
@@ -111,13 +124,13 @@ jobs:
         if: steps.worker.outputs.orca == 'true'
         uses: ./worker/.github/actions/setup-orca
         with:
-          asset-token: ${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}
+          asset-token: ${{ secrets[vars.COCHEM_ORCA_ACCESS_SECRET] }}
       - name: Provision CFOUR only when this operation requests it
         id: cfour_install
         if: steps.worker.outputs.cfour == 'true'
         uses: ./worker/.github/actions/setup-cfour
         with:
-          asset-token: ${{ secrets.PRIVATE_CFOUR_ASSET_CREDENTIAL }}
+          asset-token: ${{ secrets[vars.COCHEM_CFOUR_ACCESS_SECRET] }}
           required: 'true'
       - name: Install an explicitly requested native CREST sampler
         if: steps.worker.outputs.crest == 'true'
@@ -185,22 +198,22 @@ jobs:
       - name: Check optional licensed archive access without installing an engine
         if: steps.worker.outputs.probe == 'true'
         env:
-          PRIVATE_ORCA_ASSET_CREDENTIAL: ${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}
-          PRIVATE_CFOUR_ASSET_CREDENTIAL: ${{ secrets.PRIVATE_CFOUR_ASSET_CREDENTIAL }}
+          COCHEM_ORCA_ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_ORCA_ACCESS_SECRET] }}
+          COCHEM_CFOUR_ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_CFOUR_ACCESS_SECRET] }}
         run: |
           python scripts/run_student_research.py --capability-probe \
             --output "$RUNNER_TEMP/cochem-student-evidence"
       - name: Install the selected reviewed providers without exposing readers to execution
         if: steps.worker.outputs.modules != ''
         env:
-          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          COCHEM_SOURCE_CREDENTIAL: ${{ secrets[vars.COCHEM_SOURCE_ACCESS_SECRET] }}
           MODULE_IDS: ${{ steps.worker.outputs.modules }}
         run: |
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" - <<'PY'
           import json, os
           from pathlib import Path
           from cochem_base.interfaces.student_setup import StudentSetupService
-          if not os.environ.get('COCHEM_SOURCE_READ_TOKEN'):
+          if not os.environ.get('COCHEM_SOURCE_CREDENTIAL'):
               raise SystemExit('The instructor must authorize this assignment for the source-reader secret.')
           report = StudentSetupService(os.environ['COCHEM_ARTIFACT_DIR'], Path.cwd()).install_modules(
               os.environ['MODULE_IDS'].split())

@@ -117,6 +117,137 @@ def _observable(value: Optional[float], precision: int = 3) -> str:
     return "[MISSING DATA]" if value is None else f"{value:.{precision}f}"
 
 
+class CourseAccessWidget(widgets.VBox):
+    """Data-only lab enrollment; access remains the worker's observed authority."""
+
+    def __init__(self, *, project_repository: str, artifact_dir: Path,
+                 controller_repository: str = "", app_slug: str = "", on_refresh: Any = None) -> None:
+        from cochem_base.config_loader import get_artifact_dir
+
+        self._settings_path = get_artifact_dir(artifact_dir) / "StudentSetup" / "course-access.json"
+        self._restore_warning = ""
+        saved = self._load_settings()
+        self.project = widgets.Text(description="Current project:", value=project_repository,
+            disabled=True, style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
+        self.controller = widgets.Text(description="Instructor access repository:",
+            value=controller_repository or saved.get("controller_repository", ""),
+            placeholder="instructor-organization/private-access-controller",
+            style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
+        self.app_slug = widgets.Text(description="Instructor lab App slug:", value=app_slug or saved.get("app_slug", ""),
+            placeholder="App slug from your instructor's invitation", style={'description_width': 'initial'},
+            layout=widgets.Layout(width='95%'))
+        selected = saved.get("engines", ["orca", "cfour"])
+        self.orca = widgets.Checkbox(description="Request optional ORCA access", value="orca" in selected,
+            style={'description_width': 'initial'}, indent=False)
+        self.cfour = widgets.Checkbox(description="Request optional CFOUR access", value="cfour" in selected,
+            style={'description_width': 'initial'}, indent=False)
+        self.links = widgets.HTML()
+        self.status = widgets.HTML()
+        self.btn_save = widgets.Button(description="Save lab invitation")
+        self.btn_save.on_click(self._save_settings)
+        self.btn_refresh = widgets.Button(description="Refresh lab access", disabled=on_refresh is None)
+        if on_refresh is not None:
+            self.btn_refresh.on_click(on_refresh)
+        super().__init__(children=[
+            widgets.HTML("<h3>Lab Access for your personal project</h3>"
+                "<p>Use your own <b>private</b> GitHub project and the invitation supplied by your instructor. "
+                "This keeps Actions usage with the project owner. Organization-owned assignments use the organization's Actions allowance. "
+                "Organization secrets do not transfer to personal projects.</p>"),
+            self.project, self.controller, self.app_slug, self.orca, self.cfour,
+            widgets.HTML("<p>ORCA and CFOUR are optional and strongly recommended. You can request module access without either licensed engine. "
+                "Your instructor must authorize the applicable license access.</p>"),
+            self.links, self.status, widgets.HBox([self.btn_save, self.btn_refresh]),
+            widgets.HTML("<ol><li>Select <b>Authorize lab app</b>. On GitHub, choose your personal account and "
+                "<b>Only select repositories</b>, select the private project shown above, and approve the instructor's App.</li>"
+                "<li>Select <b>Request project access</b>, then <b>Submit new issue</b> on GitHub. "
+                "The request is already filled in; do not add passwords or tokens. Wait for the instructor controller's result on that issue.</li>"
+                "<li>After access is granted, select <b>Refresh lab access</b> for a real Actions archive-access check. "
+                "Each calculation separately verifies installation and scientific execution.</li>"
+                "<li>To receive newly granted private module access, create a <b>fresh Codespace</b> for this same project. "
+                "BASE installs the approved modules automatically. Your existing Codespace does not prove it has received the new access.</li></ol>"
+                "<p>For an organization-owned assignment whose instructor already configured access, use the existing "
+                "<b>Retry remote engine check</b>; personal-project enrollment is unnecessary.</p>"),
+        ], layout=widgets.Layout(border='1px solid #b8daff', padding='12px', margin='10px 0'))
+        for control in (self.controller, self.app_slug, self.orca, self.cfour):
+            control.observe(self._render_links, names="value")
+        self._render_links()
+
+    def _load_settings(self) -> dict[str, Any]:
+        path = self._settings_path
+        if not path.exists() and not path.is_symlink():
+            return {}
+        try:
+            if path.is_symlink() or path.parent.is_symlink() or path.stat().st_size > 4096:
+                raise ValueError("The retained invitation is not a bounded regular settings file.")
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            if (not isinstance(saved, dict) or set(saved) != {"schema", "controller_repository", "app_slug", "engines"}
+                    or saved["schema"] != "cochem.course-invitation/1"
+                    or not isinstance(saved["controller_repository"], str) or not isinstance(saved["app_slug"], str)
+                    or not isinstance(saved["engines"], list)
+                    or any(value not in {"orca", "cfour"} for value in saved["engines"])
+                    or len(set(saved["engines"])) != len(saved["engines"])):
+                raise ValueError("The retained invitation has an unsupported format.")
+            return saved
+        except (ValueError, OSError, TypeError) as exc:
+            self._restore_warning = "Retained lab invitation was not loaded: " + str(exc)
+            return {}
+
+    def set_project(self, repository: str) -> None:
+        self.project.value = repository
+        self._render_links()
+
+    def _enrollment_links(self) -> dict[str, str]:
+        from cochem_base.interfaces.course_access import enrollment_links
+        engines = tuple(engine for engine, selected in (("orca", self.orca.value), ("cfour", self.cfour.value)) if selected)
+        return enrollment_links(self.controller.value.strip(), self.app_slug.value.strip(),
+            self.project.value.strip(), engines)
+
+    def _render_links(self, change: Any = None) -> None:
+        self.links.value = ""
+        self.btn_save.disabled = True
+        if not self.controller.value.strip() or not self.app_slug.value.strip() or not self.project.value.strip():
+            message = "[MISSING DATA] Confirm your project above and enter the access repository and App slug from your instructor's invitation."
+        else:
+            try:
+                links = self._enrollment_links()
+            except (ImportError, ValueError, RuntimeError) as exc:
+                message = "Lab enrollment links are unavailable: " + str(exc)
+            else:
+                self.links.value = "<p>" + " · ".join(
+                    f"<a href='{html.escape(links[key], quote=True)}' target='_blank' rel='noopener noreferrer' "
+                    "style='display:inline-block;padding:8px 12px;border:1px solid #0056b3;border-radius:4px;color:#0056b3'>"
+                    + label + "</a>" for key, label in (("install", "Authorize lab app"), ("enroll", "Request project access"))) + "</p>"
+                self.btn_save.disabled = False
+                message = "Enrollment links are ready. Access has not been verified; submitting a request does not enable calculation methods."
+        if self._restore_warning:
+            message += " " + self._restore_warning
+        self.status.value = "<p role='status' aria-live='polite'>" + html.escape(message) + "</p>"
+
+    def _save_settings(self, b: Any = None) -> None:
+        from cochem_base.config_loader import get_artifact_dir
+        try:
+            self._enrollment_links()
+            # Recheck the data tier rather than following a changed settings symlink.
+            root = get_artifact_dir(self._settings_path.parent.parent)
+            directory = root / "StudentSetup"
+            if directory.is_symlink() or self._settings_path.is_symlink():
+                raise ValueError("Lab invitation settings must remain in the owned data directory.")
+            directory.mkdir(parents=True, exist_ok=True)
+            saved = {"schema": "cochem.course-invitation/1", "controller_repository": self.controller.value.strip(),
+                "app_slug": self.app_slug.value.strip(), "engines": [engine for engine, selected in
+                (("orca", self.orca.value), ("cfour", self.cfour.value)) if selected]}
+            temporary = directory / (".course-access-" + uuid.uuid4().hex + ".json")
+            with temporary.open("x", encoding="utf-8") as stream:
+                json.dump(saved, stream, sort_keys=True)
+                stream.write("\n")
+            temporary.replace(self._settings_path)
+        except (ImportError, ValueError, RuntimeError, OSError) as exc:
+            self.status.value = "<p role='alert'>Lab invitation could not be retained: " + html.escape(str(exc)) + "</p>"
+            return
+        self._restore_warning = ""
+        self.status.value = "<p role='status'>Lab invitation saved with your research data. No credentials were stored and no access has been granted by this action.</p>"
+
+
 def licensed_engine_availability(registry_path: str | Path | None = None) -> dict[str, dict[str, Any]]:
     """Report optional engine authority without turning absence into BASE failure."""
     from cochem_base.core_engine.execution_authority import authorize_engine_execution
@@ -246,10 +377,17 @@ class CoChemGUI:
         self.btn_remote_engine_check.on_click(self._check_remote_engines)
         self.btn_remote_engine_cancel = widgets.Button(description="Cancel remote engine check", disabled=True)
         self.btn_remote_engine_cancel.on_click(self._cancel_remote_engine_check)
+        from cochem_base.config_loader import get_artifact_dir
+        self.course_access_panel = CourseAccessWidget(project_repository=self.gh_repo_input.value,
+            artifact_dir=get_artifact_dir(),
+            controller_repository=os.environ.get("COCHEM_ACCESS_CONTROLLER_REPOSITORY", ""),
+            app_slug=os.environ.get("COCHEM_ACCESS_APP_SLUG", ""), on_refresh=self._refresh_lab_access)
         self.gh_setup_box = widgets.VBox([
-            self.gh_repo_input, self.gh_branch_input, widgets.HBox([self.btn_remote_engine_check, self.btn_remote_engine_cancel]), self.remote_engine_status, self.gh_guidance,
+            self.gh_repo_input, self.gh_branch_input, self.course_access_panel,
+            widgets.HBox([self.btn_remote_engine_check, self.btn_remote_engine_cancel]), self.remote_engine_status, self.gh_guidance,
         ], layout=widgets.Layout(border='1px solid #0056b3', padding='15px', margin='10px 0'))
         self.gh_repo_input.observe(self._refresh_actions_guidance, names='value')
+        self.gh_repo_input.observe(lambda change: self.course_access_panel.set_project(change['new']), names='value')
         self.gh_branch_input.observe(self._refresh_actions_guidance, names='value')
         self.actions_job_download = widgets.HTML()
         self._last_actions_job = None
@@ -854,6 +992,7 @@ class CoChemGUI:
                 try:
                     import py3Dmol
                     from IPython.display import display
+
                     from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
                     identity = parse_geometry_identity(xyz_data)
                     viewer_xyz = str(len(identity.elements)) + "\nBASE display geometry; nuclear labels retained in input\n" + "\n".join(
@@ -1105,8 +1244,8 @@ class CoChemGUI:
         ], layout=widgets.Layout(padding='20px'))
         self.view_inspector = self.data_inspector_widget
 
-        from cochem_base.interfaces.module_registry import list_module_capabilities
         from cochem_base.config_loader import get_artifact_dir
+        from cochem_base.interfaces.module_registry import list_module_capabilities
         self.module_capabilities = widgets.HTML()
         self.module_recipient = widgets.Dropdown(
             options=[(item.name, item.module_id) for item in list_module_capabilities()],
@@ -1230,6 +1369,7 @@ class CoChemGUI:
         self._restore_student_inputs()
         self._restore_student_scientific_inputs()
         self._refresh_input_library()
+        self._start_course_project_discovery()
         atexit.register(self._inbox_stop.set)
         atexit.register(self._hpc_monitor_stop.set)
         if self.calc_env_dropdown.value == "github-actions" and self._automatic_remote_checks_enabled():
@@ -1248,6 +1388,38 @@ class CoChemGUI:
             callback()
             return
         callback()
+
+    def _start_course_project_discovery(self) -> None:
+        """Resolve the original project off the UI thread when no launcher context exists."""
+        if self.gh_repo_input.value.strip():
+            return
+        def discover() -> None:
+            import subprocess
+            try:
+                from scripts.hosted_dashboard import assignment_identity
+                source = Path(os.environ.get("COCHEM_ASSIGNMENT_ROOT", str(_REPO_ROOT)))
+                identity = assignment_identity(source)
+            except (ImportError, ValueError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                message = str(exc)
+                self._ui_call(lambda: setattr(self.course_access_panel.status, 'value',
+                    "<p role='status'>Project discovery could not complete: " + html.escape(message)
+                    + ". Confirm the project repository above before enrollment.</p>"))
+                return
+            def publish() -> None:
+                if not self.gh_repo_input.value.strip() and identity.get("GITHUB_REPOSITORY"):
+                    self.gh_branch_input.value = identity.get("GITHUB_REF_NAME", "main")
+                    self.gh_repo_input.value = identity["GITHUB_REPOSITORY"]
+            self._ui_call(publish)
+        self._course_discovery_worker = threading.Thread(target=discover, daemon=True)
+        self._course_discovery_worker.start()
+
+    def _refresh_lab_access(self, b: Any = None) -> None:
+        if self.calc_env_dropdown.value != "github-actions":
+            self.course_access_panel.status.value = (
+                "<p role='status'>Lab enrollment does not alter local or HPC installations. "
+                "Select GitHub Actions as the Calculation Environment to check this project's hosted engine access.</p>")
+            return
+        self._check_remote_engines()
 
     def _build_input_library_panel(self) -> None:
         """Expose canonical readers through uploads and verified retained selections."""
@@ -1849,8 +2021,8 @@ class CoChemGUI:
         def check() -> None:
             try:
                 self._hpc_history_loaded.wait(timeout=10)
-                from cochem_base.interfaces.student_setup import StudentSetupService
                 from cochem_base.config_loader import get_artifact_dir
+                from cochem_base.interfaces.student_setup import StudentSetupService
                 self._setup_service = StudentSetupService(artifact_dir=get_artifact_dir(), repository_root=_REPO_ROOT,
                     idle_check=lambda: not (
                     self._pipeline_running or self._topos_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._actions_retrieving or self._remote_probe_running or self._ingestion_busy))
@@ -1894,8 +2066,8 @@ class CoChemGUI:
         def perform() -> None:
             try:
                 if self._setup_service is None:
-                    from cochem_base.interfaces.student_setup import StudentSetupService
                     from cochem_base.config_loader import get_artifact_dir
+                    from cochem_base.interfaces.student_setup import StudentSetupService
                     self._setup_service = StudentSetupService(artifact_dir=get_artifact_dir(), repository_root=_REPO_ROOT,
                         idle_check=lambda: not (
                         self._pipeline_running or self._topos_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._actions_retrieving or self._remote_probe_running or self._ingestion_busy))
@@ -2374,8 +2546,8 @@ class CoChemGUI:
         self.scientific_input_status.value = "<p role='status'>Verifying retained scientific evidence and its geometry binding…</p>"
         def ingest() -> None:
             try:
-                from cochem_base.interfaces.scientific_inputs import ingest_scientific_upload
                 from cochem_base.config_loader import get_artifact_dir
+                from cochem_base.interfaces.scientific_inputs import ingest_scientific_upload
                 destination = get_artifact_dir() / "ScientificInputs" / f"{kind}-{uuid.uuid4().hex}"
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 receipt = ingest_scientific_upload(kind, content, filename, geometry_xyz=geometry, destination=destination)
@@ -2691,7 +2863,11 @@ class CoChemGUI:
 
     def _run_student_topos(self, b: Any = None) -> None:
         try:
-            from cochem_base.interfaces.student_research import SCHEMA, build_topos_request, build_topos_matrix_request
+            from cochem_base.interfaces.student_research import (
+                SCHEMA,
+                build_topos_matrix_request,
+                build_topos_request,
+            )
             geometry = self._student_current_xyz()
             operation = self.research_topos_operation.value
             if operation not in self._research_capability_observations.get("topos", {}).get("operations", []):
@@ -2778,9 +2954,9 @@ class CoChemGUI:
         self._refresh_execution_gate()
         def run() -> None:
             try:
-                from cochem_base.interfaces.student_research import execute_provider_request
-                from cochem_base.interfaces.module_execution import ModuleOperationCancelled
                 from cochem_base.config_loader import get_artifact_dir
+                from cochem_base.interfaces.module_execution import ModuleOperationCancelled
+                from cochem_base.interfaces.student_research import execute_provider_request
                 root = get_artifact_dir() / "StudentResearch" / uuid.uuid4().hex
                 path = root / provider["artifact"]
                 path.parent.mkdir(parents=True, exist_ok=False)
@@ -2834,7 +3010,11 @@ class CoChemGUI:
             self.research_status.value = f"<p role='alert'>Orbital/bond analysis was not started: {html.escape(str(exc))}</p>"
 
     def _load_student_research_report(self, root: Path) -> None:
-        from cochem_base.interfaces.student_reports import load_reports, discover_observations, report_html
+        from cochem_base.interfaces.student_reports import (
+            discover_observations,
+            load_reports,
+            report_html,
+        )
         reports = load_reports(root)
         observations = discover_observations(root)
         self._research_reports.extend(reports)
@@ -2860,8 +3040,12 @@ class CoChemGUI:
 
     def _compare_student_isomers(self, b: Any = None) -> None:
         try:
-            from cochem_base.interfaces.student_reports import build_isomer_report, report_html, export_report
             from cochem_base.config_loader import get_artifact_dir
+            from cochem_base.interfaces.student_reports import (
+                build_isomer_report,
+                export_report,
+                report_html,
+            )
             observations = [self._research_observations[index] for index in self.research_isomer_choices.value
                             if self._research_observations[index].get("energy_kind") == self.research_energy_kind.value]
             report = build_isomer_report(observations, energy_kind=self.research_energy_kind.value,
@@ -2886,7 +3070,7 @@ class CoChemGUI:
     def _actions_repository(self) -> str:
         repository = self.gh_repo_input.value.strip()
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*", repository):
-            raise ValueError("Enter your instructor-provided course repository as OWNER/REPOSITORY.")
+            raise ValueError("Confirm your private project or instructor-provided assignment repository as OWNER/REPOSITORY.")
         return repository
 
     def _local_engine_choices(self) -> list[tuple[str, str | None]]:
@@ -2981,8 +3165,8 @@ class CoChemGUI:
         self.remote_engine_status.value = "<p role='status' aria-live='polite'>Checking approved ORCA and CFOUR archive access on GitHub Actions. BASE remains usable with free engines.</p>"
         def check() -> None:
             try:
-                from cochem_base.interfaces.student_actions import StudentActionsClient
                 from cochem_base.config_loader import get_artifact_dir
+                from cochem_base.interfaces.student_actions import StudentActionsClient
                 artifacts = get_artifact_dir()
                 client = StudentActionsClient(repository, branch=branch,
                     repository_root=Path(os.environ.get("COCHEM_ASSIGNMENT_ROOT", str(_REPO_ROOT))), artifact_dir=artifacts)
@@ -3075,9 +3259,10 @@ class CoChemGUI:
         student_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/Student_Research_No_Code.md"
         cfour_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/CFOUR_Actions_Setup.md"
         self.gh_guidance.value = (
-            "<h4>GitHub Actions: Classroom50 course setup</h4>"
-            "<p>Use the GitHub course repository provided by your Classroom50 instructor. "
-            "Your instructor prepares approved private ORCA/CFOUR access and the course workflows. "
+            "<h4>GitHub Actions: research project setup</h4>"
+            "<p>Use your own private project or an organization-owned assignment provided by your Classroom50 instructor. "
+            "For a personal project, use <b>Lab Access</b> above to request approved module and optional engine access. "
+            "For an organization-owned assignment, your instructor configures the applicable repository access. "
             "Students do not enter tokens or binary download links in this interface.</p>"
             "<ol><li>Confirm the assignment repository and branch shown here.</li>"
             "<li>Open <b>No Code Matrix</b>, upload your Avogadro starting XYZ, and confirm charge, multiplicity and calculation method.</li>"
@@ -3134,7 +3319,8 @@ class CoChemGUI:
     def _detect_environment(self) -> Tuple[bool, str, bool, bool]:
         """Display measured, signed registry state; individual phase files are insufficient."""
         from cochem_base.core.cochem_core_registry_manager import (
-            load_system_config, RegistryError,
+            RegistryError,
+            load_system_config,
         )
         try:
             registry = load_system_config()
@@ -3190,7 +3376,7 @@ class CoChemGUI:
             self.periodic_structure_status.value = f"<p role='alert'>Periodic structure was not accepted: {html.escape(str(exc))}</p>"
 
     def _selected_periodic_structure(self) -> Any:
-        from cochem_base.calc.periodic import ingest_periodic_structure, PeriodicStructure
+        from cochem_base.calc.periodic import PeriodicStructure, ingest_periodic_structure
         receipt = self._input_library.get(self._input_selectors['periodic'].value)
         if receipt is None:
             return ingest_periodic_structure(self.periodic_input_path.value)
@@ -3203,8 +3389,9 @@ class CoChemGUI:
         return structure
 
     def _prepare_periodic_config(self) -> Path:
-        from cochem.core.context import assert_writable_path
         import uuid
+
+        from cochem.core.context import assert_writable_path
 
         structure = self._selected_periodic_structure()
         if self.periodic_settings_path.value.strip():
@@ -3286,8 +3473,8 @@ class CoChemGUI:
         self._pipeline_worker.start()
 
     def _refresh_module_capabilities(self, b: Any = None) -> None:
-        from cochem_base.interfaces.module_registry import list_module_capabilities
         from cochem_base.interfaces.module_execution import installed_module_status
+        from cochem_base.interfaces.module_registry import list_module_capabilities
         self.module_capabilities.value = "<p role='status'>Checking module installations…</p>"
         root = Path(self.module_root.value)
         self.btn_module_refresh.disabled = True
@@ -3315,7 +3502,7 @@ class CoChemGUI:
         self._module_refresh_worker.start()
 
     def _install_selected_module(self, b: Any = None) -> None:
-        from scripts.manage_modules import DEFAULT_MANIFEST, load_manifest, install_module
+        from scripts.manage_modules import DEFAULT_MANIFEST, install_module, load_manifest
         name = self.module_recipient.value
         spec = load_manifest(DEFAULT_MANIFEST)["modules"].get(name)
         if spec is None or spec['distribution'] is None or spec.get('install_blocker'):
@@ -3338,9 +3525,10 @@ class CoChemGUI:
         self._module_worker.start()
 
     def _run_module_geometry(self, b: Any = None) -> None:
+        import uuid
+
         from cochem_base.interfaces.artifact_handoff import prepare_module_handoff
         from cochem_base.interfaces.module_execution import execute_module_handoff
-        import uuid
         name = self.module_recipient.value
         artifact = self.module_artifact.value
         if self.calc_env_dropdown.value in {"hpc", "github-actions"}:
@@ -3376,11 +3564,15 @@ class CoChemGUI:
         self._module_worker.start()
 
     def _prepare_module_handoff(self, b: Any = None) -> None:
-        from cochem_base.interfaces.artifact_handoff import prepare_module_handoff, load_module_handoff
         import base64
         import io
         import uuid
         import zipfile
+
+        from cochem_base.interfaces.artifact_handoff import (
+            load_module_handoff,
+            prepare_module_handoff,
+        )
 
         self.btn_module_handoff.disabled = True
         try:
@@ -3509,9 +3701,9 @@ class CoChemGUI:
         self._installation_worker.start()
 
     def _installation_thread(self, request: dict[str, Any]) -> None:
-        from cochem_base.orchestrator.bootstrap_service import run_setup
-        from cochem_base.core.cochem_core_registry_manager import atomic_write_json
         from cochem_base.config_loader import get_artifact_dir
+        from cochem_base.core.cochem_core_registry_manager import atomic_write_json
+        from cochem_base.orchestrator.bootstrap_service import run_setup
 
         def on_event(event: dict[str, Any]) -> None:
             if event['event'] == 'phase_start':
@@ -3663,8 +3855,9 @@ class CoChemGUI:
                 if hasattr(self, 'btn_execute'):
                     self._refresh_execution_gate()
                 return
-            from cochem_base.calc.calculation_service import parse_run_geometry
             import numpy as np
+
+            from cochem_base.calc.calculation_service import parse_run_geometry
 
             symbols, coordinates = parse_run_geometry(self.matrix_geometry.value)
             if not symbols:
@@ -3870,9 +4063,9 @@ class CoChemGUI:
             self.inspector_rot_table.value = f"<b style='color:red;'>Parse Error: {html.escape(str(exc))}</b>"
 
     def _update_isotope_selectors(self, change: Any = None) -> None:
+        from cochem_base.calc.calculation_service import parse_run_geometry_identity
         from cochem_base.physics.isotopes import parse_nuclide_token
         from cochem_base.physics.nuclide_resolver import get_element
-        from cochem_base.calc.calculation_service import parse_run_geometry_identity
 
         try:
             symbols = list(parse_run_geometry_identity(self.matrix_geometry.value).nuclides)
@@ -4059,6 +4252,7 @@ class CoChemGUI:
 
         if artifact is not None:
             import numpy as np
+
             from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
             if tuple(symbols) != resolve_nuclear_identity(artifact.symbols).nuclides or not np.allclose(
                 coords, artifact.coordinates_angstrom, rtol=0, atol=1e-10
@@ -4127,6 +4321,7 @@ class CoChemGUI:
         import base64
         import csv
         import io
+
         from matplotlib.figure import Figure
 
         frequencies = parent.harmonic_frequencies_cm1
@@ -4284,10 +4479,11 @@ class CoChemGUI:
                 logger.exception("Could not stop owned TOPOS search during kernel shutdown")
 
     def _start_topos_search(self, b: Any = None) -> None:
+        import uuid
+
         from cochem_base.calc.calculation_service import parse_run_geometry_identity
         from cochem_base.physics.nuclide_resolver import get_element
         from cochem_base.topos_runner import TOPOSExecutionBroker, TOPOSSearchConfig
-        import uuid
 
         if self._topos_running:
             return
@@ -4487,7 +4683,10 @@ class CoChemGUI:
 
     def _cfour_run_config(self) -> dict[str, Any]:
         """Use the native CFOUR operation validator for the selected request."""
-        from cochem_base.interfaces.scientific_jobs import calculation_capability, validate_job_configuration
+        from cochem_base.interfaces.scientific_jobs import (
+            calculation_capability,
+            validate_job_configuration,
+        )
 
         remote = self.calc_env_dropdown.value == 'github-actions'
         if (self.cb_recipe_r1.value or self.cb_recipe_r2.value or self.matrix_solvation.value
@@ -4576,6 +4775,7 @@ class CoChemGUI:
     def _prepare_pipeline(self) -> Path:
         """Persist the validated configuration before native execution."""
         import uuid
+
         from cochem_base.topos_runner import _write_json
         config = self._collect_run_config()
         runtime = self._run_artifact_root() / "GUI" / f"run_{uuid.uuid4().hex}"
@@ -4909,6 +5109,7 @@ class CoChemGUI:
         """Validate the direct request and provide an optional reproducibility copy."""
         import base64
         import hashlib
+
         from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry
         from cochem_base.interfaces.actions_jobs import validate_configuration
 
@@ -5033,8 +5234,8 @@ class CoChemGUI:
         cores, maxcore_mb = self.actions_cores.value, self.actions_memory.value
         def submit() -> None:
             try:
-                from cochem_base.interfaces.student_actions import StudentActionsClient
                 from cochem_base.config_loader import get_artifact_dir
+                from cochem_base.interfaces.student_actions import StudentActionsClient
                 client = StudentActionsClient(repository, branch=branch,
                     repository_root=Path(os.environ.get("COCHEM_ASSIGNMENT_ROOT", str(_REPO_ROOT))), artifact_dir=get_artifact_dir())
                 submission = client.submit(configuration, xyz_files=inputs, provider=provider,
@@ -5155,8 +5356,11 @@ class CoChemGUI:
         self.btn_actions_open.disabled = True
         def reopen() -> None:
             try:
-                from cochem_base.interfaces.student_actions import StudentActionsClient, verify_retained_results
                 from cochem_base.config_loader import get_artifact_dir
+                from cochem_base.interfaces.student_actions import (
+                    StudentActionsClient,
+                    verify_retained_results,
+                )
                 artifacts = get_artifact_dir()
                 retained = artifacts / 'StudentActions' / record['request_id'] / 'retained-result.json'
                 if record.get('status') == 'rejected':
@@ -5453,10 +5657,10 @@ class CoChemGUI:
             self.state.system_status = "Cancelling calculation..."
 
     def _pipeline_thread(self, config_path: Path) -> None:
+        from cochem_base.calc.calculation_service import run_calculation
         from cochem_base.core_engine.cochem_core_subprocess_broker import (
             SubprocessCancelledError,
         )
-        from cochem_base.calc.calculation_service import run_calculation
 
         def on_event(event: dict[str, Any]) -> None:
             if event.get("kind") == "log":

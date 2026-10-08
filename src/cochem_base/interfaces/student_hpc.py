@@ -8,20 +8,22 @@ from __future__ import annotations
 
 import argparse
 import base64
-from copy import deepcopy
-from datetime import datetime, timezone
 import hashlib
 import math
 import os
-from pathlib import Path
 import re
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
+from copy import deepcopy
+from datetime import datetime, timezone
+from pathlib import Path
 
 from .student_request import canonical_json, safe_relative_path, strict_json
 
@@ -37,8 +39,17 @@ class StudentHpcError(RuntimeError):
 
 
 def _write(path: Path, data: dict) -> None:
-    from cochem_base.core.cochem_core_registry_manager import atomic_write_json
-    atomic_write_json(path, data)
+    """Publish a single-owner job record without a shared-filesystem lock.
+
+    These records have no read/modify/write transaction: each request has one
+    private package and one worker, admitted by exclusive directory creation.
+    Same-directory staging preserves atomic replacement on shared storage.
+    """
+    from cochem.core.context import AtomicWrite
+    contents = canonical_json(data)
+    with AtomicWrite(path) as staged:
+        staged.write_bytes(contents)
+        staged.chmod(0o600)
 
 
 def _hash(path: Path) -> str:
@@ -89,7 +100,11 @@ def validate_portable_calculation(calculation: dict, *, resources: dict,
     limits do not apply to a measured cluster allocation. Full native reference
     and Hessian acceptance still happens inside that allocation.
     """
-    from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry_identity
+    from cochem_base.calc.calculation_service import (
+        CalculationMatrixConfig,
+        parse_run_geometry_identity,
+    )
+
     from .scientific_jobs import calculation_capability, validate_job_configuration
     if not isinstance(calculation, dict) or not {"geometry", "engine", "charge", "multiplicity", "method", "is_opt", "is_freq"}.issubset(calculation):
         raise ValueError("HPC native calculations require their explicit geometry, method, state and operation")
@@ -316,6 +331,7 @@ class StudentHpcClient:
             validate_provider_resources(provider, {**resources, "memory_mb": int(resources["memory_mb"] * .75),
                                                   "budget_seconds": _seconds(resources["walltime"])})
             from scripts.manage_modules import DEFAULT_MANIFEST, load_manifest, verify_installation
+
             from .student_research import required_provider_modules
             catalog = load_manifest(DEFAULT_MANIFEST)
             provider_receipts = {}
@@ -514,6 +530,15 @@ class StudentHpcClient:
                 raise StudentHpcError("Retained scientific evidence belongs to a different compute allocation")
             if report.get("registry_sha256") != _hash(root / "compute-registry.json"):
                 raise StudentHpcError("Completed HPC result lacks its exact fresh compute setup authority")
+            placement_path = root / "local-storage-authority.json"
+            if (not placement_path.is_file() or report.get("local_storage_sha256") != _hash(placement_path)):
+                raise StudentHpcError("Completed HPC result lacks its measured node-local storage receipt")
+            placement = strict_json(placement_path.read_bytes())
+            expected_identity = {key: allocation[key] for key in ("scheduler", "job_id", "request_id", "hostname", "username")}
+            if (placement.get("schema_version") != "cochem.hpc-local-storage/1"
+                    or placement.get("allocation_identity") != expected_identity
+                    or placement.get("containing_mount", {}).get("observation") != "actual_containing_mount"):
+                raise StudentHpcError("Node-local storage evidence differs from its actual compute allocation")
         return {"path": str(root), "report": report, "files": sorted(actual)}
 
 
@@ -591,6 +616,92 @@ def require_allocation(request: dict, package: Path) -> dict:
             "controller_record": controller, "verified_at": datetime.now(timezone.utc).isoformat()}
 
 
+def _local_scratch_mount(path: Path) -> dict:
+    """Admit an actual observed local mount, never a path-name heuristic."""
+    import psutil
+    if path.is_symlink() or not path.is_dir():
+        raise StudentHpcError("Allocation scratch must be an existing non-symlink directory")
+    resolved = _external(path).resolve(strict=True)
+    try:
+        mounts = [entry for entry in psutil.disk_partitions(all=True)
+                  if resolved.is_relative_to(Path(entry.mountpoint).resolve())]
+    except (OSError, ValueError) as error:
+        raise StudentHpcError("The allocation scratch mount could not be measured") from error
+    if not mounts:
+        raise StudentHpcError("The allocation scratch mount is unknown; node-local storage is required")
+    mount = max(mounts, key=lambda entry: len(Path(entry.mountpoint).resolve().parts))
+    fs_type = mount.fstype.lower()
+    if fs_type not in {"ext2", "ext3", "ext4", "xfs", "btrfs", "zfs", "tmpfs", "ramfs", "overlay", "overlayfs"}:
+        raise StudentHpcError("The allocation scratch filesystem is shared or unclassified; node-local storage is required: " + fs_type)
+    return {"path": str(resolved), "filesystem_type": fs_type,
+            "mountpoint": str(Path(mount.mountpoint).resolve()), "device": mount.device,
+            "observation": "actual_containing_mount"}
+
+
+def create_allocation_workspace(request: dict, allocation: dict) -> tuple[Path, dict]:
+    """Create private local I/O after the caller verifies its real allocation.
+
+    This function records storage placement, not controller authorization.
+    execute_staged obtains that authorization independently before calling it.
+    """
+    import pwd
+    identity = {name: allocation.get(name) for name in ("scheduler", "job_id", "request_id", "hostname", "username")}
+    scheduler = request.get("scheduler")
+    try:
+        canonical_id = str(uuid.UUID(str(identity["request_id"])))
+    except ValueError as error:
+        raise StudentHpcError("Local workspace requires its canonical allocation request identity") from error
+    if (scheduler not in JOB_IDS or identity["scheduler"] != scheduler
+            or identity["request_id"] != request.get("request_id")
+            or canonical_id != identity["request_id"]
+            or not JOB_IDS[scheduler].fullmatch(str(identity["job_id"]))
+            or identity["hostname"] != socket.gethostname().split(".")[0]
+            or identity["username"] != pwd.getpwuid(os.getuid()).pw_name):
+        raise StudentHpcError("Local workspace identity differs from this allocation and compute host")
+    preferred = "SLURM_TMPDIR" if scheduler == "slurm" else "PBS_TMPDIR"
+    selected = preferred if os.environ.get(preferred) else "TMPDIR" if os.environ.get("TMPDIR") else None
+    candidate = Path(os.environ[selected]) if selected else Path(tempfile.gettempdir())
+    mount = _local_scratch_mount(candidate)
+    root = Path(tempfile.mkdtemp(prefix="cochem-" + identity["request_id"] + "-", dir=mount["path"]))
+    root.chmod(0o700)
+    observed = _local_scratch_mount(root)
+    if observed["filesystem_type"] != mount["filesystem_type"] or observed["mountpoint"] != mount["mountpoint"]:
+        raise StudentHpcError("Allocation scratch placement changed while the private directory was created")
+    return root, {"schema_version": "cochem.hpc-local-storage/1", "allocation_identity": identity,
+                  "selected_source": selected or "system_tempfile_directory", "containing_mount": observed,
+                  "runtime_root": str(root), "mode": stat.S_IMODE(root.stat().st_mode),
+                  "scope": "Measured filesystem placement; scheduler authority is retained separately"}
+
+
+def _publish_local_results(source: Path, destination: Path) -> None:
+    """Retain exact local result bytes; publish the completion manifest last."""
+    from cochem.core.context import AtomicWrite
+    entries = list(source.rglob("*"))
+    if (source.is_symlink() or destination.is_symlink()
+            or any(path.is_symlink() or not (path.is_file() or path.is_dir()) for path in entries)
+            or len(entries) > MAX_FILES
+            or sum(path.stat().st_size for path in entries if path.is_file()) > MAX_BYTES):
+        raise StudentHpcError("Local HPC results exceed bounded publication or contain links/special files")
+    for path in sorted((path for path in entries if path.is_file()),
+                       key=lambda path: (path == source / "publication-manifest.json", str(path))):
+        target = destination / path.relative_to(source)
+        if target == destination / "request.json" and target.is_file() and not target.is_symlink():
+            if _hash(target) == _hash(path):
+                continue
+            raise StudentHpcError("The retained submitted request differs from its local copy")
+        if target.exists() or target.is_symlink():
+            raise StudentHpcError("An allocation result publication target already exists")
+        digest = _hash(path)
+        with AtomicWrite(target) as staged:
+            with path.open("rb") as incoming, staged.open("wb") as outgoing:
+                shutil.copyfileobj(incoming, outgoing)
+            staged.chmod(stat.S_IMODE(path.stat().st_mode) & 0o600)
+            if _hash(staged) != digest or _hash(path) != digest:
+                raise StudentHpcError("A local HPC result changed during atomic publication")
+        if _hash(target) != digest:
+            raise StudentHpcError("An HPC result differs from its measured local original")
+
+
 def _bind_scientific_inputs(request: dict, package: Path, output: Path, registry: Path,
                             calculation: dict) -> dict:
     """Bind sealed originals and a freshly audited allocation interpreter."""
@@ -618,6 +729,7 @@ def _bind_scientific_inputs(request: dict, package: Path, output: Path, registry
         recovery["python_executable"] = authority.executable
         raw["t9_fallback"] = recovery
     from cochem_base.calc.calculation_service import CalculationMatrixConfig
+
     from .scientific_jobs import validate_job_configuration
     model = CalculationMatrixConfig.model_validate_json(canonical_json(raw), strict=True)
     validate_job_configuration(model)
@@ -667,17 +779,23 @@ def execute_staged(package: Path, *, request_sha256: str) -> dict:
     """Worker entry point. No branch launches chemistry before allocation audit."""
     request = _load_package(package, integrity=request_sha256)
     package = package.resolve()
-    result_root = package / "results"
-    result_root.mkdir(exist_ok=False)
+    published_root = package / "results"
+    published_root.mkdir(exist_ok=False)
+    result_root = published_root
     shutil.copy2(package / "request.json", result_root / "request.json")
     report = {"schema_version": "cochem.hpc-result/1", "request_id": request["request_id"],
         "scheduler": request["scheduler"], "job_id": os.environ.get("SLURM_JOB_ID" if request["scheduler"] == "slurm" else "PBS_JOBID"),
         "status": "failed", "operation_performed": False, "resources": request["resources"]}
     try:
         allocation = require_allocation(request, package)
+        allocation_root, placement = create_allocation_workspace(request, allocation)
+        result_root = allocation_root / "results"
+        result_root.mkdir(mode=0o700)
+        shutil.copy2(package / "request.json", result_root / "request.json")
         _write(result_root / "allocation-authority.json", allocation)
-        from cochem_base.orchestrator.bootstrap_service import run_setup
+        _write(result_root / "local-storage-authority.json", placement)
         from cochem_base.core.cochem_core_registry_manager import load_system_config
+        from cochem_base.orchestrator.bootstrap_service import run_setup
         submitting = Path(request["registry_path"])
         if _hash(submitting) != request["registry_sha256"]:
             raise StudentHpcError("Submitting setup authority changed while this job was queued")
@@ -687,7 +805,7 @@ def execute_staged(package: Path, *, request_sha256: str) -> dict:
             found = source_config.get("engines", {}).get(engine, {})
             if found.get("path"):
                 os.environ[variable] = found["path"]
-        runtime = package / "allocation-runtime"
+        runtime = allocation_root / "allocation-runtime"
         os.environ.update(COCHEM_ARTIFACT_DIR=str(runtime), COCHEM_ARTIFACTS=str(runtime),
                           COCHEM_CONFIG=str(runtime / "Registry/cochem_system_config.json"))
         setup = run_setup(runtime, skip_heavy=True)
@@ -755,8 +873,11 @@ def execute_staged(package: Path, *, request_sha256: str) -> dict:
             promoted = broker.promote_artifacts(job_id)
             result["artifact_directory"] = str(promoted["promoted_dir"])
         _verify_source(request["source"])
+        _load_package(package, integrity=request_sha256)
         report.update(status="completed", operation_performed=True, result=result,
-                      registry_sha256=_hash(registry), authority="measured_compute_node")
+                      registry_sha256=_hash(registry),
+                      local_storage_sha256=_hash(result_root / "local-storage-authority.json"),
+                      authority="measured_compute_node")
         return report
     except BaseException as error:
         report.update(error=str(error), error_type=type(error).__name__)
@@ -767,8 +888,15 @@ def execute_staged(package: Path, *, request_sha256: str) -> dict:
         if any(path.is_symlink() for path in files) or len(files) > MAX_FILES or sum(path.stat().st_size for path in files if path.is_file()) > MAX_BYTES:
             raise StudentHpcError("HPC results exceed bounded publication or contain links")
         _write(result_root / "publication-manifest.json", {"schema_version": "cochem.hpc-publication/1",
-            "request_sha256": _hash(package / "request.json"), "files": {str(path.relative_to(result_root)):
+            "request_sha256": request_sha256, "files": {str(path.relative_to(result_root)):
             {"sha256": _hash(path), "size_bytes": path.stat().st_size} for path in files if path.is_file()}})
+        if result_root != published_root:
+            # The initial request copy reserves the shared transport tree. It is
+            # already bound to the same bytes; all other files publish atomically.
+            retained_request = published_root / "request.json"
+            if _hash(retained_request) != request_sha256:
+                raise StudentHpcError("The retained submitted request changed during allocation execution")
+            _publish_local_results(result_root, published_root)
 
 
 def main() -> int:

@@ -6,17 +6,188 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path
+import secrets
 import stat
 import subprocess
 import sys
 import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from threading import Thread
 
 import pytest
 
-from cochem_base.interfaces.student_actions import (StudentActionsError, _extract_verified_archive,
-                                                   verify_retained_results)
+from cochem_base.interfaces.student_actions import (
+    StudentActionsClient,
+    StudentActionsError,
+    _extract_verified_archive,
+    verify_retained_results,
+)
 from cochem_base.interfaces.student_request import canonical_json, decode_request, encode_request
+
+
+class ProjectApprovalServer(ThreadingHTTPServer):
+    """Actual local REST exchange for approval metadata, never science output."""
+
+    def __init__(self):
+        super().__init__(("127.0.0.1", 0), ProjectApprovalHandler)
+        self.token = secrets.token_urlsafe(32)
+        self.revision = "b" * 40
+        self.variables = {"COCHEM_APPROVED_BASE_SHA": self.revision}
+        self.variable_status = 200
+        self.variable_name_changed = False
+        self.commit_changed = False
+        self.channel_changed = False
+        self.worker_missing = False
+        self.paths = []
+        self.metadata_auth_verified = False
+
+
+class ProjectApprovalHandler(BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        return None
+
+    def do_GET(self):
+        peer = self.server
+        peer.paths.append(self.path)
+        if self.headers.get("Authorization") != "Bearer " + peer.token:
+            self.answer({}, 401)
+            return
+        prefix = "/repos/student/project"
+        if self.path == prefix:
+            self.answer({"full_name": "student/project", "private": True,
+                         "owner": {"type": "User", "login": "student"},
+                         "default_branch": "main", "permissions": {"push": True},
+                         "fork": False, "archived": False, "disabled": False})
+        elif self.path == prefix + "/actions/workflows/student_research.yml":
+            self.answer({"id": 123, "state": "active"})
+        elif self.path == prefix + "/commits/main":
+            self.answer({"sha": "a" * 40})
+        elif self.path.startswith(prefix + "/actions/variables/"):
+            peer.metadata_auth_verified = True
+            name = self.path.rsplit("/", 1)[1]
+            if peer.variable_status != 200:
+                self.answer({"message": "Engineering access refused"}, peer.variable_status)
+            elif name not in peer.variables:
+                self.answer({}, 404)
+            else:
+                self.answer({"name": "wrong-variable" if peer.variable_name_changed else name,
+                             "value": peer.variables[name]})
+        elif self.path.startswith("/repos/ProfJJK-CoChem/CoChem-BASE/commits/"):
+            self.answer({"sha": "c" * 40 if peer.commit_changed else peer.revision})
+        elif self.path == "/repos/ProfJJK-CoChem/CoChem-BASE/contents/.cochem/course-channels/research.json":
+            course = {"schema_version": "cochem.course-approval/1", "repository": "ProfJJK-CoChem/CoChem-BASE",
+                      "approved_base_revision": "not-a-commit" if peer.channel_changed else peer.revision}
+            self.answer({"type": "file", "encoding": "base64",
+                         "content": base64.b64encode(canonical_json(course)).decode()})
+        elif self.path == "/repos/ProfJJK-CoChem/CoChem-BASE/contents/scripts/run_student_research.py?ref=" + peer.revision:
+            self.answer({"type": "file"}, 404 if peer.worker_missing else 200)
+        else:
+            self.answer({"message": "Unexpected engineering endpoint"}, 404)
+
+    def answer(self, payload, status=200):
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(canonical_json(payload))
+
+
+@pytest.fixture
+def project_approval_peer():
+    peer = ProjectApprovalServer()
+    thread = Thread(target=peer.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield peer
+    finally:
+        peer.shutdown()
+        peer.server_close()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+
+
+def project_approval_client(peer, tmp_path):
+    return StudentActionsClient("student/project", token=peer.token, repository_root=tmp_path,
+                                api_url=f"http://127.0.0.1:{peer.server_port}", allow_loopback=True)
+
+
+def test_current_target_approval_is_used_instead_of_latest_main(project_approval_peer, tmp_path):
+    peer = project_approval_peer
+    client = project_approval_client(peer, tmp_path)
+    selected = client.preflight()
+    assert selected["worker_source_sha"] == peer.revision
+    assert selected["worker_approval"] == "instructor-actions-variable"
+    assert peer.metadata_auth_verified
+    assert not any("secrets" in path or path.endswith("/commits/main") and "CoChem-BASE" in path
+                   for path in peer.paths)
+    # Instructor maintenance changes existing projects without restarting a GUI.
+    peer.revision = "d" * 40
+    peer.variables["COCHEM_APPROVED_BASE_SHA"] = peer.revision
+    assert client.preflight()["worker_source_sha"] == peer.revision
+
+
+def test_target_course_channel_resolves_exact_canonical_approval(project_approval_peer, tmp_path):
+    peer = project_approval_peer
+    peer.variables = {"COCHEM_COURSE_CHANNEL": ".cochem/course-channels/research.json"}
+    selected = project_approval_client(peer, tmp_path).preflight()
+    assert selected["worker_source_sha"] == peer.revision
+    assert selected["worker_approval"] == "instructor-course-channel"
+    assert not any(path.endswith("/commits/main") and "CoChem-BASE" in path for path in peer.paths)
+
+
+@pytest.mark.parametrize("status", [401, 403, 422])
+def test_target_approval_denial_never_falls_back_to_main(project_approval_peer, tmp_path, status):
+    peer = project_approval_peer
+    peer.variable_status = status
+    with pytest.raises(StudentActionsError, match="course approval could not be read") as refused:
+        project_approval_client(peer, tmp_path).preflight()
+    assert refused.value.http_status == status
+    assert not any("/repos/ProfJJK-CoChem/CoChem-BASE/" in path for path in peer.paths)
+
+
+@pytest.mark.parametrize("revision", ["main", "b" * 39, "b" * 40 + "\n", 3])
+def test_invalid_target_worker_approval_refuses_before_source_read(project_approval_peer, tmp_path, revision):
+    peer = project_approval_peer
+    peer.variables["COCHEM_APPROVED_BASE_SHA"] = revision
+    with pytest.raises(StudentActionsError, match="invalid"):
+        project_approval_client(peer, tmp_path).preflight()
+    assert not any("/repos/ProfJJK-CoChem/CoChem-BASE/" in path for path in peer.paths)
+
+
+@pytest.mark.parametrize("flag", ["variable_name_changed", "commit_changed", "worker_missing"])
+def test_changed_target_approval_or_missing_exact_worker_refuses(project_approval_peer, tmp_path, flag):
+    peer = project_approval_peer
+    setattr(peer, flag, True)
+    with pytest.raises(StudentActionsError):
+        project_approval_client(peer, tmp_path).preflight()
+    assert not any(path.endswith("/commits/main") and "CoChem-BASE" in path for path in peer.paths)
+
+
+@pytest.mark.parametrize("channel", ["main", "../escape.json", ".cochem/course-channels/research.json?ref=evil"])
+def test_project_course_channel_is_data_only(project_approval_peer, tmp_path, channel):
+    peer = project_approval_peer
+    peer.variables = {"COCHEM_COURSE_CHANNEL": channel}
+    with pytest.raises(StudentActionsError, match="canonical BASE approval data"):
+        project_approval_client(peer, tmp_path).preflight()
+    assert not any("/repos/ProfJJK-CoChem/CoChem-BASE/" in path for path in peer.paths)
+
+
+def test_project_channel_invalid_revision_refuses_without_latest_fallback(project_approval_peer, tmp_path):
+    peer = project_approval_peer
+    peer.variables = {"COCHEM_COURSE_CHANNEL": ".cochem/course-channels/research.json"}
+    peer.channel_changed = True
+    with pytest.raises(StudentActionsError, match="immutable approved BASE revision"):
+        project_approval_client(peer, tmp_path).preflight()
+    assert not any("/commits/" in path and "CoChem-BASE" in path for path in peer.paths)
+
+
+@pytest.mark.parametrize("api_url,allow_loopback", [("https://example.com", False),
+                                                   ("http://127.0.0.1:1234", False),
+                                                   ("http://user@127.0.0.1:1234", True)])
+def test_approval_transport_does_not_forward_identity_to_other_hosts(tmp_path, api_url, allow_loopback):
+    with pytest.raises(ValueError, match="GitHub's verified HTTPS"):
+        StudentActionsClient("student/project", token="local-engineering-only", repository_root=tmp_path,
+                             api_url=api_url, allow_loopback=allow_loopback)
 
 
 def _request():
@@ -321,7 +492,7 @@ def test_preinstallation_worker_probe_uses_only_reviewed_checkout_and_stdlib(tmp
                "assert r['installed'] is False and r['scientific_execution_performed'] is False; "
                "assert all(not item['provisionable'] for item in r['engines'].values())")
     environment = {key: value for key, value in os.environ.items()
-                   if key not in {"PYTHONPATH", "PRIVATE_ORCA_ASSET_CREDENTIAL", "PRIVATE_CFOUR_ASSET_CREDENTIAL"}}
-    completed = subprocess.run([sys.executable, "-I", "-S", "-c", program], env=environment,
+                   if key not in {"PYTHONPATH", "COCHEM_ORCA_ASSET_CREDENTIAL", "COCHEM_CFOUR_ASSET_CREDENTIAL"}}
+    completed = subprocess.run([sys.executable, "-B", "-I", "-S", "-c", program], env=environment,
                                cwd=tmp_path, capture_output=True, text=True, timeout=30, check=False)
     assert completed.returncode == 0, completed.stderr

@@ -3,16 +3,22 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 from cochem_base.interfaces.student_research import (
-    SCHEMA, assemble_monomers, build_topos_request, execute_provider_request,
-    required_provider_engines, required_provider_modules, validate_provider_request,
-    student_matrix_recipes, build_topos_matrix_request,
+    SCHEMA,
+    assemble_monomers,
+    build_topos_matrix_request,
+    build_topos_request,
+    execute_provider_request,
+    required_provider_engines,
+    required_provider_modules,
+    student_matrix_recipes,
+    validate_provider_request,
 )
 
 WATER = "3\nStudent Avogadro starting geometry; no observed energy\nO 0 0 0\nH .9572 0 0\nH -.24 .927 0\n"
@@ -62,7 +68,7 @@ def test_upload_path_cannot_escape_bundle(name):
         validate_provider_request(value)
 
 
-@pytest.mark.parametrize("field", ["command", "executable", "shell", "COCHEM_SOURCE_READ_TOKEN", "secret"])
+@pytest.mark.parametrize("field", ["command", "executable", "shell", "COCHEM_SOURCE_CREDENTIAL", "secret"])
 def test_scientific_options_cannot_execute_code_or_carry_credentials(field):
     value = envelope()
     value["options"]["topos_request"]["metadata"] = {field: "rejected before installation"}
@@ -103,7 +109,7 @@ def test_isotope_labels_and_original_source_hash_survive_student_ingestion():
 
 def test_windows_xyz_encoding_signature_preserves_uploaded_bytes_and_hash(tmp_path):
     from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
-    from cochem_base.interfaces.artifact_handoff import prepare_module_handoff, load_module_handoff
+    from cochem_base.interfaces.artifact_handoff import load_module_handoff, prepare_module_handoff
 
     original = ("\ufeff" + WATER).encode("utf-8")
     artifact = tmp_path / "water.xyz"
@@ -221,6 +227,7 @@ def test_orbital_form_cannot_inject_engine_input_or_omit_state():
 
 def test_timed_out_provider_controller_and_real_descendant_are_stopped(tmp_path):
     import psutil
+
     from cochem_base.interfaces.module_execution import _run_adapter
 
     pid_file = tmp_path / "child.pid"
@@ -239,9 +246,11 @@ def test_timed_out_provider_controller_and_real_descendant_are_stopped(tmp_path)
 
 
 def test_user_cancellation_stops_owned_provider_and_real_descendant(tmp_path):
-    import psutil
     from threading import Event, Timer
-    from cochem_base.interfaces.module_execution import _run_adapter, ModuleOperationCancelled
+
+    import psutil
+
+    from cochem_base.interfaces.module_execution import ModuleOperationCancelled, _run_adapter
 
     pid_file = tmp_path / "child.pid"
     script = ("import subprocess,sys,pathlib; "

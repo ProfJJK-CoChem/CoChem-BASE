@@ -7,9 +7,9 @@ Successful downstream chemistry remains a separate real-provider acceptance run.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -19,6 +19,7 @@ from cochem_base.interfaces.module_execution import (
     installed_module_status,
 )
 from scripts import manage_modules as installer
+
 # Pytest discovers the imported real Git fixture by name.
 from tests.base.test_module_installer import git, install_fixture, repository  # noqa: F401
 
@@ -113,7 +114,7 @@ def test_missing_and_invalid_installations_stay_unavailable(tmp_path):
 
 
 def test_provider_environment_removes_credentials_and_injection():
-    blocked = ["COCHEM_SOURCE_READ_TOKEN", "PRIVATE_ORCA_ASSET_CREDENTIAL", "GITHUB_TOKEN", "GH_TOKEN",
+    blocked = ["COCHEM_SOURCE_CREDENTIAL", "COCHEM_ORCA_ASSET_CREDENTIAL", "GITHUB_TOKEN", "GH_TOKEN",
                "MY_API_KEY", "PRIVATE_PASSWORD", "SOURCE_CREDENTIAL", "MY_SECRET", "GIT_CONFIG_COUNT",
                "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_ASKPASS", "SSH_ASKPASS", "PYTHONPATH",
                "PYTHONHOME", "PYTHONUSERBASE", "VIRTUAL_ENV", "LD_PRELOAD", "LD_LIBRARY_PATH",

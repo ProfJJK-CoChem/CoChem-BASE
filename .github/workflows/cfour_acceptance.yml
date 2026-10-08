@@ -14,9 +14,10 @@ on:
         required: true
         type: string
     secrets:
-      PRIVATE_CFOUR_ASSET_CREDENTIAL:
+      engine_asset_credential:
+        description: Instructor-authorized read-only access to the approved private engine archive.
         required: true
-      BASE_SOURCE_READ_TOKEN:
+      base_source_credential:
         description: Optional read-only access when a reusable caller cannot read the private BASE source.
         required: false
   # Register and exercise the integration before it reaches the default branch.
@@ -28,6 +29,9 @@ on:
       - '.github/workflows/cfour_acceptance.yml'
       - 'scripts/*cfour*'
       - 'src/cochem_base/calc/cfour_execution.py'
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
 
 permissions:
   contents: read
@@ -41,6 +45,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
+      COCHEM_EXPECTED_REVISION: ${{ inputs.base_ref || github.sha }}
       OMP_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
       MKL_NUM_THREADS: '1'
@@ -60,7 +65,7 @@ jobs:
         with:
           repository: ${{ inputs.base_repository || github.repository }}
           ref: ${{ inputs.base_ref || github.sha }}
-          token: ${{ secrets.BASE_SOURCE_READ_TOKEN || github.token }}
+          token: ${{ secrets.base_source_credential || github.token }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -88,7 +93,7 @@ jobs:
           echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
           git rev-parse HEAD > "$RUNNER_TEMP/cfour-evidence/base-commit.txt"
       - name: Audit the checked-out BASE source
-        run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/cfour-evidence/source-audit"
+        run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "$RUNNER_TEMP/cfour-evidence/source-audit"
       - name: Install the approved runtime's native prerequisite
         run: |
           sudo apt-get update
@@ -106,7 +111,7 @@ jobs:
       - name: Install the checksum-pinned private CFOUR runtime
         uses: ./.github/actions/setup-cfour
         with:
-          asset-token: ${{ secrets.PRIVATE_CFOUR_ASSET_CREDENTIAL }}
+          asset-token: ${{ secrets.engine_asset_credential || secrets[vars.COCHEM_CFOUR_ACCESS_SECRET] }}
           required: 'true'
       - name: Install BASE and execute all eleven Stage 0 phases
         run: |

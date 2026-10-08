@@ -29,6 +29,9 @@ on:
         default: '512'
         type: string
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 permissions:
   contents: read
 
@@ -41,6 +44,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
+      COCHEM_EXPECTED_REVISION: ${{ github.sha }}
       OMP_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
       MKL_NUM_THREADS: '1'
@@ -66,12 +70,12 @@ jobs:
           echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
           echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
           git rev-parse HEAD > "$RUNNER_TEMP/cfour-evidence/source-commit.txt"
+      - name: Audit the checked-out BASE source
+        run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "$RUNNER_TEMP/cfour-evidence/source-audit"
       - name: Check the submitted file and Classroom resource limits
         run: |
           python scripts/run_actions_calculation.py --engine cfour --preflight-only \
             --job-file "$JOB_FILE" --cores "$JOB_CORES" --maxcore-mb "$JOB_MAXCORE_MB"
-      - name: Audit the checked-out BASE source
-        run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/cfour-evidence/source-audit"
       - name: Install the approved runtime's native prerequisite
         run: |
           sudo apt-get update
@@ -79,7 +83,7 @@ jobs:
       - name: Install the checksum-pinned private CFOUR runtime
         uses: ./.github/actions/setup-cfour
         with:
-          asset-token: ${{ secrets.PRIVATE_CFOUR_ASSET_CREDENTIAL }}
+          asset-token: ${{ secrets[vars.COCHEM_CFOUR_ACCESS_SECRET] }}
           required: 'true'
       - name: Install BASE and execute all eleven Stage 0 phases
         run: |

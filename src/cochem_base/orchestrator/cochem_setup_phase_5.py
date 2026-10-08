@@ -53,10 +53,10 @@ except ImportError:
 try:
     from cochem_core_registry_schema import (
         CARBON_13_ISOTOPIC_MASS,
-        get_registry_atomic_mass,
         CoChemSystemConfig,
         OSTarget,
         discover_host_hardware,
+        get_registry_atomic_mass,
     )
 except ImportError:
     repo_root = Path(__file__).resolve().parent.parent
@@ -64,19 +64,18 @@ except ImportError:
         sys.path.insert(0, str(repo_root))
     from cochem_core_registry_schema import (
         CARBON_13_ISOTOPIC_MASS,
-        get_registry_atomic_mass,
         CoChemSystemConfig,
         OSTarget,
         discover_host_hardware,
+        get_registry_atomic_mass,
     )
 
 import atexit
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("cochem_setup_phase_5")
 
 from cochem_base.process_cleanup import reap_owned_children as sweep_zombies
-
-
 
 # =============================================================================
 # 1. EXCEPTIONS
@@ -817,8 +816,8 @@ def consolidate_intermediate_states(
                             hw["ram_gb"] = float(ram_info["ram_gb"])
 
                         if "avx512_support" in cpu_info:
-                            hw["avx_512_capable"] = bool(cpu_info["avx512_support"])
-                            hw["avx512_support"] = bool(cpu_info["avx512_support"])
+                            hw["avx_512_capable"] = cpu_info["avx512_support"]
+                            hw["avx512_support"] = cpu_info["avx512_support"]
 
                         if gpu_info.get("gpu_available") or gpu_info.get("available"):
                             devices_list = gpu_info.get("devices") or []

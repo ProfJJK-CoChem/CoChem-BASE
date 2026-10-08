@@ -7,22 +7,22 @@ Git SHA before code is downloaded; moving module branches are never executed.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
-from datetime import datetime, timezone
 import base64
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import shutil
-import tempfile
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 import uuid
 from collections.abc import Callable
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
 
 from scripts import manage_modules as installer
 
@@ -70,7 +70,7 @@ def _release_metadata(token: str | None = None) -> dict:
     """Read only the official stable release, using this user's GitHub identity."""
     request = urllib.request.Request(f"https://api.github.com/repos/{UPSTREAM}/releases/latest",
         headers={"Accept": "application/vnd.github+json", "User-Agent": "CoChem-BASE-student-setup"})
-    token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or os.environ.get("COCHEM_SOURCE_READ_TOKEN")
+    token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or os.environ.get("COCHEM_SOURCE_CREDENTIAL")
     if token:
         request.add_header("Authorization", f"Bearer {token}")
     try:
@@ -144,6 +144,8 @@ class StudentSetupService:
         self.artifact_dir = Path(artifact_dir or os.environ.get("COCHEM_ARTIFACT_DIR", "~/CoChem_Artifacts")).expanduser().resolve()
         if self.artifact_dir == self.repository_root or self.repository_root in self.artifact_dir.parents:
             raise StudentSetupError("Student runtime and update files must be outside the assignment repository.")
+        from cochem_base.core_engine.cochem_core_workspace_manager import scaffold_core_directories
+        scaffold_core_directories(self.artifact_dir)
         self.state_dir = self.artifact_dir / "StudentSetup"
         for path in (self.state_dir, self.artifact_dir / "Modules", self.artifact_dir / "BaseRuntime"):
             if path.is_symlink():
@@ -416,7 +418,7 @@ class StudentSetupService:
         path = config["path"]
         request = urllib.request.Request(f"https://api.github.com/repos/{UPSTREAM}/contents/{path}?ref=main",
             headers={"Accept": "application/vnd.github+json", "User-Agent": "CoChem-BASE-student-updater"})
-        token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or os.environ.get("COCHEM_SOURCE_READ_TOKEN")
+        token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or os.environ.get("COCHEM_SOURCE_CREDENTIAL")
         if token:
             request.add_header("Authorization", f"Bearer {token}")
         try:
@@ -561,7 +563,11 @@ class StudentSetupService:
         authority.mkdir(exist_ok=True, mode=0o700)
         dashboard = authority / "dashboard"
         dashboard.mkdir(exist_ok=True, mode=0o700)
-        from scripts.hosted_dashboard import runtime_environment, setup_build_environment, requested_silos
+        from scripts.hosted_dashboard import (
+            requested_silos,
+            runtime_environment,
+            setup_build_environment,
+        )
         installer._atomic_json(dashboard / "deployment_manifest.json", {
             "selected_repositories": ["CoChem-BASE", "CoChem-TOPOS", "CoChem-TORQ"],
             "requested_silos": requested_silos(self.artifact_dir)})
@@ -673,16 +679,16 @@ class StudentSetupService:
             runtime = self._active_runtime()
             validate_runtime_record(runtime, self.artifact_dir, self.repository_root)
             launcher = self.repository_root / "scripts" / "hosted_dashboard.py"
-            # The dashboard retains its user's own Codespaces identity so GUI
-            # update/retry/Actions buttons remain authorized after restart.
-            # Package builds still receive installer._build_env(), never tokens.
+            # Retain the user's own Codespaces identity and the instructor's
+            # scoped source reader for personal-project updates after restart.
+            # Package builds still receive installer._build_env(), never credentials.
             env = os.environ.copy()
-            for name in ("COCHEM_SOURCE_READ_TOKEN", "BASE_SOURCE_READ_TOKEN", "PRIVATE_ORCA_ASSET_CREDENTIAL", "PRIVATE_CFOUR_ASSET_CREDENTIAL"):
+            for name in ("base_source_credential", "COCHEM_ORCA_ASSET_CREDENTIAL", "COCHEM_CFOUR_ASSET_CREDENTIAL"):
                 env.pop(name, None)
             env.update(COCHEM_ARTIFACT_DIR=str(self.artifact_dir), COCHEM_STUDENT_AUTO_SETUP="true")
             log_path = self.state_dir / "restart.log"
             with log_path.open("ab") as log:
-                child = subprocess.Popen([sys.executable, str(launcher), "restart", "--artifacts", str(self.artifact_dir), "--restart-delay", "2"],
+                child = subprocess.Popen([sys.executable, "-B", str(launcher), "restart", "--artifacts", str(self.artifact_dir), "--restart-delay", "2"],
                     cwd=self.repository_root, env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                     start_new_session=os.name != "nt")
             self._write("restart-request.json", {"requested_at": _now(), "pid": child.pid, "runtime": runtime})

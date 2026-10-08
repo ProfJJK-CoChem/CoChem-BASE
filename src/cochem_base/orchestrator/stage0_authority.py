@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import hashlib
 import json
 import math
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -15,11 +15,11 @@ from cochem_base.cochem_core_registry_schema import (
     EngineInfo,
     EnvironmentSchema,
     HardwareSchema,
+    MicroSiloAuthority,
     SiloConfig,
     SiloPathsSchema,
     Stage0Authority,
     Stage0PhaseEvidence,
-    MicroSiloAuthority,
 )
 from cochem_base.core.cochem_core_registry_manager import save_system_config
 from cochem_base.core_engine.hardware_profiler import profile_hardware
@@ -87,7 +87,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
             str(n["node_id"]): n["cpu_core_ids"]
             for n in p11.get("numa_profile", {}).get("numa_nodes", [])
         },
-        avx_512_capable=profile.avx512 is True,
+        avx_512_capable=profile.avx512,
         vram_gb=(profile.vram_bytes or 0) / 1024**3,
         gpu_profile="NVIDIA" if profile.gpu_probe_status == "measured" else "Unavailable",
         os_target=profile.environment.os_target,
@@ -240,7 +240,12 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
 
 def publish_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
     config = build_stage0_authority(summary)
-    path = Path(summary["artifact_dir"]).resolve() / "Registry" / "cochem_system_config.json"
+    # These mkdir operations are idempotent and modify no ledger or chemistry
+    # data. Do not introduce an external shared-filesystem lock during Stage 0.
+    from cochem_base.core_engine.cochem_core_workspace_manager import provision_core_directories
+
+    workspace = provision_core_directories(summary["artifact_dir"])
+    path = workspace["Registry"] / "cochem_system_config.json"
     save_system_config(config, path)
     path.chmod(0o444)
     return config

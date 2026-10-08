@@ -2,8 +2,8 @@
 Zero-Trust Quarantine Runner Module (ci_tools/zero_trust_runner.py)
 
 Creates sterile, ephemeral execution directories (/tmp/cochem_exec_<uuid>/ or %TEMP%/cochem_exec_<uuid>)
-for isolated execution, tests, and verification. Manages child process lifetimes with psutil-based
-zombie process sweeping.
+for isolated execution, tests, and verification. Manages only the process groups
+and descendants owned by its commands.
 
 Complies with Method Matrix v4, CoChem Anti-Spoofing Protocol v2, and WBS Task 1.2.2.
 """
@@ -11,15 +11,19 @@ Complies with Method Matrix v4, CoChem Anti-Spoofing Protocol v2, and WBS Task 1
 from __future__ import annotations
 
 import atexit
+import ctypes
 import logging
 import os
 import shutil
+import signal
+import stat
 import subprocess
 import sys
 import tempfile
 import threading
 import time
 import uuid
+from ctypes import wintypes
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
@@ -58,6 +62,311 @@ class QuarantineResult:
 
 _ACTIVE_PROCESSES: set[subprocess.Popen] = set()
 _PROCESS_LOCK = threading.RLock()
+_LOCK_TIMEOUT_S = 0.25
+_CLEANUP_TIMEOUT_S = 3.0
+
+
+class _IOCounters(ctypes.Structure):
+    _fields_ = [(name, ctypes.c_uint64) for name in (
+        "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+        "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
+    )]
+
+
+class _JobBasicLimits(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_int64),
+        ("PerJobUserTimeLimit", ctypes.c_int64),
+        ("LimitFlags", ctypes.c_uint32),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", ctypes.c_uint32),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", ctypes.c_uint32),
+        ("SchedulingClass", ctypes.c_uint32),
+    ]
+
+
+class _JobExtendedLimits(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", _JobBasicLimits), ("IoInfo", _IOCounters),
+        ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryLimit", ctypes.c_size_t), ("PeakJobMemoryLimit", ctypes.c_size_t),
+    ]
+
+
+class _JobAccounting(ctypes.Structure):
+    _fields_ = [
+        ("TotalUserTime", ctypes.c_int64), ("TotalKernelTime", ctypes.c_int64),
+        ("ThisPeriodTotalUserTime", ctypes.c_int64),
+        ("ThisPeriodTotalKernelTime", ctypes.c_int64),
+        ("TotalPageFaultCount", ctypes.c_uint32),
+        ("TotalProcesses", ctypes.c_uint32), ("ActiveProcesses", ctypes.c_uint32),
+        ("TotalTerminatedProcesses", ctypes.c_uint32),
+    ]
+
+
+class _WindowsJob:
+    """Own a kernel Job before allowing its suspended launcher to execute."""
+
+    def __init__(self) -> None:
+        self.handle = None
+        self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.kernel.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+        self.kernel.CreateJobObjectW.restype = wintypes.HANDLE
+        self.kernel.SetInformationJobObject.argtypes = [
+            wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+        ]
+        self.kernel.SetInformationJobObject.restype = wintypes.BOOL
+        self.kernel.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+        self.kernel.AssignProcessToJobObject.restype = wintypes.BOOL
+        self.kernel.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        self.kernel.TerminateJobObject.restype = wintypes.BOOL
+        self.kernel.QueryInformationJobObject.argtypes = [
+            wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD),
+        ]
+        self.kernel.QueryInformationJobObject.restype = wintypes.BOOL
+        self.kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        self.kernel.CloseHandle.restype = wintypes.BOOL
+        try:
+            self.handle = self.kernel.CreateJobObjectW(None, None)
+            if not self.handle:
+                raise ctypes.WinError(ctypes.get_last_error())
+            limits = _JobExtendedLimits()
+            limits.BasicLimitInformation.LimitFlags = 0x2000  # KILL_ON_JOB_CLOSE
+            if not self.kernel.SetInformationJobObject(
+                self.handle, 9, ctypes.byref(limits), ctypes.sizeof(limits),
+            ):
+                raise ctypes.WinError(ctypes.get_last_error())
+        except BaseException:
+            try:
+                self.close()
+            except OSError as error:
+                logger.warning("Partial Windows Job cleanup failed: %s", error)
+            raise
+
+    def assign_and_resume(self, process: subprocess.Popen) -> None:
+        if not self.kernel.AssignProcessToJobObject(self.handle, int(process._handle)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        resume = ctypes.WinDLL("ntdll").NtResumeProcess
+        resume.argtypes = [wintypes.HANDLE]
+        resume.restype = ctypes.c_long
+        status = resume(int(process._handle))
+        if status != 0:
+            raise RuntimeError(f"Windows quarantine launcher resume failed: NTSTATUS {status:#x}")
+
+    def close(self) -> None:
+        if self.handle:
+            if not self.kernel.CloseHandle(self.handle):
+                raise ctypes.WinError(ctypes.get_last_error())
+            self.handle = None
+
+    def stop(self, timeout: float) -> bool:
+        """Verify zero active Job members before retiring its ownership handle."""
+        if not self.handle:
+            return True
+        if not self.kernel.TerminateJobObject(self.handle, 1):
+            raise ctypes.WinError(ctypes.get_last_error())
+        deadline = time.monotonic() + max(0.0, timeout)
+        while True:
+            accounting = _JobAccounting()
+            if not self.kernel.QueryInformationJobObject(
+                self.handle, 1, ctypes.byref(accounting), ctypes.sizeof(accounting), None,
+            ):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if accounting.ActiveProcesses == 0:
+                self.close()
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+
+
+@dataclass
+class _ProcessOwner:
+    """Launch-time ownership, retained even after communicate reaps the leader."""
+
+    owns_posix_group: bool
+    leader: Any = None
+    descendants: tuple = ()
+    windows_job: Optional[_WindowsJob] = None
+
+
+_PROCESS_OWNERS: Dict[subprocess.Popen, _ProcessOwner] = {}
+
+
+def _enable_owned_descendant_reaping() -> None:
+    """Allow Linux to adopt orphaned workers at launch time, never on import."""
+    if sys.platform.startswith("linux"):
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.prctl(36, 1, 0, 0, 0) != 0:
+            logger.warning("Cannot adopt owned descendants (errno %s)", ctypes.get_errno())
+
+
+def _capture_process_owner(
+    process: subprocess.Popen, owns_group: bool, windows_job: Optional[_WindowsJob] = None,
+) -> _ProcessOwner:
+    owner = _ProcessOwner(owns_group, windows_job=windows_job)
+    if psutil is not None:
+        try:
+            owner.leader = psutil.Process(process.pid)
+            owner.leader.create_time()  # Cache the actual launch generation.
+            owner.descendants = tuple(owner.leader.children(recursive=True))
+        except psutil.NoSuchProcess:
+            logger.debug("Launcher %s exited before process discovery", process.pid)
+    return owner
+
+
+def _register_process(process: subprocess.Popen, owner: _ProcessOwner) -> None:
+    if not _PROCESS_LOCK.acquire(timeout=_LOCK_TIMEOUT_S):
+        raise RuntimeError("Quarantine process registration exceeded its lock deadline")
+    try:
+        _ACTIVE_PROCESSES.add(process)
+        _PROCESS_OWNERS[process] = owner
+    finally:
+        _PROCESS_LOCK.release()
+
+
+def _unregister_process(process: subprocess.Popen) -> None:
+    if not _PROCESS_LOCK.acquire(timeout=_LOCK_TIMEOUT_S):
+        # Its launch identity remains available for a later bounded retry.
+        return
+    try:
+        _ACTIVE_PROCESSES.discard(process)
+        _PROCESS_OWNERS.pop(process, None)
+    finally:
+        _PROCESS_LOCK.release()
+
+
+def _reap_owned_group(group_id: int) -> None:
+    """Collect only adopted zombies in this command's dedicated group."""
+    if not sys.platform.startswith("linux") or psutil is None:
+        return
+    for child in psutil.Process().children():
+        try:
+            if os.getpgid(child.pid) == group_id and child.status() == psutil.STATUS_ZOMBIE:
+                os.waitpid(child.pid, os.WNOHANG)
+        except (ChildProcessError, ProcessLookupError, PermissionError,
+                psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+
+def _stop_owned_process(
+    process: subprocess.Popen, owner: _ProcessOwner, timeout: float = _CLEANUP_TIMEOUT_S,
+) -> bool:
+    """Boundedly stop owned work; Popen alone collects its launcher's status."""
+    deadline = time.monotonic() + max(0.0, timeout)
+    if owner.windows_job is not None:
+        # Checked Job assignment happened before resume. If setup failed before
+        # assignment, the launcher is still suspended and cannot have workers.
+        if not owner.windows_job.stop(max(0.0, deadline - time.monotonic())):
+            return False
+        if process.poll() is None:
+            try:
+                process.terminate()
+            except ProcessLookupError:
+                logger.debug("Owned suspended Windows launcher already exited")
+        try:
+            process.wait(timeout=max(0.001, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            return False
+        return True
+    descendants = list(owner.descendants)
+    leader_present = False
+    if psutil is not None:
+        try:
+            current = psutil.Process(process.pid)
+            if owner.leader is None:
+                if process.returncode is not None:
+                    return False
+                owner.leader = current
+                owner.leader.create_time()
+            if (owner.leader.pid != process.pid
+                    or current.create_time() != owner.leader.create_time()):
+                logger.warning("Refusing changed launcher generation PID %s", process.pid)
+                return False
+            leader_present = True
+            descendants.extend(owner.leader.children(recursive=True))
+        except psutil.NoSuchProcess:
+            if owner.leader is None and owner.owns_posix_group:
+                return False
+        except psutil.AccessDenied:
+            logger.warning("Cannot verify owned launcher PID %s", process.pid)
+            return False
+    descendants = list(dict.fromkeys(descendants))
+    owner.descendants = tuple(descendants)
+    owns_group = owner.owns_posix_group and os.name != "nt" and process.pid != os.getpgrp()
+
+    if owns_group:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            logger.debug("Owned group %s unavailable for TERM", process.pid)
+    if os.name == "nt" and (leader_present or psutil is None and process.poll() is None):
+        # CREATE_NEW_PROCESS_GROUP does not contain a Windows process tree.
+        # Taskkill is scoped to this still-verified launcher, never a bare exited PID.
+        try:
+            taskkill = subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                capture_output=True, check=False,
+                timeout=max(0.001, deadline - time.monotonic()),
+            )
+            if taskkill.returncode != 0:
+                logger.warning("Owned Windows tree cleanup failed: %s", taskkill.stderr)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            logger.warning("Owned Windows tree cleanup failed: %s", error)
+    for child in descendants:
+        try:
+            child.terminate()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    if process.poll() is None:
+        try:
+            process.terminate()
+            process.wait(timeout=min(0.25, max(0.001, deadline - time.monotonic())))
+        except (ProcessLookupError, subprocess.TimeoutExpired):
+            logger.debug("Owned launcher %s needs forced cleanup", process.pid)
+    if owns_group:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            logger.debug("Owned group %s unavailable for KILL", process.pid)
+    for child in descendants:
+        try:
+            child.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    if process.poll() is None:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            logger.debug("Owned launcher %s already exited", process.pid)
+    try:
+        process.wait(timeout=max(0.001, deadline - time.monotonic()))
+    except subprocess.TimeoutExpired:
+        return False
+    if descendants:
+        _, alive = psutil.wait_procs(descendants, timeout=max(0.0, deadline - time.monotonic()))
+        if alive:
+            return False
+    if owns_group:
+        while True:
+            _reap_owned_group(process.pid)
+            try:
+                os.killpg(process.pid, 0)
+            except ProcessLookupError:
+                break
+            except PermissionError:
+                return False
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+    elif os.name == "nt" and not leader_present:
+        # An exited Windows launcher provides no group boundary or complete
+        # descendant discovery. Do not certify unobserved orphan cleanup.
+        return False
+    return process.poll() is not None
 
 
 def sweep_zombie_processes(processes: Optional[Sequence[subprocess.Popen]] = None) -> int:
@@ -66,41 +375,30 @@ def sweep_zombie_processes(processes: Optional[Sequence[subprocess.Popen]] = Non
     Libraries and callers may own other children of this interpreter. A process
     tree scan rooted at the interpreter would kill them and steal their statuses.
     """
-    with _PROCESS_LOCK:
-        owned = list(_ACTIVE_PROCESSES if processes is None else processes)
+    if not _PROCESS_LOCK.acquire(timeout=_LOCK_TIMEOUT_S):
+        return 0
+    try:
+        owned = [(process, _PROCESS_OWNERS.get(process))
+                 for process in (_ACTIVE_PROCESSES if processes is None else processes)]
+    finally:
+        _PROCESS_LOCK.release()
     terminated_count = 0
-    for process in owned:
-        children = []
-        if process.poll() is None:
-            if psutil is not None:
-                try:
-                    children = psutil.Process(process.pid).children(recursive=True)
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-            for child in children:
-                try:
-                    child.terminate()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-            try:
-                process.terminate()
-                process.wait(timeout=3.0)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=3.0)
-            except ProcessLookupError:
-                process.wait(timeout=3.0)
-            terminated_count += 1
-            if children:
-                _, alive = psutil.wait_procs(children, timeout=0.5)
-                for child in alive:
-                    try:
-                        child.kill()
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
-                psutil.wait_procs(alive, timeout=0.5)
-        with _PROCESS_LOCK:
-            _ACTIVE_PROCESSES.discard(process)
+    deadline = time.monotonic() + _CLEANUP_TIMEOUT_S
+    for process, owner in owned:
+        was_active = process.poll() is None
+        try:
+            # Explicit caller handles are allowed, but never infer ownership of
+            # the caller's shared POSIX group from an arbitrary Popen PID.
+            owner = owner or _capture_process_owner(process, False)
+            finished = _stop_owned_process(process, owner, max(0.0, deadline - time.monotonic()))
+        except Exception as error:
+            finished = False
+            logger.warning("Owned command cleanup failed: %s", error)
+        if finished:
+            terminated_count += int(was_active)
+            _unregister_process(process)
+        else:
+            logger.warning("Retaining incomplete owned command cleanup PID %s", process.pid)
     return terminated_count
 
 
@@ -129,9 +427,11 @@ class QuarantineEnvironment:
         self.quarantine_id = str(uuid.uuid4())
         self.quarantine_dir = self.base_dir / f"{self.prefix}{self.quarantine_id}"
         self._active_processes: set[subprocess.Popen] = set()
+        self._process_owners: Dict[subprocess.Popen, _ProcessOwner] = {}
 
     def __enter__(self) -> "QuarantineEnvironment":
-        self.quarantine_dir.mkdir(parents=True, exist_ok=True)
+        self.quarantine_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
+        self._enforce_private_root()
         for src_path in self.copy_paths:
             if src_path.exists():
                 dest_path = self.quarantine_dir / src_path.name
@@ -141,9 +441,33 @@ class QuarantineEnvironment:
                     shutil.copytree(src_path, dest_path, dirs_exist_ok=True)
         return self
 
+    def _enforce_private_root(self) -> None:
+        """Restore privacy after repository copying may transfer root metadata."""
+        if os.name == "posix":
+            self.quarantine_dir.chmod(0o700)
+            if stat.S_IMODE(self.quarantine_dir.stat().st_mode) != 0o700:
+                raise PermissionError(f"Quarantine directory is not private: {self.quarantine_dir}")
+
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        sweep_zombie_processes(list(self._active_processes))
-        if exc_type is not None and self.preserve_on_failure:
+        deadline = time.monotonic() + _CLEANUP_TIMEOUT_S
+        for process in list(self._active_processes):
+            try:
+                finished = _stop_owned_process(
+                    process, self._process_owners[process],
+                    max(0.0, deadline - time.monotonic()),
+                )
+            except BaseException as error:
+                if exc_val is None and not isinstance(error, Exception):
+                    raise
+                finished = False
+                logger.warning("Quarantine context cleanup failed: %s", error)
+            if finished:
+                _unregister_process(process)
+                self._active_processes.discard(process)
+                self._process_owners.pop(process, None)
+        if self._active_processes:
+            logger.warning("Preserving quarantine with incomplete owned cleanup: %s", self.quarantine_dir)
+        elif exc_type is not None and self.preserve_on_failure:
             logger.warning(f"Preserving failed quarantine directory: {self.quarantine_dir}")
         else:
             shutil.rmtree(self.quarantine_dir, ignore_errors=True)
@@ -153,9 +477,11 @@ class QuarantineEnvironment:
         command: Sequence[str],
         timeout: int = 300,
         env_overrides: Optional[Dict[str, str]] = None,
+        *,
+        environment: Optional[Dict[str, str]] = None,
     ) -> QuarantineResult:
         """Execute a command strictly inside the quarantine directory."""
-        env = os.environ.copy()
+        env = (os.environ if environment is None else environment).copy()
         if env_overrides:
             env.update(env_overrides)
 
@@ -168,32 +494,62 @@ class QuarantineEnvironment:
         env["PYTHONUTF8"] = "1"
 
         start_time = time.monotonic()
-        timed_out = False
-
         try:
-            process = subprocess.Popen(
-                list(command), cwd=str(self.quarantine_dir), env=env,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, encoding="utf-8", errors="strict",
-                start_new_session=os.name != "nt",
-            )
-            self._active_processes.add(process)
-            with _PROCESS_LOCK:
-                _ACTIVE_PROCESSES.add(process)
+            self._enforce_private_root()
+            _enable_owned_descendant_reaping()
+            windows_job = _WindowsJob() if os.name == "nt" else None
+            launch_options: Dict[str, Any] = {"start_new_session": os.name != "nt"}
+            if os.name == "nt":
+                # Require the actual Windows flag rather than silently launching
+                # inside the caller's console process group.
+                launch_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004
+            owner = _ProcessOwner(os.name != "nt", windows_job=windows_job)
             try:
+                process = subprocess.Popen(
+                    list(command), cwd=str(self.quarantine_dir), env=env,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    text=True, encoding="utf-8", errors="strict",
+                    **launch_options,
+                )
+            except BaseException:
+                if windows_job is not None:
+                    try:
+                        windows_job.close()
+                    except OSError as cleanup_error:
+                        logger.warning("Unlaunched Windows Job cleanup failed: %s", cleanup_error)
+                raise
+            try:
+                self._active_processes.add(process)
+                self._process_owners[process] = owner
+                owner = _capture_process_owner(process, os.name != "nt", windows_job)
+                self._process_owners[process] = owner
+                _register_process(process, owner)
+                if windows_job is not None:
+                    windows_job.assign_and_resume(process)
                 stdout, stderr = process.communicate(timeout=timeout)
                 result = subprocess.CompletedProcess(list(command), process.returncode, stdout, stderr)
-            except BaseException:
-                sweep_zombie_processes([process])
-                raise
             finally:
-                self._active_processes.discard(process)
-                with _PROCESS_LOCK:
-                    _ACTIVE_PROCESSES.discard(process)
+                original_exception = sys.exc_info()[1]
+                try:
+                    finished = _stop_owned_process(process, owner)
+                except BaseException as cleanup_error:
+                    if original_exception is None and not isinstance(cleanup_error, Exception):
+                        raise
+                    finished = False
+                    logger.warning("Owned command cleanup failed: %s", cleanup_error)
+                if finished:
+                    _unregister_process(process)
+                    self._active_processes.discard(process)
+                    self._process_owners.pop(process, None)
                 if process.stdout is not None:
                     process.stdout.close()
                 if process.stderr is not None:
                     process.stderr.close()
+                if not finished:
+                    message = f"Owned command cleanup incomplete for PID {process.pid}"
+                    if original_exception is None:
+                        raise RuntimeError(message)
+                    logger.warning("%s; preserving %s", message, type(original_exception).__name__)
             duration = time.monotonic() - start_time
             passed = (result.returncode == 0)
             return QuarantineResult(
@@ -244,11 +600,13 @@ def run_in_quarantine(
 
 def main() -> int:
     import argparse
-    import re
     import hashlib
+    import json
     
     parser = argparse.ArgumentParser(description="Zero-Trust Quarantine Runner")
     parser.add_argument("--nonce", type=str, help="Cryptographic nonce for ExecutionReceipt", default="UNKNOWN_NONCE")
+    parser.add_argument("--expected-revision", help="Full immutable reviewed Git commit SHA")
+    parser.add_argument("--development", action="store_true", help="Explicit non-release execution of tracked working source")
     parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to run in quarantine")
     args = parser.parse_args()
 
@@ -259,24 +617,63 @@ def main() -> int:
     command = args.command
     if command[0] == "--":
         command = command[1:]
+    if not command:
+        logger.error("A quarantine command is required")
+        return 1
 
     cwd = Path.cwd().resolve()
+    if __package__ in (None, ""):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.dont_write_bytecode = True
+    from ci_tools.base_ci import (
+        InfrastructureIntegrityError,
+        _copy_reviewed_source,
+        _profile_environment,
+        tracked_source_snapshot,
+        verify_source_binding,
+    )
+    try:
+        binding = verify_source_binding(
+            cwd, expected_revision=args.expected_revision, development=args.development,
+        )
+        source_before = tracked_source_snapshot(cwd)
+    except InfrastructureIntegrityError as error:
+        logger.error("%s", error)
+        return 1
     
     with QuarantineEnvironment() as qe:
-        # 1. Enforce copy of current repository to quarantine directory
-        shutil.copytree(cwd, qe.quarantine_dir, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache", ".agent_artifacts", ".trash"))
+        # The reviewed copy excludes student files, licensed runtimes and parent
+        # Git configuration. Generic run_command/copy_paths remain caller APIs.
+        _copy_reviewed_source(cwd, qe.quarantine_dir, binding)
+        copied_before = tracked_source_snapshot(qe.quarantine_dir)
         
-        # 2. PathCanonicalRewriter: Regex-based case-insensitive path replacement
+        # Rewrite proven source paths only. Runtime/input paths and all other
+        # literal argument bytes keep their caller meaning.
         new_command = []
-        cwd_str = str(cwd).replace("\\", "\\\\")
-        # Regex to match the cwd path (case insensitive) anywhere in the argument
-        cwd_pattern = re.compile(re.escape(str(cwd)), re.IGNORECASE)
-        cwd_forward_pattern = re.compile(re.escape(str(cwd).replace("\\", "/")), re.IGNORECASE)
-        
         for arg in command:
-            new_arg = cwd_pattern.sub(str(qe.quarantine_dir).replace("\\", "\\\\"), arg)
-            new_arg = cwd_forward_pattern.sub(str(qe.quarantine_dir).replace("\\", "/"), new_arg)
-            new_command.append(new_arg)
+            prefix, separator, value = arg.partition("=") if arg.startswith("-") else ("", "", arg)
+            if not separator and arg.startswith("-"):
+                new_command.append(arg)
+                continue
+            candidate = Path(value)
+            original = candidate if candidate.is_absolute() else cwd / candidate
+            rewritten = value
+            try:
+                canonical = original.resolve()
+                if canonical.is_relative_to(cwd):
+                    relative = canonical.relative_to(cwd).as_posix()
+                    if relative in source_before or relative == "." or any(
+                        name.startswith(relative + "/") for name in source_before
+                    ):
+                        rewritten = str(qe.quarantine_dir / relative)
+                    elif not candidate.is_absolute() and canonical.exists():
+                        rewritten = str(canonical)
+                elif not candidate.is_absolute() and canonical.exists():
+                    rewritten = str(canonical)
+            except (OSError, ValueError):
+                # A program string or arbitrary literal is not a filesystem path.
+                rewritten = value
+            new_command.append(prefix + separator + rewritten)
                 
         # 3. Set PYTHONPATH and COCHEM_ROOT strictly to quarantine directory
         extra_paths = [str(qe.quarantine_dir)]
@@ -285,12 +682,39 @@ def main() -> int:
             if copied_directory.is_dir():
                 extra_paths.append(str(copied_directory))
 
-        env_overrides = {
-            "PYTHONPATH": os.pathsep.join(extra_paths),
-            "COCHEM_ROOT": str(qe.quarantine_dir)
-        }
-        
-        res = qe.run_command(new_command, timeout=300, env_overrides=env_overrides)
+        env_overrides = _profile_environment(cwd, qe.quarantine_dir)
+        env_overrides["PYTHONPATH"] = os.pathsep.join(extra_paths)
+        res = qe.run_command(new_command, timeout=300, environment=env_overrides)
+        source_after = tracked_source_snapshot(cwd)
+        copied_after = tracked_source_snapshot(qe.quarantine_dir)
+        post_binding_error = None
+        try:
+            verify_source_binding(cwd, expected_revision=binding["revision"], development=args.development)
+            verify_source_binding(qe.quarantine_dir, expected_revision=binding["revision"], development=args.development)
+        except InfrastructureIntegrityError as error:
+            post_binding_error = str(error)
+
+    changed_original = sorted(name for name in source_before.keys() | source_after.keys()
+                              if source_before.get(name) != source_after.get(name))
+    changed_copy = sorted(name for name in copied_before.keys() | copied_after.keys()
+                          if copied_before.get(name) != copied_after.get(name))
+    if changed_original or changed_copy or post_binding_error:
+        res.exit_code = 1
+        res.passed = False
+        res.stderr += "\n[HARD_ABORT: SOURCE CHANGED DURING QUARANTINE EXECUTION]"
+    def source_seal(snapshot: dict) -> str:
+        return hashlib.sha256(json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    source_report = {
+        "binding": binding,
+        "source_before_sha256": source_seal(source_before),
+        "source_after_sha256": source_seal(source_after),
+        "copied_before_sha256": source_seal(copied_before),
+        "copied_after_sha256": source_seal(copied_after),
+        "source_changed": changed_original, "copied_source_changed": changed_copy,
+        "post_binding_error": post_binding_error,
+        "release_accepted": bool(binding["release_accepted"] and res.passed),
+    }
+    print("SOURCE_BINDING_REPORT: " + json.dumps(source_report, sort_keys=True))
 
     if res.stdout:
         print(res.stdout)

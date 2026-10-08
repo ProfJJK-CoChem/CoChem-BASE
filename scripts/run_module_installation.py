@@ -59,9 +59,9 @@ def run_batch(*, action: str, modules: list[str], manifest: Path,
         "scientific_accuracy_established": False,
     }
     _atomic_json(report_path, report)
-    if require_source_token and not os.environ.get("COCHEM_SOURCE_READ_TOKEN"):
+    if require_source_token and not os.environ.get("COCHEM_SOURCE_CREDENTIAL"):
         report["configuration_error"] = (
-            "Configure COCHEM_SOURCE_READ_TOKEN for this repository with Contents read "
+            "Instructor-configured source access is unavailable. Authorize this private project for Contents read "
             "access to the selected module sources."
         )
         _atomic_json(report_path, report)

@@ -1,13 +1,16 @@
 # Accept the actual no-code student research deployment
 
-A deployment passes only when a student uses their own accepted Classroom50
-repository, fresh Codespace and ordinary GUI route. Source installation,
+The selected deployment passes only when a student uses their own independent
+private personal BASE project, its App-managed access, a fresh Codespace and the
+ordinary GUI route. Source installation,
 locally rendered Voilà and instructor-run Actions are separate evidence. Do not
 infer student permissions from the instructor's access.
 
-Follow the [instructor deployment guide](Classroom50_Assignment_Deployment.md)
-and [student no-code guide](Student_Research_No_Code.md). Students supply their
-own Avogadro 2 monomer or complex XYZ files. They receive BASE alone and never
+Follow the [personal-project App deployment guide](Personal_Project_App_Deployment.md),
+[Classroom50 collection guide](Classroom50_Assignment_Deployment.md) and
+[student no-code guide](Student_Research_No_Code.md). Students supply their own
+scientific inputs; Avogadro 2 monomer/complex XYZ is one route. The full specified
+molecular/native/periodic ingestion suite remains part of BASE acceptance. They receive BASE alone and never
 run terminal installation commands or open underlying module repositories.
 
 ## Before student acceptance
@@ -15,12 +18,17 @@ run terminal installation commands or open underlying module repositories.
 The instructor should record:
 
 - Reviewed BASE starter/runtime source and compatible module catalog.
-- Course organization, template, classroom and assignment.
-- Organization Actions secret policy for each required reader: all applicable
-  repositories or selected assignment grants. No credential values.
-- Student team Read access, accepted membership and same-owner Codespaces
-  repository declarations.
-- Personal Codespaces payer/allowance and organization Actions entitlement.
+- Course organization/team, reviewed public BASE template, private instructor
+  controller and Classroom50 collection arrangement.
+- Personal project owner, private/nonfork status, selected App installation and
+  actual enrollment/controller receipt. No signing key, credential values or
+  private reader labels in the pilot record.
+- Private mapping-variable presence for each approved reader; Actions and
+  Codespaces are separately provisioned stores. Organization secrets cannot
+  inherit into a personal project.
+- Active student team membership and permitted private-source/engine Read access.
+- Personal Codespaces/Actions payer, current Education benefits and usage limits;
+  organization entitlement covers controller/collection administration only.
 - Approved scientific protocol and a bounded test that fits the worker.
 
 ORCA/CFOUR are optional and strongly recommended. With both absent, BASE must
@@ -31,8 +39,10 @@ explicitly requesting an unavailable engine must not be reported successful.
 
 | Check | Student action | Evidence required |
 | --- | --- | --- |
-| Assignment acceptance | Accept the Classroom50 link and open the repository | Real student identity, accepted organization membership, exact assignment/revision. |
-| Fresh Codespace | Create on the approved branch and authorize requested permissions | Actual GitHub Codespaces service record, student identity, creation time, machine and payer. |
+| Project creation | Use the approved BASE template to create a Private repository owned by the student's personal account | Real owner/private/nonfork metadata and exact compatible starter; a template copy has independent Git history. |
+| App consent and enrollment | Install the instructor App only on that project and submit BASE's data-only enrollment | Active team membership, selected installation, controller run URL and complete provisioning receipt; public/fork/foreign-owner/unapproved requests refuse. |
+| Classroom50 enrollment | Accept the course invitation and follow collection instructions | Real student identity, organization/class membership and actual private project/report submission link. |
+| Fresh Codespace | Create on the approved private project's branch after access provisioning | Actual Codespaces record, student identity, creation time, machine/payer and separately provisioned source access. No inherited organization-secret or cross-owner scoped-token assumption. |
 | Automatic setup | Wait for BASE to render its setup status | Required modules installed/verified without student commands; failures accurately disable their operations. |
 | Original ingestion | Upload their own monomer and complex XYZ, choose one of several starting files | Actual browser FileUpload, original bytes/hash, ordered nuclei/geometry and state handling. |
 | Full scientific intake | Upload a course-relevant MOL/SDF/PDB/QCSchema file; select a specific retained frame | All records, isotope/state/unit metadata and unchanged original source hashes; valid selections survive restart. |
@@ -44,7 +54,7 @@ explicitly requesting an unavailable engine must not be reported successful.
 | Retrieval | Retrieve and inspect results and download the bundle | Correct request/run/artifact association, file checksums, genuine data visible in GUI. |
 | Research output | Run supported comparisons/analysis | Authentic tables/figures, explicit conventions and unavailable-data gates. |
 | Compatible fix | Check/apply an approved update and restart | Exact old/new versions, original uploads and prior result hashes unchanged, successful rollback behavior when relevant. |
-| Submission | Commit/sync a report with VS Code buttons | Report appears in GitHub and Classroom50 collection under the student's identity; instructor feedback/score recorded. |
+| Submission | Save/sync a report with VS Code buttons and use the instructor's Classroom50 collection process | Report exists in the personal project and is actually accessible to the authorized instructor; private-project collection/feedback is observed, not inferred from organization membership or the App provisioner. |
 
 A browser download/export alone is not a submitted calculation. An Actions run
 with an instructor credential is not proof of student-token permissions. An
@@ -77,7 +87,20 @@ and actual hosted run/artifact evidence together. Distinguish UI-only acceptance
 from real hosted calculation acceptance in the report. Never report an optional
 hosted check as performed when no real run occurred.
 
-## Current service boundary
+## Current candidate and service boundary
+
+The instructor-managed App controller, encrypted Actions/private-variable
+bindings and separate Codespaces source-reader delivery are implemented in
+current source. Existing workflow migration has local parser/actionlint and
+credential-isolation evidence. That is not a live App installation or a successful
+student enrollment. The instructor must register/configure the App and verify its
+actual selected-project permissions before this pilot can pass.
+
+The current revised candidate's final clean-source profile, fresh wheel, full
+browser and hosted checks are pending. Earlier source-specific successes remain
+retained, and failed/aborted attempts remain failures. A final count will be
+published only with its exact immutable source and acceptance records.
+
 
 Earlier cloud validation found zero existing Codespaces and received HTTP 403
 `Resource not accessible by integration` from repository machine/permission
@@ -134,7 +157,9 @@ a new engine job, an equilibrium certificate or an experimental accuracy test.
 
 Keep one small JSON/Markdown record per pilot with:
 
-- Student username, organization, classroom, assignment and Codespace identity.
+- Student username, personal project owner/private/nonfork identity, selected App
+  installation, private controller run and Classroom50 collection record.
+- Actual Codespace identity, creation time and source-access provisioning status.
 - BASE runtime/starter and provider revisions and compatible-update catalog.
 - Payer/machine, setup outcomes and each actually available capability.
 - Uploaded filenames, source hashes, ordered element/isotope identities,

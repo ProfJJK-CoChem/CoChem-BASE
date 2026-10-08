@@ -3,6 +3,9 @@ name: ORCA private archive access
 on:
   workflow_dispatch:
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 permissions:
   contents: read
 
@@ -11,10 +14,17 @@ jobs:
     name: Download and verify the licensed ORCA archive
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      COCHEM_EXPECTED_REVISION: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Audit the reviewed source before distribution imports
+        run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "$RUNNER_TEMP/orca-access-evidence/source-audit"
       - name: Read the shared instructor-reviewed distribution identity
         run: |
           python - <<'PY'
@@ -34,11 +44,11 @@ jobs:
       - name: Check private access and the independently recorded checksum
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}
+          GH_TOKEN: ${{ secrets[vars.COCHEM_ORCA_ACCESS_SECRET] }}
         run: |
           set -euo pipefail
           if [[ -z "$GH_TOKEN" ]]; then
-            echo "::error::PRIVATE_ORCA_ASSET_CREDENTIAL needs Contents read access to $ORCA_ASSET_REPOSITORY."
+            echo "::error::The instructor-configured archive credential needs Contents read access to $ORCA_ASSET_REPOSITORY."
             exit 1
           fi
 
@@ -57,3 +67,11 @@ jobs:
             echo 'Scope: archive access and integrity only. ORCA/MPI installation, BASE setup and physical calculations have not run.'
             echo 'The downloaded archive is removed; it is not published as an Actions artifact.'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve source integrity evidence without licensed files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orca-access-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/orca-access-evidence/
+          if-no-files-found: error
+          retention-days: 14

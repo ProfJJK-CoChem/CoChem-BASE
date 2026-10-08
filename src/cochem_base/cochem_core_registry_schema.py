@@ -41,6 +41,8 @@ from pydantic import (
     model_validator,
 )
 
+from cochem_base.core_engine.hardware_observations import synchronize_avx512_observation
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,7 @@ logger = logging.getLogger(__name__)
 def get_registry_atomic_mass(symbol_or_z: Union[str, int], mass_number: Optional[int] = None) -> float:
     """Dynamic IUPAC/CIAAW mass resolver honoring the Mendeleev Mandate [M]."""
     import mendeleev
+
     from cochem_base.core.exceptions import IsotopeStabilityError
     from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
     symbol = mendeleev.element(symbol_or_z).symbol if isinstance(symbol_or_z, int) else symbol_or_z
@@ -283,7 +286,7 @@ class HardwareSchema(BaseModel):
     gpu_compute_metrics: GPUComputeSchema = Field(default_factory=GPUComputeSchema, description="GPU compute metrics and capabilities")
     gpu_fp64_capable: bool = Field(default=False, description="Whether GPU supports native FP64 precision")
     mps_enabled: bool = Field(default=False, description="Whether CUDA MPS is enabled")
-    avx_512_capable: bool = Field(default=False, description="Whether CPU supports AVX-512 vector instructions")
+    avx_512_capable: Optional[bool] = Field(default=None, description="Whether CPU supports AVX-512 vector instructions")
 
     # Ecosystem & compatibility aliases
     physical_cpu_cores: Optional[int] = Field(default=None, ge=1, description="Alias for cpu_physical_cores")
@@ -291,7 +294,7 @@ class HardwareSchema(BaseModel):
     cpu_cores: Optional[int] = Field(default=None, ge=1, description="Legacy CPU cores alias")
     ram_mb: Optional[int] = Field(default=None, ge=1, description="Total system RAM in MB")
     maxcore_mb: Optional[int] = Field(default=None, ge=0, description="Max core memory per process in MB")
-    avx512_support: bool = Field(default=False, description="Legacy alias for avx_512_capable")
+    avx512_support: Optional[bool] = Field(default=None, description="Legacy alias for avx_512_capable")
     gpu_profile: str = Field(default="None", description="Detected GPU model name")
     subnormal_precision_trap: bool = Field(default=False, description="Subnormal floating-point trap")
     os_target: Union[OSTarget, str] = Field(default=OSTarget.LOCAL_WINDOWS, description="Target execution environment")
@@ -394,13 +397,7 @@ class HardwareSchema(BaseModel):
             d["maxcore_mb"] = None
 
         # Synchronize AVX-512 capabilities
-        if "avx_512_capable" in d and "avx512_support" not in d:
-            d["avx512_support"] = bool(d["avx_512_capable"])
-        elif "avx512_support" in d and "avx_512_capable" not in d:
-            d["avx_512_capable"] = bool(d["avx512_support"])
-        elif "avx_512_capable" not in d and "avx512_support" not in d:
-            d["avx_512_capable"] = False
-            d["avx512_support"] = False
+        synchronize_avx512_observation(d)
 
         # Synchronize GPU compute metrics
         gpu_data = d.get("gpu_compute_metrics") or d.get("gpu")
@@ -1076,7 +1073,7 @@ def discover_host_hardware() -> HardwareSchema:
         allocatable_compute_cores=min(profile.physical_cores, len(profile.available_cpu_ids)),
         audited_cpu_ids=list(profile.available_cpu_ids),
         ram_gb=profile.allocatable_ram_bytes / 1024**3,
-        avx_512_capable=profile.avx512 is True,
+        avx_512_capable=profile.avx512,
         gpu_profile="NVIDIA" if profile.gpu_probe_status == "measured" else "Unknown",
         vram_gb=(profile.vram_bytes or 0) / 1024**3,
         os_target=profile.environment.os_target,

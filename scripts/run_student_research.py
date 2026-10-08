@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import argparse
 import base64
-from datetime import datetime, timezone
 import hashlib
 import importlib.util
 import json
 import os
-from pathlib import Path
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
 
 # Direct script execution starts on scripts/, while the cheap readiness path
 # deliberately runs before BASE installation. Import only helpers from this
@@ -81,13 +81,25 @@ def preflight(output: Path) -> dict:
     return request
 
 
+def verify_project(output: Path) -> dict:
+    """Recheck actual visibility using only this job's read-only repository token."""
+    access = _local_contract("course_access")
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if not token:
+        raise ValueError("The current project's read-only GitHub identity is required")
+    receipt = access.verify_calculation_project(
+        access.GitHubAPI(token), os.environ.get("GITHUB_REPOSITORY", ""))
+    _atomic_json(output / "project-visibility.json", receipt)
+    return receipt
+
+
 def approve_worker(output: Path) -> dict:
     """Approve only an instructor-controlled canonical revision, never a user ref."""
     request = contract.strict_json((output / "request.json").read_bytes())
     transported = contract.decode_transport_request(os.environ["REQUEST_BASE64"], os.environ["REQUEST_SHA256"])
     if request != transported:
         raise ValueError("The saved request differs from the submitted transport bytes")
-    token = os.environ.get("COCHEM_SOURCE_READ_TOKEN", "")
+    token = os.environ.get("COCHEM_SOURCE_CREDENTIAL", "")
     if not token:
         raise ValueError("The instructor must authorize this assignment for BASE source-reader access")
     canonical = "ProfJJK-CoChem/CoChem-BASE"
@@ -292,7 +304,11 @@ def verify_worker_checkout(output: Path) -> dict:
 
 
 def _run_xtb(request: dict, output: Path, registry: Path) -> dict:
-    from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry, run_calculation
+    from cochem_base.calc.calculation_service import (
+        CalculationMatrixConfig,
+        parse_run_geometry,
+        run_calculation,
+    )
     from cochem_base.calc.xtb_execution import validate_xtb_config
     from cochem_base.interfaces.scientific_jobs import validate_job_configuration
     calculation = request["calculation"]
@@ -434,8 +450,12 @@ def _bind_original_inputs(request: dict, output: Path) -> dict | None:
 
 def _run_free_native(request: dict, output: Path, registry: Path) -> dict:
     import math
+
     from cochem_base.calc.calculation_service import CalculationMatrixConfig, run_calculation
-    from cochem_base.interfaces.scientific_jobs import validate_job_configuration, calculation_capability
+    from cochem_base.interfaces.scientific_jobs import (
+        calculation_capability,
+        validate_job_configuration,
+    )
     raw = _bind_original_inputs(request, output)
     contents = contract.canonical_json(raw)
     config = CalculationMatrixConfig.model_validate_json(contents, strict=True)
@@ -464,9 +484,13 @@ def _run_free_native(request: dict, output: Path, registry: Path) -> dict:
 
 def _run_advanced_orca(request: dict, output: Path, registry: Path) -> dict:
     import math
+
     from cochem_base.calc.calculation_service import CalculationMatrixConfig, run_calculation
-    from cochem_base.interfaces.scientific_jobs import validate_job_configuration, calculation_capability
     from cochem_base.core_engine.execution_authority import authorize_engine_execution
+    from cochem_base.interfaces.scientific_jobs import (
+        calculation_capability,
+        validate_job_configuration,
+    )
     raw = dict(request["calculation"])
     if request["scientific_inputs"] is not None:
         intake = contract.strict_json((output / "scientific-inputs.json").read_bytes())
@@ -660,6 +684,7 @@ def main(argv=None) -> int:
     modes.add_argument("--finalize-only", action="store_true")
     modes.add_argument("--approve-worker-only", action="store_true")
     modes.add_argument("--verify-worker-only", action="store_true")
+    modes.add_argument("--verify-project-only", action="store_true")
     modes.add_argument("--capability-probe", action="store_true")
     modes.add_argument("--download-scientific-inputs", action="store_true")
     modes.add_argument("--download-data-inputs", action="store_true")
@@ -674,6 +699,8 @@ def main(argv=None) -> int:
             approve_worker(args.output)
         elif args.verify_worker_only:
             verify_worker_checkout(args.output)
+        elif args.verify_project_only:
+            verify_project(args.output)
         elif args.capability_probe:
             capability_probe(args.output)
         elif args.download_scientific_inputs:

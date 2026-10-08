@@ -60,6 +60,8 @@ from pydantic import (
     model_validator,
 )
 
+from cochem_base.core_engine.hardware_observations import synchronize_avx512_observation
+
 # Configure module-level logger
 logger = logging.getLogger("CoChem-SystemConfig")
 if not logger.handlers:
@@ -521,11 +523,11 @@ class HardwareProfile(BaseModel):
     maxcore_mb: Optional[int] = Field(
         default=None, ge=0, description="Max core memory per process in MB"
     )
-    avx512_support: bool = Field(
-        default=False, description="Whether CPU supports AVX-512 vector instructions"
+    avx512_support: Optional[bool] = Field(
+        default=None, description="Whether CPU supports AVX-512 vector instructions"
     )
-    avx_512_capable: bool = Field(
-        default=False, description="Alias for avx512_support vector capabilities"
+    avx_512_capable: Optional[bool] = Field(
+        default=None, description="Alias for avx512_support vector capabilities"
     )
     gpu_profile: str = Field(default="None", description="Detected primary GPU model or 'None'")
     vram_gb: float = Field(default=0.0, ge=0.0, description="Total video memory in GB")
@@ -665,13 +667,7 @@ class HardwareProfile(BaseModel):
             d["maxcore_mb"] = 3000
 
         # Synchronize AVX-512 capabilities
-        if "avx_512_capable" in d and "avx512_support" not in d:
-            d["avx512_support"] = bool(d["avx_512_capable"])
-        elif "avx512_support" in d and "avx_512_capable" not in d:
-            d["avx_512_capable"] = bool(d["avx512_support"])
-        elif "avx_512_capable" not in d and "avx512_support" not in d:
-            d["avx_512_capable"] = False
-            d["avx512_support"] = False
+        synchronize_avx512_observation(d)
 
         # Synchronize GPU compute metrics
         gpu_data = d.get("gpu_compute_metrics") or d.get("gpu")
@@ -1541,8 +1537,8 @@ def discover_host_hardware() -> HardwareProfile:
         logical_cpu_cores=observed.logical_cores,
         allocatable_compute_cores=min(observed.physical_cores, len(observed.available_cpu_ids)),
         ram_mb=observed.allocatable_ram_bytes // 1024**2,
-        avx512_support=observed.avx512 is True,
-        avx_512_capable=observed.avx512 is True,
+        avx512_support=observed.avx512,
+        avx_512_capable=observed.avx512,
         gpu_profile=gpu_profile, vram_gb=vram_gb,
         subnormal_precision_trap=trap, gpu_fp64_capable=False, mps_enabled=False,
         os_target=observed.environment.os_target,

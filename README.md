@@ -32,9 +32,10 @@ its optional installation fails; only dependent calculations are unavailable.
 
 For private module downloads, isolated installations and TOPOS/TORQ geometry
 handoffs, follow the [ecosystem modules guide](.docs/Ecosystem_Modules_Setup.md).
-It explains `COCHEM_SOURCE_READ_TOKEN`, student-owned Codespaces, the
-organization's shared Actions allowance, and which modules currently support
-installation or execution.
+It explains private credential bindings, automatic installation and execution.
+For personal-owned private projects that use students' own Actions allowance,
+follow the [instructor-managed GitHub App guide](.docs/Personal_Project_App_Deployment.md).
+Students authorize their selected project without handling token values.
 
 The **1.1.0 release candidate** adds automatic module setup, student geometry
 uploads, direct Actions submission and retrieval, research reports and preserved

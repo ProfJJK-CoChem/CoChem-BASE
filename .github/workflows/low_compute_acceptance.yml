@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   workflow_call:
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 permissions:
   contents: read
 
@@ -17,6 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
+      COCHEM_EXPECTED_REVISION: ${{ github.sha }}
       OMP_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
       MKL_NUM_THREADS: '1'
@@ -28,6 +32,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Audit the checked-out BASE source before application imports
+        run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "$RUNNER_TEMP/cochem-evidence/source-audit"
       - name: Keep calculation artifacts outside the checkout
         run: |
           echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
@@ -82,8 +88,8 @@ jobs:
         run: |
           test -x "$XTB_CMD"
           test -x "$COCHEM_PYSCF_PYTHON"
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -c 'import subprocess, sys, tomllib; from pathlib import Path; requirements = tomllib.loads(Path("pyproject.toml").read_text())["project"]["optional-dependencies"]["catalog"]; subprocess.run([sys.executable, "-m", "pip", "install", *requirements], check=True)'
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -m scripts.verify_release_ci regressions --output "${{ runner.temp }}/cochem-evidence/bounded-regressions"
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -B -c 'import subprocess, sys, tomllib; from pathlib import Path; extras = tomllib.loads(Path("pyproject.toml").read_text())["project"]["optional-dependencies"]; requirements = extras["catalog"] + extras["scribe"]; subprocess.run([sys.executable, "-B", "-m", "pip", "install", *requirements], check=True)'
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -B -m scripts.verify_release_ci regressions --expected-revision "$COCHEM_EXPECTED_REVISION" --output "${{ runner.temp }}/cochem-evidence/bounded-regressions"
       - name: Verify rendered dashboard lifecycle with the audited registry
         run: |
           python scripts/hosted_dashboard.py start

@@ -9,6 +9,10 @@ on:
     branches: [main]
     paths-ignore: ['**/*.md', '.docs/**']
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  COCHEM_EXPECTED_REVISION: ${{ github.sha }}
+
 permissions:
   contents: read
 
@@ -30,7 +34,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Enforce canonical source and selected-test policy without app imports
-        run: python -I -S ci_tools/base_ci.py audit --output "${{ runner.temp }}/base-source-evidence"
+        shell: bash
+        run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "${{ runner.temp }}/base-source-evidence"
       - name: Preserve findings, fixture provenance, and full legacy inventory
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,7 +60,8 @@ jobs:
       - name: Install only CI-control test dependencies
         run: python -m pip install pytest psutil pyyaml
       - name: Exercise actual process isolation, canonical guards, and evidence failure modes
-        run: python ci_tools/base_ci.py controls --output "${{ runner.temp }}/ci-controls"
+        shell: bash
+        run: python -B ci_tools/base_ci.py controls --expected-revision "$COCHEM_EXPECTED_REVISION" --output "${{ runner.temp }}/ci-controls"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -80,7 +86,8 @@ jobs:
       - name: Install isolated build frontend
         run: python -m pip install build
       - name: Build reviewed source outside checkout and exercise fresh wheel installation
-        run: python -m scripts.verify_release_ci wheel --output "${{ runner.temp }}/wheel-acceptance"
+        shell: bash
+        run: python -B -m scripts.verify_release_ci wheel --expected-revision "$COCHEM_EXPECTED_REVISION" --output "${{ runner.temp }}/wheel-acceptance"
       - name: Preserve wheel, dependency resolution and standalone CLI evidence
         if: always()
         uses: actions/upload-artifact@v4

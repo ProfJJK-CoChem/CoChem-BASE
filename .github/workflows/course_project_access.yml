@@ -1,0 +1,67 @@
+name: CoChem private project access controller
+
+on:
+  issues:
+    types: [opened, reopened, edited]
+  workflow_dispatch:
+    inputs:
+      project_repository:
+        description: Student-owned private project as owner/project
+        type: string
+        required: true
+      engines:
+        description: Optional licensed engines (orca cfour, or empty)
+        type: string
+        default: orca cfour
+        required: false
+
+# Enrollment data never becomes shell source or a checkout ref. A controller
+# comment may report readiness, but neither student source nor workflows change.
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: cochem-project-access-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    if: >-
+      github.event.repository.private == true &&
+      github.repository == vars.COCHEM_ACCESS_CONTROLLER_REPOSITORY &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Verify the immutable controller source before importing it
+        run: >-
+          python -I -S -B ci_tools/base_ci.py audit
+          --expected-revision "${{ github.sha }}"
+          --output "$RUNNER_TEMP/cochem-project-access-source"
+      - name: Install only the controller's encryption dependencies
+        run: python -m pip install 'cryptography==50.0.2' 'PyNaCl==1.6.2'
+      - name: Validate and provision the private personal project
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          COCHEM_ACCESS_CONTROLLER_REPOSITORY: ${{ vars.COCHEM_ACCESS_CONTROLLER_REPOSITORY }}
+          COCHEM_ACCESS_ORGANIZATION: ${{ vars.COCHEM_ACCESS_ORGANIZATION }}
+          COCHEM_ACCESS_TEAM_SLUG: ${{ vars.COCHEM_ACCESS_TEAM_SLUG }}
+          COCHEM_ACCESS_APP_ID: ${{ vars.COCHEM_ACCESS_APP_ID }}
+          COCHEM_ACCESS_APP_SLUG: ${{ vars.COCHEM_ACCESS_APP_SLUG }}
+          COCHEM_ACCESS_BASE_REPOSITORY: ${{ vars.COCHEM_ACCESS_BASE_REPOSITORY }}
+          COCHEM_ACCESS_APPROVED_BASE_SHA: ${{ vars.COCHEM_ACCESS_APPROVED_BASE_SHA }}
+          COCHEM_ACCESS_ALLOWED_STARTER_SHAS: ${{ vars.COCHEM_ACCESS_ALLOWED_STARTER_SHAS }}
+          COCHEM_ACCESS_COURSE_CHANNEL: ${{ vars.COCHEM_ACCESS_COURSE_CHANNEL }}
+          COCHEM_ACCESS_APP_PRIVATE_KEY: ${{ secrets.COCHEM_ACCESS_APP_PRIVATE_KEY }}
+          COCHEM_ORCA_ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_ORCA_ACCESS_SECRET] }}
+          COCHEM_CFOUR_ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_CFOUR_ACCESS_SECRET] }}
+          COCHEM_SOURCE_CREDENTIAL: ${{ secrets[vars.COCHEM_SOURCE_ACCESS_SECRET] }}
+        run: python scripts/provision_student_project_access.py

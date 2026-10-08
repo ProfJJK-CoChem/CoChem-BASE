@@ -40,7 +40,7 @@ runs:
       run: |
         set -euo pipefail
         if [[ -z "$GH_TOKEN" ]]; then
-          echo "::error::PRIVATE_ORCA_ASSET_CREDENTIAL must have read access to $COCHEM_ORCA_ASSET_REPOSITORY."
+          echo "::error::The instructor-configured archive credential must have read access to $COCHEM_ORCA_ASSET_REPOSITORY."
           exit 1
         fi
         mkdir -p "$RUNNER_TEMP/cochem-orca-download"

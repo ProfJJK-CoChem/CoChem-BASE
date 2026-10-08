@@ -11,12 +11,11 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tarfile
 import tomllib
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HOSTED_TESTS = (
@@ -46,6 +45,10 @@ HOSTED_TESTS = (
     "tests/base/test_actions_calculation_contract.py",
     "tests/base/test_cli_memory_budget.py",
     "tests/base/test_stage0_authority_completion.py",
+    "tests/base/test_workspace_facade.py",
+    "tests/base/test_hardware_observation_authority.py",
+    "tests/base/test_course_project_access.py",
+    "tests/ui/test_course_access_widget.py",
     "tests/base/test_module_handoff_contract.py",
     "tests/base/test_legacy_scientific_retirement.py",
     "tests/base/test_physical_mass_consumers.py",
@@ -121,34 +124,25 @@ def _run(command: list[str], directory: Path, environment: dict[str, str], log: 
     return log.read_text(encoding="utf-8")
 
 
-def regressions(output: Path) -> dict:
-    from ci_tools.base_ci import evaluate_test_evidence, source_snapshot
+def regressions(output: Path, *, expected_revision: str | None = None) -> dict:
+    """Run every bounded selected case through the authenticated quarantine gate."""
+    from ci_tools.base_ci import run_profile
 
-    environment = _environment()
-    before = source_snapshot(ROOT)
-    (output / "source-before.json").write_text(json.dumps(before, indent=2) + "\n")
-    outcomes = output / "pytest-outcomes.json"
-    outcomes.unlink(missing_ok=True)
-    command = [sys.executable, "-m", "pytest", "-c", str(ROOT / "pytest.ini"),
-               "--rootdir", str(ROOT), "-p", "ci_tools.pytest_evidence", "-p", "pytest_asyncio.plugin",
-               "--cochem-evidence", str(outcomes), "--junitxml", str(output / "pytest.xml"),
-               "-q", *HOSTED_TESTS]
-    completed = subprocess.run(command, cwd=ROOT, env=environment, check=False)
-    after = source_snapshot(ROOT)
-    (output / "source-after.json").write_text(json.dumps(after, indent=2) + "\n")
-    if not outcomes.is_file():
-        raise RuntimeError("Bounded pytest run did not produce actual outcome evidence")
-    report = evaluate_test_evidence(json.loads(outcomes.read_text()), {"schema_version": 1, "deferred_tests": []})
-    changed = sorted(name for name in before.keys() | after.keys() if before.get(name) != after.get(name))
+    report = run_profile(ROOT, output, test_paths=HOSTED_TESTS,
+                         environment=_environment(), strict_deferred=True,
+                         expected_revision=expected_revision)
     report.update(scope="Bounded public hosted regression set; not the full canonical release gate",
-                  selected_test_files=list(HOSTED_TESTS), source_changed=changed,
-                  command_exit_code=completed.returncode)
-    report["passed"] = report["passed"] and completed.returncode == 0 and not changed
+                  selected_test_files=list(HOSTED_TESTS))
     return report
 
 
-def wheel(output: Path) -> dict:
+def wheel(output: Path, *, expected_revision: str | None = None) -> dict:
     """Build committed source externally and use only a fresh wheel installation."""
+    from ci_tools.base_ci import audit
+    checked = audit(ROOT, output, expected_revision=expected_revision)
+    if not checked["passed"]:
+        raise RuntimeError("[HARD_ABORT: AUDIT FAIL] Wheel build was not started")
+    source_binding = checked["source_binding"]
     environment = _environment()
     for key in ("COCHEM_ROOT", "COCHEM_WORKSPACE_ROOT", "COCHEM_WORKSPACE", "COCHEM_CONFIG", "VIRTUAL_ENV"):
         environment.pop(key, None)
@@ -285,7 +279,8 @@ print(json.dumps({'installed_module': str(Path(_version.__file__).resolve()),
         raise RuntimeError("Installed CFOUR dry-run deck changed its method, units or resource limits")
     _run([str(python), "-m", "pip", "freeze"], output, environment, output / "installed-dependencies.txt", 60)
     return {"passed": True, "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
-            "source_revision": revision, "version": expected_version, "wheel": wheels[0].name,
+            "source_revision": revision, "source_binding": source_binding,
+            "version": expected_version, "wheel": wheels[0].name,
             "wheel_sha256": hashlib.sha256(wheels[0].read_bytes()).hexdigest()}
 
 
@@ -293,13 +288,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("stage", choices=("regressions", "wheel"))
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--expected-revision", help="Approved immutable checkout revision")
     args = parser.parse_args()
     output = args.output.expanduser().resolve()
     if output.is_relative_to(ROOT):
         parser.error("CI builds, installations and evidence must be outside the checkout")
     output.mkdir(parents=True, exist_ok=True)
     try:
-        report = regressions(output) if args.stage == "regressions" else wheel(output)
+        report = (regressions(output, expected_revision=args.expected_revision)
+                  if args.stage == "regressions" else wheel(output, expected_revision=args.expected_revision))
     except Exception as error:
         report = {"passed": False, "error_type": type(error).__name__, "error": str(error)}
     (output / "acceptance.json").write_text(json.dumps(report, indent=2) + "\n")

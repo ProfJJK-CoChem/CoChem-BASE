@@ -1,14 +1,14 @@
 """Check licensed asset access without installing engines or claiming chemistry."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from pathlib import Path
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -25,7 +25,7 @@ def probe_engine(engine: str) -> dict:
         from scripts.provision_cfour import load_distribution_manifest
     manifest_path = Path(__file__).resolve().parent / f"{engine}-distribution.json"
     distribution = load_distribution_manifest(manifest_path)
-    token = os.environ.get(f"{engine.upper()}_ASSET_READ_TOKEN", "")
+    token = os.environ.get(f"COCHEM_{engine.upper()}_ASSET_CREDENTIAL", "")
     result = {"engine": engine, "status": "unavailable", "provisionable": False,
               "installed": False, "scientific_execution_performed": False,
               "version": distribution[f"{engine}_version"], "archive_name": distribution["archive_name"],

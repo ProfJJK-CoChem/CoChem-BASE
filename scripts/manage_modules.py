@@ -133,7 +133,7 @@ def _run(command: list[str], *, env: dict[str, str], label: str, cwd: Path | Non
 
 
 def _build_env() -> dict[str, str]:
-    blocked = {"COCHEM_SOURCE_READ_TOKEN", "BASE_SOURCE_READ_TOKEN", "PRIVATE_ORCA_ASSET_CREDENTIAL", "GH_TOKEN", "GITHUB_TOKEN", "SSH_ASKPASS", "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
+    blocked = {"COCHEM_SOURCE_CREDENTIAL", "base_source_credential", "COCHEM_ORCA_ASSET_CREDENTIAL", "GH_TOKEN", "GITHUB_TOKEN", "SSH_ASKPASS", "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
     env = {key: value for key, value in os.environ.items()
            if key not in blocked and not key.startswith("GIT_")
            and not any(marker in key.upper() for marker in ("TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "AUTHORIZATION"))
@@ -153,7 +153,7 @@ def _git_env() -> dict[str, str]:
 @contextlib.contextmanager
 def _git_auth(*, token_override: str | None = None):
     env = _git_env()
-    token = token_override or env.get("COCHEM_SOURCE_READ_TOKEN") or env.get("GITHUB_TOKEN") or env.get("GH_TOKEN")
+    token = token_override or env.get("COCHEM_SOURCE_CREDENTIAL") or env.get("GITHUB_TOKEN") or env.get("GH_TOKEN")
     if not token:
         yield env, []
         return

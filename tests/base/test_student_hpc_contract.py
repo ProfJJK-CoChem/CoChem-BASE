@@ -6,25 +6,36 @@ acceptance. The READ input is the retained genuine ORCA water Hessian fixture.
 """
 from __future__ import annotations
 
-from copy import deepcopy
 import hashlib
 import json
 import os
-from pathlib import Path
-import subprocess
 import shutil
+import subprocess
 import sys
 import uuid
+from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
-from cochem_base.interfaces.student_hpc import (
-    SCHEMA, StudentHpcClient, StudentHpcError, _bind_scientific_inputs,
-    _hash, _load_package, _memory_mb, _source_inventory, _verify_source, _write,
-    render_batch_script,
-    validate_portable_calculation, validate_resources,
-)
 from cochem_base.interfaces.scientific_inputs import build_bundle
+from cochem_base.interfaces.student_hpc import (
+    SCHEMA,
+    StudentHpcClient,
+    StudentHpcError,
+    _bind_scientific_inputs,
+    _hash,
+    _load_package,
+    _local_scratch_mount,
+    _memory_mb,
+    _publish_local_results,
+    _source_inventory,
+    _verify_source,
+    _write,
+    render_batch_script,
+    validate_portable_calculation,
+    validate_resources,
+)
 
 FIXTURE = Path(__file__).resolve().parents[1] / "data/orca_6_1_1_water_hf_sto3g"
 WATER = (FIXTURE / "water.xyz").read_text()
@@ -170,6 +181,7 @@ def test_worker_without_scheduler_allocation_retains_failure_and_performs_no_sci
     assert report["status"] == "failed" and report["operation_performed"] is False
     assert not (package / "results/native").exists() and not (package / "allocation-runtime").exists()
     assert (package / "results/publication-manifest.json").is_file()
+    assert not tuple((package / "results").rglob("*.lock"))
 
 
 def test_queued_originals_and_controller_spooled_request_digest_cannot_change(tmp_path):
@@ -216,3 +228,147 @@ def test_controller_memory_units_are_interpreted_before_scientific_allocation(te
 def test_unknown_controller_memory_cannot_authorize_scientific_processes():
     with pytest.raises(StudentHpcError, match="verifiable allocated memory"):
         _memory_mb("unlimited")
+
+
+def test_actual_scratch_mount_is_measured_not_inferred_from_directory_name(tmp_path):
+    import psutil
+    scratch = tmp_path / "lustre-nfs-name-is-not-a-mount-observation"
+    scratch.mkdir()
+    observation = _local_scratch_mount(scratch)
+    mounts = [entry for entry in psutil.disk_partitions(all=True)
+              if scratch.resolve().is_relative_to(Path(entry.mountpoint).resolve())]
+    actual = max(mounts, key=lambda entry: len(Path(entry.mountpoint).resolve().parts))
+    assert observation["filesystem_type"] == actual.fstype.lower()
+    assert observation["mountpoint"] == str(Path(actual.mountpoint).resolve())
+    assert observation["device"] == actual.device
+    assert observation["observation"] == "actual_containing_mount"
+
+
+def test_actual_unclassified_mount_and_redirect_cannot_be_scratch(tmp_path):
+    """The real Linux proc filesystem is not a node-local calculation filesystem."""
+    with pytest.raises(StudentHpcError, match="shared or unclassified"):
+        _local_scratch_mount(Path("/proc"))
+    actual = tmp_path / "actual-local-directory"
+    actual.mkdir()
+    redirect = tmp_path / "redirected-scratch"
+    redirect.symlink_to(actual, target_is_directory=True)
+    with pytest.raises(StudentHpcError, match="non-symlink"):
+        _local_scratch_mount(redirect)
+    assert not tuple(actual.iterdir())
+
+
+def test_allocation_placement_binds_real_host_identity_and_creates_private_unique_roots(tmp_path):
+    """Placement metadata is a declared engineering input, not scheduler authority.
+
+    The real process ID is used only as a grammar-valid identifier. This test
+    neither calls a controller nor authorizes or executes a scientific job.
+    """
+    scratch = tmp_path / "node-scratch"
+    scratch.mkdir()
+    code = '''
+import json,os,pwd,socket,stat,uuid
+from pathlib import Path
+from cochem_base.interfaces.student_hpc import create_allocation_workspace
+request={'scheduler':'slurm','request_id':str(uuid.uuid4())}
+declared={'scheduler':'slurm','job_id':str(os.getpid()),'request_id':request['request_id'],
+ 'hostname':socket.gethostname().split('.')[0],'username':pwd.getpwuid(os.getuid()).pw_name}
+roots=[]
+for index in range(2):
+ root,placement=create_allocation_workspace(request,declared)
+ roots.append({'path':str(root),'mode':stat.S_IMODE(root.stat().st_mode),'placement':placement})
+print(json.dumps({'roots':roots,'declared_identity':declared,'controller_verified':False,'science_performed':False}))
+'''
+    process = _run_without_allocation(code, allocation={"SLURM_TMPDIR": str(scratch)})
+    assert process.returncode == 0, process.stderr
+    observed = json.loads(process.stdout)
+    assert observed["controller_verified"] is False and observed["science_performed"] is False
+    roots = observed["roots"]
+    assert roots[0]["path"] != roots[1]["path"]
+    for record in roots:
+        path = Path(record["path"])
+        assert path.parent == scratch and path.is_dir() and record["mode"] == 0o700
+        placement = record["placement"]
+        assert placement["allocation_identity"] == observed["declared_identity"]
+        assert placement["selected_source"] == "SLURM_TMPDIR"
+        assert placement["containing_mount"] == _local_scratch_mount(path)
+        assert not tuple(path.iterdir())
+
+
+def test_explicit_unclassified_allocation_scratch_refuses_before_directory_creation(tmp_path):
+    code = '''
+import os,pwd,socket,uuid
+from cochem_base.interfaces.student_hpc import create_allocation_workspace
+request={'scheduler':'slurm','request_id':str(uuid.uuid4())}
+placement_input={'scheduler':'slurm','job_id':str(os.getpid()),'request_id':request['request_id'],
+ 'hostname':socket.gethostname().split('.')[0],'username':pwd.getpwuid(os.getuid()).pw_name}
+create_allocation_workspace(request,placement_input)
+'''
+    process = _run_without_allocation(code, allocation={"SLURM_TMPDIR": "/proc"})
+    assert process.returncode != 0 and "shared or unclassified" in process.stderr
+
+
+def test_shared_job_records_use_atomic_staging_without_prohibited_external_lock(tmp_path):
+    from cochem.core.context import ExecutionContext, FileLock, scoped_context
+    source = tmp_path / "source"
+    baseline = tmp_path / "baseline"
+    output = tmp_path / "job-results"
+    source.mkdir()
+    baseline.mkdir()
+    context = ExecutionContext("directory-contract", "engineering-test", source, baseline,
+                               output, tmp_path / "node-scratch", "Tier 6 HPC")
+    record = {"status": "failed", "operation_performed": False,
+              "scope": "Actual per-job metadata publication; no chemistry"}
+    with scoped_context(context):
+        with pytest.raises(RuntimeError, match="locks are prohibited"):
+            FileLock(output / "report.json.lock")
+        _write(output / "report.json", record)
+    assert json.loads((output / "report.json").read_text()) == record
+    assert sorted(path.name for path in output.iterdir()) == ["report.json"]
+    assert not tuple(source.iterdir()) and not tuple(baseline.iterdir())
+
+
+def test_local_native_fixture_bytes_and_failed_metadata_publish_exactly(tmp_path):
+    local = tmp_path / "node-local-results"
+    published = tmp_path / "published-results"
+    local.mkdir()
+    published.mkdir()
+    request = {"request_id": str(uuid.uuid4()), "scope": "Engineering transport; no scheduler authority"}
+    _write(local / "request.json", request)
+    _write(published / "request.json", request)
+    original_request_stat = (published / "request.json").stat()
+    originals = {"water.xyz": (FIXTURE / "water.xyz").read_bytes(),
+                 "water.hess": (FIXTURE / "water.hess").read_bytes()}
+    for name, data in originals.items():
+        (local / name).write_bytes(data)
+    _write(local / "student-result.json", {"status": "failed", "operation_performed": False,
+        "scope": "Replay of authentic retained files; not a new calculation or successful cluster job"})
+    files = {str(path.relative_to(local)): {"sha256": _hash(path), "size_bytes": path.stat().st_size}
+             for path in local.iterdir()}
+    _write(local / "publication-manifest.json", {"schema_version": "cochem.hpc-publication/1", "files": files})
+    before = {str(path.relative_to(local)): _hash(path) for path in local.iterdir()}
+    _publish_local_results(local, published)
+    assert {str(path.relative_to(published)): _hash(path) for path in published.iterdir()} == before
+    assert {str(path.relative_to(local)): _hash(path) for path in local.iterdir()} == before
+    assert (published / "request.json").stat().st_ino == original_request_stat.st_ino
+    assert not tuple(published.rglob("*.lock")) and not tuple(published.rglob("*.tmp"))
+    for name, original in originals.items():
+        assert (published / name).read_bytes() == original
+
+
+def test_local_publication_refuses_links_and_retains_existing_result_bytes(tmp_path):
+    local = tmp_path / "local"
+    published = tmp_path / "published"
+    local.mkdir()
+    published.mkdir()
+    original = published / "water.xyz"
+    original.write_bytes(b"Retain this existing student file")
+    (local / "water.xyz").write_bytes((FIXTURE / "water.xyz").read_bytes())
+    with pytest.raises(StudentHpcError, match="already exists"):
+        _publish_local_results(local, published)
+    assert original.read_bytes() == b"Retain this existing student file"
+    local_link = local / "redirect"
+    local_link.symlink_to(FIXTURE / "water.hess")
+    before = {path.name: path.read_bytes() for path in published.iterdir()}
+    with pytest.raises(StudentHpcError, match="links/special"):
+        _publish_local_results(local, published)
+    assert {path.name: path.read_bytes() for path in published.iterdir()} == before

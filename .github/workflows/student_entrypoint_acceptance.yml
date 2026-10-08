@@ -10,6 +10,9 @@ on:
         type: choice
         options: [orca, cfour]
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 permissions:
   contents: read
   actions: write
@@ -24,6 +27,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 100
     env:
+      COCHEM_EXPECTED_REVISION: ${{ github.sha }}
       COCHEM_HEADLESS: '1'
       COCHEM_STUDENT_AUTO_SETUP: 'true'
       COCHEM_MODULES: 'topos torq'
@@ -40,6 +44,8 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
+      - name: Audit the checked-out BASE source before application imports
+        run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "$RUNNER_TEMP/student-ui-evidence/source-audit"
       - name: Reserve the interface runtime and evidence outside source
         run: |
           set -euo pipefail
@@ -66,7 +72,7 @@ jobs:
           PY
       - name: Automatically install BASE and its selected private modules
         env:
-          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          COCHEM_SOURCE_CREDENTIAL: ${{ secrets[vars.COCHEM_SOURCE_ACCESS_SECRET] }}
         run: |
           set -euo pipefail
           python3 scripts/hosted_dashboard.py setup --min-disk-space-gb 1

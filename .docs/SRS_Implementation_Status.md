@@ -4,13 +4,27 @@ Baseline: [Chunk 17](SRS_Chunk_17_CoChem_BASE_Architecture.md) **plus** [BASE pr
 
 The user's scope clarification governs this pass: **BASE owns ingestion, setup, GUI and validated ecosystem integration**, within the 20-module system. Domain solvers belonging to future modules are not standalone BASE implementation obligations. BASE must faithfully validate their inputs, describe missing capabilities, preserve handoff evidence and avoid reporting unexecuted science as success. See [alpha scope and fixture corrections](BASE_Alpha_Scope.md).
 
-The current published stable version is 1.0.1. The student no-code entry point and the broader ingestion corrections are **1.1 release-candidate work**, tracked in [PR 10](https://github.com/ProfJJK-CoChem/CoChem-BASE/pull/10), the [complete obligation trace](SRS_Student_1_1_Conformance_Trace.md), and the [student workflow](Student_Research_No_Code.md). Current working-tree changes are not a published student release. Historical 1.0.1 results below cannot qualify changed 1.1 source.
+The last recorded published stable version is 1.0.1. The student no-code entry point,
+broader ingestion corrections and instructor-managed personal-project access are
+**1.1 release-candidate work**, tracked in [PR 10](https://github.com/ProfJJK-CoChem/CoChem-BASE/pull/10),
+the [complete obligation trace](SRS_Student_1_1_Conformance_Trace.md) and the
+[student workflow](Student_Research_No_Code.md). Final clean-source full-profile,
+fresh-wheel, browser and hosted checks for the revised candidate are pending.
+No final 1.1 test count or release certification is assigned here. Historical
+1.0.1 results below cannot qualify changed 1.1 source or establish its publication.
 
 The current review covers molecular formats and all contained records, isotope/state identity, conformer pools, periodic cells/PAW inputs, measured Hessians, spectroscopy, trajectory/property archives and native result ingestion. Student monomer/complex geometry is one supported research path, not the complete ingestion specification. BASE manages the approved module installations, source updates, execution routes and result interface; students use its GUI rather than install module repositories or execute setup code.
 
 Local runnable acceptance, downstream scientific acceptance and platform acceptance remain distinct. ORCA 6.1.1 and the approved CFOUR 2.1 runtime have genuine historical Linux CPU and hosted calculations; see [ORCA setup](ORCA_Actions_Setup.md) and [CFOUR setup](CFOUR_Actions_Setup.md). Both engines remain optional and strongly recommended: missing installations disable dependent local operations while BASE and installed free engines remain usable. Current 1.1 native acceptance and the final immutable complete profile must be bound to the final revised source. Unavailable NBO/NAO, VPT2/anharmonic and additional Product B providers remain unavailable; placeholders do not fulfill their physical acceptance. GPU, Slurm, other native platforms and a real student-identity Classroom50/fresh Codespace pilot retain their separate acceptance. See the [deployment checklist](Student_Deployment_Pilot.md).
 
-Current hosted 1.1 jobs are blocked before execution by GitHub organization billing/spending-limit enforcement. This environment's Codespaces creation API also returns HTTP 403. Neither is a passing platform check. The [1.0.1 closure record](Release_1_0_1.md) and [1.0.0 record](Release_1_0_0.md) remain historical. Neither authorization nor deferral turns an unexecuted check into a pass.
+An earlier hosted 1.1 attempt was stopped before execution by organization
+billing/spending limits, and the recorded Codespaces creation attempt returned
+HTTP 403. Those are historical service observations, not the current candidate's
+acceptance result. Subsequent maintainer-hosted setup/free-engine work is distinct
+from a live personal-project App enrollment and a real student's fresh Codespace.
+The [1.0.1 closure record](Release_1_0_1.md) and [1.0.0 record](Release_1_0_0.md)
+remain historical. Authorization or deferral does not turn an unexecuted check
+into a pass.
 
 The previous snapshot (994 passed, 4 skipped, 1 failed) and its strict-scan counts are historical evidence under `/workspace/cochem-runtime/evidence/srs-pass2/`. This pass corrects the failed PES analysis, withdraws misleading fixture evidence, replaces legacy interface shells with versioned capability/handoff contracts, and replaces duplicated CI pipelines. Current-run counts and evidence follow below.
 
@@ -20,14 +34,93 @@ pilot and course rollout. It links the engine/module setup guides and preserves
 the distinction between public release evidence and institution-specific
 student acceptance.
 
+## Current student deployment and implementation boundary — 2026-10-08
+
+The selected deployment is an independent **private BASE template copy owned by
+one student's personal account**. Its Codespace supplies VS Code/Voilà and its
+Actions jobs use that account's applicable allowance. Classroom50 supplies course
+roster, instructions, submission collection and feedback; it does not transfer
+repository ownership, billing or organization secrets to a personal account.
+Students receive BASE alone, provide their own full-range scientific inputs and
+use its upload/setup/calculation/result/update controls without terminal commands
+or direct module repositories.
+
+The [instructor-managed GitHub App](Personal_Project_App_Deployment.md) uses an
+instructor-writable private controller and data-only enrollment. Its implemented
+checks bind active course-team membership, personal ownership, private nonfork
+project identity, selected App installation and reviewed executable starter
+blobs. The App writes encrypted project readers and private mapping variables
+`COCHEM_ORCA_ACCESS_SECRET`, `COCHEM_CFOUR_ACCESS_SECRET` and
+`COCHEM_SOURCE_ACCESS_SECRET`; public workflows resolve those mappings without
+publishing the instructor's stored labels or values. The module reader is
+separately encrypted in the repository Codespaces secret store under the generic
+runtime API `COCHEM_SOURCE_CREDENTIAL`. Actions secrets do not enter Codespaces
+automatically. The instructor App signing key never enters student projects.
+Live App configuration/enrollment and student-identity service checks still need
+the [actual deployment pilot](Student_Deployment_Pilot.md).
+
+BASE automatically installs and seals the approved TOPOS/TORQ environments and
+routes their supported operations through the canonical `student_research`
+workflow. The obsolete separately pinned TOPOS calculation workflow is retired.
+Local native TOPOS energy/search/matrix/minimum cases and TORQ scan/Wiberg–Löwdin
+cases, with real report exports, have retained revision-specific receipts. NBO/
+NAO and other unavailable providers remain disabled rather than being counted as
+implemented scientific results. Two matched water starts do not establish
+populations of distinct physical isomers.
+
+The final CI implementation now checks clean committed Git bytes, an immutable
+expected revision and the reviewed infrastructure ring before application/test
+execution. Ignored or untracked executable/import/configuration material is
+refused; accepted source is copied to an external private quarantine. Import
+origins, real test outcomes, unchanged source and owned-process termination are
+part of its fail-closed evidence. Approved worker audits bind the instructor's
+worker SHA rather than an unrelated student's submission SHA. The source gate,
+quarantined full profile and final publication still require a clean frozen
+candidate run; targeted control tests cannot substitute for that gate.
+
+Hardware/resource evidence now requires actual declared or measured observations;
+missing CPU/RAM/VRAM does not receive invented default capacity. BASE prepares
+its private workspace automatically and keeps original inputs, calculations and
+runtime updates outside application source. The free acceptance workflow installs
+the actual declared Scribe dependency extra before testing its compressor.
+ORCA/CFOUR access remains optional for general BASE; only their dependent methods
+are unavailable when provisioning fails. Archive checksums and native execution
+checks remain separate from App access provisioning.
+
+The [C8 hosted run 37779175927](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37779175927)
+has mixed outcomes and is not a passing complete candidate gate. Source integrity,
+164 controls on each of Ubuntu/macOS/Windows, fresh wheel checks, all eleven
+real setup phases and genuine xTB/PySCF calculations passed. The bounded
+regression stage failed during collection with zero executed tests because its
+Scribe prerequisite was absent. The revised workflow now installs the declared
+Scribe extra; its new run is pending. The hosted synthetic merge
+`5b7e4330ac51d4fe246f6fc3dbfdd76f9fde9969` had tree
+`777d3d9f102ac5678dec69e60f4d1db29476768d`, identical to C8 `f44f709`.
+The retained binding is `hosted-c8-bounded-ci-f44f709/source-merge-binding.json`;
+`review.json` records the distinct outcomes. Those successful stages do not
+qualify the later source/quarantine/App changes or a student account.
+
+Retained local evidence includes the fresh default-module receipt at
+`/workspace/cochem-runtime/evidence/student-default-final-3ce9206/acceptance.json`
+(C6 controller/catalog, C5 science), six genuine TOPOS cases at
+`student-topos-c5-final-native/acceptance.json`, report exports at
+`student-topos-final-3ce9206-reports/acceptance.json`, and TORQ scan/report records
+at `student-torq-final-3ce9206-native/acceptance.json`. These are exact earlier
+candidate receipts, not a final combined-candidate pass or a student App pilot.
+The public credential/workflow migration's targeted development receipt is
+`public-workflow-private-binding-validation-20261008.json`; its 229 tests and
+separate actual restart-isolation check likewise do not supply a final release
+count. Final evidence will identify the immutable candidate SHA, pass/fail/skip
+counts, fresh wheel digest, browser scope and actual service run URLs.
+
 ## Historical 1.0.1 validation and gap closure
 
 The 2026-10-07 final SRS audit identified four connected BASE gaps: automatic
 measured-gradient grid progression, authentic live derivative records, general
 isotope-label ingress/handoff and persisted native-runner crash provenance.
 Their implementation and revision-specific acceptance are tracked in the
-[1.0.1 closure record](Release_1_0_1.md). The current complete-profile result
-below is separate from the historical results later in this document.
+[1.0.1 closure record](Release_1_0_1.md). The following complete-profile result
+belongs to that historical 1.0.1 source, not the revised 1.1 candidate.
 
 The complete-profile source is `583a6d22db0fab0fdd54d2659ceac87ba82fa48a`.
 Its application/workflow/devcontainer source matches accepted `7144f82` and
@@ -184,22 +277,24 @@ The proposal workflow's **MACE-OFF24m ↔ g-xTB fallback is now executed**, not 
 
 1. **The PES failure had real implementation and analysis defects; a new quantum protocol now passes its bounded target.** The historical Cu/Ag/Au EMT example used the artificial target `1.02 * E_EMT - 0.005 eV` and placed all 150 holdout geometries beyond its training Cu–Ag separation range. Correct fitting/provenance reduced its paired correction RMSE to 6.271842 cm⁻¹, but its standalone extrapolation RMSE remained 319.863926 cm⁻¹ (0.915 kcal/mol). These are energy errors, not vibrational frequencies; that example remains uncertified and cannot provide independent quantum accuracy evidence. The new actual ORCA H2 protocol instead uses 128 RHF/STO-3G baseline points, 32 canonical CCSD(T)/cc-pVTZ correction pairs and 31 fresh holdout geometries excluded from both training sets over 0.55–1.80 Å. Unchanged model defaults give paired RMSE **1.189292656 cm⁻¹** (maximum **3.726415424 cm⁻¹**) and standalone RMSE **3.176715694 cm⁻¹** (maximum **8.242899532 cm⁻¹**), meeting the unchanged 10 cm⁻¹ threshold for both metrics. Denser independent baseline sampling addressed interpolation error; the model was not tuned on holdouts. This two-electron one-dimensional interpolation does not certify nonzero triples contributions, vibrational frequencies, extrapolation, experimental agreement or arbitrary molecules. Full provenance is in `/workspace/cochem-runtime/evidence/quantum-pes-2026-10-07/dual-resolution-acceptance.json`.
 2. **CFOUR native execution is accepted within a defined provider boundary.** BASE provisions and seals the approved runtime, authorizes isolated native jobs and accepts closed-shell HF single points/optimization/harmonics plus MP2/CCSD/CCSD(T) single points. Geometry-bound harmonic Hessians support downstream ingestion and isotope reanalysis. VPT2, open-shell and correlated derivative operations remain explicit provider handoffs. Missing adapters must not fabricate energies, anharmonic corrections, isotope `B0`, convergence or completed operations. Historical broad CFOUR configuration is preserved as pending input handoff; it is not a second weaker execution path.
-3. **TOPOS/TORQ future work is recorded, not counted as a BASE-only solver deficit.** BASE retains its working native calculation, CREST, isotope inspector and scientific export flows, and provides validated future-module handoffs in the GUI. Full multidimensional PES exploration and domain workflows will be completed in their repositories. Accessibility and real platform acceptance remain bounded by actual tests.
+3. **Supported TOPOS/TORQ operations are connected through BASE.** Automatic sealed installation, native provider dispatch, scientific comparisons and result tables/figures have bounded local receipts. Further domain algorithms belong to their modules, and unavailable NBO/NAO, higher-order or other unsupported providers remain explicit. BASE does not claim every possible PES domain operation or platform from those receipts.
 4. **Product B now has direct BASE ingestion examples.** Ordered CIF and periodic JSON with fractional or Cartesian coordinates and explicit Angstrom/Bohr units preserve the periodic frame, original source hash and canonical converted structure hash. Singular/left-handed cells, duplicate lattice-equivalent sites, disorder/partial occupancy and invalid PAW inputs are rejected. The real registered QE PAW GaAs single point remains connected. Advanced bands, SOC, cell optimization and empirical accuracy claims need their scientific providers and benchmark evidence; ingesting a cell or executing one SCF does not certify them.
-5. **CI must preserve failures as evidence.** Obsolete duplicated workflows and misleading physical fixtures are retired with recorded replacements. Selected test interface interception is migrated to actual child-process configuration. The canonical pipeline rejects missing/zero-test evidence, source changes during validation and unexpected skips. The wider legacy collection is inventoried explicitly, not claimed as executed or compliant.
+5. **CI must preserve failures as evidence.** Obsolete duplicated workflows and misleading physical fixtures are retired with recorded replacements. The current source gate checks initial Git/ring integrity and refuses source-capable untracked material before running tests in an external quarantine. Actual owned process cleanup, origin checks, complete node evidence and unchanged before/after source are required. Missing/zero-test evidence, source changes and unexpected skips fail acceptance. Deleted legacy findings are resolved; historical inventories do not become an executed current profile.
 6. **External acceptance requires actual execution evidence:** ORCA 6.1.1 hosted serial/two-rank acceptance has passed, with its run linked above. The separate student optimization/frequency workflow also passed. Ubuntu/macOS/Windows controls, wheel/CLI checks and native launcher diagnostics passed in bounded hosted CI; this does not certify native ORCA science on Windows/macOS. Actual student Codespaces, GPU/Slurm, deployment filesystems and additional native physical calculations remain deferred; CFOUR Linux/hosted native acceptance is recorded above. Source-level Slurm staging now prepares a real validated, hash-bound request and performs fresh Stage 0 within the compute allocation; those tests do not claim a physical cluster run.
 
 ## Reproduction and retained evidence
 
 ```bash
 source /workspace/cochem-runtime/activate.sh
-python -m pip check
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 python ci_tools/base_ci.py all --output /tmp/cochem-base-alpha-evidence
+python -B -m pip check
+# Maintainer-only: requires a clean reviewed commit and current execution registry.
+# Use a fresh external evidence path; preserve failed attempts.
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 python -B ci_tools/base_ci.py all --output /tmp/cochem-base-alpha-evidence
 # Wider historical inventory, not an alpha acceptance substitute:
 python ci_tools/anti_spoof_linter.py . --strict --json > /tmp/cochem-strict-repository-inventory.json
 ```
 
-Historical second-pass logs, JUnit, strict scans and a source manifest are retained together in `/workspace/cochem-runtime/evidence/srs-pass2/`. Session evidence also includes `/workspace/cochem-runtime/stage0-complete-audit.json`, `/workspace/cochem-runtime/topos-second-pass/`, `/workspace/cochem-runtime/mlff-second-pass/`, `/workspace/cochem-runtime/gui-srs-pass/` and `/workspace/cochem-runtime/chain-pass2-jt1upcd8/`. Runtime artifacts remain outside the repository. The self-contained cloud install script completed successfully, including all free-engine/ML checks and all eleven Stage 0 phases. The environment setup draft is saved for review; a fresh published/restored environment is a separate acceptance step. The repaired hosted lifecycle also completed setup twice in a separate external environment, passed 27 native CLI/lifecycle checks, all five workflow syntax checks, and actual Chromium interactions. That earlier local lifecycle report did not establish hosted acceptance; subsequent run-specific outcomes are recorded in ORCA_Actions_Setup.md.
+The commands above are maintainer reproduction, not student setup. Historical second-pass logs, JUnit, strict scans and a source manifest are retained together in `/workspace/cochem-runtime/evidence/srs-pass2/`. Session evidence also includes `/workspace/cochem-runtime/stage0-complete-audit.json`, `/workspace/cochem-runtime/topos-second-pass/`, `/workspace/cochem-runtime/mlff-second-pass/`, `/workspace/cochem-runtime/gui-srs-pass/` and `/workspace/cochem-runtime/chain-pass2-jt1upcd8/`. Runtime artifacts remain outside the repository. The self-contained cloud install script completed successfully, including all free-engine/ML checks and all eleven Stage 0 phases. The environment setup draft is saved for review; a fresh published/restored environment is a separate acceptance step. The repaired hosted lifecycle also completed setup twice in a separate external environment, passed 27 native CLI/lifecycle checks, all five workflow syntax checks, and actual Chromium interactions. That earlier local lifecycle report did not establish hosted acceptance; subsequent run-specific outcomes are recorded in ORCA_Actions_Setup.md.
 
 A historical full-repository collection attempt discovered **4,416 tests and 237 collection errors** (`/tmp/cochem-all-collection-pass2.log`). These include missing sibling interfaces, legacy import paths and tests that import heavy libraries directly into BASE even though those libraries are installed in their required silos. This is not evidence that every low-compute test ran. An isolated built-wheel check imports the shipped CLI, GUI, frontend adapter, native setup service and provenance implementation without checkout paths or `.pth` processing.
 

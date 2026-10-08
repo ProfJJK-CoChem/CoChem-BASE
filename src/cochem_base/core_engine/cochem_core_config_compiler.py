@@ -14,14 +14,11 @@ Implements:
 from __future__ import annotations
 
 import asyncio
-from abc import ABC, abstractmethod
-from enum import Enum
 import hashlib
 import hmac
 import json
 import logging
 import os
-from pathlib import Path
 import platform
 import re
 import secrets
@@ -30,9 +27,11 @@ import stat
 import sys
 import time
 import uuid
+from abc import ABC, abstractmethod
+from enum import Enum
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
-import psutil
 from mendeleev import element
 from packaging import version
 from pydantic import BaseModel, Field, field_validator
@@ -57,7 +56,6 @@ logger = logging.getLogger("CoChem-ConfigCompiler")
 
 # Process handles remain under their launching broker/library ownership.
 from cochem_base.process_cleanup import reap_owned_children as _reap_zombies
-
 
 # =============================================================================
 # EXCEPTIONS
@@ -129,94 +127,65 @@ class EngineType(str, Enum):
 
 class HardwareProfileSpec(BaseModel):
     """Hardware profile model describing CPU, GPU, memory, and instruction set capabilities."""
-    cpu_count: int = Field(default=8, ge=1, description="Logical CPU threads")
-    physical_cores: int = Field(default=8, ge=1, description="Physical CPU cores")
-    p_cores: int = Field(default=8, ge=0, description="Performance cores on hybrid CPUs")
+    cpu_count: int = Field(..., ge=1, description="Measured logical CPU threads")
+    physical_cores: int = Field(..., ge=1, description="Measured physical CPU cores")
+    p_cores: int = Field(default=0, ge=0, description="Verified performance-core allocation; zero if unknown")
     e_cores: int = Field(default=0, ge=0, description="Efficiency cores on hybrid CPUs")
-    memory_total_gb: float = Field(default=32.0, gt=0.0, description="Total system RAM in GB")
-    memory_available_gb: float = Field(default=24.0, gt=0.0, description="Available system RAM in GB")
+    memory_total_gb: float = Field(..., gt=0.0, description="Measured bounded system RAM in GB")
+    memory_available_gb: float = Field(..., gt=0.0, description="Measured available bounded RAM in GB")
     gpu_count: int = Field(default=0, ge=0, description="Number of detected GPUs")
     gpu_vram_gb: float = Field(default=0.0, ge=0.0, description="GPU VRAM in GB per device")
     gpu_device_ids: List[int] = Field(default_factory=list, description="List of CUDA GPU device indices")
-    has_avx512: bool = Field(default=False, description="Whether CPU supports AVX-512")
-    has_avx2: bool = Field(default=True, description="Whether CPU supports AVX2")
+    has_avx512: Optional[bool] = Field(default=None, description="Measured AVX-512 observation; None is unavailable")
+    has_avx2: Optional[bool] = Field(default=None, description="Measured AVX2 observation; None is unavailable")
+    observed_gpu_count: Optional[int] = Field(default=None, ge=0)
+    gpu_probe_status: str = "unavailable"
+    avx512_probe_status: str = "unavailable"
+    allocatable_compute_cores: Optional[int] = Field(default=None, ge=1)
     has_cuda: bool = Field(default=False, description="Whether CUDA execution is available")
     mps_enabled: bool = Field(default=False, description="Whether NVIDIA MPS multiplexing is enabled")
     maxcore_mb: Optional[int] = Field(default=None, description="Explicit maxcore MB limit per thread")
 
     @classmethod
     def from_system(cls) -> "HardwareProfileSpec":
-        """Probe real host system hardware specifications safely without mocks."""
-        logical_cpus = psutil.cpu_count(logical=True) or 4
-        phys_cpus = psutil.cpu_count(logical=False) or max(1, logical_cpus // 2)
-        vmem = psutil.virtual_memory()
-        total_ram_gb = vmem.total / (1024.0 ** 3)
-        avail_ram_gb = vmem.available / (1024.0 ** 3)
+        """Use measured, bounded canonical ingress; environment labels are not devices.
 
-        # Detect CPU ISA flags
-        has_avx2 = True
-        has_avx512 = False
+        ``gpu_count`` is conservative eligible device capacity. The separate
+        observation/status fields preserve missing telemetry instead of asserting
+        that a machine has no GPU. Device availability does not prove a working
+        CUDA runtime, so this probe does not certify CUDA or MPS execution.
+        """
+        from cochem_base.core_engine.hardware_profiler import profile_hardware
 
-        if platform.system() == "Linux":
+        observed = profile_hardware()
+        has_avx2: bool | None = None
+        if observed.environment.system == "Linux":
             try:
-                with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
-                    cpuinfo_text = f.read().lower()
-                    has_avx2 = "avx2" in cpuinfo_text
-                    has_avx512 = "avx512f" in cpuinfo_text or "avx512" in cpuinfo_text
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-        else:
-            # On Windows/macOS check environment override or fallback heuristic
-            if os.environ.get("COCHEM_FORCE_AVX512", "").strip().lower() in {"1", "true", "yes"}:
-                has_avx512 = True
-            if os.environ.get("COCHEM_FORCE_AVX2", "").strip().lower() in {"0", "false", "no"}:
-                has_avx2 = False
-
-        # Detect CUDA / GPU via HardwareProfiler or environment
-        gpu_count = 0
-        gpu_vram_gb = 0.0
-        has_cuda = False
-        gpu_device_ids: List[int] = []
-
-        if HardwareProfiler is not None:
-            try:
-                hp = HardwareProfiler()
-                cuda_info = hp.get_cuda_info()
-                if cuda_info.get("cuda_available"):
-                    has_cuda = True
-                    gpu_count = int(cuda_info.get("gpu_count", 0))
-                    details = cuda_info.get("gpu_details", [])
-                    if details:
-                        gpu_vram_gb = float(details[0].get("memory_total_mb", 0)) / 1024.0
-                    gpu_device_ids = list(range(gpu_count))
-            except Exception as _e:
-                logger.debug(f"Ignored exception: {_e}")
-
-        if gpu_count == 0 and os.environ.get("CUDA_VISIBLE_DEVICES"):
-            dev_str = os.environ.get("CUDA_VISIBLE_DEVICES", "").strip()
-            if dev_str:
-                parts = [p.strip() for p in dev_str.split(",") if p.strip().isdigit()]
-                if parts:
-                    gpu_count = len(parts)
-                    gpu_device_ids = [int(p) for p in parts]
-                    has_cuda = True
-                    gpu_vram_gb = 8.0  # default assumption if CUDA_VISIBLE_DEVICES is forced
-
+                content = Path("/proc/cpuinfo").read_text(encoding="utf-8")
+                rows = [line.split(":", 1)[1].split() for line in content.splitlines()
+                        if line.startswith("flags") and ":" in line]
+                if rows:
+                    has_avx2 = all("avx2" in flags for flags in rows)
+            except OSError:
+                has_avx2 = None
+        gpu_count = observed.gpu_device_count if observed.gpu_probe_status == "measured" else 0
         return cls(
-            cpu_count=logical_cpus,
-            physical_cores=phys_cpus,
-            p_cores=phys_cpus,
-            e_cores=0,
-            memory_total_gb=total_ram_gb,
-            memory_available_gb=avail_ram_gb,
-            gpu_count=gpu_count,
-            gpu_vram_gb=gpu_vram_gb,
-            gpu_device_ids=gpu_device_ids,
-            has_avx512=has_avx512,
-            has_avx2=has_avx2,
-            has_cuda=has_cuda,
-            mps_enabled=bool(os.environ.get("CUDA_MPS_PIPE_DIRECTORY")),
+            cpu_count=observed.logical_cores,
+            physical_cores=observed.physical_cores,
+            p_cores=0, e_cores=0,
+            memory_total_gb=observed.allocatable_ram_bytes / 1024**3,
+            memory_available_gb=observed.available_ram_bytes / 1024**3,
+            gpu_count=gpu_count or 0,
+            observed_gpu_count=observed.gpu_device_count,
+            gpu_probe_status=observed.gpu_probe_status,
+            gpu_vram_gb=min(observed.gpu_vram_per_device_bytes, default=0) / 1024**3,
+            gpu_device_ids=list(range(gpu_count or 0)),
+            has_avx512=observed.avx512, has_avx2=has_avx2,
+            avx512_probe_status=observed.avx512_probe_status,
+            allocatable_compute_cores=observed.allocatable_compute_cores,
+            has_cuda=False, mps_enabled=False,
         )
+
 
 
 class BinaryVerificationResult(BaseModel):
@@ -330,6 +299,8 @@ class HardwareEnvGenerator:
             threads = hw.p_cores if hw.p_cores > 0 else hw.physical_cores
 
         threads = max(1, threads)
+        if hw.allocatable_compute_cores is not None:
+            threads = min(threads, hw.allocatable_compute_cores)
 
         # 2. Thread library bindings (OpenMP, MKL, OpenBLAS, NumExpr, BLIS)
         env["OMP_NUM_THREADS"] = str(threads)

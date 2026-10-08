@@ -17,7 +17,7 @@ in its scientific plan.
 | Route | Identity and credential | What happens |
 | --- | --- | --- |
 | Codespaces interface | Student's own GitHub identity with authorized read access to declared module repositories | BASE prepares its GUI and managed analysis components without student terminal commands. |
-| Actions calculation | Current assignment's workflow plus organization Actions download secrets | A fresh worker obtains the approved engines/source and executes the requested operation. |
+| Actions calculation | Student's private project workflow plus App-provisioned encrypted repository credentials | A fresh worker obtains the approved engines/source and executes the requested operation. |
 | Local Linux, WSL, macOS or HPC | User/site-authorized setup | The same BASE installation and capability contracts apply, with local execution authority. |
 
 Actions secrets do not automatically enter Codespaces. Read access granted to
@@ -25,60 +25,63 @@ a student team is not a replacement for a cross-repository Actions credential.
 The classroom management credential, `CLASSROOM50_SERVICE_TOKEN`, serves
 Classroom50 itself and must not be reused for CoChem source or engine downloads.
 
-## Instructor: make organization Actions secrets available
+## Instructor: authorize private student projects
 
-The course uses these names:
+The primary deployment uses personal-owned private project copies so chemistry
+runs consume the student's personal Actions allowance. Follow the complete
+[GitHub App deployment guide](Personal_Project_App_Deployment.md). The instructor
+configures the private controller once; students consent to App installation on
+the selected private project. Students do not handle access tokens.
 
-| Secret | Permitted download |
+The controller supplies encrypted repository secrets and these generic binding
+variables. Only private settings contain the chosen credential labels:
+
+| Public binding key | Permitted download |
 | --- | --- |
-| `COCHEM_SOURCE_READ_TOKEN` | Approved private module source |
-| `PRIVATE_ORCA_ASSET_CREDENTIAL` | Approved private ORCA release archive |
-| `PRIVATE_CFOUR_ASSET_CREDENTIAL` | Approved private CFOUR release archive |
+| `COCHEM_SOURCE_ACCESS_SECRET` | Approved private module source |
+| `COCHEM_ORCA_ACCESS_SECRET` | Approved private ORCA release archive |
+| `COCHEM_CFOUR_ACCESS_SECRET` | Approved private CFOUR release archive |
 
-**You do not need to copy these into each student's repository if the
-organization secret already covers that repository.** Its access policy is the
-critical distinction:
+Actions consumers use `secrets[vars.<binding key>]`. An absent optional-engine
+binding records unavailable access and disables its dependent calculations.
+Module installation requires its own authorized source route. Runtime source
+credentials are stripped before package builds and scientific subprocesses.
 
-| Organization secret's Repository access | Newly created private assignment repository |
-| --- | --- |
-| **All repositories**, or an applicable all-private policy shown by GitHub | Covered automatically within that organization and the plan's supported private-repository scope. |
-| **Selected repositories** | Add the new assignment repository to that secret's selection. No secret-value copy is needed. |
-| **Public repositories** | Does not cover a private assignment. |
-| Secret exists only in BASE's repository settings | Does not cover an assignment repository. |
+Organization Actions secrets **cannot be inherited by personal repositories**.
+For an alternate organization-owned assignment, matching organization secrets
+and binding variables can cover selected private repositories. Existing coverage
+means no duplicate repository-secret copy is required. When using selected
+policies, add each new repository to both the variable and secret access lists.
+A same-name repository secret overrides an organization value.
 
-For your existing setup, inspect the policy rather than creating duplicates:
-
-1. Open GitHub → your course organization → **Settings**.
-2. Select **Secrets and variables → Actions** in the left sidebar.
-3. Find each required secret and choose **Update** or its edit control.
-4. Under **Repository access**, inspect the current policy. If it is
-   **Selected repositories**, add the accepted assignment repository and save.
-   Repeat this grant when Classroom50 creates additional selected repositories.
-5. In the assignment's **Settings → Secrets and variables → Actions**, check
-   for stale repository secrets with the same name. A repository value
-   overrides an organization value. Correct stale duplicates instead of
-   keeping contradictory credentials.
-
-Separately, each download token must select the repositories it reads, have
-**Contents: Read-only** under **Permissions → Add permissions → Contents**,
-be unexpired and have any required organization approval. Token repository
-selection controls **what it may read**; the organization secret policy
-controls **which calculation repositories may use it**.
-
-GitHub cannot reveal an existing secret value. If rotation is necessary, use
-its securely retained original or regenerate the reader through GitHub and
-update the approved binding. Students should never perform this rotation.
-Organization Actions secrets for private repositories require a supported
-organization plan, such as GitHub Team.
+Team Read access gives permitted users access to private repositories. It does
+not reveal stored secret values or extend an assignment's scoped `GITHUB_TOKEN`.
+Readers require narrowly scoped **Contents: Read-only**, appropriate expiry and
+any required organization approval. Classroom50's management credential remains
+separate from source and engine access.
 
 Keep **Send secrets and variables to workflows from fork pull requests** and
-**Send write tokens to workflows from pull requests** disabled. The student
-submission route does not need either setting. Students authorized to change
-and execute an assignment workflow can use its available credential; limit
-reader scopes to the course source and licensed archives those students are
-permitted to access.
+**Send write tokens to workflows from pull requests** disabled. Public BASE
+source carries generic configuration APIs, not the privately stored labels or
+credential values. Do not publish native engine archives in source or artifacts.
 
 ## Instructor: enable automatic Codespaces installation
+
+For personal projects, the App separately provisions an encrypted repository
+Codespaces secret under the generic runtime name `COCHEM_SOURCE_CREDENTIAL`.
+The [deployment guide](Personal_Project_App_Deployment.md) explains the App's
+Codespaces-secret permission and enrollment checks. Create the first Codespace
+only after provisioning succeeds. BASE uses this scoped source reader for
+cross-owner module setup and preserves it for compatible GUI updates/restarts.
+Package builds and scientific subprocesses do not inherit source credentials.
+
+Actions secrets do not automatically enter Codespaces. Additional-repository
+permissions cannot extend a personal project's token to an organization owner.
+Validate the automatic route with a fresh student Codespace; students do not
+repair installation by running terminal commands.
+
+The following team/declaration procedure applies to the alternate **same-owner
+organization assignment** arrangement:
 
 1. Open your organization → **Teams** and select the classroom's student team.
    Confirm students accepted their organization invitation and are members.
@@ -179,6 +182,11 @@ Match the **Actions worker approval** to this course policy. This extra step is
 only needed for an explicit course approval; the default maintained-source
 route needs no additional Actions variable.
 
+For personal projects, the instructor's App controller provisions the approved
+worker variable into each enrolled project. Update the private controller policy
+and re-provision when changing course approval; students do not edit it. The
+following manual variable instructions apply to organization-owned assignments:
+
 1. Open the course organization on GitHub. Choose **Settings → Secrets and
    variables → Actions → Variables → New organization variable**.
 2. Name it **COCHEM_COURSE_CHANNEL**. Set its value to the approval data path,
@@ -247,10 +255,11 @@ The acceptance record must identify which exact operations actually ran.
 
 ## Allowances
 
-Student-owned Codespaces use each student's available personal allowance.
-Organization-owned assignment Actions use the organization's shared Actions
-allowance, even when a student submits from BASE. GitHub Team ordinarily
-includes 3,000 standard-runner minutes per month shared across the organization;
-verify the current entitlement and displayed payer. Personal Codespaces
-core-hours do not transfer to Actions. Keep the existing paid-usage stop policy
-unless the instructor deliberately changes the course budget.
+Student-owned Codespaces and chemistry workflows in personal-owned private
+projects use the student's own applicable allowances. The instructor-private
+App-enrollment and Classroom50 administration workflows use organization minutes.
+An alternate organization-owned assignment's chemistry also uses organization
+minutes, even when a student submits it. Verify current Education benefits,
+entitlement and displayed payer; personal Codespaces core-hours do not transfer
+to Actions. Retain the existing paid-usage stop policies unless their owner
+deliberately changes the budget.

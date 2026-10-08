@@ -10,22 +10,243 @@ import argparse
 import ast
 import configparser
 import hashlib
+import io
 import json
 import os
-from pathlib import Path
+import re
+import shutil
 import subprocess
 import sys
+import tarfile
+from pathlib import Path
 from typing import Any
+
+sys.dont_write_bytecode = True
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ci_tools.anti_spoof_linter import run_linter
-from ci_tools.ci_airgap_sweep import run_airgap_sweep
-from ci_tools.mendeleev_ast_linter import scan_directory, scan_file
-from ci_tools.source_fixtures import validate_source_fixtures
-
 SOURCE_TARGETS = ("src", "cochem", "ui", "frontend", "scripts", ".scripts", "cli.py", "ci_tools")
+INFRASTRUCTURE_RING = ".core_infrastructure_hashring.json"
+ROOT_INFRASTRUCTURE = {"pyproject.toml", "pytest.ini", "pytest-srs.ini", "pytest.toml", "tox.ini", "setup.cfg",
+                       "setup.py", "cli.py", ".gitattributes", ".gitignore", ".coveragerc", "MANIFEST.in",
+                       "requirements.txt", "requirements-ui.txt", "cochem_system_config.json", "Pipfile",
+                       "Pipfile.lock", "poetry.lock", "uv.lock", "package.json", "package-lock.json",
+                       "pnpm-lock.yaml", "yarn.lock", "Dockerfile", "docker-compose.yml", "compose.yml"}
+RUNTIME_INFRASTRUCTURE = ("src/cochem_base/orchestrator/", "src/cochem_base/core_engine/", "src/cochem_base/calc/")
+RUNTIME_RUNNERS = {"src/cochem_base/interfaces/module_execution.py", "src/cochem_base/interfaces/module_registry.py",
+                   "src/cochem_base/interfaces/student_setup.py", "src/cochem_base/interfaces/student_actions.py",
+                   "src/cochem_base/interfaces/student_hpc.py", "src/cochem_base/interfaces/actions_jobs.py",
+                   "src/cochem_base/interfaces/executors.py", "src/cochem_base/spectroscopy/spcat_runner.py",
+                   "src/cochem_base/topos_runner.py", "src/cochem_base/cochem_torq_engine.py"}
+
+
+class InfrastructureIntegrityError(ValueError):
+    """The source does not match its independently selected Git revision."""
+
+
+def _git_environment() -> dict[str, str]:
+    # Network trust and injected credentials stay inherited; Git path/config
+    # injection cannot redirect an inspection to another repository or hooks.
+    env = {key: value for key, value in os.environ.items()
+           if key not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR",
+                          "GIT_CONFIG", "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "GIT_OBJECT_DIRECTORY",
+                          "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_SHALLOW_FILE", "GIT_REPLACE_REF_BASE",
+                          "GIT_NAMESPACE", "GIT_TEMPLATE_DIR"}
+           and not key.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))}
+    env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_SYSTEM=os.devnull,
+               GIT_TERMINAL_PROMPT="0", GIT_NO_REPLACE_OBJECTS="1")
+    return env
+
+
+def _git(root: Path, args: list[str], *, timeout: int = 60) -> bytes:
+    executable = shutil.which("git")
+    if not executable:
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Git inspection is unavailable")
+    if Path(executable).resolve().is_relative_to(root.resolve()):
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Git inspection executable is inside untrusted source")
+    result = subprocess.run([str(Path(executable).absolute()), "--no-pager", "-c", "core.hooksPath=" + os.devnull,
+                             "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false",
+                             "-c", "core.attributesFile=" + os.devnull,
+                             "-C", str(root), *args], capture_output=True,
+                            env=_git_environment(), timeout=timeout, check=False)
+    if result.returncode:
+        # Git diagnostics may contain a configured credential URL. Never echo
+        # arbitrary environment values or Git stderr into evidence or the UI.
+        raise InfrastructureIntegrityError(
+            "[HARD_ABORT: INFRASTRUCTURE TAMPERING] Git source inspection failed")
+    return result.stdout
+
+
+def _refuse_external_git_filters(root: Path) -> None:
+    # Status can invoke a configured clean filter before a byte comparison. Read
+    # names only, without exposing credential-bearing config values, and refuse
+    # external conversion programs rather than running them during inspection.
+    executable = shutil.which("git")
+    if executable is None or Path(executable).resolve().is_relative_to(root):
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Git inspection is unavailable")
+    result = subprocess.run([str(Path(executable).absolute()), "--no-pager", "-c", "core.fsmonitor=false",
+        "-c", "core.hooksPath=" + os.devnull, "-C", str(root), "config", "--local", "--includes",
+        "--name-only", "--get-regexp", r"^filter\..*\.(clean|smudge|process)$"],
+        capture_output=True, env=_git_environment(), timeout=30, check=False)
+    if result.returncode not in (0, 1) or result.stdout:
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] External Git conversion programs are not trusted infrastructure")
+
+
+def tracked_source_snapshot(root: Path) -> dict[str, str]:
+    """Hash every tracked file, including non-Python locks and build inputs."""
+    names = _git(root, ["ls-files", "-z"]).decode("utf-8").split("\0")
+    result = {}
+    for name in names:
+        if not name:
+            continue
+        target = root / name
+        if target.is_symlink():
+            result[name] = hashlib.sha256(os.fsencode(os.readlink(target))).hexdigest()
+        elif target.is_file():
+            result[name] = hashlib.sha256(target.read_bytes()).hexdigest()
+        else:
+            raise InfrastructureIntegrityError(
+                "[HARD_ABORT: INFRASTRUCTURE TAMPERING] A tracked source file is missing")
+    if not result:
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] No tracked source files")
+    return result
+
+
+def _excluded_source_guard(root: Path, tracked: dict[str, str], *, development: bool = False) -> tuple[list[str], list[str]]:
+    """Exclude student data, while refusing executable/import/config injection."""
+    excluded = sorted(name for name in _git(root, ["ls-files", "--others", "-z"])
+                      .decode("utf-8").split("\0") if name)
+    executable = {".py", ".pyc", ".pyo", ".pth", ".so", ".pyd", ".dll", ".exe", ".sh", ".ps1", ".bat", ".cmd"}
+    config = {".json", ".ini", ".toml", ".yaml", ".yml", ".cfg"}
+    namespaces = {"src", "cochem", "ui", "frontend", "scripts", ".scripts", "ci_tools", "Libraries",
+                  "tests", "test_suite", ".github", ".devcontainer"}
+    unsafe = []
+    for name in excluded:
+        path = root / name
+        suffix = path.suffix.lower()
+        if (suffix in executable or name in ROOT_INFRASTRUCTURE or (Path(name).parts[0] in namespaces and suffix in config)
+                or (path.is_file() and path.stat().st_mode & 0o111)):
+            unsafe.append(name)
+    if unsafe and not development:
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Untracked executable or source configuration")
+    manifest = root / "ci_tools/source_fixtures.json"
+    if manifest.is_file():
+        try:
+            fixtures = json.loads(manifest.read_text(encoding="utf-8"))["fixtures"]
+            if any(entry["path"] not in tracked for entry in fixtures):
+                raise ValueError("untracked fixture")
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Source fixtures require tracked reviewed bytes") from error
+    return excluded, unsafe
+
+
+def verify_source_binding(root: Path, *, expected_revision: str | None = None,
+                          development: bool = False) -> dict[str, Any]:
+    """Refuse changed initial infrastructure before importing/executing tests.
+
+    Git's committed blobs provide a byte baseline, not a self-issued signature.
+    A hosted publisher SHA is the default when provided. A separate approved
+    canonical worker may supply its explicit reviewed revision instead.
+    """
+    root = root.resolve()
+    actual_root = Path(_git(root, ["rev-parse", "--show-toplevel"]).decode().strip()).resolve()
+    if actual_root != root:
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Source root is not a repository root")
+    _refuse_external_git_filters(root)
+    revision = _git(root, ["rev-parse", "--verify", "HEAD^{commit}"]).decode().strip()
+    publisher = os.environ.get("GITHUB_SHA")
+    expected = expected_revision or publisher or revision
+    if not re.fullmatch(r"[a-fA-F0-9]{40}|[a-fA-F0-9]{64}", expected):
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Expected revision is not immutable")
+    if development and publisher:
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Development mode cannot qualify a hosted publisher run")
+    if revision.lower() != expected.lower():
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Checkout contradicts the selected publisher revision")
+    changed = _git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=no"])
+    if changed and not development:
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Release source is not a clean committed checkout")
+    snapshot = tracked_source_snapshot(root)
+    excluded, untrusted = _excluded_source_guard(root, snapshot, development=development)
+    mismatched = []
+    # One authenticated archive reads committed blobs without thousands of
+    # subprocesses. Tar metadata is never the physical-byte authority.
+    committed = {}
+    with tarfile.open(fileobj=io.BytesIO(_git(root, ["archive", "--format=tar", revision]))) as archive:
+        for member in archive:
+            if member.isfile():
+                handle = archive.extractfile(member)
+                if handle is None:
+                    raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Committed source is unreadable")
+                committed[member.name] = hashlib.sha256(handle.read()).hexdigest()
+            elif member.issym():
+                committed[member.name] = hashlib.sha256(os.fsencode(member.linkname)).hexdigest()
+    for name in snapshot.keys() | committed.keys():
+        if snapshot.get(name) != committed.get(name):
+            mismatched.append(name)
+    if mismatched and not development:
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Source bytes differ from committed Git blobs")
+    try:
+        ring = _verify_infrastructure_ring(root)
+    except InfrastructureIntegrityError:
+        if not development:
+            raise
+        ring = {"passed": False, "status": "pending-reviewed-ring", "release_accepted": False}
+    return {"passed": True, "mode": "development" if development else "release",
+            "release_accepted": not development, "revision": revision, "expected_revision": expected.lower(),
+            "authority": "explicit-reviewed-revision" if expected_revision else ("github-publisher-sha" if publisher else "clean-committed-head"),
+            "tracked_file_count": len(snapshot), "tracked_source_sha256": hashlib.sha256(
+                json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            "initial_changed_paths": sorted(mismatched), "initial_dirty": bool(changed),
+            "excluded_untracked_paths": excluded,
+            "excluded_untrusted_source_paths": untrusted,
+            "infrastructure_ring": ring}
+
+
+def infrastructure_paths(root: Path) -> list[str]:
+    """Complete tracked runner/build/config coverage for the reviewed ring."""
+    names = _git(root, ["ls-files", "-z"]).decode("utf-8").split("\0")
+    roots = {"ci_tools", "scripts", ".scripts", ".github", ".devcontainer"}
+    extensions = {".py", ".json", ".ini", ".toml", ".yml", ".yaml", ".sh", ".ps1", ".bat", ".cmd", ".txt", ".lock"}
+    build_names = {"Pipfile", "Pipfile.lock", "poetry.lock", "uv.lock", "package.json", "package-lock.json",
+                   "pnpm-lock.yaml", "yarn.lock", "MANIFEST.in"}
+    def required(name: str) -> bool:
+        path = Path(name)
+        return bool(name in ROOT_INFRASTRUCTURE or name in RUNTIME_RUNNERS
+            or (name.startswith(RUNTIME_INFRASTRUCTURE) and path.suffix in extensions)
+            or path.name in build_names or path.name.startswith("Dockerfile")
+            or (path.name.startswith("requirements") and path.suffix == ".txt")
+            or (path.parts[0] in roots and path.suffix in extensions))
+    return sorted(name for name in names if name and required(name))
+
+
+def _verify_infrastructure_ring(root: Path) -> dict[str, Any]:
+    """Check a committed reviewed ring; this reader never regenerates it."""
+    path = root / INFRASTRUCTURE_RING
+    try:
+        if path.is_symlink():
+            raise ValueError("redirected ring")
+        record = json.loads(path.read_text(encoding="utf-8"))
+        files = record["files"]
+        required = infrastructure_paths(root)
+        tracked = set(_git(root, ["ls-files", "-z"]).decode("utf-8").split("\0"))
+        if INFRASTRUCTURE_RING not in tracked:
+            raise ValueError("uncommitted infrastructure authority")
+        if record.get("schema_version") != 1 or record.get("algorithm") != "sha256" or not isinstance(files, dict):
+            raise ValueError("invalid ring schema")
+        if set(files) != set(required) or not required:
+            raise ValueError("incomplete infrastructure coverage")
+        for name, expected in files.items():
+            target = root / name
+            if (not isinstance(expected, str) or not re.fullmatch(r"[a-f0-9]{64}", expected)
+                    or target.is_symlink() or not target.is_file()
+                    or hashlib.sha256(target.read_bytes()).hexdigest() != expected):
+                raise ValueError("infrastructure digest mismatch")
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise InfrastructureIntegrityError(
+            "[HARD_ABORT: INFRASTRUCTURE TAMPERING] Reviewed infrastructure ring is missing, incomplete or changed") from error
+    return {"path": INFRASTRUCTURE_RING, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "file_count": len(files), "passed": True, "authority": "reviewed-committed-git-bytes"}
 
 
 def _write(path: Path, payload: Any) -> None:
@@ -93,6 +314,7 @@ def selected_test_sources(root: Path) -> list[Path]:
 
 def source_snapshot(root: Path) -> dict[str, str]:
     """Record actual audited source bytes before and after test execution."""
+    from ci_tools.source_fixtures import validate_source_fixtures
     selected_tests(root)
     candidates = [root / name for name in SOURCE_TARGETS]
     candidates += [root / ".github", root / ".gitattributes", root / ".gitignore",
@@ -113,7 +335,15 @@ def source_snapshot(root: Path) -> dict[str, str]:
             for path in sorted(files)}
 
 
-def audit(root: Path, output: Path) -> dict[str, Any]:
+def audit(root: Path, output: Path, *, expected_revision: str | None = None,
+          development: bool = False) -> dict[str, Any]:
+    binding = verify_source_binding(root, expected_revision=expected_revision, development=development)
+    _write(output / "pre-execution-integrity.json", binding)
+    # Infrastructure bytes are refused before any audit helper is imported.
+    from ci_tools.anti_spoof_linter import run_linter
+    from ci_tools.ci_airgap_sweep import run_airgap_sweep
+    from ci_tools.mendeleev_ast_linter import scan_directory, scan_file
+    from ci_tools.source_fixtures import validate_source_fixtures
     sources = [root / entry for entry in SOURCE_TARGETS]
     _, source_findings = run_linter(sources, root)
     _, test_findings = run_linter(selected_test_sources(root), root)
@@ -137,6 +367,9 @@ def audit(root: Path, output: Path) -> dict[str, Any]:
     _, legacy_findings = run_linter([root], root)
     report = {
         "scope": "BASE alpha source plus canonical local acceptance profile",
+        "source_binding": binding,
+        "release_accepted": bool(binding["release_accepted"] and not source_findings
+                                 and not test_blockers and not mass_findings and airgap.is_clean),
         "passed": not source_findings and not test_blockers and not mass_findings and airgap.is_clean,
         "production_and_ci": {name: [v.to_dict() for v in rows] for name, rows in source_findings.items()},
         "selected_test_source": {name: [v.to_dict() for v in rows] for name, rows in test_findings.items()},
@@ -200,41 +433,262 @@ def evaluate_test_evidence(evidence: dict[str, Any], manifest: dict[str, Any]) -
             "scope": "Local runnable acceptance; pending external checks do not count as passed"}
 
 
-def test(root: Path, output: Path, *, controls: bool = False) -> dict[str, Any]:
-    evidence_path = output / "pytest-outcomes.json"
-    evidence_path.unlink(missing_ok=True)
-    before = source_snapshot(root)
+_PROFILE_BOOTSTRAP = r'''
+import importlib.util, json, os, pathlib, sys
+copied = pathlib.Path(sys.argv[1]).resolve()
+original = pathlib.Path(sys.argv[2]).resolve()
+evidence = pathlib.Path(sys.argv[3]).resolve()
+def inside(path, root):
+    try:
+        return pathlib.Path(path).resolve().is_relative_to(root)
+    except (TypeError, ValueError, OSError):
+        return False
+owned = set()
+for base in (copied/'src', copied/'src/cochem_base', copied):
+    if not base.is_dir():
+        continue
+    for entry in base.iterdir():
+        name = entry.stem if entry.is_file() and entry.suffix == '.py' else entry.name
+        if name.isidentifier() and ((entry.is_file() and entry.suffix == '.py')
+                                   or (entry.is_dir() and any(entry.rglob('*.py')))):
+            owned.add(name)
+sys.path[:] = [entry for entry in sys.path if entry and not inside(entry, original)]
+# An installed BASE editable can refer to another checkout, not this original.
+# Trim only copied-source namespace keys, keeping unrelated editable providers.
+retired = set()
+removed = {}
+for name, module in list(sys.modules.items()):
+    mapping = getattr(module, 'MAPPING', None)
+    namespaces = getattr(module, 'NAMESPACES', None)
+    if not isinstance(mapping, dict) or not isinstance(namespaces, dict):
+        continue
+    keys = set(mapping) | set(namespaces)
+    selected = {key for key in keys if key.split('.')[0] in owned}
+    if not selected:
+        continue
+    module.MAPPING = {key:value for key,value in mapping.items() if key not in selected}
+    module.NAMESPACES = {key:value for key,value in namespaces.items() if key not in selected}
+    removed[name] = sorted(selected)
+    if not module.MAPPING and not module.NAMESPACES:
+        retired.add(name)
+        placeholder = getattr(module, 'PATH_PLACEHOLDER', None)
+        if placeholder is not None:
+            sys.path[:] = [entry for entry in sys.path if entry != placeholder]
+            sys.path_importer_cache.pop(placeholder, None)
+sys.meta_path[:] = [finder for finder in sys.meta_path if getattr(finder, '__module__', '') not in retired]
+sys.path_hooks[:] = [hook for hook in sys.path_hooks if getattr(hook, '__module__', '') not in retired]
+sys.path[:0] = [str(copied/'src'), str(copied/'src/cochem_base'), str(copied), str(copied/'Libraries')]
+(evidence/'quarantine-editable-exclusions.json').write_text(json.dumps(removed, indent=2)+'\n')
+initial = {}
+for name in sorted(owned):
+    spec = importlib.util.find_spec(name)
+    if spec is None:
+        continue
+    paths = list(spec.submodule_search_locations or ())
+    if spec.origin not in (None, 'built-in', 'frozen'):
+        paths.append(spec.origin)
+    if any(not inside(path, copied) for path in paths):
+        raise RuntimeError('[HARD_ABORT: SOURCE QUARANTINE ESCAPE] Initial package origin escaped copied source')
+    initial[name] = paths
+(evidence/'quarantine-import-origins-before.json').write_text(json.dumps(initial, indent=2)+'\n')
+import pytest
+result = pytest.main(sys.argv[4:])
+origins = {}
+escaped = []
+for name, module in list(sys.modules.items()):
+    if module is None:
+        continue
+    paths = list(getattr(module, '__path__', ()) or ())
+    filename = getattr(module, '__file__', None)
+    if filename:
+        paths.append(filename)
+    if name.split('.')[0] in owned:
+        origins[name] = paths
+    if any(inside(path, original) for path in paths) or (name.split('.')[0] in owned and any(not inside(path, copied) for path in paths)):
+        escaped.append(name)
+(evidence/'quarantine-import-origins-after.json').write_text(json.dumps({'origins':origins, 'escaped':escaped}, indent=2)+'\n')
+raise SystemExit(result if not escaped else 1)
+'''
+
+
+def _copy_reviewed_source(root: Path, destination: Path, binding: dict[str, Any]) -> None:
+    executable = shutil.which("git")
+    if executable is None:
+        raise InfrastructureIntegrityError("[HARD_ABORT: INFRASTRUCTURE TAMPERING] Git copy is unavailable")
+    # A local protocol clone copies committed source and the minimum genuine Git
+    # identity. No parent .git/config, untracked file, artifact or licensed runtime
+    # is copied. Disabling local hardlinks also prevents object-store mutation.
+    completed = subprocess.run([str(Path(executable).absolute()), "-c", "core.hooksPath=" + os.devnull,
+        "clone", "--no-local", "--no-hardlinks", "--no-checkout", "--depth=1",
+        root.as_uri(), str(destination)], env=_git_environment(), capture_output=True,
+        check=False, timeout=120)
+    if completed.returncode:
+        raise InfrastructureIntegrityError("[HARD_ABORT: SOURCE QUARANTINE COPY] Could not copy committed source")
+    _git(destination, ["checkout", "--detach", binding["revision"]])
+    if binding["mode"] == "development":
+        # Only Git-tracked current bytes enter an explicit development copy.
+        # New untracked scripts are never admitted as executable test source.
+        for name in tracked_source_snapshot(root):
+            original, copied = root / name, destination / name
+            copied.parent.mkdir(parents=True, exist_ok=True)
+            if copied.is_symlink():
+                copied.unlink()
+            if original.is_symlink():
+                if copied.exists():
+                    copied.unlink()
+                copied.symlink_to(os.readlink(original))
+            else:
+                shutil.copy2(original, copied)
+        _git(destination, ["add", "--all"])
+    for name in tracked_source_snapshot(destination):
+        target = destination / name
+        if target.is_symlink() and not target.resolve().is_relative_to(destination):
+            raise InfrastructureIntegrityError("[HARD_ABORT: SOURCE QUARANTINE ESCAPE] External source symlink")
+
+
+def _profile_environment(root: Path, copied: Path, environment: dict[str, str] | None = None) -> dict[str, str]:
+    env = dict(os.environ if environment is None else environment)
+    for key in ("PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE", "PYTHONSTARTUP", "PYTEST_ADDOPTS", "PYTEST_PLUGINS",
+                "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_CONFIG",
+                "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS"):
+        env.pop(key, None)
+    for key in list(env):
+        if key.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")):
+            env.pop(key)
+    # An inherited runtime path may select an installed licensed engine, but
+    # neither the checkout nor a relative directory may inject executables.
+    entries = []
+    for entry in env.get("PATH", os.defpath).split(os.pathsep):
+        candidate = Path(entry)
+        if entry and candidate.is_absolute() and not candidate.resolve().is_relative_to(root):
+            entries.append(entry)
+    env["PATH"] = os.pathsep.join(entries)
+    env.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTEST_DISABLE_PLUGIN_AUTOLOAD="1",
+               PYTHONDONTWRITEBYTECODE="1", PYTHONNOUSERSITE="1")
+    for key in ("COCHEM_ROOT", "COCHEM_REPO_DIR", "COCH_SRC", "COCHEM_WORKSPACE_ROOT"):
+        env[key] = str(copied)
+    # Runtime/engine/config paths outside source stay authoritative and unchanged.
+    for key in ("COCHEM_MANIFEST_PATH",):
+        value = env.get(key)
+        if value:
+            path = Path(value).expanduser().resolve()
+            if path.is_relative_to(root):
+                env[key] = str(copied / path.relative_to(root))
+    return env
+
+
+def run_profile(root: Path, output: Path, *, test_paths: Any = None, controls: bool = False,
+                expected_revision: str | None = None, development: bool = False,
+                timeout: int = 7200, strict_deferred: bool = False,
+                environment: dict[str, str] | None = None) -> dict[str, Any]:
+    """Run the selected profile only after trusted-byte and strict-audit gates."""
+    root, output = root.resolve(), output.resolve()
+    if output.is_relative_to(root) or timeout <= 0:
+        raise ValueError("Profile evidence must be external and the timeout positive")
+    output.mkdir(parents=True, exist_ok=True)
+    before = {}
+    binding = None
+    report = {"passed": False, "executed": False, "release_accepted": False}
     _write(output / "source-before.json", before)
-    env = {key: value for key, value in os.environ.items() if key not in {"PYTEST_ADDOPTS", "PYTEST_PLUGINS"}}
-    env.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTEST_DISABLE_PLUGIN_AUTOLOAD="1")
-    # Pytest itself runs in a child process. The CI plane never imports the app.
-    profile = root / ("ci_tools/pytest-ci.ini" if controls else "pytest.ini")
-    command = [sys.executable, "-m", "pytest", "-c", str(profile),
-               "--rootdir", str(root),
-               "-p", "ci_tools.pytest_evidence", "--cochem-evidence", str(evidence_path),
-               "--junitxml", str(output / "pytest.xml"), "-q"]
-    if not controls:
-        command.extend(["-p", "pytest_asyncio.plugin"])
-    completed = subprocess.run(command, cwd=root, env=env, check=False)
-    after = source_snapshot(root)
-    _write(output / "source-after.json", after)
-    if not evidence_path.is_file():
-        report = {"passed": False, "error": "Pytest did not publish actual outcome evidence", "exit_code": completed.returncode}
-    else:
-        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-        manifest = json.loads((root / "ci_tools/deferred_acceptance.json").read_text(encoding="utf-8"))
-        report = evaluate_test_evidence(evidence, manifest)
-        report["command_exit_code"] = completed.returncode
-        report["source_changed"] = sorted(name for name in before.keys() | after.keys() if before.get(name) != after.get(name))
-        report["passed"] = report["passed"] and completed.returncode == 0 and not report["source_changed"]
-    _write(output / "test-acceptance.json", report)
+    for name in ("pytest-outcomes.json", "pytest.xml", "quarantine-import-origins-before.json",
+                 "quarantine-import-origins-after.json"):
+        (output / name).unlink(missing_ok=True)
+    try:
+        before = tracked_source_snapshot(root)
+        _write(output / "source-before.json", before)
+        checked = audit(root, output, expected_revision=expected_revision, development=development)
+        report["source_binding"] = checked["source_binding"]
+        if not checked["passed"]:
+            report["error"] = "[HARD_ABORT: AUDIT FAIL] Test subprocess was not started"
+            return report
+        binding = verify_source_binding(root, expected_revision=expected_revision, development=development)
+        evidence_path = output / "pytest-outcomes.json"
+        selectors = list(test_paths or ())
+        for selector in selectors:
+            if not isinstance(selector, str) or not selector or selector.startswith("-"):
+                raise ValueError("Test selection must contain repository-relative test paths")
+            path = (root / selector.split("::", 1)[0]).resolve()
+            if (not path.is_relative_to(root) or not path.exists()
+                    or not any((root / name).is_relative_to(path) for name in before)):
+                raise ValueError("Test selection escaped tracked reviewed source")
+        report.update(source_binding=binding, selected_test_files=selectors)
+        from ci_tools.zero_trust_runner import QuarantineEnvironment
+        with QuarantineEnvironment(base_dir=output / "quarantine") as quarantine:
+            copied = quarantine.quarantine_dir
+            _copy_reviewed_source(root, copied, binding)
+            copy_before = tracked_source_snapshot(copied)
+            dirty_before = _git(copied, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
+            if before != copy_before:
+                raise InfrastructureIntegrityError("[HARD_ABORT: SOURCE QUARANTINE COPY] Copied source bytes differ")
+            _write(output / "quarantine-source-before.json", copy_before)
+            _write(output / "quarantine-source.json", {"source_root": str(copied), "original_root": str(root),
+                "mode": binding["mode"], "revision": binding["revision"], "tracked_file_count": len(copy_before),
+                "licensed_runtime_copied": False, "untracked_source_copied": False,
+                "excluded_untracked_paths": binding["excluded_untracked_paths"]})
+            profile = copied / ("ci_tools/pytest-ci.ini" if controls else "pytest.ini")
+            command = [str(Path(sys.executable).absolute()), "-I", "-B", "-c", _PROFILE_BOOTSTRAP,
+                str(copied), str(root), str(output), "-c", str(profile), "--rootdir", str(copied),
+                "-p", "ci_tools.pytest_evidence", "--cochem-evidence", str(evidence_path),
+                "--junitxml", str(output / "pytest.xml"), "-q"]
+            if not controls:
+                command.extend(["-p", "pytest_asyncio.plugin"])
+            command.extend(selectors)
+            completed = quarantine.run_command(command, timeout=timeout,
+                environment=_profile_environment(root, copied, environment))
+            (output / "pytest.stdout.log").write_text(completed.stdout, encoding="utf-8")
+            (output / "pytest.stderr.log").write_text(completed.stderr, encoding="utf-8")
+            copy_after = tracked_source_snapshot(copied)
+            dirty_after = _git(copied, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
+            _write(output / "quarantine-source-after.json", copy_after)
+            copied_changes = sorted(name for name in copy_before.keys() | copy_after.keys() if copy_before.get(name) != copy_after.get(name))
+            if evidence_path.is_file():
+                evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+                manifest = ({"schema_version": 1, "deferred_tests": []} if strict_deferred else
+                    json.loads((copied / "ci_tools/deferred_acceptance.json").read_text(encoding="utf-8")))
+                report.update(evaluate_test_evidence(evidence, manifest))
+            else:
+                report["error"] = "Pytest did not publish actual outcome evidence"
+            origins_path = output / "quarantine-import-origins-after.json"
+            origins = json.loads(origins_path.read_text()) if origins_path.is_file() else None
+            report.update(executed=True, command_exit_code=completed.exit_code, timed_out=completed.timed_out,
+                          quarantine_source_changed=copied_changes, quarantine_workspace_changed=dirty_before != dirty_after,
+                          source_origins_verified=bool(origins is not None and not origins.get("escaped")))
+            report["passed"] = bool(report["passed"] and completed.passed and not copied_changes
+                                    and dirty_before == dirty_after and report["source_origins_verified"])
+    except (OSError, ValueError, KeyError, SyntaxError, configparser.Error) as error:
+        report["error"] = str(error)
+        raise
+    finally:
+        try:
+            after = tracked_source_snapshot(root)
+        except InfrastructureIntegrityError as error:
+            after = {}
+            report["source_after_error"] = str(error)
+            report["passed"] = False
+        if not (output / "source-before.json").is_file():
+            _write(output / "source-before.json", before)
+        _write(output / "source-after.json", after)
+        changes = sorted(name for name in before.keys() | after.keys() if before.get(name) != after.get(name))
+        report["source_changed"] = changes
+        report["passed"] = bool(report["passed"] and not changes)
+        report["release_accepted"] = bool(report["passed"] and binding and binding["release_accepted"])
+        _write(output / "test-acceptance.json", report)
     return report
+
+
+def test(root: Path, output: Path, *, controls: bool = False, expected_revision: str | None = None,
+         development: bool = False, timeout: int = 7200) -> dict[str, Any]:
+    return run_profile(root, output, controls=controls, expected_revision=expected_revision,
+                       development=development, timeout=timeout)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("stage", choices=("audit", "test", "controls", "all"), nargs="?", default="all")
     parser.add_argument("--output", type=Path, required=True, help="External evidence directory")
+    parser.add_argument("--expected-revision", help="Immutable publisher/approved canonical worker Git revision")
+    parser.add_argument("--development", action="store_true", help="Explicit local development checks; never release acceptance")
+    parser.add_argument("--timeout", type=int, default=7200, help="Bounded profile subprocess lifetime in seconds")
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
     output = args.output.resolve()
@@ -244,16 +698,24 @@ def main(argv: list[str] | None = None) -> int:
     results = {}
     try:
         if args.stage in {"audit", "all"}:
-            results["audit"] = audit(root, output)
+            results["audit"] = audit(root, output, expected_revision=args.expected_revision, development=args.development)
         if args.stage in {"test", "all"}:
-            results["tests"] = test(root, output)
+            if args.stage == "all" and not results["audit"]["passed"]:
+                results["tests"] = {"passed": False, "executed": False,
+                                    "error": "[HARD_ABORT: AUDIT FAIL] Test subprocess was not started"}
+                _write(output / "test-acceptance.json", results["tests"])
+            else:
+                results["tests"] = test(root, output, expected_revision=args.expected_revision,
+                    development=args.development, timeout=args.timeout)
         if args.stage == "controls":
-            results["controls"] = test(root, output, controls=True)
+            results["controls"] = test(root, output, controls=True, expected_revision=args.expected_revision,
+                development=args.development, timeout=args.timeout)
     except (OSError, ValueError, KeyError, SyntaxError, configparser.Error) as error:
         results["error"] = {"passed": False, "error": str(error)}
     passed = bool(results) and all(result["passed"] for result in results.values())
     summary = {"passed": passed, "stages": {key: {"passed": value["passed"], **({"error": value["error"]} if "error" in value else {})} for key, value in results.items()},
-               "evidence_directory": str(output)}
+               "evidence_directory": str(output), "mode": "development" if args.development else "release",
+               "release_accepted": passed and not args.development}
     _write(output / "summary.json", summary)
     print(json.dumps(summary, indent=2))
     return 0 if passed else 1

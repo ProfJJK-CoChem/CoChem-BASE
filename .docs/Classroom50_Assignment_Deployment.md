@@ -1,4 +1,24 @@
-# Deploy CoChem-BASE for student research through Classroom50
+# Classroom50 collection and private CoChem student projects
+
+The current course choice is a **personal-owned private research project** so
+chemistry uses each student's personal Actions allowance. Follow
+[Personal project deployment with the instructor GitHub App](Personal_Project_App_Deployment.md)
+first. The instructor configures the private controller once; students create
+an independent private BASE template copy under their personal account and
+authorize the App for that selected project. BASE handles application/module
+setup through its automatic interface. Students do not copy tokens or run
+terminal installation commands.
+
+Classroom50 remains the organization roster, assignment collection and feedback
+service. Its organization-owned assignment is a course submission record, not
+the personal project's calculation payer. Team Read access to engine/source
+repositories does not reveal secret values. Organization Actions secrets cannot
+inherit into personal projects: the App provisions encrypted project credentials
+and private generic binding variables after membership and consent checks.
+
+The detailed organization-owned assignment procedure below is an **alternate
+arrangement**. Its chemistry jobs use organization minutes; do not follow it to
+claim personal Actions billing. Use the App guide for the selected personal route.
 
 Use **one persistent private BASE workspace per student or research group**.
 Students create their own monomer or complex starting XYZ files in Avogadro 2,
@@ -214,7 +234,7 @@ automatic grade appear valid.
 A share link alone is not enrollment. Do not ask the student to fork BASE when
 acceptance reports missing membership; correct their invitation/roster instead.
 
-## 7. Check your existing secret policies—usually no copies are needed
+## 7. Alternate organization assignments: check existing access policies
 
 You have already granted the student team Read access to the engine
 repositories and configured organization secrets. **Do not create duplicate
@@ -223,14 +243,15 @@ repositories the organization secret allows to use it.
 
 1. Open GitHub → `ProfJJK-CoChem` → **Settings → Secrets and variables →
    Actions**.
-2. Inspect `PRIVATE_ORCA_ASSET_CREDENTIAL`, `PRIVATE_CFOUR_ASSET_CREDENTIAL` and
-   `COCHEM_SOURCE_READ_TOKEN` using their edit/update controls.
+2. Inspect the private `COCHEM_ORCA_ACCESS_SECRET`,
+   `COCHEM_CFOUR_ACCESS_SECRET` and `COCHEM_SOURCE_ACCESS_SECRET` binding
+   variables and the corresponding privately named secrets. Do not print them.
 3. If **Repository access** is **All repositories** and covers private course
    repositories on your plan, the new assignment is already covered. No
    additional repository-secret copy is required.
-4. If it is **Selected repositories**, add the new assignment to each needed
-   secret's list and save. Repeat the **access-list grant**, not the value copy,
-   for each newly accepted assignment.
+4. If it is **Selected repositories**, add the new assignment to both each
+   needed secret's and binding variable's list. Repeat the **access-list grant**,
+   not the value copy, for each newly accepted organization assignment.
 5. If it is **Public repositories**, it does not cover this private assignment.
    Choose the approved private/selected policy.
 6. Inspect the assignment's **Settings → Secrets and variables → Actions** for

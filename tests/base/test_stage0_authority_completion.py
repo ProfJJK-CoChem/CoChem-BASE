@@ -5,25 +5,29 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 from cochem_base.cochem_core_registry_schema import CoChemSystemConfig, EngineInfo
 from cochem_base.core.cochem_core_registry_manager import save_system_config
+from cochem_base.core_engine.engine_environment import engine_runtime_environment
 from cochem_base.core_engine.execution_authority import (
     RegistryAuthorityViolationError,
     authorize_engine_execution,
 )
-from cochem_base.orchestrator.stage0_authority import Stage0AuthorityError, build_stage0_authority
 from cochem_base.orchestrator.cochem_setup_phase_3 import (
     audit_binary_linkage,
     extract_semantic_version,
     interrogate_binary_version,
 )
-from cochem_base.core_engine.engine_environment import engine_runtime_environment
+from cochem_base.orchestrator.stage0_authority import (
+    Stage0AuthorityError,
+    build_stage0_authority,
+    publish_stage0_authority,
+)
 
 
 def _python_registry(tmp_path):
@@ -45,6 +49,16 @@ def test_partial_or_preview_run_cannot_publish_stage0_authority(tmp_path):
     with pytest.raises(Stage0AuthorityError, match="dry run"):
         build_stage0_authority({"dry_run": True})
     assert not (tmp_path / "Registry" / "cochem_system_config.json").exists()
+
+
+def test_refused_stage0_publication_does_not_provision_partial_workspace(tmp_path):
+    root = tmp_path / "refused-artifacts"
+    with pytest.raises(Stage0AuthorityError, match="eleven"):
+        publish_stage0_authority({"phases_executed": [], "artifact_dir": str(root)})
+    assert not root.exists()
+    with pytest.raises(Stage0AuthorityError, match="dry run"):
+        publish_stage0_authority({"dry_run": True, "artifact_dir": str(root)})
+    assert not root.exists()
 
 
 def test_no_unmeasured_default_registry():
@@ -339,8 +353,9 @@ def test_silo_launcher_cannot_be_replaced_by_same_host_binary(tmp_path):
 
 
 def test_native_setup_service_emits_real_phase_events_and_preserves_authority(tmp_path):
-    from cochem_base.orchestrator.bootstrap_service import run_setup
     import os
+
+    from cochem_base.orchestrator.bootstrap_service import run_setup
     before = os.environ.get("COCHEM_ARTIFACT_DIR")
     events = []
     summary = run_setup(tmp_path, phases=[1], on_event=events.append)

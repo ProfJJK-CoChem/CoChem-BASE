@@ -21,47 +21,45 @@ and limit access according to the applicable license.
 
 ## GitHub configuration
 
-In the repository running the workflow, create the Actions secret
-`PRIVATE_ORCA_ASSET_CREDENTIAL`. Its fine-grained token needs Contents read access to the
-private `ProfJJK-CoChem/CoChem-ORCA` repository. The default `GITHUB_TOKEN` cannot
-automatically read another private repository. Organization approval, when
-required by the repository owner, must be complete before download.
+The instructor-managed [GitHub App deployment](Personal_Project_App_Deployment.md)
+is the primary route for private projects owned by students. The instructor
+configures access once; the student authorizes the App for their selected private
+project. The controller supplies encrypted repository credentials and their
+private configuration bindings. Students do not create, copy or enter tokens.
+Organization secrets do not automatically enter personal repositories.
 
-In GitHub's fine-grained token editor, select resource owner
-`ProfJJK-CoChem`, then **Only select repositories → CoChem-ORCA**. Under
-**Permissions → Add permissions**, select **Contents** directly
-and set its access to **Read-only**. This is the asset repository, not BASE.
-Generate the token with an expiration date and save its value in
-**CoChem-BASE → Settings → Secrets and variables → Actions →
-PRIVATE_ORCA_ASSET_CREDENTIAL**. Do not put the token in source, logs or chat.
-For a course, an instructor can provide the same narrowly scoped organization
-secret to selected authorized calculation repositories; it is not copied with
-assignment template files. The [course guide](GitHub_Classroom_ORCA_Setup.md#5-make-the-secret-available-to-the-calculation-repository)
-explains organization-plan limits, student-owned repositories and why students
-who can edit credential-bearing workflows must be authorized to use that access.
-GitHub also supports a [prefilled token form](https://github.com/settings/personal-access-tokens/new?name=CoChem%20ORCA%20asset%20reader&target_name=ProfJJK-CoChem&contents=read&expires_in=90)
-that selects the owner and Contents read permission; select `CoChem-ORCA`
-manually before generating it.
+Public source contains generic binding keys rather than the instructor's stored
+credential labels:
 
-A `release not found` response can mean that the token cannot access a private
-release. Check the token's repository selection, expiration and any required
-organization approval before changing the reviewed repository or tag. Updating
-a token in GitHub does not automatically replace an older token value saved in
-the Actions secret.
+| Private repository variable | Value in private settings |
+| --- | --- |
+| `COCHEM_ORCA_ACCESS_SECRET` | Name of the approved repository or organization archive secret |
+| `COCHEM_SOURCE_ACCESS_SECRET` | Name of the separately scoped private source secret |
 
-The access check, full acceptance and student calculation workflows all read
-the same reviewed `scripts/orca-distribution.json`; no Actions variables are
-required. The earlier `ORCA_ASSET_*` and `ORCA_RELEASE_TAG` variable overrides
-are no longer used. Instructors can review and change the private repository,
-tag and independently verified checksum in the manifest. The supported build
-identity remains ORCA 6.1.1 for Linux x86-64 with Open MPI 4.1.8; another platform
-or MPI build requires its own supported provisioner.
+The ORCA workflow resolves `secrets[vars.COCHEM_ORCA_ACCESS_SECRET]`. For an
+organization-owned course repository, an instructor may use a selected-repository
+organization secret and grant the matching variable to the same repositories.
+No duplicate repository secret is needed when that organization policy already
+covers the project. Keep both policies restricted to approved private projects;
+template files do not copy settings, credentials or access grants.
 
-Run **Actions → ORCA 6.1.1 calculation acceptance → Run workflow** after the
-workflow is on the default branch. The implementation branch
-`codex/orca-6.1.1-actions` also triggers it on pushes changing the integration,
-so the first authorized publication can test the proposed code before merging.
-The licensed job has no pull-request trigger.
+A fine-grained archive reader needs **Contents: Read-only** for the approved
+private asset repository, an appropriate expiry and any required organization
+approval. In GitHub's editor use **Permissions → Add permissions → Contents**.
+The default project `GITHUB_TOKEN` cannot automatically read separate private
+repositories. Team Read access and credential access are separate controls.
+
+The downloader reads the reviewed `scripts/orca-distribution.json`. The private
+binding variable selects a credential, not a different binary or checksum.
+Missing credential configuration leaves ORCA unavailable in general BASE; a
+calculation explicitly requiring ORCA fails with retained diagnostics. Leave
+**Send secrets and variables to workflows from fork pull requests** disabled.
+
+A `release not found` response can mean denied access. Check the App enrollment
+or selected-repository policy, reader expiry and approval before changing a
+reviewed repository, release or checksum. Run **Actions → ORCA 6.1.1 calculation
+acceptance → Run workflow** in the approved project after configuring access.
+The licensed acceptance has no pull-request trigger.
 
 ## What actually executes
 
@@ -102,32 +100,24 @@ registry, failed MPI or failed calculations fail the licensed acceptance.
 
 ## Running a student calculation
 
-The separate `ORCA calculation` workflow accepts a reviewed repository-relative
-`job_file` containing a flat `CalculationMatrixConfig` JSON document. The
-default example is `examples/jobs/water-single-point.json`; additional examples
-are `examples/jobs/water-optimization.json` and `examples/jobs/water-harmonic.json`.
-The Voilà interface's **Prepare GitHub
-Actions job** button exports a validated portable JSON request for submission
-under `jobs/`; it does not execute the calculation locally or silently dispatch
-a GitHub job. Follow the [student walkthrough](GitHub_Classroom_ORCA_Setup.md#run-your-assignment-calculation)
-to commit the input and start the workflow.
+Students open their private BASE project in Codespaces and wait for automatic
+setup. They upload and classify their own scientific inputs using BASE's full
+Input library, select **GitHub Actions**, and use **Run with GitHub Actions**.
+BASE prepares the hash-bound request, monitors its actual run and retrieves the
+verified scientific result. Students do not edit JSON, run terminal commands or
+install TOPOS/TORQ directly. See the [student research guide](Student_Research_No_Code.md).
 
-The workflow checks out the selected revision of its own calculation repository,
-then uses the same ORCA provisioner and fresh Stage 0 setup as acceptance. It
-allows one or two ORCA processes, defaults to 512 MB per process, and caps that
-setting at 1024 MB per process. The job is limited to 50 atoms, a 256 KiB JSON
-document and at most 1800 seconds of calculation execution. Referenced files,
-R2 reference manifests, T9 recovery, periodic operations and VPT2 require other
-workflows and are rejected here. Full scientific capability validation follows
-the early path/JSON/resource checks.
+The approved canonical worker provisions only the requested engines and modules,
+creates fresh Stage 0 authority for its actual host and records exact source,
+engine, input and result identities. Missing engine access disables its dependent
+choices; failures remain failed scientific runs. Downloaded licensed archives and
+installations are excluded from calculation artifacts and caches.
 
-The artifact `orca-calculation-<run-id>-<attempt>` retains the submitted and
-validated inputs, SHA-256 records, engine output, accepted result, HDF5 scientific
-record, provisioning and Stage 0 evidence, and available failure diagnostics.
-The token is supplied only to the archive-download step. Neither the licensed
-archive nor its installation is uploaded. This calculation workflow does not
-automatically post a Classroom50 assignment score. Its actual hosted execution
-must be reported separately from implementation or unit-test results.
+The separate `ORCA calculation` workflow is an instructor acceptance interface
+for bounded flat `CalculationMatrixConfig` examples. Its defaults, process/memory
+limits and scientific admission checks apply to that workflow; it is not the
+student's complete ingestion or provider interface. HF/STO-3G water validates
+installation and execution, not a vdW research protocol or experimental accuracy.
 
 ## Reuse and other execution environments
 
@@ -141,11 +131,11 @@ system runtime libraries. The action installs outside the checkout and exports
 Direct acceptance runs use the current course repository and selected commit,
 so a Classroom50 copy does not try to check out its own commit from the upstream
 BASE repository. The full workflow also supports `workflow_call`; callers must
-pass a full 40-character BASE commit as `base_ref` and explicitly pass
-`PRIVATE_ORCA_ASSET_CREDENTIAL`. `base_repository` defaults to
+pass a full 40-character BASE commit as `base_ref` and explicitly pass the
+generic `engine_asset_credential` input using their private binding. `base_repository` defaults to
 `ProfJJK-CoChem/CoChem-BASE` and can select a reviewed BASE mirror. When the
 caller's default token cannot read that private source repository, the caller
-can pass the separate optional `BASE_SOURCE_READ_TOKEN` with Contents read
+can pass the separate optional `base_source_credential` with Contents read
 access to the source. Private action/workflow reuse also depends on GitHub's
 repository sharing rules. The ORCA-only token is not source access to another
 private repository, and Classroom50's service token is not an ORCA credential.

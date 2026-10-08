@@ -14,32 +14,38 @@ engine and fails honestly when that engine is unavailable. For the separate
 CFOUR archive, access credential and compatibility requirements, see the
 [CFOUR setup guide](CFOUR_Actions_Setup.md).
 
-The primary course arrangement is **[Classroom50](https://classroom50.org/) with
-an instructor-managed GitHub organization**. Classroom50 is the free,
-open-source alternative to GitHub Classroom supported by the Fifty Foundation.
-It creates and manages the course's GitHub assignment repositories. CoChem's
-GitHub Actions workflows install ORCA and run the chemistry inside those
-repositories. The instructor provisions archive access; students do not need
-individual archive-read tokens when that organizational setup is complete.
+The primary course arrangement uses **personal-owned private BASE projects**
+with the [instructor-managed GitHub App](Personal_Project_App_Deployment.md).
+Students authorize their selected project; the instructor's private controller
+supplies its encrypted access credentials automatically. Chemistry jobs consume
+the project's owner's personal Actions allowance. Students do not handle tokens.
+
+[Classroom50](https://classroom50.org/) manages the course's organization, roster,
+assignment collection and feedback. Its organization assignment repositories and
+the student's personal research project are separate: accepting an organization
+assignment does not transfer ownership, billing or secrets to a personal account.
+The alternate organization-owned calculation arrangement is documented below.
 
 The Classroom50 steps below follow its [official web teacher guide](https://github.com/foundation50/classroom50/blob/main/wiki/Web-Teacher-Guide.md),
 [student guide](https://github.com/foundation50/classroom50/blob/main/wiki/Web-Student-Guide.md)
 and [assignment template guide](https://github.com/foundation50/classroom50/blob/main/wiki/Assignment-Templates.md).
-Classroom50 login and grading credentials are separate from CoChem's narrowly
-scoped `PRIVATE_ORCA_ASSET_CREDENTIAL`.
+Classroom50 login and grading credentials are separate from CoChem's privately
+configured archive readers.
 
 For private TOPOS, TORQ and other module source, also follow
 [Ecosystem modules setup](Ecosystem_Modules_Setup.md). Module source uses
-`COCHEM_SOURCE_READ_TOKEN` in Actions; it does not replace the ORCA archive
-credential. Leave **Send secrets and variables to workflows from fork pull
+the private `COCHEM_SOURCE_ACCESS_SECRET` binding in Actions; it does not
+replace the separate ORCA archive binding. Leave **Send secrets and variables to workflows from fork pull
 requests** disabled. The course's manual calculation workflows do not need it.
 
 ## Student quick start
 
-Your instructor supplies a Classroom50 assignment acceptance link. Sign in with
-your own GitHub account, accept the organization invitation, select **Accept
-assignment**, then **Open repository**. Use that accepted repository, not the
-upstream BASE repository.
+Sign in with your own GitHub account and follow your instructor's project and
+Classroom50 enrollment links. Create an independent **Private** project from the
+public BASE template with your personal account as **Owner**, then authorize the
+instructor's App for that selected project as described in the
+[deployment guide](Personal_Project_App_Deployment.md). Use this private research
+project, not upstream BASE, for your Codespace and calculation requests.
 
 1. Select **Code → Codespaces → Create codespace**, authorize the requested
    course repository access and wait for automatic BASE/module setup.
@@ -48,8 +54,8 @@ upstream BASE repository.
    installation is required.
 3. Upload your own Avogadro 2 monomer or complex XYZ files inside BASE. Preserve
    each original, assign its role, and declare its charge and multiplicity.
-4. Choose **GitHub Actions** as calculation environment and your accepted
-   assignment repository. Select the available ORCA method and operation,
+4. Choose **GitHub Actions** as calculation environment and your private
+   research project. Select the available ORCA method and operation,
    then submit through BASE's **Run with GitHub Actions** button.
 5. Use BASE's status and cancellation controls. When the job finishes, retrieve
    its verified result package through BASE and inspect the scientific report,
@@ -90,17 +96,15 @@ and test steps for every course calculation repository.
 
 | Arrangement | Setup responsibility | Credential consequence |
 | --- | --- | --- |
-| Private repositories in the course organization, with students authorized to obtain the ORCA archive | Instructor provides selected repositories with asset-read access and approved source/workflows. | Anyone able to edit and run workflows in a repository with a secret can potentially use that secret. Grant access only to people permitted to obtain the archive. |
-| Instructor-managed calculation repository with reviewed changes | Instructor retains write control, reviews submitted inputs, starts or approves calculations, and shares permitted results. | Student-editable code must not execute in a job that receives an instructor-only credential. Keep credential-bearing jobs under instructor control. |
-| Student-owned repositories | Each student configures an authorized asset source and its token, or the instructor deliberately provisions permitted access to that repository. | An organization secret is not automatically shared into a student's personal repository. A token cannot grant access its owner does not have. |
+| Personal-owned private BASE project — primary route | Instructor configures the private App controller once; student consents to the selected project. | App provisions encrypted project credentials and generic binding variables. Organization secrets do not inherit into the personal project. |
+| Organization-owned private assignment — alternate route | Instructor grants selected-repository organization secret and variable policies. | Actions uses that organization's allowance. Template files do not copy access grants. |
+| Instructor-controlled calculation service | Instructor controls scientific execution and shares permitted results. | Chemistry uses the instructor's calculation allowance rather than the student's personal allowance. |
 
-The first arrangement is convenient for a class when every participating user
-is permitted access to the archive. Choose the second if credentials or
-distribution access must remain instructor-only. Secret masking in logs is
-not an access boundary against someone who can change the workflow or the code
-it executes. A required review protects access only when the reviewer checks
-the exact code and inputs that will run and GitHub's branch/environment controls
-prevent bypass.
+Students should never receive or copy the instructor's PAT value. A person able
+to edit and execute a project workflow can use its credential access, so enroll
+only permitted users and restrict readers to the approved source and assets.
+The App's private controller remains instructor-writable, validates membership
+and consent, and installs access only into approved private projects.
 
 Keep the archive private, obtain it through the official ORCA distribution
 process, and grant access within your institution's applicable ORCA terms.
@@ -111,15 +115,18 @@ included minutes, spending controls and runner limits. Each fresh job downloads
 the archive and builds its runtime. Pilot one student repository before
 starting many simultaneous jobs.
 
-### Use students' Codespaces allowance and the organization's included Actions minutes
+### Use students' personal Codespaces and Actions allowances
 
-Codespaces and Actions have separate usage allowances. For this course,
-students own their Codespaces; the organization does not sponsor Codespaces or
-authorize paid Actions overages.
+Codespaces and Actions have separate allowances. A student-owned Codespace and
+chemistry job in a personal-owned private project use the student's own account.
+The instructor's private App-enrollment and Classroom50 administration jobs use
+the organization allowance. This does not make private Actions usage unlimited;
+check active Education benefits, billing limits and remaining usage.
 
 | Service | Account whose allowance is used |
 | --- | --- |
 | User-owned Codespace opened from an organization assignment | The student's personal account. Verified GitHub Education students currently receive up to 180 core-hours per month; a two-core Codespace uses two core-hours for each running hour. Check the actual allowance in the student's billing page. |
+| GitHub-hosted chemistry job in a personal-owned private project | The personal account owning that project; verify its current Education/Pro entitlement and usage limit. |
 | GitHub-hosted Actions job in a private organization assignment | The organization that owns the repository, regardless of who clicks Run workflow. GitHub Team currently includes 3,000 standard-runner minutes per month shared across the organization, not 3,000 minutes for each student. Artifact storage also uses the organization's allowance. |
 
 1. Open the course organization's **Settings → Codespaces → General**.
@@ -132,12 +139,10 @@ authorize paid Actions overages.
    Students can inspect their remaining usage in their own **Settings →
    Billing & Licensing**. Stop Codespaces when finished; retained Codespaces
    continue to use storage. Commit and push work before deleting one.
-4. Open **Organization Settings → Billing & Licensing → Budgets and alerts**.
-   Retain the course's $0 paid-usage limit for Actions and its enforced stop
-   setting. Check existing budgets rather than creating overlapping limits.
-   Review the organization's included usage before scheduling a class run.
-   Jobs may stop when that shared allowance is exhausted; a student's remaining
-   personal allowance does not cover an organization-owned repository's jobs.
+4. Have the student check personal **Settings → Billing & Licensing** for their
+   private project's Actions limits and usage. For private App/Classroom50
+   administration, also review existing organization budgets and included usage.
+   A student's remaining allowance does not cover organization-owned jobs.
 
 Classroom50 does not change GitHub's payer rules. GitHub Education Team status
 provides the Team plan's included Actions allowance; it does not make private
@@ -163,7 +168,7 @@ and [Actions billing](https://docs.github.com/en/billing/concepts/product-billin
 3. The service token requested by Classroom50 is
    **`CLASSROOM50_SERVICE_TOKEN`**, used by its grading/collection tools. Follow
    Classroom50's own service-token instructions for it. **Do not reuse it as
-   `PRIVATE_ORCA_ASSET_CREDENTIAL`**, and do not replace it with the ORCA reader token:
+   an archive-access credential**, or replace it with the ORCA reader:
    the two credentials have different repositories, permissions and purposes.
 4. On **My classrooms**, select **Create classroom**, enter the course name,
    slug and optional term, and create the classroom. Add staff through the
@@ -320,51 +325,40 @@ sets the resource owner, Contents read permission and requested expiration.
 You still need to select `CoChem-ORCA` and generate the token. Use your own
 owner when hosting the archive elsewhere.
 
-### 5. Make the secret available to the calculation repository
+### 5. Bind private access to the calculation project
 
-For one repository:
+For the primary personal-project route, follow the
+[GitHub App deployment guide](Personal_Project_App_Deployment.md). The instructor
+configures authorized readers and a private controller; the student authorizes
+the App on the selected project. The controller provisions encrypted project
+secrets and sets these variables privately:
 
-1. Open the repository that will run the calculations, such as a student's
-   private course repository or the instructor's calculation repository.
-2. Select **Settings → Secrets and variables → Actions → Secrets → New
-   repository secret**.
-3. Enter the name **`PRIVATE_ORCA_ASSET_CREDENTIAL`** exactly.
-4. Paste only the token as its value, without quotes or a `Bearer` prefix, and
-   select **Add secret**. To replace an existing value, use that secret's
-   update control. Reissuing a token does not update a saved Actions secret.
+| Variable | Privately configured value |
+| --- | --- |
+| `COCHEM_ORCA_ACCESS_SECRET` | Stored label of the ORCA archive reader |
+| `COCHEM_CFOUR_ACCESS_SECRET` | Stored label of the CFOUR archive reader |
+| `COCHEM_SOURCE_ACCESS_SECRET` | Stored label of the private source reader |
 
-For several authorized repositories in the same organization, an organization
-owner can instead create an **Actions organization secret** with the same name
-and grant it to **Selected repositories**. This is the primary route for this
-course:
+The labels and credential values are not entered in public source. Public YAML
+resolves the mapped secret at runtime. Students do not create PATs, copy secret
+values or repair setup by running terminal commands. A missing licensed binding
+leaves that engine unavailable while BASE's independent capabilities remain usable.
 
-1. Open the course **organization's Settings**, not your personal account
-   settings or the asset repository's settings.
-2. Select **Secrets and variables → Actions → New organization secret**.
-3. Name it **`PRIVATE_ORCA_ASSET_CREDENTIAL`** and paste the newly generated token as the
-   value.
-4. Under **Repository access**, choose **Selected repositories**, then select
-   the instructor calculation repository or each authorized student calculation
-   repository. Save the secret.
-5. After creating a new course repository, return to this access list and add
-   it. Run the pilot acceptance using an actual student account with the same
-   rights as the rest of the class.
+For an alternate organization-owned assignment, an organization owner can create
+an Actions secret with an arbitrary private label and set the matching binding
+variable to that label. Under **Settings → Secrets and variables → Actions**,
+grant both secret and variable to **Selected repositories**. Add each newly
+created private assignment to both policies. There is no need to create duplicate
+repository secrets when organization policies already cover that repository.
 
-Check the organization's plan: GitHub documents that
-organization-level secrets are not available to private repositories on GitHub
-Free. Where that applies, configure a repository secret for each authorized
-repository or use an appropriate organization plan.
+Organization-level private-repository secrets require a supported plan such as
+GitHub Team. They cannot inherit into repositories owned by student accounts.
+Template files do not copy settings. A same-name repository secret overrides an
+organization value; correct a stale private binding instead of printing it.
 
-**Secrets are not copied with template source code, and a new assignment or
-fork does not automatically receive this secret.** Access to an organization
-secret is controlled separately. If an old repository secret with the same
-name exists, it can override the organization secret; replace or remove the
-stale repository value. A personal student repository is outside the course
-organization's secret policy.
-
-The built-in `GITHUB_TOKEN` normally has access to its own repository. It does
-not automatically read the separate private archive repository. Do not replace
-this token with a broad account token merely to avoid configuring asset access.
+The built-in project `GITHUB_TOKEN` cannot automatically read separate private
+assets. Team membership and Read access do not expose secret values or expand
+that token's repository scope. Keep reader permissions narrowly scoped.
 
 ### 6. Pin the approved distribution in the course source
 
@@ -429,11 +423,11 @@ tested; the current guide uses the fine-grained token route.
 | Symptom | What to check |
 | --- | --- |
 | Classroom50 says Not a member yet or the assignment is unavailable | The instructor must add the student to the correct classroom roster and the student must accept the organization invitation. Classroom membership and the ORCA secret's repository access are separate setup steps. |
-| Classroom50 grading works but ORCA download fails | `CLASSROOM50_SERVICE_TOKEN` supports Classroom50 collection/grading. CoChem requires the separate `PRIVATE_ORCA_ASSET_CREDENTIAL` and an approved distribution manifest. |
+| Classroom50 grading works but ORCA download fails | `CLASSROOM50_SERVICE_TOKEN` supports collection/grading. CoChem uses its separate private archive binding and an approved distribution manifest. |
 | `Contents` is visible alongside Actions and Deployments | Select **Contents** directly under **Add permissions**, then choose **Read-only**. There is no additional menu step. |
 | Organization is absent from Resource owner | Confirm the token owner belongs to that organization and its policy allows the requested fine-grained token. Ask an organization administrator to provision access; do not select an unrelated owner. |
 | Token is Pending | Have the organization owner approve it. A pending token does not provide the required private repository access. |
-| Missing `PRIVATE_ORCA_ASSET_CREDENTIAL` | Add the secret to the repository actually running the job, or include that repository in the organization secret's access policy. |
+| ORCA archive access unavailable | Check App project enrollment and its private `COCHEM_ORCA_ACCESS_SECRET` binding; for organization-owned jobs, check matching selected-repository secret/variable policies. |
 | `release not found`, HTTP 404 or private asset access denied | Confirm the release is published with the exact archive asset. Check token owner, asset repository selection, Contents read access, expiry, organization approval and the saved secret value. Private GitHub resources can return 404 when access is missing. |
 | Access check passes but full installation downloads a different location | Current access, acceptance and calculation workflows all read `scripts/orca-distribution.json`. Check that both runs use the same approved revision; update older workflow copies instead of changing obsolete repository variables. |
 | SHA-256 mismatch | Stop the installation. Compare with the independently hashed original and check for the wrong asset or a changed upload. Do not disable verification. |

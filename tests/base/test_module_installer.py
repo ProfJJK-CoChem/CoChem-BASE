@@ -16,7 +16,7 @@ BACKEND = '''
 import base64, hashlib, os, pathlib, zipfile
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
-    forbidden = ["COCHEM_SOURCE_READ_TOKEN", "BASE_SOURCE_READ_TOKEN", "PRIVATE_ORCA_ASSET_CREDENTIAL", "GH_TOKEN", "GITHUB_TOKEN", "GIT_ASKPASS", "GIT_CONFIG_COUNT"]
+    forbidden = ["COCHEM_SOURCE_CREDENTIAL", "base_source_credential", "COCHEM_ORCA_ASSET_CREDENTIAL", "GH_TOKEN", "GITHUB_TOKEN", "GIT_ASKPASS", "GIT_CONFIG_COUNT"]
     if any(key in os.environ for key in forbidden):
         raise RuntimeError("Source credentials reached package build code")
     name = "cochem_installer_fixture-1.2.3-py3-none-any.whl"
@@ -95,7 +95,7 @@ def test_real_isolated_build_install_verify_and_reuse(repository):
     assert result.returncode == 0, result.stderr
     token = "fixture-secret-that-must-never-be-persisted"
     result = fixture_command("install", "fixture", spec, root, origin, extra_env={
-        "COCHEM_SOURCE_READ_TOKEN": token, "GITHUB_TOKEN": "fixture-other-secret",
+        "COCHEM_SOURCE_CREDENTIAL": token, "GITHUB_TOKEN": "fixture-other-secret",
         "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "http.extraHeader",
         "GIT_CONFIG_VALUE_0": "Authorization: fixture-other-secret"})
     assert result.returncode == 0, result.stderr
@@ -278,15 +278,15 @@ import json, os
 with installer._git_auth() as (env, options):
     helper = Path(env["GIT_ASKPASS"])
     checks = [helper.exists(), "fixture-secret" not in helper.read_text(),
-              env["COCHEM_SOURCE_READ_TOKEN"] == "fixture-secret",
+              env["COCHEM_SOURCE_CREDENTIAL"] == "fixture-secret",
               env["GIT_CONFIG_GLOBAL"] == os.devnull,
               "fixture-secret" not in repr(options), "credential.helper=" in options]
 checks.append(not helper.exists())
-checks.append(not ({"COCHEM_SOURCE_READ_TOKEN", "COURSE_PRIVATE_TOKEN", "COURSE_PASSWORD", "OTHER_API_KEY"} & installer._build_env().keys()))
+checks.append(not ({"COCHEM_SOURCE_CREDENTIAL", "COURSE_PRIVATE_TOKEN", "COURSE_PASSWORD", "OTHER_API_KEY"} & installer._build_env().keys()))
 print(json.dumps(checks))
 '''
     env = installer._build_env()
-    env.update({key: "fixture-secret" for key in ("COCHEM_SOURCE_READ_TOKEN", "COURSE_PRIVATE_TOKEN", "COURSE_PASSWORD", "OTHER_API_KEY")})
+    env.update({key: "fixture-secret" for key in ("COCHEM_SOURCE_CREDENTIAL", "COURSE_PRIVATE_TOKEN", "COURSE_PASSWORD", "OTHER_API_KEY")})
     result = subprocess.run([sys.executable, "-c", code], env=env, cwd=installer.REPOSITORY_ROOT, capture_output=True, text=True, check=True)
     assert all(json.loads(result.stdout))
 
@@ -402,6 +402,6 @@ def test_batch_missing_required_token_preserves_manifest_and_configuration_repor
     assert report["success"] is False
     assert report["completed"] is False
     assert report["modules"] == []
-    assert "Configure COCHEM_SOURCE_READ_TOKEN" in report["configuration_error"]
+    assert "Instructor-configured source access is unavailable" in report["configuration_error"]
     assert (output / "module-distribution.json").read_bytes() == manifest.read_bytes()
     assert not root.exists()

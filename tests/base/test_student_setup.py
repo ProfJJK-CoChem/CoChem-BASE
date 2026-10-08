@@ -3,18 +3,24 @@
 The tiny wheels test packaging, not computational chemistry. Offline Git uses
 its normal URL rewrite configuration, without replacing any executor or probe.
 """
-from pathlib import Path
 import json
 import os
 import subprocess
 import sys
+import time
+from pathlib import Path
 from threading import Event
 
 import pytest
 
+from cochem_base.interfaces.student_setup import (
+    RUNTIME_SCHEMA,
+    StudentSetupError,
+    StudentSetupService,
+    resolve_worker_source,
+)
 from scripts import manage_modules as installer
-from scripts.hosted_dashboard import setup_build_environment, _validate_runtime_metadata
-from cochem_base.interfaces.student_setup import StudentSetupService, StudentSetupError, resolve_worker_source, RUNTIME_SCHEMA
+from scripts.hosted_dashboard import _validate_runtime_metadata, setup_build_environment
 from tests.base import test_module_installer as offline_installer
 
 
@@ -101,7 +107,7 @@ def test_real_source_only_provider_failure_keeps_base_and_other_module_available
 def test_busy_execution_rejects_install_before_source_or_runtime_changes(student_service):
     service, _catalog, _origin = student_service
     registry = service.artifact_dir / "Registry/cochem_system_config.json"
-    registry.parent.mkdir()
+    registry.parent.mkdir(exist_ok=True)
     registry.write_text('{"active_jobs":{"student-calculation":{"status":"running"}}}')
     with pytest.raises(StudentSetupError, match="active jobs"):
         service.install_default_modules()
@@ -131,16 +137,52 @@ def test_retry_preserves_real_interrupted_checkout_files(student_service):
 
 
 def test_build_environment_strips_source_binary_and_user_credentials():
-    original = {"COCHEM_SOURCE_READ_TOKEN": "source-secret", "PRIVATE_CFOUR_ASSET_CREDENTIAL": "cfour-secret",
-        "PRIVATE_ORCA_ASSET_CREDENTIAL": "orca-secret", "GITHUB_TOKEN": "user-identity-secret",
+    original = {"COCHEM_SOURCE_CREDENTIAL": "source-secret", "COCHEM_CFOUR_ASSET_CREDENTIAL": "cfour-secret",
+        "COCHEM_ORCA_ASSET_CREDENTIAL": "orca-secret", "GITHUB_TOKEN": "user-identity-secret",
         "GIT_CONFIG_COUNT": "1", "PYTHONPATH": "/injected/python", "COCHEM_ARTIFACT_DIR": "/student/artifacts",
         "HTTPS_PROXY": "http://approved-session-proxy:3128"}
     sanitized = setup_build_environment(original)
-    assert not any("TOKEN" in key or key == "PYTHONPATH" for key in sanitized)
+    assert not any(any(marker in key for marker in ("TOKEN", "CREDENTIAL")) or key == "PYTHONPATH" for key in sanitized)
     assert sanitized["COCHEM_ARTIFACT_DIR"] == original["COCHEM_ARTIFACT_DIR"]
     assert sanitized["HTTPS_PROXY"] == original["HTTPS_PROXY"]
     assert sanitized["GIT_CONFIG_GLOBAL"] == os.devnull
     assert original["GITHUB_TOKEN"] == "user-identity-secret"
+
+
+def test_restart_retains_private_source_access_only_in_the_dashboard(student_service):
+    service, _catalog, origin = student_service
+    # This actual child records environment presence, never credential values;
+    # it exercises launcher isolation rather than substituting chemistry.
+    launcher = service.repository_root / "scripts/hosted_dashboard.py"
+    launcher.write_text("""import json, os
+from pathlib import Path
+names = ('COCHEM_SOURCE_CREDENTIAL', 'GITHUB_TOKEN',
+         'COCHEM_ORCA_ASSET_CREDENTIAL', 'COCHEM_CFOUR_ASSET_CREDENTIAL')
+target = Path(os.environ['COCHEM_ARTIFACT_DIR']) / 'restart-environment.json'
+target.write_text(json.dumps({name: bool(os.environ.get(name)) for name in names}))
+""")
+    environment = offline_installer.offline_environment(origin)
+    environment.update({name: "fixture-private-access" for name in
+        ("COCHEM_SOURCE_CREDENTIAL", "GITHUB_TOKEN",
+         "COCHEM_ORCA_ASSET_CREDENTIAL", "COCHEM_CFOUR_ASSET_CREDENTIAL")})
+    program = """import sys
+from cochem_base.interfaces.student_setup import StudentSetupService
+StudentSetupService(sys.argv[1], sys.argv[2]).restart_dashboard()
+"""
+    completed = subprocess.run([sys.executable, "-B", "-c", program,
+        str(service.artifact_dir), str(service.repository_root)],
+        env=environment, cwd=installer.REPOSITORY_ROOT, capture_output=True,
+        text=True, timeout=30, check=False)
+    assert completed.returncode == 0, completed.stderr
+    record = service.artifact_dir / "restart-environment.json"
+    deadline = time.monotonic() + 10
+    while not record.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert record.is_file(), (service.state_dir / "restart.log").read_text()
+    assert json.loads(record.read_text()) == {
+        "COCHEM_SOURCE_CREDENTIAL": True, "GITHUB_TOKEN": True,
+        "COCHEM_ORCA_ASSET_CREDENTIAL": False, "COCHEM_CFOUR_ASSET_CREDENTIAL": False}
+    assert not record.read_text().count("fixture-private-access")
 
 
 def test_template_selects_stable_release_without_student_commands(student_service):
@@ -323,7 +365,7 @@ def test_actual_failed_candidate_setup_preserves_previous_execution_authority(st
     revision = offline_installer.git(origin, "rev-parse", "HEAD")
     (origin.parent / "offline-git.conf").write_text(f'[url "{origin.as_uri()}"]\n\tinsteadOf = https://github.com/ProfJJK-CoChem/CoChem-BASE.git\n')
     registry = service.artifact_dir / "Registry/cochem_system_config.json"
-    registry.parent.mkdir()
+    registry.parent.mkdir(exist_ok=True)
     prior = b'{"engines":"previous verified physical execution authority"}\n'
     registry.write_bytes(prior)
     prior_runtime = (service.state_dir / "assignment-runtime.json").read_bytes()

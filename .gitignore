@@ -68,3 +68,19 @@ cochem_*_silo/
 *.cif
 !tests/**/*.xyz
 *.egg-info/
+build/
+dist/
+
+# Licensed runtime distributions and private project lifecycle records
+private-assets/
+licensed-assets/
+.cochem-private-runtime/
+.netrc
+*orca*.tar*
+*ORCA*.tar*
+*cfour*.tar*
+*CFOUR*.tar*
+*orca*.zip
+*ORCA*.zip
+*cfour*.zip
+*CFOUR*.zip

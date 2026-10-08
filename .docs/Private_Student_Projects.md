@@ -182,9 +182,11 @@ A kit created for an older BASE version cannot replace current worker authority.
 The historical `scripts/module-distribution-legacy-kit-1.0.1.json` remains an
 unchanged expert compatibility record requiring its exact BASE 1.0.1 package.
 The separate `scripts/module-distribution-expert-main-6160117.json` preserves the
-incoming Qt-enabled main catalog and its source/wheel identities. It is an expert
-kit record, not current student-installation authority or proof that a new kit
-passed native acceptance. The default `scripts/module-distribution.json` supplies
+incoming Qt-enabled main catalog and its source/wheel identities. The subsequent
+`scripts/module-distribution-expert-main-12f5475.json` retains the newer incoming
+TORQ revision and kit content identity. Both are expert kit records; neither is
+current student-installation authority or proof that a new kit passed native
+acceptance. The default `scripts/module-distribution.json` supplies
 current automatic installations with an immutable compatible BASE science source
 and the separately approved TOPOS/TORQ revisions. Students use automatic setup and
 scientific GUI controls; expert kit and request-file tools are separate.

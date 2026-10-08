@@ -1,15 +1,21 @@
 name: ORCA calculation
+run-name: CoChem ORCA ${{ inputs.asset_task_id }}
 
 on:
-  # Temporary integration pilot: register and exercise this workflow before it
-  # reaches the default branch. Classroom assignment branches do not auto-run.
-  push:
-    branches: [codex/orca-6.1.1-actions]
-    paths:
-      - '.github/workflows/orca_calculation.yml'
-      - 'src/cochem_base/calc/cochem_calc_input_generator.py'
   workflow_dispatch:
     inputs:
+      asset_receipt:
+        description: Canonical receipt from authorized Codespaces private asset staging
+        required: true
+        type: string
+      asset_receipt_sha256:
+        description: Exact staging receipt SHA-256 retained in Codespaces
+        required: true
+        type: string
+      asset_task_id:
+        description: Exact task UUID from the staging receipt
+        required: true
+        type: string
       job_file:
         description: Repository-relative path to the exported calculation JSON
         required: true
@@ -36,6 +42,7 @@ concurrency:
 
 jobs:
   calculate:
+    if: ${{ github.event.repository.private && github.event.repository.owner.type == 'User' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -45,9 +52,7 @@ jobs:
       COCHEM_HEADLESS: '1'
       COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
       QT_QPA_PLATFORM: offscreen
-      # A push pilot checks two-process optimization plus harmonic frequencies.
-      # Dispatch keeps the user's selected file and the form's single-point default.
-      JOB_FILE: ${{ github.event_name == 'push' && 'examples/jobs/water-harmonic.json' || inputs.job_file || 'examples/jobs/water-single-point.json' }}
+      JOB_FILE: ${{ inputs.job_file }}
       JOB_CORES: ${{ inputs.cores || '2' }}
       JOB_MAXCORE_MB: ${{ inputs.maxcore_mb || '512' }}
     steps:
@@ -88,7 +93,9 @@ jobs:
       - name: Install the checksum-pinned private ORCA distribution
         uses: ./.github/actions/setup-orca
         with:
-          asset-token: ${{ secrets.ORCA_ASSET_READ_TOKEN }}
+          asset-receipt: ${{ inputs.asset_receipt }}
+          asset-receipt-sha256: ${{ inputs.asset_receipt_sha256 }}
+          asset-task-id: ${{ inputs.asset_task_id }}
       - name: Install BASE and execute all eleven Stage 0 phases
         run: |
           set -euo pipefail

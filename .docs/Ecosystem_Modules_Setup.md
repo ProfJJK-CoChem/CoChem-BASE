@@ -19,9 +19,7 @@ separate licensed engine installation.
 | Student-owned Codespace | Student's GitHub identity, with authorized `contents: read` access to the declared module repositories | Student's personal Codespaces allowance. Verified GitHub Education students currently receive up to 180 core-hours per month; verify their current allowance. |
 | Local Linux, WSL, macOS or HPC | User's authorized Git credentials or an approved local source checkout | Local machine or the HPC site's allocation. |
 
-The ORCA archive still uses `ORCA_ASSET_READ_TOKEN`. Classroom50 collection and
-grading use their own credentials. Do not reuse the Classroom50 service token
-as a module or ORCA reader.
+For personal private projects, licensed engines use the [private staging workflow](ORCA_Actions_Setup.md). An authorized Codespace stages approved assets into its owning private project; Actions reads those assets with that project’s own identity. Organization secrets do not transfer to a personal repository. Classroom50 collection and grading remain separate services.
 
 ## Instructor: provide Actions source access
 

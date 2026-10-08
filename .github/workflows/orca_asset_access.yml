@@ -1,59 +1,65 @@
-name: ORCA private archive access
+name: Verify privately staged ORCA archive
+run-name: CoChem ORCA archive ${{ inputs.asset_task_id }}
 
 on:
   workflow_dispatch:
+    inputs:
+      asset_receipt:
+        description: Canonical receipt from authorized Codespaces private staging
+        required: true
+        type: string
+      asset_receipt_sha256:
+        description: Exact staging receipt SHA-256
+        required: true
+        type: string
+      asset_task_id:
+        description: Exact task identity from the receipt
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   verify-archive:
-    name: Download and verify the licensed ORCA archive
+    if: ${{ github.event.repository.private && github.event.repository.owner.type == 'User' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Read the shared instructor-reviewed distribution identity
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify private ownership, receipt and approved asset bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COCHEM_STAGING_RECEIPT: ${{ inputs.asset_receipt }}
+          COCHEM_STAGING_RECEIPT_SHA256: ${{ inputs.asset_receipt_sha256 }}
+          COCHEM_STAGING_TASK_ID: ${{ inputs.asset_task_id }}
         run: |
+          set -euo pipefail
           python - <<'PY'
           import os
           from pathlib import Path
-          from scripts.provision_orca import load_distribution_manifest
-          manifest = load_distribution_manifest()
-          fields = {
-              'ORCA_ASSET_REPOSITORY': manifest['repository'],
-              'ORCA_RELEASE_TAG': manifest['release_tag'],
-              'ORCA_ARCHIVE_NAME': manifest['archive_name'],
-              'ORCA_ARCHIVE_SHA256': manifest['sha256'],
-          }
-          with Path(os.environ['GITHUB_ENV']).open('a') as stream:
-              stream.writelines(f'{key}={value}\n' for key, value in fields.items())
+          from scripts.consume_private_engine_asset import consume, load_workflow_receipt
+          receipt = load_workflow_receipt('orca')
+          root = Path(os.environ['RUNNER_TEMP']) / 'cochem-orca-access'
+          root.mkdir(mode=0o700)
+          consume(
+              'orca',
+              root / receipt['approved_distribution']['archive_name'],
+              root / 'distribution.json',
+              root / 'staging-receipt.json',
+          )
           PY
-      - name: Check private access and the independently recorded checksum
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.ORCA_ASSET_READ_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$GH_TOKEN" ]]; then
-            echo "::error::ORCA_ASSET_READ_TOKEN needs Contents read access to $ORCA_ASSET_REPOSITORY."
-            exit 1
-          fi
-
-          download_dir="$(mktemp -d "$RUNNER_TEMP/cochem-orca-access.XXXXXX")"
-          trap 'rm -rf -- "$download_dir"' EXIT
-          gh release download "$ORCA_RELEASE_TAG" \
-            --repo "$ORCA_ASSET_REPOSITORY" \
-            --pattern "$ORCA_ARCHIVE_NAME" \
-            --dir "$download_dir"
-          cd "$download_dir"
-          printf '%s  %s\n' "${ORCA_ARCHIVE_SHA256,,}" "$ORCA_ARCHIVE_NAME" |
-            sha256sum --check --strict
           {
-            echo 'Private release download and independent SHA-256 verification passed.'
+            echo 'Approved private staged archive access and SHA-256 passed.'
             echo ''
-            echo 'Scope: archive access and integrity only. ORCA/MPI installation, BASE setup and physical calculations have not run.'
-            echo 'The downloaded archive is removed; it is not published as an Actions artifact.'
+            echo 'Scope: archive integrity only; native installation and calculations have not run.'
+            echo 'This job belongs to the student personal private repository and its Actions quota.'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the job-local licensed archive and private descriptor
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/cochem-orca-access"

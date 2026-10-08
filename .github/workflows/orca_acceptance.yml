@@ -38,22 +38,12 @@ on:
       COCHEM_SOURCE_READ_TOKEN:
         description: Read-only access to reviewed TOPOS and TORQ source revisions.
         required: false
-      ORCA_ASSET_READ_TOKEN:
-        required: true
+      asset_credential:
+        description: Explicit read-only credential for a reusable private caller.
+        required: false
       BASE_SOURCE_READ_TOKEN:
         description: Optional read-only access when a reusable caller cannot read the private BASE source.
         required: false
-  push:
-    branches: [codex/orca-6.1.1-actions]
-    paths:
-      - '.github/actions/setup-orca/**'
-      - '.github/workflows/orca_acceptance.yml'
-      - 'scripts/*orca*'
-      - 'scripts/install_openmpi.py'
-      - 'tests/base/test_orca_provisioning.py'
-      - 'tests/base/test_openmpi_installer_contract.py'
-      - 'tests/calc/test_orca_cli_execution.py'
-
 permissions:
   contents: read
 
@@ -62,7 +52,42 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-private-project:
+    name: Validate private project and licensed asset access configuration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require a private repository and an explicitly selected credential
+        env:
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          EXECUTION_EVENT: ${{ github.event_name }}
+          ASSET_CREDENTIAL_NAME: ${{ vars.COCHEM_ORCA_ASSET_CREDENTIAL }}
+          ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_ORCA_ASSET_CREDENTIAL] || secrets.asset_credential }}
+        run: |
+          set -euo pipefail
+          if [[ "$REPOSITORY_PRIVATE" != true ]]; then
+            echo '::error::Licensed calculations require a private project repository.'
+            exit 1
+          fi
+          if [[ "$EXECUTION_EVENT" != workflow_dispatch ]]; then
+            echo '::error::Licensed calculations require an explicit workflow dispatch.'
+            exit 1
+          fi
+          if [[ -z "$ASSET_CREDENTIAL_NAME" && -z "$ASSET_CREDENTIAL" ]]; then
+            echo '::error::Configure the private COCHEM_ORCA_ASSET_CREDENTIAL variable and its selected secret, or pass asset_credential from a private reusable caller.'
+            exit 1
+          fi
+          if [[ -n "$ASSET_CREDENTIAL_NAME" && ! "$ASSET_CREDENTIAL_NAME" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+            echo '::error::The private asset credential selector must be a valid secret identifier.'
+            exit 1
+          fi
+          if [[ -z "$ASSET_CREDENTIAL" ]]; then
+            echo '::error::The selected private asset credential is unavailable. Confirm access in this project repository.'
+            exit 1
+          fi
   licensed-calculations:
+    needs: validate-private-project
+    if: github.event.repository.private
     runs-on: ubuntu-24.04
     timeout-minutes: 330
     env:
@@ -153,7 +178,7 @@ jobs:
           df -h "$RUNNER_TEMP"
       - uses: ./.github/actions/setup-orca
         with:
-          asset-token: ${{ secrets.ORCA_ASSET_READ_TOKEN }}
+          asset-token: ${{ secrets[vars.COCHEM_ORCA_ASSET_CREDENTIAL] || secrets.asset_credential }}
       - name: Install BASE and execute all eleven Stage 0 phases
         run: |
           if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \

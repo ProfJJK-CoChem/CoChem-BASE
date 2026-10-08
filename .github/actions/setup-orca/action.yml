@@ -7,6 +7,16 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Require a private licensed provisioning context
+      shell: bash
+      env:
+        REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+      run: |
+        set -euo pipefail
+        if [[ "$REPOSITORY_PRIVATE" != true ]]; then
+          echo '::error::Licensed provisioning requires a private project repository.'
+          exit 1
+        fi
     - name: Read the reviewed distribution identity
       shell: bash
       env:
@@ -40,7 +50,7 @@ runs:
       run: |
         set -euo pipefail
         if [[ -z "$GH_TOKEN" ]]; then
-          echo "::error::ORCA_ASSET_READ_TOKEN must have read access to $COCHEM_ORCA_ASSET_REPOSITORY."
+          echo "::error::The private ORCA asset credential must have read access to the approved distribution repository."
           exit 1
         fi
         mkdir -p "$RUNNER_TEMP/cochem-orca-download"

@@ -40,18 +40,6 @@ on:
         description: Receiver seconds including verification, at least request budget (maximum 14400)
         type: number
         default: 180
-  # Source-fetch pilot only; licensed execution is an explicit private dispatch.
-  push:
-    branches: [codex/ecosystem-module-installation]
-    paths:
-      - '.github/workflows/ecosystem_modules.yml'
-      - 'scripts/manage_modules.py'
-      - 'scripts/module*'
-      - 'scripts/run_module*'
-      - 'scripts/mandatory_ecosystem.py'
-      - 'scripts/export_topos_evidence.py'
-      - 'src/cochem_base/interfaces/module_execution.py'
-
 permissions:
   contents: read
   actions: read
@@ -138,6 +126,44 @@ jobs:
               # BASE inspects the actual geometry, isotopes and atom order; the
               # installed TOPOS provider validates the entire scientific request.
           PY
+      - name: Validate private ORCA asset credential selection
+        if: env.ORCA_PROFILE == 'orca' || env.ORCA_PROFILE == 'orca-cfour'
+        env:
+          ASSET_CREDENTIAL_NAME: ${{ vars.COCHEM_ORCA_ASSET_CREDENTIAL }}
+          ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_ORCA_ASSET_CREDENTIAL] }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ASSET_CREDENTIAL_NAME" ]]; then
+            echo '::error::Configure the private COCHEM_ORCA_ASSET_CREDENTIAL variable to select an authorized project secret.'
+            exit 1
+          fi
+          if [[ ! "$ASSET_CREDENTIAL_NAME" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+            echo '::error::The private asset credential selector must be a valid secret identifier.'
+            exit 1
+          fi
+          if [[ -z "$ASSET_CREDENTIAL" ]]; then
+            echo '::error::The selected private ORCA asset credential is unavailable.'
+            exit 1
+          fi
+      - name: Validate private CFOUR asset credential selection
+        if: env.CFOUR_PROFILE == 'cfour' || env.CFOUR_PROFILE == 'orca-cfour'
+        env:
+          ASSET_CREDENTIAL_NAME: ${{ vars.COCHEM_CFOUR_ASSET_CREDENTIAL }}
+          ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_CFOUR_ASSET_CREDENTIAL] }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ASSET_CREDENTIAL_NAME" ]]; then
+            echo '::error::Configure the private COCHEM_CFOUR_ASSET_CREDENTIAL variable to select an authorized project secret.'
+            exit 1
+          fi
+          if [[ ! "$ASSET_CREDENTIAL_NAME" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+            echo '::error::The private asset credential selector must be a valid secret identifier.'
+            exit 1
+          fi
+          if [[ -z "$ASSET_CREDENTIAL" ]]; then
+            echo '::error::The selected private CFOUR asset credential is unavailable.'
+            exit 1
+          fi
       - name: Identify the protected same-repository kit artifact
         if: env.MODULE_ACTION != 'fetch' && env.TOPOS_SELECTED == 'true'
         env:
@@ -191,12 +217,12 @@ jobs:
         if: env.ENGINE_PROFILE == 'orca' || env.ENGINE_PROFILE == 'orca-cfour'
         uses: ./.github/actions/setup-orca
         with:
-          asset-token: ${{ secrets.ORCA_ASSET_READ_TOKEN }}
+          asset-token: ${{ secrets[vars.COCHEM_ORCA_ASSET_CREDENTIAL] }}
       - name: Provision approved complete CFOUR runtime
         if: env.ENGINE_PROFILE == 'cfour' || env.ENGINE_PROFILE == 'orca-cfour'
         uses: ./.github/actions/setup-cfour
         with:
-          asset-token: ${{ secrets.CFOUR_ASSET_READ_TOKEN }}
+          asset-token: ${{ secrets[vars.COCHEM_CFOUR_ASSET_CREDENTIAL] }}
           required: 'true'
       - name: Fetch or install reviewed sources and mandatory authority
         env:

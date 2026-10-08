@@ -16,7 +16,7 @@ BACKEND = '''
 import base64, hashlib, os, pathlib, zipfile
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
-    forbidden = ["COCHEM_SOURCE_READ_TOKEN", "BASE_SOURCE_READ_TOKEN", "ORCA_ASSET_READ_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "GIT_ASKPASS", "GIT_CONFIG_COUNT"]
+    forbidden = ["COCHEM_SOURCE_READ_TOKEN", "BASE_SOURCE_READ_TOKEN", "LICENSED_ARCHIVE_CREDENTIAL", "GH_TOKEN", "GITHUB_TOKEN", "GIT_ASKPASS", "GIT_CONFIG_COUNT"]
     if any(key in os.environ for key in forbidden):
         raise RuntimeError("Source credentials reached package build code")
     name = "cochem_installer_fixture-1.2.3-py3-none-any.whl"

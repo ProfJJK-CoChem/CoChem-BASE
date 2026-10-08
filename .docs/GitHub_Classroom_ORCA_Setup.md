@@ -1,5 +1,14 @@
 # Classroom50 and ORCA on GitHub Actions: instructor and student setup
 
+For student-owned private projects using personal Actions minutes, follow the
+[private student project guide](Private_Student_Projects.md). Organization secrets
+do not transfer to personal repositories. Configure the private
+`COCHEM_ORCA_ASSET_CREDENTIAL` and `COCHEM_CFOUR_ASSET_CREDENTIAL` variables to
+select existing authorized secrets; their identifiers are never fixed in public
+YAML. Any credential name in examples below is a placeholder, not the name of
+an existing lab secret. Organization-owned course assignments remain a separate
+route using organization Actions minutes.
+
 This guide prepares a private ORCA 6.1.1 archive for a CoChem-BASE repository,
 then verifies that GitHub Actions can run real serial and parallel calculations.
 Start with the student steps if your instructor has already prepared the course.
@@ -26,7 +35,7 @@ The Classroom50 steps below follow its [official web teacher guide](https://gith
 [student guide](https://github.com/foundation50/classroom50/blob/main/wiki/Web-Student-Guide.md)
 and [assignment template guide](https://github.com/foundation50/classroom50/blob/main/wiki/Assignment-Templates.md).
 Classroom50 login and grading credentials are separate from CoChem's narrowly
-scoped `ORCA_ASSET_READ_TOKEN`.
+scoped `PRIVATE_ORCA_CREDENTIAL`.
 
 For private TOPOS, TORQ and other module source, also follow
 [Ecosystem modules setup](Ecosystem_Modules_Setup.md). Module source uses
@@ -310,7 +319,7 @@ and [Actions billing](https://docs.github.com/en/billing/concepts/product-billin
 3. The service token requested by Classroom50 is
    **`CLASSROOM50_SERVICE_TOKEN`**, used by its grading/collection tools. Follow
    Classroom50's own service-token instructions for it. **Do not reuse it as
-   `ORCA_ASSET_READ_TOKEN`**, and do not replace it with the ORCA reader token:
+   `PRIVATE_ORCA_CREDENTIAL`**, and do not replace it with the ORCA reader token:
    the two credentials have different repositories, permissions and purposes.
 4. On **My classrooms**, select **Create classroom**, enter the course name,
    slug and optional term, and create the classroom. Add staff through the
@@ -475,7 +484,8 @@ For one repository:
    private course repository or the instructor's calculation repository.
 2. Select **Settings → Secrets and variables → Actions → Secrets → New
    repository secret**.
-3. Enter the name **`ORCA_ASSET_READ_TOKEN`** exactly.
+3. Choose a private name for the authorized credential; configure
+   `COCHEM_ORCA_ASSET_CREDENTIAL` to select that name.
 4. Paste only the token as its value, without quotes or a `Bearer` prefix, and
    select **Add secret**. To replace an existing value, use that secret's
    update control. Reissuing a token does not update a saved Actions secret.
@@ -488,7 +498,7 @@ course:
 1. Open the course **organization's Settings**, not your personal account
    settings or the asset repository's settings.
 2. Select **Secrets and variables → Actions → New organization secret**.
-3. Name it **`ORCA_ASSET_READ_TOKEN`** and paste the newly generated token as the
+3. Name it **`PRIVATE_ORCA_CREDENTIAL`** and paste the newly generated token as the
    value.
 4. Under **Repository access**, choose **Selected repositories**, then select
    the instructor calculation repository or each authorized student calculation
@@ -576,11 +586,11 @@ tested; the current guide uses the fine-grained token route.
 | Symptom | What to check |
 | --- | --- |
 | Classroom50 says Not a member yet or the assignment is unavailable | The instructor must add the student to the correct classroom roster and the student must accept the organization invitation. Classroom membership and the ORCA secret's repository access are separate setup steps. |
-| Classroom50 grading works but ORCA download fails | `CLASSROOM50_SERVICE_TOKEN` supports Classroom50 collection/grading. CoChem requires the separate `ORCA_ASSET_READ_TOKEN` and an approved distribution manifest. |
+| Classroom50 grading works but ORCA download fails | `CLASSROOM50_SERVICE_TOKEN` supports Classroom50 collection/grading. CoChem requires the separate `PRIVATE_ORCA_CREDENTIAL` and an approved distribution manifest. |
 | `Contents` is visible alongside Actions and Deployments | Select **Contents** directly under **Add permissions**, then choose **Read-only**. There is no additional menu step. |
 | Organization is absent from Resource owner | Confirm the token owner belongs to that organization and its policy allows the requested fine-grained token. Ask an organization administrator to provision access; do not select an unrelated owner. |
 | Token is Pending | Have the organization owner approve it. A pending token does not provide the required private repository access. |
-| Missing `ORCA_ASSET_READ_TOKEN` | Add the secret to the repository actually running the job, or include that repository in the organization secret's access policy. |
+| Missing `PRIVATE_ORCA_CREDENTIAL` | Add the secret to the repository actually running the job, or include that repository in the organization secret's access policy. |
 | `release not found`, HTTP 404 or private asset access denied | Confirm the release is published with the exact archive asset. Check token owner, asset repository selection, Contents read access, expiry, organization approval and the saved secret value. Private GitHub resources can return 404 when access is missing. |
 | Access check passes but full installation downloads a different location | Current access, acceptance and calculation workflows all read `scripts/orca-distribution.json`. Check that both runs use the same approved revision; update older workflow copies instead of changing obsolete repository variables. |
 | SHA-256 mismatch | Stop the installation. Compare with the independently hashed original and check for the wrong asset or a changed upload. Do not disable verification. |

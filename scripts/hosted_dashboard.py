@@ -51,6 +51,14 @@ def runtime_environment(artifact_dir: Path) -> dict[str, str]:
         env["COCHEM_XTB_BIN"] = env["XTB_CMD"]
         env["XTBPATH"] = str(xtb_root / "share" / "xtb")
         env["PATH"] = str(xtb_root / "bin") + os.pathsep + env.get("PATH", "")
+    try:
+        from .setup_licensed_engines import load_environment
+    except ImportError:
+        from setup_licensed_engines import load_environment
+    licensed_values, licensed_paths = load_environment(artifact_dir)
+    env.update(licensed_values)
+    if licensed_paths:
+        env["PATH"] = os.pathsep.join([*licensed_paths, env.get("PATH", "")])
     for variable, directory in {
         "JUPYTER_DATA_DIR": "jupyter-data",
         "JUPYTER_RUNTIME_DIR": "jupyter-runtime",

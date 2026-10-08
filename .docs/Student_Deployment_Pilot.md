@@ -1,5 +1,14 @@
 # Pilot one Classroom50 assignment before course rollout
 
+For student-owned private projects using personal Actions minutes, follow the
+[private student project guide](Private_Student_Projects.md). Organization secrets
+do not transfer to personal repositories. Configure the private
+`COCHEM_ORCA_ASSET_CREDENTIAL` and `COCHEM_CFOUR_ASSET_CREDENTIAL` variables to
+select existing authorized secrets; their identifiers are never fixed in public
+YAML. Any credential name in examples below is a placeholder, not the name of
+an existing lab secret. Organization-owned course assignments remain a separate
+route using organization Actions minutes.
+
 BASE provides the source, setup, interface and reviewed calculation workflows.
 A completed calculation in the upstream repository establishes its execution
 path; a course deployment also needs the student's own assignment permissions,
@@ -20,7 +29,7 @@ must remain usable if neither engine is configured.
 2. Create the assignment through Classroom50 and have one enrolled pilot
    student accept it. Record the resulting assignment repository and source
    commit. Do not use an instructor's source checkout as student acceptance.
-3. Make the approved `ORCA_ASSET_READ_TOKEN`, `CFOUR_ASSET_READ_TOKEN` and,
+3. Make the approved `PRIVATE_ORCA_CREDENTIAL`, `PRIVATE_CFOUR_CREDENTIAL` and,
    when modules are needed, `COCHEM_SOURCE_READ_TOKEN` available to that
    assignment using selected-repository organization access or approved
    repository secrets. No token values belong in a notebook, input or report.

@@ -87,27 +87,53 @@ def default_root() -> Path:
     return Path(os.environ.get("COCHEM_ARTIFACT_DIR", str(Path.home() / "CoChem_Artifacts"))) / "Modules"
 
 
-def _paths(module_id: str, spec: dict, root: Path) -> tuple[Path, Path, Path, Path]:
+def _paths(module_id: str, spec: dict, root: Path, *, budget=None) -> tuple[Path, Path, Path, Path]:
     _validate_spec(module_id, spec)
     root = Path(root).expanduser().resolve()
     if root == REPOSITORY_ROOT or REPOSITORY_ROOT in root.parents:
         raise ValueError("Module installation root must be outside the BASE source checkout.")
     parent = root / module_id
-    location = parent / spec["revision"]
-    initial_location = location
-    if parent.is_symlink() or location.is_symlink() or (location / "policies").is_symlink():
+    legacy = parent / spec["revision"]
+    location = legacy / "policies" / _digest_json(spec)
+    if parent.is_symlink() or legacy.is_symlink() or (legacy / "policies").is_symlink():
         raise ValueError("Module installation paths may not use redirected symbolic links.")
-    initial_receipt = location / "installation.json"
-    if module_id != "base" and initial_receipt.exists():
-        if initial_receipt.is_symlink() or not initial_receipt.resolve().is_relative_to(root):
+    for candidate in (legacy, location):
+        for path in (candidate, candidate / "source", candidate / "env", candidate / "wheels",
+                     candidate / "installation.json", candidate / "source.json", candidate / "runtime",
+                     candidate / "runtime/ui-env", candidate / "complete-kit"):
+            if path.is_symlink() or not path.resolve().is_relative_to(root):
+                raise ValueError("Module installation paths may not use redirected symbolic links.")
+    # New installations always bind the entire reviewed policy, including its
+    # private BASE dependency pin. Existence of an old receipt cannot change the
+    # candidate's destination or authorize repair of an accepted environment.
+    legacy_expected = {"schema_version": RECEIPT_SCHEMA, "status": "installed", "module_id": module_id,
+                       "manifest_spec_sha256": _digest_json(spec), "source_path": str(legacy / "source"),
+                       "python_path": str(_python_path(legacy / "env"))}
+    historical = module_id == "topos" and spec.get("adapter") == "topos_handoff"
+    if historical:
+        from scripts.mandatory_ecosystem import SCHEMA
+
+        legacy_expected.update(schema_version=SCHEMA,
+                               python_path=str(_python_path(legacy / "runtime/ui-env")))
+    matching = []
+    for receipt_path in (legacy / "installation.json", parent / "installation.json"):
+        if receipt_path.is_symlink():
             raise ValueError("Module installation receipts may not redirect to another file.")
-        accepted = _read_receipt(initial_receipt)
-        if accepted.get("manifest_spec_sha256") != _digest_json(spec):
-            # A BASE science hotfix can change an approved dependency policy
-            # while the provider's own Git source remains unchanged. Keep the
-            # already accepted environment immutable and prepare a separate one.
-            location = location / "policies" / _digest_json(spec)
-    for path in (parent, initial_location, location, location / "source", location / "env", parent / "installation.json", parent / "source.json", location / "installation.json", location / "source.json", location / "wheels"):
+        if receipt_path.exists():
+            receipt = _read_receipt(receipt_path)
+            if all(receipt.get(key) == value for key, value in legacy_expected.items()):
+                matching.append((receipt_path, receipt))
+    if matching:
+        if len(matching) == 2 and matching[0][1] != matching[1][1]:
+            raise ModuleInstallationError("Legacy installation receipts disagree; no accepted runtime was changed.")
+        if historical:
+            from scripts.mandatory_ecosystem import _verify_receipt
+
+            _verify_receipt(spec, root, matching[0][1], budget=budget, legacy_location=legacy)
+        else:
+            _verify_at_location(module_id, spec, parent, legacy, active=matching[0][0].parent == parent)
+        location = legacy
+    for path in (parent, legacy, location, location / "source", location / "env", parent / "installation.json", parent / "source.json", location / "installation.json", location / "source.json", location / "wheels"):
         if path.is_symlink() or not path.resolve().is_relative_to(root):
             raise ValueError("Module installation paths may not use redirected symbolic links.")
     return parent, location, location / "source", location / "env"
@@ -179,13 +205,27 @@ def _git(source: Path, *args: str) -> str:
 
 
 def _source_integrity(source: Path, spec: dict, *, runner=None, checkpoint=None) -> dict:
+    executable = shutil.which("git")
+    if executable is None or Path(executable).resolve().is_relative_to(source.resolve()):
+        raise ModuleInstallationError("Trusted Git source verification is unavailable.")
     def git(*args):
         if checkpoint is not None:
             checkpoint()
-        return (runner or _run)(["git", "-C", str(source), *args], env=_build_env(), label="Git source verification")
+        return (runner or _run)([str(Path(executable).resolve()), "--no-pager", "-c", "core.fsmonitor=false",
+            "-c", "core.hooksPath=" + os.devnull, "-c", "core.untrackedCache=false",
+            "-c", "core.attributesFile=" + os.devnull, "-C", str(source), *args],
+            env=_build_env(), label="Git source verification")
 
-    if not (source / ".git").is_dir():
+    if (source / ".git").is_symlink() or not (source / ".git").is_dir():
         raise ModuleInstallationError("Module checkout is missing its Git provenance.")
+    # Mutable local conversion commands can execute during status and hide
+    # changed working bytes. Inspect names only, before invoking status; never
+    # run or repair configured programs, or publish credential-bearing values.
+    names = git("config", "--local", "--includes", "--name-only", "--list").splitlines()
+    if "core.fsmonitor" in names:
+        raise ModuleInstallationError("Module source config contains an untrusted filesystem monitor program.")
+    if any(re.fullmatch(r"filter\..*\.(clean|smudge|process)", name) for name in names):
+        raise ModuleInstallationError("Module source config contains untrusted external conversion programs.")
     if git("rev-parse", "HEAD") != spec["revision"]:
         raise ModuleInstallationError("Module checkout does not match its pinned revision.")
     # A detached HEAD has a literal SHA in .git/HEAD; never trust a moving branch.
@@ -330,14 +370,9 @@ def _read_receipt(path: Path) -> dict:
     return receipt
 
 
-def verify_installation(module_id: str, spec: dict, root: Path, *, active: bool = True) -> dict:
-    """Verify the active installation, or a retained immutable revision before activation."""
-    if module_id == "topos" and spec.get("adapter") == "topos_handoff":
-        if not active:
-            raise ModuleInstallationError("Historical kit installations do not support candidate activation")
-        from scripts.mandatory_ecosystem import verify
-        return verify(spec, root)
-    parent, location, source, environment = _paths(module_id, spec, root)
+def _verify_at_location(module_id: str, spec: dict, parent: Path, location: Path, *, active: bool) -> dict:
+    """Verify all accepted bytes before a legacy path can be selected."""
+    source, environment = location / "source", location / "env"
     receipt = _read_receipt((parent if active else location) / "installation.json")
     expected = {"schema_version": RECEIPT_SCHEMA, "status": "installed", "module_id": module_id,
                 "repository": spec["repository"], "revision": spec["revision"], "distribution": spec["distribution"],
@@ -367,6 +402,17 @@ def verify_installation(module_id: str, spec: dict, root: Path, *, active: bool 
     if receipt.get("pip_check") != {"passed": True}:
         raise ModuleInstallationError("Installation receipt does not record a successful dependency check.")
     return receipt
+
+
+def verify_installation(module_id: str, spec: dict, root: Path, *, active: bool = True) -> dict:
+    """Verify the active installation, or a retained immutable revision before activation."""
+    if module_id == "topos" and spec.get("adapter") == "topos_handoff":
+        if not active:
+            raise ModuleInstallationError("Historical kit installations do not support candidate activation")
+        from scripts.mandatory_ecosystem import verify
+        return verify(spec, root)
+    parent, location, _source, _environment = _paths(module_id, spec, root)
+    return _verify_at_location(module_id, spec, parent, location, active=active)
 
 
 def fetch_module(module_id: str, spec: dict, root: Path, *, activate: bool = True) -> dict:

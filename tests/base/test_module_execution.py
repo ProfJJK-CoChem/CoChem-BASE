@@ -140,9 +140,15 @@ print(json.dumps({"remaining_blocked_names": sorted(set(json.loads(sys.argv[1]))
 
 def test_cli_lists_reviewed_modules_without_installing(tmp_path):
     root = tmp_path / "modules"
+    environment = installer._build_env()
+    if environment.get("COCHEM_SOURCE_QUARANTINE_ROOT"):
+        source = Path(environment["COCHEM_SOURCE_QUARANTINE_ROOT"])
+        command = [sys.executable, "-I", "-B", str(source / "ci_tools/source_quarantine.py"), str(source / "cli.py")]
+    else:
+        command = [sys.executable, "-I", "-B", "-m", "cochem_base.cli"]
     result = subprocess.run(
-        [sys.executable, "-I", "-B", "-m", "cochem_base.cli", "modules", "list", "--root", str(root), "--json"],
-        cwd=tmp_path, env=installer._build_env(), capture_output=True, text=True, check=True, timeout=30,
+        [*command, "modules", "list", "--root", str(root), "--manifest", str(installer.DEFAULT_MANIFEST), "--json"],
+        cwd=tmp_path, env=environment, capture_output=True, text=True, check=True, timeout=30,
     )
     catalog = json.loads(result.stdout)
     assert catalog == installer.load_manifest()

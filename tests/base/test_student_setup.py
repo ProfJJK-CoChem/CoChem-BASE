@@ -17,6 +17,7 @@ from cochem_base.interfaces.student_setup import (
     RUNTIME_SCHEMA,
     StudentSetupError,
     StudentSetupService,
+    _base_spec,
     resolve_worker_source,
 )
 from scripts import manage_modules as installer
@@ -125,13 +126,13 @@ def test_gui_busy_signal_prevents_runtime_changes(student_service):
 
 def test_retry_preserves_real_interrupted_checkout_files(student_service):
     service, catalog, origin = student_service
-    location = service.artifact_dir / "Modules/topos" / catalog["topos"]["revision"]
+    location = installer._paths("topos", catalog["topos"], service.artifact_dir / "Modules")[1]
     location.mkdir(parents=True)
     note = location / "interrupted-job-notes.txt"
     note.write_bytes(b"This diagnostic must survive retry\n")
     result = service_command(service, origin, "install_modules", [["topos"]])
     assert result["ready"] is True
-    preserved = list(location.parent.glob("failed-*/interrupted-job-notes.txt"))
+    preserved = list(installer._paths("topos", catalog["topos"], service.artifact_dir / "Modules")[0].glob("failed-*/interrupted-job-notes.txt"))
     assert len(preserved) == 1
     assert preserved[0].read_bytes() == b"This diagnostic must survive retry\n"
 
@@ -239,7 +240,7 @@ def test_retry_preserves_partial_environment_and_builds_a_verified_replacement(s
     root = service.artifact_dir / "Modules"
     fetched = offline_installer.fixture_command("fetch", "topos", catalog["topos"], root, origin)
     assert fetched.returncode == 0, fetched.stderr
-    location = root / "topos" / catalog["topos"]["revision"]
+    location = installer._paths("topos", catalog["topos"], root)[1]
     environment = location / "env"
     environment.mkdir()
     note = environment / "partial-installation.log"
@@ -259,7 +260,8 @@ def test_selected_revision_authority_does_not_change_original_registry(tmp_path)
     original.parent.mkdir(parents=True)
     original.write_bytes(b'{"student":"previous valid execution authority"}\n')
     revision = "a" * 40
-    location = artifacts / "BaseRuntime/base" / revision
+    spec = _base_spec(revision)
+    location = installer._paths("base", spec, artifacts / "BaseRuntime")[1]
     candidate_registry = location / "authority/Registry/cochem_system_config.json"
     candidate_registry.parent.mkdir(parents=True)
     candidate_registry.write_bytes(b'{"candidate":"separate revision authority"}\n')
@@ -267,7 +269,7 @@ def test_selected_revision_authority_does_not_change_original_registry(tmp_path)
     state.parent.mkdir()
     state.write_text(json.dumps({"schema_version": RUNTIME_SCHEMA, "kind": "reviewed-release", "revision": revision,
         "source_path": str(location / "source"), "python_path": str(installer._python_path(location / "env")),
-        "authority_path": str(location / "authority"), "base_spec": {"repository": "ProfJJK-CoChem/CoChem-BASE", "revision": revision}}))
+        "authority_path": str(location / "authority"), "base_spec": spec}))
     env = runtime_environment(artifacts)
     assert env["COCHEM_CONFIG"] == str(candidate_registry)
     assert Path(env["COCHEM_CORE_SILO"]).is_relative_to(location / "authority")
@@ -387,7 +389,7 @@ else:
         capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr
     assert "exit 7" in json.loads(result.stdout)["error"]
-    candidate = service.artifact_dir / "BaseRuntime/base" / revision / "authority/Registry/cochem_system_config.json"
+    candidate = installer._paths("base", _base_spec(revision), service.artifact_dir / "BaseRuntime")[1] / "authority/Registry/cochem_system_config.json"
     assert candidate.read_text() == "candidate interrupted during setup\n"
     assert registry.read_bytes() == prior
     assert (service.state_dir / "assignment-runtime.json").read_bytes() == prior_runtime

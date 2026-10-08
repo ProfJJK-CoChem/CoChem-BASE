@@ -175,6 +175,7 @@ def test_optional_runtime_defaults_preserve_existing_registry_checksums(tmp_path
     for record in raw["engines"].values():
         record.pop("runtime_seal_sha256", None)
         record.pop("runtime_metadata", None)
+        record.pop("native_components", None)
     payload = {key: value for key, value in raw.items() if key not in {"registry_checksum", "last_updated"}}
     historical = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
     assert raw["registry_checksum"] == historical

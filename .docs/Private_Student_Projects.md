@@ -179,10 +179,14 @@ a complete, instructor-reviewed BASE/TOPOS/TORQ kit. Supply an extracted kit onl
 when its catalog, immutable source revisions, wheel checksums, installed records
 and provider operations have been independently accepted for that exact source.
 A kit created for an older BASE version cannot replace current worker authority.
-The historical kit catalog is `scripts/module-distribution-legacy-kit-1.0.1.json`;
-it requires its exact BASE 1.0.1 package and is an expert compatibility route.
-The default `scripts/module-distribution.json` keeps the approved automatic
-provider installations for current BASE. Students use automatic setup and
+The historical `scripts/module-distribution-legacy-kit-1.0.1.json` remains an
+unchanged expert compatibility record requiring its exact BASE 1.0.1 package.
+The separate `scripts/module-distribution-expert-main-6160117.json` preserves the
+incoming Qt-enabled main catalog and its source/wheel identities. It is an expert
+kit record, not current student-installation authority or proof that a new kit
+passed native acceptance. The default `scripts/module-distribution.json` supplies
+current automatic installations with an immutable compatible BASE science source
+and the separately approved TOPOS/TORQ revisions. Students use automatic setup and
 scientific GUI controls; expert kit and request-file tools are separate.
 New kit installation or export evidence must retain its own exact tested revision
 and limitations rather than inherit older native acceptance results.

@@ -12,6 +12,7 @@ import json
 import os
 import runpy
 import sys
+import tomllib
 import uuid
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ from typing import Any
 CONTEXT_KEYS = ("COCHEM_SOURCE_QUARANTINE_ROOT", "COCHEM_SOURCE_QUARANTINE_ORIGINAL",
                 "COCHEM_SOURCE_QUARANTINE_EVIDENCE", "COCHEM_SOURCE_QUARANTINE_REVISION")
 _active: dict[str, Any] | None = None
+FORBIDDEN_ROOTS_KEY = "COCHEM_SOURCE_QUARANTINE_RETIRED_ROOTS"
 
 
 def inside(path: Any, root: Path) -> bool:
@@ -33,8 +35,44 @@ def source_paths(copied: Path) -> list[str]:
             str(copied / "src/cochem_base"), str(copied), str(copied / "Libraries")]
 
 
+def _project_identity(root: Path) -> str | None:
+    try:
+        value = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8")).get("project", {}).get("name")
+    except (OSError, ValueError):
+        return None
+    return value.lower().replace("_", "-").replace(".", "-") if isinstance(value, str) else None
+
+
+def _foreign_checkout_source(path: Any, state: dict[str, Any], projects: dict[Path, str | None]) -> bool:
+    """Recognize aliases from an actual other BASE checkout by file ownership.
+
+    Discovery reads only ancestor metadata and reviewed relative source paths.
+    It never blocks the other project's unrelated providers or executes Git.
+    Positive roots remain observed foreign lineage even if metadata changes.
+    """
+    if not state.get("project_identity"):
+        return False
+    try:
+        actual = Path(path).resolve()
+        if inside(actual, state["copied"]):
+            return False
+        for ancestor in actual.parents:
+            if ancestor not in projects:
+                projects[ancestor] = _project_identity(ancestor)
+            if projects[ancestor] != state["project_identity"]:
+                continue
+            relative = actual.relative_to(ancestor)
+            for subtree in state["source_subtrees"]:
+                if relative == subtree or subtree in relative.parents:
+                    state["retired_roots"].add((ancestor / subtree).resolve())
+                    return True
+    except (TypeError, ValueError, OSError):
+        return False
+    return False
+
+
 def loaded_origins(state: dict[str, Any]) -> dict[str, Any]:
-    origins, escaped = {}, []
+    origins, escaped, projects = {}, [], {}
     for name, module in list(sys.modules.items()):
         if module is None:
             continue
@@ -43,11 +81,16 @@ def loaded_origins(state: dict[str, Any]) -> dict[str, Any]:
         if filename:
             paths.append(filename)
         owned = name.split(".")[0] in state["owned"]
-        if owned or any(inside(path, state["copied"]) for path in paths):
+        foreign_source = any(inside(path, root) for path in paths for root in state.get("retired_roots", ()))
+        if not foreign_source:
+            foreign_source = any(_foreign_checkout_source(path, state, projects) for path in paths)
+        if owned or foreign_source or any(inside(path, state["copied"]) for path in paths):
             origins[name] = paths
-        if any(inside(path, state["original"]) for path in paths) or (
+        if foreign_source or any(inside(path, state["original"]) for path in paths) or (
                 owned and any(not inside(path, state["copied"]) for path in paths)):
             escaped.append(name)
+    if _active is state:
+        os.environ[FORBIDDEN_ROOTS_KEY] = json.dumps(sorted(str(root) for root in state["retired_roots"]))
     return {"origins": origins, "escaped": escaped}
 
 
@@ -56,6 +99,7 @@ def constrain_source(copied: Path, original: Path) -> dict[str, Any]:
     if copied == original or not copied.is_dir() or not original.is_dir():
         raise RuntimeError("[HARD_ABORT: SOURCE QUARANTINE ESCAPE] Invalid source boundary")
     owned: set[str] = set()
+    subtrees: set[Path] = set()
     for base in (copied / "src", copied / "src/cochem_base", copied):
         if not base.is_dir():
             continue
@@ -64,7 +108,32 @@ def constrain_source(copied: Path, original: Path) -> dict[str, Any]:
             if name.isidentifier() and ((entry.is_file() and entry.suffix == ".py")
                                        or (entry.is_dir() and any(entry.rglob("*.py")))):
                 owned.add(name)
-    state = {"copied": copied, "original": original, "owned": owned}
+                subtrees.add(entry.relative_to(copied))
+    inherited = json.loads(os.environ.get(FORBIDDEN_ROOTS_KEY, "[]"))
+    if not isinstance(inherited, list) or any(not isinstance(path, str) or not Path(path).is_absolute()
+                                            or inside(path, copied) for path in inherited):
+        raise RuntimeError("[HARD_ABORT: SOURCE QUARANTINE ESCAPE] Invalid retired source lineage")
+    roots = {Path(path).resolve() for path in inherited}
+    # Collect the precise owned paths before checking already-loaded modules;
+    # an actual BASE file remains foreign even when imported under an alias.
+    for module in list(sys.modules.values()):
+        mapping, namespaces = getattr(module, "MAPPING", None), getattr(module, "NAMESPACES", None)
+        if not isinstance(mapping, dict) or not isinstance(namespaces, dict):
+            continue
+        for key in set(mapping) | set(namespaces):
+            if key.split(".")[0] not in owned:
+                continue
+            values = [mapping[key]] if key in mapping else []
+            values.extend(namespaces.get(key, []))
+            for value in values:
+                path = Path(value)
+                if not path.is_absolute() or inside(path, copied):
+                    continue
+                candidates = [path] if path.is_dir() else [path, path.with_suffix(".py"), path.with_suffix(".pyc")]
+                roots.update(candidate.resolve() for candidate in candidates)
+    state = {"copied": copied, "original": original, "owned": owned, "retired_roots": roots,
+             "project_identity": _project_identity(copied),
+             "source_subtrees": sorted(subtrees, key=lambda path: len(path.parts), reverse=True)}
     # Previously loaded foreign BASE modules must be refused, never discarded
     # to hide an import that already executed before this startup boundary.
     if loaded_origins(state)["escaped"]:
@@ -89,6 +158,8 @@ def constrain_source(copied: Path, original: Path) -> dict[str, Any]:
                 sys.path_importer_cache.pop(placeholder, None)
     sys.meta_path[:] = [finder for finder in sys.meta_path if getattr(finder, "__module__", "") not in retired]
     sys.path_hooks[:] = [hook for hook in sys.path_hooks if getattr(hook, "__module__", "") not in retired]
+    if loaded_origins(state)["escaped"]:
+        raise RuntimeError("[HARD_ABORT: SOURCE QUARANTINE ESCAPE] Previously loaded retired source escaped")
     sys.path[:0] = [path for path in source_paths(copied) if path not in sys.path]
     initial = {}
     for name in sorted(owned):
@@ -111,6 +182,7 @@ def _receipt(state: dict[str, Any], stage: str, result: dict[str, Any]) -> None:
               "source_root": str(state["copied"]), "original_root": str(state["original"]),
               "source_revision": state["revision"],
               "startup_source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+              "retired_source_roots": sorted(str(root) for root in state.get("retired_roots", ())),
               **result}
     path = state["evidence"] / (str(os.getpid()) + "-" + state["instance"] + "-" + stage + ".json")
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
@@ -156,6 +228,7 @@ def activate_from_environment() -> dict[str, Any] | None:
         _receipt(preliminary, "initial", {"passed": False, "error_type": type(error).__name__})
         raise
     state.update(evidence=evidence, revision=preliminary["revision"], instance=preliminary["instance"])
+    os.environ[FORBIDDEN_ROOTS_KEY] = json.dumps(sorted(str(root) for root in state["retired_roots"]))
     _receipt(state, "initial", {"passed": True, "origins": state["initial"], "removed_editables": state["removed"]})
     atexit.register(_finish, state)
     _active = state
@@ -176,6 +249,7 @@ def source_child_environment(environment: dict[str, str], *, selected_source: Pa
     if selected_source.resolve() != state["copied"]:
         raise RuntimeError("[HARD_ABORT: SOURCE QUARANTINE ESCAPE] Probe selected another source")
     result.update({key: os.environ[key] for key in CONTEXT_KEYS})
+    result[FORBIDDEN_ROOTS_KEY] = json.dumps(sorted(str(root) for root in state["retired_roots"]))
     result["PYTHONPATH"] = os.pathsep.join(source_paths(state["copied"]))
     return result
 

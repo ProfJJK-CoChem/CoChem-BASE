@@ -10,16 +10,16 @@ import argparse
 import json
 import os
 import re
-import urllib.parse
-from pathlib import Path
-import socket
-import signal
 import shutil
+import signal
+import socket
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -518,14 +518,19 @@ def _validate_runtime_metadata(record: dict, artifact_dir: Path) -> None:
         revision = record.get("revision", "")
         if not re.fullmatch(r"[0-9a-f]{40}", str(revision)):
             raise RuntimeError("The selected runtime has no immutable Git identity")
-        location = artifact_dir / "BaseRuntime/base" / revision
+        spec = record.get("base_spec", {})
+        if spec.get("repository") != "ProfJJK-CoChem/CoChem-BASE" or spec.get("revision") != revision:
+            raise RuntimeError("The selected runtime has an invalid upstream identity")
+        from scripts.manage_modules import _paths
+
+        try:
+            location = _paths("base", spec, artifact_dir / "BaseRuntime")[1]
+        except ValueError as error:
+            raise RuntimeError("The selected runtime is outside its managed revision") from error
         if source != location / "source" or python != python_path(location / "env"):
             raise RuntimeError("The selected runtime is outside its managed revision")
         if Path(record.get("authority_path", "")).resolve() != location / "authority":
             raise RuntimeError("The selected authority is outside its managed revision")
-        spec = record.get("base_spec", {})
-        if spec.get("repository") != "ProfJJK-CoChem/CoChem-BASE" or spec.get("revision") != revision:
-            raise RuntimeError("The selected runtime has an invalid upstream identity")
     elif record.get("kind") == "assignment":
         origin_path = artifact_dir / "StudentSetup/assignment-runtime.json"
         origin = json.loads(origin_path.read_text(encoding="utf-8")) if origin_path.is_file() else None

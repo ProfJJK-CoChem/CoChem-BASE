@@ -283,6 +283,11 @@ def execute_phase(
     if output_dir:
         kwargs["output_dir"] = str(output_dir)
 
+    selected_scratch = None
+    if output_dir and phase_number in {6, 7, 10}:
+        from cochem_base.orchestrator.cochem_setup_phase_7 import select_stage0_scratch
+        selected_scratch = select_stage0_scratch(Path(output_dir).parent)
+
     # Phase-specific parameter handling
     if phase_number == 4:
         if skip_heavy:
@@ -295,10 +300,12 @@ def execute_phase(
     elif phase_number == 6:
         kwargs["min_disk_space_gb"] = min_disk_space_gb
         if output_dir:
-            kwargs["scratch_dir"] = str(Path(output_dir).parent / "Scratch")
+            kwargs["scratch_dir"] = str(selected_scratch)
         if dry_run:
             kwargs["dry_run"] = True
     elif phase_number == 7:
+        if selected_scratch is not None:
+            kwargs["scratch_dir"] = str(selected_scratch)
         if dry_run:
             kwargs["dry_run"] = True
     elif phase_number == 8:
@@ -310,7 +317,7 @@ def execute_phase(
     elif phase_number == 10:
         if output_dir:
             kwargs["registry_dir"] = str(output_dir)
-            kwargs["sandbox_base_dir"] = str(Path(output_dir).parent / "Scratch")
+            kwargs["sandbox_base_dir"] = str(selected_scratch)
         if skip_iops:
             kwargs["skip_iops"] = True
         if skip_eckart:

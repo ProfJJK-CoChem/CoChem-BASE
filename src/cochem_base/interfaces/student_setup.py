@@ -531,7 +531,7 @@ class StudentSetupService:
                 raise StudentSetupError("The maintained BASE revision changed after checking. Check updates again.")
         elif _resolve_release(base["tag"]) != base["revision"]:
             raise StudentSetupError("The release tag changed after checking. Check updates again; no runtime was changed.")
-        expected = self.artifact_dir / "BaseRuntime" / "base" / base["revision"] / "source"
+        expected = installer._paths("base", _base_spec(base["revision"]), self.artifact_dir / "BaseRuntime")[2]
         if Path(base.get("source_path", "")).resolve() != expected.resolve():
             raise StudentSetupError("The recorded update source is outside its pinned runtime directory.")
         integrity = installer._source_integrity(expected, _base_spec(base["revision"]))
@@ -550,14 +550,12 @@ class StudentSetupService:
         requirements += list(project.get("optional-dependencies", {}).get("symmetry", []))
         spec = _base_spec(plan["base"]["revision"], requirements)
         self._retry_owned_failure("base", spec, self.artifact_dir / "BaseRuntime")
-        # Fetch was validated against a source-only spec. The installation spec
-        # additionally binds the release's UI dependencies; refresh only its
-        # metadata receipt, after checking the original immutable source.
-        parent, location, _, _ = installer._paths("base", spec, self.artifact_dir / "BaseRuntime")
-        source_receipt = {"schema_version": installer.SOURCE_SCHEMA, "status": "downloaded", "module_id": "base",
-            "repository": UPSTREAM, "revision": spec["revision"], "manifest_spec_sha256": installer._digest_json(spec),
-            "source_path": str(source), **installer._source_integrity(source, spec)}
-        installer._atomic_json(location / "source.json", source_receipt)
+        # Source inspection and UI installation can have different dependency
+        # policies at the same Git revision. Obtain the exact immutable source
+        # in the installation generation, leaving the inspected source intact.
+        source_receipt = installer.fetch_module("base", spec, self.artifact_dir / "BaseRuntime", activate=False)
+        source = Path(source_receipt["source_path"])
+        _parent, location, _, _ = installer._paths("base", spec, self.artifact_dir / "BaseRuntime")
         receipt = installer.install_module("base", spec, self.artifact_dir / "BaseRuntime", activate=False)
         authority = location / "authority"
         authority.mkdir(exist_ok=True, mode=0o700)
@@ -710,14 +708,14 @@ def validate_runtime_record(record: dict, artifact_dir: Path, repository_root: P
         revision = record.get("revision", "")
         if not _SHA.fullmatch(str(revision)):
             raise StudentSetupError("The selected runtime lacks its immutable source revision.")
-        expected = artifact_dir / "BaseRuntime" / "base" / revision
+        spec = record.get("base_spec")
+        if not isinstance(spec, dict) or spec.get("repository") != UPSTREAM or spec.get("revision") != revision:
+            raise StudentSetupError("The selected runtime has an invalid source identity.")
+        expected = installer._paths("base", spec, artifact_dir / "BaseRuntime")[1]
         if source != expected / "source" or python != installer._python_path(expected / "env"):
             raise StudentSetupError("The selected runtime is outside its verified revision directory.")
         if Path(record.get("authority_path", "")).resolve() != expected / "authority":
             raise StudentSetupError("The selected execution authority is outside its verified revision directory.")
-        spec = record.get("base_spec")
-        if not isinstance(spec, dict) or spec.get("repository") != UPSTREAM or spec.get("revision") != revision:
-            raise StudentSetupError("The selected runtime has an invalid source identity.")
     else:
         raise StudentSetupError("The selected runtime kind is unsupported.")
 

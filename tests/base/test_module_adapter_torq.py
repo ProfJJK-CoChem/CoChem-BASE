@@ -72,3 +72,52 @@ def test_normalizes_all_requested_isotope_aliases(tmp_path: Path) -> None:
     source.write_text("4\nisotope aliases\nC-13 0 0 0\nC13 0 0 1.4\nD 0 1 0\nT 0 0 2.4\n")
     symbols, _, _ = adapter.read_xyz(source)
     assert symbols == ["13C", "13C", "2H", "3H"]
+
+
+def test_mixed_fragment_scan_masses_match_ingestion_and_preview() -> None:
+    """Mixture weights move a mixed-element COM away from its nuclear COM."""
+    import numpy as np
+    from mendeleev import element
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+    from cochem_base.interfaces.torq_research import scan_points_request
+
+    symbols = ["H", "Cl", "O", "H", "H"]
+    coordinates = np.asarray([[0, 0, 0], [1.3, 0, 0], [4, 0, 0],
+                              [4.9572, 0, 0], [3.76, .9273, 0]], dtype=float)
+    fragments = [[0, 1], [2, 3, 4]]
+    options = {"method": {"name": "hf", "basis": "sto-3g"}, "charge": 0,
+               "multiplicity": 1, "fragments": fragments,
+               "distances_angstrom": [4.0], "cores": 1, "memory_mb": 512}
+    elements, masses = adapter._scan_nuclear_masses(symbols)
+    assert elements == symbols
+    assert masses == list(resolve_nuclear_identity(symbols).masses_u)
+    chlorine = element("Cl")
+    principal = max((isotope for isotope in chlorine.isotopes if isotope.abundance),
+                    key=lambda isotope: isotope.abundance)
+    assert masses[1] == principal.mass
+    assert masses[1] != chlorine.atomic_weight
+
+    point = np.asarray(scan_points_request(symbols, coordinates.tolist(), options)[0]["geometry_angstrom"])
+    centers = [np.average(point[group], axis=0, weights=np.asarray(masses)[group])
+               for group in fragments]
+    assert np.linalg.norm(centers[1] - centers[0]) == pytest.approx(4.0, abs=1e-12)
+    mixture = np.asarray([float(element(symbol).atomic_weight) for symbol in symbols])
+    mixture_centers = [np.average(point[group], axis=0, weights=mixture[group])
+                       for group in fragments]
+    assert abs(np.linalg.norm(mixture_centers[1] - mixture_centers[0]) - 4.0) > 1e-6
+
+
+def test_scan_preserves_explicit_measured_isotopes_and_refuses_unassigned_radioelements() -> None:
+    from mendeleev import element
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+
+    symbols = ["13C", "37Cl", "18O", "D", "T"]
+    elements, masses = adapter._scan_nuclear_masses(symbols)
+    assert elements == ["C", "Cl", "O", "H", "H"]
+    assert masses == list(resolve_nuclear_identity(symbols).masses_u)
+    assert masses[1] == next(isotope.mass for isotope in element("Cl").isotopes
+                             if isotope.mass_number == 37)
+    with pytest.raises(ValueError, match="measured"):
+        adapter._scan_nuclear_masses(["Tc"])
+    with pytest.raises(ValueError, match="measured"):
+        adapter._scan_nuclear_masses(["999C"])

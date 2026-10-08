@@ -4,6 +4,7 @@ The tiny wheel exercises packaging only; it is not a chemistry implementation.
 """
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -44,6 +45,10 @@ def offline_environment(origin):
     env = installer._build_env()
     env.update({"GIT_CONFIG_GLOBAL": str(origin.parent / "offline-git.conf"),
                 "PIP_NO_INDEX": "1", "PIP_CONFIG_FILE": os.devnull})
+    if any(key.startswith("COCHEM_SOURCE_QUARANTINE_") for key in env):
+        from ci_tools.source_quarantine import source_child_environment
+
+        env = source_child_environment(env, selected_source=installer.REPOSITORY_ROOT)
     return env
 
 
@@ -149,6 +154,30 @@ def test_installed_code_tampering_is_detected(installed):
         installer.verify_installation("fixture", spec, root)
 
 
+@pytest.mark.parametrize("configuration", ["core.fsmonitor", "filter.engineering-control.clean"])
+def test_mutable_local_git_program_is_not_executed_by_source_verifier(repository, configuration):
+    origin, spec, root = repository
+    fetched = fixture_command("fetch", "fixture", spec, root, origin)
+    assert fetched.returncode == 0, fetched.stderr
+    source = Path(json.loads(fetched.stdout)["modules"][0]["source_path"])
+    expected = installer._source_integrity(source, spec)
+    assert expected["source_tree_oid"] == git(source, "rev-parse", "HEAD^{tree}")
+    marker = origin.parent / "untrusted-git-program-executed"
+    hook = origin.parent / "actual-local-git-program.py"
+    hook.write_text("from pathlib import Path\nimport sys\nPath(" + repr(str(marker))
+                    + ").write_text('executed')\nsys.stdout.buffer.write(b'engineering-fsmonitor-token\\0')\n")
+    command = shlex.quote(sys.executable) + " " + shlex.quote(str(hook))
+    git(source, "config", configuration, command)
+    if configuration.startswith("filter."):
+        with pytest.raises(installer.ModuleInstallationError, match="external conversion"):
+            installer._source_integrity(source, spec)
+    else:
+        with pytest.raises(installer.ModuleInstallationError, match="filesystem monitor"):
+            installer._source_integrity(source, spec)
+    assert not marker.exists()
+    assert git(source, "config", "--get", configuration) == command
+
+
 @pytest.mark.parametrize("injection", ["sitecustomize.py", "unrecorded.pth", "sitecustomize.pyc"])
 def test_unrecorded_code_rejected_before_environment_python_executes(installed, injection):
     import py_compile
@@ -226,7 +255,7 @@ def test_source_only_module_can_be_downloaded_but_not_claim_installed(repository
     assert result.returncode == 1
     assert "upstream Python packaging is unavailable" in result.stderr
     assert not (root / "fixture/installation.json").exists()
-    assert not (root / "fixture" / spec["revision"] / "env").exists()
+    assert not installer._paths("fixture", spec, root)[3].exists()
 
 
 def test_reviewed_packaging_blocker_downloads_source_without_building_environment(repository):
@@ -240,7 +269,7 @@ def test_reviewed_packaging_blocker_downloads_source_without_building_environmen
     assert spec["install_blocker"] in result.stderr
     assert "no runnable installation was created" in result.stderr
     assert not (root / "fixture/installation.json").exists()
-    assert not (root / "fixture" / spec["revision"] / "env").exists()
+    assert not installer._paths("fixture", spec, root)[3].exists()
 
 
 @pytest.mark.parametrize("key,value", [

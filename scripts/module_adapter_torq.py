@@ -403,18 +403,16 @@ def _scan_options(options: dict, atom_count: int) -> dict:
     return {**options, "cores": cores, "memory_mb": memory}
 
 
-def research_scan(handoff_path: Path, directory: Path) -> dict[str, Any]:
-    """Run authentic provider evaluations at rigid translated fragment geometries."""
-    record, artifact, symbols, positions = _load_handoff(handoff_path)
-    options = _scan_options(record["options"], len(symbols))
-    from cochem_torq.engines import pyscf_backend as provider
-    from mendeleev import element
-    from scipy.constants import physical_constants
-    import numpy as np
+def _scan_nuclear_masses(symbols: list[str]) -> tuple[list[str], list[float]]:
+    """Resolve measured nuclear masses with the BASE handoff convention.
 
-    if "research_scan" not in capabilities()["operations"]:
-        raise ValueError("The installed TORQ native scan producer is not available.")
-    masses, elements = [], []
+    Natural atomic weights describe isotope mixtures. A scan of one molecular
+    geometry must retain its explicit isotopes or use the measured principal
+    isotope, matching the mass-COM coordinate shown before submission.
+    """
+    from mendeleev import element
+
+    elements, masses = [], []
     for symbol in symbols:
         normalized = {"D": "2H", "T": "3H"}.get(symbol, symbol)
         match = re.fullmatch(r"([0-9]*)([A-Z][a-z]?)", normalized)
@@ -422,15 +420,35 @@ def research_scan(handoff_path: Path, directory: Path) -> dict[str, Any]:
             raise ValueError("Unsupported nuclear identity.")
         number, label = match.groups()
         nucleus = element(label)
-        elements.append(label)
+        measured = [isotope for isotope in nucleus.isotopes
+                    if isotope.mass is not None and math.isfinite(float(isotope.mass))
+                    and isotope.mass > 0]
         if number:
-            isotope = next((item for item in nucleus.isotopes if item.mass_number == int(number)), None)
-            if isotope is None or isotope.mass is None:
-                raise ValueError("The requested physical isotope lacks a measured mass.")
-            masses.append(float(isotope.mass))
+            selected = next((isotope for isotope in measured
+                             if isotope.mass_number == int(number)), None)
         else:
-            masses.append(float(nucleus.atomic_weight))
-    masses = np.asarray(masses)
+            natural = [isotope for isotope in measured
+                       if isotope.abundance is not None and isotope.abundance > 0]
+            selected = max(natural, key=lambda isotope: (isotope.abundance, -isotope.mass_number)) if natural else None
+        if selected is None:
+            raise ValueError("The scan requires a measured explicit isotope or a measured principal natural isotope.")
+        elements.append(label)
+        masses.append(float(selected.mass))
+    return elements, masses
+
+
+def research_scan(handoff_path: Path, directory: Path) -> dict[str, Any]:
+    """Run authentic provider evaluations at rigid translated fragment geometries."""
+    record, artifact, symbols, positions = _load_handoff(handoff_path)
+    options = _scan_options(record["options"], len(symbols))
+    from cochem_torq.engines import pyscf_backend as provider
+    from scipy.constants import physical_constants
+    import numpy as np
+
+    if "research_scan" not in capabilities()["operations"]:
+        raise ValueError("The installed TORQ native scan producer is not available.")
+    elements, nuclear_masses = _scan_nuclear_masses(symbols)
+    masses = np.asarray(nuclear_masses)
     geometry = np.asarray(positions)
     a, b = options["fragments"]
     center_a = np.average(geometry[a], axis=0, weights=masses[a])
@@ -469,7 +487,8 @@ def research_scan(handoff_path: Path, directory: Path) -> dict[str, Any]:
                            "nuclides": symbols, "method": options["method"], "fragments": options["fragments"],
                            "electronic_state": {"charge": options["charge"], "multiplicity": 1},
                            "initial_mass_com_separation_angstrom": initial, "masses_u": masses.tolist(),
-                           "mass_source": "dynamic_mendeleev_explicit_isotope_else_standard_atomic_weight",
+                           "mass_source": "dynamic_mendeleev_explicit_isotope_else_principal_isotope_mass",
+                           "mass_convention": "explicit_isotope_mass_else_principal_isotope_mass",
                            "resources": {"cores": options["cores"], "memory_mb": options["memory_mb"]}}}
     for index, (distance, shifted) in enumerate(planned):
         point_directory = directory / f"scan-point-{index:03d}"

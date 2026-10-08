@@ -32,6 +32,34 @@ class Stage0AuthorityError(RuntimeError):
     """The observed setup evidence is incomplete or cannot authorize execution."""
 
 
+def validate_stage0_scratch(phase6: dict[str, Any], phase7: dict[str, Any]) -> Path:
+    """Require the same physically audited scratch for storage and execution."""
+    selected = phase6.get("storage_paths", {}).get("scratch_directory")
+    execution = phase7.get("scratch", {}).get("scratch_directory")
+    if not selected or not execution or not Path(selected).is_absolute() or not Path(execution).is_absolute():
+        raise Stage0AuthorityError("Phases 6 and 7 require absolute audited scratch paths")
+    scratch = Path(selected).resolve()
+    if scratch != Path(execution).resolve():
+        raise Stage0AuthorityError("Phases 6 and 7 audited different scratch directories")
+    if (not scratch.is_dir() or not os.access(scratch, os.W_OK)
+            or phase7.get("scratch", {}).get("is_writable") is not True):
+        raise Stage0AuthorityError("Audited scratch is unavailable or not writable")
+    from cochem.core.context import assert_writable_path
+    assert_writable_path(scratch)
+    injected = phase7.get("injected_env_vars", {})
+    if not injected.get("COCHEM_SCRATCH_DIR") or not Path(injected["COCHEM_SCRATCH_DIR"]).is_absolute():
+        raise Stage0AuthorityError("Phase 7 injected scratch requires an absolute audited path")
+    if Path(injected["COCHEM_SCRATCH_DIR"]).resolve() != scratch:
+        raise Stage0AuthorityError("Phase 7 injected scratch differs from its audited directory")
+    for variable in ("TMPDIR", "SLURM_TMPDIR"):
+        if variable in injected:
+            if not Path(injected[variable]).is_absolute():
+                raise Stage0AuthorityError(f"Phase 7 injected {variable} requires an absolute audited path")
+            if Path(injected[variable]).resolve() != scratch:
+                raise Stage0AuthorityError(f"Phase 7 injected {variable} differs from its audited scratch")
+    return scratch
+
+
 def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
     """Aggregate reports from this invocation, never unrelated historic files.
 
@@ -63,6 +91,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
     from cochem.core.context import assert_writable_path
 
     assert_writable_path(root)
+    selected_scratch = validate_stage0_scratch(reports[6], reports[7])
     profile = profile_hardware()
     p2, p11 = reports[2], reports[11]
     quota = p2.get("cpu", {}).get("cgroup_effective_cpus")
@@ -253,7 +282,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
         environment=EnvironmentSchema(
             os_target=profile.environment.os_target,
             artifacts_dir=str(root),
-            scratch_dir=str(root / "Scratch"),
+            scratch_dir=str(selected_scratch),
             codata_version="2022",
             env_vars=injected,
             strict_path_resolution=True,

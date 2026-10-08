@@ -573,16 +573,29 @@ def _inspect_runtime(python: Path, runtime: Path, *, runner=None) -> dict:
 
 def verify(spec: dict, root: Path, *, budget=None) -> dict:
     manager = _manager()
-    parent = manager._paths("topos", spec, root)[0]
+    budget = budget or _Budget(180)
+    parent = manager._paths("topos", spec, root, budget=budget)[0]
     return _verify_receipt(spec, root, manager._read_receipt(parent / "installation.json"), budget=budget)
 
 
-def _verify_receipt(spec: dict, root: Path, receipt: dict, *, budget=None) -> dict:
+def _verify_receipt(spec: dict, root: Path, receipt: dict, *, budget=None, legacy_location: Path | None = None) -> dict:
     manager = _manager()
     budget = budget or _Budget(180)
     budget.check()
-    parent, location, source, _ = manager._paths("topos", spec, root)
+    if legacy_location is None:
+        parent, location, source, _ = manager._paths("topos", spec, root, budget=budget)
+    else:
+        manager._validate_spec("topos", spec)
+        parent = Path(root).expanduser().resolve() / "topos"
+        location = parent / spec["revision"]
+        if legacy_location != location:
+            raise ValueError("Historical kit location differs from its exact legacy revision")
+        source = location / "source"
+        for path in (parent, location, source, location / "runtime", location / "runtime/ui-env", location / "complete-kit"):
+            if path.is_symlink() or not path.resolve().is_relative_to(parent.parent):
+                raise ValueError("Historical kit location was redirected")
     validate_spec(spec)
+    resolved_legacy = location == Path(root).expanduser().resolve() / "topos" / spec["revision"]
     runtime, kit = location / "runtime", location / "complete-kit"
     python = manager._python_path(runtime / "ui-env")
     expected = {"schema_version": SCHEMA, "status": "installed", "module_id": "topos", "repository": spec["repository"],
@@ -602,8 +615,15 @@ def _verify_receipt(spec: dict, root: Path, receipt: dict, *, budget=None) -> di
         raise ValueError("Mandatory source identities differ from the reviewed kit")
     for project, pin in inspected["pins"].items():
         project_spec = spec if project == "topos" else _companion_spec(project, pin)
-        project_source = source if project == "topos" else manager._paths(
-            project, project_spec, location / "dependencies")[2]
+        if project == "topos":
+            project_source = source
+        elif resolved_legacy:
+            project_source = location / "dependencies" / project / pin / "source"
+            for path in (location / "dependencies", project_source.parent.parent, project_source.parent, project_source):
+                if path.is_symlink() or not path.resolve().is_relative_to(location):
+                    raise ValueError("Historical companion source was redirected")
+        else:
+            project_source = manager._paths(project, project_spec, location / "dependencies")[2]
         current_source = manager._source_integrity(
             project_source, project_spec, runner=budget.run, checkpoint=budget.check)
         if current_source != receipt.get("source_provenance", {}).get(project):
@@ -621,6 +641,7 @@ def _verify_receipt(spec: dict, root: Path, receipt: dict, *, budget=None) -> di
         raise ValueError("Mandatory registry/provider identity changed; repeat reviewed setup")
     if any(receipt.get(key) != value for key, value in manager._probe(python, "cochem-topos", runner=budget.run).items()):
         raise ValueError("Mandatory installed distribution inventory changed")
+    budget.run([str(python), "-I", "-B", "-m", "pip", "check"], env=manager._build_env(), label="Historical dependency check")
     return receipt
 
 

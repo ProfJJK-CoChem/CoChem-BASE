@@ -772,6 +772,18 @@ def parse_hpc_memory_limit(
 # =============================================================================
 
 
+def select_stage0_scratch(artifact_root: Union[str, Path], env: Optional[Dict[str, str]] = None) -> Path:
+    """Bind project setup to its data tier while preserving Slurm node storage.
+
+    An inherited temporary directory from another project cannot redirect a
+    fresh project. Slurm's actual job-local directory remains authoritative
+    when the scheduler supplies it.
+    """
+    environment = os.environ if env is None else env
+    node_local = environment.get("SLURM_TMPDIR", "").strip()
+    return Path(node_local).expanduser().resolve() if node_local else (Path(artifact_root) / "Scratch").resolve()
+
+
 def resolve_hpc_scratch_directory(
     override: Optional[Union[str, Path]] = None,
     env: Optional[Dict[str, str]] = None,
@@ -1201,7 +1213,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
 
         if args.json:
-            logger.info(report.model_dump_json(indent=2))
+            print(report.model_dump_json(indent=2))
         else:
             logger.info("=" * 75)
             logger.info("COCHEM SETUP PHASE 7: HPC ENVIRONMENT & TOPOLOGY GATEKEEPER")

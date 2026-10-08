@@ -716,9 +716,9 @@ def test_parse_hpc_memory_limit_cgroup() -> None:
         assert abs(profile.effective_usable_memory_mb - 16384.0) < 1.0
 
 
-def test_parse_hpc_memory_limit_physical_ram_fallback() -> None:
-    """Test memory limit fallback to host physical RAM."""
-    profile = parse_hpc_memory_limit(env={})
+def test_parse_hpc_memory_limit_physical_ram_fallback(tmp_path: Path) -> None:
+    """A real empty cgroup directory selects actual physical RAM."""
+    profile = parse_hpc_memory_limit(env={}, cgroup_root=tmp_path)
     assert profile.source == "PHYSICAL_RAM"
     assert profile.physical_ram_bytes > 0
     assert profile.effective_usable_memory_mb > 0.0

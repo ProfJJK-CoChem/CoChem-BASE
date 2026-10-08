@@ -176,26 +176,71 @@ def test_actual_namespace_and_module_origins():
             assert observed['pid'] != os.getpid()
         records.append(data)
     pathlib.Path(os.environ['CONTROL_CHILD_RESULTS']).write_text(json.dumps(records))
+    alias_cases = (
+            ([sys.executable, '-B', str(program), '--foreign-alias'], 1),
+            ([sys.executable, '-I', '-B', str(root/'ci_tools/source_quarantine.py'), str(program), '--foreign-alias'], 1),
+            ([sys.executable, '-B', str(program), '--alias-grandchild'], 0))
+    for index, (command, expected_exit) in enumerate(alias_cases + alias_cases):
+        alias_evidence = pathlib.Path(os.environ['CONTROL_CHILD_RESULTS']).parent / ('alias-origin-' + str(index))
+        alias_evidence.mkdir(mode=0o700)
+        environment = dict(child_environment, COCHEM_SOURCE_QUARANTINE_EVIDENCE=str(alias_evidence))
+        selected = os.environ['CONTROL_FOREIGN_BASE_MODULE' if index < len(alias_cases) else 'CONTROL_UNREGISTERED_BASE_MODULE']
+        environment['CONTROL_FOREIGN_BASE_MODULE'] = selected
+        result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=30)
+        (alias_evidence / 'command.stdout.log').write_text(result.stdout)
+        (alias_evidence / 'command.stderr.log').write_text(result.stderr)
+        assert result.returncode == expected_exit, result.stdout + result.stderr
+        assert result.stdout, result.stderr
+        observed = json.loads(result.stdout)
+        if 'grandchild' in observed:
+            observed = observed['grandchild']
+        assert pathlib.Path(observed['foreign_alias']).resolve() == pathlib.Path(selected)
+        assert observed['foreign_alias_sha256'] == hashlib.sha256(pathlib.Path(observed['foreign_alias']).read_bytes()).hexdigest()
+        receipts = [json.loads(path.read_text()) for path in alias_evidence.glob('*-final.json')]
+        refused = next(item for item in receipts if item['pid'] == observed['pid'])
+        assert not refused['passed'] and 'real_foreign_base_alias' in refused['escaped']
+        assert refused['origins']['real_foreign_base_alias'] == [observed['foreign_alias']]
+        assert refused['retired_source_roots']
+        assert observed['external_provider'] == os.environ['CONTROL_EXTERNAL_PROVIDER']
 '''
     root, _ = repository(tmp_path, source)
     original = Path(__file__).resolve().parents[2]
+    shutil.copy2(original / "pyproject.toml", root / "pyproject.toml")
     module = "src/cochem_base/orchestrator/silo_dependency_pins.py"
     (root / module).parent.mkdir(parents=True)
     shutil.copy2(original / module, root / module)
     cuda_sources = "src/cochem_base/orchestrator/ml_cuda_sources.py"
     shutil.copy2(original / cuda_sources, root / cuda_sources)
-    child = '''import hashlib, json, os, pathlib, subprocess, sys
+    child = '''import hashlib, importlib.util, json, os, pathlib, subprocess, sys
 import cochem_base
 import cochem_base.orchestrator.silo_dependency_pins as pins
 import quarantine_external_provider
 record = {'pid':os.getpid(), 'parent_pid':os.getppid(), 'isolated':sys.flags.isolated, 'namespace':list(cochem_base.__path__),
           'module':pins.__file__, 'module_sha256':hashlib.sha256(pathlib.Path(pins.__file__).read_bytes()).hexdigest(),
           'external_provider':str(pathlib.Path(quarantine_external_provider.__file__).resolve())}
+if len(sys.argv)>1 and sys.argv[1]=='--foreign-alias':
+    path = pathlib.Path(os.environ['CONTROL_FOREIGN_BASE_MODULE'])
+    spec = importlib.util.spec_from_file_location('real_foreign_base_alias', path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    record.update(foreign_alias=module.__file__, foreign_alias_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+    if not sys.flags.isolated:
+        from ci_tools.source_quarantine import FORBIDDEN_ROOTS_KEY, activate_from_environment, loaded_origins
+        observed = loaded_origins(activate_from_environment())
+        assert 'real_foreign_base_alias' in observed['escaped']
+        record['retired_lineage'] = json.loads(os.environ[FORBIDDEN_ROOTS_KEY])
+        assert any(path.resolve().is_relative_to(pathlib.Path(root)) for root in record['retired_lineage'])
+if len(sys.argv)>1 and sys.argv[1]=='--alias-grandchild':
+    result = subprocess.run([sys.executable, '-B', __file__, '--foreign-alias'], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert 'Child source verification failed' in result.stderr
+    record['grandchild'] = json.loads(result.stdout)
 if len(sys.argv)>1 and sys.argv[1]=='--grandchild':
     result = subprocess.run([sys.executable, '-B', __file__], capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
     record['grandchild'] = json.loads(result.stdout)
-print(json.dumps(record))
+print(json.dumps(record), flush=True)
 '''
     (root / "tests/control_profile/namespace_child.py").write_text(child, encoding="utf-8")
     review_ring(root)
@@ -209,6 +254,12 @@ print(json.dumps(record))
     foreign_module.parent.mkdir(parents=True)
     shutil.copy2(original / module, foreign_module)
     shutil.copy2(original / cuda_sources, foreign / cuda_sources)
+    unregistered = tmp_path / "unregistered-base-source"
+    unregistered_module = unregistered / module
+    unregistered_module.parent.mkdir(parents=True)
+    shutil.copy2(original / module, unregistered_module)
+    shutil.copy2(original / cuda_sources, unregistered / cuda_sources)
+    shutil.copy2(original / "pyproject.toml", unregistered / "pyproject.toml")
     provider = foreign / "provider/__init__.py"
     provider.parent.mkdir()
     provider.write_text('"""External engineering namespace ownership control."""\n', encoding="utf-8")
@@ -268,6 +319,8 @@ quarantine_external_provider = "provider"
                "print(json.dumps(report)); raise SystemExit(0 if report['passed'] else 1)")
     executed = subprocess.run([str(interpreter), "-I", "-B", "-c", program],
                               env=dict(os.environ, CONTROL_EXTERNAL_PROVIDER=str(provider.resolve()),
+                                       CONTROL_FOREIGN_BASE_MODULE=str(foreign_module.resolve()),
+                                       CONTROL_UNREGISTERED_BASE_MODULE=str(unregistered_module.resolve()),
                                        CONTROL_CHILD_RESULTS=str(output / "actual-descendant-results.json")),
                               capture_output=True, text=True, check=False, timeout=90)
     (output / "profile-controller.stdout.log").write_text(executed.stdout, encoding="utf-8")

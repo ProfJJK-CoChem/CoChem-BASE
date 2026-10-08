@@ -12,11 +12,11 @@ import math
 import os
 import subprocess
 import tempfile
-from threading import Event
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Event
 
 from .artifact_handoff import load_module_handoff
 
@@ -81,7 +81,7 @@ def installed_module_status(root: Path | None = None, manifest: Path | None = No
 
 def _prepare_torq_sidecar(root: Path, catalog: dict, directory: Path) -> Path | None:
     """Publish only a real reviewed isolated TORQ receipt, never a source guess."""
-    from scripts.manage_modules import verify_installation
+    from scripts.manage_modules import _paths, verify_installation
 
     spec = catalog["modules"].get("torq")
     if spec is None or not (Path(root) / "torq/installation.json").is_file():
@@ -96,7 +96,7 @@ def _prepare_torq_sidecar(root: Path, catalog: dict, directory: Path) -> Path | 
     target.chmod(0o400)
     # The trusted receipt supplies the source; neither the request nor inherited
     # COCHEM_*_ROOT values can choose a provider namespace.
-    if receipt["source_path"] != str(Path(root).resolve() / "torq" / spec["revision"] / "source"):
+    if receipt["source_path"] != str(_paths("torq", spec, root)[2]):
         raise ValueError("TORQ sidecar source differs from the verified installation")
     return target
 

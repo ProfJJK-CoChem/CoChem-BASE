@@ -126,12 +126,29 @@ def _exercise_physical_gui_case(case, tmp_path):
     gui._pipeline_worker.join(timeout=45)
     assert not gui._pipeline_worker.is_alive()
     assert gui.state.system_status == "Optimization Finished", gui.state.error_message
-    results = list(tmp_path.rglob("result.json"))
-    assert len(results) == 1
-    payload = json.loads(results[0].read_text())
+    executions = list(tmp_path.rglob("execution.json"))
+    assert len(executions) == 1
+    execution = json.loads(executions[0].read_text())
+    assert execution["status"] == "EXECUTION_VERIFIED"
+    published = executions[0].parent
+    payload = json.loads((published / "result.json").read_text())
     assert payload["engine"] == "xtb" and payload["scope"] == "screening"
     assert payload["optimization_converged"] is True
     assert payload["energy_hartree"] < 0
+    from cochem_base.core_engine.scientific_telemetry import read_scientific_results
+    import numpy as np
+
+    records = read_scientific_results(payload["telemetry_job_id"], store_path=payload["telemetry_path"])
+    evaluations = [row["gradient_source"] for row in records["metadata"] if "gradient_source" in row]
+    assert len(evaluations) >= 2
+    assert len(evaluations) == payload["optimization_evidence"]["evaluations"]
+    assert len(records["gradients_hartree_per_bohr"]) == len(evaluations) + 1
+    assert np.isfinite(records["gradients_hartree_per_bohr"]).all()
+    assert np.allclose(records["coordinates_angstrom"][-1], payload["coordinates_angstrom"], atol=1e-12, rtol=0)
+    assert abs(records["energy_hartree"][-1] - payload["energy_hartree"]) < 1e-10
+    for evaluation in evaluations:
+        source = evaluation["gradient_artifact"]
+        assert hashlib.sha256((published / source["path"]).read_bytes()).hexdigest() == source["sha256"]
 
 
 def test_pyscf_gui_configuration_is_a_single_point_and_rejects_open_shell():

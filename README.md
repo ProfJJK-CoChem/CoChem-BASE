@@ -8,10 +8,13 @@ interface, validated calculation execution and handoffs to the CoChem ecosystem.
 It preserves actual inputs, engine identity, resource allocation, outputs and
 scientific records needed to assess a result.
 
-**Students and instructors: start with the
+**Instructors: follow the
+[Classroom50 assignment deployment guide](.docs/Classroom50_Assignment_Deployment.md)**
+to prepare the release template, configure access, pilot one student and roll
+the assignment out to the course. **Students: start with the
 [Classroom50 + ORCA GitHub Actions guide](.docs/GitHub_Classroom_ORCA_Setup.md).**
-It covers private binary setup, correct GitHub permissions, each student's
-assignment repository, GUI job export, calculations and retrieval of results.
+It covers approved binary access, each student's assignment repository, GUI
+job export, calculations and retrieval of results.
 Students using the instructor's provisioned route do not enter tokens in CoChem.
 
 For CFOUR runtime access, classroom setup and host compatibility, follow the
@@ -26,9 +29,14 @@ organization's shared Actions allowance, and which modules currently support
 installation or execution.
 
 Version **1.0.1** brings the integrated CFOUR/module routes and the current SRS
-closure work into the student distribution. The
-[release and validation record](.docs/Release_1_0_1.md) identifies actual tested
-revisions, supported operations and publication status. The older
+closure work into the student distribution. The complete profile
+passed **1,827 tests** with **two explicit physical Slurm deferrals** and no
+failures. Hosted ORCA/CFOUR science, three-platform package/control checks and
+a fresh local Voilà container also passed. The
+[release and validation record](.docs/Release_1_0_1.md) identifies
+actual tested revisions, application equivalence to the complete-profile
+source `583a6d2`, supported operations and how to verify publication through
+the actual GitHub release and its attached validation/checksum records. The older
 [1.0.0 record](.docs/Release_1_0_0.md) remains historical. Existing Classroom50
 assignment copies must be updated to the approved course source; pulling this
 repository does not grant assignment secrets or private-module permissions.

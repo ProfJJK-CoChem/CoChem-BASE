@@ -1,278 +1,335 @@
-name: ORCA 6.1.1 calculation acceptance
-
-on:
-  workflow_dispatch:
-    inputs:
-      topos_ref:
-        description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
-        required: false
-        default: ''
-        type: string
-      torq_ref:
-        description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
-        required: false
-        default: d7a4739a5f7d6f22ed659b32eeb4706bef16225e
-        type: string
-  workflow_call:
-    inputs:
-      topos_ref:
-        description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
-        required: false
-        default: ''
-        type: string
-      torq_ref:
-        description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
-        required: false
-        default: d7a4739a5f7d6f22ed659b32eeb4706bef16225e
-        type: string
-      base_repository:
-        description: Repository containing the reviewed BASE source for a reusable call.
-        required: false
-        default: ProfJJK-CoChem/CoChem-BASE
-        type: string
-      base_ref:
-        description: Full CoChem-BASE commit SHA providing the shared installer and BASE acceptance.
-        required: true
-        type: string
-    secrets:
-      COCHEM_SOURCE_READ_TOKEN:
-        description: Read-only access to reviewed TOPOS and TORQ source revisions.
-        required: false
-      PRIVATE_ORCA_ASSET_CREDENTIAL:
-        required: true
-      BASE_SOURCE_READ_TOKEN:
-        description: Optional read-only access when a reusable caller cannot read the private BASE source.
-        required: false
-  push:
-    branches: [codex/orca-6.1.1-actions]
-    paths:
-      - '.github/actions/setup-orca/**'
-      - '.github/workflows/orca_acceptance.yml'
-      - 'scripts/*orca*'
-      - 'scripts/install_openmpi.py'
-      - 'tests/base/test_orca_provisioning.py'
-      - 'tests/base/test_openmpi_installer_contract.py'
-      - 'tests/calc/test_orca_cli_execution.py'
-
+name: ORCA R2 Cartesian reference diagnostic
+'on':
+ workflow_dispatch:
+  inputs:
+   topos_ref:
+    description: TOPOS pin
+    required: true
+    default: 73b3fb87386cfc1d572455454b9ebf43af978e04
+    type: string
+   torq_ref:
+    description: TORQ pin
+    required: true
+    default: 79fbb111125e50627a1a2c129888a45496f368d4
+    type: string
+   base_ref:
+    description: BASE pin
+    required: true
+    default: 705b9d54370d5089da286a02b7a1c4afdcbafec1
+    type: string
 permissions:
-  contents: read
-
+ contents: read
 concurrency:
-  group: orca-acceptance-${{ github.repository }}-${{ github.ref }}
-  cancel-in-progress: false
-
+ group: orca-acceptance-${{ github.repository }}-${{ github.ref }}
+ cancel-in-progress: false
 jobs:
-  licensed-calculations:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 330
-    env:
-      OMP_NUM_THREADS: '1'
-      OPENBLAS_NUM_THREADS: '1'
-      MKL_NUM_THREADS: '1'
-      QT_QPA_PLATFORM: offscreen
-      COCHEM_HEADLESS: '1'
-      COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
-    steps:
-      - name: Validate optional downstream source identities
-        env:
-          TOPOS_REF: ${{ inputs.topos_ref }}
-          TORQ_REF: ${{ inputs.torq_ref }}
-          CONTROLLER_PRIVATE: ${{ github.event.repository.private }}
-        run: |
-          if [[ -n "$TOPOS_REF" ]]; then
-            test "$CONTROLLER_PRIVATE" = true
-            [[ "$TOPOS_REF" =~ ^[0-9a-f]{40}$ ]]
-            [[ "$TORQ_REF" =~ ^[0-9a-f]{40}$ ]]
-          fi
-      - name: Validate configured downstream source credential
-        if: inputs.topos_ref != ''
-        env:
-          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
-          BASE_SOURCE_READ_TOKEN: ${{ secrets.BASE_SOURCE_READ_TOKEN }}
-        run: |
-          if [[ -z "$COCHEM_SOURCE_READ_TOKEN" && -z "$BASE_SOURCE_READ_TOKEN" ]]; then
-            echo '::error::TOPOS acceptance requires COCHEM_SOURCE_READ_TOKEN or BASE_SOURCE_READ_TOKEN exposed to this BASE workflow with private TOPOS/TORQ Contents read access.'
-            exit 1
-          fi
-      - name: Validate a reusable caller's BASE revision
-        env:
-          BASE_REF: ${{ inputs.base_ref }}
-        run: |
-          if [[ -n "$BASE_REF" && ! "$BASE_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo '::error::Reusable callers must pin base_ref to a full CoChem-BASE commit SHA.'
-            exit 1
-          fi
-      - uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.base_repository || github.repository }}
-          ref: ${{ inputs.base_ref || github.sha }}
-          token: ${{ secrets.BASE_SOURCE_READ_TOKEN || github.token }}
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Record the real runner CPU topology and scheduling limits
-        run: |
-          python - <<'PY'
-          import json, os, subprocess
-          from pathlib import Path
-          limits = {}
-          for name in ('cpu.max', 'cpuset.cpus.effective'):
-              path = Path('/sys/fs/cgroup') / name
-              limits[name] = path.read_text().strip() if path.is_file() else None
-          topology = subprocess.run(['lscpu', '--json'], capture_output=True, text=True, check=True, timeout=10)
-          print(json.dumps({'runner_environment': os.environ.get('RUNNER_ENVIRONMENT'),
-              'cpu_allocation_policy': os.environ.get('COCHEM_CPU_ALLOCATION_POLICY'),
-              'logical_cpus': os.cpu_count(), 'affinity_cpu_ids': sorted(os.sched_getaffinity(0)),
-              'kernel_limits': limits, 'lscpu': json.loads(topology.stdout)}, indent=2))
-          PY
-      - name: Prepare external evidence and registry locations
-        run: |
-          mkdir -p "$RUNNER_TEMP/orca-evidence"
-          echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
-          echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
-          git rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/base-commit.txt"
-      - name: Audit the checked-out BASE source
-        run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/orca-evidence/source-audit"
-      - name: Install native build prerequisites
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes build-essential libgfortran5
-      - name: Reserve disk for the complete licensed distribution
-        env:
-          RUNNER_HOST_KIND: ${{ runner.environment }}
-        run: |
-          set -euo pipefail
-          if [[ "$RUNNER_HOST_KIND" != "github-hosted" || "$RUNNER_OS" != "Linux" ]]; then
-            echo '::error::Preinstalled SDK cleanup is restricted to this ephemeral GitHub-hosted Linux job.'
-            exit 1
-          fi
-          # The verified 471 MB archive expands to over 16 GiB. These unrelated
-          # SDKs belong to the disposable runner image, never a user workstation.
-          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/ghc
-          df -h "$RUNNER_TEMP"
-      - uses: ./.github/actions/setup-orca
-        with:
-          asset-token: ${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}
-      - name: Install BASE and execute all eleven Stage 0 phases
-        run: |
-          if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
-              > "$RUNNER_TEMP/orca-evidence/stage0-setup.log" 2>&1; then
-            tail -n 20 "$RUNNER_TEMP/orca-evidence/stage0-setup.log"
-          else
-            status=$?
-            tail -n 100 "$RUNNER_TEMP/orca-evidence/stage0-setup.log"
-            exit "$status"
-          fi
-      - name: Record the fresh registry CPU allocation evidence
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          registry = json.loads(Path(os.environ['COCHEM_CONFIG']).read_text())
-          print(json.dumps({'hardware': registry['hardware'],
-              'cpu_allocation': (registry.get('execution') or {}).get('cpu_allocation')}, indent=2))
-          PY
-      - name: Run actual serial and parallel ORCA calculations through BASE
-        env:
-          # These CLI tests use pytest itself; unrelated installed GUI plugins
-          # must not require a display/Qt runtime before collection.
-          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
-        run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -m pytest \
-            tests/calc/test_orca_cli_execution.py \
-            --basetemp "$RUNNER_TEMP/orca-evidence/pytest" \
-            --junitxml "$RUNNER_TEMP/orca-evidence/results.xml" -q
-      - name: Check out the reviewed TOPOS candidate
-        if: inputs.topos_ref != ''
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: ProfJJK-CoChem/CoChem-TOPOS
-          ref: ${{ inputs.topos_ref }}
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
-          path: .cochem-ecosystem/topos
-          persist-credentials: false
-      - name: Check out the mandatory TORQ source
-        if: inputs.topos_ref != ''
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: ProfJJK-CoChem/CoChem-TORQ
-          ref: ${{ inputs.torq_ref }}
-          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
-          path: .cochem-ecosystem/torq
-          persist-credentials: false
-      - name: Isolate and identify all mandatory source checkouts
-        if: inputs.topos_ref != ''
-        env:
-          TOPOS_REF: ${{ inputs.topos_ref }}
-          TORQ_REF: ${{ inputs.torq_ref }}
-        run: |
-          test "$(git -C .cochem-ecosystem/topos rev-parse HEAD)" = "$TOPOS_REF"
-          test "$(git -C .cochem-ecosystem/torq rev-parse HEAD)" = "$TORQ_REF"
-          test ! -e "$RUNNER_TEMP/cochem-sources"
-          mkdir -p "$RUNNER_TEMP/cochem-sources"
-          mv .cochem-ecosystem/topos "$RUNNER_TEMP/cochem-sources/topos"
-          mv .cochem-ecosystem/torq "$RUNNER_TEMP/cochem-sources/torq"
-          git -C "$RUNNER_TEMP/cochem-sources/topos" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/topos-commit.txt"
-          git -C "$RUNNER_TEMP/cochem-sources/torq" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/torq-commit.txt"
-      - name: Complete mandatory package setup using the audited BASE installation
-        id: mandatory
-        if: inputs.topos_ref != ''
-        run: |
-          python "$RUNNER_TEMP/cochem-sources/topos/scripts/setup_ecosystem.py" \
-            --base-root "$GITHUB_WORKSPACE" \
-            --torq-root "$RUNNER_TEMP/cochem-sources/torq" \
-            --artifacts "$COCHEM_ARTIFACT_DIR" --min-disk-space-gb 1 --existing-environment
-      - name: Require genuine TOPOS ORCA scientific acceptance
-        if: inputs.topos_ref != ''
-        run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_topos.py" \
-            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence" \
-            --threads 2 --memory-mb 2048 --budget-seconds 10800 --include-counterpoise --include-goat
-      - name: Execute native correlated and anharmonic acceptance
-        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
-        run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_extended.py" \
-            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-extended" \
-            --threads 2 --memory-mb 4096 --budget-seconds 7200
-      - name: Retain source-bound licensed pytest results
-        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
-        run: |
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_pytest.py" \
-            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence"
-      - name: Retain TOPOS native calculation and setup evidence
-        if: always() && inputs.topos_ref != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: topos-orca-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/topos-orca-evidence/
-            ${{ runner.temp }}/topos-orca-extended/
-            ${{ runner.temp }}/cochem-artifacts/setup-logs/
-            ${{ runner.temp }}/cochem-artifacts/setup-receipt.json
-            ${{ runner.temp }}/cochem-artifacts/mandatory-validation.json
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 14
-      - name: Retain calculation, registry and installation evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: orca-6.1.1-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/orca-evidence/**/*.json
-            ${{ runner.temp }}/orca-evidence/**/*.xml
-            ${{ runner.temp }}/orca-evidence/**/*.txt
-            ${{ runner.temp }}/orca-evidence/**/*.log
-            ${{ runner.temp }}/orca-evidence/**/*.out
-            ${{ runner.temp }}/orca-evidence/**/*.inp
-            ${{ runner.temp }}/orca-evidence/**/*.sha256
-            ${{ runner.temp }}/orca-evidence/**/complexes.h5
-            ${{ runner.temp }}/cochem-openmpi-build/**/*.log
-            ${{ runner.temp }}/cochem-artifacts/Registry/*.json
-            ${{ runner.temp }}/cochem-artifacts/Registry/*.sha256
-          if-no-files-found: error
-          retention-days: 14
-      - name: Remove the job-local licensed installation
-        if: always()
-        run: rm -rf -- "$RUNNER_TEMP/cochem-orca-install" "$RUNNER_TEMP/cochem-orca-download"
+ licensed-calculations:
+  runs-on: ubuntu-24.04
+  timeout-minutes: 330
+  env: {OMP_NUM_THREADS: '1', OPENBLAS_NUM_THREADS: '1', MKL_NUM_THREADS: '1', QT_QPA_PLATFORM: offscreen, COCHEM_HEADLESS: '1', COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus}
+  steps:
+  -
+   name: Validate private diagnostic pins
+   env: {TOPOS_REF: '${{ inputs.topos_ref }}', TORQ_REF: '${{ inputs.torq_ref }}', CONTROLLER_PRIVATE: '${{ github.event.repository.private }}', BASE_REF: '${{ inputs.base_ref }}'}
+   run: |
+    set -euo pipefail
+    test "$CONTROLLER_PRIVATE" = true
+    test "$TOPOS_REF" = 73b3fb87386cfc1d572455454b9ebf43af978e04
+    test "$TORQ_REF" = 79fbb111125e50627a1a2c129888a45496f368d4
+    test "$BASE_REF" = 705b9d54370d5089da286a02b7a1c4afdcbafec1
+  -
+   name: Validate configured downstream source credential
+   env: {COCHEM_SOURCE_READ_TOKEN: '${{ secrets.COCHEM_SOURCE_READ_TOKEN }}', BASE_SOURCE_READ_TOKEN: '${{ secrets.BASE_SOURCE_READ_TOKEN }}'}
+   run: |
+    if [[ -z "$COCHEM_SOURCE_READ_TOKEN" && -z "$BASE_SOURCE_READ_TOKEN" ]]; then
+      echo '::error::TOPOS acceptance requires COCHEM_SOURCE_READ_TOKEN or BASE_SOURCE_READ_TOKEN exposed to this BASE workflow with private TOPOS/TORQ Contents read access.'
+      exit 1
+    fi
+  -
+   name: Check out controller
+   uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+   with: {ref: '${{ github.sha }}', persist-credentials: false}
+  -
+   name: Record controller identity
+   env: {R2_REPOSITORY_PRIVATE: '${{ github.event.repository.private }}'}
+   run: |
+    python - <<'PY'
+    import hashlib, json, os, shutil, subprocess
+    from pathlib import Path
+    root=Path(os.environ['GITHUB_WORKSPACE']);out=Path(os.environ['RUNNER_TEMP'])/'orca-evidence';out.mkdir(parents=True,exist_ok=True)
+    head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+    assert head==os.environ['GITHUB_SHA']==os.environ['GITHUB_WORKFLOW_SHA']
+    assert os.environ['R2_REPOSITORY_PRIVATE']=='true'
+    workflow=root/'.github/workflows/orca_acceptance.yml'
+    shutil.copyfile(workflow,out/'r2-cartesian-controller-workflow.yml')
+    value={'controller_head_sha':head,'workflow_sha256':hashlib.sha256(workflow.read_bytes()).hexdigest(),
+           'controller_repository':os.environ['GITHUB_REPOSITORY'],'repository_private':True,
+           'event':os.environ['GITHUB_EVENT_NAME'],'workflow_ref':os.environ['GITHUB_WORKFLOW_REF'],
+           'run_id':os.environ['GITHUB_RUN_ID'],'run_attempt':os.environ['GITHUB_RUN_ATTEMPT'],
+           'scope':'Actual controller observation; verify API run/artifact identity after retrieval'}
+    (out/'r2-cartesian-controller.json').write_text(json.dumps(value,indent=2)+'\n')
+    PY
+  -
+   name: Check out pinned BASE
+   uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+   with: {repository: ProfJJK-CoChem/CoChem-BASE, ref: 705b9d54370d5089da286a02b7a1c4afdcbafec1, path: .cochem-ecosystem/base, persist-credentials: false}
+  -
+   name: Verify pinned BASE provisioner
+   run: |
+    set -euo pipefail
+    test "$(git -C .cochem-ecosystem/base rev-parse HEAD)" = 705b9d54370d5089da286a02b7a1c4afdcbafec1
+    test ! -e "$RUNNER_TEMP/cochem-sources"
+    mkdir -p "$RUNNER_TEMP/cochem-sources"
+    mv .cochem-ecosystem/base "$RUNNER_TEMP/cochem-sources/base"
+    python - <<'PY'
+    import hashlib,os
+    from pathlib import Path
+    controller=Path(os.environ['GITHUB_WORKSPACE']);science=Path(os.environ['RUNNER_TEMP'])/'cochem-sources/base'
+    for relative in ['.github/actions/setup-orca/action.yml','scripts/provision_orca.py','scripts/orca-distribution.json','scripts/install_openmpi.py']:
+        assert hashlib.sha256((controller/relative).read_bytes()).hexdigest()==hashlib.sha256((science/relative).read_bytes()).hexdigest(),relative
+    PY
+  -
+   uses: actions/setup-python@v5
+   with: {python-version: '3.12'}
+  -
+   name: Record the real runner CPU topology and scheduling limits
+   run: |
+    python - <<'PY'
+    import json, os, subprocess
+    from pathlib import Path
+    limits = {}
+    for name in ('cpu.max', 'cpuset.cpus.effective'):
+        path = Path('/sys/fs/cgroup') / name
+        limits[name] = path.read_text().strip() if path.is_file() else None
+    topology = subprocess.run(['lscpu', '--json'], capture_output=True, text=True, check=True, timeout=10)
+    print(json.dumps({'runner_environment': os.environ.get('RUNNER_ENVIRONMENT'),
+        'cpu_allocation_policy': os.environ.get('COCHEM_CPU_ALLOCATION_POLICY'),
+        'logical_cpus': os.cpu_count(), 'affinity_cpu_ids': sorted(os.sched_getaffinity(0)),
+        'kernel_limits': limits, 'lscpu': json.loads(topology.stdout)}, indent=2))
+    PY
+  -
+   name: Prepare external evidence and registry locations
+   run: |
+    mkdir -p "$RUNNER_TEMP/orca-evidence"
+    echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-artifacts" >> "$GITHUB_ENV"
+    echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-artifacts/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
+    git rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/base-commit.txt"
+   working-directory: ${{ runner.temp }}/cochem-sources/base
+  -
+   name: Audit the checked-out BASE source
+   run: python -I -S ci_tools/base_ci.py audit --output "$RUNNER_TEMP/orca-evidence/source-audit"
+   working-directory: ${{ runner.temp }}/cochem-sources/base
+  -
+   name: Install native build prerequisites
+   run: |
+    sudo apt-get update
+    sudo apt-get install --yes build-essential libgfortran5
+  -
+   name: Reserve disk for the complete licensed distribution
+   env: {RUNNER_HOST_KIND: '${{ runner.environment }}'}
+   run: |
+    set -euo pipefail
+    if [[ "$RUNNER_HOST_KIND" != "github-hosted" || "$RUNNER_OS" != "Linux" ]]; then
+      echo '::error::Preinstalled SDK cleanup is restricted to this ephemeral GitHub-hosted Linux job.'
+      exit 1
+    fi
+    # The verified 471 MB archive expands to over 16 GiB. These unrelated
+    # SDKs belong to the disposable runner image, never a user workstation.
+    sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/ghc
+    df -h "$RUNNER_TEMP"
+  -
+   uses: ./.github/actions/setup-orca
+   with: {asset-token: '${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}'}
+  -
+   name: Install BASE and execute all eleven Stage 0 phases
+   run: |
+    if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
+        > "$RUNNER_TEMP/orca-evidence/stage0-setup.log" 2>&1; then
+      tail -n 20 "$RUNNER_TEMP/orca-evidence/stage0-setup.log"
+    else
+      status=$?
+      tail -n 100 "$RUNNER_TEMP/orca-evidence/stage0-setup.log"
+      exit "$status"
+    fi
+   working-directory: ${{ runner.temp }}/cochem-sources/base
+  -
+   name: Record the fresh registry CPU allocation evidence
+   run: |
+    python - <<'PY'
+    import json, os
+    from pathlib import Path
+    registry = json.loads(Path(os.environ['COCHEM_CONFIG']).read_text())
+    print(json.dumps({'hardware': registry['hardware'],
+        'cpu_allocation': (registry.get('execution') or {}).get('cpu_allocation')}, indent=2))
+    PY
+  -
+   name: Check out the reviewed TOPOS candidate
+   uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+   with: {repository: ProfJJK-CoChem/CoChem-TOPOS, ref: '${{ inputs.topos_ref }}', token: '${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}', path: .cochem-ecosystem/topos, persist-credentials: false}
+  -
+   name: Check out the mandatory TORQ source
+   uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+   with: {repository: ProfJJK-CoChem/CoChem-TORQ, ref: '${{ inputs.torq_ref }}', token: '${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}', path: .cochem-ecosystem/torq, persist-credentials: false}
+  -
+   name: Isolate and identify all mandatory source checkouts
+   env: {TOPOS_REF: '${{ inputs.topos_ref }}', TORQ_REF: '${{ inputs.torq_ref }}'}
+   run: |
+    test "$(git -C .cochem-ecosystem/topos rev-parse HEAD)" = "$TOPOS_REF"
+    test "$(git -C .cochem-ecosystem/torq rev-parse HEAD)" = "$TORQ_REF"
+    test ! -e "$RUNNER_TEMP/cochem-sources/topos"
+    test ! -e "$RUNNER_TEMP/cochem-sources/torq"
+    mkdir -p "$RUNNER_TEMP/cochem-sources"
+    mv .cochem-ecosystem/topos "$RUNNER_TEMP/cochem-sources/topos"
+    mv .cochem-ecosystem/torq "$RUNNER_TEMP/cochem-sources/torq"
+    git -C "$RUNNER_TEMP/cochem-sources/topos" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/topos-commit.txt"
+    git -C "$RUNNER_TEMP/cochem-sources/torq" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/torq-commit.txt"
+  -
+   name: Complete mandatory package setup using the audited BASE installation
+   id: mandatory
+   run: |
+    python "$RUNNER_TEMP/cochem-sources/topos/scripts/setup_ecosystem.py" \
+      --base-root "$RUNNER_TEMP/cochem-sources/base" \
+      --torq-root "$RUNNER_TEMP/cochem-sources/torq" \
+      --artifacts "$COCHEM_ARTIFACT_DIR" --min-disk-space-gb 1 --existing-environment
+  -
+   name: Materialize reviewed diagnostic
+   run: |
+    python - <<'PY'
+    import base64,hashlib,json,os,subprocess,zlib
+    from pathlib import Path
+    assets={"asset-manifest.json": {"base64": "eNplk0tu3EAMRPc5htaehGT/fRmDZLNjBWNpIslBgMB3D2cM2/lo09ywSvVI/prGfLZ9uv812c+L6WH9dKyXdT/t6/OmdnriZR62H5+/7esy3U9Mo9DIFEYTRkbjOLSjda6dGpYoySrVpmRYRkqlY2jaIAJVUQnT3TQv8zHz+bTZsM0Wtc/zcnHplEIJNRNTCNBGaMhA0SjEomrYUyYxNJPKbt6yjZET5Jhbi80/l163+eu8uPbCx/zDTpdtVdv3k/L5vL9F0DSMrRRixmsCEuBacFSWnkOHDNJJu5Y8QAUhkHJAbKpNLLP+6bPR6fLIu72LSy/aASR3KzCKcgUUJ5aSpNEdBgdBuzKJyJ4tG5ccQukeqKHUv8TfAHm1P5/fZ9CDACG5EmD3ElgbuWFlihVBETVUAHJsVMdgyCWW1vPoUDSV7B6Xzbrpmf1xONth+8zLfxMZjiFp7Nl6LsU6dc1hoEauoTocyIMJWjd2YUwQvUyY4pDcoGq9Ga1iJ34+Hteb17oc9vM9SY4ATXyIDC0kgUQENWkNShREWyDzYUlAi41qaoZqxI1LqYMKihtsdvC8uPQHrX9MQvcEzt1bo2NRqBBz8HUt1bk7LkEMCXOlnLKzraVbVt8QyEE96/RyN+36aE/88MO2fb6Jvh6Jj/+D3ntI3nc79i84XftmW455zPrwelAPuj49zcft4sQXx6UKJGk9xVCgJ6itM1UHQlL4inp0FR6mV7mb67UlSBj+o34uOtRPo1BMKaYozWTE4AdSqkG8tWzfrx1tiOdEpGTOm1ybSZFarZW9seURcu1xenn59BtjuD1Y", "codec": "plain", "sha256": "6a975f11ec6d4306852fc9f21caa062cd737a0d2dc9bf0c226d0bc0ecf32fc0c"}, "expected-topos-source-manifest.json": {"base64": "eNoDAAAAAAE=", "codec": "pinned-source-manifest-v1", "metadata": {"schema": "topos-predeclared-full-git-source/1", "topos_source_commit": "73b3fb87386cfc1d572455454b9ebf43af978e04"}, "sha256": "a2f72f623f9ba1a1ea4fcd1eda8d29174b5e8289c2e17f557d139c904028bcb3"}, "initial-reference.inp": {"base64": "eNo9Ustu20AMvOsr2EMuAazysbvkXms7joMENuygaHMpDHvzABIpkNXC7deXUt0cZzgzHC72E3yR2+9rmJ/6rryV7fQKZvOrxWY5E5gFOJRHntw/fF2vYbO8ma6230bq8w2s3vvq4n33Cs171+6PwFCaQ3Xxtjvt264ARUmOSv/cHiqAhx/37StQmVCoRt1Tad+cnzePbbcv27572ffTtvlVuqfS7Av03c/i87vdadmXDhjRkWfMx5Az8OliwPoPbu62C5AysQ84g/gxdfFsECeHy+a6HI9w+9Icnsc+l3D6/QcQqFoB1kRoGVGiiWmmCBOsUTSoIiZmwRiTjCQiaQ4WYhbWRDmm6hqoxohqTJgsEIYhMUayhCpERokVpI6YMLIwBzMyLhOM7vVQzorGmUSVxBVuN/FC6pGJkq9JkOvglBpS5CTOjPaVx6J3J4vKyatpcrMLyYuzbw8cogDXlpLHSw5BCHM475ZalLO4V0PSrOPd3hY5JCZTJtLhGI1iZkKRfCL036mYzR8pIuV8dlIgDuiZktgGbrAmFw6vlsk/w2X1F2iwl4g=", "codec": "plain", "sha256": "55373862a23309f391a024e2347cce1d562be1eeb8af9b96eff6506469949999"}, "original-native-process-calls.json": {"base64": "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", "codec": "plain", "sha256": "c5feae772aa11a1e2b0a871f8abd63d060bd2cdc76f0cb1032ca3119cc9be6ac"}, "original-r2-phases.json": {"base64": "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", "codec": "plain", "sha256": "bd7cd00b6de70f7ca801b72f55b5fdd13a3b1e139c41ae236ea76337db9691b8"}, "original-reference-result.json": {"base64": "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", "codec": "plain", "sha256": "d3b0212a3b01db020ac926de8a24810c11c380027cc28ffa067479d6fd07c576"}, "predeclared-cartesian-reference.inp": {"base64": "eNo9Ustu2zAQvOsrtodcAljdB8klr7Udx0ECG3ZQtLkUhswkBmLJkNTC6dd3pbg5zuzM7CzBL/BN7n+uYX7u23zM2+kNzOY3i81yJjBzsM/PPHl8+r5ew2Z5N11tf4zU1ztYnfri6rR7g/rUNlUHDLneF1fH3blq2gzkJRjK/WuzLwCefj02b0B5Qq4YdS+5ORpfNU277947qHZtn7vDrjZyXj83bZW3fXuo+mlT/8ntS66rDH37O9v8YXde9rkFRjRkwfMx+QJsuhiwfsDNw3YBkifxE87Af05NPBvEweCyvs1dB/eHev86lryG8/tfQKBiBVgSYUyI4qNETeRhgiWKOlXEwCzofZCRRCRNLjqfhDVQ8qG4BSrRo0YmDNERuiHRe4oBVYgiBVaQ0mNAz8LsYqTIeYLevBbKSTFyIlElMYXZo1ghtchAwdYESKUzSiOS5yDGjPaVxaJ1p+iVg1XTYGYTkhVn2+7YeQEuYwgWL8k5IUzusltKUU5iXnVBk453W1tkF5iiMpEOx6iXGKOQJ5sI/XcqpmiP5JFSujjJETu0TAkcB26wBhMOr5bIfsh18Q8ST58i", "codec": "plain", "sha256": "f2cd5c4d6ed677ed2dc63f1c4a838f0c06fa209dea07c15049de5154fb6908c8"}, "probe-authored-context.json": {"base64": "eNp1Vdtu3DYQfe9XEAL6tlvzogvlPAWxkxho0MAO8hAUEEbkcJepllIoyvA2yL93uLK326L1w8K8nTkzc+boe2GWGDGkbh6XaLADY3BKEAwW1w6GGTeFW4ah2/nzlQME73Cm9R5kVRfXBUjXSFdL5doeBAiE0hkr0IK2shVN2VeopW6NRNG4qmqsUK1pecml7k2vik1BoAsM3aOffT9gN/hg912C/L8Zgxu8SV3EBD6gLa5TXIjYFHGCCMmPocMnNEvCuTN7PPg5xeOZf8Rvi49oO3AJY0aJHh9hIOKfMXp3ZGASBWdT9I+QkO3HOaFlFDfFcRgwXr3+eMfiEq72CLZ7eP/6Ch+pZlc+TEuaryAlPEyJQbDsAMnsfdgxiMk7AmZf7j4y63dUsFeMssIJ6Sek4cgimvFACMgCJfGILxHnDcs1Z0uY4vgVTSazi2A9PduwfrE7XIOtDWE9wVLI+RVbK0QJBArHHPhhiTgXuQbr3bm4/l6sCN1M4YOlHalU9YtupC6rptSci9yOJzNG6nXfTblmEP4orkWlajrCwxiPdFJcl7yljdlkYt55030d+87A9C/oqmlqzauG01+zKdI+Uhnz4Y9MbO0ptcUhCdGc+p3w6UJeypa2VqAMykzPcM3LWpG0Gq0ay43ohVCVqLWsq9qqXjcWawPY8FoZU0KROZIsoHvEOJNaCDON0zhv17pvo9wa6hfOHsL2TGRrPewCacGb7YXUrkTxj5yfp4JaefBprS/MND1Fw6u+tVWpGm4rrlsLUtfAZd+AIFbOmh4cmgx3YpOfqF454q90bZwRtmpkWVVlVfYt9q5U4NpGIy9PT+K3/KJ1PaUvhKyw4rUkbJBGyFZrDfSwrZ2qtS2LH5n0OGVivwXSOM3IGL0h2V+Ikt1LdvP2EzvXgI1T8gf/J0b2dzVesTCuCr2XG/b54yfJxkhvBqTE2YWD5JDRTxetbGWlnW0bp7gpySw0kbeNapQgLTXUOwTeGl4aoLbWjeO8FlQpQaXk2gmZIUnq5Aqn2essDgkI9y7MGBMj3TOyDmS/F4ymaYx2Ps7s3Fva9WH2ltKKfucDJf/zDsfDeXCAchrTnrI9X+iP6TRBz232IU9+HoBzTrIx2FZCcqGktG2ppCAnVFBazV1rLJS05pXL/Htl6ixaI4UG4UCXZXY/8qtscBgw7o7djkyo2xPpiNQuids8Nc9XTmZ8Tqib00mTEH06kmm+KJDG1x+WwwvIaYb7cR9phle0eJj/41DRoSahLMHsIexoKl8cKYPeBjdSCR5ORN6MVIi4w9OHYrXju/Ae56ziX7N5U1Yf4OmOHJdS4HxTPLx5S2e3TxTzgHmxKT6Nw+2JkuCnBT24WSnWL+t3Z8q0vv/wQOfV5frdM+tN8aWjnRWt3BS76Ok7Udzcvn13f3ezfmH+19IuHOnHT38BLk5a8g==", "codec": "plain", "sha256": "64009b506a0935b0522085c83c223bc932e5feb31e492859e1ce2a9a778f271b"}, "retained-reference-context.json": {"base64": "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", "codec": "plain", "sha256": "3d4d63a3ce24800c0804638d27837d0c1b11351682656d3b87de6cae7063cc4a"}}
+    root=Path(os.environ['RUNNER_TEMP'])/'r2-cartesian-authored'
+    assert not root.exists();root.mkdir()
+    for name,entry in assets.items():
+        assert Path(name).name==name
+        raw=zlib.decompress(base64.b64decode(entry['base64'],validate=True))
+        if entry['codec']=='pinned-source-manifest-v1':
+            assert name=='expected-topos-source-manifest.json' and raw==b''
+            source=Path(os.environ['RUNNER_TEMP'])/'cochem-sources/topos'
+            metadata=entry['metadata']
+            assert subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()==metadata['topos_source_commit']
+            assert not subprocess.check_output(['git','-C',str(source),'status','--porcelain','--untracked-files=no'],text=True).strip()
+            names=subprocess.check_output(['git','-C',str(source),'ls-files','-z']).decode().split(chr(0))
+            files={}
+            for relative in filter(None,names):
+                path=source/relative
+                assert path.is_file() and not path.is_symlink()
+                files[relative]=hashlib.sha256(path.read_bytes()).hexdigest()
+            raw=(json.dumps({**metadata,'files':files},indent=2,sort_keys=True)+'\n').encode()
+        else:
+            assert entry['codec']=='plain'
+        assert hashlib.sha256(raw).hexdigest()==entry['sha256']
+        (root/name).write_bytes(raw)
+    runner=zlib.decompress(base64.b64decode('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',validate=True))
+    assert hashlib.sha256(runner).hexdigest()=='9258fd97f30c49ba8bb1d737314097d3bea09c04ca0c167f0061afd105b08f12'
+    (Path(os.environ['RUNNER_TEMP'])/'native-r2-cartesian-probe.py').write_bytes(runner)
+    PY
+  -
+   name: Verify source and module identities
+   working-directory: ${{ runner.temp }}
+   env: {COCHEM_BASE_ROOT: '${{ runner.temp }}/cochem-sources/base', COCHEM_TOPOS_ROOT: '${{ runner.temp }}/cochem-sources/topos', COCHEM_TORQ_ROOT: '${{ runner.temp }}/cochem-sources/torq', R2_CONTROLLER_PRIVATE: '${{ github.event.repository.private }}', R2_PROBE_SCRIPT_SHA256: 9258fd97f30c49ba8bb1d737314097d3bea09c04ca0c167f0061afd105b08f12, R2_TOPOS_COMMIT: 73b3fb87386cfc1d572455454b9ebf43af978e04, R2_PROBE_CONTROLLER_JSON: '${{ runner.temp }}/orca-evidence/r2-cartesian-controller.json', R2_PROBE_SOURCE_MANIFEST: '${{ runner.temp }}/r2-cartesian-authored/expected-topos-source-manifest.json'}
+   run: |
+    "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" - <<'PY'
+    import hashlib, importlib.util, json, os, subprocess
+    from pathlib import Path
+    from topos.release import source_inventory
+    runner=Path(os.environ['RUNNER_TEMP']);assets=runner/'r2-cartesian-authored';out=runner/'orca-evidence'
+    assert out.is_dir();assert not (runner/'topos-r2-cartesian-probe-evidence').exists()
+    assert os.environ['R2_CONTROLLER_PRIVATE']=='true'
+    assert os.environ['GITHUB_REPOSITORY']=='ProfJJK-CoChem/CoChem-BASE'
+    assert os.environ['GITHUB_EVENT_NAME']=='workflow_dispatch'
+    assert os.environ['RUNNER_ENVIRONMENT']=='github-hosted'
+    assert os.environ['RUNNER_OS']=='Linux' and os.environ['RUNNER_ARCH']=='X64'
+    expected=source_inventory(Path(os.environ['COCHEM_TOPOS_ROOT']))
+    context=json.loads((assets/'probe-authored-context.json').read_text())
+    assert hashlib.sha256(json.dumps(expected,sort_keys=True,separators=(',', ':')).encode()).hexdigest()==context['source_inventory_sha256']
+    script=runner/'native-r2-cartesian-probe.py'
+    assert hashlib.sha256(script.read_bytes()).hexdigest()==os.environ['R2_PROBE_SCRIPT_SHA256']
+    manifest=json.loads((assets/'asset-manifest.json').read_text())
+    for name,wanted in manifest['files'].items():
+        assert Path(name).name==name and hashlib.sha256((assets/name).read_bytes()).hexdigest()==wanted
+    roots={'topos':Path(os.environ['COCHEM_TOPOS_ROOT']),'base':Path(os.environ['COCHEM_BASE_ROOT']),'torq':Path(os.environ['COCHEM_TORQ_ROOT'])}
+    for name,root in roots.items():
+        assert subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()==manifest['scientific_source_commits'][name]
+    origins={}
+    def origin(name,path,root):
+        relative=path.relative_to(root).as_posix();raw=path.read_bytes()
+        assert raw==subprocess.check_output(['git','-C',str(root),'show','HEAD:'+relative])
+        origins[name]={'origin_relative_to_scientific_root':relative,'sha256':hashlib.sha256(raw).hexdigest()}
+    spec=importlib.util.find_spec('topos');assert spec and spec.origin
+    path=Path(spec.origin).resolve();assert path==roots['topos']/'topos/__init__.py'
+    origin('topos',path,roots['topos'])
+    namespace=importlib.util.find_spec('cochem_base');assert namespace and namespace.origin is None
+    locations=list(namespace.submodule_search_locations or [])
+    assert str(roots['base']/'src/cochem_base') in locations
+    assert all(location==str(roots['base']/'src/cochem_base') or location=='__editable__.cochem_base-1.0.0.finder.__path_hook__' for location in locations)
+    origins['cochem_base_namespace']={'origin':namespace.origin,'search_locations':locations}
+    for name in ['cochem_base.cochem_core_registry_schema','cochem_base.core_engine.engine_environment','cochem_base.concurrency.subprocess_broker']:
+        module=__import__(name,fromlist=['__name__']);path=Path(module.__file__).resolve()
+        assert path==roots['base']/'src'/Path(name.replace('.','/')+'.py')
+        origin(name,path,roots['base'])
+    torq_sources=[roots['torq']/relative for relative in ['cochem_torq/__init__.py','src/cochem_torq/__init__.py']]
+    torq_source=next(path for path in torq_sources if path.is_file() and not path.is_symlink())
+    origin('CoChem-TORQ-declared-source',torq_source,roots['torq'])
+    origins['CoChem-TORQ-declared-source']['scope']='Mandatory setup source discovery; no TORQ consumer imported'
+    controller=json.loads((runner/'orca-evidence/r2-cartesian-controller.json').read_text())
+    assert controller['controller_head_sha']==os.environ['GITHUB_SHA']==os.environ['GITHUB_WORKFLOW_SHA']
+    value={'schema_version':'topos-native-r2-cartesian-hosted-job-observation/1','scope':'Actual controller/source observations, not a native acceptance claim',
+     'actual_controller':controller,'scientific_source_commits':manifest['scientific_source_commits'],
+     'installed_module_origins':origins,'script_sha256':os.environ['R2_PROBE_SCRIPT_SHA256'],
+     'source_inventory':expected,'resources':{'budget_seconds':2335.872845748001,'scientific_job_cap_seconds':2335.5776805700007,'threads':2,'memory_mb':4096,'maxcore_mb_per_rank':1536},
+     'strict_energy_gate_hartree':2e-7,'full_topos_acceptance_claimed':False,'current_source_acceptance':False,
+     'actual_job':{k:os.environ[k] for k in ['GITHUB_REPOSITORY','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT','GITHUB_SHA','GITHUB_WORKFLOW_SHA','GITHUB_EVENT_NAME','GITHUB_WORKFLOW_REF','RUNNER_ENVIRONMENT','RUNNER_OS','RUNNER_ARCH']}}
+    (out/'r2-cartesian-hosted-job-source-observation.json').write_text(json.dumps(value,indent=2)+'\n')
+    PY
+  -
+   name: Execute R2 Cartesian reference diagnostic
+   working-directory: ${{ runner.temp }}
+   env: {COCHEM_BASE_ROOT: '${{ runner.temp }}/cochem-sources/base', COCHEM_TOPOS_ROOT: '${{ runner.temp }}/cochem-sources/topos', COCHEM_TORQ_ROOT: '${{ runner.temp }}/cochem-sources/torq', R2_CONTROLLER_PRIVATE: '${{ github.event.repository.private }}', R2_PROBE_SCRIPT_SHA256: 9258fd97f30c49ba8bb1d737314097d3bea09c04ca0c167f0061afd105b08f12, R2_TOPOS_COMMIT: 73b3fb87386cfc1d572455454b9ebf43af978e04, R2_PROBE_CONTROLLER_JSON: '${{ runner.temp }}/orca-evidence/r2-cartesian-controller.json', R2_PROBE_SOURCE_MANIFEST: '${{ runner.temp }}/r2-cartesian-authored/expected-topos-source-manifest.json'}
+   run: |
+    "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/native-r2-cartesian-probe.py" \
+      --output "$RUNNER_TEMP/topos-r2-cartesian-probe-evidence" \
+      --expected-topos-sha "$R2_TOPOS_COMMIT" \
+      --budget-seconds 2335.872845748001 --threads 2 --memory-mb 4096
+  -
+   name: Retain diagnostic evidence
+   if: always()
+   uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+   with:
+    name: topos-native-r2-cartesian-reference-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+    path: |
+     ${{ runner.temp }}/topos-r2-cartesian-probe-evidence/
+     ${{ runner.temp }}/r2-cartesian-authored/
+     ${{ runner.temp }}/native-r2-cartesian-probe.py
+     ${{ runner.temp }}/cochem-artifacts/setup-logs/
+     ${{ runner.temp }}/cochem-artifacts/setup-receipt.json
+     ${{ runner.temp }}/cochem-artifacts/mandatory-validation.json
+    include-hidden-files: true
+    if-no-files-found: error
+    retention-days: 14
+  -
+   name: Retain calculation, registry and installation evidence
+   if: always()
+   uses: actions/upload-artifact@v4
+   with:
+    name: orca-6.1.1-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+    path: |-
+     ${{ runner.temp }}/orca-evidence/**/*.json
+     ${{ runner.temp }}/orca-evidence/**/*.xml
+     ${{ runner.temp }}/orca-evidence/**/*.txt
+     ${{ runner.temp }}/orca-evidence/**/*.log
+     ${{ runner.temp }}/orca-evidence/**/*.out
+     ${{ runner.temp }}/orca-evidence/**/*.inp
+     ${{ runner.temp }}/orca-evidence/**/*.sha256
+     ${{ runner.temp }}/orca-evidence/**/complexes.h5
+     ${{ runner.temp }}/cochem-openmpi-build/**/*.log
+     ${{ runner.temp }}/cochem-artifacts/Registry/*.json
+     ${{ runner.temp }}/cochem-artifacts/Registry/*.sha256
+
+     ${{ runner.temp }}/orca-evidence/r2-cartesian-controller-workflow.yml
+    if-no-files-found: error
+    retention-days: 14
+  -
+   name: Remove the job-local licensed installation
+   if: always()
+   run: rm -rf -- "$RUNNER_TEMP/cochem-orca-install" "$RUNNER_TEMP/cochem-orca-download"

@@ -268,6 +268,7 @@ class WindowsJobObject:
 
     def __init__(self, kill_on_close: bool = True) -> None:
         self.handle: Optional[int] = None
+        self.kill_on_close_enabled = False
         self._is_windows = platform.system() == "Windows"
         if not self._is_windows:
             return
@@ -289,9 +290,11 @@ class WindowsJobObject:
                 )
                 if not res:
                     logger.warning("Failed to set JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE on Job Object.")
+                else:
+                    self.kill_on_close_enabled = True
         except Exception as exc:
             logger.warning(f"Error initializing WindowsJobObject: {exc}")
-            self.handle = None
+            self.close()
 
     def assign_pid(self, pid: int) -> bool:
         """Assigns an active process PID to the Win32 Job Object."""
@@ -316,8 +319,14 @@ class WindowsJobObject:
             return False
 
     def assign_popen(self, proc: subprocess.Popen) -> bool:
-        """Assigns a subprocess.Popen instance to the Win32 Job Object."""
-        return self.assign_pid(proc.pid)
+        """Bind the original process handle, without reopening a numeric PID."""
+        if not self._is_windows or not self.handle:
+            return False
+        try:
+            return bool(ctypes.windll.kernel32.AssignProcessToJobObject(self.handle, int(proc._handle)))
+        except Exception as exc:
+            logger.debug("Failed to assign owned Popen handle to Job Object: %s", exc)
+            return False
 
     def set_kill_on_close(self, enable: bool = True) -> bool:
         """Dynamically enables or disables JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE on the Job Object."""
@@ -332,6 +341,8 @@ class WindowsJobObject:
                 ctypes.byref(info),
                 ctypes.sizeof(info),
             )
+            if res:
+                self.kill_on_close_enabled = enable
             return bool(res)
         except Exception as exc:
             logger.debug(f"Failed to update Job Object limit flags: {exc}")
@@ -391,16 +402,31 @@ def _enable_descendant_reaping() -> None:
                            ctypes.get_errno())
 
 
-def _reap_owned_group_children(group_id: int) -> None:
+def _reap_owned_group_children(group_id: int, timeout: float = 0.0) -> None:
     """Reap only adopted, terminated members of the launched POSIX group."""
     if not sys.platform.startswith("linux") or not HAS_PSUTIL:
         return
-    for child in psutil.Process().children():
+    deadline = time.monotonic() + timeout
+    while True:
+        pending = False
         try:
-            if os.getpgid(child.pid) == group_id and child.status() == psutil.STATUS_ZOMBIE:
-                os.waitpid(child.pid, os.WNOHANG)
-        except (ChildProcessError, ProcessLookupError, PermissionError, psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
+            children = psutil.Process().children()
+        except (OSError, psutil.Error) as exc:
+            logger.warning("Cannot enumerate adopted children for owned group %s: %s", group_id, exc)
+            return
+        for child in children:
+            try:
+                if os.getpgid(child.pid) != group_id:
+                    continue
+                if child.status() == psutil.STATUS_ZOMBIE:
+                    os.waitpid(child.pid, os.WNOHANG)
+                else:
+                    pending = True
+            except (ChildProcessError, ProcessLookupError, PermissionError, psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        if not pending or time.monotonic() >= deadline:
+            return
+        time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
 
 
 def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
@@ -452,7 +478,8 @@ def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
     else:
         try:
             if platform.system() == "Windows":
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False)
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False,
+                               timeout=max(0.1, min(timeout, 3.0)))
             else:
                 try:
                     os.kill(pid, signal.SIGTERM)
@@ -461,7 +488,7 @@ def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
                     os.kill(pid, sig_kill)
                 except (ProcessLookupError, PermissionError, OSError) as _e:
                     logger.debug(f"Ignored exception: {_e}")
-        except (ProcessLookupError, PermissionError, OSError) as _e:
+        except (ProcessLookupError, PermissionError, OSError, subprocess.TimeoutExpired) as _e:
             logger.debug(f"Ignored exception: {_e}")
 
 
@@ -1322,34 +1349,117 @@ def safe_subprocess_run(
     if platform.system() == "Windows":
         popen_args["creationflags"] = popen_args.get("creationflags", 0) | subprocess.CREATE_NEW_PROCESS_GROUP
 
-    job_obj = WindowsJobObject() if (use_job_object and platform.system() == "Windows") else None
-    _enable_descendant_reaping()
-
-    if job_obj is not None and platform.system() == "Windows":
-        CREATE_SUSPENDED = 0x00000004
-        popen_args["creationflags"] = popen_args.get("creationflags", 0) | CREATE_SUSPENDED
-        proc = subprocess.Popen(parsed_cmd, **popen_args)
-        register_popen_process(proc)
-        job_obj.assign_popen(proc)
-        try:
-            ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
-        except Exception as _e:
-            logger.debug(f"Ignored exception: {_e}")
-    else:
-        if platform.system() != "Windows":
-            popen_args.setdefault("start_new_session", True)
-        proc = subprocess.Popen(parsed_cmd, **popen_args)
-        register_popen_process(proc)
-
-    if cpu_affinity is not None:
-        enforce_cpu_affinity(proc.pid, cpu_affinity)
-
+    is_windows = platform.system() == "Windows"
+    job_obj = WindowsJobObject() if (use_job_object and is_windows) else None
+    proc: subprocess.Popen | None = None
+    owned_process = None
     stdout_data: Any = ""
     stderr_data: Any = ""
     stderr_raw_tail = bytearray()
     decoding_errors: list[UnicodeError] = []
+    stream_threads: list[threading.Thread] = []
+    owns_posix_session = False
+    cleanup_started = False
+    cleanup_errors: list[str] = []
+
+    def cleanup_step(label: str, operation: Callable[[], Any]) -> Any:
+        # Cleanup failure must neither replace the primary execution exception
+        # nor prevent the remaining independent cleanup operations.
+        try:
+            return operation()
+        except BaseException as exc:
+            if isinstance(exc, ProcessLookupError) or (HAS_PSUTIL and isinstance(exc, psutil.NoSuchProcess)):
+                return None  # Already absent is the requested cleanup outcome.
+            message = f"{label}: {type(exc).__name__}: {exc}"
+            cleanup_errors.append(message)
+            logger.warning("Owned subprocess cleanup failed (%s)", message)
+            return None
+
+    def terminate_owned_job() -> None:
+        nonlocal cleanup_started
+        if cleanup_started:
+            return
+        cleanup_started = True
+        if proc is None:
+            if job_obj is not None:
+                cleanup_step("close unassigned Windows job", job_obj.close)
+            return
+
+        targets = {}
+
+        def capture_targets() -> None:
+            # This handle was captured before any poll/wait could release the
+            # launcher's PID. psutil signalling checks its creation identity.
+            # Never rediscover a reaped launcher with psutil.Process(proc.pid).
+            if owned_process is not None and owned_process.is_running():
+                targets[owned_process.pid] = owned_process
+                for child in owned_process.children(recursive=True):
+                    targets[child.pid] = child
+            if owns_posix_session:
+                # Linux may have adopted children after launcher exit. Capture
+                # their current identities before signalling this owned group.
+                for child in psutil.Process().children(recursive=True):
+                    try:
+                        if child.is_running() and os.getpgid(child.pid) == proc.pid:
+                            targets[child.pid] = child
+                    except (OSError, psutil.Error):
+                        continue
+
+        if HAS_PSUTIL:
+            cleanup_step("capture owned process identities", capture_targets)
+        for target in targets.values():
+            cleanup_step(f"terminate owned PID {target.pid}", target.terminate)
+        if targets:
+            cleanup_step("bounded termination grace", lambda: threading.Event().wait(0.1))
+        for target in targets.values():
+            cleanup_step(f"kill owned PID {target.pid}", target.kill)
+        if owns_posix_session and proc.pid != os.getpgrp():
+            def kill_owned_group() -> None:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            cleanup_step("kill owned process group", kill_owned_group)
+        if job_obj is not None:
+            cleanup_step("close Windows job", job_obj.close)
+        # Popen uses its original Windows handle / unreaped POSIX child; it is
+        # safe even when descendant enumeration or group signalling failed.
+        cleanup_step("kill owned launcher", proc.kill)
+        cleanup_step("wait for owned launcher", lambda: proc.wait(timeout=3.0))
+        child_deadline = time.monotonic() + 3.0
+        for target in targets.values():
+            if target.pid != proc.pid:
+                cleanup_step(f"wait for owned PID {target.pid}",
+                             lambda target=target: target.wait(timeout=max(0.0, child_deadline - time.monotonic())))
+        for worker in stream_threads:
+            if worker.is_alive():
+                cleanup_step("join output reader", lambda worker=worker: worker.join(timeout=1.0))
+        if owns_posix_session:
+            cleanup_step("reap owned group", lambda: _reap_owned_group_children(proc.pid, timeout=3.0))
 
     try:
+        if job_obj is not None and (not job_obj.handle or not job_obj.kill_on_close_enabled):
+            raise OSError("Cannot establish an owned Windows kill-on-close Job Object")
+        _enable_descendant_reaping()
+        if job_obj is not None:
+            popen_args["creationflags"] = popen_args.get("creationflags", 0) | 0x00000004  # CREATE_SUSPENDED
+        elif not is_windows:
+            popen_args.setdefault("start_new_session", True)
+        owns_posix_session = not is_windows and popen_args.get("start_new_session") is True
+        proc = subprocess.Popen(parsed_cmd, **popen_args)
+        if HAS_PSUTIL:
+            # Capture while the child is still unreaped, even if it has exited.
+            owned_process = psutil.Process(proc.pid)
+            owned_process.create_time()
+        register_popen_process(proc)
+        if job_obj is not None:
+            if not job_obj.assign_popen(proc):
+                raise OSError("Cannot assign suspended process to its owned Windows Job Object")
+            status = ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
+            if status != 0:
+                raise OSError(f"NtResumeProcess failed with NTSTATUS {status}")
+        if cpu_affinity is not None:
+            enforce_cpu_affinity(proc.pid, cpu_affinity)
         if stream_to_disk and capture_output:
             from collections import deque
 
@@ -1405,6 +1515,7 @@ def safe_subprocess_run(
                 args=(proc.stderr, stderr_log_path, stderr_tail, on_stderr_line, True),
                 daemon=True,
             )
+            stream_threads = [t_stdout, t_stderr]
             t_stdout.start()
             t_stderr.start()
 
@@ -1414,14 +1525,7 @@ def safe_subprocess_run(
             # Keep supervising until both the process and output readers finish.
             while (proc.poll() is None or t_stdout.is_alive() or t_stderr.is_alive()) and not stream_failed.is_set():
                 if is_crash_returncode(proc.returncode) and not fatal_workers_reaped:
-                    kill_process_tree(proc.pid, timeout=0.1)
-                    if platform.system() == "Windows" and job_obj is not None:
-                        job_obj.close()
-                    elif platform.system() != "Windows" and popen_args.get("start_new_session"):
-                        try:
-                            os.killpg(proc.pid, signal.SIGKILL)
-                        except ProcessLookupError:
-                            pass
+                    terminate_owned_job()
                     fatal_workers_reaped = True
                 if cancellation_event is not None and cancellation_event.is_set():
                     stream_errors.append(SubprocessCancelledError("Calculation cancelled by the user."))
@@ -1435,12 +1539,7 @@ def safe_subprocess_run(
                 # A failed integrity callback invalidates the live trajectory.
                 # Kill descendants discovered through psutil, then any remaining
                 # members of our isolated POSIX group even if the launcher exited.
-                kill_process_tree(proc.pid, timeout=0.1)
-                if platform.system() != "Windows" and popen_args.get("start_new_session"):
-                    try:
-                        os.killpg(proc.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
+                terminate_owned_job()
             ret = proc.wait(timeout=max(0.1, deadline - time.monotonic()))
             t_stdout.join(timeout=5.0)
             t_stderr.join(timeout=5.0)
@@ -1501,25 +1600,27 @@ def safe_subprocess_run(
 
         return completed
     except subprocess.TimeoutExpired:
-        kill_process_tree(proc.pid, timeout=10.0)
-        try:
-            proc.wait(timeout=3.0)
-        except subprocess.TimeoutExpired as _e:
-            logger.debug(f"Ignored exception: {_e}")
+        terminate_owned_job()
         logger.error(f"Subprocess '{cmd}' timed out after {timeout} seconds.")
         raise
     except subprocess.CalledProcessError as e:
+        terminate_owned_job()
         logger.error(f"Subprocess '{cmd}' failed with returncode {e.returncode}: {e.stderr}")
         raise
     except OSError as e:
+        terminate_owned_job()
         logger.error(f"Subprocess execution error for '{cmd}': {e}")
         raise
+    except BaseException:
+        terminate_owned_job()
+        raise
     finally:
-        if platform.system() != "Windows" and popen_args.get("start_new_session"):
-            _reap_owned_group_children(proc.pid)
-        unregister_popen_process(proc)
+        if proc is not None:
+            if owns_posix_session:
+                cleanup_step("final owned-group reap", lambda: _reap_owned_group_children(proc.pid))
+            cleanup_step("unregister owned launcher", lambda: unregister_popen_process(proc))
         if job_obj is not None:
-            job_obj.close()
+            cleanup_step("final Windows job close", job_obj.close)
 
 
 # =====================================================================

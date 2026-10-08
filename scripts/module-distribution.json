@@ -156,16 +156,35 @@
     },
     "topos": {
       "repository": "ProfJJK-CoChem/CoChem-TOPOS",
-      "revision": "6a01b0f2adb7cff02edda6e339facf3d6f93904d",
+      "revision": "ef750eaaf6a990a3b9e1d65eca240ac89b6632ce",
       "distribution": "cochem-topos",
-      "adapter": "topos_geometry",
-      "adapter_requirements": [
-        "ase==3.29.0",
-        "networkx==3.7"
-      ],
+      "adapter": "topos_handoff",
+      "adapter_requirements": [],
       "operations": [
-        "geometry_analysis"
-      ]
+        "energy",
+        "gradient",
+        "optimize",
+        "search",
+        "frequency",
+        "thermochemistry",
+        "association",
+        "matrix"
+      ],
+      "mandatory_ecosystem": {
+        "schema_version": "cochem.mandatory-ecosystem-catalog/2",
+        "torq_revision": "79fbb111125e50627a1a2c129888a45496f368d4",
+        "topos_wheel_sha256": "a8e57f4ed91050f5e45be8121ed390de76524377ff7295286a03b9bf892a9f8f",
+        "torq_wheel_sha256": "d5e7ec3f8e1ae8cef85ca7aefe995219d3523e4e1330e465915a3159816fe617",
+        "setup_helper_sha256": "0d7451cef59516b40badc10d34a742cfc8a9b35f4118590c05b839d490eb1730",
+        "base_bootstrap_sha256": {
+          "MANIFEST.in": "a598cbfaa7b98d76bfd8990ed543f3b362ec2daae9275b368a8ddee1abeed997",
+          "cli.py": "a8ed85cc3dfe2d1bc729f1353f51e4a686de04f7c14c802fe995db0ccd8bd20b",
+          "pyproject.toml": "2f0ba51bb3316e165b0e7ec87eaf1ba47483f57f1abcd2514ac517d6c84b4a58",
+          "requirements-ui.txt": "6478c5244db5b86be639651ec3b4968efe30a156d5d9af07adc3eaae19f2a05a",
+          "requirements.txt": "4c46823570124b78a0905ad2de4e6515571437204a15cce65d36b019b65520f7"
+        },
+        "base_source_content_sha256": "aa211cec05508f38bce55d3785509a9aaabe4e4be91d813b647d27d214f95fa0"
+      }
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",

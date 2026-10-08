@@ -659,7 +659,7 @@ def test_compress_tensor_all_nan_and_scalars() -> None:
     """Verifies tensor compression with all-NaN array, empty arrays, scalar NumPy ints and floats."""
     all_nan = np.full(12000, np.nan, dtype=np.float64)
     stats = compress_tensors_for_llm(all_nan, threshold=10000)
-    assert stats == {"Min": 0.0, "Max": 0.0, "Mean": 0.0, "Variance": 0.0}
+    assert stats == {"Min": None, "Max": None, "Mean": None, "Variance": None}
 
     scalar_int = np.int64(42)
     scalar_float = np.float32(3.14)

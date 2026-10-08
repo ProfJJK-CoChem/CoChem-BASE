@@ -2,9 +2,11 @@
 
 **Validation complete for the supported BASE 1.0.0 scope.** Publication status
 and final distribution digests belong to the
-[GitHub `v1.0.0` release](https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/tag/v1.0.0)
-and its `SHA256SUMS` asset. This validation record does not itself create a tag
-or publish distributions.
+[GitHub `v1.0.0` release notes](https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/tag/v1.0.0).
+Only files actually listed there are published attachments; a source-only
+release does not imply that a wheel, built source distribution or checksum file
+was uploaded. This validation record does not itself create a tag or publish
+files.
 
 ## Scope
 
@@ -40,22 +42,42 @@ No small HF/STO-3G example establishes spectroscopic accuracy or a universal
 not establish a stationary point. Independent references are needed where a
 scientific accuracy requirement calls for them.
 
+## Final review corrections
+
+Generic tensor compression and explicitly requested trajectory compression now
+have separate APIs. A two-column array or a field named `trajectory` does not
+silently change generic tensor behavior. Empty/nonfinite observations remain
+`null` in summaries and reporting; actual measured zeroes remain zero. Legacy
+thermodynamic energies require declared units before conversion, so an
+unqualified value cannot silently become kcal/mol evidence. Actual HDF5 and
+Parquet regressions exercise these distinctions.
+
+Fatal crash evidence is retained even when Git is missing or unavailable.
+Available Git identity belongs to the executing source repository, with
+unavailable identity recorded explicitly; unrelated working directories and
+inherited Git overrides cannot supply a false revision. Optional reporting,
+symmetry and language-model imports remain isolated, while the required
+`catalog`/`symmetry`/`scribe` extras are declared in the development profile.
+The completed v4 suite and final hosted records below include these corrections
+and retain the exact revisions they actually tested.
+
 ## Validation record
 
-The complete canonical local 1.0.0 profile passed **1,477 tests**, with **2
-explicit physical Slurm deferrals**, **0 failures** and **1,479 collected** in
-**931.49 seconds**. All 10,672 warnings remain in the log. Both source and test
+The complete canonical local 1.0.0 profile passed **1,532 tests**, with **2
+explicit physical Slurm deferrals**, **0 failures** and **1,534 collected** in
+**950.50 seconds**. All 10,672 warnings remain in the log. Both source and test
 gates passed; there were no unexpected skips, missing node outcomes or audited
 source changes. The two skipped nodes require an actual Slurm allocation and
 are not passed tests. Evidence is retained in
-`/workspace/cochem-runtime/evidence/base-1.0.0-final-v3/` (`summary.json`,
+`/workspace/cochem-runtime/evidence/base-1.0.0-final-v4/` (`summary.json`,
 `source-audit.json`, `test-acceptance.json`, pytest outcomes and source snapshots).
-This run tested commit `190e5c548b800872626b87a463f0e6d854ba2030`, the same
+This run tested commit `e2aaca60fefc4d1fd716aea176d54df9c1794d39`, the same
 implementation that passed final bounded hosted CI. The earlier 1,189/1,241
-counts and the 1,469-pass v2 run on 2026-10-07 are historical; they are not
-added to this count. Subsequent release changes are documentation only.
-Publication records identify the tested revisions and their source equivalence
-to the release revision; earlier hosted logs retain their actual commit IDs.
+counts, the 1,469-pass v2 run and 1,477-pass v3 run on 2026-10-07 are historical;
+they are not added to this count. Subsequent release changes are documentation
+only. Before publication, verify that production, CI, tests and immutable input
+bytes in the release commit match this tested implementation, and record that
+source-equivalence result. Earlier hosted logs retain their actual commit IDs.
 
 [Hosted ORCA acceptance run 37613653904](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613653904)
 passed at `1cfa49a84d45da7c60ffd1fa0d6eae3889dbe049`: private asset download,
@@ -80,19 +102,25 @@ Artifact: `orca-calculation-37616684042-1`. The detailed
 [Actions evidence](ORCA_Actions_Setup.md#hosted-execution-status--2026-10-07)
 records its frequencies, units, resources and GitHub artifact digest.
 
-The [bounded hosted CI run 37617769942](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37617769942)
-**passed** at `190e5c548b800872626b87a463f0e6d854ba2030`. Source integrity,
-Ubuntu/macOS/Windows control tests and clean wheel/CLI checks all passed,
-including actual platform-native launcher diagnostics. Its Linux job also
-passed real xTB/PySCF calculations, all eleven Stage 0 phases, the bounded
-regression profile with source-hash checks and rendered dashboard lifecycle.
-The logs record 164 control passes per operating system and 480 bounded
-regression passes with no unexpected skips or source changes; overlapping
+The [bounded hosted CI run 37624167721](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37624167721)
+**passed** for the same source tree as `e2aaca60fefc4d1fd716aea176d54df9c1794d39`.
+GitHub actually checked out pull-request merge commit
+`a438644d168d72508ee7c40511f868d547ced74d`; its tree
+`2626a26dcd3b33039f17cdc20308cd4d76320b3c` exactly matches the tested head.
+Source integrity, all three operating-system control and clean wheel/CLI jobs,
+including native launcher diagnostics, passed. The Linux job passed real
+xTB/PySCF calculations, all eleven Stage 0 phases, bounded regressions with
+source-hash checks and rendered dashboard lifecycle. Stage 0 truthfully reports
+`DEGRADED_OPERATIONAL` for this bounded environment.
+
+Actual logs record **164 control passes per operating system** and **537
+bounded regression passes**, with 116 retained warnings in 95.85 seconds and
+no failures, unexpected skips, coverage errors or source changes. Overlapping
 profiles are not added to the canonical count. Evidence:
-`/workspace/cochem-runtime/evidence/hosted-ci-37617769942/validation-summary.json`.
-This resolves the earlier Windows control failures. Hosted bounded CI is
-separate from the full local scientific profile, which also passed against
-`190e5c5` as recorded above. See
+`/workspace/cochem-runtime/evidence/hosted-ci-37624167721/validation-summary.json`.
+The preceding 480-pass hosted run `37617769942` at `190e5c5` remains historical.
+Hosted bounded CI and the complete local scientific profile are separate
+successful checks of the final implementation. See
 [ORCA Actions setup](ORCA_Actions_Setup.md) for run-specific evidence.
 
 The bounded real H2 PES interpolation used 128 ORCA RHF/STO-3G baseline points,
@@ -114,9 +142,11 @@ warnings; no sign or tolerance was changed to create acceptance.
 
 Clean wheel installation on Ubuntu, macOS and Windows passed package-origin,
 CLI/module entry-point, isotope database, dependency and actual dry-run deck
-checks. These packaging checks do not claim an engine calculation. The final
-wheel and source archive are built outside the checkout; their release digests
-are recorded in `SHA256SUMS`, avoiding a self-referential hash in this document.
+checks. These packaging checks do not claim an engine calculation. Wheels and
+source distributions are built for validation outside the checkout. Their
+exact SHA-256 digests and upload status can be recorded directly in the release
+notes; an attached `SHA256SUMS` file is optional. If attachment upload is
+unavailable, validated builds remain local and publication is source-only.
 Earlier package-validation evidence remains under
 `/workspace/cochem-runtime/evidence/release-packaging-1.0.0/` and
 `/workspace/cochem-runtime/evidence/release-ci-01cca5b-wheel/`; these historical
@@ -129,8 +159,13 @@ version without importing scientific dependencies; installed wheels read their
 distribution metadata. `cochem-cli` and `python -m cochem_base.cli` invoke the
 same CLI as `python cli.py` in a checkout.
 
-The wheel provides Python packages and CLI entry points. The complete source
-distribution also includes `Start_Here.ipynb`, platform launchers, setup scripts,
+For a source-only release, use the tagged repository checkout or GitHub's
+automatically generated **Source code** ZIP/tar.gz. Those downloads contain the
+tagged source tree; they are distinct from a separately built Python source
+distribution. Classroom50 students should use their accepted assignment copy.
+
+When a wheel is supplied, it provides Python packages and CLI entry points.
+The source checkout and built source distribution include `Start_Here.ipynb`, platform launchers, setup scripts,
 workflow definitions, requirements, examples and guides. Use the source checkout
 or unpacked source distribution for the full Voilà launch/setup pathway:
 
@@ -158,8 +193,10 @@ must remain outside the source directory.
   commits, verify and record equivalence of production, CI, test and immutable
   input bytes to the tested code; preserve external deferrals explicitly.
 - Record final evidence, review the release commit, then create the 1.0.0 tag
-  and publish only intended source/wheel assets. Licensed ORCA files are never
-  release assets of CoChem-BASE.
+  and publish its source release. Attach validated wheel/source-distribution
+  files only when upload succeeds, and state which builds remain local.
+  Record exact digests in the release notes without promising an attachment.
+  Licensed ORCA files are never release assets of CoChem-BASE.
 
 Before rolling the course out to students, the instructor should pilot a real
 Classroom50 assignment account, confirm its repository receives approved

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import uuid
@@ -14,6 +15,62 @@ import uuid
 import psutil
 
 from cochem.core.context import assert_writable_path
+
+
+def _source_git_identity() -> tuple[str | None, str | None, dict]:
+    """Collect optional source identity without replacing the original failure.
+
+    Installed wheels need not have Git metadata or a Git executable. A broken
+    repository or a blocked Git command must likewise leave an honest omission
+    in the durable crash record, not interrupt recording the process crash.
+    """
+    metadata = {"status": "no_repository", "repository": None}
+    try:
+        source = Path(__file__).resolve()
+        repository = next((parent for parent in source.parents if (parent / ".git").exists()), None)
+        if repository is None:
+            return None, None, metadata
+        metadata["repository"] = str(repository)
+        # Source identity belongs to this module's checkout, regardless of an
+        # enclosing Git command or user's selected repository. Keep ordinary
+        # config inputs (and their bounded timeout), but isolate repository,
+        # object-store and ref selectors. cwd discovery supports .git files in
+        # linked worktrees as well as ordinary .git directories.
+        git_environment = dict(os.environ)
+        for name in (
+            "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY",
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_INDEX_FILE", "GIT_GRAFT_FILE",
+            "GIT_SHALLOW_FILE", "GIT_NAMESPACE", "GIT_REPLACE_REF_BASE",
+            "GIT_PREFIX", "GIT_IMPLICIT_WORK_TREE", "GIT_CEILING_DIRECTORIES",
+            "GIT_DISCOVERY_ACROSS_FILESYSTEM", "GIT_CONFIG", "GIT_CONFIG_COUNT",
+            "GIT_CONFIG_PARAMETERS",
+        ):
+            git_environment.pop(name, None)
+        git_environment["GIT_NO_REPLACE_OBJECTS"] = "1"
+        commit_id = subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD^{commit}"], cwd=repository,
+            env=git_environment, capture_output=True, timeout=2, check=True,
+        )
+        commit = commit_id.stdout.decode("ascii").strip()
+        if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit) is None:
+            raise ValueError("Git did not return a full hexadecimal commit object identity")
+        # Pin the resolved object: HEAD can move between these two commands.
+        commit_object = subprocess.run(
+            ["git", "cat-file", "commit", commit], cwd=repository,
+            env=git_environment, capture_output=True, timeout=2, check=True,
+        )
+        metadata["status"] = "available"
+        return commit, hashlib.sha256(commit_object.stdout).hexdigest(), metadata
+    except subprocess.TimeoutExpired as error:
+        metadata.update(status="timeout", error_type=type(error).__name__, timeout_seconds=error.timeout)
+    except subprocess.CalledProcessError as error:
+        metadata.update(status="failed", error_type=type(error).__name__, exit_code=error.returncode,
+                        stderr_tail=(error.stderr or b"")[-1024:].decode("utf-8", errors="replace"))
+    except OSError as error:
+        metadata.update(status="unavailable", error_type=type(error).__name__, error=str(error))
+    except (UnicodeError, ValueError) as error:
+        metadata.update(status="invalid_output", error_type=type(error).__name__, error=str(error))
+    return None, None, metadata
 
 
 def record_process_crash(command: list[str], exit_code: int, stderr: bytes, log_directory: Path) -> dict:
@@ -27,15 +84,7 @@ def record_process_crash(command: list[str], exit_code: int, stderr: bytes, log_
     if binary is not None:
         with open(binary, "rb") as stream:
             binary_hash = hashlib.file_digest(stream, "sha256").hexdigest()
-    source = Path(__file__).resolve()
-    repository = next((parent for parent in source.parents if (parent / ".git").exists()), None)
-    commit = None
-    commit_hash = None
-    if repository is not None:
-        commit_id = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repository, capture_output=True, timeout=2, check=True)
-        commit_object = subprocess.run(["git", "cat-file", "commit", "HEAD"], cwd=repository, capture_output=True, timeout=2, check=True)
-        commit = commit_id.stdout.decode("ascii").strip()
-        commit_hash = hashlib.sha256(commit_object.stdout).hexdigest()
+    commit, commit_hash, git_provenance = _source_git_identity()
     memory = psutil.virtual_memory()
     record = {
         "@context": "https://schema.org/",
@@ -49,6 +98,7 @@ def record_process_crash(command: list[str], exit_code: int, stderr: bytes, log_
         "binary_sha256": binary_hash,
         "git_commit": commit,
         "git_commit_object_sha256": commit_hash,
+        "git_provenance": git_provenance,
         "inputs": command,
         "cpu_utilization_percent": psutil.cpu_percent(interval=None),
         "ram_used_bytes": memory.used,

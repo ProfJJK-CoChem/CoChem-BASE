@@ -42,6 +42,9 @@ def calculation_capability(config: Any) -> CalculationCapability:
     native = {"orca": {"single_point", "optimization", "harmonic_frequencies"}, "xtb": {"single_point", "optimization"},
               "pyscf": {"single_point"}, "qe": {"single_point"}, "cfour": set()}
     connected = operation in native[config.engine]
+    if config.engine == "cfour":
+        from cochem_base.calc.cfour_execution import supported_cfour_request
+        connected = supported_cfour_request(config)
     return CalculationCapability(
         engine=config.engine, operation=operation,
         adapter_status="connected" if connected else "pending_integration",
@@ -94,6 +97,8 @@ def validate_job_configuration(config: Any) -> None:
         CFOURCalcLevel(config.method)
         if not config.basis_set or config.basis_set.lower() in {"default", "built-in"}:
             raise ValueError("CFOUR jobs require an explicit orbital basis")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9+_.()*-]*", config.basis_set):
+            raise ValueError("CFOUR basis must be a plain basis label without injected input keywords")
         if config.recipe or config.implicit_solvation or config.frozen_monomer_indices is not None:
             raise ValueError("CFOUR handoff does not define ORCA recipe, solvation or frozen-index keyword translations")
     if config.initial_hessian.upper() == "READ" and config.hessian_file is None:

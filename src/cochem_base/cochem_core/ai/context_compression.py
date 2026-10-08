@@ -9,8 +9,9 @@ to lightweight HDF5 pointer handoffs, truncating verbose execution tracebacks,
 and chunking literature/documentation by markdown header hierarchy.
 
 Core Capabilities:
-1. Tensor Compression: Summarizes >=10,000 element NumPy arrays / PyTorch tensors
-   into exact statistical dicts {"Min": x, "Max": y, "Mean": z, "Variance": v}.
+1. Tensor Compression: Summarizes finite values in >=10,000 element NumPy arrays
+   / PyTorch tensors into {"Min": x, "Max": y, "Mean": z, "Variance": v}.
+   Statistics are null when no finite observations exist; absence is not zero.
 2. RFC 8259 Sanitization: Proactively eliminates NaN and Infinity float values,
    enforcing allow_nan=False for standards-compliant JSON interchange.
 3. HDF5 Pointer Handoffs: Replaces heavy tensor dumps with structured filesystem
@@ -67,22 +68,21 @@ EXCEPTION_LINE_PATTERN: re.Pattern[str] = re.compile(
 
 class TensorSummaryModel(BaseModel):
     """
-    Typed summary statistics for large compressed numerical arrays.
+    Statistics over finite tensor values; None means no finite observation exists.
     """
     model_config = ConfigDict(extra="ignore", validate_assignment=True)
 
-    Min: float = Field(..., description="Minimum value in the tensor")
-    Max: float = Field(..., description="Maximum value in the tensor")
-    Mean: float = Field(..., description="Arithmetic mean of the tensor elements")
-    Variance: float = Field(..., description="Population variance of the tensor elements")
+    Min: Optional[float] = Field(..., description="Minimum finite value, or null when unavailable")
+    Max: Optional[float] = Field(..., description="Maximum finite value, or null when unavailable")
+    Mean: Optional[float] = Field(..., description="Mean of finite values, or null when unavailable")
+    Variance: Optional[float] = Field(..., description="Population variance of finite values, or null when unavailable")
 
-    def to_dict(self) -> Dict[str, float]:
-        """Convert model to standard dictionary."""
+    def to_dict(self) -> Dict[str, Optional[float]]:
+        """Preserve unavailable statistics as JSON-compatible null values."""
         return {
-            "Min": float(self.Min),
-            "Max": float(self.Max),
-            "Mean": float(self.Mean),
-            "Variance": float(self.Variance),
+            name: None if value is None else float(value)
+            for name, value in (("Min", self.Min), ("Max", self.Max),
+                                ("Mean", self.Mean), ("Variance", self.Variance))
         }
 
 
@@ -255,14 +255,15 @@ class MarkdownChunkModel(BaseModel):
 # 1. TENSOR COMPRESSION FOR LLM CONTEXT
 # =============================================================================
 
-def _compute_tensor_stats(arr: np.ndarray) -> Dict[str, float]:
+def _compute_tensor_stats(arr: np.ndarray) -> Dict[str, Optional[float]]:
     """
-    Compute Min, Max, Mean, and Variance from a NumPy array, returning native Python floats.
-    Handles NaN/Inf values gracefully by filtering finite elements where appropriate.
+    Compute Min, Max, Mean, and Variance over finite values, returning Python floats.
+    Empty tensors and tensors containing only NaN/Inf have four unavailable (None)
+    statistics. Finite zero-valued observations still produce numerical zeros.
     """
     flat = arr.ravel()
     if flat.size == 0:
-        return {"Min": 0.0, "Max": 0.0, "Mean": 0.0, "Variance": 0.0}
+        return {"Min": None, "Max": None, "Mean": None, "Variance": None}
 
     # Cast/accumulate in float64 to prevent float16/float32 sum-of-squares overflow
     if np.issubdtype(flat.dtype, np.complexfloating):
@@ -283,11 +284,7 @@ def _compute_tensor_stats(arr: np.ndarray) -> Dict[str, float]:
             mean_val = float(np.mean(finite_elements, dtype=np.float64))
             var_val = float(np.var(finite_elements, dtype=np.float64))
         else:
-            # Entire array is NaN / Inf
-            min_val = 0.0
-            max_val = 0.0
-            mean_val = 0.0
-            var_val = 0.0
+            return {"Min": None, "Max": None, "Mean": None, "Variance": None}
 
     return {
         "Min": min_val,
@@ -308,14 +305,15 @@ def compress_tensors_for_llm(
     with element count >= threshold into a 4-statistic summary dict:
     {"Min": x, "Max": y, "Mean": z, "Variance": v}.
 
+    Summary values describe only finite elements. Without any finite observations,
+    all four statistics are None (JSON null), never fabricated numerical zeros.
     Arrays with size < threshold are converted to standard Python nested lists for JSON safety.
+    Shape does not establish trajectory semantics. Use compress_trajectory_for_llm
+    explicitly for ordered (abscissa, ordinate) observations and bounded LTTB output.
     """
     # 1. Handle NumPy ndarray
     if isinstance(payload, np.ndarray):
         if np.issubdtype(payload.dtype, np.number) or np.issubdtype(payload.dtype, np.bool_):
-            if payload.ndim == 2 and payload.shape[1] == 2 and len(payload) > 500:
-                from cochem_base.core_engine.cochem_core_context_compressor import compress_trajectory
-                return compress_trajectory(payload)
             if payload.size >= threshold:
                 stats = _compute_tensor_stats(payload)
                 return TensorSummaryModel(**stats) if return_models else stats
@@ -331,8 +329,6 @@ def compress_tensors_for_llm(
 
     # 3. Handle HDF5 Dataset if passed directly
     if isinstance(payload, h5py.Dataset):
-        if payload.ndim == 2 and payload.shape[1] == 2 and len(payload) > 500:
-            return compress_tensors_for_llm(payload[()], threshold=threshold, return_models=return_models)
         if payload.size >= threshold:
             # Read into numpy array and summarize
             arr = payload[()]
@@ -356,13 +352,6 @@ def compress_tensors_for_llm(
 
     # 6. Handle List
     if isinstance(payload, list):
-        if len(payload) > 500 and isinstance(payload[0], (list, tuple)):
-            try:
-                trajectory = np.asarray(payload, dtype=np.float64)
-                if trajectory.ndim == 2 and trajectory.shape[1] == 2:
-                    return compress_tensors_for_llm(trajectory, threshold=threshold, return_models=return_models)
-            except (TypeError, ValueError):
-                pass
         # Check if list is a large flat list of numbers
         if len(payload) >= threshold and all(isinstance(x, (int, float, np.number)) for x in payload[:20]):
             try:
@@ -399,6 +388,19 @@ def compress_tensors_for_llm(
 
     # 10. Default / scalar returns
     return payload
+
+
+def compress_trajectory_for_llm(data: Any) -> Dict[str, Any]:
+    """Explicitly summarize finite (abscissa, ordinate) trajectory observations.
+
+    The canonical trajectory compressor retains at most 500 observed points and
+    computes its moments from all ordinates. Its strict finite-input contract is
+    separate from generic tensor thresholds, four-statistic summaries and NaN
+    sanitization; a two-column matrix alone never selects this operation.
+    """
+    from cochem_base.core_engine.cochem_core_context_compressor import compress_trajectory
+
+    return compress_trajectory(data)
 
 
 # =============================================================================
@@ -1107,6 +1109,10 @@ class ContextCompressor:
         if auto_sanitize:
             compressed = sanitize_numerical_values(compressed)
         return compressed
+
+    def compress_trajectory(self, data: Any) -> Dict[str, Any]:
+        """Opt into the bounded trajectory protocol independently of tensor_threshold."""
+        return compress_trajectory_for_llm(data)
 
     def to_json(self, payload: Any, indent: Optional[int] = None) -> str:
         """Serialize payload to RFC 8259 compliant JSON string."""

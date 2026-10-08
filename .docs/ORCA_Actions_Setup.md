@@ -170,16 +170,16 @@ failed report on a failed attempt and refuses to overwrite earlier evidence.
 
 ## Current local release validation — 2026-10-07
 
-The complete canonical local 1.0.0 profile passed **1,477 tests**, with **2
-physical Slurm checks deferred**, **0 failures** and **1,479 collected** in
-931.49 seconds. Source and test gates passed with no unexpected skips, omitted
+The complete canonical local 1.0.0 profile passed **1,532 tests**, with **2
+physical Slurm checks deferred**, **0 failures** and **1,534 collected** in
+950.50 seconds. Source and test gates passed with no unexpected skips, omitted
 node outcomes or source mutation. The 10,672 warnings remain in the logs.
 Unlike the preceding 1,241-pass/4-deferral snapshot, actual R2 and CREST/GOAT
 acceptance executed; only the two exact physical Slurm nodes remain skipped.
-Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v3/`, tested
-at `190e5c548b800872626b87a463f0e6d854ba2030`. The preceding v2 run on
-2026-10-07 passed 1,469 tests with the same two physical Slurm deferrals;
-it is retained as historical evidence, not the current count.
+Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v4/`, tested
+at `e2aaca60fefc4d1fd716aea176d54df9c1794d39`. The preceding v2 run on
+2026-10-07 passed 1,469 tests; v3 passed 1,477 tests at `190e5c5`, with the same
+two physical Slurm deferrals. Both are historical, not the current count.
 
 The separate 479-test bounded selection and a fresh isolated 1.0.0 wheel install
 passed at `01cca5be1f917af29ce36900c5da4dad30564bed`. The bounded selection is
@@ -237,25 +237,32 @@ parser's scientific acceptance gates remain unchanged. The successful hosted
 rerun validates the corrected path instead of treating the old partial output
 as a pass.
 
-[Bounded hosted CI run 37617769942](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37617769942)
-**passed** at `190e5c548b800872626b87a463f0e6d854ba2030`: source integrity,
-Ubuntu/macOS/Windows control tests and isolated wheel/CLI checks, including
-actual native launcher diagnostics, all succeeded. The Linux physical job also
-completed all eleven Stage 0 phases, real xTB/PySCF calculations, bounded
-regressions with source-hash verification and rendered dashboard lifecycle.
-Actual logs record **164 control tests passed on each operating system** and
-**480 bounded regression tests passed** in 67.24 seconds, with 116 retained
-deprecation warnings and no unexpected skips, failures or source changes.
-These are separate, overlapping profiles and are not summed into a test total.
-The extracted summary is
-`/workspace/cochem-runtime/evidence/hosted-ci-37617769942/validation-summary.json`.
-Run metadata and exact job/step outcomes are retained at
-`/workspace/cochem-runtime/evidence/hosted-ci-37617769942/latest-run.json`.
-The prior Windows control failures are resolved by this run. This is bounded
-hosted CI, not execution of the entire silo-dependent canonical scientific
-profile on each operating system. Full local acceptance also passed on
-`190e5c5`: 1,477 passed and two physical Slurm deferrals. Publication status and
-the mapping between tested and release revisions remain in the
+[Bounded hosted CI run 37624167721](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37624167721)
+**passed** for head `e2aaca60fefc4d1fd716aea176d54df9c1794d39`. The actual
+checkout was GitHub's pull-request merge commit
+`a438644d168d72508ee7c40511f868d547ced74d`; its tree
+`2626a26dcd3b33039f17cdc20308cd4d76320b3c` exactly matches that head.
+Source integrity, Ubuntu/macOS/Windows control tests and isolated wheel/CLI
+checks all succeeded, including actual native launcher diagnostics. The Linux
+physical job completed all eleven Stage 0 phases, real xTB/PySCF calculations,
+bounded regressions with source-hash verification and rendered dashboard
+lifecycle. The bounded setup truthfully reports `DEGRADED_OPERATIONAL`.
+
+Actual logs record **164 control tests passed on each operating system**:
+Windows 5.03 seconds, macOS 3.41 seconds, Ubuntu 4.73 seconds. **537 bounded
+regression tests passed** in 95.85 seconds, with 116 retained deprecation
+warnings and no failures, unexpected skips, coverage errors or source changes.
+These separate profiles overlap and are not summed into a test total. The
+actual log-derived summary, checkout identity and per-platform wheel results
+are retained in
+`/workspace/cochem-runtime/evidence/hosted-ci-37624167721/validation-summary.json`.
+
+The earlier run `37617769942` at `190e5c5` passed 480 bounded tests and is
+historical evidence. Hosted bounded CI does not claim that the entire
+silo-dependent scientific profile ran on every operating system. Full local
+acceptance independently passed on `e2aaca60`: 1,532 passed and two physical
+Slurm deferrals. Publication must record source equivalence between any final
+documentation-only commit and the tested implementation; see the
 [release record](Release_1_0_0.md).
 
 For historical context, the [initial push run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37571459336)

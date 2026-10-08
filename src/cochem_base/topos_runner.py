@@ -35,6 +35,7 @@ from cochem_base.core_engine.cochem_core_subprocess_broker import sanitize_mpi_e
 from cochem_base.core_engine.scientific_telemetry import append_scientific_result
 from cochem_base.physics.eckart_aligner import align_coordinates, verify_com_residual, verify_eckart_residual
 from cochem_base.spectroscopy.isotopologue import get_nuclide_mass
+from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
 
 
 class TOPOSJobStatus(str, Enum):
@@ -126,7 +127,7 @@ def _parse_xyz(path: Path, *, require_energy: bool) -> list[ConformerCandidate]:
             symbols, positions = [], []
             for _ in range(count):
                 fields = stream.readline().split()
-                if len(fields) != 4 or not re.fullmatch(r"[A-Z][a-z]?", fields[0]):
+                if len(fields) != 4:
                     raise ValueError("Invalid or incomplete XYZ coordinates")
                 xyz = [float(value) for value in fields[1:]]
                 if not all(math.isfinite(value) for value in xyz):
@@ -135,7 +136,7 @@ def _parse_xyz(path: Path, *, require_energy: bool) -> list[ConformerCandidate]:
                 positions.append(xyz)
             frames.append(ConformerCandidate(
                 conformer_id=f"{path.parent.name}:{len(frames)}",
-                symbols=symbols, coordinates=np.asarray(positions), energy=energy,
+                symbols=list(resolve_nuclear_identity(symbols).nuclides), coordinates=np.asarray(positions), energy=energy,
             ))
     if not frames:
         raise ValueError(f"Empty XYZ file: {path}")
@@ -224,6 +225,7 @@ class TOPOSExecutionBroker:
         if not config.input_xyz_path:
             raise ValueError("A physical input XYZ file is required for conformer search")
         source = Path(config.input_xyz_path).expanduser().resolve(strict=True)
+        original_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
         seeds = _parse_xyz(source, require_energy=False)
         if len(seeds) != 1 or len(seeds[0].symbols) != config.atom_count:
             raise ValueError("Input must contain one XYZ frame matching atom_count")
@@ -236,14 +238,19 @@ class TOPOSExecutionBroker:
         for engine, binary in (("crest", config.crest_binary), ("orca", config.orca_binary)):
             if binary is not None:
                 authorize_engine_execution(engine, executable=binary, cores=total_cores)
+        identity = resolve_nuclear_identity(seeds[0].symbols)
         coordinates, alignment = _normalize_ingress(seeds[0].symbols, seeds[0].coordinates)
+        alignment["nuclear_identity"] = identity.metadata
+        alignment["original_input_sha256"] = original_sha256
         job_id = f"topos_job_{uuid.uuid4().hex}"
         job_scratch = self._job_dir(job_id)
         job_scratch.mkdir()
         shutil.copy2(source, job_scratch / "input.original.xyz")
+        if hashlib.sha256((job_scratch / "input.original.xyz").read_bytes()).hexdigest() != original_sha256:
+            raise ValueError("Conformer nuclear input changed while preserving its immutable snapshot")
         with (job_scratch / "input.xyz").open("w", encoding="utf-8") as stream:
             stream.write(f"{config.atom_count}\nMass-weighted Eckart normalized input\n")
-            for symbol, coordinate in zip(seeds[0].symbols, coordinates, strict=True):
+            for symbol, coordinate in zip(identity.elements, coordinates, strict=True):
                 stream.write(symbol + " " + " ".join(f"{value:.17g}" for value in coordinate) + "\n")
         _write_json(job_scratch / "ingress.json", alignment)
         config.input_xyz_path = str(job_scratch / "input.xyz")
@@ -398,18 +405,28 @@ def _run_worker(config_path: Path) -> int:
                     raise TimeoutError("Physical conformer search exceeded configured wall time")
                 time.sleep(0.1)
         seed = _parse_xyz(Path(config.input_xyz_path), require_energy=False)[0]
+        original = job / "input.original.xyz"
+        ingress = _read_json(job / "ingress.json")
+        if hashlib.sha256(original.read_bytes()).hexdigest() != ingress["original_input_sha256"]:
+            raise ValueError("Conformer nuclear input snapshot integrity verification failed")
+        identity = resolve_nuclear_identity(_parse_xyz(original, require_energy=False)[0].symbols)
+        if identity.metadata != ingress["nuclear_identity"]:
+            raise ValueError("Conformer isotope assignments contradict the retained input provenance")
+        if tuple(seed.symbols) != identity.elements:
+            raise ValueError("Conformer electronic input no longer matches its retained nuclear assignments")
         candidates = []
         for name, path in ensembles.items():
             parsed = _parse_xyz(path, require_energy=True)
-            if any(sorted(frame.symbols) != sorted(seed.symbols) for frame in parsed):
-                raise ValueError(f"{name} ensemble contains a changed molecular formula")
+            if any(tuple(frame.symbols) != identity.elements for frame in parsed):
+                raise ValueError(f"{name} ensemble changed the ordered electronic atom identities")
             for index, candidate in enumerate(parsed):
+                candidate.symbols = list(identity.nuclides)
                 candidate.coordinates, alignment = _normalize_ingress(candidate.symbols, candidate.coordinates)
                 archive = append_scientific_result(
                     f"{data['job_id']}_{name}", candidate.symbols, candidate.coordinates, candidate.energy,
                     metadata={"engine": name, "ensemble_frame": index,
                               "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                              "alignment": alignment, "scope": "conformer screening"},
+                              "alignment": alignment, "nuclear_identity": identity.metadata, "scope": "conformer screening"},
                 )
                 data["scientific_telemetry_archive"] = str(archive)
             candidates.extend(parsed)
@@ -424,7 +441,7 @@ def _run_worker(config_path: Path) -> int:
         provenance = {
             "@context": {"prov": "http://www.w3.org/ns/prov#", "cochem": "urn:cochem:"},
             "@type": "prov:Activity", "@id": f"urn:cochem:{data['job_id']}",
-            "prov:used": [{"@id": str(path), "cochem:sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in [Path(config.input_xyz_path), *ensembles.values()]],
+            "prov:used": [{"@id": str(path), "cochem:sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in [original, Path(config.input_xyz_path), *ensembles.values()]],
             "cochem:commands": commands, "cochem:energyUnit": "hartree",
             "cochem:ingress": _read_json(job / "ingress.json"),
             "cochem:ensembleSha256": digest,

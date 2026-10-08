@@ -761,7 +761,8 @@ class CoChemGUI:
                 mol = Chem.AddHs(mol)
                 AllChem.EmbedMolecule(mol, AllChem.ETKDG())
                 AllChem.UFFOptimizeMolecule(mol)
-                self.matrix_geometry.value = Chem.MolToXYZBlock(mol)
+                from cochem_base.geometry.nuclide_geometry import rdkit_geometry_xyz
+                self.matrix_geometry.value = rdkit_geometry_xyz(mol)
                 self.project_name.value = smiles.replace('/', '_').replace('\\', '_')
                 _update_3d_viewer()
             except ImportError:
@@ -1677,11 +1678,11 @@ class CoChemGUI:
                 if hasattr(self, 'btn_execute'):
                     self._refresh_execution_gate()
                 return
-            from cochem_base.topology.cochem_topos_graph import parse_xyz_string
+            from cochem_base.calc.calculation_service import parse_run_geometry
             from cochem_base.physics.isotopes import get_element_mass_and_abundance
             import numpy as np
 
-            symbols, coordinates, _ = parse_xyz_string(self.matrix_geometry.value)
+            symbols, coordinates = parse_run_geometry(self.matrix_geometry.value)
             if not symbols:
                 raise MethodologyViolationError("Enter valid XYZ geometry before execution.")
             numbers = [get_element_mass_and_abundance(symbol)[2] for symbol in symbols]
@@ -1779,8 +1780,8 @@ class CoChemGUI:
     def _on_detect_fragments_clicked(self, b: Any) -> None:
         geom = self.matrix_geometry.value
         try:
-            from cochem_base.topology.cochem_topos_graph import parse_xyz_string
-            symbols, coords, _ = parse_xyz_string(geom)
+            from cochem_base.calc.calculation_service import parse_run_geometry
+            symbols, coords = parse_run_geometry(geom)
             if not symbols:
                 self.fragments_output.value = "<b style='color:red;'>Failed to parse XYZ geometry.</b>"
                 return
@@ -1866,26 +1867,30 @@ class CoChemGUI:
     def _update_isotope_selectors(self, change: Any = None) -> None:
         from cochem_base.physics.isotopes import parse_nuclide_token
         from cochem_base.physics.nuclide_resolver import get_element
-        from cochem_base.topology.cochem_topos_graph import parse_xyz_string
+        from cochem_base.calc.calculation_service import parse_run_geometry_identity
 
         try:
-            symbols, _, _ = parse_xyz_string(self.matrix_geometry.value)
+            symbols = list(parse_run_geometry_identity(self.matrix_geometry.value).nuclides)
             previous = [selector.value for selector in self.isotope_selectors]
+            previous_parents = getattr(self, "_isotope_selector_parent_nuclides", ())
             selectors = []
             for index, token in enumerate(symbols):
-                element, _ = parse_nuclide_token(token)
+                element, mass_number = parse_nuclide_token(token)
                 options = [(f"Parent ({token})", token)]
                 options.extend((f"{isotope.mass_number}{element}", f"{isotope.mass_number}{element}")
                                for isotope in get_element(element).isotopes
                                if isotope.mass is not None and isotope.mass > 0
                                and f"{isotope.mass_number}{element}" != token)
                 values = [value for _, value in options]
-                preferred = {"H": "2H", "C": "13C", "O": "18O"}.get(element) if index == 0 else token
-                selected = previous[index] if index < len(previous) and previous[index] in values else preferred
+                preferred = ({"H": "2H", "C": "13C", "O": "18O"}.get(element)
+                             if index == 0 and mass_number is None else token)
+                same_parent = index < len(previous_parents) and previous_parents[index] == token
+                selected = previous[index] if same_parent and index < len(previous) and previous[index] in values else preferred
                 selectors.append(widgets.Dropdown(
                     options=options, value=selected if selected in values else token,
                     description=f"Atom {index + 1} ({element}):", style={'description_width': 'initial'},
                 ))
+            self._isotope_selector_parent_nuclides = tuple(symbols)
             self.isotope_selectors = selectors
             self.isotope_elements_box.children = selectors or [widgets.HTML("<p>[MISSING DATA] Enter molecular geometry.</p>")]
         except (ValueError, KeyError, IndexError):
@@ -1922,8 +1927,9 @@ class CoChemGUI:
             self.isotope_results_table.value = "<b style='color:red;'>Please provide molecular geometry in Base Config tab first.</b>"
             return
         try:
-            from cochem_base.topology.cochem_topos_graph import parse_xyz_string
-            symbols, coords, _ = parse_xyz_string(geom_str)
+            from cochem_base.calc.calculation_service import parse_run_geometry_identity
+            identity = parse_run_geometry_identity(geom_str)
+            symbols, coords = list(identity.nuclides), identity.coordinates_angstrom
             if not symbols or len(symbols) == 0:
                 self.isotope_results_table.value = "<b style='color:red;'>Failed to parse symbols and coordinates from geometry.</b>"
                 return
@@ -1931,7 +1937,8 @@ class CoChemGUI:
             artifact = self._isotope_hessian_data
             if artifact is not None:
                 import numpy as np
-                if tuple(symbols) != artifact.symbols or not np.allclose(
+                from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+                if tuple(symbols) != resolve_nuclear_identity(artifact.symbols).nuclides or not np.allclose(
                     coords, artifact.coordinates_angstrom, rtol=0, atol=1e-10
                 ):
                     raise ValueError("Geometry changed after loading the Hessian. Reload it or clear it before analysis.")
@@ -2100,7 +2107,7 @@ class CoChemGUI:
                 logger.exception("Could not stop owned TOPOS search during kernel shutdown")
 
     def _start_topos_search(self, b: Any = None) -> None:
-        from cochem_base.calc.calculation_service import parse_run_geometry
+        from cochem_base.calc.calculation_service import parse_run_geometry_identity
         from cochem_base.physics.nuclide_resolver import get_element
         from cochem_base.topos_runner import TOPOSExecutionBroker, TOPOSSearchConfig
         import uuid
@@ -2113,8 +2120,9 @@ class CoChemGUI:
         try:
             if self._pipeline_running or self._installation_running:
                 raise ValueError("Wait for the active operation before starting another calculation")
-            symbols, coordinates = parse_run_geometry(self.matrix_geometry.value)
-            electrons = sum(get_element(symbol).atomic_number for symbol in symbols) - self.charge_input.value
+            identity = parse_run_geometry_identity(self.matrix_geometry.value)
+            symbols, coordinates = list(identity.nuclides), identity.coordinates_angstrom
+            electrons = sum(get_element(symbol).atomic_number for symbol in identity.elements) - self.charge_input.value
             if self.multiplicity_input.value != 1 or electrons < 1 or electrons % 2:
                 raise ValueError("This conformer interface accepts closed-shell, even-electron inputs; open-shell spin acceptance is not yet connected")
             if not self.topos_heuristic.value or self.topos_heuristic.disabled:

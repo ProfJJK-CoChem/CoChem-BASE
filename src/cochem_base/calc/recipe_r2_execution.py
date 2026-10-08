@@ -11,7 +11,6 @@ import hashlib
 import json
 import math
 import os
-from contextlib import nullcontext
 from pathlib import Path
 import re
 import threading
@@ -553,8 +552,14 @@ def execute_recipe_r2(
     on_event: Callable[[dict], None] | None = None,
     is_freq: bool = False,
     is_vpt2: bool = False,
+    nuclides: Sequence[str] | None = None,
+    publication_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Optimize the frozen dimer, run four SP legs, then publish actual evidence."""
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+    nuclear_identity = resolve_nuclear_identity(nuclides if nuclides is not None else symbols)
+    if nuclear_identity.elements != tuple(symbols):
+        raise ValueError("R2 nuclide assignments must match its ordered electronic elements")
     if (
         isinstance(timeout_seconds, bool)
         or not math.isfinite(timeout_seconds)
@@ -615,9 +620,26 @@ def execute_recipe_r2(
         input_path = directory / "calculation.inp"
         input_path.write_text(deck, encoding="utf-8")
         validator = SpinContaminationStreamValidator(leg_spin)
+        gradient_stream = None
+        if leg == "dimer":
+            from cochem_base.core_engine.gradient_telemetry import ORCAGradientStream
+
+            gradient_stream = ORCAGradientStream(
+                f"{identity}_{leg}", symbols, nuclides=nuclear_identity.nuclides,
+                source_id=f"{identity}_{leg}", source_path=directory / "native-gradient-evaluations.txt",
+                metadata={**(publication_metadata or {}), "engine": "orca", "recipe": "R2", "counterpoise_leg": leg,
+                          "nuclear_identity": nuclear_identity.metadata},
+                on_record=lambda record: on_event({"kind": "gradient", "leg": leg, **record}) if on_event else None,
+            )
 
         def stream(line: str) -> None:
             validator(line)
+            if gradient_stream is not None:
+                try:
+                    gradient_stream(line)
+                except BaseException:
+                    telemetry_cancel.set()
+                    raise
             if on_event:
                 on_event({"kind": "log", "leg": leg, "stream": "stdout", "message": line})
 
@@ -625,27 +647,8 @@ def execute_recipe_r2(
         if remaining <= 0:
             raise TimeoutError("Overall R2 five-leg execution budget expired")
         leg_started = time.monotonic()
-        follower = None
-        if leg == "dimer":
-            from cochem_base.core_engine.trajectory_telemetry import XYZTrajectoryFollower
-
-            follower = XYZTrajectoryFollower(
-                directory / "calculation_trj.xyz",
-                f"{identity}_{leg}",
-                symbols,
-                source_format="orca",
-                required=True,
-                metadata={
-                    "engine": "orca",
-                    "recipe": "R2",
-                    "counterpoise_leg": leg,
-                    "record_kind": "optimization_trajectory",
-                },
-                on_error=lambda error: telemetry_cancel.set(),
-            )
         try:
-            with follower if follower is not None else nullcontext():
-                result = safe_subprocess_run(
+            result = safe_subprocess_run(
                     authorization.command([input_path.name]),
                     cwd=directory,
                     timeout=remaining,
@@ -663,15 +666,18 @@ def execute_recipe_r2(
                     cpu_affinity=list(authorization.cpu_affinity) or None,
                 )
         finally:
-            if follower is not None:
+            if gradient_stream is not None:
                 (directory / "trajectory_telemetry.json").write_text(
-                    json.dumps(follower.status, indent=2), encoding="utf-8"
+                    json.dumps(gradient_stream.status, indent=2), encoding="utf-8"
                 )
         log = directory / "calculation.out"
         log.write_text(result.stdout or "", encoding="utf-8")
         (directory / "stderr.log").write_text(result.stderr or "", encoding="utf-8")
         if result.returncode:
             raise RuntimeError(f"ORCA R2 leg {leg} failed; diagnostics retained at {directory}")
+        if gradient_stream is not None:
+            gradient_stream.finish(required=True)
+            (directory / "trajectory_telemetry.json").write_text(json.dumps(gradient_stream.status, indent=2), encoding="utf-8")
         parser = QuantumParser(str(directory))
         parser.scf_threshold = 1e-8
         if not parser.verify_scf_convergence(log):
@@ -717,8 +723,8 @@ def execute_recipe_r2(
             "scf_converged": True,
             "wall_time_seconds": time.monotonic() - leg_started,
         }
-        if follower is not None:
-            legs[leg]["trajectory_telemetry"] = follower.status
+        if gradient_stream is not None:
+            legs[leg]["trajectory_telemetry"] = gradient_stream.status
     constraints = generate_frozen_monomer_constraints(
         manifest.monomers[0].atom_indices,
         manifest.monomers[1].atom_indices,
@@ -758,6 +764,7 @@ def execute_recipe_r2(
         "converged": True,
         "energy_hartree": energies["dimer"],
         "elements": list(symbols),
+        "nuclides": list(nuclear_identity.nuclides), "nuclear_identity": nuclear_identity.metadata,
         "coordinates_angstrom": final_xyz.tolist(),
         "gradients_hartree_per_bohr": dimer_gradient.tolist(),
         "counterpoise": counterpoise,
@@ -786,7 +793,7 @@ def execute_recipe_r2(
         telemetry_job_id = f"{identity}_{leg}"
         archive = append_scientific_result(
             telemetry_job_id,
-            [symbols[i] for i in active],
+            [nuclear_identity.nuclides[i] for i in active],
             final_xyz[active],
             energies[leg],
             dimer_gradient if leg == "dimer" else None,

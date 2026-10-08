@@ -1,0 +1,38 @@
+# =====================================================================
+# CoChem-CORE Cryptographic Provenance Stamp: 6689e15ec5e0963b5f53c9b997a5cefd27ae6995bd6e1eb939853de0a2049c1a
+# Basin ID: job_ef49c17edbad4de1938fea294df7b509 | Engine Target: ORCA 6.1.1
+# Nuclear assignments (electronic XYZ symbols remain canonical): ["H", "H"]
+
+# =====================================================================
+! PBE D4 STO-3G Opt DEFGRID2  NoSym TightSCF MOREAD
+
+%pal
+ nprocs 1
+end
+
+%maxcore 512
+
+%scf
+ TolE 1.0e-10
+ Thresh 1.0e-12
+ ConvCheckMode 0
+ ConvForced true
+ MaxIter 200
+end
+
+%geom
+  TolE 1e-8
+  TolMaxG 1e-6
+  TolRMSG 3e-7
+  TolMaxD 1e-5
+  TolRMSD 5e-6
+  MaxIter 200
+  InHess Lindh
+end
+
+
+* xyz 0 1
+  H    0 0 -0.36727017566033998
+  H    0 0 0.36727017566033998
+*
+%moinp "previous-stage.gbw"

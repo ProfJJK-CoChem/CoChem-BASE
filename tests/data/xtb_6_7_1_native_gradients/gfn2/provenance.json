@@ -1,0 +1,35 @@
+{
+  "engine": "xTB",
+  "version": "6.7.1",
+  "method": "GFN2-xTB",
+  "capture": "Actual native --grad execution; no optimization and no synthetic gradients",
+  "command": [
+    "xtb",
+    "input.xyz",
+    "--gfn",
+    "2",
+    "--chrg",
+    "0",
+    "--uhf",
+    "0",
+    "--grad"
+  ],
+  "files": {
+    "input.xyz": {
+      "sha256": "43ec3a3de3c77940c77c04fbc003d1ddc12a1b06c1d8638217837edec34319b2",
+      "size_bytes": 75
+    },
+    "gradient": {
+      "sha256": "2d9e399482ea8acfeca5545ca70a5ea6f263789cdb85432f36c9bd5a7d529e90",
+      "size_bytes": 506
+    },
+    "stdout.txt": {
+      "sha256": "f3d2bb3321e5d755f106feb431f666df318a53773d8be28196f9a8e937922096",
+      "size_bytes": 13485
+    },
+    "stderr.txt": {
+      "sha256": "db41edc1c74dad5a3527d5c6e4a48bfce3c2cabc0f0ad20acb5e420ad2a68ea9",
+      "size_bytes": 26
+    }
+  }
+}

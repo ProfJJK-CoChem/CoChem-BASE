@@ -687,7 +687,7 @@ def test_crash_telemetry_metrics_capture() -> None:
 
 
 # ==============================================================================
-# 10. Emergency HDF5 Pointer Flush and Closure & Zero SWMR Enforcement
+# 10. Emergency HDF5 Pointer Flush and Closure & Canonical SWMR Access
 # ==============================================================================
 
 
@@ -716,26 +716,27 @@ def test_emergency_hdf5_flush_and_close(tmp_path: Path) -> None:
 
 
 def test_safe_h5py_open_context_manager(tmp_path: Path) -> None:
-    """Test safe_h5py_open context manager enforces closure and forbids swmr=True."""
+    """Verify closure, native SWMR reads and explicit streaming-writer guards."""
     h5_path = tmp_path / "safe_ctx_test.h5"
 
     # 1. Normal context manager execution
-    with safe_h5py_open(h5_path, mode="w") as f:
+    with safe_h5py_open(h5_path, mode="w", libver="latest") as f:
         f.create_dataset("values", data=[10, 20, 30])
         assert bool(f.id.valid) is True
 
     # After exit, must be closed
     assert bool(f.id.valid) is False
 
-    # 2. Strict SWMR Prohibition: swmr=True must raise ValueError under all circumstances
-    with pytest.raises(ValueError, match="swmr=True is strictly prohibited for HDF5"):
-        with safe_h5py_open(h5_path, mode="r", swmr=True):
-            pass
+    # Read-only SWMR access follows the manager policy and closes normally.
+    with safe_h5py_open(h5_path, mode="r", swmr=True) as reader:
+        assert reader.swmr_mode
+        assert list(reader["values"][:]) == [10, 20, 30]
+    assert not reader.id.valid
 
-    # 3. Strict SWMR Prohibition via kwargs
+    # Streaming writes must use the canonical manager, including via kwargs.
     kw: Dict[str, Any] = {"swmr": True}
-    with pytest.raises(ValueError, match="swmr=True is strictly prohibited for HDF5"):
-        with safe_h5py_open(h5_path, mode="r", **kw):
+    with pytest.raises(ValueError, match="CoChemHDF5Manager.swmr_writer"):
+        with safe_h5py_open(h5_path, mode="r+", **kw):
             pass
 
 

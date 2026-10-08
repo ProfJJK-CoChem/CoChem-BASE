@@ -4,22 +4,43 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Download sources, install packages, or run reviewed geometry analysis
+        description: Fetch sources, install reviewed packages, or execute a request
         type: choice
-        options: [fetch, install, geometry_analysis]
-        default: geometry_analysis
+        options: [fetch, install, geometry_analysis, topos_request]
+        default: fetch
         required: true
       modules:
-        description: Space-separated module IDs from scripts/module-distribution.json
+        description: Space-separated module IDs; topos_request selects only topos
         type: string
-        default: topos torq
+        default: topos
         required: true
       xyz_file:
-        description: Repository-relative XYZ input for geometry analysis
+        description: Repository-relative XYZ, exactly matching the request geometry
         type: string
         default: examples/jobs/water.xyz
-        required: false
-  # Trusted implementation-branch pilot; no pull-request trigger receives secrets.
+      topos_request:
+        description: Repository-relative complete TOPOS request JSON
+        type: string
+      kit_run_id:
+        description: Successful same-repository workflow run containing the reviewed kit artifact
+        type: string
+      kit_artifact_name:
+        description: Exact Actions artifact name for the reviewed kit
+        type: string
+      kit_subdirectory:
+        description: Extracted kit subdirectory within that artifact
+        type: string
+        default: '.'
+      engine_profile:
+        description: Provisioned engines; other requested capabilities must already be audited
+        type: choice
+        options: [free, orca, cfour, orca-cfour]
+        default: free
+      receiver_timeout:
+        description: Receiver seconds including verification, at least request budget (maximum 14400)
+        type: number
+        default: 180
+  # Source-fetch pilot only; licensed execution is an explicit private dispatch.
   push:
     branches: [codex/ecosystem-module-installation]
     paths:
@@ -27,10 +48,13 @@ on:
       - 'scripts/manage_modules.py'
       - 'scripts/module*'
       - 'scripts/run_module*'
+      - 'scripts/mandatory_ecosystem.py'
+      - 'scripts/export_topos_evidence.py'
       - 'src/cochem_base/interfaces/module_execution.py'
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ecosystem-modules-${{ github.repository }}-${{ github.ref }}
@@ -39,16 +63,23 @@ concurrency:
 jobs:
   modules:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 360
     env:
       COCHEM_HEADLESS: '1'
       QT_QPA_PLATFORM: offscreen
       PYTHONDONTWRITEBYTECODE: '1'
       OMP_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
-      MODULE_ACTION: ${{ inputs.action || 'geometry_analysis' }}
-      MODULE_IDS: ${{ inputs.modules || 'topos torq' }}
+      MODULE_ACTION: ${{ inputs.action || 'fetch' }}
+      MODULE_IDS: ${{ inputs.modules || 'topos' }}
       MODULE_XYZ: ${{ inputs.xyz_file || 'examples/jobs/water.xyz' }}
+      TOPOS_REQUEST: ${{ inputs.topos_request }}
+      KIT_RUN_ID: ${{ inputs.kit_run_id }}
+      KIT_ARTIFACT_NAME: ${{ inputs.kit_artifact_name }}
+      KIT_SUBDIRECTORY: ${{ inputs.kit_subdirectory || '.' }}
+      ENGINE_PROFILE: ${{ inputs.engine_profile || 'free' }}
+      RECEIVER_TIMEOUT: ${{ inputs.receiver_timeout || 180 }}
+      REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,72 +87,166 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Select runner-local module storage
+      - name: Select isolated runner storage
         run: echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-modules" >> "$GITHUB_ENV"
-      - name: Validate the reviewed selection and input
-        run: |
-          python - <<'PY'
-          import math, os
-          from pathlib import Path
-          from scripts.manage_modules import load_manifest
-          names = os.environ['MODULE_IDS'].split()
-          catalog = load_manifest()['modules']
-          if not names or len(names) > len(catalog) or any(name not in catalog for name in names):
-              raise SystemExit('Select module IDs from the reviewed distribution manifest.')
-          action = os.environ['MODULE_ACTION']
-          if action not in {'fetch', 'install', 'geometry_analysis'}:
-              raise SystemExit('Unsupported module action.')
-          if action != 'fetch' and any(catalog[name]['distribution'] is None or catalog[name].get('install_blocker') for name in names):
-              raise SystemExit('A selected module has missing or broken upstream Python packaging. Choose fetch to obtain its source.')
-          if action == 'geometry_analysis':
-              if any('geometry_analysis' not in catalog[name]['operations'] for name in names):
-                  raise SystemExit('A selected module has no reviewed geometry-analysis adapter.')
-              candidate = Path(os.environ['MODULE_XYZ'])
-              source = candidate.resolve(strict=True)
-              if candidate.is_absolute() or not source.is_relative_to(Path.cwd()) or not source.is_file():
-                  raise SystemExit('XYZ must be a regular file inside this assignment repository.')
-              if source.stat().st_size > 2 * 1024 * 1024:
-                  raise SystemExit('XYZ exceeds the bounded geometry input limit.')
-              lines = source.read_text().splitlines()
-              if not lines or not lines[0].strip().isdigit():
-                  raise SystemExit('XYZ requires an explicit atom count.')
-              count = int(lines[0])
-              if not 0 < count <= 2000 or len(lines) != count + 2:
-                  raise SystemExit('XYZ must contain one complete geometry of at most 2000 atoms.')
-              for line in lines[2:]:
-                  fields = line.split()
-                  if len(fields) != 4 or not all(math.isfinite(float(value)) for value in fields[1:]):
-                      raise SystemExit('XYZ coordinates must be three finite numbers per atom.')
-              # BASE and the selected provider validate element identity at execution.
-          PY
-      - name: Fetch and install immutable module sources
+      - name: Validate explicit selection, request and allocation
         env:
-          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
-        run: |
-          python -m scripts.run_module_installation \
-            --action "$MODULE_ACTION" \
-            --output "$COCHEM_ARTIFACT_DIR/evidence" \
-            --require-source-token
-      - name: Install BASE for validated artifact handoffs
-        if: env.MODULE_ACTION == 'geometry_analysis'
-        run: |
-          git rev-parse HEAD > "$COCHEM_ARTIFACT_DIR/evidence/base-revision.txt"
-          python -m pip install .
-      - name: Execute real module geometry operations
-        if: env.MODULE_ACTION == 'geometry_analysis'
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           python - <<'PY'
           import os
           from pathlib import Path
+          from scripts.manage_modules import load_manifest
+          from scripts.module_request import hosted_topos_request, repository_member
+          names = os.environ['MODULE_IDS'].split()
+          catalog = load_manifest()['modules']
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write('TOPOS_SELECTED=' + ('true' if 'topos' in names else 'false') + '\n')
+          action = os.environ['MODULE_ACTION']
+          profile = os.environ['ENGINE_PROFILE']
+          private = os.environ['REPOSITORY_PRIVATE'] == 'true'
+          if not names or len(names) != len(set(names)) or any(name not in catalog for name in names):
+              raise SystemExit('Select distinct module IDs from the reviewed catalog.')
+          if action not in {'fetch', 'install', 'geometry_analysis', 'topos_request'}:
+              raise SystemExit('Unsupported action.')
+          if profile not in {'free', 'orca', 'cfour', 'orca-cfour'}:
+              raise SystemExit('Unsupported engine profile.')
+          if profile != 'free' and (not private or os.environ['GITHUB_EVENT_NAME'] != 'workflow_dispatch' or action not in {'install', 'topos_request'} or names != ['topos']):
+              raise SystemExit('Licensed provisioners require an explicit private TOPOS installation or request dispatch.')
+          if action == 'topos_request':
+              if names != ['topos']:
+                  raise SystemExit('Select TOPOS only; its reviewed kit installs all mandatory packages.')
+              hosted_topos_request(Path.cwd(), request_file=os.environ['TOPOS_REQUEST'], timeout=float(os.environ['RECEIVER_TIMEOUT']), repository_private=private)
+          elif os.environ['TOPOS_REQUEST']:
+              raise SystemExit('A TOPOS request file requires the topos_request action.')
+          if action != 'fetch' and 'topos' in names:
+              if not private:
+                  raise SystemExit('TOPOS installation and retained native evidence require a private repository.')
+              if os.environ['GITHUB_EVENT_NAME'] != 'workflow_dispatch' or os.environ['GITHUB_REF_NAME'] != os.environ['DEFAULT_BRANCH']:
+                  raise SystemExit('Mandatory kit installation requires an explicit default-branch dispatch.')
+              if not os.environ['KIT_RUN_ID'] or not os.environ['KIT_ARTIFACT_NAME']:
+                  raise SystemExit('Select a same-repository Actions kit artifact by run ID and name.')
+              relative = Path(os.environ['KIT_SUBDIRECTORY'])
+              if relative.is_absolute() or '..' in relative.parts:
+                  raise SystemExit('Kit subdirectory must remain inside the downloaded artifact.')
+          if action in {'geometry_analysis', 'topos_request'}:
+              source = repository_member(Path.cwd(), os.environ['MODULE_XYZ'])
+              if source.stat().st_size > 2_000_000:
+                  raise SystemExit('XYZ exceeds the bounded input limit.')
+              if action == 'geometry_analysis' and any('geometry_analysis' not in catalog[name]['operations'] for name in names):
+                  raise SystemExit('This module requires its typed request, not legacy geometry analysis.')
+              # BASE inspects the actual geometry, isotopes and atom order; the
+              # installed TOPOS provider validates the entire scientific request.
+          PY
+      - name: Identify the protected same-repository kit artifact
+        if: env.MODULE_ACTION != 'fetch' && env.TOPOS_SELECTED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -m scripts.hosted_module_kit identify --receipt "$COCHEM_ARTIFACT_DIR/evidence/kit-transport.json"
+      - name: Download the explicitly selected kit artifact
+        if: env.MODULE_ACTION != 'fetch' && env.TOPOS_SELECTED == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.kit_artifact_name }}
+          run-id: ${{ inputs.kit_run_id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/cochem-kit-artifact
+      - name: Verify actual artifact bytes and select the kit
+        if: env.MODULE_ACTION != 'fetch' && env.TOPOS_SELECTED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -m scripts.hosted_module_kit verify --receipt "$COCHEM_ARTIFACT_DIR/evidence/kit-transport.json" --extracted "$RUNNER_TEMP/cochem-kit-artifact"
+          python - <<'PYCODE'
+          import os
+          from pathlib import Path
+          from scripts.module_request import repository_member
+          kit = repository_member(Path(os.environ['RUNNER_TEMP']) / 'cochem-kit-artifact', os.environ['KIT_SUBDIRECTORY'], directory=True)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'ECOSYSTEM_KIT={kit}\n')
+          PYCODE
+      - name: Install trusted BASE as a noneditable controller
+        if: env.MODULE_ACTION != 'fetch'
+        run: |
+          python - <<'PY'
+          import subprocess, sys
+          from scripts.hosted_dashboard import CONTROLLER_BUILD_TOOLS
+          subprocess.run([sys.executable, '-m', 'pip', 'install', *(f'{name}=={version}' for name, version in CONTROLLER_BUILD_TOOLS.items())], check=True)
+          PY
+          python -m pip install --no-build-isolation .
+      - name: Verify the kit against the installed BASE catalog
+        if: env.MODULE_ACTION != 'fetch' && env.TOPOS_SELECTED == 'true'
+        run: |
+          python -I -B - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          from scripts.manage_modules import load_manifest
+          from scripts.mandatory_ecosystem import inspect_kit
+          checked = inspect_kit(Path(os.environ['ECOSYSTEM_KIT']), load_manifest()['modules']['topos'])
+          proof = {'status': 'verified-kit-payload', 'source_pins': checked['pins'], 'inventory': checked['inventory'], 'scientific_execution_performed': False}
+          (Path(os.environ['COCHEM_ARTIFACT_DIR']) / 'evidence/kit-preflight.json').write_text(json.dumps(proof, indent=2) + '\n')
+          PYCODE
+      - name: Provision approved ORCA and MPI
+        if: env.ENGINE_PROFILE == 'orca' || env.ENGINE_PROFILE == 'orca-cfour'
+        uses: ./.github/actions/setup-orca
+        with:
+          asset-token: ${{ secrets.ORCA_ASSET_READ_TOKEN }}
+      - name: Provision approved complete CFOUR runtime
+        if: env.ENGINE_PROFILE == 'cfour' || env.ENGINE_PROFILE == 'orca-cfour'
+        uses: ./.github/actions/setup-cfour
+        with:
+          asset-token: ${{ secrets.CFOUR_ASSET_READ_TOKEN }}
+          required: 'true'
+      - name: Fetch or install reviewed sources and mandatory authority
+        env:
+          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+        run: |
+          if [ "$MODULE_ACTION" = fetch ]; then
+            python -m scripts.run_module_installation --action fetch --output "$COCHEM_ARTIFACT_DIR/evidence" --require-source-token
+          else
+            python -I -B -m scripts.run_module_installation --action "$MODULE_ACTION" --output "$COCHEM_ARTIFACT_DIR/evidence" --ecosystem-kit "${ECOSYSTEM_KIT:-}" --require-source-token
+          fi
+      - name: Execute the validated module request
+        if: env.MODULE_ACTION == 'geometry_analysis' || env.MODULE_ACTION == 'topos_request'
+        run: |
+          python -I -B - <<'PY'
+          import os
+          from pathlib import Path
           from scripts.run_module_job import main
-          target = Path(os.environ['COCHEM_ARTIFACT_DIR']) / 'evidence' / 'geometry'
-          main(['--modules', *os.environ['MODULE_IDS'].split(), '--xyz-file', os.environ['MODULE_XYZ'], '--output', str(target)])
+          root = Path(os.environ['COCHEM_ARTIFACT_DIR'])
+          destination = root / 'controlled-execution' if os.environ['MODULE_ACTION'] == 'topos_request' else root / 'evidence' / 'execution'
+          arguments = ['--modules', *os.environ['MODULE_IDS'].split(), '--xyz-file', str(Path(os.environ['GITHUB_WORKSPACE']) / os.environ['MODULE_XYZ']), '--output', str(destination), '--timeout', os.environ['RECEIVER_TIMEOUT']]
+          if os.environ['MODULE_ACTION'] == 'topos_request':
+              arguments += ['--topos-request', str(Path(os.environ['GITHUB_WORKSPACE']) / os.environ['TOPOS_REQUEST'])]
+          raise SystemExit(main(arguments))
+          PY
+      - name: Export only the bound scientific TOPOS snapshot
+        if: always() && env.MODULE_ACTION == 'topos_request' && env.TOPOS_SELECTED == 'true'
+        run: |
+          python -I -B -m scripts.export_topos_evidence --source "$COCHEM_ARTIFACT_DIR/controlled-execution/topos" --output "$COCHEM_ARTIFACT_DIR/evidence/topos-execution" --root "$COCHEM_ARTIFACT_DIR/Modules"
+      - name: Retain the actual mandatory setup audit
+        if: always() && env.MODULE_ACTION != 'fetch' && env.TOPOS_SELECTED == 'true'
+        run: |
+          python -B - <<'PY'
+          import os
+          from pathlib import Path
+          from scripts.manage_modules import load_manifest
+          from scripts.run_module_installation import retain_setup_evidence
+          root = Path(os.environ['COCHEM_ARTIFACT_DIR'])
+          retain_setup_evidence(load_manifest()['modules']['topos'], root / 'Modules', root / 'evidence' / 'mandatory-setup')
           PY
       - name: Retain module execution and provenance reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cochem-modules-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/cochem-modules/evidence/
+          path: |
+            ${{ runner.temp }}/cochem-modules/evidence/
+            ${{ runner.temp }}/orca-evidence/
+            ${{ runner.temp }}/cfour-evidence/
           if-no-files-found: warn
           retention-days: 14
+      - name: Remove runner-local licensed distributions
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/cochem-orca-install" "$RUNNER_TEMP/cochem-orca-download" "$RUNNER_TEMP/cochem-cfour-install" "$RUNNER_TEMP/cochem-cfour-download"

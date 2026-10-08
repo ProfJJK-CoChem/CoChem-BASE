@@ -156,7 +156,7 @@
     },
     "topos": {
       "repository": "ProfJJK-CoChem/CoChem-TOPOS",
-      "revision": "343532dd606063073ea78862898b9d0a8da0c5c2",
+      "revision": "4cdb790a7fcac285b640438b0614e749821a2268",
       "distribution": "cochem-topos",
       "adapter": "topos_handoff",
       "adapter_requirements": [],
@@ -178,7 +178,7 @@
           "requirements-ui.txt": "6478c5244db5b86be639651ec3b4968efe30a156d5d9af07adc3eaae19f2a05a",
           "requirements.txt": "4c46823570124b78a0905ad2de4e6515571437204a15cce65d36b019b65520f7"
         },
-        "base_source_content_sha256": "46d3f9b54ed23bbc1afb4900d3a6e0c4fd19836e4f84768d506c81f209549888",
+        "base_source_content_sha256": "1f7c8cedf2f9c22866379be14152f19163c3f20c6e0820bc54acc615af62069b",
         "schema_version": "cochem.mandatory-ecosystem-catalog/2",
         "setup_helper_sha256": "0d7451cef59516b40badc10d34a742cfc8a9b35f4118590c05b839d490eb1730",
         "topos_wheel_sha256": "62ae8ee2ed835942678b44161383f5d1f15eb2c981123384f964556df1bded5a",
@@ -188,7 +188,7 @@
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "968d95650046c34ad934335a613e5aa7b692d802",
+      "revision": "aea775f707097bf6bd1c85271374906c619e7917",
       "distribution": "CoChem-TORQ",
       "adapter": "torq_geometry",
       "adapter_requirements": [

@@ -68,6 +68,8 @@ cochem_*_silo/
 *.cif
 !tests/**/*.xyz
 *.egg-info/
+build/
+dist/
 
 # Licensed runtime distributions and private project lifecycle records
 private-assets/

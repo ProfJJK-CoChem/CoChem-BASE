@@ -453,7 +453,8 @@ def test_filter_silos_by_manifest_lightweight_only_saves_disk() -> None:
     assert audit.heavy_silos_requested is False
     assert "cochem_calc_silo" in audit.skipped_silos
     assert "cochem_mace_silo" in audit.skipped_silos
-    assert audit.disk_space_saved_estimated_mb == 9000.0
+    assert "cochem_aimnet2_silo" in audit.skipped_silos
+    assert audit.disk_space_saved_estimated_mb == 13500.0
 
 
 def test_filter_silos_by_manifest_explicit_skip_heavy_flag() -> None:
@@ -755,7 +756,7 @@ def test_audit_micro_silos_full_suite(tmp_path: Path) -> None:
         config.packages = ["filelock"]
         config.pip_packages = ["filelock==3.32.7"]
     silos = audit_micro_silos(silos_dir, manifest_filter=manifest_filter, custom_configs=configs, dry_run=False)
-    assert len(silos) == 4
+    assert len(silos) == 5
     assert silos["cochem_core_silo"].is_available is True
     assert silos["cochem_core_silo"].status is SiloStatus.PROVISIONED
     assert silos["cochem_calc_silo"].status is SiloStatus.BYPASSED
@@ -799,7 +800,7 @@ def test_run_phase_4_audit_e2e_dry_run(tmp_path: Path) -> None:
     )
     assert report.status in (PhaseStatus.PASSED, PhaseStatus.DEGRADED)
     assert report.phase_id == "PHASE_4_MICRO_SILO_PROVISIONING"
-    assert len(report.silos) == 4
+    assert len(report.silos) == 5
     assert Path(report.artifact_path).exists()
 
     # Validate saved JSON is identical

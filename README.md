@@ -8,6 +8,11 @@ interface, validated calculation execution and handoffs to the CoChem ecosystem.
 It preserves actual inputs, engine identity, resource allocation, outputs and
 scientific records needed to assess a result.
 
+For lab members using their **personal Actions allowance**, follow the
+[private student project guide](.docs/Private_Student_Projects.md). It covers
+private standalone copies, individual authorization for the lab engine
+repositories, Codespaces setup, and ORCA/CFOUR Actions calculations.
+
 **Instructors: follow the
 [Classroom50 assignment deployment guide](.docs/Classroom50_Assignment_Deployment.md)**
 to prepare the release template, configure access, pilot one student and roll

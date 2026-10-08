@@ -7,9 +7,9 @@ Successful downstream chemistry remains a separate real-provider acceptance run.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -19,7 +19,8 @@ from cochem_base.interfaces.module_execution import (
     installed_module_status,
 )
 from scripts import manage_modules as installer
-from tests.base.test_module_installer import git, install_fixture, repository  # noqa: F401; shared real Git fixture
+from tests.base.test_module_installer import git, install_fixture
+from tests.base.test_module_installer import repository as repository  # Shared real Git fixture.
 
 
 @pytest.fixture
@@ -50,7 +51,7 @@ def test_unknown_module_identifier_never_publishes_handoff(geometry, tmp_path):
 
 
 def test_geometry_options_are_not_forwarded_as_commands(geometry, tmp_path):
-    handoff = _handoff(geometry, tmp_path / "handoff", options={"command": "arbitrary-shell-input"})
+    handoff = _handoff(geometry, tmp_path / "handoff", module="torq", options={"command": "arbitrary-shell-input"})
     with pytest.raises(ValueError, match="accepts no options"):
         execute_module_handoff(handoff, tmp_path / "result", root=tmp_path / "modules")
     assert not (tmp_path / "result").exists()
@@ -74,7 +75,7 @@ def test_arbitrary_json_cannot_be_used_as_execution_authority(tmp_path):
 
 
 def test_missing_installation_is_not_reported_as_execution(geometry, tmp_path):
-    handoff = _handoff(geometry, tmp_path / "handoff")
+    handoff = _handoff(geometry, tmp_path / "handoff", module="torq")
     with pytest.raises(installer.ModuleInstallationError, match="Cannot read a valid module receipt.*installation.json"):
         execute_module_handoff(handoff, tmp_path / "result", root=tmp_path / "modules")
     assert not (tmp_path / "result").exists()
@@ -82,7 +83,7 @@ def test_missing_installation_is_not_reported_as_execution(geometry, tmp_path):
 
 def test_geometry_adapter_rejects_real_periodic_structure_input(tmp_path):
     source = Path(__file__).resolve().parents[2] / "examples/product_b/gaas_fractional.json"
-    handoff = _handoff(source, tmp_path / "handoff")
+    handoff = _handoff(source, tmp_path / "handoff", module="torq")
     with pytest.raises(ValueError, match="single XYZ geometry"):
         execute_module_handoff(handoff, tmp_path / "result", root=tmp_path / "modules")
     assert not (tmp_path / "result").exists()
@@ -91,7 +92,7 @@ def test_geometry_adapter_rejects_real_periodic_structure_input(tmp_path):
 def test_bound_on_geometry_size_applies_before_provider_start(tmp_path):
     source = tmp_path / "large.xyz"
     source.write_text("2001\nDeliberate operation-budget boundary input\n" + "".join(f"H {i * 2} 0 0\n" for i in range(2001)))
-    handoff = _handoff(source, tmp_path / "handoff")
+    handoff = _handoff(source, tmp_path / "handoff", module="torq")
     with pytest.raises(ValueError, match="at most 2000 atoms"):
         execute_module_handoff(handoff, tmp_path / "result", root=tmp_path / "modules")
     assert not (tmp_path / "result").exists()
@@ -112,7 +113,7 @@ def test_missing_and_invalid_installations_stay_unavailable(tmp_path):
 
 
 def test_provider_environment_removes_credentials_and_injection():
-    blocked = ["COCHEM_SOURCE_READ_TOKEN", "PRIVATE_ORCA_ASSET_CREDENTIAL", "GITHUB_TOKEN", "GH_TOKEN",
+    blocked = ["COCHEM_SOURCE_READ_TOKEN", "LICENSED_ARCHIVE_CREDENTIAL", "GITHUB_TOKEN", "GH_TOKEN",
                "MY_API_KEY", "PRIVATE_PASSWORD", "SOURCE_CREDENTIAL", "MY_SECRET", "GIT_CONFIG_COUNT",
                "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_ASKPASS", "SSH_ASKPASS", "PYTHONPATH",
                "PYTHONHOME", "PYTHONUSERBASE", "VIRTUAL_ENV", "LD_PRELOAD", "LD_LIBRARY_PATH"]
@@ -143,7 +144,9 @@ def test_cli_lists_reviewed_modules_without_installing(tmp_path):
     )
     catalog = json.loads(result.stdout)
     assert catalog == installer.load_manifest()
-    assert catalog["modules"]["topos"]["operations"] == ["geometry_analysis"]
+    assert catalog["modules"]["topos"]["adapter"] == "topos_handoff"
+    assert catalog["modules"]["topos"]["operations"] == [
+        "energy", "gradient", "optimize", "search", "frequency", "thermochemistry", "association", "matrix"]
     assert catalog["modules"]["torq"]["operations"] == ["geometry_analysis"]
     assert not root.exists()
 

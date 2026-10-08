@@ -12,6 +12,29 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
+      - name: Require private archive access configuration
+        env:
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          ASSET_CREDENTIAL_NAME: ${{ vars.COCHEM_ORCA_ASSET_CREDENTIAL }}
+          ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_ORCA_ASSET_CREDENTIAL] }}
+        run: |
+          set -euo pipefail
+          if [[ "$REPOSITORY_PRIVATE" != true ]]; then
+            echo '::error::Licensed archive access requires a private project repository.'
+            exit 1
+          fi
+          if [[ -z "$ASSET_CREDENTIAL_NAME" ]]; then
+            echo '::error::Configure the private COCHEM_ORCA_ASSET_CREDENTIAL variable to select an authorized project secret.'
+            exit 1
+          fi
+          if [[ ! "$ASSET_CREDENTIAL_NAME" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+            echo '::error::The private asset credential selector must be a valid secret identifier.'
+            exit 1
+          fi
+          if [[ -z "$ASSET_CREDENTIAL" ]]; then
+            echo '::error::The selected private ORCA asset credential is unavailable.'
+            exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -34,11 +57,11 @@ jobs:
       - name: Check private access and the independently recorded checksum
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}
+          GH_TOKEN: ${{ secrets[vars.COCHEM_ORCA_ASSET_CREDENTIAL] }}
         run: |
           set -euo pipefail
           if [[ -z "$GH_TOKEN" ]]; then
-            echo "::error::PRIVATE_ORCA_ASSET_CREDENTIAL needs Contents read access to $ORCA_ASSET_REPOSITORY."
+            echo "::error::The private ORCA asset credential needs Contents read access to the approved distribution repository."
             exit 1
           fi
 

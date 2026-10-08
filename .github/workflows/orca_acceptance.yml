@@ -2,8 +2,29 @@ name: ORCA 6.1.1 calculation acceptance
 
 on:
   workflow_dispatch:
+    inputs:
+      topos_ref:
+        description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
+        required: false
+        default: ''
+        type: string
+      torq_ref:
+        description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
+        required: false
+        default: 4f323800227dbde00ffb082bd6d9e44d851e1c7a
+        type: string
   workflow_call:
     inputs:
+      topos_ref:
+        description: Optional reviewed full TOPOS commit SHA for downstream acceptance.
+        required: false
+        default: ''
+        type: string
+      torq_ref:
+        description: Full mandatory TORQ source commit SHA for TOPOS acceptance.
+        required: false
+        default: 4f323800227dbde00ffb082bd6d9e44d851e1c7a
+        type: string
       base_repository:
         description: Repository containing the reviewed BASE source for a reusable call.
         required: false
@@ -14,22 +35,15 @@ on:
         required: true
         type: string
     secrets:
-      PRIVATE_ORCA_ASSET_CREDENTIAL:
-        required: true
+      COCHEM_SOURCE_READ_TOKEN:
+        description: Read-only access to reviewed TOPOS and TORQ source revisions.
+        required: false
+      asset_credential:
+        description: Explicit read-only credential for a reusable private caller.
+        required: false
       BASE_SOURCE_READ_TOKEN:
         description: Optional read-only access when a reusable caller cannot read the private BASE source.
         required: false
-  push:
-    branches: [codex/orca-6.1.1-actions]
-    paths:
-      - '.github/actions/setup-orca/**'
-      - '.github/workflows/orca_acceptance.yml'
-      - 'scripts/*orca*'
-      - 'scripts/install_openmpi.py'
-      - 'tests/base/test_orca_provisioning.py'
-      - 'tests/base/test_openmpi_installer_contract.py'
-      - 'tests/calc/test_orca_cli_execution.py'
-
 permissions:
   contents: read
 
@@ -38,9 +52,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  licensed-calculations:
+  validate-private-project:
+    name: Validate private project and licensed asset access configuration
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 2
+    steps:
+      - name: Require a private repository and an explicitly selected credential
+        env:
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          EXECUTION_EVENT: ${{ github.event_name }}
+          ASSET_CREDENTIAL_NAME: ${{ vars.COCHEM_ORCA_ASSET_CREDENTIAL }}
+          ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_ORCA_ASSET_CREDENTIAL] || secrets.asset_credential }}
+        run: |
+          set -euo pipefail
+          if [[ "$REPOSITORY_PRIVATE" != true ]]; then
+            echo '::error::Licensed calculations require a private project repository.'
+            exit 1
+          fi
+          if [[ "$EXECUTION_EVENT" != workflow_dispatch ]]; then
+            echo '::error::Licensed calculations require an explicit workflow dispatch.'
+            exit 1
+          fi
+          if [[ -z "$ASSET_CREDENTIAL_NAME" && -z "$ASSET_CREDENTIAL" ]]; then
+            echo '::error::Configure the private COCHEM_ORCA_ASSET_CREDENTIAL variable and its selected secret, or pass asset_credential from a private reusable caller.'
+            exit 1
+          fi
+          if [[ -n "$ASSET_CREDENTIAL_NAME" && ! "$ASSET_CREDENTIAL_NAME" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+            echo '::error::The private asset credential selector must be a valid secret identifier.'
+            exit 1
+          fi
+          if [[ -z "$ASSET_CREDENTIAL" ]]; then
+            echo '::error::The selected private asset credential is unavailable. Confirm access in this project repository.'
+            exit 1
+          fi
+  licensed-calculations:
+    needs: validate-private-project
+    if: github.event.repository.private
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
     env:
       OMP_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
@@ -49,6 +98,27 @@ jobs:
       COCHEM_HEADLESS: '1'
       COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
     steps:
+      - name: Validate optional downstream source identities
+        env:
+          TOPOS_REF: ${{ inputs.topos_ref }}
+          TORQ_REF: ${{ inputs.torq_ref }}
+          CONTROLLER_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if [[ -n "$TOPOS_REF" ]]; then
+            test "$CONTROLLER_PRIVATE" = true
+            [[ "$TOPOS_REF" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$TORQ_REF" =~ ^[0-9a-f]{40}$ ]]
+          fi
+      - name: Validate configured downstream source credential
+        if: inputs.topos_ref != ''
+        env:
+          COCHEM_SOURCE_READ_TOKEN: ${{ secrets.COCHEM_SOURCE_READ_TOKEN }}
+          BASE_SOURCE_READ_TOKEN: ${{ secrets.BASE_SOURCE_READ_TOKEN }}
+        run: |
+          if [[ -z "$COCHEM_SOURCE_READ_TOKEN" && -z "$BASE_SOURCE_READ_TOKEN" ]]; then
+            echo '::error::TOPOS acceptance requires COCHEM_SOURCE_READ_TOKEN or BASE_SOURCE_READ_TOKEN exposed to this BASE workflow with private TOPOS/TORQ Contents read access.'
+            exit 1
+          fi
       - name: Validate a reusable caller's BASE revision
         env:
           BASE_REF: ${{ inputs.base_ref }}
@@ -108,7 +178,7 @@ jobs:
           df -h "$RUNNER_TEMP"
       - uses: ./.github/actions/setup-orca
         with:
-          asset-token: ${{ secrets.PRIVATE_ORCA_ASSET_CREDENTIAL }}
+          asset-token: ${{ secrets[vars.COCHEM_ORCA_ASSET_CREDENTIAL] || secrets.asset_credential }}
       - name: Install BASE and execute all eleven Stage 0 phases
         run: |
           if python scripts/hosted_dashboard.py setup --min-disk-space-gb 1 \
@@ -143,6 +213,77 @@ jobs:
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/verify_srs_completion.py \
             --engine orca --registry "$COCHEM_CONFIG" \
             --output "$RUNNER_TEMP/orca-evidence/srs-completion.json"
+      - name: Check out the reviewed TOPOS candidate
+        if: inputs.topos_ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ProfJJK-CoChem/CoChem-TOPOS
+          ref: ${{ inputs.topos_ref }}
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+          path: .cochem-ecosystem/topos
+          persist-credentials: false
+      - name: Check out the mandatory TORQ source
+        if: inputs.topos_ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ProfJJK-CoChem/CoChem-TORQ
+          ref: ${{ inputs.torq_ref }}
+          token: ${{ secrets.COCHEM_SOURCE_READ_TOKEN || secrets.BASE_SOURCE_READ_TOKEN }}
+          path: .cochem-ecosystem/torq
+          persist-credentials: false
+      - name: Isolate and identify all mandatory source checkouts
+        if: inputs.topos_ref != ''
+        env:
+          TOPOS_REF: ${{ inputs.topos_ref }}
+          TORQ_REF: ${{ inputs.torq_ref }}
+        run: |
+          test "$(git -C .cochem-ecosystem/topos rev-parse HEAD)" = "$TOPOS_REF"
+          test "$(git -C .cochem-ecosystem/torq rev-parse HEAD)" = "$TORQ_REF"
+          test ! -e "$RUNNER_TEMP/cochem-sources"
+          mkdir -p "$RUNNER_TEMP/cochem-sources"
+          mv .cochem-ecosystem/topos "$RUNNER_TEMP/cochem-sources/topos"
+          mv .cochem-ecosystem/torq "$RUNNER_TEMP/cochem-sources/torq"
+          git -C "$RUNNER_TEMP/cochem-sources/topos" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/topos-commit.txt"
+          git -C "$RUNNER_TEMP/cochem-sources/torq" rev-parse HEAD > "$RUNNER_TEMP/orca-evidence/torq-commit.txt"
+      - name: Complete mandatory package setup using the audited BASE installation
+        id: mandatory
+        if: inputs.topos_ref != ''
+        run: |
+          python "$RUNNER_TEMP/cochem-sources/topos/scripts/setup_ecosystem.py" \
+            --base-root "$GITHUB_WORKSPACE" \
+            --torq-root "$RUNNER_TEMP/cochem-sources/torq" \
+            --artifacts "$COCHEM_ARTIFACT_DIR" --min-disk-space-gb 1 --existing-environment
+      - name: Require genuine TOPOS ORCA scientific acceptance
+        if: inputs.topos_ref != ''
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_topos.py" \
+            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence" \
+            --threads 2 --memory-mb 2048 --budget-seconds 10800 --include-counterpoise --include-goat
+      - name: Execute native correlated and anharmonic acceptance
+        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_extended.py" \
+            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-extended" \
+            --threads 2 --memory-mb 4096 --budget-seconds 7200
+      - name: Retain source-bound licensed pytest results
+        if: always() && inputs.topos_ref != '' && steps.mandatory.outcome == 'success'
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" "$RUNNER_TEMP/cochem-sources/topos/scripts/accept_orca_pytest.py" \
+            --registry "$COCHEM_CONFIG" --output "$RUNNER_TEMP/topos-orca-evidence"
+      - name: Retain TOPOS native calculation and setup evidence
+        if: always() && inputs.topos_ref != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: topos-orca-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/topos-orca-evidence/
+            ${{ runner.temp }}/topos-orca-extended/
+            ${{ runner.temp }}/cochem-artifacts/setup-logs/
+            ${{ runner.temp }}/cochem-artifacts/setup-receipt.json
+            ${{ runner.temp }}/cochem-artifacts/mandatory-validation.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
       - name: Retain calculation, registry and installation evidence
         if: always()
         uses: actions/upload-artifact@v4

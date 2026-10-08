@@ -1,5 +1,14 @@
 # ORCA 6.1.1 Actions provisioning and acceptance
 
+For student-owned private projects using personal Actions minutes, follow the
+[private student project guide](Private_Student_Projects.md). Organization secrets
+do not transfer to personal repositories. Configure the private
+`COCHEM_ORCA_ASSET_CREDENTIAL` and `COCHEM_CFOUR_ASSET_CREDENTIAL` variables to
+select existing authorized secrets; their identifiers are never fixed in public
+YAML. Any credential name in examples below is a placeholder, not the name of
+an existing lab secret. Organization-owned course assignments remain a separate
+route using organization Actions minutes.
+
 For the complete instructor and student walkthrough, start with
 [Classroom50 and ORCA on GitHub Actions: instructor and student setup](GitHub_Classroom_ORCA_Setup.md).
 It covers Classroom50 in an instructor-managed GitHub organization, Windows PowerShell
@@ -22,7 +31,7 @@ and limit access according to the applicable license.
 ## GitHub configuration
 
 In the repository running the workflow, create the Actions secret
-`PRIVATE_ORCA_ASSET_CREDENTIAL`. Its fine-grained token needs Contents read access to the
+`PRIVATE_ORCA_CREDENTIAL`. Its fine-grained token needs Contents read access to the
 private `ProfJJK-CoChem/CoChem-ORCA` repository. The default `GITHUB_TOKEN` cannot
 automatically read another private repository. Organization approval, when
 required by the repository owner, must be complete before download.
@@ -33,7 +42,7 @@ In GitHub's fine-grained token editor, select resource owner
 and set its access to **Read-only**. This is the asset repository, not BASE.
 Generate the token with an expiration date and save its value in
 **CoChem-BASE → Settings → Secrets and variables → Actions →
-PRIVATE_ORCA_ASSET_CREDENTIAL**. Do not put the token in source, logs or chat.
+PRIVATE_ORCA_CREDENTIAL**. Do not put the token in source, logs or chat.
 For a course, an instructor can provide the same narrowly scoped organization
 secret to selected authorized calculation repositories; it is not copied with
 assignment template files. The [course guide](GitHub_Classroom_ORCA_Setup.md#5-make-the-secret-available-to-the-calculation-repository)
@@ -50,17 +59,16 @@ a token in GitHub does not automatically replace an older token value saved in
 the Actions secret.
 
 The access check, full acceptance and student calculation workflows all read
-the same reviewed `scripts/orca-distribution.json`; no Actions variables are
-required. The earlier `ORCA_ASSET_*` and `ORCA_RELEASE_TAG` variable overrides
+the same reviewed `scripts/orca-distribution.json`. The private credential
+selector variable is required; distribution identity is pinned in the manifest. The earlier `ORCA_ASSET_*` and `ORCA_RELEASE_TAG` variable overrides
 are no longer used. Instructors can review and change the private repository,
 tag and independently verified checksum in the manifest. The supported build
 identity remains ORCA 6.1.1 for Linux x86-64 with Open MPI 4.1.8; another platform
 or MPI build requires its own supported provisioner.
 
 Run **Actions → ORCA 6.1.1 calculation acceptance → Run workflow** after the
-workflow is on the default branch. The implementation branch
-`codex/orca-6.1.1-actions` also triggers it on pushes changing the integration,
-so the first authorized publication can test the proposed code before merging.
+workflow is on the default branch. The licensed workflows run by manual dispatch or an authorized reusable call
+in a private project; they do not start on source pushes.
 The licensed job has no pull-request trigger.
 
 ## What actually executes
@@ -142,7 +150,7 @@ Direct acceptance runs use the current course repository and selected commit,
 so a Classroom50 copy does not try to check out its own commit from the upstream
 BASE repository. The full workflow also supports `workflow_call`; callers must
 pass a full 40-character BASE commit as `base_ref` and explicitly pass
-`PRIVATE_ORCA_ASSET_CREDENTIAL`. `base_repository` defaults to
+`PRIVATE_ORCA_CREDENTIAL`. `base_repository` defaults to
 `ProfJJK-CoChem/CoChem-BASE` and can select a reviewed BASE mirror. When the
 caller's default token cannot read that private source repository, the caller
 can pass the separate optional `BASE_SOURCE_READ_TOKEN` with Contents read

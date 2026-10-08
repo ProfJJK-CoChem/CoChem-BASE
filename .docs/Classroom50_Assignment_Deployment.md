@@ -1,5 +1,14 @@
 # Deploy a CoChem assignment through Classroom50
 
+For student-owned private projects using personal Actions minutes, follow the
+[private student project guide](Private_Student_Projects.md). Organization secrets
+do not transfer to personal repositories. Configure the private
+`COCHEM_ORCA_ASSET_CREDENTIAL` and `COCHEM_CFOUR_ASSET_CREDENTIAL` variables to
+select existing authorized secrets; their identifiers are never fixed in public
+YAML. Any credential name in examples below is a placeholder, not the name of
+an existing lab secret. Organization-owned course assignments remain a separate
+route using organization Actions minutes.
+
 Follow these steps as the instructor, then have **one enrolled student** complete
 the pilot before sharing the assignment with the full class. The pilot verifies
 the student's assignment permissions, a fresh Codespace, real Actions chemistry
@@ -312,8 +321,8 @@ its source. Each new assignment must be authorized to use them.
 
 | Actions secret | Purpose |
 | --- | --- |
-| `PRIVATE_ORCA_ASSET_CREDENTIAL` | Read the approved private ORCA release archive |
-| `PRIVATE_CFOUR_ASSET_CREDENTIAL` | Read the approved private CFOUR runtime archive |
+| `PRIVATE_ORCA_CREDENTIAL` | Read the approved private ORCA release archive |
+| `PRIVATE_CFOUR_CREDENTIAL` | Read the approved private CFOUR runtime archive |
 | `COCHEM_SOURCE_READ_TOKEN` | Read the approved private CoChem module source |
 
 1. In GitHub, open the course **Organization Settings → Secrets and variables

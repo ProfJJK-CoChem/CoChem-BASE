@@ -113,6 +113,7 @@ class BinaryEngineItem(BaseModel):
     )
     file_size_bytes: Optional[int] = Field(default=None, description="Physical binary size in bytes")
     is_available: bool = Field(default=False, description="Whether engine is discovered and executable")
+    native_components: Dict[str, str] = Field(default_factory=dict)
     is_container: bool = Field(default=False, description="Whether engine runs inside an Apptainer/Singularity SIF")
     container_flags: List[str] = Field(
         default_factory=list, description="Container execution flags enforcing network air-gap"
@@ -331,9 +332,11 @@ STANDARD_MONITORED_ENGINES: List[Tuple[str, EngineTrack]] = [
     # Semi-Empirical & Conformational Engines
     ("xtb", EngineTrack.XTB_CREST),
     ("crest", EngineTrack.XTB_CREST),
+    ("abcluster", EngineTrack.GENERAL),
     ("gxtb", EngineTrack.XTB_CREST),
     ("mopac", EngineTrack.GENERAL),
     ("qe", EngineTrack.GENERAL),
+    ("psi4", EngineTrack.GENERAL),
     # Container & GPU tools
     ("apptainer", EngineTrack.GENERAL),
     ("singularity", EngineTrack.GENERAL),
@@ -354,7 +357,7 @@ def resolve_binary_search_paths(
     candidates: List[Path] = []
     is_win = platform.system() == "Windows"
     raw_name = engine_name.lower()
-    binary_name = "pw.x" if raw_name == "qe" else engine_name
+    binary_name = {"qe": "pw.x", "abcluster": "rigidmol"}.get(raw_name, engine_name)
 
     # Tier 1: Environment variable overrides
     env_keys = [
@@ -680,6 +683,11 @@ def extract_semantic_version(output_text: str, engine_name: str) -> Optional[str
     text = output_text.strip()
     raw = engine_name.lower()
 
+    if raw in {"abcluster", "rigidmol"}:
+        # Only the component-qualified native banner identifies ABCluster.
+        versions = set(re.findall(r"^rigidmol\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)\s*$", text, re.M))
+        return next(iter(versions)) if len(versions) == 1 else None
+
     if raw == "qe":
         match = re.search(r"Program\s+PWSCF\s+v\.?\s*([0-9]+\.[0-9]+(?:\.[0-9]+)?(?:[A-Za-z]+)?)", text, re.I)
         return match.group(1) if match else None
@@ -789,6 +797,10 @@ def interrogate_binary_version(
         cmd.append("--version")
     elif raw in ("xtb", "crest"):
         cmd.append("--version")
+    elif raw == "abcluster":
+        # rigidmol 3.4 has no version flag; bare invocation prints its banner
+        # and exits 1 for missing input. This is metadata, not a science test.
+        pass
     elif raw == "qe":
         # pw.x emits its authoritative PWSCF banner before rejecting empty input.
         cmd.append("--help")
@@ -899,9 +911,26 @@ def audit_single_binary(
             status=EngineStatus.ERROR,
         )
 
-    # Subprocess version interrogation
-    version, ver_err = interrogate_binary_version(discovered, name, timeout_seconds=timeout_seconds)
+    # Psi4 version-only CLI can succeed despite an unloadable compiled core.
+    native_components = {}
+    if name == "psi4":
+        from cochem_base.orchestrator.psi4_native_probe import probe_psi4_native
+        version, native_components, ver_err = probe_psi4_native(
+            discovered, timeout_seconds=max(15.0, timeout_seconds),
+            environment=engine_runtime_environment(name, executable=discovered),
+        )
+    else:
+        version, ver_err = interrogate_binary_version(discovered, name, timeout_seconds=timeout_seconds)
 
+    if name == "crest" and version and not ver_err:
+        try:
+            from cochem_base.orchestrator.crest_native_probe import inspect_crest_source_distribution
+            patched_version, native_components = inspect_crest_source_distribution(
+                discovered, engine_runtime_environment(name, executable=discovered),
+            )
+            version = patched_version or version
+        except Exception as exc:
+            ver_err = f"CREST source distribution audit failed: {exc}"
     runtime = {}
     if name in ("xcfour", "cfour") and version and not ver_err:
         from cochem_base.core_engine.cfour_runtime import verify_cfour_runtime
@@ -920,6 +949,7 @@ def audit_single_binary(
         sha256_hash=sha256_hash,
         file_size_bytes=file_size,
         is_available=status == EngineStatus.FOUND_VALID,
+        native_components=native_components,
         is_container=False,
         container_flags=[],
         error_detail=ver_err,

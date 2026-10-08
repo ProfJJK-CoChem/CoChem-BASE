@@ -101,7 +101,11 @@ def _paths(module_id: str, spec: dict, root: Path) -> tuple[Path, Path, Path, Pa
 
 
 def _redact(message: str) -> str:
-    for key in ("COCHEM_SOURCE_READ_TOKEN", "GITHUB_TOKEN", "GH_TOKEN", "BASE_SOURCE_READ_TOKEN", "PRIVATE_ORCA_ASSET_CREDENTIAL"):
+    for key in os.environ:
+        if not (any(marker in key.upper() for marker in
+                    ("TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "AUTHORIZATION"))
+                or key.upper().endswith("_KEY")):
+            continue
         value = os.environ.get(key)
         if value:
             message = message.replace(value, "[redacted]")
@@ -118,7 +122,7 @@ def _run(command: list[str], *, env: dict[str, str], label: str, cwd: Path | Non
 
 
 def _build_env() -> dict[str, str]:
-    blocked = {"COCHEM_SOURCE_READ_TOKEN", "BASE_SOURCE_READ_TOKEN", "PRIVATE_ORCA_ASSET_CREDENTIAL", "GH_TOKEN", "GITHUB_TOKEN", "SSH_ASKPASS", "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
+    blocked = {"COCHEM_SOURCE_READ_TOKEN", "BASE_SOURCE_READ_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "SSH_ASKPASS", "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
     env = {key: value for key, value in os.environ.items()
            if key not in blocked and not key.startswith("GIT_")
            and not any(marker in key.upper() for marker in ("TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "AUTHORIZATION"))
@@ -162,21 +166,27 @@ def _git(source: Path, *args: str) -> str:
     return _run(["git", "-C", str(source), *args], env=_build_env(), label="Git source verification")
 
 
-def _source_integrity(source: Path, spec: dict) -> dict:
+def _source_integrity(source: Path, spec: dict, *, runner=None, checkpoint=None) -> dict:
+    def git(*args):
+        if checkpoint is not None:
+            checkpoint()
+        return (runner or _run)(["git", "-C", str(source), *args], env=_build_env(), label="Git source verification")
     if not (source / ".git").is_dir():
         raise ModuleInstallationError("Module checkout is missing its Git provenance.")
-    if _git(source, "rev-parse", "HEAD") != spec["revision"]:
+    if git("rev-parse", "HEAD") != spec["revision"]:
         raise ModuleInstallationError("Module checkout does not match its pinned revision.")
     # A detached HEAD has a literal SHA in .git/HEAD; never trust a moving branch.
     if (source / ".git" / "HEAD").read_text().strip() != spec["revision"]:
         raise ModuleInstallationError("Module checkout must remain detached at its pinned revision.")
-    if _git(source, "status", "--porcelain", "--untracked-files=all", "--ignored"):
+    if git("status", "--porcelain", "--untracked-files=all", "--ignored"):
         raise ModuleInstallationError("Module checkout is dirty; retain it for inspection and use a clean installation root.")
-    if _git(source, "config", "--get", "remote.origin.url") != _repository_url(spec):
+    if git("config", "--get", "remote.origin.url") != _repository_url(spec):
         raise ModuleInstallationError("Module checkout origin differs from the reviewed repository.")
-    files = _git(source, "ls-files", "-z").split("\0")
+    files = git("ls-files", "-z").split("\0")
     digest = hashlib.sha256()
     for name in sorted(filter(None, files)):
+        if checkpoint is not None:
+            checkpoint()
         path = source / name
         if not path.resolve().is_relative_to(source.resolve()):
             raise ModuleInstallationError("Module source contains a symbolic link outside its checkout.")
@@ -189,7 +199,7 @@ def _source_integrity(source: Path, spec: dict) -> dict:
         else:
             raise ModuleInstallationError("Module checkout contains an unsupported file or uninitialized submodule.")
         digest.update(name.encode() + b"\0" + kind + b"\0" + hashlib.sha256(content).digest())
-    return {"source_tree_oid": _git(source, "rev-parse", "HEAD^{tree}"), "source_sha256": digest.hexdigest()}
+    return {"source_tree_oid": git("rev-parse", "HEAD^{tree}"), "source_sha256": digest.hexdigest()}
 
 
 # Executed with isolated Python. Hash every installed distribution, including
@@ -233,11 +243,11 @@ print(json.dumps({"distribution_metadata": target, "dependencies": packages,
 '''
 
 
-def _probe(python: Path, distribution: str) -> dict:
-    return json.loads(_run([str(python), "-I", "-B", "-c", _PROBE, distribution], env=_build_env(), label="Installed distribution integrity probe"))
+def _probe(python: Path, distribution: str, *, runner=None) -> dict:
+    return json.loads((runner or _run)([str(python), "-I", "-B", "-c", _PROBE, distribution], env=_build_env(), label="Installed distribution integrity probe"))
 
 
-def _environment_integrity(environment: Path) -> str:
+def _environment_integrity(environment: Path, *, checkpoint=None) -> str:
     """Hash the environment with trusted BASE Python before executing its code.
 
     RECORD alone misses bytecode, unowned .pth files and sitecustomize modules.
@@ -245,6 +255,8 @@ def _environment_integrity(environment: Path) -> str:
     """
     digest = hashlib.sha256()
     for path in sorted(environment.rglob("*")):
+        if checkpoint is not None:
+            checkpoint()
         relative = path.relative_to(environment).as_posix()
         if path.is_symlink():
             target = path.resolve(strict=True)
@@ -261,6 +273,8 @@ def _environment_integrity(environment: Path) -> str:
         content = hashlib.sha256()
         with path.open("rb") as stream:
             for block in iter(lambda: stream.read(1024 * 1024), b""):
+                if checkpoint is not None:
+                    checkpoint()
                 content.update(block)
         digest.update(relative.encode() + b"\0file\0" + content.digest())
     return digest.hexdigest()
@@ -304,6 +318,9 @@ def _read_receipt(path: Path) -> dict:
 
 
 def verify_installation(module_id: str, spec: dict, root: Path) -> dict:
+    if module_id == "topos" and spec.get("adapter") == "topos_handoff":
+        from scripts.mandatory_ecosystem import verify
+        return verify(spec, root)
     parent, location, source, environment = _paths(module_id, spec, root)
     receipt = _read_receipt(parent / "installation.json")
     expected = {"schema_version": RECEIPT_SCHEMA, "status": "installed", "module_id": module_id,
@@ -359,7 +376,16 @@ def fetch_module(module_id: str, spec: dict, root: Path) -> dict:
     return receipt
 
 
-def install_module(module_id: str, spec: dict, root: Path) -> dict:
+def install_module(module_id: str, spec: dict, root: Path, *, ecosystem_kit: Path | None = None) -> dict:
+    if module_id == "topos" and spec.get("adapter") == "topos_handoff":
+        from scripts.mandatory_ecosystem import install
+        if ecosystem_kit is None:
+            raise ModuleInstallationError(
+                "Current TOPOS requires the complete reviewed BASE/TOPOS/TORQ kit; "
+                "supply --ecosystem-kit with its extracted directory. No standalone module environment was created.")
+        return install(spec, root, ecosystem_kit.expanduser().resolve())
+    if ecosystem_kit is not None:
+        raise ModuleInstallationError("The complete ecosystem kit is selected only for the reviewed TOPOS adapter.")
     parent, location, source, environment = _paths(module_id, spec, root)
     receipt_path = parent / "installation.json"
     if receipt_path.exists():
@@ -422,6 +448,8 @@ def main(argv: list[str] | None = None) -> int:
         sub.add_argument("--json", action="store_true", help="Print machine-readable receipts (list always emits JSON)")
         if command != "list":
             sub.add_argument("--modules", nargs="+", required=command in {"fetch", "install"})
+        if command == "install":
+            sub.add_argument("--ecosystem-kit", type=Path, help="Extracted reviewed mandatory BASE/TOPOS/TORQ kit")
     args = parser.parse_args(argv)
     try:
         catalog = load_manifest(args.manifest)["modules"]
@@ -434,7 +462,9 @@ def main(argv: list[str] | None = None) -> int:
         if any(module_id not in catalog for module_id in selected):
             raise ValueError("Selection contains a module absent from the reviewed manifest.")
         operation = {"install": install_module, "fetch": fetch_module, "verify": verify_installation}[args.command]
-        receipts = [operation(module_id, catalog[module_id], args.root) for module_id in dict.fromkeys(selected)]
+        receipts = [operation(module_id, catalog[module_id], args.root,
+                              **({"ecosystem_kit": args.ecosystem_kit} if args.command == "install" else {}))
+                    for module_id in dict.fromkeys(selected)]
         if args.json:
             print(json.dumps({"modules": receipts}, indent=2, sort_keys=True))
         else:

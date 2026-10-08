@@ -9,14 +9,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
-import socket
 import signal
+import socket
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+# Matches the reviewed TOPOS release builder. Keep this bootstrap standalone:
+# it runs before the BASE package or its scripts namespace is installed.
+CONTROLLER_BUILD_TOOLS = {"setuptools": "80.9.0", "wheel": "0.45.1", "build": "1.3.0", "packaging": "25.0"}
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -47,6 +51,14 @@ def runtime_environment(artifact_dir: Path) -> dict[str, str]:
         env["COCHEM_XTB_BIN"] = env["XTB_CMD"]
         env["XTBPATH"] = str(xtb_root / "share" / "xtb")
         env["PATH"] = str(xtb_root / "bin") + os.pathsep + env.get("PATH", "")
+    try:
+        from .setup_licensed_engines import load_environment
+    except ImportError:
+        from setup_licensed_engines import load_environment
+    licensed_values, licensed_paths = load_environment(artifact_dir)
+    env.update(licensed_values)
+    if licensed_paths:
+        env["PATH"] = os.pathsep.join([*licensed_paths, env.get("PATH", "")])
     for variable, directory in {
         "JUPYTER_DATA_DIR": "jupyter-data",
         "JUPYTER_RUNTIME_DIR": "jupyter-runtime",
@@ -88,16 +100,28 @@ print(json.dumps({'status': config.status, 'registry_path': authority.registry_p
 
 def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) -> None:
     """Install the bounded CPU dashboard and publish genuine execution authority."""
+    requested_modules = os.environ.get("COCHEM_MODULES", "").replace(",", " ").split()
+    kit = os.environ.get("COCHEM_ECOSYSTEM_KIT", "").strip()
+    catalog = json.loads((REPO_ROOT / "scripts/module-distribution.json").read_text(encoding="utf-8"))["modules"]
+    if any(name not in catalog for name in requested_modules):
+        raise ValueError("COCHEM_MODULES must contain module IDs from scripts/module-distribution.json")
+    if "topos" in requested_modules and not kit:
+        raise ValueError("Set COCHEM_ECOSYSTEM_KIT to the extracted reviewed BASE/TOPOS/TORQ kit")
     env = runtime_environment(artifact_dir)
     subprocess.run([
         sys.executable, str(REPO_ROOT / "scripts/bootstrap_environment.py"),
         "--venv", str(python.parent.parent),
     ], cwd=REPO_ROOT, env=env, check=True)
+    # Build the controller with the same exact tools as the reviewed kit.
+    # The full installed-wheel metadata/payload checks remain unchanged.
+    subprocess.run([str(python), "-m", "pip", "install",
+                    *(f"{name}=={version}" for name, version in CONTROLLER_BUILD_TOOLS.items())],
+                   cwd=REPO_ROOT, env=env, check=True)
     # Explicitly refresh the entire UI contract, including newly added plotting
     # dependencies, even when the bootstrap import probe succeeds on an old venv.
     subprocess.run([
-        str(python), "-m", "pip", "install", "-e", ".[dev,symmetry]",
-        "-r", "requirements.txt", "-r", "requirements-ui.txt",
+        str(python), "-m", "pip", "install", "--no-build-isolation", ".[dev,symmetry,ui]",
+        "-r", "requirements.txt",
     ], cwd=REPO_ROOT, env=env, check=True)
     subprocess.run([str(python), "-m", "pip", "check"], env=env, check=True)
     subprocess.run([
@@ -107,15 +131,15 @@ def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) 
     ], cwd=REPO_ROOT, env=env, check=True)
     manifest = artifact_dir / "dashboard" / "deployment_manifest.json"
     selected_repositories = ["CoChem-BASE"]
-    requested_modules = os.environ.get("COCHEM_MODULES", "").replace(",", " ").split()
     if requested_modules:
-        catalog = json.loads((REPO_ROOT / "scripts/module-distribution.json").read_text(encoding="utf-8"))["modules"]
-        if any(name not in catalog for name in requested_modules):
-            raise ValueError("COCHEM_MODULES must contain module IDs from scripts/module-distribution.json")
-        subprocess.run([
-            str(python), str(REPO_ROOT / "scripts/manage_modules.py"), "install",
-            "--modules", *requested_modules, "--root", str(artifact_dir / "Modules"), "--json",
-        ], cwd=REPO_ROOT, env=env, check=True)
+        # TOPOS installs all three mandatory packages in its verified environment.
+        # Other module installers retain their independent legacy contract.
+        for module in dict.fromkeys(requested_modules):
+            command = [str(python), "-I", "-B", "-m", "scripts.manage_modules", "install",
+                       "--modules", module, "--root", str(artifact_dir / "Modules"), "--json"]
+            if module == "topos":
+                command += ["--ecosystem-kit", str(Path(kit).expanduser().resolve(strict=True))]
+            subprocess.run(command, cwd=artifact_dir, env=env, check=True)
         selected_repositories.extend(catalog[name]["repository"].split("/")[1]
                                      for name in dict.fromkeys(requested_modules))
     manifest.write_text(json.dumps({"selected_repositories": selected_repositories}) + "\n", encoding="utf-8")
@@ -267,7 +291,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="Minimum free workspace storage; use 1 only for bounded small-molecule acceptance")
     args = parser.parse_args(argv)
     artifacts = args.artifacts.expanduser().resolve()
-    env = runtime_environment(artifacts)
+    runtime_environment(artifacts)
     venv = args.venv.expanduser().resolve() if args.venv else artifacts / "ui-env"
     if venv == REPO_ROOT or REPO_ROOT in venv.parents:
         parser.error("The dashboard virtual environment must be outside the checkout")

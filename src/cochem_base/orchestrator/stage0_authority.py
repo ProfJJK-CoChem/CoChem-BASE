@@ -115,6 +115,13 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
                 digest = hashlib.file_digest(handle, "sha256").hexdigest()
             if digest != record.get("sha256_hash"):
                 raise Stage0AuthorityError(f"Audited executable changed since phase 3: {name}")
+            for component, expected in record.get("native_components", {}).items():
+                component_path = Path(component)
+                if not component_path.is_absolute() or not component_path.is_file():
+                    raise Stage0AuthorityError(f"Audited native component is unavailable: {name}")
+                with component_path.open("rb") as handle:
+                    if hashlib.file_digest(handle, "sha256").hexdigest() != expected:
+                        raise Stage0AuthorityError(f"Audited native component changed since phase 3: {name}")
             if name in {"xcfour", "cfour"}:
                 from cochem_base.core_engine.cfour_runtime import verify_cfour_runtime
                 runtime = verify_cfour_runtime(path)
@@ -129,6 +136,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
             path=path,
             version=record.get("version") if available else None,
             hash=digest,
+            native_components=record.get("native_components", {}) if available else {},
             track=record.get("track"),
             runtime_seal_sha256=record.get("runtime_seal_sha256") if available else None,
             runtime_metadata=record.get("runtime_metadata", {}) if available else {},
@@ -142,6 +150,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
         "cochem_ui_silo": "ui",
         "cochem_calc_silo": "calc",
         "cochem_mace_silo": "mace",
+        "cochem_aimnet2_silo": "aimnet2",
     }
     for name, record in reports[4].get("silos", {}).items():
         capabilities[name] = record.get("is_available") is True
@@ -149,10 +158,18 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
             continue
         if name not in lock_groups:
             raise Stage0AuthorityError(f"No exact dependency lock is defined for {name}")
+        lock = lock_groups[name]
+        if name == "cochem_mace_silo":
+            from cochem_base.orchestrator.ml_silo_manager import mace_profile_lock
+            from cochem_base.orchestrator.micro_silo_manager import MicroSiloValidationError
+            try:
+                lock = mace_profile_lock(record.get("dependency_profile", "cpu"))
+            except MicroSiloValidationError as exc:
+                raise Stage0AuthorityError("Unknown MACE profile in audited Stage 0 evidence") from exc
         checked = verify_micro_silo(
             record["path"],
             python_version=record["python_version"],
-            requirements=DEFAULT_PINS[lock_groups[name]],
+            requirements=DEFAULT_PINS[lock],
         )
         silos[name] = MicroSiloAuthority(
             root=record["path"],
@@ -165,6 +182,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
     for engine_name, silo_name, package in [
         ("pyscf", "cochem_calc_silo", "pyscf"),
         ("mace", "cochem_mace_silo", "mace-torch"),
+        ("aimnet2", "cochem_aimnet2_silo", "aimnet"),
     ]:
         silo = silos.get(silo_name)
         capabilities[engine_name] = silo is not None
@@ -177,6 +195,8 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
                 version=silo.packages[package],
                 hash=digest,
                 track=silo_name,
+                gpu_support=bool(engine_name == "mace" and capabilities["cuda"] and
+                                 reports[4]["silos"][silo_name].get("dependency_profile") == "cuda128"),
             )
         else:
             engines[engine_name] = EngineInfo(status="missing")
@@ -223,7 +243,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
         ),
         silo_paths=SiloPathsSchema(**silo_paths, strict_resolution=True),
         silos=SiloConfig(
-            gpu_silo_active=capabilities["cuda"] and capabilities.get("cochem_mace_silo", False)
+            gpu_silo_active=bool(engines.get("mace") and engines["mace"].gpu_support)
         ),
         alignment_engine_ready=capabilities["alignment"],
         stage0=Stage0Authority(

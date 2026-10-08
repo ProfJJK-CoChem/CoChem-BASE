@@ -77,11 +77,11 @@ def test_requested_calc_only_and_skip_heavy_have_explicit_effective_selection(tm
     assert configs[SiloType.CALC.value].is_requested
     assert not configs[SiloType.MACE.value].is_requested
     assert not configs[SiloType.UI.value].is_requested
-    assert audit.disk_space_saved_estimated_mb == 4500
+    assert audit.disk_space_saved_estimated_mb == 9000
     skipped = filter_silos_by_manifest(manifest, skip_heavy_flag=True)
     assert skipped.requested_silos == requested
     assert not skipped.heavy_silos_requested
-    assert set(skipped.skipped_silos) == {SiloType.UI.value, SiloType.CALC.value, SiloType.MACE.value}
+    assert set(skipped.skipped_silos) == {SiloType.UI.value, SiloType.CALC.value, SiloType.MACE.value, SiloType.AIMNET2.value}
     assert get_default_silo_configs(tmp_path, skipped)[SiloType.CORE.value].is_requested
 
 
@@ -135,4 +135,4 @@ def test_silo_argument_contradictions_fail_and_mandatory_core_is_retained():
         filter_silos_by_manifest({"requested_silos": [SiloType.CALC.value]}, requested_silos=[])
     audit = filter_silos_by_manifest({"requested_silos": []})
     assert SiloType.CORE.value not in audit.skipped_silos
-    assert set(audit.skipped_silos) == {SiloType.UI.value, SiloType.CALC.value, SiloType.MACE.value}
+    assert set(audit.skipped_silos) == {SiloType.UI.value, SiloType.CALC.value, SiloType.MACE.value, SiloType.AIMNET2.value}

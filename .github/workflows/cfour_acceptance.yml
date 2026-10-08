@@ -14,21 +14,12 @@ on:
         required: true
         type: string
     secrets:
-      PRIVATE_CFOUR_ASSET_CREDENTIAL:
-        required: true
+      asset_credential:
+        description: Explicit read-only credential for a reusable private caller.
+        required: false
       BASE_SOURCE_READ_TOKEN:
         description: Optional read-only access when a reusable caller cannot read the private BASE source.
         required: false
-  # Register and exercise the integration before it reaches the default branch.
-  # Assignment branches and pull requests do not automatically run licensed jobs.
-  push:
-    branches: [codex/cfour-optional-integration]
-    paths:
-      - '.github/actions/setup-cfour/**'
-      - '.github/workflows/cfour_acceptance.yml'
-      - 'scripts/*cfour*'
-      - 'src/cochem_base/calc/cfour_execution.py'
-
 permissions:
   contents: read
 
@@ -37,7 +28,42 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-private-project:
+    name: Validate private project and licensed asset access configuration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require a private repository and an explicitly selected credential
+        env:
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          EXECUTION_EVENT: ${{ github.event_name }}
+          ASSET_CREDENTIAL_NAME: ${{ vars.COCHEM_CFOUR_ASSET_CREDENTIAL }}
+          ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_CFOUR_ASSET_CREDENTIAL] || secrets.asset_credential }}
+        run: |
+          set -euo pipefail
+          if [[ "$REPOSITORY_PRIVATE" != true ]]; then
+            echo '::error::Licensed calculations require a private project repository.'
+            exit 1
+          fi
+          if [[ "$EXECUTION_EVENT" != workflow_dispatch ]]; then
+            echo '::error::Licensed calculations require an explicit workflow dispatch.'
+            exit 1
+          fi
+          if [[ -z "$ASSET_CREDENTIAL_NAME" && -z "$ASSET_CREDENTIAL" ]]; then
+            echo '::error::Configure the private COCHEM_CFOUR_ASSET_CREDENTIAL variable and its selected secret, or pass asset_credential from a private reusable caller.'
+            exit 1
+          fi
+          if [[ -n "$ASSET_CREDENTIAL_NAME" && ! "$ASSET_CREDENTIAL_NAME" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+            echo '::error::The private asset credential selector must be a valid secret identifier.'
+            exit 1
+          fi
+          if [[ -z "$ASSET_CREDENTIAL" ]]; then
+            echo '::error::The selected private asset credential is unavailable. Confirm access in this project repository.'
+            exit 1
+          fi
   licensed-calculations:
+    needs: validate-private-project
+    if: github.event.repository.private
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -106,7 +132,7 @@ jobs:
       - name: Install the checksum-pinned private CFOUR runtime
         uses: ./.github/actions/setup-cfour
         with:
-          asset-token: ${{ secrets.PRIVATE_CFOUR_ASSET_CREDENTIAL }}
+          asset-token: ${{ secrets[vars.COCHEM_CFOUR_ASSET_CREDENTIAL] || secrets.asset_credential }}
           required: 'true'
       - name: Install BASE and execute all eleven Stage 0 phases
         run: |

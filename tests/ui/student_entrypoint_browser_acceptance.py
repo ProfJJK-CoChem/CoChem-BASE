@@ -608,10 +608,12 @@ def main() -> None:
                     r2 = page.get_by_label("Recipe R2: reference monomers and intermolecular relaxation", exact=True)
                     r2.check()
                     select_prefix(page.get_by_label("Calculation operation:", exact=True), "Single point")
+                    page.get_by_text("Base Config", exact=True).click()
                     expect(page.get_by_text("Recipe R2 requires intermolecular optimization", exact=False).first).to_be_visible(timeout=30000)
                     expect(page.get_by_role("button", name="Run ORCA single point", exact=True)).to_be_disabled()
                     page.screenshot(path=str(artifact / "r2-singlepoint-disabled.png"), full_page=True)
                     select_prefix(page.get_by_label("Calculation operation:", exact=True), "Optimization")
+                    page.get_by_text("Fragments / Frozen", exact=True).click()
                     r2.uncheck()
                     report["r2_operation_guard"] = {"genuine_reference_package_retained": True,
                         "single_point_disabled": True, "scientific_execution_performed": False}

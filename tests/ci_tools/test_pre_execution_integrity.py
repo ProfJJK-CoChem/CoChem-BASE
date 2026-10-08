@@ -173,17 +173,28 @@ def test_registered_fixture_cannot_use_untracked_data(tmp_path):
 
 def test_git_inspection_disables_fsmonitor_and_refuses_external_conversion(tmp_path):
     import shlex
+    import sys
+    from pathlib import Path
 
     from tests.ci_tools.integrity_control_repository import git
     root, revision = repository(tmp_path, CONTROL_TEST)
     sentinel = tmp_path / "untrusted-git-program-ran"
-    command = tmp_path / "untrusted-git-program.sh"
-    command.write_text("#!/bin/sh\nprintf invoked > " + shlex.quote(str(sentinel)) + "\ncat\n")
-    command.chmod(0o700)
-    git(root, "config", "core.fsmonitor", str(command))
+    program = tmp_path / "untrusted-git-program.py"
+    program.write_text("from pathlib import Path\nimport sys\nPath(" + repr(str(sentinel))
+                       + ").write_text('invoked')\nsys.stdout.buffer.write(b'control-token\\0/\\0')\n",
+                       encoding="utf-8")
+    # Git executes hook commands with its native shell, including Git Bash on
+    # Windows. This real external interpreter control must demonstrably run
+    # before its absence can prove the canonical inspector disabled it.
+    command = " ".join(shlex.quote(path.as_posix())
+                       for path in (Path(sys.executable).absolute(), program))
+    git(root, "config", "core.fsmonitor", command)
+    git(root, "status", "--porcelain=v1", "--untracked-files=no")
+    assert sentinel.read_text() == "invoked"
+    sentinel.unlink()
     report = verify_source_binding(root, expected_revision=revision)
     assert report["passed"] and not sentinel.exists()
-    git(root, "config", "filter.control.clean", str(command))
+    git(root, "config", "filter.control.clean", command)
     with pytest.raises(InfrastructureIntegrityError, match="External Git conversion programs"):
         verify_source_binding(root, expected_revision=revision)
     assert not sentinel.exists()

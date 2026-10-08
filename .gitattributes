@@ -1,8 +1,7 @@
-# Keep executable source and workflow bytes portable across Git checkouts.
-*.py text eol=lf
-*.yml text eol=lf
-*.yaml text eol=lf
-*.sh text eol=lf
+# Keep every tracked text file byte-identical on native Windows, Linux and macOS.
+# Git detects binary files; the scientific provenance exceptions below retain
+# their original bytes even when an independently measured output is textual.
+* text=auto eol=lf
 
 # Preserve independently hashed scientific fixture bytes on every platform.
 # Native output whitespace is part of its immutable provenance.

@@ -1,6 +1,12 @@
-# BASE GUI and integration conformance
+# Historical BASE GUI and integration record — 2026-10-06/07
 
-The current scope is **BASE ingestion, environment setup, execution infrastructure and GUI**. TOPOS and TORQ are subsequent repository integrations. Their future scientific solvers are not substituted with BASE widgets or synthetic results. The baseline remains Chunk 17 plus BASE proposal additions and the [GUI Architecture Charter](improvements/GUI_Architecture_Charter.md).
+This record describes **BASE ingestion, environment setup, execution infrastructure and GUI** at the 2026-10-06/07 snapshot. TOPOS and TORQ were subsequent repository integrations at that point. Their scientific solvers were not substituted with BASE widgets or synthetic results. The baseline remains Chunk 17 plus BASE proposal additions and the [GUI Architecture Charter](improvements/GUI_Architecture_Charter.md).
+
+The export/manual-dispatch route recorded below is historical. For current
+personal private projects, App enrollment, automatic setup and direct GUI
+submission/retrieval, follow the [student research guide](Student_Research_No_Code.md)
+and [instructor App deployment guide](Personal_Project_App_Deployment.md).
+The evidence below retains its original scope and does not validate those later routes.
 
 | BASE responsibility | Implementation and evidence | Boundary |
 | --- | --- | --- |
@@ -38,8 +44,9 @@ parity report is
 passed for the parent and simultaneous 18O/D2 substitution, unchanged Hessian,
 geometry mismatch rejection and absent unsupported anharmonic corrections.
 These are local acceptance facts, not final hosted run results or a universal
-chemical accuracy certificate. The [Classroom50 guide](GitHub_Classroom_ORCA_Setup.md)
-and [release record](Release_1_0_0.md) describe the current student route.
+chemical accuracy certificate. The [1.0.0 release record](Release_1_0_0.md)
+describes that historical release; use the current student guide linked above
+for the selected personal-project route.
 
 `tests/base/test_module_handoff_contract.py` verifies copied input, tamper detection, invalid geometry, source-tree write rejection, destination preservation, GUI handoff, raw/exported periodic structures and rejection of false verification claims. Legacy boundary tests prepare and revalidate actual geometry packages. The physical UI tests start real child processes with explicit configuration environments; they do not replace imported functions or use environment monkeypatches.
 

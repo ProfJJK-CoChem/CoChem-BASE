@@ -37,6 +37,26 @@ logger = logging.getLogger("zero_trust_runner")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
+@dataclass(frozen=True)
+class QuarantineCleanupObservation:
+    """Owned work termination and separately observed OS collection custody."""
+    launcher_pid: int
+    launcher_returncode: Optional[int]
+    owned_work_stopped: bool
+    ownership_scope: str
+    collection_observation: str
+    external_reaping_pending: tuple[tuple[int, float], ...] = ()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "launcher_pid": self.launcher_pid, "launcher_returncode": self.launcher_returncode,
+            "owned_work_stopped": self.owned_work_stopped, "ownership_scope": self.ownership_scope,
+            "collection_observation": self.collection_observation,
+            "external_reaping_pending": [{"pid": pid, "create_time": created}
+                                         for pid, created in self.external_reaping_pending],
+        }
+
+
 @dataclass
 class QuarantineResult:
     """Result of a command executed within the sterile quarantine environment."""
@@ -47,9 +67,10 @@ class QuarantineResult:
     duration_s: float
     passed: bool
     timed_out: bool = False
+    cleanup_observation: Optional[QuarantineCleanupObservation] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "exit_code": self.exit_code,
             "stdout": self.stdout,
             "stderr": self.stderr,
@@ -58,6 +79,9 @@ class QuarantineResult:
             "passed": self.passed,
             "timed_out": self.timed_out,
         }
+        if self.cleanup_observation is not None:
+            result["cleanup_observation"] = self.cleanup_observation.to_dict()
+        return result
 
 
 _ACTIVE_PROCESSES: set[subprocess.Popen] = set()
@@ -170,17 +194,129 @@ class _WindowsJob:
             raise ctypes.WinError(ctypes.get_last_error())
         deadline = time.monotonic() + max(0.0, timeout)
         while True:
-            accounting = _JobAccounting()
-            if not self.kernel.QueryInformationJobObject(
-                self.handle, 1, ctypes.byref(accounting), ctypes.sizeof(accounting), None,
-            ):
-                raise ctypes.WinError(ctypes.get_last_error())
-            if accounting.ActiveProcesses == 0:
+            if self.active_processes() == 0:
                 self.close()
                 return True
             if time.monotonic() >= deadline:
                 return False
             time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+
+    def active_processes(self) -> int:
+        if not self.handle:
+            return 0
+        accounting = _JobAccounting()
+        if not self.kernel.QueryInformationJobObject(
+            self.handle, 1, ctypes.byref(accounting), ctypes.sizeof(accounting), None,
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return accounting.ActiveProcesses
+
+
+def _windows_directory_security(path: Path, *, enforce: bool) -> dict:
+    """Set/check a protected native DACL; POSIX mode bits are not Windows ACLs."""
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    security = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel.GetCurrentProcess.argtypes = []
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+    kernel.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel.LocalFree.restype = ctypes.c_void_p
+    security.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    security.OpenProcessToken.restype = wintypes.BOOL
+    security.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                                            wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    security.GetTokenInformation.restype = wintypes.BOOL
+    security.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.LPWSTR)]
+    security.ConvertSidToStringSidW.restype = wintypes.BOOL
+    security.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [
+        wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p,
+    ]
+    security.ConvertStringSecurityDescriptorToSecurityDescriptorW.restype = wintypes.BOOL
+    security.SetFileSecurityW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p]
+    security.SetFileSecurityW.restype = wintypes.BOOL
+    security.GetFileSecurityW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p,
+                                        wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    security.GetFileSecurityW.restype = wintypes.BOOL
+    security.GetSecurityDescriptorControl.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.WORD),
+                                                      ctypes.POINTER(wintypes.DWORD)]
+    security.GetSecurityDescriptorControl.restype = wintypes.BOOL
+    security.GetSecurityDescriptorDacl.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.BOOL),
+        ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.BOOL)]
+    security.GetSecurityDescriptorDacl.restype = wintypes.BOOL
+    security.GetAclInformation.argtypes = [ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.c_int]
+    security.GetAclInformation.restype = wintypes.BOOL
+    security.GetAce.argtypes = [ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p)]
+    security.GetAce.restype = wintypes.BOOL
+
+    def sid_text(sid: int) -> str:
+        text = wintypes.LPWSTR()
+        if not security.ConvertSidToStringSidW(sid, ctypes.byref(text)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            return text.value
+        finally:
+            if kernel.LocalFree(ctypes.cast(text, ctypes.c_void_p)):
+                raise ctypes.WinError(ctypes.get_last_error())
+
+    token = wintypes.HANDLE()
+    if not security.OpenProcessToken(kernel.GetCurrentProcess(), 0x0008, ctypes.byref(token)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        size = wintypes.DWORD()
+        security.GetTokenInformation(token, 1, None, 0, ctypes.byref(size))
+        if not size.value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        user = ctypes.create_string_buffer(size.value)
+        if not security.GetTokenInformation(token, 1, user, size, ctypes.byref(size)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        current_sid = sid_text(ctypes.cast(user, ctypes.POINTER(ctypes.c_void_p)).contents.value)
+    finally:
+        if not kernel.CloseHandle(token):
+            raise ctypes.WinError(ctypes.get_last_error())
+    allowed = {current_sid, "S-1-5-18", "S-1-5-32-544"}
+    if enforce:
+        descriptor = ctypes.c_void_p()
+        sddl = "D:P" + "".join(f"(A;OICI;FA;;;{sid})" for sid in sorted(allowed))
+        if not security.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, ctypes.byref(descriptor), None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            if not security.SetFileSecurityW(str(path), 0x80000004, descriptor):
+                raise ctypes.WinError(ctypes.get_last_error())
+        finally:
+            if kernel.LocalFree(descriptor):
+                raise ctypes.WinError(ctypes.get_last_error())
+    size = wintypes.DWORD()
+    security.GetFileSecurityW(str(path), 4, None, 0, ctypes.byref(size))
+    if not size.value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    actual = ctypes.create_string_buffer(size.value)
+    if not security.GetFileSecurityW(str(path), 4, actual, size, ctypes.byref(size)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    control, revision = wintypes.WORD(), wintypes.DWORD()
+    if not security.GetSecurityDescriptorControl(actual, ctypes.byref(control), ctypes.byref(revision)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    present, defaulted, acl = wintypes.BOOL(), wintypes.BOOL(), ctypes.c_void_p()
+    if not security.GetSecurityDescriptorDacl(actual, ctypes.byref(present), ctypes.byref(acl), ctypes.byref(defaulted)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    if not control.value & 0x1000 or not present.value or not acl.value:
+        raise PermissionError("Windows quarantine root does not have a protected, explicit DACL")
+    counts = (wintypes.DWORD * 3)()
+    if not security.GetAclInformation(acl, counts, ctypes.sizeof(counts), 2):
+        raise ctypes.WinError(ctypes.get_last_error())
+    principals = set()
+    for index in range(counts[0]):
+        ace = ctypes.c_void_p()
+        if not security.GetAce(acl, index, ctypes.byref(ace)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        header = (ctypes.c_ubyte * 4).from_address(ace.value)
+        mask = ctypes.c_uint32.from_address(ace.value + 4).value
+        if header[0] != 0 or header[1] != 3 or mask != 0x001F01FF:
+            raise PermissionError("Unexpected access entry on Windows quarantine root")
+        principals.add(sid_text(ace.value + 8))
+    if principals != allowed or counts[0] != len(allowed):
+        raise PermissionError("Unexpected principal access on Windows quarantine root")
+    return {"protected_dacl": True, "allowed_principal_count": len(allowed)}
 
 
 @dataclass
@@ -191,6 +327,7 @@ class _ProcessOwner:
     leader: Any = None
     descendants: tuple = ()
     windows_job: Optional[_WindowsJob] = None
+    external_reaping_pending: tuple = ()
 
 
 _PROCESS_OWNERS: Dict[subprocess.Popen, _ProcessOwner] = {}
@@ -347,9 +484,37 @@ def _stop_owned_process(
     except subprocess.TimeoutExpired:
         return False
     if descendants:
-        _, alive = psutil.wait_procs(descendants, timeout=max(0.0, deadline - time.monotonic()))
+        same_generation = []
+        for child in descendants:
+            try:
+                if child.is_running():
+                    same_generation.append(child)
+            except psutil.NoSuchProcess:
+                continue
+            except psutil.AccessDenied:
+                return False
+        _, alive = psutil.wait_procs(same_generation, timeout=max(0.0, deadline - time.monotonic()))
         if alive:
-            return False
+            if sys.platform.startswith("linux"):
+                return False
+            terminal = dict(owner.external_reaping_pending)
+            for child in alive:
+                try:
+                    if not child.is_running():
+                        continue
+                    if child.status() != psutil.STATUS_ZOMBIE:
+                        return False
+                    created = child.create_time()
+                    if not child.is_running():
+                        continue
+                    terminal[child.pid] = created
+                except psutil.NoSuchProcess:
+                    continue
+                except psutil.AccessDenied:
+                    return False
+            owner.external_reaping_pending = tuple(sorted(terminal.items()))
+            if terminal:
+                logger.info("Owned descendants terminated; system reaper owns terminal PIDs %s", terminal)
     if owns_group:
         while True:
             _reap_owned_group(process.pid)
@@ -359,6 +524,37 @@ def _stop_owned_process(
                 break
             except PermissionError:
                 return False
+            if psutil is not None and not sys.platform.startswith("linux"):
+                members, current_terminal = set(), set()
+                terminal = dict(owner.external_reaping_pending)
+                for member in psutil.process_iter(["pid"]):
+                    try:
+                        if member.pid <= 0 or os.getpgid(member.pid) != process.pid:
+                            continue
+                        current = psutil.Process(member.pid)
+                        created = current.create_time()
+                        if os.getpgid(current.pid) != process.pid:
+                            continue
+                        status = current.status()
+                        if not current.is_running():
+                            if psutil.pid_exists(current.pid):
+                                return False
+                            continue
+                        if os.getpgid(current.pid) != process.pid:
+                            return False
+                        identity = (current.pid, created)
+                        members.add(identity)
+                        if status == psutil.STATUS_ZOMBIE:
+                            terminal[current.pid] = created
+                            current_terminal.add(identity)
+                    except (ProcessLookupError, psutil.NoSuchProcess):
+                        continue
+                    except (PermissionError, psutil.AccessDenied):
+                        return False
+                if members and members == current_terminal:
+                    owner.external_reaping_pending = tuple(sorted(terminal.items()))
+                    logger.info("Owned workers terminated; system reaper owns terminal PIDs %s", terminal)
+                    break
             if time.monotonic() >= deadline:
                 return False
             time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
@@ -428,6 +624,21 @@ class QuarantineEnvironment:
         self.quarantine_dir = self.base_dir / f"{self.prefix}{self.quarantine_id}"
         self._active_processes: set[subprocess.Popen] = set()
         self._process_owners: Dict[subprocess.Popen, _ProcessOwner] = {}
+        self._cleanup_observations: List[QuarantineCleanupObservation] = []
+
+    @property
+    def cleanup_observations(self) -> tuple[QuarantineCleanupObservation, ...]:
+        return tuple(self._cleanup_observations)
+
+    def _record_cleanup(self, process: subprocess.Popen, owner: _ProcessOwner, finished: bool) -> QuarantineCleanupObservation:
+        scope = "windows-job" if owner.windows_job is not None else (
+            "posix-group" if owner.owns_posix_group else "explicit-parent-handle")
+        collection = ("terminal-workers-awaiting-system-reaper" if owner.external_reaping_pending else
+                      ("owned-boundary-empty" if finished else "incomplete"))
+        observation = QuarantineCleanupObservation(process.pid, process.returncode, finished, scope,
+                                                   collection, tuple(owner.external_reaping_pending))
+        self._cleanup_observations.append(observation)
+        return observation
 
     def __enter__(self) -> "QuarantineEnvironment":
         self.quarantine_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -447,6 +658,8 @@ class QuarantineEnvironment:
             self.quarantine_dir.chmod(0o700)
             if stat.S_IMODE(self.quarantine_dir.stat().st_mode) != 0o700:
                 raise PermissionError(f"Quarantine directory is not private: {self.quarantine_dir}")
+        elif os.name == "nt":
+            _windows_directory_security(self.quarantine_dir, enforce=True)
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         deadline = time.monotonic() + _CLEANUP_TIMEOUT_S
@@ -461,6 +674,7 @@ class QuarantineEnvironment:
                     raise
                 finished = False
                 logger.warning("Quarantine context cleanup failed: %s", error)
+            self._record_cleanup(process, self._process_owners[process], finished)
             if finished:
                 _unregister_process(process)
                 self._active_processes.discard(process)
@@ -488,12 +702,14 @@ class QuarantineEnvironment:
         # Explicit caller overrides take precedence over inherited bindings.
         # The CLI sets these to its copied quarantine checkout.
         root_env = env.get("COCHEM_ROOT")
-        if root_env and "PYTHONPATH" not in (env_overrides or {}):
+        if (root_env and "PYTHONPATH" not in (env_overrides or {})
+                and (environment is None or "PYTHONPATH" not in environment)):
             env["PYTHONPATH"] = str(Path(root_env).resolve())
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
 
         start_time = time.monotonic()
+        cleanup_observation = None
         try:
             self._enforce_private_root()
             _enable_owned_descendant_reaping()
@@ -537,6 +753,7 @@ class QuarantineEnvironment:
                         raise
                     finished = False
                     logger.warning("Owned command cleanup failed: %s", cleanup_error)
+                cleanup_observation = self._record_cleanup(process, owner, finished)
                 if finished:
                     _unregister_process(process)
                     self._active_processes.discard(process)
@@ -560,6 +777,7 @@ class QuarantineEnvironment:
                 duration_s=round(duration, 4),
                 passed=passed,
                 timed_out=False,
+                cleanup_observation=cleanup_observation,
             )
         except subprocess.TimeoutExpired as e:
             duration = time.monotonic() - start_time
@@ -572,6 +790,7 @@ class QuarantineEnvironment:
                 duration_s=round(duration, 4),
                 passed=False,
                 timed_out=True,
+                cleanup_observation=cleanup_observation,
             )
         except Exception as e:
             duration = time.monotonic() - start_time
@@ -584,6 +803,7 @@ class QuarantineEnvironment:
                 duration_s=round(duration, 4),
                 passed=False,
                 timed_out=False,
+                cleanup_observation=cleanup_observation,
             )
 
 
@@ -602,7 +822,7 @@ def main() -> int:
     import argparse
     import hashlib
     import json
-    
+
     parser = argparse.ArgumentParser(description="Zero-Trust Quarantine Runner")
     parser.add_argument("--nonce", type=str, help="Cryptographic nonce for ExecutionReceipt", default="UNKNOWN_NONCE")
     parser.add_argument("--expected-revision", help="Full immutable reviewed Git commit SHA")
@@ -613,7 +833,7 @@ def main() -> int:
     if not args.command:
         logger.error("Usage: zero_trust_runner.py [--nonce NONCE] <command...>")
         return 1
-        
+
     command = args.command
     if command[0] == "--":
         command = command[1:]
@@ -640,13 +860,13 @@ def main() -> int:
     except InfrastructureIntegrityError as error:
         logger.error("%s", error)
         return 1
-    
+
     with QuarantineEnvironment() as qe:
         # The reviewed copy excludes student files, licensed runtimes and parent
         # Git configuration. Generic run_command/copy_paths remain caller APIs.
         _copy_reviewed_source(cwd, qe.quarantine_dir, binding)
         copied_before = tracked_source_snapshot(qe.quarantine_dir)
-        
+
         # Rewrite proven source paths only. Runtime/input paths and all other
         # literal argument bytes keep their caller meaning.
         new_command = []
@@ -674,7 +894,7 @@ def main() -> int:
                 # A program string or arbitrary literal is not a filesystem path.
                 rewritten = value
             new_command.append(prefix + separator + rewritten)
-                
+
         # 3. Set PYTHONPATH and COCHEM_ROOT strictly to quarantine directory
         extra_paths = [str(qe.quarantine_dir)]
         for relative in ("src", "ci_tools"):
@@ -712,6 +932,7 @@ def main() -> int:
         "copied_after_sha256": source_seal(copied_after),
         "source_changed": changed_original, "copied_source_changed": changed_copy,
         "post_binding_error": post_binding_error,
+        "cleanup_observation": res.cleanup_observation.to_dict() if res.cleanup_observation is not None else None,
         "release_accepted": bool(binding["release_accepted"] and res.passed),
     }
     print("SOURCE_BINDING_REPORT: " + json.dumps(source_report, sort_keys=True))
@@ -720,13 +941,13 @@ def main() -> int:
         print(res.stdout)
     if res.stderr:
         print(res.stderr, file=sys.stderr)
-        
+
     # Generate Cryptographic ExecutionReceipt
     stdout_hash = hashlib.sha256((res.stdout or "").encode('utf-8')).hexdigest()
     stderr_hash = hashlib.sha256((res.stderr or "").encode('utf-8')).hexdigest()
     receipt = f"\n=== EXECUTION RECEIPT ===\nNONCE: {args.nonce}\nEXIT_CODE: {res.exit_code}\nDURATION: {res.duration_s}s\nSTDOUT_HASH: {stdout_hash}\nSTDERR_HASH: {stderr_hash}\n===========================\n"
     print(receipt)
-    
+
     return res.exit_code
 
 if __name__ == "__main__":

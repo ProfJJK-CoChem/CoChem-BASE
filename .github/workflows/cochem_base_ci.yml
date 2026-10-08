@@ -58,7 +58,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install only CI-control test dependencies
-        run: python -m pip install pytest psutil pyyaml
+        run: python -m pip install pytest psutil pyyaml setuptools wheel
       - name: Exercise actual process isolation, canonical guards, and evidence failure modes
         shell: bash
         run: python -B ci_tools/base_ci.py controls --expected-revision "$COCHEM_EXPECTED_REVISION" --output "${{ runner.temp }}/ci-controls"

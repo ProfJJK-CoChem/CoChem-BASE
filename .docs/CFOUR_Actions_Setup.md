@@ -178,7 +178,7 @@ only; a separate CFOUR or CoChem module checkout is not required.
 
 1. Upload your own Avogadro 2 monomer or complex XYZ geometry through BASE.
    Declare charge and multiplicity; XYZ files do not supply those values.
-2. Select **GitHub Actions**, your accepted assignment repository and the
+2. Select **GitHub Actions**, your enrolled personal private project repository and the
    available CFOUR engine. Choose the supported method, basis and operation.
 3. Submit through **Run with GitHub Actions**. BASE creates the request,
    submits it, monitors its actual status and provides cancellation.
@@ -190,8 +190,9 @@ only; a separate CFOUR or CoChem module checkout is not required.
 
 Follow the [student research guide](Student_Research_No_Code.md) for the
 complete interface journey. Students do not run installation scripts, edit
-JSON, commit job requests or dispatch workflows manually. The instructor
-provides approved runtime access through the organization Actions secret.
+JSON, commit job requests or dispatch workflows manually. The instructor's
+[GitHub App](Personal_Project_App_Deployment.md) encrypts approved runtime access
+into the enrolled personal private project after its membership and consent checks.
 
 The molecular CFOUR adapter supports closed-shell HF calculations and supported
 MP2/CCSD/CCSD(T) single points. Connected optimization and harmonic frequencies

@@ -9,13 +9,18 @@ It preserves actual inputs, engine identity, resource allocation, outputs and
 scientific records needed to assess a result.
 
 **Instructors: follow the
-[Classroom50 assignment deployment guide](.docs/Classroom50_Assignment_Deployment.md)**
-to prepare the release template, configure access, pilot one student and roll
-the assignment out to the course. **Students: start with the
+[personal-project App deployment guide](.docs/Personal_Project_App_Deployment.md)**
+to configure access and pilot one student. Use the
+[Classroom50 collection guide](.docs/Classroom50_Assignment_Deployment.md)
+for course enrollment, submissions and feedback. **Students: start with the
 [graphical research guide](.docs/Student_Research_No_Code.md).**
-Open **your accepted Classroom50 repository → Code → Codespaces → Create codespace**,
-wait for automatic setup, then open the private **8866 CoChem Voilà dashboard**
-from VS Code's Ports panel. The student route uses buttons and file uploads.
+Create a **Private** copy of the instructor's approved BASE template under
+**your personal GitHub account**, then choose **Code → Codespaces → Create codespace**.
+Open the private **8866 CoChem Voilà dashboard** from VS Code's Ports panel.
+Use **Lab access** to authorize the instructor's App for this selected project
+and request enrollment. After approval, stop the initial Codespace and create
+a **fresh Codespace** for automatic private-module setup. Classroom50 collects
+course work separately. The student route uses buttons and file uploads.
 Students upload their own Avogadro 2 monomers or complexes. BASE automatically
 installs its approved modules and provides calculation submission, monitoring,
 result retrieval, scientific reports and compatible updates in the GUI.
@@ -59,7 +64,7 @@ before rolling a new template out to the course.
 
 | Route | How to use it | Validation boundary |
 | --- | --- | --- |
-| Classroom50 / GitHub Actions | Accept the assignment, open BASE in Codespaces, upload XYZ and select **Run on GitHub Actions**. | Exact submitted structures and approved scientific worker revisions bind the retained results. Hosted execution is distinct from actual student Codespaces acceptance. |
+| Personal private project / GitHub Actions | Create a private BASE template copy, enroll it through **Lab access**, open a fresh Codespace after approval, upload scientific inputs and select **Run on GitHub Actions**. Classroom50 handles course collection separately. | Exact submitted structures and approved scientific worker revisions bind the retained results. Hosted execution is distinct from actual student Codespaces acceptance. |
 | Local Linux CPU | Complete Stage 0 and select an audited installed engine. | Local tests and real bounded calculations provide evidence for documented operations. |
 | Windows / WSL2 | Submit Actions jobs from the interface; use WSL2 for local Linux ORCA. | The Linux archive does not run natively on Windows. WSL acceptance is separate from Linux cloud tests. |
 | macOS | Use Actions or install the matching macOS engine build and complete setup. | Native macOS acceptance needs an appropriate host. Linux binaries and registries are not portable to it. |
@@ -78,11 +83,13 @@ distribution is ORCA 6.1.1 for Linux x86-64 with Open MPI 4.1.8; its SHA-256 is
 checked before extraction. The licensed binary is not included in this
 repository, Python distributions or calculation artifacts.
 
-1. Accept the Classroom50 assignment, create its Codespace and wait for automatic
-   setup. Open the private Voilà dashboard on port 8866.
+1. Create a private BASE template copy under your personal account. Open its
+   initial Codespace and private Voilà dashboard on port 8866. Follow **Lab
+   access** to authorize the instructor's App and request enrollment. After
+   approval, stop that Codespace, create a fresh one and wait for automatic setup.
 2. Upload your own monomer or complex XYZ files and declare their charge and
    multiplicity. BASE preserves the original files separately from software.
-3. Select **GitHub Actions**, the accepted assignment repository, a supported
+3. Select **GitHub Actions**, your enrolled private project repository, a supported
    method and operation, then submit through BASE. No JSON editing, terminal
    command, separate module checkout or manual workflow dispatch is required.
 4. Use BASE's status, cancellation and verified result retrieval controls.

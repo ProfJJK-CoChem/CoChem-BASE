@@ -550,7 +550,7 @@ def _profile_environment(root: Path, copied: Path, environment: dict[str, str] |
     env = dict(os.environ if environment is None else environment)
     for key in ("PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE", "PYTHONSTARTUP", "PYTEST_ADDOPTS", "PYTEST_PLUGINS",
                 "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_CONFIG",
-                "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS"):
+                "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "COCHEM_CI_CONTROL_EVIDENCE_DIR"):
         env.pop(key, None)
     for key in list(env):
         if key.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")):
@@ -575,6 +575,19 @@ def _profile_environment(root: Path, copied: Path, environment: dict[str, str] |
             if path.is_relative_to(root):
                 env[key] = str(copied / path.relative_to(root))
     return env
+
+
+def _control_evidence_directory(output: Path) -> Path:
+    """Reserve only a contained directory for small actual process receipts."""
+    destination = output / "process-controls"
+    if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
+        raise InfrastructureIntegrityError("[HARD_ABORT: SOURCE QUARANTINE EVIDENCE] Unsafe control receipt destination")
+    destination.mkdir(mode=0o700, exist_ok=True)
+    if destination.resolve().parent != output.resolve():
+        raise InfrastructureIntegrityError("[HARD_ABORT: SOURCE QUARANTINE EVIDENCE] Control receipts escaped profile evidence")
+    if os.name == "posix":
+        destination.chmod(0o700)
+    return destination.resolve()
 
 
 def run_profile(root: Path, output: Path, *, test_paths: Any = None, controls: bool = False,
@@ -633,8 +646,12 @@ def run_profile(root: Path, output: Path, *, test_paths: Any = None, controls: b
             if not controls:
                 command.extend(["-p", "pytest_asyncio.plugin"])
             command.extend(selectors)
-            completed = quarantine.run_command(command, timeout=timeout,
-                environment=_profile_environment(root, copied, environment))
+            profile_environment = _profile_environment(root, copied, environment)
+            if controls:
+                profile_environment["COCHEM_CI_CONTROL_EVIDENCE_DIR"] = str(_control_evidence_directory(output))
+            completed = quarantine.run_command(command, timeout=timeout, environment=profile_environment)
+            if completed.cleanup_observation is not None:
+                report["cleanup_observation"] = completed.cleanup_observation.to_dict()
             (output / "pytest.stdout.log").write_text(completed.stdout, encoding="utf-8")
             (output / "pytest.stderr.log").write_text(completed.stderr, encoding="utf-8")
             copy_after = tracked_source_snapshot(copied)

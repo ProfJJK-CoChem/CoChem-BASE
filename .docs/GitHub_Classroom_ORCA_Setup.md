@@ -30,7 +30,7 @@ grade. Inspect supported HDF5/harmonic bundles in Data Inspector without a local
 licensed runtime. Cancel/status/download use the exact task identity. Cleanup
 requires the genuine terminal run and deletes only its exact staged asset.
 
-## Instructor and source setup
+## Instructor setup
 
 Use [the assignment deployment guide](Classroom50_Assignment_Deployment.md)
 for Classroom50 setup, enrollment, template review and the one-student pilot.
@@ -175,6 +175,21 @@ failure. Earlier upstream hosted ORCA observations are preserved separately in
 Local Linux/WSL, matching macOS builds and HPC installations require their own
 supported native engines and actual execution-host allocation. Source download
 and package installation cannot qualify unavailable scientific methods.
+
+## Troubleshooting
+
+- If private source access is denied, confirm approved lab membership and the
+  student's stored browser login using the [private staging guide](../docs/private_student_engine_staging.md#browser-authentication-in-codespaces).
+  Team membership alone does not extend an injected Codespaces repository token.
+- If the receipt, request, workflow or resource identity changes, prepare and
+  review a new task. A failed identity check cannot authorize a calculation.
+- If a local registry checksum fails after a source update, retain the old
+  record and run a fresh complete eleven-phase Stage 0 audit under the current
+  code and installed engines. Do not rewrite its checksum manually.
+- If an Actions run cannot start, check the personal repository owner's billing
+  and runner settings. Retain failed-run diagnostics; queued or failed setup
+  does not establish chemistry. The first genuine private staging pilot remains
+  required before deploying the licensed route to the class.
 
 ## Official references
 

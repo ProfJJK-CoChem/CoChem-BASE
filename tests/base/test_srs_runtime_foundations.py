@@ -1,8 +1,11 @@
 """Physical Stage 0 and worker lifecycle checks for Chunk 17 + proposal additions."""
 
 import asyncio
+import hashlib
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import threading
@@ -203,6 +206,155 @@ def test_canonical_broker_persists_exact_crash_provenance(tmp_path):
     assert len(list((tmp_path / "artifacts" / "Logs").glob("crash-*.json"))) == 1
 
 
+def _git_test_environment():
+    return {**{key: value for key, value in os.environ.items() if not key.startswith("GIT_")},
+            "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+
+
+def _real_broker_crash(tmp_path, environment):
+    script = """
+import json, pathlib, sys
+from cochem.concurrency.subprocess_broker import SubprocessBroker
+root = pathlib.Path(sys.argv[1])
+broker = SubprocessBroker(base_scratch_dir=root / 'scratch', max_retries=3)
+broker.store_dir = root / 'artifacts'
+result = broker.execute([sys.executable, '-c', 'import os; os.write(2,bytes(range(256))*2); os._exit(139)'])
+(root / 'result.json').write_text(json.dumps({'returncode': result.returncode, 'success': result.success,
+    'retries_attempted': result.retries_attempted, 'crash_diagnostics': result.crash_diagnostics}))
+"""
+    subprocess.run([sys.executable, "-c", script, str(tmp_path)], cwd=tmp_path,
+                   env=environment, check=True, capture_output=True, timeout=20)
+    result = json.loads((tmp_path / "result.json").read_text())
+    assert result["returncode"] == 139 and result["success"] is False
+    assert result["retries_attempted"] == 0
+    record = result["crash_diagnostics"]
+    assert record["stderr_tail_hex"] == bytes(range(256)).hex()
+    target = Path(record["record_path"])
+    assert target.is_file() and target.stat().st_mode & 0o222 == 0
+    on_disk = json.loads(target.read_text())
+    digest = on_disk.pop("sha256")
+    assert hashlib.sha256(json.dumps(on_disk, sort_keys=True, separators=(",", ":")).encode()).hexdigest() == digest
+    assert len(list((tmp_path / "artifacts" / "Logs").glob("crash-*.json"))) == 1
+    return record
+
+
+@pytest.mark.parametrize("git_condition, expected_status", [
+    ("missing_git", "unavailable"), ("timeout", "timeout"),
+])
+def test_optional_git_failure_preserves_real_broker_crash(tmp_path, git_condition, expected_status):
+    """Use genuine Git failures and a real fatal process, without engine substitutes."""
+    environment = _git_test_environment()
+    if git_condition == "missing_git":
+        empty_path = tmp_path / "empty-path"
+        empty_path.mkdir()
+        environment["PATH"] = str(empty_path)
+    else:
+        if not hasattr(os, "mkfifo"):
+            pytest.skip("A POSIX FIFO is required to block a real Git configuration read")
+        configuration = tmp_path / "blocked-git-config"
+        os.mkfifo(configuration)
+        # Git itself blocks opening a real FIFO; the production timeout must
+        # terminate it. No replacement Git executable or patched interface.
+        environment["GIT_CONFIG_GLOBAL"] = str(configuration)
+    record = _real_broker_crash(tmp_path, environment)
+    assert record["git_commit"] is None and record["git_commit_object_sha256"] is None
+    assert record["git_provenance"]["status"] == expected_status
+    if git_condition == "timeout":
+        assert record["git_provenance"]["error_type"] == "TimeoutExpired"
+        assert record["git_provenance"]["timeout_seconds"] == 2
+
+
+def _copied_source_crash(tmp_path, environment):
+    """Execute an unmodified provenance module from its physical source layout."""
+    from cochem_base.core_engine import crash_provenance
+    module = tmp_path / "installed_crash_provenance.py"
+    shutil.copyfile(crash_provenance.__file__, module)
+    script = """
+import importlib.util, json, pathlib, subprocess, sys
+root = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location('installed_crash_provenance', root / 'installed_crash_provenance.py')
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+command = [sys.executable, '-c', 'import os; os.write(2,b"fatal process bytes"); os._exit(139)']
+result = subprocess.run(command, capture_output=True, check=False)
+record = module.record_process_crash(command, result.returncode, result.stderr, root / 'logs')
+(root / 'result.json').write_text(json.dumps(record))
+"""
+    subprocess.run([sys.executable, "-c", script, str(tmp_path)], cwd=tmp_path,
+                   env=environment, check=True, capture_output=True, timeout=20)
+    record = json.loads((tmp_path / "result.json").read_text())
+    assert record["exit_code"] == 139
+    assert record["stderr_tail_hex"] == b"fatal process bytes".hex()
+    target = Path(record["record_path"])
+    assert target.is_file() and target.stat().st_mode & 0o222 == 0
+    on_disk = json.loads(target.read_text())
+    digest = on_disk.pop("sha256")
+    assert hashlib.sha256(json.dumps(on_disk, sort_keys=True, separators=(",", ":")).encode()).hexdigest() == digest
+    return record
+
+
+@pytest.mark.parametrize("layout, expected_status", [
+    ("installed_without_git", "no_repository"), ("invalid_repository", "failed"),
+    ("unborn_repository", "failed"),
+])
+def test_source_layout_git_failures_preserve_real_crash(tmp_path, layout, expected_status):
+    environment = _git_test_environment()
+    if layout == "invalid_repository":
+        (tmp_path / ".git").mkdir()
+    elif layout == "unborn_repository":
+        subprocess.run(["git", "init", "--quiet", "--template=", str(tmp_path)],
+                       env=environment, check=True, capture_output=True)
+    record = _copied_source_crash(tmp_path, environment)
+    assert record["git_commit"] is None and record["git_commit_object_sha256"] is None
+    assert record["git_provenance"]["status"] == expected_status
+    assert record["git_provenance"]["repository"] == (None if layout == "installed_without_git" else str(tmp_path))
+
+
+def _create_real_git_repository(path, environment):
+    subprocess.run(["git", "init", "--quiet", "--template=", str(path)],
+                   env=environment, check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(path), "-c", "user.name=CoChem Git boundary test",
+                    "-c", "user.email=git-boundary@example.invalid", "commit", "--quiet",
+                    "--allow-empty", "--no-gpg-sign", "-m", "Actual source identity boundary fixture"],
+                   env=environment, check=True, capture_output=True)
+    return subprocess.run(["git", "-C", str(path), "rev-parse", "HEAD"],
+                          env=environment, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def test_crash_source_identity_ignores_foreign_git_repository(tmp_path):
+    from cochem_base.core_engine import crash_provenance
+    environment = _git_test_environment()
+    foreign = tmp_path / "foreign-repository"
+    foreign_commit = _create_real_git_repository(foreign, environment)
+    source = next(parent for parent in Path(crash_provenance.__file__).resolve().parents if (parent / ".git").exists())
+    source_commit = subprocess.run(["git", "-C", str(source), "rev-parse", "HEAD"],
+                                  env=environment, check=True, capture_output=True, text=True).stdout.strip()
+    assert foreign_commit != source_commit
+    foreign_git = foreign / ".git"
+    environment.update(GIT_DIR=str(foreign_git), GIT_WORK_TREE=str(foreign), GIT_COMMON_DIR=str(foreign_git),
+                       GIT_OBJECT_DIRECTORY=str(foreign_git / "objects"), GIT_NAMESPACE="foreign-namespace",
+                       GIT_REPLACE_REF_BASE="refs/foreign-replacements")
+    record = _real_broker_crash(tmp_path, environment)
+    assert record["git_commit"] == source_commit
+    assert record["git_provenance"] == {"status": "available", "repository": str(source)}
+    commit_object = subprocess.run(["git", "-C", str(source), "cat-file", "commit", source_commit],
+                                   env=_git_test_environment(), check=True, capture_output=True).stdout
+    assert record["git_commit_object_sha256"] == hashlib.sha256(commit_object).hexdigest()
+
+
+def test_crash_source_identity_follows_linked_worktree(tmp_path):
+    environment = _git_test_environment()
+    repository = tmp_path / "main-repository"
+    expected_commit = _create_real_git_repository(repository, environment)
+    worktree = tmp_path / "linked-worktree"
+    subprocess.run(["git", "-C", str(repository), "worktree", "add", "--quiet", "--detach", str(worktree)],
+                   env=environment, check=True, capture_output=True)
+    assert (worktree / ".git").is_file()
+    record = _copied_source_crash(worktree, environment)
+    assert record["git_commit"] == expected_commit
+    assert record["git_provenance"] == {"status": "available", "repository": str(worktree)}
+
+
 def test_resource_guard_uses_container_available_memory(tmp_path):
     from cochem_base.core.resource_guard import evaluate_resource_guard
     # On-disk cgroup contract is an explicit supported input, not a patched probe.
@@ -229,12 +381,15 @@ def test_resource_guard_matches_v1_usage_when_v2_unlimited(tmp_path):
 
 
 def test_prompt_compression_bounds_real_process_telemetry():
-    from cochem_base.cochem_core.ai.context_compression import compress_tensors_for_llm
+    from cochem_base.cochem_core.ai.context_compression import ContextCompressor
     process = psutil.Process()
     observations = np.array([(time.monotonic(), process.memory_info().rss) for _ in range(600)])
-    payload = compress_tensors_for_llm({"trajectory": observations})["trajectory"]
+    compressor = ContextCompressor()
+    payload = compressor.compress_payload({"trajectory": compressor.compress_trajectory(observations)})["trajectory"]
     assert len(payload["points"]) <= 500
     assert payload["statistics"]["count"] == len(observations)
     assert payload["statistics"]["mean"] == np.mean(observations[:, 1])
     assert "skewness" in payload["statistics"]
+    np.testing.assert_array_equal(payload["points"][0], observations[0])
+    np.testing.assert_array_equal(payload["points"][-1], observations[-1])
     json.dumps(payload, allow_nan=False)

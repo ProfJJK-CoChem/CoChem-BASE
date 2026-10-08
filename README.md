@@ -14,9 +14,20 @@ It covers private binary setup, correct GitHub permissions, each student's
 assignment repository, GUI job export, calculations and retrieval of results.
 Students using the instructor's provisioned route do not enter tokens in CoChem.
 
+For CFOUR runtime access, classroom setup and host compatibility, follow the
+[CFOUR setup guide](.docs/CFOUR_Actions_Setup.md). **ORCA and CFOUR are optional,
+strongly recommended engines.** BASE remains usable when either is absent or
+its optional installation fails; only dependent calculations are unavailable.
+
+For private module downloads, isolated installations and TOPOS/TORQ geometry
+handoffs, follow the [ecosystem modules guide](.docs/Ecosystem_Modules_Setup.md).
+It explains `COCHEM_SOURCE_READ_TOKEN`, student-owned Codespaces, the
+organization's shared Actions allowance, and which modules currently support
+installation or execution.
+
 Version **1.0.0 validates the supported Classroom50 / GitHub Actions route**,
 including real ORCA optimization and harmonic calculations. The complete local
-BASE profile passed 1,477 tests with two declared physical Slurm deferrals;
+BASE profile passed 1,532 tests with two declared physical Slurm deferrals;
 Ubuntu, macOS and Windows control and wheel checks also passed. The
 [release record](.docs/Release_1_0_0.md) identifies exact revisions, evidence,
 distribution records and remaining host/scientific boundaries.
@@ -105,7 +116,7 @@ For development in a separate virtual environment:
 ```bash
 python3.12 -m venv /path/outside/checkout/cochem-env
 source /path/outside/checkout/cochem-env/bin/activate
-python -m pip install -e '.[dev,ui]'
+python -m pip install -e '.[dev,ui,catalog,symmetry,scribe]'
 cochem-cli --version
 cochem-cli --help
 ```
@@ -135,8 +146,10 @@ external scratch storage. The source gate checks this boundary and retained
 scientific fixture provenance.
 
 Connected pathways include xTB, CREST, PySCF, ORCA and periodic Quantum ESPRESSO,
-each subject to its installed capabilities and supported operations. CFOUR/VPT2
-and other incomplete domain capabilities remain explicit pending handoffs.
+each subject to its installed capabilities and supported operations. The
+[CFOUR guide](.docs/CFOUR_Actions_Setup.md) describes its bounded molecular
+runtime and calculation pathway. VPT2 and other incomplete domain capabilities
+remain explicit pending handoffs.
 TOPOS and TORQ domain development belongs to their respective repositories.
 BASE does not manufacture results for absent modules.
 

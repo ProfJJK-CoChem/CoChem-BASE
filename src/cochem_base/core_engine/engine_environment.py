@@ -40,6 +40,7 @@ def engine_runtime_environment(
         binary = Path(resolved or value).resolve()
     selected_mpi = environment.get("COCHEM_ORCA_MPIRUN_BIN")
     orca_runtime = name == "orca" or name.startswith("orca_")
+    cfour_runtime = name in {"cfour", "xcfour"}
     if name in {"mpirun", "mpiexec", "orterun"} and binary is not None and selected_mpi:
         orca_runtime = binary == Path(selected_mpi).expanduser().resolve()
 
@@ -87,4 +88,21 @@ def engine_runtime_environment(
             environment["PATH"] = os.pathsep.join(
                 [*dict.fromkeys(paths), environment.get("PATH", "")]
             ).rstrip(os.pathsep)
+    if cfour_runtime:
+        # CFOUR launches its companion programs by name. Keep their directory
+        # within this child; its reviewed wrapper selects the private libraries.
+        if binary is not None:
+            environment["PATH"] = os.pathsep.join(
+                [str(binary.parent), environment.get("PATH", "")]
+            ).rstrip(os.pathsep)
+        for variable in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+            scoped = f"COCHEM_CFOUR_{variable}"
+            if scoped in environment:
+                environment[variable] = environment[scoped]
+        # The caller supplies the audited OpenMP allocation. Serial BLAS avoids
+        # nesting another thread pool inside each CFOUR OpenMP thread.
+        environment.setdefault("OMP_NUM_THREADS", "1")
+        environment["OPENBLAS_NUM_THREADS"] = "1"
+        environment["MKL_NUM_THREADS"] = "1"
+        environment["OMP_DYNAMIC"] = "FALSE"
     return environment

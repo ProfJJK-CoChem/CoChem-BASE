@@ -1065,6 +1065,10 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     p_mass.add_argument("symbol", type=str, help="Elemental or isotopic symbol (e.g. C, 13C, 18O, D)")
     p_mass.add_argument("--json", action="store_true", help="Output mass data in structured JSON format")
 
+    p_modules = subparsers.add_parser("modules", help="Fetch, install and verify pinned ecosystem modules")
+    p_modules.add_argument("module_arguments", nargs=argparse.REMAINDER,
+                           help="list, fetch, install or verify followed by module installer options")
+
     # --- Subcommand: run ---
     p_run = subparsers.add_parser(
         "run",
@@ -1170,6 +1174,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return action_mass(args)
     elif subcommand == "run":
         return action_run(args)
+    elif subcommand == "modules":
+        from scripts.manage_modules import main as modules_main
+        return modules_main(args.module_arguments)
     else:
         logger.error(f"Unrecognized subcommand: {subcommand}")
         parser.print_help()

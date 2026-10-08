@@ -119,6 +119,8 @@ class BinaryEngineItem(BaseModel):
         default_factory=list, description="Container execution flags enforcing network air-gap"
     )
     error_detail: Optional[str] = Field(default=None, description="Diagnostic error or failure reason")
+    runtime_seal_sha256: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    runtime_metadata: Dict[str, Any] = Field(default_factory=dict)
     status: EngineStatus = Field(default=EngineStatus.MISSING, description="Fine-grained audit status")
 
 
@@ -723,10 +725,18 @@ def extract_semantic_version(output_text: str, engine_name: str) -> Optional[str
             return m.group(1)
 
     elif "cfour" in raw or "xcfour" in raw:
-        # e.g., "CFOUR version 2.1"
-        m = re.search(r"CFOUR\s+(?:version\s+)?([0-9]+\.[0-9]+(?:\.[0-9]+)?)", text, re.IGNORECASE)
-        if m:
-            return m.group(1)
+        # Native xjoda puts its version below the full CFOUR title. Only accept
+        # a qualified engine heading, never a compiler or BLAS version number.
+        versions = set(re.findall(
+            r"\bCFOUR\s+(?:version\s+)?([0-9]+\.[0-9]+(?:\.[0-9]+)?)(?![\w.])",
+            text, re.IGNORECASE,
+        ))
+        versions.update(re.findall(
+            r"CFOUR\s+Coupled-Cluster\s+techniques\s+for\s+Computational\s+Chemistry"
+            r".{0,4000}?\bVersion\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)(?![\w.])",
+            text, re.IGNORECASE | re.DOTALL,
+        ))
+        return next(iter(versions)) if len(versions) == 1 else None
 
     elif "apptainer" in raw or "singularity" in raw:
         # e.g., "apptainer version 1.3.4", "singularity-ce version 3.11.4"
@@ -756,7 +766,8 @@ def interrogate_binary_version(
       scientific execution acceptance. Bare invocation remains an older-version
       fallback; helpers retain their existing bare invocation.
     - xTB / CREST: --version flag with check=False.
-    - CFOUR: -v flag or banner inspection with check=False.
+    - CFOUR: controlled invalid ZMAT reveals the native banner before any
+      electronic calculation; bare invocation and -v do not return metadata.
     - Apptainer / Singularity: --version flag.
     Resolves executables dynamically via pathlib.Path and shutil.which.
     """
@@ -793,7 +804,9 @@ def interrogate_binary_version(
     elif raw == "qe":
         # pw.x emits its authoritative PWSCF banner before rejecting empty input.
         cmd.append("--help")
-    elif raw in ("xcfour", "c4init", "c4cleanup") or "cfour" in raw:
+    elif raw in ("xcfour", "cfour"):
+        timeout = max(timeout_seconds, 10.0)
+    elif raw in ("c4init", "c4cleanup"):
         cmd.append("-v")
     elif raw in ("apptainer", "singularity"):
         cmd.append("--version")
@@ -806,6 +819,11 @@ def interrogate_binary_version(
         directory = tempfile.TemporaryDirectory(prefix="cochem-engine-version-")
         commands = [cmd, [str(p)]] if raw == "orca" else [cmd]
         with directory as probe_directory:
+            if raw in ("xcfour", "cfour"):
+                Path(probe_directory, "ZMAT").write_text(
+                    "CoChem CFOUR version audit\nNOT_AN_ATOM\n\n*CFOUR(CALC=SCF,BASIS=STO-3G)\n",
+                    encoding="utf-8",
+                )
             for command in commands:
                 res = subprocess.run(
                     command,
@@ -826,6 +844,11 @@ def interrogate_binary_version(
                 # the captured metadata before any presentation truncation.
                 combined_output = (stdout_str + "\n" + stderr_str).strip()
                 version = extract_semantic_version(combined_output, engine_name)
+                if raw in ("xcfour", "cfour") and re.search(
+                    r"--(?:invoking executable--[^\n]*|executable\s+)(?:xvscf|xqcscf|xncc|xvcc)\b",
+                    combined_output,
+                ):
+                    return None, "CFOUR metadata probe unexpectedly reached an electronic calculation"
                 if version:
                     return version, None
         return None, "No recognized version was returned by the executable"
@@ -908,6 +931,14 @@ def audit_single_binary(
             version = patched_version or version
         except Exception as exc:
             ver_err = f"CREST source distribution audit failed: {exc}"
+    runtime = {}
+    if name in ("xcfour", "cfour") and version and not ver_err:
+        from cochem_base.core_engine.cfour_runtime import verify_cfour_runtime
+        try:
+            runtime = verify_cfour_runtime(discovered, audit_dependencies=True)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            ver_err = f"CFOUR runtime or basis verification failed: {exc}"
+
     status = EngineStatus.FOUND_VALID if version and not ver_err else EngineStatus.FOUND_UNVERIFIED
 
     return BinaryEngineItem(
@@ -922,6 +953,8 @@ def audit_single_binary(
         is_container=False,
         container_flags=[],
         error_detail=ver_err,
+        runtime_seal_sha256=runtime.get("runtime_seal_sha256"),
+        runtime_metadata=runtime,
         status=status,
     )
 
@@ -1193,13 +1226,14 @@ def run_phase_3_audit(
             "Pipeline will operate in degraded/remote dispatch mode."
         )
         status = PhaseStatus.DEGRADED
-    elif not orca_avail:
-        warnings.append(
-            "ORCA binary not found in local paths; ORCA calculations are unavailable until an audited backend is configured."
-        )
-        status = PhaseStatus.DEGRADED
     else:
         status = PhaseStatus.PASSED
+    for engine, available in (("ORCA", orca_avail), ("CFOUR", cfour_avail)):
+        if not available:
+            warnings.append(
+                f"{engine} is optional and strongly recommended; its dependent calculations remain "
+                "unavailable until a working audited runtime is configured."
+            )
 
     # 6. Destination Registry Artifact Path
     p3_path = resolve_p3_registry_path(output_dir)

@@ -735,6 +735,8 @@ def _sanitize_engine_record(raw_eng: Any) -> Optional[Dict[str, Any]]:
         "path": str(p) if p else None,
         "version": str(v) if v else None,
         "hash": str(h) if h else None,
+        "runtime_seal_sha256": raw_eng.get("runtime_seal_sha256"),
+        "runtime_metadata": raw_eng.get("runtime_metadata") or {},
     }
 
 

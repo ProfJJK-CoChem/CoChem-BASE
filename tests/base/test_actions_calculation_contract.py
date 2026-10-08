@@ -157,3 +157,35 @@ def test_shared_validator_rejects_ambiguous_duplicate_fields():
     contents = json.dumps(data)[:-1] + ',"method":"MP2"}'
     with pytest.raises(ValueError, match="Duplicate"):
         validate_configuration(contents.encode(), data)
+
+
+@pytest.mark.parametrize("method,optimize,frequencies", [
+    ("HF", False, False), ("HF", True, False), ("HF", True, True),
+    ("MP2", False, False), ("CCSD", False, False), ("CCSD(T)", False, False),
+])
+def test_cfour_actions_contract_accepts_only_connected_native_operations(method, optimize, frequencies):
+    config = validate(water(engine="cfour", method=method, is_opt=optimize, is_freq=frequencies,
+                            initial_hessian="BFGS" if optimize else "XTB2"))
+    assert config.engine == "cfour" and config.method == method
+
+
+@pytest.mark.parametrize("changes", [
+    {"method": "CC3"}, {"method": "CCSD(T)", "is_freq": True},
+    {"multiplicity": 3}, {"is_vpt2": True}, {"grid_stage": 3}, {"product_class": "A"},
+    {"implicit_solvation": "CPCM(Water)"}, {"theory_tier": "T8"},
+    {"is_opt": True, "initial_hessian": "XTB2"},
+    {"is_opt": True, "initial_hessian": "Lindh"},
+    {"basis_set": "STO-3G,CC_PROG=NCC"}, {"timeout_seconds": 1801},
+])
+def test_cfour_actions_contract_rejects_unimplemented_or_injected_requests(changes):
+    with pytest.raises(ValueError):
+        validate(water(engine="cfour", **changes))
+
+
+def test_orca_workflow_rejects_cfour_input_without_consuming_registry(tmp_path):
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    (repository / "job.json").write_text(json.dumps(water(engine="cfour")))
+    with pytest.raises(ValueError, match="ORCA workflow"):
+        run_job(repository, "job.json", registry=tmp_path / "missing-registry.json",
+                output=tmp_path / "evidence", cores=1)

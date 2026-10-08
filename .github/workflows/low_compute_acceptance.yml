@@ -60,6 +60,7 @@ jobs:
         run: |
           test -x "$XTB_CMD"
           test -x "$COCHEM_PYSCF_PYTHON"
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -c 'import subprocess, sys, tomllib; from pathlib import Path; requirements = tomllib.loads(Path("pyproject.toml").read_text())["project"]["optional-dependencies"]["catalog"]; subprocess.run([sys.executable, "-m", "pip", "install", *requirements], check=True)'
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -m scripts.verify_release_ci regressions --output "${{ runner.temp }}/cochem-evidence/bounded-regressions"
       - name: Verify rendered dashboard lifecycle with the audited registry
         run: |

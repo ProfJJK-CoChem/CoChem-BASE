@@ -10,34 +10,38 @@ The previous snapshot (994 passed, 4 skipped, 1 failed) and its strict-scan coun
 
 ## Current 1.0.0 acceptance — 2026-10-07
 
-The complete canonical profile passed **1,477 tests**, with **2 exact physical
-Slurm skips**, **0 failures**, **1,479 collected** and **10,672 retained warnings**
-in **931.49 seconds**. The source audit passed, all collected-node outcomes were
+The complete canonical profile passed **1,532 tests**, with **2 exact physical
+Slurm skips**, **0 failures**, **1,534 collected** and **10,672 retained warnings**
+in **950.50 seconds**. The source audit passed, all collected-node outcomes were
 accounted for, and no audited source/input bytes changed during execution.
 The remaining skipped checks require an actual Slurm allocation; they are not
 successful platform acceptance. Real R2 and CREST/GOAT checks now execute.
-Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v3/`, against
-`190e5c548b800872626b87a463f0e6d854ba2030`. The earlier 1,469-pass v2 run on
-2026-10-07 remains historical; the current result includes subsequent fixes.
+Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v4/`, against
+`e2aaca60fefc4d1fd716aea176d54df9c1794d39`. The earlier 1,469-pass v2 and
+1,477-pass v3 (`190e5c5`) runs on 2026-10-07 remain historical; this result
+includes the final review corrections.
 
-The current retained-source inventory contains **563 source-pattern flags**,
-separate from the passing canonical source gate. Deleted legacy findings are
-resolved; these flags refer to retained files and are not 563 proved runtime
-fabrications. The dated 559-flag inventory below is historical.
+The current retained-source inventory contains **565 source-pattern flags**,
+separate from the passing canonical source gate. Two additional detections
+relative to the 563-flag snapshot refer to the same POSIX-only Git timeout/FIFO
+guard; that test executed successfully on Linux. These are static patterns,
+not fabricated-result defects. Deleted legacy findings are resolved, and the
+dated 559-flag inventory below remains historical.
 
 [Actual hosted ORCA acceptance](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37613653904)
 passed at `1cfa49a84d45da7c60ffd1fa0d6eae3889dbe049`, including fresh private
 archive installation, all eleven Stage 0 phases and genuine serial/two-rank
 calculation publication. The separate [student optimization/frequency run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37616684042)
 passed at `0a9effe`, including actual two-process ORCA derivatives and result
-publication. [Bounded hosted CI](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37617769942)
-passed at `190e5c5`: source integrity, all three operating-system control and
-wheel/CLI jobs, native launcher diagnostics, real Linux xTB/PySCF calculations,
-Stage 0 and dashboard lifecycle. A 479-test bounded local selection and isolated
+publication. [Bounded hosted CI](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37624167721)
+passed for the `e2aaca60` source tree, using the identical-tree GitHub merge
+checkout `a438644d`: source integrity, 164 controls per operating system, all
+three wheel/CLI jobs, 537 bounded regressions, native launcher diagnostics,
+real Linux xTB/PySCF calculations, Stage 0 and dashboard lifecycle. A 479-test bounded local selection and isolated
 wheel installation also passed at `01cca5b`; overlapping selections are not
-added to the canonical count. The full local profile tested the final `190e5c5` implementation. Subsequent
-release changes are documentation only; the tested revisions and source
-equivalence are retained in publication evidence.
+added to the canonical count. The full local profile tested the final
+`e2aaca60` implementation. Subsequent release changes are documentation only;
+publication must verify and record source equivalence to the tested code.
 The [release record](Release_1_0_0.md) preserves exact revision boundaries,
 evidence paths and outstanding publication checks.
 
@@ -136,7 +140,7 @@ MPI rank/thread oversubscription was fixed in native, TOPOS, R2 and Slurm paths.
 The historical prepublication canonical local run passed **1,241 tests**, with the
 same **4 external deferrals** and no failures, collected-node omissions,
 unexpected skips or source changes. This superseded the earlier alpha count at that revision;
-it is now superseded by the 1,477-pass profile above and did not establish hosted ORCA execution. Evidence:
+it is now superseded by the 1,532-pass profile above and did not establish hosted ORCA execution. Evidence:
 `/workspace/cochem-runtime/evidence/orca-actions-prepublication/`.
 
 ## Real ORCA and Classroom50 evidence — 2026-10-07

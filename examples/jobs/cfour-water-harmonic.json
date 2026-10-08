@@ -1,0 +1,13 @@
+{
+  "geometry": "O 0 0 0\nH 0 -0.757 0.587\nH 0 0.757 0.587\n",
+  "engine": "cfour",
+  "method": "HF",
+  "basis_set": "STO-3G",
+  "charge": 0,
+  "multiplicity": 1,
+  "is_opt": true,
+  "is_freq": true,
+  "is_vpt2": false,
+  "initial_hessian": "BFGS",
+  "timeout_seconds": 1200
+}

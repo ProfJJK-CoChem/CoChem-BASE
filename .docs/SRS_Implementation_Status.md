@@ -8,21 +8,75 @@ Local runnable acceptance, downstream scientific acceptance and platform accepta
 
 The previous snapshot (994 passed, 4 skipped, 1 failed) and its strict-scan counts are historical evidence under `/workspace/cochem-runtime/evidence/srs-pass2/`. This pass corrects the failed PES analysis, withdraws misleading fixture evidence, replaces legacy interface shells with versioned capability/handoff contracts, and replaces duplicated CI pipelines. Current-run counts and evidence follow below.
 
+Instructors should follow the [Classroom50 assignment deployment guide](Classroom50_Assignment_Deployment.md)
+for the release template, approved access, assignment creation, one-student
+pilot and course rollout. It links the engine/module setup guides and preserves
+the distinction between public release evidence and institution-specific
+student acceptance.
+
 ## Current 1.0.1 validation and gap closure
 
 The 2026-10-07 final SRS audit identified four connected BASE gaps: automatic
 measured-gradient grid progression, authentic live derivative records, general
 isotope-label ingress/handoff and persisted native-runner crash provenance.
 Their implementation and revision-specific acceptance are tracked in the
-[1.0.1 closure record](Release_1_0_1.md). Do not infer a completed current full
-profile from the historical results below.
+[1.0.1 closure record](Release_1_0_1.md). The current complete-profile result
+below is separate from the historical results later in this document.
 
-The integrated CFOUR source passed [10 genuine hosted acceptance cases](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37694454874), including
-energy/optimization/harmonic operations, derivative checks and OpenMP one/two-
-thread comparisons. The [student-style CFOUR job](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37692395742) also passed. The approved CFOUR build is
-OpenMP-enabled and MPI-disabled. These tests establish the documented native
-operation boundary; they do not establish VPT2, open-shell, correlated
-derivatives or arbitrary spectroscopic accuracy.
+The complete-profile source is `583a6d22db0fab0fdd54d2659ceac87ba82fa48a`.
+Its application/workflow/devcontainer source matches accepted `7144f82` and
+`80dfec3`; the correction changes only a GUI acceptance test and hosted selection.
+[Hosted CFOUR acceptance 37704401496](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37704401496)
+passed ten genuine native cases plus an `18O`/D2O input-isotopologue harmonic
+and Hessian-ingestion case. The [student-style CFOUR job](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37704003113)
+passed on application-equivalent `80dfec3`. The approved build is OpenMP-enabled
+and MPI-disabled; VPT2, open-shell and correlated derivatives remain separately
+scoped providers.
+
+[Hosted ORCA acceptance 37703993551](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37703993551)
+passed physical serial/parallel checks and three genuine SRS completion cases:
+three-grid progression, labelled harmonic/Hessian ingestion and native xTB
+optimization. They retained seventeen, seven and eleven Cartesian-gradient
+evaluations. The [student ORCA calculation](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37704000193)
+also passed on `80dfec3`. Source comparison verifies 2,101 identical
+production/workflow/test blobs to `7144f82`; the only helper differences do not
+change the ORCA scientific path. A redundant cancelled run is not acceptance.
+
+[Hosted public CI at `583a6d2`](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37706334481)
+passed source integrity, Ubuntu/macOS/Windows controls and isolated-wheel
+checks, **883 bounded regressions** with no failures, skips, deferrals, coverage
+errors or source changes; all 1,368 source-snapshot entries matched the frozen
+Git blob. Real
+free-engine/derivative checks, all eleven Stage 0 phases and rendered dashboard
+lifecycle also passed. The [earlier 869-test hosted run](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37704370113)
+at `7144f82` remains separately retained. The complete canonical profile at
+exact `583a6d2` passed **1,827 tests** out of **1,829 collected**, with **two
+exact physical Slurm deferrals**, **zero failures or unexpected skips**, and
+10,672 retained warnings in 879.89 seconds. Audit/test gates passed with no
+coverage errors; all 1,368 source/input snapshots matched the frozen Git blob
+and remained unchanged. Evidence is retained under
+`/workspace/cochem-runtime/evidence/srs-1.0.1-complete-final-v3/` in
+`summary.json`, `test-acceptance.json` and the actual pytest XML report.
+Independent comparison confirms all 511
+production/UI/native-workflow/source-integrity paths identical to accepted
+`7144f82`/`80dfec3`. The corrected focused GUI selection passed 14 tests;
+it resolves the final manifest-bound result while validating genuine derivative
+records. Earlier incomplete/failed profiles are retained, not reported as
+passes. Verify final merged-source builds, uploaded assets and non-draft
+`v1.0.1` publication through the actual release entry and attached validation
+report/checksums described in the [release record](Release_1_0_1.md); the
+passing profile does not itself establish publication.
+
+A genuinely fresh local configured Bookworm container passed the version-1.0.1
+interface, all eleven Stage 0 phases, strict isotope CLI JSON and real free-xTB
+energy/Hessian checks with ORCA/CFOUR absent. Its 2,104 tracked files remained
+unchanged. The captured `80dfec3` application/GUI/devcontainer bytes match
+`7144f82` and `583a6d2`; subsequent changes affect only CI transport/selection
+and a GUI test. This local evidence does not
+replace the real student-identity [deployment pilot](Student_Deployment_Pilot.md).
+Native D/T Chain execution also retained six genuine Cartesian gradient
+vectors and isotope identity. Stale checked-in package metadata is removed;
+source and installed version checks now use the canonical release metadata.
 
 ## Historical 1.0.0 acceptance — 2026-10-07
 
@@ -37,8 +91,8 @@ Evidence: `/workspace/cochem-runtime/evidence/base-1.0.0-final-v4/`, against
 1,477-pass v3 (`190e5c5`) runs on 2026-10-07 remain historical; this result
 includes the final review corrections.
 
-The current retained-source inventory contains **565 source-pattern flags**,
-separate from the passing canonical source gate. Two additional detections
+The retained-source inventory at that historical revision contained **565
+source-pattern flags**, separate from its passing canonical source gate. Two additional detections
 relative to the 563-flag snapshot refer to the same POSIX-only Git timeout/FIFO
 guard; that test executed successfully on Linux. These are static patterns,
 not fabricated-result defects. Deleted legacy findings are resolved, and the

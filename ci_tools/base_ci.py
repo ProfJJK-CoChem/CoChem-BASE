@@ -695,6 +695,7 @@ def run_profile(root: Path, output: Path, *, test_paths: Any = None, controls: b
             report["passed"] = bool(report["passed"] and completed.passed and not copied_changes
                                     and dirty_before == dirty_after and report["source_origins_verified"])
     except (OSError, ValueError, KeyError, SyntaxError, configparser.Error) as error:
+        report["passed"] = False
         report["error"] = str(error)
         raise
     finally:

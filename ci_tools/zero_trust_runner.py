@@ -427,6 +427,7 @@ def _stop_owned_process(
             descendants.extend(owner.leader.children(recursive=True))
         except psutil.NoSuchProcess:
             if owner.leader is None and owner.owns_posix_group:
+                logger.warning("Cannot verify original launcher generation for owned group %s", process.pid)
                 return False
         except psutil.AccessDenied:
             logger.warning("Cannot verify owned launcher PID %s", process.pid)
@@ -526,6 +527,7 @@ def _stop_owned_process(
                 return False
             if psutil is not None and not sys.platform.startswith("linux"):
                 members, current_terminal = set(), set()
+                uncertain = False
                 terminal = dict(owner.external_reaping_pending)
                 for member in psutil.process_iter(["pid"]):
                     try:
@@ -538,10 +540,11 @@ def _stop_owned_process(
                         status = current.status()
                         if not current.is_running():
                             if psutil.pid_exists(current.pid):
-                                return False
+                                uncertain = True
                             continue
                         if os.getpgid(current.pid) != process.pid:
-                            return False
+                            uncertain = True
+                            continue
                         identity = (current.pid, created)
                         members.add(identity)
                         if status == psutil.STATUS_ZOMBIE:
@@ -550,12 +553,14 @@ def _stop_owned_process(
                     except (ProcessLookupError, psutil.NoSuchProcess):
                         continue
                     except (PermissionError, psutil.AccessDenied):
+                        logger.warning("Cannot verify current member of owned group %s", process.pid)
                         return False
-                if members and members == current_terminal:
+                if not uncertain and members and members == current_terminal:
                     owner.external_reaping_pending = tuple(sorted(terminal.items()))
                     logger.info("Owned workers terminated; system reaper owns terminal PIDs %s", terminal)
                     break
             if time.monotonic() >= deadline:
+                logger.warning("Owned group %s did not reach a verified terminal boundary", process.pid)
                 return False
             time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
     elif os.name == "nt" and not leader_present:
@@ -684,7 +689,37 @@ class QuarantineEnvironment:
         elif exc_type is not None and self.preserve_on_failure:
             logger.warning(f"Preserving failed quarantine directory: {self.quarantine_dir}")
         else:
-            shutil.rmtree(self.quarantine_dir, ignore_errors=True)
+            self._remove_owned_directory()
+
+    def _remove_owned_directory(self) -> None:
+        """Retire this stopped quarantine, including native readonly Git files.
+
+        A removal failure remains visible. Only an actual readonly regular file
+        inside the unchanged owned root may have its readonly bit cleared.
+        """
+        root = self.quarantine_dir
+        if root.is_symlink() or root.resolve() != root.absolute() or not root.is_dir():
+            raise PermissionError("Quarantine cleanup source boundary changed")
+
+        def remove_readonly(function: Any, supplied: str, error: tuple) -> None:
+            failure = error[1]
+            path = Path(supplied)
+            info = path.lstat()
+            if (os.name != "nt" or not isinstance(failure, PermissionError)
+                    or function not in (os.unlink, os.remove)
+                    or not path.absolute().is_relative_to(root)
+                    or path.resolve() != path.absolute()
+                    or not stat.S_ISREG(info.st_mode)
+                    or info.st_nlink != 1
+                    or getattr(info, "st_file_attributes", 0) & 0x400
+                    or not getattr(info, "st_file_attributes", 0) & 0x1):
+                raise failure
+            path.chmod(info.st_mode | stat.S_IWRITE)
+            function(supplied)
+
+        shutil.rmtree(root, onerror=remove_readonly)
+        if root.exists():
+            raise PermissionError("Owned quarantine directory remains after cleanup")
 
     def run_command(
         self,

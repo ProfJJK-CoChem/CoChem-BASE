@@ -577,6 +577,32 @@ def test_receipt_publication_refuses_a_non_directory(tmp_path: Path) -> None:
     assert target.read_text() == "Actual destination refusal control.\n"
 
 
+def test_stopped_context_removes_its_real_readonly_files_and_preserves_external_files(tmp_path: Path) -> None:
+    observations = _run_control(tmp_path, '''
+        import os, stat
+        from ci_tools.zero_trust_runner import QuarantineEnvironment
+        external = evidence_dir / 'external-readonly.txt'
+        external.write_bytes(b'Actual external engineering input, retain unchanged.\\n')
+        external.chmod(stat.S_IREAD)
+        original_bytes, original_mode = external.read_bytes(), external.stat().st_mode
+        with QuarantineEnvironment() as quarantine:
+            root = quarantine.quarantine_dir
+            owned = root / 'objects/actual-readonly-object'
+            owned.parent.mkdir()
+            owned.write_bytes(b'Owned immutable engineering source object.\\n')
+            owned.chmod(stat.S_IREAD)
+            assert not owned.stat().st_mode & stat.S_IWRITE
+            result = quarantine.run_command([sys.executable, '-B', '-c', "print('actual clean exit')"], timeout=3)
+            assert result.passed and result.cleanup_observation.owned_work_stopped
+        assert not root.exists()
+        assert external.read_bytes() == original_bytes and external.stat().st_mode == original_mode
+        print(json.dumps({'owned_readonly_removed':True, 'external_bytes_and_mode_preserved':True,
+                          'cleanup':result.cleanup_observation.to_dict()}))
+    ''')
+    assert observations['owned_readonly_removed']
+    assert observations['external_bytes_and_mode_preserved']
+
+
 def _run_bound_cli(root: Path, revision: str, arguments: list[str], environment: dict) -> subprocess.CompletedProcess:
     command = [sys.executable, "-B", "-m", "ci_tools.zero_trust_runner",
                "--expected-revision", revision, *arguments]
@@ -618,7 +644,7 @@ def test_cli_copies_only_reviewed_source_and_retains_external_inputs(tmp_path: P
         "assert not (root/'private-license.txt').exists(); "
         "assert not (root/'ignored-runtime').exists(); "
         "assert pathlib.Path(sys.argv[1]).read_text()=='Engineering input exclusion control.\\n'; "
-        "assert sys.argv[2]=='--input='+os.environ['CONTROL_ORIGINAL_ROOT']+'/student-start.xyz'; "
+        "assert sys.argv[2]=='--input='+str(pathlib.Path(os.environ['CONTROL_ORIGINAL_ROOT'])/'student-start.xyz'); "
         "assert pathlib.Path(sys.argv[3]).read_text()=='Engineering input exclusion control.\\n'; "
         "assert pathlib.Path(sys.argv[4]).is_relative_to(root) and pathlib.Path(sys.argv[4]).is_file(); "
         "assert all(key not in os.environ for key in ('PYTEST_ADDOPTS','PYTEST_PLUGINS','GIT_WORK_TREE')); "

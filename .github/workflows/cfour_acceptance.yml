@@ -1,9 +1,32 @@
 name: CFOUR 2.1 calculation acceptance
+run-name: CoChem CFOUR acceptance ${{ inputs.asset_task_id }}
 
 on:
   workflow_dispatch:
+    inputs:
+      asset_receipt:
+        description: Canonical receipt from authorized Codespaces private staging
+        required: true
+        type: string
+      asset_receipt_sha256:
+        description: Exact staging receipt SHA-256
+        required: true
+        type: string
+      asset_task_id:
+        description: Exact task identity from the receipt
+        required: true
+        type: string
   workflow_call:
     inputs:
+      asset_receipt:
+        required: true
+        type: string
+      asset_receipt_sha256:
+        required: true
+        type: string
+      asset_task_id:
+        required: true
+        type: string
       base_repository:
         description: Repository containing the reviewed BASE source for a reusable call.
         required: false
@@ -13,21 +36,6 @@ on:
         description: Full CoChem-BASE commit SHA providing the shared installer and BASE acceptance.
         required: true
         type: string
-    secrets:
-      CFOUR_ASSET_READ_TOKEN:
-        required: true
-      BASE_SOURCE_READ_TOKEN:
-        description: Optional read-only access when a reusable caller cannot read the private BASE source.
-        required: false
-  # Register and exercise the integration before it reaches the default branch.
-  # Assignment branches and pull requests do not automatically run licensed jobs.
-  push:
-    branches: [codex/cfour-optional-integration]
-    paths:
-      - '.github/actions/setup-cfour/**'
-      - '.github/workflows/cfour_acceptance.yml'
-      - 'scripts/*cfour*'
-      - 'src/cochem_base/calc/cfour_execution.py'
 
 permissions:
   contents: read
@@ -38,6 +46,7 @@ concurrency:
 
 jobs:
   licensed-calculations:
+    if: ${{ github.event.repository.private && github.event.repository.owner.type == 'User' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -60,7 +69,7 @@ jobs:
         with:
           repository: ${{ inputs.base_repository || github.repository }}
           ref: ${{ inputs.base_ref || github.sha }}
-          token: ${{ secrets.BASE_SOURCE_READ_TOKEN || github.token }}
+          token: ${{ github.token }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -93,7 +102,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes libgfortran5
-      - name: Check that optional provisioning tolerates an absent credential
+      - name: Check that optional provisioning tolerates an absent staging receipt
         id: optional-cfour
         uses: ./.github/actions/setup-cfour
       - name: Retain and verify the optional unavailable result
@@ -106,7 +115,9 @@ jobs:
       - name: Install the checksum-pinned private CFOUR runtime
         uses: ./.github/actions/setup-cfour
         with:
-          asset-token: ${{ secrets.CFOUR_ASSET_READ_TOKEN }}
+          asset-receipt: ${{ inputs.asset_receipt }}
+          asset-receipt-sha256: ${{ inputs.asset_receipt_sha256 }}
+          asset-task-id: ${{ inputs.asset_task_id }}
           required: 'true'
       - name: Install BASE and execute all eleven Stage 0 phases
         run: |

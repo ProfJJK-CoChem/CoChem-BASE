@@ -37,6 +37,7 @@ jobs:
           asset-receipt: ${{ inputs.asset_receipt }}
           asset-receipt-sha256: ${{ inputs.asset_receipt_sha256 }}
           asset-task-id: ${{ inputs.asset_task_id }}
+          required: 'true'
       - name: Explain the observed scope
         run: |
           {

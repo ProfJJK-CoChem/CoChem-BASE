@@ -170,7 +170,7 @@
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "57c81eb7d699c6717926eeaab25ba0a0a59ca0f9",
+      "revision": "3077a54da18e8f378dc71b7457094cc761b86043",
       "distribution": "CoChem-TORQ",
       "adapter": "torq_geometry",
       "adapter_requirements": [

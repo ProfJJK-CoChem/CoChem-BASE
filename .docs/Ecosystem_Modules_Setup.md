@@ -1,5 +1,7 @@
 # Install private CoChem modules for a Classroom50 course
 
+For current personal private projects, use [the private staging workflow](ORCA_Actions_Setup.md) for licensed engines. The organization-owned Classroom source-installation examples below have a different billing and authorization model. Public TORQ/TOPOS source pins still require reviewed installation and supported-operation validation.
+
 CoChem-BASE supplies ingestion, environment setup, the interface and execution
 handoffs. Each additional module supplies its own supported calculations.
 Access to its repository, installation of its dependencies, and a successful

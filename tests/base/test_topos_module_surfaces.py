@@ -163,7 +163,7 @@ def test_dashboard_installer_uses_noneditable_base_and_explicit_kit(monkeypatch,
     monkeypatch.setattr(dashboard.subprocess, "run", no_process)
     with pytest.raises(ReachedInstallBoundary):
         dashboard.setup_dashboard(tmp_path / "venv/bin/python", tmp_path / "runtime", 1)
-    install = next(command for command in commands if ".[dev,symmetry]" in command)
+    install = next(command for command in commands if "--no-build-isolation" in command)
     assert "-e" not in install and "--no-build-isolation" in install
     assert commands[-1][1:5] == ["-I", "-B", "-m", "scripts.manage_modules"]
     assert commands[-1][-2:] == ["--ecosystem-kit", str(kit)]

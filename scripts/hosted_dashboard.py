@@ -112,8 +112,8 @@ def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) 
     # Explicitly refresh the entire UI contract, including newly added plotting
     # dependencies, even when the bootstrap import probe succeeds on an old venv.
     subprocess.run([
-        str(python), "-m", "pip", "install", "--no-build-isolation", ".[dev,symmetry]",
-        "-r", "requirements.txt", "-r", "requirements-ui.txt",
+        str(python), "-m", "pip", "install", "--no-build-isolation", ".[dev,symmetry,ui]",
+        "-r", "requirements.txt",
     ], cwd=REPO_ROOT, env=env, check=True)
     subprocess.run([str(python), "-m", "pip", "check"], env=env, check=True)
     subprocess.run([

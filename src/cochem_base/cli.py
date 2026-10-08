@@ -1184,7 +1184,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 
 def entrypoint() -> int:
-    """Register process ownership cleanup for each executable CLI entry point."""
+    """Arm crash provenance and process cleanup for executable CLI invocation."""
+    from cochem_base.core_engine.cochem_core_telemetry_logger import install_global_excepthook
+
+    install_global_excepthook(chain=True)
     atexit.register(reap_zombie_processes)
     signal.signal(signal.SIGINT, handle_shutdown_signal)
     signal.signal(signal.SIGTERM, handle_shutdown_signal)

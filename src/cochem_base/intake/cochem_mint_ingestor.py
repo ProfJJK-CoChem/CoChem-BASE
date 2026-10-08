@@ -111,16 +111,13 @@ def validate_xyz_content(content: Union[str, bytes]) -> Tuple[bool, int, str]:
     if len(coord_lines) != atom_count:
         return False, 0, ""
 
-    for line in coord_lines:
-        tokens = line.split()
-        if len(tokens) < 4:
-            return False, 0, ""
-        try:
-            float(tokens[1])
-            float(tokens[2])
-            float(tokens[3])
-        except ValueError:
-            return False, 0, ""
+    from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+    try:
+        identity = parse_geometry_identity(text)
+    except (ValueError, RuntimeError):
+        return False, 0, ""
+    if len(identity.elements) != atom_count:
+        return False, 0, ""
 
     return True, atom_count, comment
 
@@ -191,7 +188,8 @@ def generate_3d_geometry(
 
     out_p = Path(output_path) if output_path is not None else Path(f"{sanitize_project_name(smiles_or_name)}.xyz")
     out_p.parent.mkdir(parents=True, exist_ok=True)
-    Chem.MolToXYZFile(mol, str(out_p))
+    from cochem_base.geometry.nuclide_geometry import rdkit_geometry_xyz
+    out_p.write_text(rdkit_geometry_xyz(mol), encoding="utf-8")
     return out_p
 
 

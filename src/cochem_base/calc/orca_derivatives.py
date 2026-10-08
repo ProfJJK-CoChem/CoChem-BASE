@@ -7,6 +7,7 @@ these two mass conventions must never be silently interchanged.
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 from pathlib import Path
 import re
@@ -60,7 +61,7 @@ def _native_log_frequencies(log: Path, dimension: int) -> np.ndarray:
 
 def accept_harmonic_hessian(
     path: Path, log: Path, elements: list[str], coordinates_angstrom: Any,
-    *, optimized: bool,
+    *, optimized: bool, nuclides: list[str] | None = None,
 ) -> dict[str, Any]:
     """Validate native derivatives and publish independent mass reweighting.
 
@@ -75,12 +76,16 @@ def accept_harmonic_hessian(
         IsotopologueSpectroscopyEngine, projected_harmonic_frequencies,
     )
     from cochem_base.physics.eckart_aligner import align_coordinates, compute_center_of_mass
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
 
     if not path.is_file():
         raise ValueError("A harmonic frequency result requires its actual ORCA .hess checkpoint")
     artifact = load_hessian_artifact(path)
     if list(artifact.symbols) != elements:
         raise ValueError("ORCA Hessian atom identities/order differ from the accepted geometry")
+    identity = resolve_nuclear_identity(nuclides if nuclides is not None else elements)
+    if list(identity.elements) != elements:
+        raise ValueError("Harmonic nuclide assignments differ from the accepted electronic elements")
     coordinates = np.asarray(coordinates_angstrom, dtype=float)
     if coordinates.shape != artifact.coordinates_angstrom.shape:
         raise ValueError("ORCA Hessian coordinates differ from the accepted final geometry")
@@ -117,6 +122,19 @@ def accept_harmonic_hessian(
     principal = IsotopologueSpectroscopyEngine(
         elements, artifact.coordinates_angstrom, artifact.hessian_hartree_bohr2,
     ).compute_observables()
+    selected = IsotopologueSpectroscopyEngine(
+        list(identity.nuclides), artifact.coordinates_angstrom, artifact.hessian_hartree_bohr2,
+    ).compute_observables()
+    bundle = path.with_name(path.stem + ".harmonic-hessian.npz")
+    source = {"engine": "orca", "coordinates_frame": "Native ORCA Cartesian Hessian frame",
+              "raw_hessian_sha256": artifact.sha256, "nuclear_identity": identity.metadata}
+    np.savez_compressed(bundle, symbols=np.asarray(identity.nuclides),
+                        coordinates_angstrom=artifact.coordinates_angstrom,
+                        hessian_hartree_bohr2=artifact.hessian_hartree_bohr2,
+                        source=np.asarray(json.dumps(source, sort_keys=True)))
+    canonical = load_hessian_artifact(bundle)
+    if canonical.symbols != identity.nuclides or not np.array_equal(canonical.hessian_hartree_bohr2, artifact.hessian_hartree_bohr2):
+        raise ValueError("The published ORCA harmonic bundle differs from the measured Hessian or nuclear assignments")
     maximum_difference = float(np.max(np.abs(native_vibrations - recalculated))) if len(recalculated) else 0.0
     evidence = {
         **_artifact_record(path, "hartree/bohr^2"), "shape": list(artifact.hessian_hartree_bohr2.shape),
@@ -135,7 +153,11 @@ def accept_harmonic_hessian(
     }
     return {
         "hessian_artifact": evidence,
-        "harmonic_frequencies_cm1": principal.harmonic_frequencies_cm1,
+        "hessian_bundle_artifact": {**_artifact_record(bundle, "hartree/bohr^2"), "coordinates_unit": "angstrom",
+                                   "scope": "Geometry-bound measured harmonic Hessian with ordered input nuclides"},
+        "harmonic_frequencies_cm1": selected.harmonic_frequencies_cm1,
+        "harmonic_nuclides": list(identity.nuclides),
+        "harmonic_isotope_masses_u": selected.masses,
         "principal_isotope_masses_u": principal.masses,
-        "harmonic_frequency_provenance": "Derived by rigid-motion projection and principal-isotope mass reweighting of the native Cartesian Hessian",
+        "harmonic_frequency_provenance": "Rigid-motion projection and input-nuclide mass reweighting of the native Cartesian Hessian; bare element labels select their principal isotope",
     }

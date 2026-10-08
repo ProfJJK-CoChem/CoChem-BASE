@@ -70,22 +70,26 @@ def _inspect(path: Path) -> tuple[str, dict]:
             "structure_sha256": data.source.structure_sha256}
     if suffix in {".npz", ".h5", ".hdf5", ".hess"}:
         from cochem_base.spectroscopy.artifacts import load_hessian_artifact
+        from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
         data = load_hessian_artifact(path)
+        identity = resolve_nuclear_identity(data.symbols)
         return "cartesian_hessian", {
             "symbols": list(data.symbols), "atom_count": len(data.symbols),
             "coordinates_unit": "angstrom", "hessian_unit": "hartree/bohr^2", "source": data.source,
+            "elements": list(identity.elements), **identity.metadata,
         }
     if suffix == ".xyz":
-        from cochem_base.calc.calculation_service import parse_run_geometry
+        from cochem_base.calc.calculation_service import parse_run_geometry_identity
         lines = path.read_text(encoding="utf-8").splitlines()
         if not lines or not lines[0].strip().isdigit() or int(lines[0]) <= 0:
             raise ValueError("XYZ handoff requires an explicit positive atom count")
-        symbols, coordinates = parse_run_geometry("\n".join(lines))
+        identity = parse_run_geometry_identity("\n".join(lines))
+        symbols, coordinates = list(identity.elements), identity.coordinates_angstrom
         if len(symbols) != int(lines[0]) or len(lines[2:]) != len(symbols):
             raise ValueError("XYZ handoff must contain exactly one complete geometry")
         if not np.isfinite(coordinates).all():
             raise ValueError("XYZ coordinates must be finite")
-        return "geometry_xyz", {"symbols": symbols, "atom_count": len(symbols), "coordinates_unit": "angstrom"}
+        return "geometry_xyz", {"symbols": symbols, "atom_count": len(symbols), "coordinates_unit": "angstrom", **identity.metadata}
     if suffix == ".json":
         data = json_data
         if not isinstance(data, dict) or data.get("converged") is not True:
@@ -95,8 +99,18 @@ def _inspect(path: Path) -> tuple[str, dict]:
             raise ValueError("Result handoff requires a finite Hartree energy")
         if not isinstance(data.get("engine"), str) or not data["engine"].strip():
             raise ValueError("Result handoff requires its producer engine")
-        return "calculation_result", {"engine": data["engine"], "energy_unit": "hartree",
-                                       "scope": data.get("scope", "producer_scope_unspecified")}
+        details = {"engine": data["engine"], "energy_unit": "hartree",
+                   "scope": data.get("scope", "producer_scope_unspecified")}
+        if "nuclides" in data or "nuclear_identity" in data:
+            from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+            identity = resolve_nuclear_identity(data.get("nuclides", []))
+            if list(identity.elements) != data.get("elements") or identity.metadata != data.get("nuclear_identity"):
+                raise ValueError("Calculation result isotope assignments disagree with its nuclear identity metadata")
+            coordinates = np.asarray(data.get("coordinates_angstrom"), dtype=float)
+            if coordinates.shape != (len(identity.elements), 3) or not np.isfinite(coordinates).all():
+                raise ValueError("An isotope-bound calculation result requires its complete ordered geometry")
+            details.update(elements=list(identity.elements), atom_count=len(identity.elements), **identity.metadata)
+        return "calculation_result", details
     raise ValueError("Supported artifacts are a single XYZ geometry, geometry-bound Hessian (.npz/.h5/.hess), or converged calculation result JSON")
 
 

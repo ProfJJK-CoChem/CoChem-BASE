@@ -1,10 +1,10 @@
-# BASE alpha scope and deferred ecosystem acceptance
+# BASE supported scope and deferred ecosystem acceptance
 
 The governing baseline is SRS Chunk 17 plus proposal additions. The user's scope clarification is authoritative: CoChem-BASE is the ingestion, setup and GUI module of the 20-module CoChem ecosystem. BASE must validate, preserve and route scientific data, expose actual capabilities, execute its connected adapters faithfully, and provide reproducible module handoffs. It must not manufacture downstream results to make the interface appear complete.
 
-A downstream scientific operation is distinct from BASE's responsibility to represent and hand off that operation. CFOUR/VPT2 and full anharmonic isotope workflows require their scientific providers. TOPOS and TORQ domain implementation and full multidimensional PES exploration are future repository work. Existing connected CREST/native calculation paths remain tested. Missing providers produce an explicit pending-integration artifact, not an energy, completed optimization, or passing scientific acceptance.
+A downstream scientific operation is distinct from BASE's responsibility to represent and hand off that operation. CFOUR native closed-shell HF single points, optimization and harmonic derivatives, plus MP2/CCSD/CCSD(T) single points, now have accepted Linux/Actions execution. CFOUR VPT2, open-shell, correlated derivatives and full anharmonic isotope workflows still require their scientific providers. TOPOS and TORQ domain implementation and full multidimensional PES exploration are future repository work. Existing connected CREST/native calculation paths remain tested. Missing providers produce an explicit pending-integration artifact, not an energy, completed optimization, or passing scientific acceptance.
 
-The user has now authorized ORCA 6.1.1 provisioning and actual GitHub Actions acceptance; its implementation and evidence are tracked in [ORCA Actions setup](ORCA_Actions_Setup.md). Codespaces rebuilds, CFOUR, GPU, Slurm and native-platform acceptance remain deferred until a stable alpha and a supplied host. Local lifecycle/browser checks are retained as local evidence. `ci_tools/deferred_acceptance.json` names the exact currently selected external tests, prerequisite and skip reason; an unexpected skipped local check remains an error.
+ORCA 6.1.1 and the approved CFOUR 2.1 runtime have passed genuine Linux/hosted provisioning and bounded scientific execution; see the [ORCA guide](ORCA_Actions_Setup.md), [CFOUR guide](CFOUR_Actions_Setup.md) and [1.0.1 closure record](Release_1_0_1.md). Both licensed components are optional and strongly recommended. Missing engines disable dependent local capabilities while input ingestion, setup, the GUI, data inspection and installed free engines remain available. A real student-identity Classroom50/fresh Codespace pilot, GPU, Slurm and additional native-platform acceptance remain separate external checks. Local container/lifecycle/browser results are labeled as local evidence. `ci_tools/deferred_acceptance.json` names the exact selected external tests, prerequisite and skip reason; an unexpected skipped local check remains an error.
 
 ## Test entrypoints
 
@@ -43,3 +43,13 @@ The second target is constructed as `E_target = 1.02 * E_EMT - 0.005 eV`. It is 
 | Fitted baseline plus fitted correction | 319.863926 cm⁻¹ = 102% of baseline error |
 
 Consequently, the 6.27 result is limited algebraic regression evidence. It cannot demonstrate the SRS's independent physical accuracy target. Improving a standalone surface requires independently evaluated training geometries spanning its intended domain, training-only model selection and a fresh untouched validation set. Evaluating the actual low-level engine at prediction time removes baseline-surrogate error but does not validate the artificial upper target as quantum chemistry. The failed standalone case remains rejected by the API.
+
+## Current student distribution
+
+Use the reviewed `v1.0.1` release after publication or the instructor-approved
+assignment commit containing its changes. Existing assignment copies and the
+older `v1.0.0` source do not update automatically. Source access, package
+installation, a supported handoff and scientific acceptance are separate
+checks. BASE does not advertise every ecosystem repository as an installed or
+fully implemented solver. Follow the [module capability catalog](Ecosystem_Modules_Setup.md)
+and [single-student deployment pilot](Student_Deployment_Pilot.md).

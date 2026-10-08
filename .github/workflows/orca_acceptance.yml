@@ -183,6 +183,11 @@ jobs:
             tests/calc/test_orca_cli_execution.py \
             --basetemp "$RUNNER_TEMP/orca-evidence/pytest" \
             --junitxml "$RUNNER_TEMP/orca-evidence/results.xml" -q
+      - name: Validate actual staged grids, live derivatives and isotope-bound harmonics
+        run: |
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" scripts/verify_srs_completion.py \
+            --engine orca --registry "$COCHEM_CONFIG" \
+            --output "$RUNNER_TEMP/orca-evidence/srs-completion.json"
       - name: Check out the reviewed TOPOS candidate
         if: inputs.topos_ref != ''
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -266,8 +271,14 @@ jobs:
             ${{ runner.temp }}/orca-evidence/**/*.log
             ${{ runner.temp }}/orca-evidence/**/*.out
             ${{ runner.temp }}/orca-evidence/**/*.inp
+            ${{ runner.temp }}/orca-evidence/**/*.xyz
+            ${{ runner.temp }}/orca-evidence/**/*.gbw
+            ${{ runner.temp }}/orca-evidence/**/*.npz
+            ${{ runner.temp }}/orca-evidence/**/*.hess
+            ${{ runner.temp }}/orca-evidence/**/*.engrad
             ${{ runner.temp }}/orca-evidence/**/*.sha256
-            ${{ runner.temp }}/orca-evidence/**/complexes.h5
+            ${{ runner.temp }}/orca-evidence/**/*.h5
+            ${{ runner.temp }}/orca-evidence/**/gradient
             ${{ runner.temp }}/cochem-openmpi-build/**/*.log
             ${{ runner.temp }}/cochem-artifacts/Registry/*.json
             ${{ runner.temp }}/cochem-artifacts/Registry/*.sha256

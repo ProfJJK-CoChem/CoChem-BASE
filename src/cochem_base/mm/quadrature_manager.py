@@ -45,7 +45,9 @@ STAGE_SPECS: Dict[GridStage, GridSpec] = {
         lebedev_points=110,
         angular_grid=2,
         pruned=True,
-        tol_max_g=1.0e-3,
+        # The proposal addition tightens Chunk 17's screening gate. Retain
+        # Chunk 17's three grids, with measured max |g| <= 1e-4 before promotion.
+        tol_max_g=1.0e-4,
         tol_e=1.0e-5,
         scf_setting="NormalSCF",
         scf_tol_e=1.0e-6,
@@ -138,7 +140,7 @@ class QuadratureManager:
     ) -> GridStage:
         """Evaluates convergence checkpoints to determine if the grid should be tightened.
 
-        Stage 1 -> Stage 2: max_g <= 1e-3 a.u. and |dE| <= 1e-5 Eh.
+        Stage 1 -> Stage 2: max_g <= 1e-4 a.u. and |dE| <= 1e-5 Eh.
         Stage 2 -> Stage 3: max_g <= 1e-4 a.u., |dE| <= 1e-6 Eh, and intermolecular_rmsd < 0.05 A [M].
         """
         curr_enum = GridStage(current_stage)

@@ -47,16 +47,21 @@ qualify provider access.
    contain the task's standalone 32-character hexadecimal identifier. Actions
    verifies the real run ID, source SHA, head branch/repository, workflow, live
    private repository, release marker, request and asset before reading bytes.
+   The first pilot must explicitly establish that the owning workflow's
+   `contents:read` token can retrieve the private draft release and its exact
+   asset. That provider permission contract has not been observed here. A denial
+   requires review of the private release/permission route before acceptance.
 6. Verify genuine native provisioning and scientific jobs, and retain their
    own evidence. Local staged archive and installation cleanup belongs to the
    workflow. After the genuine owning-repository run is terminal, Codespaces
    invokes exact task cleanup and retains its private history.
 
 A calculation staging invocation has this form; every uppercase placeholder
-is supplied from the actual private project and reviewed file:
+is supplied from the actual private project and reviewed file. Run the module
+from the CoChem-BASE checkout root so its reviewed sibling installers resolve:
 
 ```sh
-python scripts/private_engine_assets.py stage \
+python -m scripts.private_engine_assets stage \
   --engine orca \
   --descriptor scripts/orca-distribution.json \
   --descriptor-sha256 REVIEWED_DESCRIPTOR_FILE_SHA256 \
@@ -130,9 +135,9 @@ can explicitly accept an expired receipt for observing/cancelling a run or
 terminal cleanup; that option never relaxes asset consumption.
 
 ```sh
-python scripts/private_engine_assets.py repair \
+python -m scripts.private_engine_assets repair \
   --receipt /workspaces/.cochem-private/request.json
-python scripts/private_engine_assets.py cleanup \
+python -m scripts.private_engine_assets cleanup \
   --receipt /workspaces/.cochem-private/request.json \
   --receipt-sha256 RETAINED_READY_RECEIPT_SHA256 \
   --run-id ACTUAL_TASK_RUN_ID

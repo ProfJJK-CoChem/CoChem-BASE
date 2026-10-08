@@ -152,7 +152,11 @@ def _publish_run_artifacts(sandbox_dir: Path, output: Path) -> None:
                 # Native CFOUR stages licensed basis libraries as symlinks.
                 # Publish measured job artifacts without following links into
                 # engine installations or distributing their runtime payload.
-                if artifact.is_symlink() or artifact.name in {"GENBAS", "ECPDATA"}:
+                # Persistent lock ownership changes on every reader admission.
+                # Retain those locks in scratch; they are coordination state,
+                # not immutable measured artifacts or checksum sidecars.
+                if (artifact.is_symlink() or artifact.name in {"GENBAS", "ECPDATA"}
+                        or artifact.name.endswith((".lock", ".lock.sha256"))):
                     continue
                 if artifact.is_file():
                     destination = staging / artifact.relative_to(sandbox_dir)

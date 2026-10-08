@@ -1,7 +1,9 @@
 """Native execution ingress, recipe trajectory and explicit method contracts."""
 from pathlib import Path
+import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -102,3 +104,50 @@ def test_open_shell_native_admission_requires_scientific_t9_before_process(tmp_p
         run_calculation(source, scratch=tmp_path / "scratch", output=tmp_path / "results")
     assert not (tmp_path / "scratch").exists()
     assert not (tmp_path / "results").exists()
+
+
+@pytest.mark.parametrize("format_name", ["hess", "npz"])
+def test_reopened_native_hessian_preserves_published_scientific_checksums(tmp_path: Path, format_name: str) -> None:
+    """Reopen real recorded derivatives; mutable locks never become science."""
+    import numpy as np
+    from cochem_base.calc.calculation_service import _publish_run_artifacts
+    from cochem_base.spectroscopy.artifacts import load_hessian_artifact
+    from scripts.verify_cfour_scientific import verify_hashes
+
+    root = Path(__file__).resolve().parents[2]
+    relative = "tests/data/orca_6_1_1_water_hf_sto3g/water.hess"
+    manifest = json.loads((root / "ci_tools/source_fixtures.json").read_text())
+    fixture = next(item for item in manifest["fixtures"] if item["path"] == relative)
+    native = root / relative
+    assert hashlib.sha256(native.read_bytes()).hexdigest() == fixture["sha256"]
+    sandbox = tmp_path / "scratch"
+    sandbox.mkdir()
+    retained = sandbox / "water.hess"
+    shutil.copyfile(native, retained)
+    original = load_hessian_artifact(retained)
+    if format_name == "npz":
+        retained = sandbox / "water.npz"
+        np.savez(retained, symbols=original.symbols, coordinates_angstrom=original.coordinates_angstrom,
+                 hessian_hartree_bohr2=original.hessian_hartree_bohr2, source=original.source)
+        load_hessian_artifact(retained)
+    lock = retained.with_name(retained.name + ".lock")
+    assert lock.is_file()
+    lock_bytes = lock.read_bytes()
+    lock.with_name(lock.name + ".sha256").write_text(hashlib.sha256(lock_bytes).hexdigest() + "\n")
+    published = tmp_path / "published"
+    _publish_run_artifacts(sandbox, published)
+    assert lock.read_bytes() == lock_bytes
+    assert not list(published.rglob("*.lock"))
+    assert not list(published.rglob("*.lock.sha256"))
+    before = verify_hashes(published)
+    reopened = load_hessian_artifact(published / retained.name)
+    assert reopened.sha256 == before[retained.name]
+    assert np.array_equal(reopened.hessian_hartree_bohr2, original.hessian_hartree_bohr2)
+    assert np.array_equal(reopened.coordinates_angstrom, original.coordinates_angstrom)
+    assert (published / (retained.name + ".lock")).is_file()
+    assert verify_hashes(published) == before
+    # A real data mutation still fails its immutable checksum admission.
+    with (published / retained.name).open("ab") as handle:
+        handle.write(b"\nchanged derivative artifact\n")
+    with pytest.raises(RuntimeError, match="checksum"):
+        verify_hashes(published)

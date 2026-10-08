@@ -69,7 +69,7 @@ def geometry(coordinates: np.ndarray) -> str:
 def verify_hashes(directory: Path) -> dict[str, str]:
     inventory = {}
     for path in sorted(directory.rglob("*")):
-        if path.is_file() and not path.name.endswith(".sha256"):
+        if path.is_file() and not path.name.endswith((".sha256", ".lock")):
             digest = sha256(path)
             stamp = path.with_name(path.name + ".sha256")
             require(stamp.is_file() and stamp.read_text().split()[0] == digest,
@@ -178,6 +178,8 @@ def run_acceptance(registry: Path, output: Path) -> dict:
             published = directory / "published"
             entry["artifact_sha256"] = verify_hashes(published)
             result = verify_native(published, options, serial.binary_sha256, threads)
+            require(verify_hashes(published) == entry["artifact_sha256"],
+                    "Scientific artifacts changed while reopening their canonical Hessian")
             entry.update(status="passed", energy_hartree=result["energy_hartree"], result_sha256=sha256(published / "result.json"),
                          published_directory=str(published), operation=result["operation"])
             return result

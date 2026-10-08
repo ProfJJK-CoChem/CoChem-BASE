@@ -2361,7 +2361,9 @@ class CoChemGUI:
             return ''
         remote = self.calc_env_dropdown.value in {'github-actions', 'hpc'}
         required = self.multiplicity_input.value > 1
-        requested = required or self.t9_enable.value
+        # Missing open-shell recovery intent has its own immediate refusal.
+        # Only a selected recovery inspects the optional PySCF environment.
+        requested = self.t9_enable.value
         backend_reason = ''
         if not remote and requested:
             observation = self._t9_backend_observation

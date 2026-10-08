@@ -122,8 +122,11 @@ def validate_test_controls(root: Path, manifest: Path,
             or not isinstance(payload.get("controls"), list) or not payload["controls"]):
         raise ValueError("Invalid reviewed control manifest schema")
     owners = {path for path, _ in APPROVED_SCOPES}
-    observed = {(name, item.line, item.col) for name, rows in findings.items() if name in owners
-                for item in rows if item.category == "MONKEYPATCH_INTERCEPT"}
+    # Linter report containers use native OS path separators, while each
+    # finding carries the canonical POSIX path produced by check_file. Bind
+    # policy identity to that finding path, never its presentation-only key.
+    observed = {(item.file_path, item.line, item.col) for rows in findings.values()
+                for item in rows if item.category == "MONKEYPATCH_INTERCEPT" and item.file_path in owners}
     seen: set[tuple[str, int, int]] = set()
     cache: dict[str, tuple[str, dict[str, ast.AST], dict[tuple[int, int], tuple[ast.Call, str]]]] = {}
     records = []

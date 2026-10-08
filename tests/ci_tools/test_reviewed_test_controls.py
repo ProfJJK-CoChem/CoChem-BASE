@@ -5,6 +5,7 @@ import ast
 import hashlib
 import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -66,6 +67,24 @@ def test_exact_controls_classify_only_intercepts_and_preserve_raw_linter(control
     assert all(not is_reviewed_control(item, records) for rows in raw.values() for item in rows
                if item.category != "MONKEYPATCH_INTERCEPT")
     assert findings(root) == raw
+
+
+def test_native_windows_report_keys_use_canonical_finding_identity(control_layout):
+    root, manifest = control_layout
+    raw = findings(root)
+    windows_report = {name.replace("/", "\\"): rows for name, rows in raw.items()}
+    assert any("\\" in name for name in windows_report)
+    assert validate_test_controls(root, manifest, windows_report) == validate_test_controls(root, manifest, raw)
+
+
+def test_container_owner_key_cannot_authorize_a_foreign_finding_path(control_layout):
+    root, manifest = control_layout
+    raw = findings(root)
+    rewritten = {name: [replace(item, file_path="src/unreviewed_native.py")
+                        if item.category == "MONKEYPATCH_INTERCEPT" else item for item in rows]
+                 for name, rows in raw.items()}
+    with pytest.raises(ValueError, match="Stale or unused"):
+        validate_test_controls(root, manifest, rewritten)
 
 
 @pytest.mark.parametrize("field,value", [

@@ -156,7 +156,7 @@
     },
     "topos": {
       "repository": "ProfJJK-CoChem/CoChem-TOPOS",
-      "revision": "5832664b9e2246ad05dd6bfb8ac0c150635b16d3",
+      "revision": "41bd93baf454b0369713ff82586765e3723abc55",
       "distribution": "cochem-topos",
       "adapter": "topos_handoff",
       "adapter_requirements": [],
@@ -172,7 +172,7 @@
       ],
       "mandatory_ecosystem": {
         "schema_version": "cochem.mandatory-ecosystem-catalog/2",
-        "torq_revision": "79fbb111125e50627a1a2c129888a45496f368d4",
+        "torq_revision": "4f323800227dbde00ffb082bd6d9e44d851e1c7a",
         "topos_wheel_sha256": "a8e57f4ed91050f5e45be8121ed390de76524377ff7295286a03b9bf892a9f8f",
         "torq_wheel_sha256": "d5e7ec3f8e1ae8cef85ca7aefe995219d3523e4e1330e465915a3159816fe617",
         "setup_helper_sha256": "0d7451cef59516b40badc10d34a742cfc8a9b35f4118590c05b839d490eb1730",
@@ -183,12 +183,12 @@
           "requirements-ui.txt": "6478c5244db5b86be639651ec3b4968efe30a156d5d9af07adc3eaae19f2a05a",
           "requirements.txt": "4c46823570124b78a0905ad2de4e6515571437204a15cce65d36b019b65520f7"
         },
-        "base_source_content_sha256": "cf063f5d694deee009ae4e60ab9fdf69161a7241e95524153c4ee06f57e4de93"
+        "base_source_content_sha256": "4f8956966b3f926ce40c539405f41c48f606d9d06823bb9c5fa71f74079cce50"
       }
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "d7a4739a5f7d6f22ed659b32eeb4706bef16225e",
+      "revision": "4f323800227dbde00ffb082bd6d9e44d851e1c7a",
       "distribution": "CoChem-TORQ",
       "adapter": "torq_geometry",
       "adapter_requirements": [

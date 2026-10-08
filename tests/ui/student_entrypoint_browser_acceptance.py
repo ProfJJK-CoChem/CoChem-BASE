@@ -536,6 +536,7 @@ def main() -> None:
             expect(selected_status).to_have_count(1)
             selected_identity = selected_status.get_attribute("data-cochem-input-id")
             assert uuid.UUID(selected_identity).hex == selected_identity
+            original_input_ids = {"student-complex": selected_identity}
             custom_label = "student-complex-custom-label"
             page.get_by_label("Geometry label:", exact=True).fill(custom_label)
             page.get_by_role("button", name="Save geometry details", exact=True).click()
@@ -573,6 +574,8 @@ def main() -> None:
             page.get_by_role("button", name="Save geometry details", exact=True).click()
             expect(page.get_by_text("Saved monomer_a details:", exact=False)).to_be_visible(timeout=15000)
             expect(page.get_by_label("Geometry (XYZ):", exact=True)).to_have_value(WATER.decode())
+            original_input_ids["student-water"] = selected_status.get_attribute("data-cochem-input-id")
+            assert uuid.UUID(original_input_ids["student-water"]).hex == original_input_ids["student-water"]
             upload_files(page, [artifact / "student-invalid.xyz"])
             expect(page.get_by_text("Rejected uploads:", exact=False)).to_be_visible(timeout=15000)
             expect(selection.locator("option")).to_have_count(3)
@@ -586,6 +589,8 @@ def main() -> None:
             page.get_by_label("Input type:", exact=True).select_option(label="Monomer B")
             page.get_by_role("button", name="Save geometry details", exact=True).click()
             expect(page.get_by_text("Saved monomer_b details:", exact=False)).to_be_visible(timeout=15000)
+            original_input_ids["student-water-b"] = selected_status.get_attribute("data-cochem-input-id")
+            assert uuid.UUID(original_input_ids["student-water-b"]).hex == original_input_ids["student-water-b"]
             monomers = page.get_by_label("Your monomers:", exact=True)
             expect(monomers.locator("option")).to_have_count(2)
             monomers.select_option(label=["student-water", "student-water-b"])
@@ -602,6 +607,8 @@ def main() -> None:
                     for right in range(left + 1, 3):
                         assert abs(math.dist(coordinates[offset + left], coordinates[offset + right]) - math.dist(original_coordinates[left], original_coordinates[right])) < 1e-10
             expect(page.get_by_label("Fragment atom groups:", exact=True)).to_have_value("1,2,3;4,5,6")
+            original_input_ids["student-water + student-water-b"] = selected_status.get_attribute("data-cochem-input-id")
+            assert uuid.UUID(original_input_ids["student-water + student-water-b"]).hex == original_input_ids["student-water + student-water-b"]
             selection.select_option(index=0)
             expect(page.get_by_label("Geometry (XYZ):", exact=True)).to_have_value(WATER.decode())
             expect(page.get_by_text(report["input_sha256"]["student-water.xyz"], exact=True)).to_be_visible()
@@ -624,6 +631,11 @@ def main() -> None:
                 ("student-water + student-water-b", seed.encode(), "Complex starting geometry", "1,2,3;4,5,6"),
             ):
                 selection.select_option(label=label)
+                # The public acknowledgement is published after all selected fields.
+                # Bind it to the original UUID and bytes before observing the fields.
+                expect(selected_status).to_have_count(1)
+                expect(selected_status).to_have_attribute("data-cochem-input-id", original_input_ids[label])
+                expect(selected_status.locator("code")).to_have_text(hashlib.sha256(original).hexdigest())
                 expect(page.get_by_label("Geometry (XYZ):", exact=True)).to_have_value(original.decode())
                 expect(page.get_by_label("Input type:", exact=True)).to_have_value(role)
                 expect(page.get_by_label("Fragment atom groups:", exact=True)).to_have_value(groups)

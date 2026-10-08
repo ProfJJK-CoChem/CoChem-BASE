@@ -488,6 +488,12 @@ class SubprocessBroker:
                 else:
                     proc_kwargs["start_new_session"] = True
 
+                from cochem_base.core_engine.crash_provenance import snapshot_process_context
+                execution_context = snapshot_process_context(
+                    current_cmd, cwd=effective_cwd, environment=worker_env,
+                    resources={"timeout_seconds": effective_timeout},
+                )
+                execution_context["stderr_capture"] = "raw_bytes"
                 try:
                     proc = subprocess.Popen(current_cmd, **proc_kwargs)
                     with self._process_lock:
@@ -550,7 +556,7 @@ class SubprocessBroker:
                         from cochem_base.core_engine.crash_provenance import record_process_crash
                         crash_diagnostics = record_process_crash(
                             current_cmd, code, err or b"",
-                            self.store_dir / "Logs",
+                            self.store_dir / "Logs", execution_context=execution_context,
                         )
                         # Fatal native crashes are not numerical solver retries.
                         break

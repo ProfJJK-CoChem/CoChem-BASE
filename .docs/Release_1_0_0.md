@@ -1,4 +1,9 @@
-# CoChem-BASE 1.0.0 release record
+# CoChem-BASE 1.0.0 historical release record
+
+This record describes the immutable older `v1.0.0` publication. Later CFOUR,
+module integration and SRS gap-closure changes belong to the
+[1.0.1 release record](Release_1_0_1.md). Neither its old counts nor its earlier
+CFOUR deferral describe current `main`. The existing tag is preserved.
 
 **Validation complete for the supported BASE 1.0.0 scope.** Publication status
 and final distribution digests belong to the

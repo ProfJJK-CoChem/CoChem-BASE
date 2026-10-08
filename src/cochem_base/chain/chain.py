@@ -41,7 +41,6 @@ Core Architectural Directives:
 from __future__ import annotations
 
 import argparse
-from contextlib import nullcontext
 import hashlib
 import json
 import logging
@@ -74,7 +73,7 @@ from cochem_base.core.cochem_constants import (
 from cochem_base.calc.cochem_calc_input_generator import MoleculeInput, ORCA_SCF_BLOCK, _orca_method_keywords
 from cochem_base.core_engine.execution_authority import authorize_engine_execution
 from cochem_base.core_engine.scientific_telemetry import append_scientific_result
-from cochem_base.core_engine.trajectory_telemetry import XYZTrajectoryFollower
+from cochem_base.core_engine.gradient_telemetry import ORCAGradientStream
 from cochem_base.physics.eckart_aligner import align_coordinates
 from cochem_base.theory_matrix import canonical_tier_for_method
 
@@ -149,7 +148,7 @@ CANONICAL_ARROWS: Dict[int, Dict[str, str]] = {
         "name": "EnsembleRefinement",
         "from_to": "Conformer ensemble -> GFN2-xTB refinement",
         "file_passed": ".xyz per conformer alongside .CHRG / .UHF",
-        "keyword": "xtb conf.xyz --opt vtight --strict / ORCA ! XTB2 TightOpt",
+        "keyword": "BASE BFGS vtight with xtb input.xyz --gfn 2 --grad --strict / ORCA ! XTB2 TightOpt",
         "saving": "Fast pre-optimization to reach r2SCAN-3c with sane intermolecular distance",
     },
     3: {
@@ -1286,13 +1285,14 @@ class Chain:
         Raw route/blocks remain verbatim provider options. They are not silently
         translated into another engine's grammar or accepted as a physical result.
         """
-        from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry
+        from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry_identity
         from cochem_base.interfaces.scientific_jobs import (
             calculation_capability, prepare_calculation_handoff, validate_job_configuration,
         )
         config = (calculation_config if isinstance(calculation_config, CalculationMatrixConfig)
                   else CalculationMatrixConfig.model_validate(calculation_config))
         validate_job_configuration(config)
+        nuclear_identity = parse_run_geometry_identity(config.geometry)
         if calculation_capability(config).adapter_status != "pending_integration":
             raise ValueError("This operation has a native adapter; use run_calculation or run_stage to execute it")
         for name in (stage.name, stage.geom_from, stage.mo_from, stage.hess_from):
@@ -1309,8 +1309,8 @@ class Chain:
             raise ValueError("Structured method, basis and VPT2 request must agree with the preserved stage route")
         if config.engine == "orca":
             MoleculeInput(
-                basin_id=stage.name, elements=parse_run_geometry(config.geometry)[0],
-                coordinates=parse_run_geometry(config.geometry)[1], theory_level=stage.level,
+                basin_id=stage.name, elements=list(nuclear_identity.elements), nuclides=list(nuclear_identity.nuclides),
+                coordinates=nuclear_identity.coordinates_angstrom, theory_level=stage.level,
                 charge=config.charge, multiplicity=config.multiplicity, is_opt=config.is_opt,
                 is_freq=config.is_freq, is_vpt2=config.is_vpt2, grid_stage=config.grid_stage,
                 product_class=config.product_class, recipe=config.recipe,
@@ -1325,7 +1325,7 @@ class Chain:
             seed = Path(seed_xyz).expanduser()
             if not seed.is_absolute() and not seed.is_file():
                 seed = self.workdir / seed
-            if parse_run_geometry(seed.read_text()) != parse_run_geometry(config.geometry):
+            if parse_run_geometry_identity(seed.read_text()) != nuclear_identity:
                 raise ValueError("Structured job geometry differs from the supplied Chain input")
             dependencies["source_geometry.xyz"] = seed
         if stage.mo_from:
@@ -1344,7 +1344,7 @@ class Chain:
         input_geometry = self.workdir / f"{stage.name}.request.xyz"
         if input_geometry.exists():
             raise CorruptOutputError("Pending stage input already exists; use a new basename")
-        symbols, coordinates = parse_run_geometry(config.geometry)
+        symbols, coordinates = list(nuclear_identity.nuclides), nuclear_identity.coordinates_angstrom
         geometry = "\n".join([str(len(symbols)), "Pending Chain scientific job"] +
                              [symbol + " " + " ".join(format(float(value), ".17g") for value in xyz)
                               for symbol, xyz in zip(symbols, coordinates)]) + "\n"
@@ -1389,7 +1389,9 @@ class Chain:
             raise ValueError(f"run_stage does not implement engine {stage.engine!r}.")
         if stage.recipe == "R2" and not dry_run:
             raise ValueError("R2 production requires authenticated CCSD(T)/CBS monomer references and all counterpoise legs; this Chain path cannot certify them.")
+        from cochem_base.geometry.nuclide_geometry import parse_geometry_identity, resolve_nuclear_identity
         assert_writable_path(self.workdir)
+        input_identity = None
         if stage.geom_from:
             geom_source = f"{stage.geom_from}.xyz"
         elif seed_xyz is not None:
@@ -1400,19 +1402,34 @@ class Chain:
             normalized, rotation, rmsd = align_coordinates(
                 coords, coords, masses=get_atomic_masses_for_symbols(symbols),
             )
-            self._planning_geometry = (symbols, normalized)
+            input_identity = resolve_nuclear_identity(symbols)
+            self._planning_geometry = (list(input_identity.elements), normalized)
             source_digest = hashlib.sha256(seed.read_bytes()).hexdigest()
             geom_source = f"{stage.name}_input.xyz"
             target = self.workdir / geom_source
             assert_writable_path(target)
-            write_xyz(target, symbols, normalized, "COM/Eckart normalized Chain input")
+            write_xyz(target, input_identity.elements, normalized, "COM/Eckart normalized electronic Chain input")
             (self.workdir / f"{stage.name}.ingress.json").write_text(json.dumps({
                 "source_sha256": source_digest,
                 "rotation": rotation.tolist(), "mass_weighted_rmsd_angstrom": rmsd,
-                "principal_isotope_masses_u": get_atomic_masses_for_symbols(symbols).tolist(),
+                "selected_isotope_masses_u": get_atomic_masses_for_symbols(symbols).tolist(),
+                "nuclear_identity": input_identity.metadata,
             }), encoding="utf-8")
         else:
             raise ValueError("A stage requires a geometry source.")
+        if stage.geom_from and (self.workdir / geom_source).is_file():
+            source_geometry = self.workdir / geom_source
+            original_symbols, original_coordinates, _ = read_xyz(source_geometry)
+            input_identity = resolve_nuclear_identity(original_symbols)
+            geom_source = f"{stage.name}_input.xyz"
+            target = self.workdir / geom_source
+            if target.exists():
+                raise CorruptOutputError("Refusing to overwrite a stage geometry input snapshot.")
+            write_xyz(target, input_identity.elements, original_coordinates, "Electronic snapshot of isotope-bound prior Chain state")
+            (self.workdir / f"{stage.name}.ingress.json").write_text(json.dumps({
+                "source_sha256": hashlib.sha256(source_geometry.read_bytes()).hexdigest(),
+                "nuclear_identity": input_identity.metadata,
+            }), encoding="utf-8")
         if geom_source == f"{stage.name}.xyz":
             raise ValueError("Stage output geometry cannot overwrite its input geometry.")
         consumed = [geom_source]
@@ -1479,6 +1496,10 @@ class Chain:
             cores=self.nproc, maxcore_mb=self.maxcore,
         )
         input_symbols, input_coords, _ = read_xyz(self.workdir / geom_source)
+        if input_identity is None:
+            input_identity = resolve_nuclear_identity(input_symbols)
+        if tuple(input_symbols) != input_identity.elements:
+            raise CorruptOutputError("Chain electronic input differs from its retained ordered nuclear assignments.")
         ghost_warnings = validate_rule_d4_counterpoise_ghosts(stage, input_symbols)
         if ghost_warnings:
             raise ValueError("; ".join(ghost_warnings))
@@ -1488,25 +1509,45 @@ class Chain:
         def execute_primary() -> None:
             telemetry_cancel = threading.Event()
             campaign_id = hashlib.sha256(str(self.workdir).encode()).hexdigest()[:16]
-            trajectory = XYZTrajectoryFollower(
-                self.workdir / f"{stage.name}_trj.xyz", f"chain_{campaign_id}_{stage.name}_trajectory",
-                input_symbols, source_format="orca", store_path=self.telemetry_path,
-                metadata={"engine": "orca", "stage": stage.name}, required=True,
-                on_error=lambda error: telemetry_cancel.set(),
-            ) if "opt" in stage.level.lower() else nullcontext()
-            with trajectory:
+            gradient_stream = ORCAGradientStream(
+                f"chain_{campaign_id}_{stage.name}_trajectory", input_identity.elements,
+                nuclides=input_identity.nuclides, store_path=self.telemetry_path,
+                source_id=f"chain_{campaign_id}_{stage.name}",
+                source_path=self.workdir / f"{stage.name}.native-gradient-evaluations.txt",
+                metadata={"engine": "orca", "stage": stage.name, "nuclear_identity": input_identity.metadata},
+            ) if "opt" in stage.level.lower() else None
+            spin_validator = SpinContaminationStreamValidator(self.mult)
+
+            def stream(line: str) -> None:
+                spin_validator(line)
+                if gradient_stream is not None:
+                    try:
+                        gradient_stream(line)
+                    except BaseException:
+                        telemetry_cancel.set()
+                        raise
+
+            try:
                 result = safe_subprocess_run(
                     authorization.command([inp_path.name]), cwd=self.workdir, check=False,
                     env=engine_runtime_environment("orca", executable=authorization.executable),
                     capture_output=True, text=True, required_disk_gb=0.1,
                     cpu_affinity=list(authorization.cpu_affinity) or None,
                     cancellation_event=telemetry_cancel,
-                    on_stdout_line=SpinContaminationStreamValidator(self.mult), load_full_stdout=True,
+                    on_stdout_line=stream, load_full_stdout=True,
                 )
+            finally:
+                if gradient_stream is not None:
+                    (self.workdir / f"{stage.name}.trajectory_telemetry.json").write_text(
+                        json.dumps(gradient_stream.status, indent=2), encoding="utf-8")
             out_path.write_text(result.stdout or "", encoding="utf-8")
             (self.workdir / f"{stage.name}.err").write_text(result.stderr or "", encoding="utf-8")
             if result.returncode:
                 raise ConvergenceFailureError(f"ORCA exited {result.returncode}; diagnostics retained at {out_path}.")
+            if gradient_stream is not None:
+                gradient_stream.finish(required=True)
+                (self.workdir / f"{stage.name}.trajectory_telemetry.json").write_text(
+                    json.dumps(gradient_stream.status, indent=2), encoding="utf-8")
             if not parser.verify_scf_convergence(out_path):
                 raise ConvergenceFailureError(f"Missing or failed SCF convergence evidence in {out_path}.")
             parser.check_spin_contamination(out_path, multiplicity=self.mult)
@@ -1514,7 +1555,7 @@ class Chain:
         fallback = execute_with_t9_fallback(
             execute_primary, self.t9_fallback, elements=input_symbols, coordinates=input_coords.tolist(),
             charge=self.charge, multiplicity=self.mult, directory=self.workdir / f"{stage.name}_t9",
-            registry_path=self.registry_path,
+            registry_path=self.registry_path, nuclides=input_identity.nuclides,
         )
         wall_s = time.monotonic() - started
         if orbital_source_hash is not None and hashlib.sha256(source_orbital.read_bytes()).hexdigest() != orbital_source_hash:
@@ -1562,13 +1603,23 @@ class Chain:
             if not hess_data["atoms"]:
                 raise CorruptOutputError("A published Hessian requires its complete geometry-bearing $atoms block.")
             hessian_coordinates = np.asarray([atom["coords"] for atom in hess_data["atoms"]]) * BOHR_TO_ANGSTROM
-            if not np.allclose(hessian_coordinates, coords, atol=1e-6, rtol=0):
+            if "freq" not in stage.level.lower() and not np.allclose(hessian_coordinates, coords, atol=1e-6, rtol=0):
                 raise CorruptOutputError("Hessian coordinates do not match the accepted stage geometry.")
+        selected_frequencies = hess_data["frequencies"] if hess_data else None
+        if hess_data and "freq" in stage.level.lower():
+            from cochem_base.calc.orca_derivatives import accept_harmonic_hessian
+            harmonic = accept_harmonic_hessian(self.workdir / f"{stage.name}.hess", out_path,
+                input_symbols, coords, optimized=is_optimization, nuclides=list(input_identity.nuclides))
+            selected_frequencies = np.asarray(harmonic["harmonic_frequencies_cm1"])
+            tensor_rotation = np.kron(np.eye(len(input_symbols)), np.asarray(harmonic["hessian_artifact"]["native_to_final_rotation"]))
+            hessian = tensor_rotation @ hessian @ tensor_rotation.T
+            (self.workdir / f"{stage.name}.harmonic-evidence.json").write_text(json.dumps(harmonic, indent=2), encoding="utf-8")
+        symbols = list(input_identity.nuclides)
         rot = compute_rotational_constants(symbols, coords)
         record = StateRecord(
             stage=stage.name, level=stage.level, wall_s=wall_s,
             energy_hartree=energy, symbols=symbols, geometry=coords,
-            hessian=hessian, frequencies_cm_inv=hess_data["frequencies"] if hess_data else None,
+            hessian=hessian, frequencies_cm_inv=selected_frequencies,
             rotational_constants_mhz=(rot["A_MHz"], rot["B_MHz"], rot["C_MHz"]),
             inertial_defect_amu_a2=rot["inertial_defect_amu_A2"],
             planar_moments_amu_a2=(rot["Paa_u_A2"], rot["Pbb_u_A2"], rot["Pcc_u_A2"]),
@@ -1580,11 +1631,86 @@ class Chain:
                 stage, record, self.stage_records.get(stage.geom_from)))
             if hessian is not None:
                 record.warnings.extend(validate_rule_d2_hessian_reuse(stage, hessian, symbols, coords))
-        if not stage_xyz_path.exists():
-            write_xyz(stage_xyz_path, symbols, coords, "Unchanged input geometry of a verified non-optimization stage")
+        if stage_xyz_path.exists():
+            shutil.copyfile(stage_xyz_path, self.workdir / f"{stage.name}.native.xyz")
+        write_xyz(stage_xyz_path, symbols, coords, "Verified isotope-bound Chain state geometry; native electronic output retained separately")
         record.produced_files = [path.name for path in self.workdir.glob(f"{stage.name}.*")]
         self.record_to_hdf5(record)
         self.stage_records[stage.name] = record
+        return record
+
+    def run_xtb_preoptimization(self, seed_xyz: Union[str, Path], *, dry_run: bool = False) -> StateRecord:
+        """Publish the canonical s1 handoff using strict native vector evaluations.
+
+        The solver is BASE's explicitly recorded BFGS optimizer. Every force
+        evaluation is genuine GFN2-xTB ``--grad --strict``; vtight acceptance
+        requires a measured norm <=1e-5 and maximum component <=1e-6 Eh/bohr.
+        """
+        from cochem_base.calc.calculation_service import CalculationMatrixConfig
+        from cochem_base.calc.xtb_optimization import execute_xtb_optimization
+        from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+
+        seed = Path(seed_xyz).resolve(strict=True)
+        symbols, coordinates, _ = read_xyz(seed)
+        identity = resolve_nuclear_identity(symbols)
+        level = "GFN2-xTB native gradients / SciPy BFGS vtight --strict"
+        outputs = {name: self.workdir / name for name in ("s1_xtb.out", "s1.xyz", "s1_xtb.err", "s1_xtb.command.json")}
+        for output in outputs.values():
+            assert_writable_path(output)
+            if output.exists():
+                raise CorruptOutputError("Refusing stale xTB stage artifacts; use a fresh campaign directory.")
+        work = self.workdir / "s1_xtb_native"
+        if work.exists():
+            raise CorruptOutputError("Refusing stale native xTB evaluations; use a fresh campaign directory.")
+        native_command = [self.xtb_cmd, "input.xyz", "--gfn", "2", "--chrg", str(self.charge),
+                          "--uhf", str(self.mult - 1), "--grad", "--strict"]
+        if dry_run:
+            outputs["s1_xtb.command.json"].write_text(json.dumps({
+                "status": "DECK_GENERATED", "command": native_command,
+                "optimizer": "SciPy BFGS with native xTB analytic gradients", "optimization_level": "vtight",
+                "gradient_norm_limit_hartree_per_bohr": 1e-5,
+                "maximum_gradient_component_limit_hartree_per_bohr": 1e-6,
+                "whole_operation_timeout_seconds": 300, "geometry_source": str(seed),
+                "handoff": "s1.xyz", "nuclear_identity": identity.metadata,
+            }, indent=2), encoding="utf-8")
+            record = StateRecord(stage="s1", level=level, wall_s=0., energy_hartree=None,
+                symbols=[], geometry=np.empty((0, 3)), consumed_files=[seed.name],
+                produced_files=[outputs["s1_xtb.command.json"].name], arrow_index=2,
+                converged=False, exit_status="DECK_GENERATED")
+        else:
+            binary = shutil.which(self.xtb_cmd)
+            if binary is None:
+                raise MissingBinaryError(f"Requested xTB executable {self.xtb_cmd!r} is unavailable.")
+            authorization = authorize_engine_execution("xtb", registry_path=self.registry_path,
+                executable=binary, cores=self.nproc, maxcore_mb=self.maxcore)
+            if self.mult != 1:
+                raise ValueError("xTB Chain adapter lacks auditable open-shell S² trajectory diagnostics.")
+            geometry = "\n".join(symbol + " " + " ".join(format(value, ".17g") for value in xyz)
+                for symbol, xyz in zip(identity.nuclides, coordinates, strict=True))
+            config = CalculationMatrixConfig(geometry=geometry, engine="xtb", method="GFN2-xTB",
+                basis_set="built-in", theory_tier="T1", is_opt=True, charge=self.charge,
+                multiplicity=self.mult, timeout_seconds=300)
+            campaign_id = hashlib.sha256(str(self.workdir).encode()).hexdigest()[:16]
+            started = time.monotonic()
+            result = execute_xtb_optimization(config, identity.elements, coordinates,
+                directory=work, authority=authorization,
+                environment=engine_runtime_environment("xtb", executable=authorization.executable),
+                telemetry_job_id=f"chain_{campaign_id}_s1_trajectory", nuclides=identity.nuclides,
+                store_path=self.telemetry_path, optimization_level="vtight", strict=True,
+                metadata={"engine": "xtb", "stage": "s1", "nuclear_identity": identity.metadata})
+            shutil.copyfile(work / "xtb.out", outputs["s1_xtb.out"])
+            shutil.copyfile(work / "stderr.log", outputs["s1_xtb.err"])
+            write_xyz(outputs["s1.xyz"], list(identity.nuclides), np.asarray(result["coordinates_angstrom"]),
+                      "Genuine GFN2-xTB native-gradient BFGS vtight geometry")
+            record = StateRecord(stage="s1", level=level, wall_s=time.monotonic() - started,
+                energy_hartree=result["energy_hartree"], symbols=list(identity.nuclides),
+                geometry=np.asarray(result["coordinates_angstrom"]),
+                gradient=np.asarray(result["gradients_hartree_per_bohr"]), consumed_files=[seed.name],
+                produced_files=["s1_xtb.out", "s1_xtb.err", "s1.xyz", "s1_xtb_native/result.json",
+                                "s1_xtb_native/optimization_evidence.json", "s1_xtb_native/optimization_evaluations.json"],
+                arrow_index=2, converged=True, exit_status="SUCCESS")
+        self.record_to_hdf5(record)
+        self.stage_records["s1"] = record
         return record
 
     def run_canonical_pipeline(
@@ -1634,73 +1760,7 @@ class Chain:
 
         # An explicitly requested xTB stage must succeed; no raw-seed fallback.
         if include_xtb:
-            command = [self.xtb_cmd, ingress_path.name, "--opt", "vtight", "--strict",
-                       "--chrg", str(self.charge), "--uhf", str(self.mult - 1)]
-            s1_out = self.workdir / "s1_xtb.out"
-            s1_xyz = self.workdir / "s1.xyz"
-            for output in (s1_out, s1_xyz, self.workdir / "s1_xtb.err", self.workdir / "s1_xtb.command.json"):
-                assert_writable_path(output)
-            if dry_run:
-                deck = self.workdir / "s1_xtb.command.json"
-                deck.write_text(json.dumps({"status": "DECK_GENERATED", "command": command}), encoding="utf-8")
-                first = StateRecord(
-                    stage="s1", level="GFN2-xTB --opt vtight --strict", wall_s=0.0,
-                    energy_hartree=None, symbols=[], geometry=np.empty((0, 3)),
-                    consumed_files=[ingress_path.name], produced_files=[deck.name], arrow_index=2,
-                    converged=False, exit_status="DECK_GENERATED",
-                )
-            else:
-                binary = shutil.which(self.xtb_cmd)
-                if binary is None:
-                    raise MissingBinaryError(f"Requested xTB executable {self.xtb_cmd!r} is unavailable.")
-                authorization = authorize_engine_execution(
-                    "xtb", registry_path=self.registry_path, executable=binary,
-                    cores=self.nproc, maxcore_mb=self.maxcore,
-                )
-                if self.mult != 1:
-                    raise ValueError("xTB Chain adapter lacks auditable open-shell S² trajectory diagnostics.")
-                xtbopt = self.workdir / "xtbopt.xyz"
-                if xtbopt.exists() or s1_xyz.exists():
-                    raise CorruptOutputError("Refusing stale xTB geometry; use a fresh campaign directory.")
-                command[0] = binary
-                started = time.monotonic()
-                telemetry_cancel = threading.Event()
-                campaign_id = hashlib.sha256(str(self.workdir).encode()).hexdigest()[:16]
-                with XYZTrajectoryFollower(
-                    self.workdir / "xtbopt.log", f"chain_{campaign_id}_s1_trajectory",
-                    seed_symbols, source_format="xtb", store_path=self.telemetry_path,
-                    metadata={"engine": "xtb", "stage": "s1"}, required=True,
-                    on_error=lambda error: telemetry_cancel.set(),
-                ):
-                    result = safe_subprocess_run(
-                        command, cwd=self.workdir, check=False, capture_output=True, text=True,
-                        env=engine_runtime_environment("xtb", executable=authorization.executable),
-                        required_disk_gb=0.1, on_stdout_line=SpinContaminationStreamValidator(self.mult),
-                        cpu_affinity=list(authorization.cpu_affinity) or None,
-                        cancellation_event=telemetry_cancel, load_full_stdout=True,
-                    )
-                wall_s = time.monotonic() - started
-                s1_out.write_text(result.stdout or "", encoding="utf-8")
-                (self.workdir / "s1_xtb.err").write_text(result.stderr or "", encoding="utf-8")
-                if result.returncode:
-                    raise ConvergenceFailureError(f"xTB exited {result.returncode}; diagnostics retained at {s1_out}.")
-                info = parse_xtb_output(s1_out)
-                if not info["normal_termination"] or not info["converged"] or info["energy_hartree"] is None:
-                    raise ConvergenceFailureError("xTB lacks explicit convergence, termination, or finite energy evidence.")
-                if not xtbopt.is_file():
-                    raise CorruptOutputError("xTB did not produce its optimized XYZ geometry.")
-                symbols, coordinates, _ = read_xyz(xtbopt)
-                if symbols != read_xyz(seed_p)[0]:
-                    raise CorruptOutputError("xTB atom identities/order differ from the seed geometry.")
-                shutil.copyfile(xtbopt, s1_xyz)
-                first = StateRecord(
-                    stage="s1", level="GFN2-xTB --opt vtight --strict", wall_s=wall_s,
-                    energy_hartree=info["energy_hartree"], symbols=symbols, geometry=coordinates,
-                    consumed_files=[ingress_path.name], produced_files=[s1_out.name, s1_xyz.name],
-                    arrow_index=2, converged=True, exit_status="SUCCESS",
-                )
-            self.record_to_hdf5(first)
-            self.stage_records["s1"] = first
+            first = self.run_xtb_preoptimization(ingress_path, dry_run=dry_run)
             records.append(first)
             active_seed = "s1.xyz"
 

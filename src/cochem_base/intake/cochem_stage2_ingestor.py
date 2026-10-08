@@ -86,16 +86,22 @@ def is_ghost_symbol(symbol: str) -> bool:
 
 
 def normalize_symbol(symbol: str) -> str:
-    """Cleans and standardizes an atomic element symbol."""
+    """Resolve the electronic element without using it as an isotope mass label."""
     if not symbol or not isinstance(symbol, str) or not symbol.strip():
         raise ValueError("[MISSING DATA] Atomic symbol cannot be empty.")
     clean = symbol.strip()
     if is_ghost_symbol(clean):
         return "Gh"
-    match = re.match(r"^([A-Za-z]{1,2})", clean)
-    if match:
-        return match.group(1).capitalize()
-    return clean.capitalize()
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+    return resolve_nuclear_identity([clean]).elements[0]
+
+
+def _nuclide_assignment_key(symbol: str) -> str:
+    """Only atoms with the same nuclear identity may exchange alignment slots."""
+    if is_ghost_symbol(symbol):
+        return "Gh"
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+    return resolve_nuclear_identity([symbol.strip()]).nuclides[0]
 
 
 def get_covalent_radius(symbol: str) -> float:
@@ -133,17 +139,11 @@ def get_vdw_radius(symbol: str) -> float:
 
 
 def get_atomic_mass(symbol: str) -> float:
-    """Retrieves standard atomic weight in unified atomic mass units (u)."""
-    sym = normalize_symbol(symbol)
-    if is_ghost_symbol(sym):
+    """Resolve the full nuclide's dynamic mass without removing isotope numbers."""
+    if is_ghost_symbol(symbol):
         return 0.0
-    try:
-        elem = mendeleev.element(sym)
-        if elem is not None and elem.mass is not None:
-            return float(elem.mass)
-    except Exception as _e:
-        logger.debug(f"Ignored exception: {_e}")
-    return 1.008 if sym == "H" else 12.011
+    from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
+    return resolve_nuclear_identity([symbol.strip()]).masses_u[0]
 
 
 # ==============================================================================
@@ -451,7 +451,7 @@ class HungarianKabschAligner:
        d = sign(det(V W^T)), U = V diag(1, 1, d) W^T (det(U) = +1.0)
     2. SVD Collinearity Singularity Trap for linear / diatomic species:
        Detects S_3 < 1.0e-12 and pivots to 2D Z-axis projection alignment.
-    3. Permutation invariance across identical elemental species via Hungarian algorithm.
+    3. Permutation invariance across identical nuclides via Hungarian algorithm.
     """
 
     def __init__(self, collinearity_threshold: float = 1.0e-12) -> None:
@@ -511,10 +511,10 @@ class HungarianKabschAligner:
 
             perm = list(range(n_atoms))
             if allow_permutation and symbols is not None:
-                unique_elements = sorted(list(set([normalize_symbol(s) for s in syms_p])))
+                unique_elements = sorted(list(set([_nuclide_assignment_key(s) for s in syms_p])))
                 for elem in unique_elements:
-                    p_idx = [i for i, s in enumerate(syms_p) if normalize_symbol(s) == elem]
-                    q_idx = [j for j, s in enumerate(syms_q) if normalize_symbol(s) == elem]
+                    p_idx = [i for i, s in enumerate(syms_p) if _nuclide_assignment_key(s) == elem]
+                    q_idx = [j for j, s in enumerate(syms_q) if _nuclide_assignment_key(s) == elem]
                     if len(p_idx) != len(q_idx) or len(p_idx) == 0:
                         continue
                     if len(p_idx) == 1:
@@ -680,7 +680,7 @@ class HungarianKabschAligner:
                 np.diag([-1.0, -1.0, 1.0]),
             ])
 
-            unique_elements = sorted(list(set([normalize_symbol(s) for s in syms_p])))
+            unique_elements = sorted(list(set([_nuclide_assignment_key(s) for s in syms_p])))
 
             for R_init in candidate_orientations:
                 # Pre-align P into candidate orientation relative to Q
@@ -688,8 +688,8 @@ class HungarianKabschAligner:
                 perm = list(range(n_atoms))
 
                 for elem in unique_elements:
-                    p_idx = [i for i, s in enumerate(syms_p) if normalize_symbol(s) == elem]
-                    q_idx = [j for j, s in enumerate(syms_q) if normalize_symbol(s) == elem]
+                    p_idx = [i for i, s in enumerate(syms_p) if _nuclide_assignment_key(s) == elem]
+                    q_idx = [j for j, s in enumerate(syms_q) if _nuclide_assignment_key(s) == elem]
                     if len(p_idx) != len(q_idx) or len(p_idx) == 0:
                         continue
                     if len(p_idx) == 1:
@@ -873,46 +873,34 @@ XYZ_LINE_PATTERN = re.compile(r"^\s*([A-Za-z]{1,2})\s+([-+]?\d*\.?\d+(?:[eE][-+]
 
 
 def parse_xyz_text(text: str) -> List[Dict[str, Any]]:
-    """Parses single or multi-geometry XYZ formatted text."""
-    molecules: List[Dict[str, Any]] = []
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if not lines:
-        return molecules
+    """Parse XYZ frames while preserving validated ordered nuclide labels.
 
+    Blank comments are legitimate XYZ lines. A malformed frame is rejected,
+    rather than losing a labelled atom and ingesting a different molecule.
+    """
+    from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+    molecules: List[Dict[str, Any]] = []
+    lines = text.splitlines()
     i = 0
     while i < len(lines):
-        try:
-            num_atoms = int(lines[i])
-        except ValueError:
+        if not lines[i].strip():
             i += 1
             continue
-
-        comment = lines[i + 1] if i + 1 < len(lines) else ""
-        coord_lines = lines[i + 2 : i + 2 + num_atoms]
-        symbols: List[str] = []
-        coords_list: List[List[float]] = []
-
-        for cline in coord_lines:
-            match = XYZ_LINE_PATTERN.match(cline)
-            if match:
-                symbols.append(match.group(1).capitalize())
-                coords_list.append([
-                    float(match.group(2)),
-                    float(match.group(3)),
-                    float(match.group(4)),
-                ])
-
-        if len(coords_list) == num_atoms and num_atoms > 0:
-            molecules.append({
-                "comment": comment,
-                "symbols": symbols,
-                "coords": np.array(coords_list, dtype=np.float64),
-                "num_atoms": num_atoms,
-            })
-            i += 2 + num_atoms
-        else:
-            i += 1
-
+        try:
+            num_atoms = int(lines[i].strip())
+        except ValueError as error:
+            raise ValueError("XYZ frame requires an explicit atom count") from error
+        stop = i + num_atoms + 2
+        if num_atoms < 1 or stop > len(lines):
+            raise ValueError("XYZ frame is incomplete or has a nonpositive atom count")
+        identity = parse_geometry_identity("\n".join(lines[i:stop]))
+        molecules.append({
+            "comment": lines[i + 1].strip(), "symbols": list(identity.nuclides),
+            "elements": list(identity.elements), "nuclear_identity": identity.metadata,
+            "coords": np.asarray(identity.coordinates_angstrom, dtype=np.float64),
+            "num_atoms": num_atoms,
+        })
+        i = stop
     return molecules
 
 

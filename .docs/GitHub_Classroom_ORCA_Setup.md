@@ -42,13 +42,18 @@ requests** disabled. The course's manual calculation workflows do not need it.
 
 Sign in with your own GitHub account and follow your instructor's project and
 Classroom50 enrollment links. Create an independent **Private** project from the
-public BASE template with your personal account as **Owner**, then authorize the
-instructor's App for that selected project as described in the
-[deployment guide](Personal_Project_App_Deployment.md). Use this private research
-project, not upstream BASE, for your Codespace and calculation requests.
+public BASE template with your personal account as **Owner**. Follow the
+[complete student enrollment steps](Student_Research_No_Code.md#start-your-workspace):
+open the initial BASE dashboard, use **Lab access** to authorize the instructor's
+App for this selected project, request access and wait for approval. The
+[instructor deployment guide](Personal_Project_App_Deployment.md) explains the
+controller configuration. Use your private research project for its Codespace
+and calculation requests.
 
-1. Select **Code → Codespaces → Create codespace**, authorize the requested
-   course repository access and wait for automatic BASE/module setup.
+1. After successful enrollment, stop the initial Codespace and select **Code →
+   Codespaces → Create codespace** to create a **fresh Codespace**. Wait for
+   automatic BASE/module setup; no organization-secret inheritance or cross-owner
+   repository-declaration authorization is assumed.
 2. Open the private **CoChem Voilà dashboard** on port **8866** from VS Code's
    **Ports** panel. No notebook cell, terminal command or separate module
    installation is required.

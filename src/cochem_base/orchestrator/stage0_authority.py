@@ -15,6 +15,7 @@ from cochem_base.cochem_core_registry_schema import (
     EngineInfo,
     EnvironmentSchema,
     HardwareSchema,
+    GPUComputeSchema,
     MicroSiloAuthority,
     SiloConfig,
     SiloPathsSchema,
@@ -88,7 +89,12 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
             for n in p11.get("numa_profile", {}).get("numa_nodes", [])
         },
         avx_512_capable=profile.avx512,
-        vram_gb=(profile.vram_bytes or 0) / 1024**3,
+        vram_gb=profile.vram_bytes / 1024**3 if profile.vram_bytes is not None else None,
+        gpu_compute_metrics=GPUComputeSchema(
+            gpu_profile="NVIDIA" if profile.gpu_probe_status == "measured" else "Unknown",
+            vram_gb=profile.vram_bytes / 1024**3 if profile.vram_bytes is not None else None,
+            device_count=profile.gpu_device_count,
+        ),
         gpu_profile="NVIDIA" if profile.gpu_probe_status == "measured" else "Unavailable",
         os_target=profile.environment.os_target,
     )
@@ -115,6 +121,13 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
                 digest = hashlib.file_digest(handle, "sha256").hexdigest()
             if digest != record.get("sha256_hash"):
                 raise Stage0AuthorityError(f"Audited executable changed since phase 3: {name}")
+            for component, expected in record.get("native_components", {}).items():
+                component_path = Path(component)
+                if not component_path.is_absolute() or not component_path.is_file():
+                    raise Stage0AuthorityError(f"Audited native component is unavailable: {name}")
+                with component_path.open("rb") as handle:
+                    if hashlib.file_digest(handle, "sha256").hexdigest() != expected:
+                        raise Stage0AuthorityError(f"Audited native component changed since phase 3: {name}")
             if name in {"xcfour", "cfour"}:
                 from cochem_base.core_engine.cfour_runtime import verify_cfour_runtime
                 runtime = verify_cfour_runtime(path)
@@ -129,6 +142,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
             path=path,
             version=record.get("version") if available else None,
             hash=digest,
+            native_components=record.get("native_components", {}) if available else {},
             track=record.get("track"),
             runtime_seal_sha256=record.get("runtime_seal_sha256") if available else None,
             runtime_metadata=record.get("runtime_metadata", {}) if available else {},
@@ -142,18 +156,36 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
         "cochem_ui_silo": "ui",
         "cochem_calc_silo": "calc",
         "cochem_mace_silo": "mace",
+        "cochem_aimnet2_silo": "aimnet2",
     }
+    torch_observations = {}
     for name, record in reports[4].get("silos", {}).items():
         capabilities[name] = record.get("is_available") is True
         if not capabilities[name]:
             continue
         if name not in lock_groups:
             raise Stage0AuthorityError(f"No exact dependency lock is defined for {name}")
+        lock = lock_groups[name]
+        if name == "cochem_mace_silo":
+            from cochem_base.orchestrator.ml_silo_manager import mace_profile_lock
+            from cochem_base.orchestrator.micro_silo_manager import MicroSiloValidationError
+            try:
+                lock = mace_profile_lock(record.get("dependency_profile") or "legacy")
+            except MicroSiloValidationError as exc:
+                raise Stage0AuthorityError("Unknown MACE profile in audited Stage 0 evidence") from exc
         checked = verify_micro_silo(
             record["path"],
             python_version=record["python_version"],
-            requirements=DEFAULT_PINS[lock_groups[name]],
+            requirements=DEFAULT_PINS[lock],
         )
+        if name == "cochem_mace_silo":
+            from cochem_base.orchestrator.ml_silo_manager import probe_torch_runtime
+            actual_torch = probe_torch_runtime(record["path"])
+            prior_torch = record.get("torch_cuda_probe")
+            if prior_torch is not None and prior_torch != actual_torch:
+                raise Stage0AuthorityError("Actual Torch CUDA observations changed since phase 4")
+            # Missing legacy telemetry cannot establish accelerated capability.
+            torch_observations[name] = actual_torch if prior_torch is not None else {}
         silos[name] = MicroSiloAuthority(
             root=record["path"],
             python_executable=record["python_executable"],
@@ -165,6 +197,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
     for engine_name, silo_name, package in [
         ("pyscf", "cochem_calc_silo", "pyscf"),
         ("mace", "cochem_mace_silo", "mace-torch"),
+        ("aimnet2", "cochem_aimnet2_silo", "aimnet"),
     ]:
         silo = silos.get(silo_name)
         capabilities[engine_name] = silo is not None
@@ -177,6 +210,10 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
                 version=silo.packages[package],
                 hash=digest,
                 track=silo_name,
+                gpu_support=bool(engine_name == "mace" and capabilities["cuda"] and
+                                 torch_observations.get(silo_name, {}).get("cuda_available") is True and
+                                 torch_observations.get(silo_name, {}).get("device_count", 0) > 0 and
+                                 torch_observations.get(silo_name, {}).get("cuda_runtime") is not None),
             )
         else:
             engines[engine_name] = EngineInfo(status="missing")
@@ -223,7 +260,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
         ),
         silo_paths=SiloPathsSchema(**silo_paths, strict_resolution=True),
         silos=SiloConfig(
-            gpu_silo_active=capabilities["cuda"] and capabilities.get("cochem_mace_silo", False)
+            gpu_silo_active=bool(engines.get("mace") and engines["mace"].gpu_support)
         ),
         alignment_engine_ready=capabilities["alignment"],
         stage0=Stage0Authority(

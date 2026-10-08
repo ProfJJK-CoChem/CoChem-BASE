@@ -1,9 +1,9 @@
 """Exercise actual interpreters, package discovery and pip failure boundaries."""
-from pathlib import Path
 import os
 import subprocess
 import sys
 import venv
+from pathlib import Path
 
 from scripts import bootstrap_environment
 
@@ -12,6 +12,10 @@ def _isolated_environment() -> dict[str, str]:
     environment = dict(os.environ)
     environment.update(PIP_NO_INDEX="1", PIP_NO_CACHE_DIR="1", PIP_DISABLE_PIP_VERSION_CHECK="1",
                        PYTHONPATH=str(bootstrap_environment.REPO_ROOT))
+    if any(key.startswith("COCHEM_SOURCE_QUARANTINE_") for key in environment):
+        from ci_tools.source_quarantine import source_child_environment
+
+        environment = source_child_environment(environment, selected_source=bootstrap_environment.REPO_ROOT)
     return environment
 
 

@@ -188,8 +188,8 @@ class GPUComputeSchema(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     gpu_profile: str = Field(default="None", description="Detected GPU model or 'None'")
-    vram_gb: float = Field(default=0.0, ge=0.0, description="Total video memory in GB")
-    device_count: int = Field(default=0, ge=0, description="Number of detected GPU devices")
+    vram_gb: Optional[float] = Field(default=None, ge=0.0, description="Measured video memory in GB; None when the observation is unavailable")
+    device_count: Optional[int] = Field(default=None, ge=0, description="Measured GPU count; None when the observation is unavailable")
     compute_capability: Optional[str] = Field(default=None, description="CUDA Compute capability, e.g. '8.9'")
     fp64_capable: bool = Field(default=False, description="Whether device supports native double-precision FP64")
     subnormal_precision_trap: bool = Field(default=False, description="Whether subnormal precision traps are enabled")
@@ -282,7 +282,7 @@ class HardwareSchema(BaseModel):
     audited_cpu_ids: Optional[list[int]] = None
     numa_cpu_ids: Dict[str, list[int]] = Field(default_factory=dict)
     allocatable_compute_cores: int = Field(default=1, ge=0, description="Allocatable compute cores for scientific jobs")
-    vram_gb: float = Field(default=0.0, ge=0.0, description="Total video memory in GB")
+    vram_gb: Optional[float] = Field(default=None, ge=0.0, description="Measured video memory in GB; None when the observation is unavailable")
     gpu_compute_metrics: GPUComputeSchema = Field(default_factory=GPUComputeSchema, description="GPU compute metrics and capabilities")
     gpu_fp64_capable: bool = Field(default=False, description="Whether GPU supports native FP64 precision")
     mps_enabled: bool = Field(default=False, description="Whether CUDA MPS is enabled")
@@ -403,13 +403,13 @@ class HardwareSchema(BaseModel):
         gpu_data = d.get("gpu_compute_metrics") or d.get("gpu")
         if gpu_data is None:
             gpu_prof = d.get("gpu_profile", "None")
-            vram = d.get("vram_gb", 0.0)
+            vram = d.get("vram_gb")
             trap = d.get("subnormal_precision_trap", False)
             fp64 = d.get("gpu_fp64_capable", False)
             mps_en = d.get("mps_enabled", False)
             built_gpu = {
                 "gpu_profile": gpu_prof,
-                "vram_gb": float(vram) if isinstance(vram, (int, float, str)) else 0.0,
+                "vram_gb": float(vram) if isinstance(vram, (int, float, str)) else None,
                 "subnormal_precision_trap": trap,
                 "fp64_capable": fp64,
                 "mps_enabled": mps_en,
@@ -713,6 +713,7 @@ class EngineInfo(BaseModel):
     path: Optional[str] = Field(None, description="Absolute path to executable, or 'BYPASSED', or 'Not_Found'")
     version: Optional[str] = Field(None, description="Semantic version of the engine")
     hash: Optional[str] = Field(None, description="SHA-256 binary hash")
+    native_components: Dict[str, str] = Field(default_factory=dict, description="Audited native component absolute paths and SHA-256 digests")
     gpu_support: Optional[bool] = Field(default=False, description="Whether the engine has GPU support enabled")
     track: Optional[str] = Field(default=None, description="Ecosystem execution track or category")
     runtime_seal_sha256: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -749,7 +750,9 @@ class EnginePaths(BaseModel):
     aimnet2: Optional[EngineInfo] = Field(default=None)
     mace: Optional[EngineInfo] = Field(default=None)
     pyscf: Optional[EngineInfo] = Field(default=None)
+    psi4: Optional[EngineInfo] = Field(default=None)
     crest: Optional[EngineInfo] = Field(default=None)
+    abcluster: Optional[EngineInfo] = Field(default=None, description="ABCluster rigidmol executable")
     gxtb: Optional[EngineInfo] = Field(default=None)
     mopac: Optional[EngineInfo] = Field(default=None)
     qe: Optional[EngineInfo] = Field(default=None)
@@ -990,6 +993,8 @@ class CoChemSystemConfig(BaseModel):
                     record.pop("runtime_seal_sha256", None)
                 if not record.get("runtime_metadata"):
                     record.pop("runtime_metadata", None)
+                if not record.get("native_components"):
+                    record.pop("native_components", None)
         serialized = json.dumps(d, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
@@ -1070,12 +1075,17 @@ def discover_host_hardware() -> HardwareSchema:
         cpu_physical_cores=profile.physical_cores,
         physical_cpu_cores=profile.physical_cores,
         logical_cpu_cores=profile.logical_cores,
-        allocatable_compute_cores=min(profile.physical_cores, len(profile.available_cpu_ids)),
+        allocatable_compute_cores=profile.allocatable_compute_cores,
         audited_cpu_ids=list(profile.available_cpu_ids),
         ram_gb=profile.allocatable_ram_bytes / 1024**3,
         avx_512_capable=profile.avx512,
         gpu_profile="NVIDIA" if profile.gpu_probe_status == "measured" else "Unknown",
-        vram_gb=(profile.vram_bytes or 0) / 1024**3,
+        vram_gb=profile.vram_bytes / 1024**3 if profile.vram_bytes is not None else None,
+        gpu_compute_metrics=GPUComputeSchema(
+            gpu_profile="NVIDIA" if profile.gpu_probe_status == "measured" else "Unknown",
+            vram_gb=profile.vram_bytes / 1024**3 if profile.vram_bytes is not None else None,
+            device_count=profile.gpu_device_count,
+        ),
         os_target=profile.environment.os_target,
     )
 

@@ -123,6 +123,10 @@ Python 3.12 for the pinned Stage 0 environments. Students using Classroom50
 and Codespaces follow the graphical guide above; automatic BASE setup prepares
 their workspace and hidden ecosystem components.
 
+The [private-project expert alternatives](.docs/Private_Student_Projects.md#expert-alternatives-for-authorized-repository-owners)
+retain manual GitHub CLI and licensed local-provisioning procedures for experienced
+maintainers. Those commands are not part of the student deployment route.
+
 From an upstream development checkout:
 
 ```bash

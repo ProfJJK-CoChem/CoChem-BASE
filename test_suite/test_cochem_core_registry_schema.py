@@ -117,8 +117,8 @@ def test_gpu_compute_schema_comprehensive():
     """Verify GPUComputeSchema metrics, flags, TFLOPS, and Tensor Cores."""
     gpu_default = GPUComputeSchema()
     assert gpu_default.gpu_profile == "None"
-    assert gpu_default.vram_gb == 0.0
-    assert gpu_default.device_count == 0
+    assert gpu_default.vram_gb is None
+    assert gpu_default.device_count is None
     assert gpu_default.compute_capability is None
     assert gpu_default.fp64_capable is False
     assert gpu_default.subnormal_precision_trap is False

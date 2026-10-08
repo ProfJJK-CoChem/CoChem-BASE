@@ -29,7 +29,6 @@ Authoritative Implementation for Graceful Degradation:
 import contextlib
 import json
 import logging
-import platform
 from pathlib import Path
 import sys
 import threading
@@ -49,7 +48,6 @@ from typing import (
     Union,
 )
 
-import psutil
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -622,68 +620,11 @@ def probe_live_hardware() -> HardwareSchema:
     Performs real, zero-mock physical hardware introspection of CPU, RAM, and GPU resources.
     Returns a Pydantic HardwareSchema instance.
     """
-    # 1. CPU & RAM Discovery
-    try:
-        total_ram_gb = round(psutil.virtual_memory().total / (1024**3), 2)
-        phys_cores = psutil.cpu_count(logical=False) or os.cpu_count() or 1
-        log_cores = psutil.cpu_count(logical=True) or os.cpu_count() or 1
-    except Exception:
-        total_ram_gb = 16.0
-        phys_cores = os.cpu_count() or 1
-        log_cores = os.cpu_count() or 1
+    from cochem_base.cochem_core_registry_schema import discover_host_hardware
 
-    # 2. GPU Discovery via PyTorch (if available)
-    vram_gb: float = 0.0
-    device_count: int = 0
-    gpu_profile: str = "None"
-    compute_cap: Optional[str] = None
-    fp64_capable: bool = False
-
-    if HAS_TORCH and torch is not None:
-        try:
-            if torch.cuda.is_available():
-                device_count = torch.cuda.device_count()
-                if device_count > 0:
-                    gpu_profile = torch.cuda.get_device_name(0)
-                    props = torch.cuda.get_device_properties(0)
-                    vram_gb = round(props.total_memory / (1024**3), 2)
-                    compute_cap = f"{props.major}.{props.minor}"
-                    fp64_capable = True
-        except Exception as exc:
-            logger.debug(f"Live CUDA hardware probe encountered non-fatal error: {exc}")
-
-    # OS Target
-    sys_name = platform.system().lower()
-    if "windows" in sys_name:
-        os_target = "Local-Windows"
-    elif "darwin" in sys_name:
-        os_target = "Local-MacOS"
-    else:
-        os_target = "Local-Linux"
-
-    gpu_metrics = GPUComputeSchema(
-        gpu_profile=gpu_profile,
-        vram_gb=vram_gb,
-        device_count=device_count,
-        compute_capability=compute_cap,
-        fp64_capable=fp64_capable,
-        mps_enabled=False,
-    )
-
-    return HardwareSchema(
-        ram_gb=total_ram_gb,
-        cpu_physical_cores=phys_cores,
-        physical_cpu_cores=phys_cores,
-        logical_cpu_cores=log_cores,
-        allocatable_compute_cores=phys_cores,
-        vram_gb=vram_gb,
-        gpu_compute_metrics=gpu_metrics,
-        gpu_fp64_capable=fp64_capable,
-        mps_enabled=False,
-        avx_512_capable=False,
-        gpu_profile=gpu_profile,
-        os_target=os_target,
-    )
+    # Share Stage 0's measured, allocation-bounded profiler. A failed probe
+    # cannot invent CPU/RAM or turn unavailable GPU observations into zeros.
+    return discover_host_hardware()
 
 
 def poll_hardware_registry(
@@ -840,8 +781,8 @@ class MLFFRouter:
         profile = METHOD_PROFILES[candidate_method]
 
         # Extract hardware parameters
-        detected_vram = hardware.vram_gb
-        device_count = hardware.gpu_compute_metrics.device_count if hardware.gpu_compute_metrics else 0
+        detected_vram = hardware.vram_gb or 0.0
+        device_count = (hardware.gpu_compute_metrics.device_count or 0) if hardware.gpu_compute_metrics else 0
         has_cuda = (device_count > 0 and detected_vram > 0.0) or (
             HAS_TORCH and torch is not None and torch.cuda.is_available() and detected_vram > 0.0
         )
@@ -854,7 +795,7 @@ class MLFFRouter:
             if not has_cuda or detected_vram <= 0.0:
                 return False, (
                     f"Method '{candidate_method.value}' requires CUDA GPU with VRAM >= {profile.min_vram_gb} GB, "
-                    f"but detected VRAM is {detected_vram} GB (CUDA unavailable or no devices)."
+                    f"but observed VRAM is {hardware.vram_gb} GB (CUDA unavailable or no devices)."
                 ), ExecutionDevice.CUDA
 
             if detected_vram < required_vram_gb:

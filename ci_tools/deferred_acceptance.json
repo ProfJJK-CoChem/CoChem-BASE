@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scope": "BASE acceptance with explicitly reported external prerequisites",
+  "scope": "BASE acceptance with explicitly reported external prerequisites and unavailable optional native distributions",
   "authorization": "The user authorized licensed ORCA and hosted Actions acceptance. Licensed tests run when their authentic engines and reference artifacts are supplied; free-only CI reports their missing prerequisites as external omissions, never passes. GPU, physical Slurm and native-platform acceptance remain deferred until a supplied host. Release evidence must include separate genuine licensed acceptance.",
   "deferred_tests": [
     {
@@ -49,6 +49,34 @@
         "Execution on a physical Slurm allocation"
       ],
       "category": "host",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "tests/base/test_crest_source_authority.py::test_genuine_reviewed_crest_source_distribution_binds_immutable_components",
+      "expected_skip_reason": "Reviewed patched CREST installation not provided",
+      "prerequisites": ["Actual reviewed TOPOS generic-paths CREST build, source patch and shared-library receipts"],
+      "category": "optional_native_distribution",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "tests/base/test_aimnet_cpu_lock.py::test_actual_isolated_aimnet_cpu_installation_and_phase4_audit",
+      "expected_skip_reason": "Set COCHEM_TEST_AIMNET_SILO to test an actually provisioned native AIMNet CPU installation",
+      "prerequisites": ["Actual isolated AIMNet CPU installation matching the separately reviewed dependency lock"],
+      "category": "optional_native_distribution",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "tests/base/test_psi4_native_authority.py::test_genuine_psi4_native_audit_and_component_change_rejection",
+      "expected_skip_reason": "Optional genuine Psi4 installation not supplied",
+      "prerequisites": ["Actual Psi4 1.10.2 compiled runtime with native core and successful helium Hartree-Fock probe"],
+      "category": "optional_native_distribution",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "tests/base/test_abcluster_authority.py::test_actual_rigidmol_metadata_audit",
+      "expected_skip_reason": "Actual optional ABCluster installation not provided",
+      "prerequisites": ["Actual ABCluster 3.4 rigidmol executable"],
+      "category": "optional_native_distribution",
       "status": "pending_external_acceptance"
     }
   ]

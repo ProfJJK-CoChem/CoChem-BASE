@@ -16,7 +16,7 @@ in its scientific plan.
 
 | Route | Identity and credential | What happens |
 | --- | --- | --- |
-| Codespaces interface | Student's own GitHub identity with authorized read access to declared module repositories | BASE prepares its GUI and managed analysis components without student terminal commands. |
+| Codespaces interface | Student's project identity plus the App-provisioned Codespaces source reader; same-owner declarations serve the alternate organization route | BASE prepares its GUI and managed analysis components without student terminal commands. |
 | Actions calculation | Student's private project workflow plus App-provisioned encrypted repository credentials | A fresh worker obtains the approved engines/source and executes the requested operation. |
 | Local Linux, WSL, macOS or HPC | User/site-authorized setup | The same BASE installation and capability contracts apply, with local execution authority. |
 
@@ -70,8 +70,10 @@ credential values. Do not publish native engine archives in source or artifacts.
 For personal projects, the App separately provisions an encrypted repository
 Codespaces secret under the generic runtime name `COCHEM_SOURCE_CREDENTIAL`.
 The [deployment guide](Personal_Project_App_Deployment.md) explains the App's
-Codespaces-secret permission and enrollment checks. Create the first Codespace
-only after provisioning succeeds. BASE uses this scoped source reader for
+Codespaces-secret permission and enrollment checks. Use an initial Codespace's
+**Lab access** controls to request enrollment. After the controller reports
+success, stop that initial Codespace and create a **fresh Codespace** before
+research uploads. BASE uses this scoped source reader for
 cross-owner module setup and preserves it for compatible GUI updates/restarts.
 Package builds and scientific subprocesses do not inherit source credentials.
 

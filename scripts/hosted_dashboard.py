@@ -57,6 +57,16 @@ def runtime_environment(artifact_dir: Path) -> dict[str, str]:
     if artifact_dir == REPO_ROOT or REPO_ROOT in artifact_dir.parents:
         raise ValueError("The artifact directory must be outside the source checkout")
     env = os.environ.copy()
+    try:
+        from scripts.setup_licensed_engines import load_environment
+    except ModuleNotFoundError as error:
+        if error.name != "scripts":
+            raise
+        from setup_licensed_engines import load_environment
+    licensed_values, licensed_paths = load_environment(artifact_dir)
+    env.update(licensed_values)
+    if licensed_paths:
+        env["PATH"] = os.pathsep.join([*licensed_paths, env.get("PATH", "")])
     env["COCHEM_ARTIFACT_DIR"] = str(artifact_dir)
     origin_record = artifact_dir / "StudentSetup" / "assignment-runtime.json"
     if origin_record.is_file():

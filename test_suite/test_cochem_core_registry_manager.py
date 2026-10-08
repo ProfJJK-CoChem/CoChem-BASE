@@ -28,6 +28,7 @@ import zmq
 from pydantic import BaseModel, Field, ValidationError
 
 import cochem_base.core.cochem_core_registry_manager as reg_module
+from cochem_base.physics.nuclide_resolver import InvalidNuclideSymbolError
 from cochem_base.core.cochem_core_registry_manager import (
     AtomicFileLock,
     BaseMetadataServer,
@@ -503,13 +504,13 @@ def test_mendeleev_isotopic_mass_resolution() -> None:
 
 
 def test_mendeleev_error_handling() -> None:
-    with pytest.raises(IsotopeStabilityError):
+    with pytest.raises(InvalidNuclideSymbolError, match="Malformed nuclear label"):
         RegistryManager.get_isotopic_mass("NonExistentElement123")
 
     with pytest.raises(ValueError, match="not found in Mendeleev database"):
         RegistryManager.get_isotopic_mass("C", 999)
 
-    with pytest.raises(ValueError, match="Mass number must be an integer"):
+    with pytest.raises(ValueError, match="Isotope mass number must be a positive integer"):
         RegistryManager.get_isotopic_mass("C", "invalid")  # type: ignore
 
     with pytest.raises(ValueError):

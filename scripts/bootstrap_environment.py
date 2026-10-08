@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import os
 import json
+import os
 import subprocess
 import sys
 import tomllib
@@ -60,7 +60,12 @@ def build_environment() -> dict[str, str]:
         from scripts.hosted_dashboard import setup_build_environment
     except ModuleNotFoundError:
         from hosted_dashboard import setup_build_environment
-    return setup_build_environment(os.environ.copy())
+    environment = setup_build_environment(os.environ.copy())
+    if any(key.startswith("COCHEM_SOURCE_QUARANTINE_") for key in os.environ):
+        from ci_tools.source_quarantine import source_child_environment
+
+        environment = source_child_environment(environment, selected_source=REPO_ROOT)
+    return environment
 
 
 def _python_in(venv_dir: Path) -> Path:
@@ -215,9 +220,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     try:
-        from scripts.hosted_dashboard import main as dashboard_main, setup_dashboard, validate_setup
+        from scripts.hosted_dashboard import main as dashboard_main
+        from scripts.hosted_dashboard import setup_dashboard, validate_setup
     except ModuleNotFoundError:
-        from hosted_dashboard import main as dashboard_main, setup_dashboard, validate_setup
+        from hosted_dashboard import main as dashboard_main
+        from hosted_dashboard import setup_dashboard, validate_setup
     os.environ.setdefault("COCHEM_STUDENT_AUTO_SETUP", "true")
     os.environ.setdefault("COCHEM_MODULES", "topos torq")
     try:

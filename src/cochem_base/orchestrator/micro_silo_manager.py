@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 from typing import Sequence
 
 
@@ -101,19 +102,26 @@ for name in contract['imports']:
     for distribution in distributions:
         key = re.sub(r'[-_.]+', '-', distribution).lower()
         assert key in contract['pins'], 'imported dependency is not pinned'
-print(json.dumps({'python_version': version, 'packages': versions, 'imports': contract['imports']}))
+pathlib.Path(sys.argv[2]).write_text(json.dumps({'python_version': version, 'packages': versions, 'imports': contract['imports']}) + '\\n', encoding='utf-8')
 """
     contract = json.dumps({"root": str(root), "version": python_version, "pins": pins, "imports": list(imports)})
     try:
-        result = subprocess.run(
-            [str(python), "-I", "-c", script, contract],
-            env=isolated_environment(), capture_output=True, text=True, timeout=30, check=True,
-        )
+        # Native dependencies may print loader banners. Structured authority
+        # is a separate file in our private directory, never guessed from stdout.
+        with tempfile.TemporaryDirectory(prefix="cochem-silo-verification-") as directory:
+            observation = Path(directory) / "observation.json"
+            result = subprocess.run(
+                [str(python), "-I", "-c", script, contract, str(observation)],
+                env=isolated_environment(), capture_output=True, text=True, timeout=30, check=True,
+            )
+            evidence = json.loads(observation.read_text(encoding="utf-8"))
         subprocess.run(
             [str(python), "-I", "-m", "pip", "check"],
             env=isolated_environment(), capture_output=True, text=True, timeout=60, check=True,
         )
-        return json.loads(result.stdout)
+        evidence["native_import_stdout"] = result.stdout
+        evidence["native_import_stderr"] = result.stderr
+        return evidence
     except (OSError, subprocess.SubprocessError, ValueError) as exc:
         detail = getattr(exc, "stderr", "") or str(exc)
         raise MicroSiloValidationError(f"Micro-silo validation failed for {root}: {detail}") from exc

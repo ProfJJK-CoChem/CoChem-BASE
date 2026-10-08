@@ -74,6 +74,16 @@ def authorize_engine_execution(
             digest = hashlib.file_digest(handle, "sha256").hexdigest()
         if not record.get("hash") or digest != record["hash"]:
             raise ValueError("Engine executable does not match its audited SHA-256 digest")
+        native_components = record.get("native_components", {})
+        if name == "psi4" and not native_components:
+            raise ValueError("Psi4 requires a successful native compiled-core audit, not launcher metadata alone")
+        for component, expected in native_components.items():
+            component_path = Path(component)
+            if not component_path.is_absolute() or not component_path.is_file():
+                raise ValueError("Audited native engine component is unavailable")
+            with component_path.open("rb") as handle:
+                if hashlib.file_digest(handle, "sha256").hexdigest() != expected:
+                    raise ValueError("Native engine component does not match its audited SHA-256 digest")
         requested = list(command) if command is not None else None
         if requested is not None:
             if not requested or any(
@@ -103,14 +113,16 @@ def authorize_engine_execution(
                 raise ValueError("CFOUR runtime lacks complete Stage 0 authority; repeat setup")
             if runtime["runtime_seal_sha256"] != record["runtime_seal_sha256"]:
                 raise ValueError("CFOUR runtime no longer matches its Stage 0 integrity seal")
-        if name in {"pyscf", "mace"}:
+        if name in {"pyscf", "mace", "aimnet2"}:
             from cochem_base.orchestrator.micro_silo_manager import MicroSiloValidationError, verify_micro_silo
-            silo_name = "cochem_calc_silo" if name == "pyscf" else "cochem_mace_silo"
+            silo_name = {"pyscf": "cochem_calc_silo", "mace": "cochem_mace_silo",
+                         "aimnet2": "cochem_aimnet2_silo"}[name]
             silo = config.stage0.micro_silos.get(silo_name) if config.stage0 is not None else None
             if (silo is None or Path(silo.python_executable).absolute() != binary.absolute()
                     or record.get("track") != silo_name or not silo.packages):
                 raise ValueError(f"{name.upper()} requires its complete matching Stage 0 micro-silo authority; repeat setup")
-            imports = ["pyscf", "numpy", "scipy"] if name == "pyscf" else ["mace", "torch", "numpy"]
+            imports = {"pyscf": ["pyscf", "numpy", "scipy"], "mace": ["mace", "torch", "numpy"],
+                       "aimnet2": ["aimnet", "torch", "warp", "nvalchemiops"]}[name]
             try:
                 verify_micro_silo(silo.root, python_version=silo.python_version,
                     requirements=[f"{package}=={version}" for package, version in sorted(silo.packages.items())], imports=imports)

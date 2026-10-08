@@ -74,7 +74,7 @@ def test_native_ensemble_parser_preserves_energy_coordinates(tmp_path: Path) -> 
     path.write_text(WATER.replace("water input", "-76.0123") + WATER.replace("water input", "energy=-76.0010 Hartree"), encoding="utf-8")
     frames = _parse_xyz(path, require_energy=True)
     assert [frame.energy for frame in frames] == [-76.0123, -76.001]
-    assert frames[0].symbols == ["O", "H", "H"]
+    assert frames[0].symbols == ("O", "H", "H")
     assert frames[0].coordinates[1, 0] == 0.9572
 
 

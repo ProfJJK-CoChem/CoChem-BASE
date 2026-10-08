@@ -50,6 +50,8 @@ from cochem_base.exceptions import MethodMatrixViolationError
 
 def test_mendeleev_dynamic_mass_and_atomic_numbers() -> None:
     """Validates dynamic retrieval of atomic masses and numbers without hardcoded tables."""
+    from mendeleev import element
+
     h_mass = get_dynamic_atomic_mass("H")
     d_mass = get_dynamic_atomic_mass("D")
     ar_mass = get_dynamic_atomic_mass("Ar")
@@ -58,7 +60,10 @@ def test_mendeleev_dynamic_mass_and_atomic_numbers() -> None:
     assert 1.000 < h_mass < 1.015
     assert 2.010 < d_mass < 2.020
     assert 39.8 < ar_mass < 40.1
-    assert 35.3 < cl_mass < 35.6
+    chlorine = element("Cl")
+    chlorine_35 = next(isotope for isotope in chlorine.isotopes if isotope.mass_number == 35)
+    assert cl_mass == chlorine_35.mass
+    assert cl_mass != chlorine.atomic_weight
 
     assert get_dynamic_atomic_number("H") == 1
     assert get_dynamic_atomic_number("D") == 1

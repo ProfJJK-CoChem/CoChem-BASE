@@ -4,12 +4,12 @@ import asyncio
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 import psutil
@@ -20,7 +20,10 @@ from cochem.concurrency.subprocess_broker import SubprocessBroker
 from cochem_base.core_engine.hardware_profiler import profile_hardware
 from cochem_base.orchestrator.cochem_setup_phase_X import SiloConfig, SiloType, provision_micro_silo
 from cochem_base.orchestrator.micro_silo_manager import (
-    MicroSiloValidationError, provision_isolated_silo, validate_pins, verify_micro_silo,
+    MicroSiloValidationError,
+    provision_isolated_silo,
+    validate_pins,
+    verify_micro_silo,
 )
 
 
@@ -212,22 +215,37 @@ def _git_test_environment():
 
 
 def _real_broker_crash(tmp_path, environment):
+    from cochem.concurrency import subprocess_broker as broker_module
+    from cochem_base.core_engine import crash_provenance
+
+    broker_source = Path(broker_module.__file__).resolve()
+    recorder_source = Path(crash_provenance.__file__).resolve()
     script = """
 import json, pathlib, sys
-from cochem.concurrency.subprocess_broker import SubprocessBroker
+sys.path[:0] = [sys.argv[3], sys.argv[2]]
+from cochem.concurrency import subprocess_broker as broker_module
+from cochem_base.core_engine import crash_provenance
+assert pathlib.Path(broker_module.__file__).resolve() == pathlib.Path(sys.argv[4])
+assert pathlib.Path(crash_provenance.__file__).resolve() == pathlib.Path(sys.argv[5])
 root = pathlib.Path(sys.argv[1])
-broker = SubprocessBroker(base_scratch_dir=root / 'scratch', max_retries=3)
+broker = broker_module.SubprocessBroker(base_scratch_dir=root / 'scratch', max_retries=3)
 broker.store_dir = root / 'artifacts'
 result = broker.execute([sys.executable, '-c', 'import os; os.write(2,bytes(range(256))*2); os._exit(139)'])
 (root / 'result.json').write_text(json.dumps({'returncode': result.returncode, 'success': result.success,
     'retries_attempted': result.retries_attempted, 'crash_diagnostics': result.crash_diagnostics}))
 """
-    subprocess.run([sys.executable, "-c", script, str(tmp_path)], cwd=tmp_path,
+    # Pytest's source import roots are process-local. An independently installed
+    # dashboard wheel must not silently become this source test's child target.
+    subprocess.run([sys.executable, "-c", script, str(tmp_path),
+                    str(broker_source.parents[2]), str(recorder_source.parents[2]),
+                    str(broker_source), str(recorder_source)], cwd=tmp_path,
                    env=environment, check=True, capture_output=True, timeout=20)
     result = json.loads((tmp_path / "result.json").read_text())
     assert result["returncode"] == 139 and result["success"] is False
     assert result["retries_attempted"] == 0
     record = result["crash_diagnostics"]
+    assert record["source_identity"]["recorder_module_path"] == str(recorder_source)
+    assert record["source_identity"]["recorder_module_sha256"] == hashlib.sha256(recorder_source.read_bytes()).hexdigest()
     assert record["stderr_tail_hex"] == bytes(range(256)).hex()
     target = Path(record["record_path"])
     assert target.is_file() and target.stat().st_mode & 0o222 == 0

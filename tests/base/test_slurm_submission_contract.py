@@ -115,33 +115,39 @@ def test_planned_compute_allocation_is_not_limited_by_login_node(tmp_path):
     assert not (script.parent / "results").exists()
 
 
-def test_gui_stages_actual_selected_configuration_in_real_child(tmp_path):
+def test_gui_refuses_missing_scheduler_without_local_fallback_in_real_child(tmp_path):
     from cochem_base.config_loader import resolve_config_path
 
     program = '''import json, pathlib, sys
 from ui.voila_layout.cochem_gui import CoChemGUI
 ui = CoChemGUI()
+ui.calc_env_dropdown.value = "hpc"
 ui.matrix_engine.value = "XTB"
 ui.matrix_geometry.value = "O 0 0 0\\nH 0 -0.757 0.587\\nH 0 0.757 0.587\\n"
 ui.artifact_output_path.value = sys.argv[1]
 ui.tasks_per_node_input.value = 1
 ui.mem_input.value = "512MB"
 ui._on_slurm_submit_clicked(None)
+assert ui._hpc_worker is not None
+ui._hpc_worker.join(timeout=5)
+assert not ui._hpc_worker.is_alive(), ui.slurm_status_output.value
 root = pathlib.Path(sys.argv[1])
-manifest = list(root.glob("SlurmStaging/*/job_manifest.json"))
-assert len(manifest) == 1, ui.slurm_status_output.value
-content = json.loads(manifest[0].read_text())
-assert content["engine"] == "xtb"
-assert content["scientific_execution_performed"] is False
-assert "PENDING_CLUSTER_CONFIGURATION" in ui.slurm_status_output.value
-print("GUI_SLURM_STAGING_VERIFIED")
+assert ui._hpc_client.preflight()["ready"] is False
+assert ui._hpc_submission is None and not ui._hpc_running
+assert "connected Slurm/OpenPBS login host" in ui.state.error_message
+assert "No interface-host scientific fallback" in ui.slurm_status_output.value
+assert ui.btn_execute.disabled
+assert not (root / "SlurmStaging").exists()
+assert not (root / "StudentHpc").exists()
+assert not (root / "results").exists()
+print("GUI_HPC_UNAVAILABLE_WITHOUT_LOCAL_FALLBACK_VERIFIED")
 '''
     environment = dict(os.environ, COCHEM_CONFIG=str(resolve_config_path()), COCHEM_ARTIFACT_DIR=str(tmp_path / "ui"),
                        COCHEM_HEADLESS="1", QT_QPA_PLATFORM="offscreen")
     child = subprocess.run([sys.executable, "-c", program, str(tmp_path / "ui")], env=environment,
                            capture_output=True, text=True, timeout=60)
     assert child.returncode == 0, child.stderr + child.stdout
-    assert "GUI_SLURM_STAGING_VERIFIED" in child.stdout
+    assert "GUI_HPC_UNAVAILABLE_WITHOUT_LOCAL_FALLBACK_VERIFIED" in child.stdout
 
 
 @pytest.mark.parametrize("changes", [

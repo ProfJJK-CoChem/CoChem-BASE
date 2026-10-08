@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -434,80 +435,22 @@ def evaluate_test_evidence(evidence: dict[str, Any], manifest: dict[str, Any]) -
 
 
 _PROFILE_BOOTSTRAP = r'''
-import importlib.util, json, os, pathlib, sys
+import json, pathlib, sys
 copied = pathlib.Path(sys.argv[1]).resolve()
 original = pathlib.Path(sys.argv[2]).resolve()
 evidence = pathlib.Path(sys.argv[3]).resolve()
-def inside(path, root):
-    try:
-        return pathlib.Path(path).resolve().is_relative_to(root)
-    except (TypeError, ValueError, OSError):
-        return False
-owned = set()
-for base in (copied/'src', copied/'src/cochem_base', copied):
-    if not base.is_dir():
-        continue
-    for entry in base.iterdir():
-        name = entry.stem if entry.is_file() and entry.suffix == '.py' else entry.name
-        if name.isidentifier() and ((entry.is_file() and entry.suffix == '.py')
-                                   or (entry.is_dir() and any(entry.rglob('*.py')))):
-            owned.add(name)
-sys.path[:] = [entry for entry in sys.path if entry and not inside(entry, original)]
-# An installed BASE editable can refer to another checkout, not this original.
-# Trim only copied-source namespace keys, keeping unrelated editable providers.
-retired = set()
-removed = {}
-for name, module in list(sys.modules.items()):
-    mapping = getattr(module, 'MAPPING', None)
-    namespaces = getattr(module, 'NAMESPACES', None)
-    if not isinstance(mapping, dict) or not isinstance(namespaces, dict):
-        continue
-    keys = set(mapping) | set(namespaces)
-    selected = {key for key in keys if key.split('.')[0] in owned}
-    if not selected:
-        continue
-    module.MAPPING = {key:value for key,value in mapping.items() if key not in selected}
-    module.NAMESPACES = {key:value for key,value in namespaces.items() if key not in selected}
-    removed[name] = sorted(selected)
-    if not module.MAPPING and not module.NAMESPACES:
-        retired.add(name)
-        placeholder = getattr(module, 'PATH_PLACEHOLDER', None)
-        if placeholder is not None:
-            sys.path[:] = [entry for entry in sys.path if entry != placeholder]
-            sys.path_importer_cache.pop(placeholder, None)
-sys.meta_path[:] = [finder for finder in sys.meta_path if getattr(finder, '__module__', '') not in retired]
-sys.path_hooks[:] = [hook for hook in sys.path_hooks if getattr(hook, '__module__', '') not in retired]
-sys.path[:0] = [str(copied/'src'), str(copied/'src/cochem_base'), str(copied), str(copied/'Libraries')]
-(evidence/'quarantine-editable-exclusions.json').write_text(json.dumps(removed, indent=2)+'\n')
-initial = {}
-for name in sorted(owned):
-    spec = importlib.util.find_spec(name)
-    if spec is None:
-        continue
-    paths = list(spec.submodule_search_locations or ())
-    if spec.origin not in (None, 'built-in', 'frozen'):
-        paths.append(spec.origin)
-    if any(not inside(path, copied) for path in paths):
-        raise RuntimeError('[HARD_ABORT: SOURCE QUARANTINE ESCAPE] Initial package origin escaped copied source')
-    initial[name] = paths
-(evidence/'quarantine-import-origins-before.json').write_text(json.dumps(initial, indent=2)+'\n')
+sys.path.insert(0, str(copied))
+from ci_tools.source_quarantine import activate_from_environment, loaded_origins
+state = activate_from_environment()
+if state is None or state['copied'] != copied or state['original'] != original:
+    raise RuntimeError('[HARD_ABORT: SOURCE QUARANTINE ESCAPE] Profile startup authority differs')
+(evidence/'quarantine-editable-exclusions.json').write_text(json.dumps(state['removed'], indent=2)+'\n')
+(evidence/'quarantine-import-origins-before.json').write_text(json.dumps(state['initial'], indent=2)+'\n')
 import pytest
 result = pytest.main(sys.argv[4:])
-origins = {}
-escaped = []
-for name, module in list(sys.modules.items()):
-    if module is None:
-        continue
-    paths = list(getattr(module, '__path__', ()) or ())
-    filename = getattr(module, '__file__', None)
-    if filename:
-        paths.append(filename)
-    if name.split('.')[0] in owned:
-        origins[name] = paths
-    if any(inside(path, original) for path in paths) or (name.split('.')[0] in owned and any(not inside(path, copied) for path in paths)):
-        escaped.append(name)
-(evidence/'quarantine-import-origins-after.json').write_text(json.dumps({'origins':origins, 'escaped':escaped}, indent=2)+'\n')
-raise SystemExit(result if not escaped else 1)
+observed = loaded_origins(state)
+(evidence/'quarantine-import-origins-after.json').write_text(json.dumps(observed, indent=2)+'\n')
+raise SystemExit(result if not observed['escaped'] else 1)
 '''
 
 
@@ -553,7 +496,7 @@ def _profile_environment(root: Path, copied: Path, environment: dict[str, str] |
                 "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "COCHEM_CI_CONTROL_EVIDENCE_DIR"):
         env.pop(key, None)
     for key in list(env):
-        if key.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")):
+        if key.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_", "COCHEM_SOURCE_QUARANTINE_")):
             env.pop(key)
     # An inherited runtime path may select an installed licensed engine, but
     # neither the checkout nor a relative directory may inject executables.
@@ -565,6 +508,11 @@ def _profile_environment(root: Path, copied: Path, environment: dict[str, str] |
     env["PATH"] = os.pathsep.join(entries)
     env.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTEST_DISABLE_PLUGIN_AUTOLOAD="1",
                PYTHONDONTWRITEBYTECODE="1", PYTHONNOUSERSITE="1")
+    # Ordinary descendants need the same reviewed source and startup boundary;
+    # the registered runtime's external editable installation is not this source.
+    env["PYTHONPATH"] = os.pathsep.join(str(path) for path in (
+        copied / "ci_tools/quarantine_startup", copied / "src", copied / "src/cochem_base",
+        copied, copied / "Libraries"))
     for key in ("COCHEM_ROOT", "COCHEM_REPO_DIR", "COCH_SRC", "COCHEM_WORKSPACE_ROOT"):
         env[key] = str(copied)
     # Runtime/engine/config paths outside source stay authoritative and unchanged.
@@ -588,6 +536,62 @@ def _control_evidence_directory(output: Path) -> Path:
     if os.name == "posix":
         destination.chmod(0o700)
     return destination.resolve()
+
+
+def _source_origin_receipts(directory: Path, copied: Path, original: Path,
+                            revision: str) -> dict[str, Any]:
+    """Bind actual child observations to this source and startup producer.
+
+    A deliberate native crash may publish its initial boundary without running
+    Python's finalizers. Those records describe startup only; they never claim a
+    final import observation for the terminated child.
+    """
+    records, errors = [], []
+    expected_hash = hashlib.sha256((copied / "ci_tools/source_quarantine.py").read_bytes()).hexdigest()
+    for path in sorted(directory.iterdir()):
+        try:
+            if path.is_symlink() or not path.is_file() or path.suffix != ".json":
+                raise ValueError("Unexpected source-origin evidence entry")
+            record = json.loads(path.read_text(encoding="utf-8"))
+            matched = re.fullmatch(r"([1-9][0-9]*)-([0-9a-f]{32})-(initial|final)\.json", path.name)
+            if (not isinstance(record, dict) or matched is None or record.get("schema_version") != 1
+                    or type(record.get("pid")) is not int or record["pid"] != int(matched[1])
+                    or type(record.get("parent_pid")) is not int or record["parent_pid"] <= 0
+                    or record.get("stage") != matched[3] or type(record.get("passed")) is not bool
+                    or record.get("source_root") != str(copied)
+                    or record.get("original_root") != str(original)
+                    or record.get("source_revision") != revision
+                    or record.get("startup_source_sha256") != expected_hash
+                    or not isinstance(record.get("interpreter"), str)
+                    or not Path(record["interpreter"]).is_absolute()
+                    or Path(record["interpreter"]).resolve().is_relative_to(copied)
+                    or Path(record["interpreter"]).resolve().is_relative_to(original)):
+                raise ValueError("Child source authority differs from this execution")
+            origins = record.get("origins")
+            if record["passed"] and (not isinstance(origins, dict) or not origins):
+                raise ValueError("Successful child origin observation is missing")
+            if origins is not None:
+                if not isinstance(origins, dict):
+                    raise ValueError("Invalid child origin mapping")
+                for name, paths in origins.items():
+                    if (not isinstance(name, str) or not isinstance(paths, list)
+                            or any(not isinstance(value, str) or not Path(value).resolve().is_relative_to(copied)
+                                   for value in paths)):
+                        raise ValueError("Child origin mapping escaped reviewed copied source")
+            if record["stage"] == "final" and (not isinstance(record.get("escaped"), list)
+                    or (record["passed"] and record["escaped"])):
+                raise ValueError("Final child escape observation is inconsistent")
+            record["instance"] = matched[2]
+            records.append(record)
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            errors.append({"file": path.name, "reason": str(error)})
+    final_instances = {(record["pid"], record["instance"]) for record in records if record["stage"] == "final"}
+    initial_only = [{"pid": record["pid"], "instance": record["instance"], "scope": "startup-only-no-finalizer-observation"}
+                    for record in records if record["stage"] == "initial"
+                    and (record["pid"], record["instance"]) not in final_instances]
+    return {"records": records, "authority_errors": errors,
+            "failed": [record for record in records if not record["passed"]],
+            "startup_only": initial_only}
 
 
 def run_profile(root: Path, output: Path, *, test_paths: Any = None, controls: bool = False,
@@ -647,6 +651,15 @@ def run_profile(root: Path, output: Path, *, test_paths: Any = None, controls: b
                 command.extend(["-p", "pytest_asyncio.plugin"])
             command.extend(selectors)
             profile_environment = _profile_environment(root, copied, environment)
+            # One exclusive directory per execution prevents old source-origin
+            # receipts from being mistaken for this profile's observations.
+            descendant_evidence = output / ("descendant-origins-" + uuid.uuid4().hex)
+            descendant_evidence.mkdir(mode=0o700, exist_ok=False)
+            if descendant_evidence.resolve().parent != output:
+                raise InfrastructureIntegrityError("[HARD_ABORT: SOURCE QUARANTINE EVIDENCE] Child evidence escaped profile output")
+            profile_environment.update(COCHEM_SOURCE_QUARANTINE_ROOT=str(copied),
+                COCHEM_SOURCE_QUARANTINE_ORIGINAL=str(root), COCHEM_SOURCE_QUARANTINE_EVIDENCE=str(descendant_evidence),
+                COCHEM_SOURCE_QUARANTINE_REVISION=binding["revision"])
             if controls:
                 profile_environment["COCHEM_CI_CONTROL_EVIDENCE_DIR"] = str(_control_evidence_directory(output))
             completed = quarantine.run_command(command, timeout=timeout, environment=profile_environment)
@@ -667,9 +680,16 @@ def run_profile(root: Path, output: Path, *, test_paths: Any = None, controls: b
                 report["error"] = "Pytest did not publish actual outcome evidence"
             origins_path = output / "quarantine-import-origins-after.json"
             origins = json.loads(origins_path.read_text()) if origins_path.is_file() else None
+            child_observations = _source_origin_receipts(descendant_evidence, copied, root, binding["revision"])
+            child_records, child_failed = child_observations["records"], child_observations["failed"]
             report.update(executed=True, command_exit_code=completed.exit_code, timed_out=completed.timed_out,
                           quarantine_source_changed=copied_changes, quarantine_workspace_changed=dirty_before != dirty_after,
-                          source_origins_verified=bool(origins is not None and not origins.get("escaped")))
+                          descendant_evidence_directory=str(descendant_evidence),
+                          descendant_source_records=len(child_records), descendant_source_failures=child_failed,
+                          descendant_source_authority_errors=child_observations["authority_errors"],
+                          descendant_startup_only=child_observations["startup_only"],
+                          source_origins_verified=bool(origins is not None and not origins.get("escaped") and child_records
+                              and not child_failed and not child_observations["authority_errors"]))
             report["passed"] = bool(report["passed"] and completed.passed and not copied_changes
                                     and dirty_before == dirty_after and report["source_origins_verified"])
     except (OSError, ValueError, KeyError, SyntaxError, configparser.Error) as error:

@@ -259,7 +259,9 @@ def test_actions_selection_never_falls_back_to_local_engine(tmp_path):
     gui._execute_periodic_pipeline(None)
     gui._start_topos_search(None)
     gui._on_slurm_submit(None)
-    assert "GitHub Actions is selected" in gui.slurm_status_output.value
+    assert "Select HPC" in gui.slurm_status_output.value
+    assert gui.calc_env_dropdown.value == "github-actions"
+    assert not (tmp_path / "local-results").exists()
     assert not gui._pipeline_running and not gui._topos_running
     with pytest.raises(ValueError, match="GitHub Actions"):
         gui._build_pipeline_command()

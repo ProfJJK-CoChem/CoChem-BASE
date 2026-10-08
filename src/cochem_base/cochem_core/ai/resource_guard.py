@@ -565,7 +565,7 @@ def evaluate_resource_guard(
         else:
             effective_total_ram_gb = min(effective_total_ram_gb, float(hw_schema["ram_gb"]))
             effective_available_ram_gb = min(effective_available_ram_gb, effective_total_ram_gb)
-            available_vram_gb = min(available_vram_gb, float(hw_schema.get("vram_gb", 0)))
+            available_vram_gb = min(available_vram_gb, float(hw_schema.get("vram_gb") or 0))
 
         # Criterion A: Total RAM Safety Threshold (< 8.0 GB default)
         if effective_total_ram_gb < min_ram_gb:

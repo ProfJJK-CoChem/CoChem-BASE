@@ -3,10 +3,35 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import platform
+import re
 import shutil
+from pathlib import Path
 from typing import Mapping
+
+
+def without_credentials(environment: Mapping[str, str]) -> dict[str, str]:
+    """Keep GitHub and network authentication out of native calculation children.
+
+    Authentication remains in the controller for authorized archive downloads.
+    Native engines require local files and do not need proxy authentication,
+    Git credential helpers, Codespaces tokens or Actions runtime credentials.
+    """
+    blocked_names = {"SSH_AUTH_SOCK", "GIT_ASKPASS", "SSH_ASKPASS", "GH_CONFIG_DIR",
+                     "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_GLOBAL",
+                     "GIT_HTTP_EXTRAHEADER", "BASH_ENV", "ENV"}
+    result = {}
+    for key, value in environment.items():
+        name = key.upper()
+        if (name in blocked_names or name.startswith(("GH_", "ACTIONS_", "GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))
+                or name.endswith("_PROXY")
+                or any(marker in name for marker in ("TOKEN", "SECRET", "PASSWORD", "PASSWD",
+                                                     "CREDENTIAL", "AUTHORIZATION", "PRIVATE_KEY",
+                                                     "ACCESS_KEY", "API_KEY"))
+                or re.search(r"(?:^|_)KEY(?:_|$)", name)):
+            continue
+        result[key] = value
+    return result
 
 
 def _append_paths(environment: dict[str, str], name: str, paths: list[Path]) -> None:
@@ -31,7 +56,7 @@ def engine_runtime_environment(
     they never replace QE/CREST or other engines' system/site MPI libraries.
     No value is assigned to ``os.environ`` or to the supplied mapping.
     """
-    environment = dict(os.environ if base_env is None else base_env)
+    environment = without_credentials(os.environ if base_env is None else base_env)
     name = engine.lower()
     binary = None
     if executable is not None:

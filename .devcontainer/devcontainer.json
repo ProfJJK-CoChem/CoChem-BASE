@@ -1,6 +1,9 @@
 {
   "name": "CoChem-BASE dashboard",
   "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
   "containerEnv": {
     "COCHEM_ARTIFACT_DIR": "/home/vscode/CoChem_Artifacts",
     "QT_QPA_PLATFORM": "offscreen",
@@ -46,6 +49,16 @@
     },
     "codespaces": {
       "repositories": {
+        "ProfJJK-CoChem/CoChem-ORCA": {
+          "permissions": {
+            "contents": "read"
+          }
+        },
+        "ProfJJK-CoChem/CoChem-CFOUR": {
+          "permissions": {
+            "contents": "read"
+          }
+        },
         "ProfJJK-CoChem/CoChem-TOPOS": {
           "permissions": {
             "contents": "read"

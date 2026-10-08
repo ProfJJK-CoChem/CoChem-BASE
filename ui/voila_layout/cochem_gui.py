@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import re
+import shutil
 import sys
 import threading
 import time
@@ -280,6 +281,10 @@ class CoChemGUI:
         self._hpc_submission: dict[str, Any] | None = None
         self._hpc_job_serial = 0
         self._hpc_client = None
+        self._hpc_preflight_observation: dict[str, Any] | None = None
+        self._hpc_preflight_running = False
+        self._hpc_preflight_generation = 0
+        self._hpc_preflight_worker: threading.Thread | None = None
         self._hpc_monitor_stop = threading.Event()
         self._hpc_history_loaded = threading.Event()
         self._actions_running = False
@@ -556,6 +561,8 @@ class CoChemGUI:
         
         def _on_calc_env_change(change):
             env = change['new']
+            if env == 'hpc' and hasattr(self, 'btn_hpc_connect'):
+                self._check_student_hpc_connection()
             if env == 'github-actions':
                 self.dynamic_setup_container.children = [self.gh_setup_box]
             elif env == 'wsl':
@@ -1073,10 +1080,14 @@ class CoChemGUI:
         self.walltime_input = widgets.Text(description="Walltime:", value="04:00:00")
         self.job_name_input = widgets.Text(description="Job Name:", value="cochem_job")
         self.email_input = widgets.Text(description="Email:", value="")
-        self.btn_slurm_submit = widgets.Button(description="Submit Job", button_style="primary", icon="cloud-upload")
+        self.btn_slurm_submit = widgets.Button(description="Submit Job", button_style="primary", icon="cloud-upload", disabled=True)
         self.slurm_submit_btn = self.btn_slurm_submit
         self.btn_slurm_submit.on_click(self._on_slurm_submit)
         self.slurm_status_output = widgets.HTML("<p>No scheduler calculation submitted.</p>")
+        self.hpc_connection_status = widgets.HTML("<p role='status'>Select HPC to check the configured cluster connection.</p>")
+        self.btn_hpc_connect = widgets.Button(description="Check HPC connection", disabled=self.calc_env_dropdown.value != "hpc")
+        self.btn_hpc_connect.on_click(self._check_student_hpc_connection)
+        self.scheduler_input.observe(lambda change: self._refresh_execution_gate(), names='value')
         self.btn_hpc_refresh = widgets.Button(description="Refresh HPC status", disabled=True)
         self.btn_hpc_refresh.on_click(self._refresh_student_hpc)
         self.btn_hpc_retrieve = widgets.Button(description="Retrieve HPC results", disabled=True)
@@ -1091,6 +1102,7 @@ class CoChemGUI:
         self.slurm_panel = widgets.VBox([
             widgets.HTML("<h4>HPC scheduler submission</h4>"),
             widgets.HTML("<p>HPC calculations enter a real Slurm or PBS queue and run in its compute allocation. Configure the cluster queue and single-node resource request. The interface host does not execute these calculations.</p>"),
+            self.btn_hpc_connect, self.hpc_connection_status,
             self.scheduler_input,
             widgets.HBox([self.partition_input, self.job_name_input]),
             widgets.HBox([self.nodes_input, self.tasks_per_node_input]),
@@ -2082,6 +2094,8 @@ class CoChemGUI:
                     self.btn_setup_updates.disabled = False
                     self._refresh_module_capabilities()
                     self._refresh_orbital_backend_choices()
+                    if self.calc_env_dropdown.value == 'hpc':
+                        self._check_student_hpc_connection()
                     if hasattr(self, "_refresh_research_capabilities"):
                         self._refresh_research_capabilities()
                 self._ui_call(success)
@@ -3969,11 +3983,20 @@ class CoChemGUI:
         self.product_class_selector.disabled = selected in {'XTB', 'PYSCF', 'CFOUR'}
         t9_reason = self._t9_admission_reason()
         reason = reason or t9_reason
+        hpc_reason = self._student_hpc_admission_reason() if self.calc_env_dropdown.value == 'hpc' else ''
+        reason = reason or hpc_reason
+        self.btn_hpc_connect.disabled = self.calc_env_dropdown.value != 'hpc' or self._hpc_preflight_running
         self.engine_warning.value = f"<b>{html.escape(reason)}</b>" if reason else ""
         self.btn_execute.disabled = bool(reason or self.dispersion_warning.value or self._pipeline_running or self._hpc_running or self._hpc_retrieving or self._actions_running
                                          or self._topos_running or self._installation_running)
+        self.btn_slurm_submit.disabled = self.calc_env_dropdown.value != 'hpc' or self.btn_execute.disabled
+        if hasattr(self, 'btn_periodic_run'):
+            self.btn_periodic_run.disabled = bool(hpc_reason or self._pipeline_running or self._hpc_running or self._hpc_retrieving)
+        if hasattr(self, 'btn_topos_submit') and self.calc_env_dropdown.value == 'hpc':
+            self.btn_topos_submit.disabled = bool(hpc_reason or not self.topos_heuristic.value or self._topos_running
+                                                or self._pipeline_running or self._hpc_running or self._installation_running)
         if hasattr(self, 'btn_research_topos'):
-            busy = self._pipeline_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._topos_running or self._student_setup_busy
+            busy = bool(hpc_reason) or self._pipeline_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._topos_running or self._student_setup_busy
             top_ops = self._research_capability_observations.get('topos', {}).get('operations', [])
             torq_ops = self._research_capability_observations.get('torq', {}).get('operations', [])
             self.btn_research_topos.disabled = busy or not bool(top_ops and self.research_topos_operation.value in top_ops)
@@ -4465,6 +4488,8 @@ class CoChemGUI:
         self.topos_heuristic.options = options or [("[MISSING DATA] No audited search engine", "")]
         self.topos_heuristic.disabled = not options
         self.btn_topos_submit.disabled = not options or getattr(self, '_pipeline_running', False) or self._installation_running
+        if self.calc_env_dropdown.value == 'hpc':
+            self.btn_topos_submit.disabled = self.btn_topos_submit.disabled or bool(self._student_hpc_admission_reason())
         self.topos_capabilities.value = (
             "<p>Audited search engines: " + html.escape(", ".join(name.upper() for name in available) or "none") + ".</p>"
             + ("<details><summary>Unavailable search engines</summary><p>" + "<br/>".join(html.escape(item) for item in missing) + "</p></details>" if missing else "")
@@ -4866,6 +4891,86 @@ class CoChemGUI:
                 'format': Path(structure['filename']).suffix.lstrip('.').lower(), 'content': content},
                 'pseudopotentials': pseudopotentials}
 
+    def _student_hpc_preflight_binding(self) -> tuple:
+        """Detect registry or scheduler-command changes without contacting a controller."""
+        from cochem_base.config_loader import resolve_config_path
+        registry = resolve_config_path()
+        def file_state(path: Path) -> tuple:
+            try:
+                state = path.stat()
+                return (str(path), state.st_dev, state.st_ino, state.st_size, state.st_mtime_ns, state.st_ctime_ns)
+            except OSError:
+                return (str(path), None)
+        commands = tuple((name, file_state(Path(target)) if (target := shutil.which(name)) else None)
+                         for name in ('sbatch', 'squeue', 'scontrol', 'scancel', 'qsub', 'qstat', 'qdel'))
+        return (str(registry), file_state(registry), os.environ.get('PATH', ''), commands)
+
+    def _cache_student_hpc_preflight(self, result: dict, binding: tuple) -> None:
+        """Record an actual connection observation; submission still checks it again."""
+        self._hpc_preflight_generation += 1
+        self._hpc_preflight_observation = {**result, 'binding': binding, 'observed_at': time.monotonic()}
+        if result.get('ready') is True:
+            self.hpc_connection_status.value = (
+                '<p role="status">Connected ' + html.escape(str(result.get('scheduler', 'HPC')).upper()) +
+                ' scheduler. Scientific inputs must also pass admission; each submission rechecks the connection.</p>')
+        else:
+            self.hpc_connection_status.value = (
+                '<p role="alert">HPC scheduler access is unavailable: ' + html.escape(str(result.get('reason', 'Connection not verified'))) +
+                '. No interface-host scientific fallback is performed. Correct the cluster connection or complete BASE setup on its login host, '
+                'then select Check HPC connection.</p>')
+
+    def _check_student_hpc_connection(self, b: Any = None) -> None:
+        if self.calc_env_dropdown.value != 'hpc' or self._hpc_preflight_running:
+            return
+        self._hpc_preflight_observation = None
+        if hasattr(self, 'btn_execute'):
+            self._refresh_execution_gate()
+
+    def _student_hpc_admission_reason(self) -> str:
+        try:
+            binding = self._student_hpc_preflight_binding()
+        except (ValueError, RuntimeError, OSError) as exc:
+            return 'HPC connection cannot be verified: ' + str(exc)
+        observation = self._hpc_preflight_observation
+        if (observation is None or observation.get('binding') != binding or
+                observation.get('ready') is True and time.monotonic() - observation['observed_at'] > 30):
+            self._start_student_hpc_preflight(binding)
+            return 'Checking the configured HPC scheduler. Submission remains unavailable until access is verified.'
+        if observation.get('ready') is not True:
+            return 'HPC scheduler access is unavailable: ' + str(observation.get('reason', 'Connection not verified'))
+        if self.scheduler_input.value not in {'auto', observation.get('scheduler')}:
+            return 'The selected scheduler differs from the verified cluster connection.'
+        return ''
+
+    def _start_student_hpc_preflight(self, binding: tuple) -> None:
+        if self._hpc_preflight_running or not hasattr(self, 'module_root'):
+            return
+        self._hpc_preflight_running = True
+        self._hpc_preflight_generation += 1
+        generation = self._hpc_preflight_generation
+        module_root = Path(self.module_root.value)
+        self.btn_hpc_connect.disabled = True
+        self.hpc_connection_status.value = '<p role="status">Checking the configured HPC scheduler. Submission remains unavailable until access is verified.</p>'
+        def check() -> None:
+            client = None
+            try:
+                from cochem_base.config_loader import get_artifact_dir
+                from cochem_base.interfaces.student_hpc import StudentHpcClient
+                client = StudentHpcClient(artifact_dir=get_artifact_dir(), module_root=module_root, registry_path=Path(binding[0]))
+                observation = client.preflight()
+            except (ImportError, ValueError, RuntimeError, OSError, KeyError, TypeError) as exc:
+                observation = {'ready': False, 'scheduler': None, 'reason': str(exc)}
+            def publish() -> None:
+                self._hpc_preflight_running = False
+                if generation == self._hpc_preflight_generation:
+                    if self._hpc_submission is None and client is not None:
+                        self._hpc_client = client
+                    self._cache_student_hpc_preflight(observation, binding)
+                self._refresh_execution_gate()
+            self._ui_call(publish)
+        self._hpc_preflight_worker = threading.Thread(target=check, daemon=True)
+        self._hpc_preflight_worker.start()
+
     def _hpc_resources(self) -> dict[str, Any]:
         from cochem_base.calc.slurm_submission import memory_megabytes, validate_slurm_walltime
         if self.nodes_input.value != 1:
@@ -4919,7 +5024,9 @@ class CoChemGUI:
                 from cochem_base.interfaces.student_hpc import StudentHpcClient
                 client = StudentHpcClient(artifact_dir=get_artifact_dir(), module_root=Path(self.module_root.value))
                 self._hpc_client = client
+                binding = self._student_hpc_preflight_binding()
                 preflight = client.preflight()
+                self._ui_call(lambda: self._cache_student_hpc_preflight(preflight, binding))
                 if preflight.get('ready') is not True:
                     raise RuntimeError(preflight.get('reason', 'No configured cluster scheduler is available'))
                 submission = client.submit(calculation, provider=provider, xyz_files=files,

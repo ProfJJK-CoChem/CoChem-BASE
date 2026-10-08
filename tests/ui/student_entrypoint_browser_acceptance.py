@@ -242,12 +242,16 @@ def accept_admission_guards(page, report: dict, artifacts: Path) -> None:
     select_prefix(page.get_by_label("Solvation:", exact=True), "None")
     run = page.get_by_role("button", name="Run ORCA optimization", exact=True)
     expect(run).to_be_disabled(timeout=30000)
-    expect(page.get_by_text("Open-shell ORCA requires explicit T9 recovery before starting", exact=False).first).to_be_visible()
     recovery = page.get_by_label("Enable explicit T9 spin-contamination recovery", exact=True)
     expect(recovery).to_be_enabled(timeout=30000)
+    # Verify the actual backend before checking the explicit recovery intent gate.
     recovery.check()
     expect(page.get_by_text("T9 requires distinct nonnegative MO indices", exact=False).first).to_be_visible(timeout=30000)
     expect(run).to_be_disabled()
+    recovery.uncheck()
+    expect(page.get_by_text("Open-shell ORCA requires explicit T9 recovery before starting", exact=False).first).to_be_visible()
+    expect(run).to_be_disabled()
+    recovery.check()
     page.get_by_label("Active electrons:", exact=True).fill("3")
     page.get_by_label("Active MO indices:", exact=True).fill("0,1,2")
     page.get_by_label("Active-space rationale:", exact=True).fill("Three singly occupied hydrogen 1s-derived orbitals for this explicit H3 doublet starting geometry.")
@@ -270,17 +274,21 @@ def accept_admission_guards(page, report: dict, artifacts: Path) -> None:
     page.get_by_text("Base Config", exact=True).click()
     select_prefix(page.get_by_label("Engine:", exact=True), "xTB")
     submit = page.get_by_role("button", name="Submit HPC calculation", exact=True)
-    expect(submit).to_be_enabled(timeout=30000)
-    submit.click()
+    expect(submit).to_be_disabled(timeout=30000)
+    connection = page.get_by_role("button", name="Check HPC connection", exact=True)
+    expect(connection).to_be_enabled(timeout=30000)
+    connection.click()
     expect(page.get_by_text("No interface-host scientific fallback is performed", exact=False).first).to_be_visible(timeout=60000)
     expect(page.get_by_text(re.compile(r"scheduler access is unavailable|Complete BASE setup on a connected Slurm/OpenPBS login host"), exact=False).first).to_be_visible()
+    expect(submit).to_be_disabled(timeout=30000)
     expect(page.get_by_role("button", name="Retrieve HPC results", exact=True)).to_be_disabled()
     expect(page.get_by_role("button", name="Cancel HPC job", exact=True)).to_be_disabled()
     page.screenshot(path=str(artifacts / "missing-scheduler-refused.png"), full_page=True)
     report["admission_guards"] = {"actual_incomplete_t9_run_disabled": True,
         "explicit_valid_active_space_admitted_without_execution": True,
         "duplicate_orbitals_disable_execution": True,
-        "actual_scheduler_commands_absent": True, "hpc_submission_refused_without_local_fallback": True,
+        "actual_scheduler_commands_absent": True, "actual_hpc_connection_retry": True,
+        "hpc_submission_disabled_by_actual_preflight": True, "hpc_submission_refused_without_local_fallback": True,
         "scientific_execution_performed": False}
     page.get_by_role("button", name="Seamless Install", exact=True).click()
     select_prefix(page.get_by_label("Calculation Environment:", exact=True), "Linux")
@@ -306,7 +314,14 @@ def accept_native_hessian_calculation(page, report: dict, artifacts: Path, timeo
     run = page.get_by_role("button", name="Run ORCA optimize + frequencies", exact=True)
     expect(run).to_be_enabled(timeout=30000)
     run.click()
-    expect(page.get_by_text("execution and scientific output checks passed", exact=False).first).to_be_visible(timeout=timeout * 1000)
+    completed = page.get_by_text("execution and scientific output checks passed", exact=False).first
+    expect(completed).to_be_visible(timeout=timeout * 1000)
+    directories = re.findall(r"ORCA execution and scientific output checks passed\. Results: ([^\r\n]+)",
+                             completed.inner_text())
+    assert len(directories) == 1, "Native completion must name its exact retained Results directory"
+    result_root = Path(directories[0].strip())
+    assert result_root.is_dir() and not result_root.is_symlink()
+    result_root = result_root.resolve(strict=True)
     page.get_by_role("button", name="Data Inspector (Ab-Initio)", exact=True).click()
     page.get_by_text("Isotopic Re-analysis", exact=True).click()
     selector = page.get_by_label("Calculation Hessian:", exact=True)
@@ -321,9 +336,16 @@ def accept_native_hessian_calculation(page, report: dict, artifacts: Path, timeo
             label = candidate
             break
     assert label, "No generated Hessian has matching actual native derivative receipts"
-    path = Path(page.get_by_label("Hessian bundle:", exact=True).input_value())
+    root_label, separator, relative = label.partition(" · ")
+    member = PurePosixPath(relative)
+    assert separator and root_label == result_root.name and not member.is_absolute()
+    assert member.as_posix() == relative and ".." not in member.parts
+    path = result_root.joinpath(*member.parts)
+    assert not path.is_symlink() and path.resolve(strict=True).is_relative_to(result_root)
     assert path.is_file() and path.suffix == ".hess", "The selector must resolve an actual native Hessian"
     before = hashlib.sha256(path.read_bytes()).hexdigest()
+    assert re.findall(r"SHA-256:\s*([a-f0-9]{64})", selected.inner_text()) == [before], \
+        "The selected public Hessian receipt must match the actual retained native file"
     page.get_by_role("button", name="Load geometry and Hessian", exact=True).click()
     loaded = page.get_by_role("status").filter(has_text="Geometry and Cartesian Hessian loaded.")
     expect(loaded).to_contain_text(before, timeout=60000)

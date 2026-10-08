@@ -6,20 +6,19 @@ reviewed operations are dispatchable.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 from threading import Event
 import time
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 
 from .artifact_handoff import load_module_handoff
-
 
 _ADAPTERS = {
     "topos_geometry": "module_adapter_topos.py",
@@ -49,7 +48,12 @@ def _environment() -> dict[str, str]:
 
 def installed_module_status(root: Path | None = None, manifest: Path | None = None) -> list[dict]:
     """Return installation observations without importing downstream namespaces."""
-    from scripts.manage_modules import DEFAULT_MANIFEST, default_root, load_manifest, verify_installation
+    from scripts.manage_modules import (
+        DEFAULT_MANIFEST,
+        default_root,
+        load_manifest,
+        verify_installation,
+    )
 
     catalog = load_manifest(manifest or DEFAULT_MANIFEST)
     destination = (Path(root) if root is not None else default_root()).expanduser().resolve()
@@ -177,8 +181,13 @@ def execute_module_handoff(handoff_path: str | Path, output: str | Path, *,
                            cancel_event: Event | None = None) -> dict:
     """Run one bounded reviewed operation through an actually installed receiver."""
     import scripts
-    from scripts.manage_modules import DEFAULT_MANIFEST, default_root, load_manifest, verify_installation
     from cochem.core.context import assert_writable_path
+    from scripts.manage_modules import (
+        DEFAULT_MANIFEST,
+        default_root,
+        load_manifest,
+        verify_installation,
+    )
 
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("A finite positive provider execution timeout is required")
@@ -189,6 +198,11 @@ def execute_module_handoff(handoff_path: str | Path, output: str | Path, *,
     spec = catalog["modules"].get(handoff.module_id)
     if spec is None or handoff.operation not in spec["operations"]:
         raise ValueError("This module operation has no reviewed execution adapter")
+    if handoff.module_id == "topos" and spec["adapter"] == "topos_handoff":
+        from scripts.mandatory_ecosystem import execute
+        return execute(path, Path(output).expanduser().resolve(), spec,
+                       Path(root) if root is not None else default_root(), timeout=timeout,
+                       cancellation_event=cancel_event)
     if spec["adapter"] not in _ADAPTERS:
         raise ValueError("This operation is not supported by BASE's installed adapters")
     if handoff.artifact.kind != "geometry_xyz":

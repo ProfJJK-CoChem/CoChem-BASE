@@ -1,0 +1,202 @@
+{
+  "schema_version": "cochem.module-distribution/1",
+  "modules": {
+    "bench": {
+      "repository": "ProfJJK-CoChem/CoChem-BENCH",
+      "revision": "9d255cbd9c842a271b55e4223b92c6e437b9a401",
+      "distribution": "cochem-bench",
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "cure": {
+      "repository": "ProfJJK-CoChem/CoChem-CURE",
+      "revision": "8be288c9815c178c4161cc4037cb7b3bd02766e1",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "ehs": {
+      "repository": "ProfJJK-CoChem/CoChem-EHS",
+      "revision": "f29a7081a59c6c440b9726b23d85f499f63d4689",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "eval": {
+      "repository": "ProfJJK-CoChem/CoChem-EVAL",
+      "revision": "65affdb30cf4cb4c5163193ff84c4fc28ea94e32",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "geom": {
+      "repository": "ProfJJK-CoChem/CoChem-GEOM",
+      "revision": "84d5af4408f92ca5844e387c93e760116aa87aaf",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "kinetic": {
+      "repository": "ProfJJK-CoChem/CoChem-KINETIC",
+      "revision": "6eade693af7c3e7ca4f43a62582625b8e2903ea5",
+      "distribution": "cochem-kinetic",
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "labs": {
+      "repository": "ProfJJK-CoChem/CoChem-LABS",
+      "revision": "d4defc3d5836019f983760cc62a551f4a7580376",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "lumos": {
+      "repository": "ProfJJK-CoChem/CoChem-LUMOS",
+      "revision": "78485a410e96d6c4ab58c29494ebea4adfdf8564",
+      "distribution": "cochem-lumos",
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "mage": {
+      "repository": "ProfJJK-CoChem/CoChem-MAGE",
+      "revision": "8df1836fc961846b5b7218882bf51b678cec594f",
+      "distribution": "cochem-mage",
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": [],
+      "install_blocker": "Upstream wheel build fails: setuptools discovers multiple top-level packages (data, output, notebooks) without an explicit package layout. Fix upstream packaging and review a new commit before installation."
+    },
+    "node": {
+      "repository": "ProfJJK-CoChem/CoChem-NODE",
+      "revision": "38f1839ea019d96793da0cfc1375add353429163",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "oracle": {
+      "repository": "ProfJJK-CoChem/CoChem-ORACLE",
+      "revision": "4922176cad1083830a74d4e925f4697801da74e6",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "orb": {
+      "repository": "ProfJJK-CoChem/CoChem-ORB",
+      "revision": "f3d885eb63bb4be5fbf29d21fa99c29818ced65b",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "play": {
+      "repository": "ProfJJK-CoChem/CoChem-PLAY",
+      "revision": "f8853557843362c47f1c2fa58dc46744c1e2bdba",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "pulse": {
+      "repository": "ProfJJK-CoChem/CoChem-PULSE",
+      "revision": "0a8a0d79cb85c29efa89e2197afbc20f9fe864dd",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "scan": {
+      "repository": "ProfJJK-CoChem/CoChem-SCAN",
+      "revision": "4f1cfd7b4619cd6258651e7588d84954c5c18523",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "scribe": {
+      "repository": "ProfJJK-CoChem/CoChem-SCRIBE",
+      "revision": "ac07a05c361a1fedf1f2ef1860733cb52d5c0922",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "seed": {
+      "repository": "ProfJJK-CoChem/CoChem-SEED",
+      "revision": "aa7179bf8c3e190f11e3d07b403eba37433f46ff",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "shift": {
+      "repository": "ProfJJK-CoChem/CoChem-SHIFT",
+      "revision": "e514a7369acc6afe17640cd44ed311102c8c8aa7",
+      "distribution": null,
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "spycfit": {
+      "repository": "ProfJJK-CoChem/CoChem-SpycFit",
+      "revision": "7e42507e4668751da393241294ffbb9dd4f0c259",
+      "distribution": "CoChem-SpycFit",
+      "adapter": null,
+      "adapter_requirements": [],
+      "operations": []
+    },
+    "topos": {
+      "repository": "ProfJJK-CoChem/CoChem-TOPOS",
+      "revision": "ca0e33c2dc921024a06333533c8ff51986cb1bfd",
+      "distribution": "cochem-topos",
+      "adapter": "topos_handoff",
+      "adapter_requirements": [],
+      "operations": [
+        "energy",
+        "gradient",
+        "optimize",
+        "search",
+        "frequency",
+        "thermochemistry",
+        "association",
+        "matrix"
+      ],
+      "mandatory_ecosystem": {
+        "schema_version": "cochem.mandatory-ecosystem-catalog/2",
+        "torq_revision": "4f323800227dbde00ffb082bd6d9e44d851e1c7a",
+        "topos_wheel_sha256": "a8e57f4ed91050f5e45be8121ed390de76524377ff7295286a03b9bf892a9f8f",
+        "torq_wheel_sha256": "d5e7ec3f8e1ae8cef85ca7aefe995219d3523e4e1330e465915a3159816fe617",
+        "setup_helper_sha256": "0d7451cef59516b40badc10d34a742cfc8a9b35f4118590c05b839d490eb1730",
+        "base_bootstrap_sha256": {
+          "MANIFEST.in": "a598cbfaa7b98d76bfd8990ed543f3b362ec2daae9275b368a8ddee1abeed997",
+          "cli.py": "a8ed85cc3dfe2d1bc729f1353f51e4a686de04f7c14c802fe995db0ccd8bd20b",
+          "pyproject.toml": "2f0ba51bb3316e165b0e7ec87eaf1ba47483f57f1abcd2514ac517d6c84b4a58",
+          "requirements-ui.txt": "6478c5244db5b86be639651ec3b4968efe30a156d5d9af07adc3eaae19f2a05a",
+          "requirements.txt": "4c46823570124b78a0905ad2de4e6515571437204a15cce65d36b019b65520f7"
+        },
+        "base_source_content_sha256": "c60017d842c16150958d4cf2d441289cb72e7dfc6a48cdfdca378521419e8bca"
+      }
+    },
+    "torq": {
+      "repository": "ProfJJK-CoChem/CoChem-TORQ",
+      "revision": "4f323800227dbde00ffb082bd6d9e44d851e1c7a",
+      "distribution": "CoChem-TORQ",
+      "adapter": "torq_geometry",
+      "adapter_requirements": [
+        "mendeleev>=1.2,<2"
+      ],
+      "operations": [
+        "geometry_analysis"
+      ]
+    }
+  }
+}

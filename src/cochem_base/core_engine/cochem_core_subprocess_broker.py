@@ -1547,7 +1547,7 @@ def safe_subprocess_run(
 
             stdout_tail: deque[bytes] = deque(maxlen=tail_buffer_lines)
             stderr_tail: deque[bytes] = deque(maxlen=tail_buffer_lines)
-            stream_errors: list[Exception] = []
+            stream_errors: list[BaseException] = []
             stream_failed = threading.Event()
 
             def _stream_reader(
@@ -1575,7 +1575,10 @@ def safe_subprocess_run(
                                     decoding_errors.append(error)
                                 else:
                                     on_line_cb(decoded)
-                except Exception as exc:
+                except BaseException as exc:
+                    # Reader threads must relay application cancellation and
+                    # termination too. The controller re-raises the same error
+                    # after stopping its owned native process boundary.
                     stream_errors.append(exc)
                     stream_failed.set()
                 finally:

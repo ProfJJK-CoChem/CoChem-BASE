@@ -12,7 +12,12 @@ from pathlib import Path
 
 import pytest
 
-from ci_tools.base_ci import InfrastructureIntegrityError, run_profile, tracked_source_snapshot
+from ci_tools.base_ci import (
+    InfrastructureIntegrityError,
+    _source_origin_receipts,
+    run_profile,
+    tracked_source_snapshot,
+)
 from tests.ci_tools.integrity_control_repository import commit, repository, review_ring
 
 
@@ -39,7 +44,9 @@ def test_copied_source_and_existing_external_runtime():
     for injected in ('PYTHONHOME', 'PYTHONUSERBASE', 'PYTHONSTARTUP', 'PYTEST_ADDOPTS',
                      'PYTEST_PLUGINS', 'GIT_DIR', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0'):
         assert injected not in os.environ
-    assert os.environ.get('PYTHONPATH') == str(root)
+    assert os.environ['PYTHONPATH'].split(os.pathsep) == [str(root/'ci_tools/quarantine_startup'),
+        str(root/'src'), str(root/'src/cochem_base'), str(root), str(root/'Libraries')]
+    assert os.environ['COCHEM_SOURCE_QUARANTINE_ROOT'] == str(root)
     receipts = pathlib.Path(os.environ['COCHEM_CI_CONTROL_EVIDENCE_DIR'])
     assert receipts.is_absolute() and receipts.is_dir() and not receipts.is_relative_to(root)
     assert receipts == pathlib.Path(os.environ['CONTROL_RESULT']).parent/'profile-evidence/process-controls'
@@ -137,23 +144,60 @@ def test_source_mutation_is_detected():
 
 
 def test_actual_foreign_base_editable_namespace_cannot_escape_second_checkout(tmp_path):
-    source = '''import os, pathlib, psutil
+    source = '''import hashlib, json, os, pathlib, psutil, subprocess, sys
 import cochem_base
 import cochem_base.orchestrator.silo_dependency_pins as pins
 import quarantine_external_provider
+from ci_tools.source_quarantine import source_child_environment, source_paths
 def test_actual_namespace_and_module_origins():
     root = pathlib.Path.cwd()
     assert all(pathlib.Path(path).resolve().is_relative_to(root) for path in cochem_base.__path__)
     assert pathlib.Path(pins.__file__).resolve().is_relative_to(root)
-    assert set(pins.DEFAULT_PINS) == {'calc', 'core', 'mace', 'ui'}
+    assert {'calc', 'core', 'mace', 'ui'}.issubset(pins.DEFAULT_PINS)
     assert not pathlib.Path(psutil.__file__).resolve().is_relative_to(root)
     assert pathlib.Path(quarantine_external_provider.__file__).resolve() == pathlib.Path(os.environ['CONTROL_EXTERNAL_PROVIDER'])
+    program = root/'tests/control_profile/namespace_child.py'
+    scrubbed = dict(os.environ, PYTHONPATH=str(root/'not-reviewed'))
+    child_environment = source_child_environment(scrubbed, selected_source=root)
+    assert child_environment['PYTHONPATH'].split(os.pathsep) == source_paths(root)
+    assert scrubbed['PYTHONPATH'] == str(root/'not-reviewed')
+    records = []
+    for isolated, command in enumerate(([sys.executable, '-B', str(program), '--grandchild'],
+                    [sys.executable, '-I', '-B', str(root/'ci_tools/source_quarantine.py'), str(program)])):
+        result = subprocess.run(command, env=child_environment, capture_output=True, text=True, timeout=30)
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert data['isolated'] == isolated
+        for observed in [data, *([data['grandchild']] if 'grandchild' in data else [])]:
+            assert all(pathlib.Path(path).resolve().is_relative_to(root) for path in observed['namespace'])
+            assert pathlib.Path(observed['module']).resolve().is_relative_to(root)
+            assert observed['module_sha256'] == hashlib.sha256(pathlib.Path(pins.__file__).read_bytes()).hexdigest()
+            assert observed['external_provider'] == os.environ['CONTROL_EXTERNAL_PROVIDER']
+            assert observed['pid'] != os.getpid()
+        records.append(data)
+    pathlib.Path(os.environ['CONTROL_CHILD_RESULTS']).write_text(json.dumps(records))
 '''
     root, _ = repository(tmp_path, source)
     original = Path(__file__).resolve().parents[2]
     module = "src/cochem_base/orchestrator/silo_dependency_pins.py"
     (root / module).parent.mkdir(parents=True)
     shutil.copy2(original / module, root / module)
+    cuda_sources = "src/cochem_base/orchestrator/ml_cuda_sources.py"
+    shutil.copy2(original / cuda_sources, root / cuda_sources)
+    child = '''import hashlib, json, os, pathlib, subprocess, sys
+import cochem_base
+import cochem_base.orchestrator.silo_dependency_pins as pins
+import quarantine_external_provider
+record = {'pid':os.getpid(), 'parent_pid':os.getppid(), 'isolated':sys.flags.isolated, 'namespace':list(cochem_base.__path__),
+          'module':pins.__file__, 'module_sha256':hashlib.sha256(pathlib.Path(pins.__file__).read_bytes()).hexdigest(),
+          'external_provider':str(pathlib.Path(quarantine_external_provider.__file__).resolve())}
+if len(sys.argv)>1 and sys.argv[1]=='--grandchild':
+    result = subprocess.run([sys.executable, '-B', __file__], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    record['grandchild'] = json.loads(result.stdout)
+print(json.dumps(record))
+'''
+    (root / "tests/control_profile/namespace_child.py").write_text(child, encoding="utf-8")
     review_ring(root)
     revision = commit(root)
 
@@ -164,6 +208,7 @@ def test_actual_namespace_and_module_origins():
     foreign_module = foreign / module
     foreign_module.parent.mkdir(parents=True)
     shutil.copy2(original / module, foreign_module)
+    shutil.copy2(original / cuda_sources, foreign / cuda_sources)
     provider = foreign / "provider/__init__.py"
     provider.parent.mkdir()
     provider.write_text('"""External engineering namespace ownership control."""\n', encoding="utf-8")
@@ -222,7 +267,8 @@ quarantine_external_provider = "provider"
                "controls=True,expected_revision=" + repr(revision) + ",timeout=60,strict_deferred=True); "
                "print(json.dumps(report)); raise SystemExit(0 if report['passed'] else 1)")
     executed = subprocess.run([str(interpreter), "-I", "-B", "-c", program],
-                              env=dict(os.environ, CONTROL_EXTERNAL_PROVIDER=str(provider.resolve())),
+                              env=dict(os.environ, CONTROL_EXTERNAL_PROVIDER=str(provider.resolve()),
+                                       CONTROL_CHILD_RESULTS=str(output / "actual-descendant-results.json")),
                               capture_output=True, text=True, check=False, timeout=90)
     (output / "profile-controller.stdout.log").write_text(executed.stdout, encoding="utf-8")
     (output / "profile-controller.stderr.log").write_text(executed.stderr, encoding="utf-8")
@@ -231,3 +277,73 @@ quarantine_external_provider = "provider"
     removed = json.loads((output / "quarantine-editable-exclusions.json").read_text())
     assert any("cochem_base" in keys for keys in removed.values())
     assert all("quarantine_external_provider" not in keys for keys in removed.values())
+    children = json.loads((output / "actual-descendant-results.json").read_text(encoding="utf-8"))
+    actual_pids = {record["pid"] for record in children} | {children[0]["grandchild"]["pid"]}
+    origin_receipts = [json.loads(path.read_text(encoding="utf-8"))
+                       for path in Path(report["descendant_evidence_directory"]).glob("*.json")]
+    final_pids = {record["pid"] for record in origin_receipts if record["stage"] == "final" and record["passed"]}
+    assert actual_pids.issubset(final_pids)
+    assert all(record["source_revision"] == revision for record in origin_receipts)
+
+
+def test_ordinary_startup_refusal_is_not_swallowed_by_python(tmp_path):
+    root, _ = repository(tmp_path, "def test_engineering_identity():\n    assert __name__.startswith('tests.')\n")
+    marker = tmp_path / "program-ran"
+    environment = dict(os.environ)
+    for key in list(environment):
+        if key.startswith("COCHEM_SOURCE_QUARANTINE_"):
+            environment.pop(key)
+    environment.update(PYTHONPATH=os.pathsep.join((str(root / "ci_tools/quarantine_startup"), str(root))),
+                       COCHEM_SOURCE_QUARANTINE_ROOT=str(root), PYTHONDONTWRITEBYTECODE="1")
+    program = "from pathlib import Path; Path(" + repr(str(marker)) + ").write_text('started')"
+    result = subprocess.run([sys.executable, "-B", "-c", program], env=environment,
+                            capture_output=True, text=True, check=False, timeout=30)
+    assert result.returncode == 1
+    assert "[HARD_ABORT: SOURCE QUARANTINE ESCAPE]" in result.stderr
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize("field", ["source_root", "source_revision", "startup_source_sha256", "origins"])
+def test_actual_child_receipt_authority_corruption_is_refused(tmp_path, field):
+    root, revision = repository(tmp_path, '"""Tracked engineering source-origin script."""\n')
+    original = Path(__file__).resolve().parents[2]
+    evidence = tmp_path / "actual-source-origin-observations"
+    evidence.mkdir(mode=0o700)
+    environment = dict(os.environ, COCHEM_SOURCE_QUARANTINE_ROOT=str(root),
+                       COCHEM_SOURCE_QUARANTINE_ORIGINAL=str(original),
+                       COCHEM_SOURCE_QUARANTINE_EVIDENCE=str(evidence),
+                       COCHEM_SOURCE_QUARANTINE_REVISION=revision)
+    result = subprocess.run([sys.executable, "-I", "-B", str(root / "ci_tools/source_quarantine.py"),
+                             str(root / "tests/control_profile/test_engineering.py")],
+                            env=environment, capture_output=True, text=True, check=False, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    observations = _source_origin_receipts(evidence, root, original, revision)
+    assert not observations["authority_errors"] and not observations["failed"]
+    assert {record["stage"] for record in observations["records"]} == {"initial", "final"}
+    receipt = next(evidence.glob("*-final.json"))
+    actual = json.loads(receipt.read_text(encoding="utf-8"))
+    actual[field] = {"outside": [str(original)]} if field == "origins" else "unreviewed-source-authority"
+    receipt.write_text(json.dumps(actual), encoding="utf-8")
+    refused = _source_origin_receipts(evidence, root, original, revision)
+    assert refused["authority_errors"]
+    assert not any(record["stage"] == "final" for record in refused["records"])
+
+
+def test_isolated_child_refuses_untracked_script_before_execution(tmp_path):
+    root, revision = repository(tmp_path, '"""Tracked source control."""\n')
+    original = Path(__file__).resolve().parents[2]
+    evidence = tmp_path / "isolated-refusal-observations"
+    evidence.mkdir(mode=0o700)
+    marker = tmp_path / "untracked-program-ran"
+    script = root / "untracked_control.py"
+    script.write_text("from pathlib import Path\nPath(" + repr(str(marker)) + ").write_text('executed')\n",
+                      encoding="utf-8")
+    environment = dict(os.environ, COCHEM_SOURCE_QUARANTINE_ROOT=str(root),
+                       COCHEM_SOURCE_QUARANTINE_ORIGINAL=str(original),
+                       COCHEM_SOURCE_QUARANTINE_EVIDENCE=str(evidence),
+                       COCHEM_SOURCE_QUARANTINE_REVISION=revision)
+    result = subprocess.run([sys.executable, "-I", "-B", str(root / "ci_tools/source_quarantine.py"), str(script)],
+                            env=environment, capture_output=True, text=True, check=False, timeout=30)
+    assert result.returncode != 0
+    assert "must be tracked reviewed source" in result.stderr
+    assert not marker.exists()

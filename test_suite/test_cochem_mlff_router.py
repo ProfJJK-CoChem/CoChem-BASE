@@ -301,7 +301,7 @@ def test_probe_live_hardware_zero_mock() -> None:
     assert hw.ram_gb > 0.0
     assert hw.cpu_physical_cores is not None and hw.cpu_physical_cores >= 1
     assert hw.logical_cpu_cores is not None and hw.logical_cpu_cores >= hw.cpu_physical_cores
-    assert hw.vram_gb >= 0.0
+    assert hw.vram_gb is None or hw.vram_gb >= 0.0
     assert hw.gpu_compute_metrics is not None
 
 

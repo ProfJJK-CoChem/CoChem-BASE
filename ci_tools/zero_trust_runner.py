@@ -46,12 +46,16 @@ class QuarantineCleanupObservation:
     ownership_scope: str
     collection_observation: str
     external_reaping_pending: tuple[tuple[int, float], ...] = ()
+    launcher_create_time: Optional[float] = None
+    admitted_before_exec: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "launcher_pid": self.launcher_pid, "launcher_returncode": self.launcher_returncode,
             "owned_work_stopped": self.owned_work_stopped, "ownership_scope": self.ownership_scope,
             "collection_observation": self.collection_observation,
+            "launcher_create_time": self.launcher_create_time,
+            "admitted_before_exec": self.admitted_before_exec,
             "external_reaping_pending": [{"pid": pid, "create_time": created}
                                          for pid, created in self.external_reaping_pending],
         }
@@ -328,6 +332,56 @@ class _ProcessOwner:
     descendants: tuple = ()
     windows_job: Optional[_WindowsJob] = None
     external_reaping_pending: tuple = ()
+    admission_pending: bool = False
+    admitted_before_exec: bool = False
+    launcher_create_time: Optional[float] = None
+
+
+class _PosixAdmission:
+    """Keep a reviewed helper idle until its actual ownership is registered."""
+
+    def __init__(self, command: Sequence[str]) -> None:
+        if not command:
+            raise ValueError("A quarantine command requires an executable")
+        interpreter = Path(sys.executable).absolute()
+        helper = Path(__file__).resolve().with_name("posix_admission.py")
+        if not interpreter.is_file() or not helper.is_file() or helper.is_symlink():
+            raise RuntimeError("POSIX admission requires the existing interpreter and reviewed helper")
+        self.read_descriptor, self.write_descriptor = os.pipe()
+        self.command = [str(interpreter), "-I", "-S", "-B", str(helper),
+                        str(self.read_descriptor), *command]
+
+    def close(self) -> None:
+        first_error = None
+        for name in ("read_descriptor", "write_descriptor"):
+            descriptor = getattr(self, name)
+            if descriptor is not None:
+                setattr(self, name, None)
+                try:
+                    os.close(descriptor)
+                except BaseException as error:
+                    if first_error is None:
+                        first_error = error
+        if first_error is not None:
+            raise first_error
+
+    def parent_launched(self) -> None:
+        descriptor = self.read_descriptor
+        self.read_descriptor = None
+        os.close(descriptor)
+
+    def release(self, process: subprocess.Popen, owner: _ProcessOwner) -> None:
+        if (psutil is None or owner.leader is None or owner.launcher_create_time is None
+                or process.poll() is not None):
+            raise RuntimeError("[HARD_ABORT: PROCESS ADMISSION] Launcher generation was not captured")
+        current = psutil.Process(process.pid)
+        if (current.create_time() != owner.launcher_create_time or not current.is_running()
+                or os.getpgid(process.pid) != process.pid or os.getsid(process.pid) != process.pid):
+            raise RuntimeError("[HARD_ABORT: PROCESS ADMISSION] Launcher identity or session changed")
+        owner.admission_pending = False
+        if os.write(self.write_descriptor, b"\x01") != 1:
+            raise RuntimeError("[HARD_ABORT: PROCESS ADMISSION] Gate release was incomplete")
+        owner.admitted_before_exec = True
 
 
 _PROCESS_OWNERS: Dict[subprocess.Popen, _ProcessOwner] = {}
@@ -348,7 +402,7 @@ def _capture_process_owner(
     if psutil is not None:
         try:
             owner.leader = psutil.Process(process.pid)
-            owner.leader.create_time()  # Cache the actual launch generation.
+            owner.launcher_create_time = owner.leader.create_time()
             owner.descendants = tuple(owner.leader.children(recursive=True))
         except psutil.NoSuchProcess:
             logger.debug("Launcher %s exited before process discovery", process.pid)
@@ -394,6 +448,16 @@ def _stop_owned_process(
 ) -> bool:
     """Boundedly stop owned work; Popen alone collects its launcher's status."""
     deadline = time.monotonic() + max(0.0, timeout)
+    if owner.admission_pending:
+        # The reviewed pipe-gated helper has not been authorized to exec or
+        # spawn work. Stop its exact parent handle without inferring a group.
+        if process.poll() is None:
+            process.terminate()
+        try:
+            process.wait(timeout=max(0.001, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            return False
+        return process.poll() is not None
     if owner.windows_job is not None:
         # Checked Job assignment happened before resume. If setup failed before
         # assignment, the launcher is still suspended and cannot have workers.
@@ -416,6 +480,7 @@ def _stop_owned_process(
             current = psutil.Process(process.pid)
             if owner.leader is None:
                 if process.returncode is not None:
+                    logger.warning("Uncaptured owned launcher already collected PID %s", process.pid)
                     return False
                 owner.leader = current
                 owner.leader.create_time()
@@ -641,7 +706,8 @@ class QuarantineEnvironment:
         collection = ("terminal-workers-awaiting-system-reaper" if owner.external_reaping_pending else
                       ("owned-boundary-empty" if finished else "incomplete"))
         observation = QuarantineCleanupObservation(process.pid, process.returncode, finished, scope,
-                                                   collection, tuple(owner.external_reaping_pending))
+                                                   collection, tuple(owner.external_reaping_pending),
+                                                   owner.launcher_create_time, owner.admitted_before_exec)
         self._cleanup_observations.append(observation)
         return observation
 
@@ -749,20 +815,27 @@ class QuarantineEnvironment:
             self._enforce_private_root()
             _enable_owned_descendant_reaping()
             windows_job = _WindowsJob() if os.name == "nt" else None
+            admission = _PosixAdmission(command) if os.name == "posix" else None
             launch_options: Dict[str, Any] = {"start_new_session": os.name != "nt"}
+            if admission is not None:
+                launch_options["pass_fds"] = (admission.read_descriptor,)
             if os.name == "nt":
                 # Require the actual Windows flag rather than silently launching
                 # inside the caller's console process group.
                 launch_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004
-            owner = _ProcessOwner(os.name != "nt", windows_job=windows_job)
+            owner = _ProcessOwner(os.name != "nt", windows_job=windows_job,
+                                  admission_pending=admission is not None)
             try:
                 process = subprocess.Popen(
-                    list(command), cwd=str(self.quarantine_dir), env=env,
+                    admission.command if admission is not None else list(command),
+                    cwd=str(self.quarantine_dir), env=env,
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     text=True, encoding="utf-8", errors="strict",
                     **launch_options,
                 )
             except BaseException:
+                if admission is not None:
+                    admission.close()
                 if windows_job is not None:
                     try:
                         windows_job.close()
@@ -772,15 +845,29 @@ class QuarantineEnvironment:
             try:
                 self._active_processes.add(process)
                 self._process_owners[process] = owner
+                if admission is not None:
+                    admission.parent_launched()
                 owner = _capture_process_owner(process, os.name != "nt", windows_job)
+                owner.admission_pending = admission is not None
                 self._process_owners[process] = owner
                 _register_process(process, owner)
                 if windows_job is not None:
                     windows_job.assign_and_resume(process)
-                stdout, stderr = process.communicate(timeout=timeout)
+                    owner.admitted_before_exec = True
+                if admission is not None:
+                    admission.release(process, owner)
+                    admission.close()
+                stdout, stderr = process.communicate(timeout=max(0.0, timeout - (time.monotonic() - start_time)))
                 result = subprocess.CompletedProcess(list(command), process.returncode, stdout, stderr)
             finally:
                 original_exception = sys.exc_info()[1]
+                admission_error = None
+                if admission is not None:
+                    try:
+                        admission.close()
+                    except BaseException as error:
+                        admission_error = error
+                        logger.warning("Owned admission pipe cleanup failed: %s", error)
                 try:
                     finished = _stop_owned_process(process, owner)
                 except BaseException as cleanup_error:
@@ -797,6 +884,8 @@ class QuarantineEnvironment:
                     process.stdout.close()
                 if process.stderr is not None:
                     process.stderr.close()
+                if admission_error is not None and original_exception is None:
+                    raise admission_error
                 if not finished:
                     message = f"Owned command cleanup incomplete for PID {process.pid}"
                     if original_exception is None:

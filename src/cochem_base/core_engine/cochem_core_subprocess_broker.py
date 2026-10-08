@@ -35,6 +35,7 @@ import sys
 import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
@@ -535,7 +536,82 @@ def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
             logger.debug(f"Ignored exception: {_e}")
 
 
+@contextmanager
+def _defer_owned_cleanup_signals():
+    """Finish bounded native cleanup before replaying application signals.
+
+    Python installs and executes signal handlers on the main thread. Worker
+    owners therefore keep their application's existing signal routing. This
+    guard changes no handler at import and ignores no delivered cancellation:
+    exact prior handlers are restored before their deferred calls are replayed.
+    On POSIX, masking protects the handler installation/restoration transitions;
+    platforms without pthread_sigmask use the same Python handler protocol.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    previous = {
+        signum: signal.getsignal(signum)
+        for signum in (signal.SIGINT, signal.SIGTERM)
+    }
+    # An ignored signal stays ignored. An externally installed C handler cannot
+    # be restored through signal.signal(None), so leave that routing unchanged.
+    previous = {signum: handler for signum, handler in previous.items()
+                if callable(handler) or handler == signal.SIG_DFL}
+    pending = []
+
+    def defer(signum, frame):
+        pending.append((signum, frame))
+
+    mask = getattr(signal, "pthread_sigmask", None)
+    installed = []
+    entry_mask = mask(signal.SIG_BLOCK, previous) if mask is not None else None
+    body_entered = False
+    try:
+        for signum in previous:
+            signal.signal(signum, defer)
+            installed.append(signum)
+        if mask is not None:
+            mask(signal.SIG_SETMASK, entry_mask)
+        body_entered = True
+        yield
+    finally:
+        restoration_mask = mask(signal.SIG_BLOCK, previous) if mask is not None else None
+        try:
+            for signum in installed:
+                signal.signal(signum, previous[signum])
+        finally:
+            if mask is not None:
+                mask(signal.SIG_SETMASK, restoration_mask if body_entered else entry_mask)
+        for signum, frame in pending:
+            handler = previous[signum]
+            if callable(handler):
+                handler(signum, frame)
+            else:
+                # Re-deliver only after restoring SIG_DFL. The operating system's
+                # original action now runs after owned process cleanup completed.
+                signal.raise_signal(signum)
+            # A prior handler which raises unwinds normally; later queued
+            # deliveries do not replace that first application exception.
+
+
 def _terminate_owned_popen(
+    proc: subprocess.Popen,
+    *,
+    owns_posix_group: bool = False,
+    job_obj: Optional[WindowsJobObject] = None,
+    timeout: float = 5.0,
+    leader_identity: Any = None,
+) -> bool:
+    with _defer_owned_cleanup_signals():
+        return _terminate_owned_popen_impl(
+            proc, owns_posix_group=owns_posix_group, job_obj=job_obj,
+            timeout=timeout, leader_identity=leader_identity,
+        )
+
+
+def _terminate_owned_popen_impl(
     proc: subprocess.Popen,
     *,
     owns_posix_group: bool = False,

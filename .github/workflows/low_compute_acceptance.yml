@@ -18,7 +18,9 @@ jobs:
   physical-acceptance:
     name: Small xTB/PySCF calculations and bounded BASE regressions
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    # Setup and dependency installation precede the separately bounded
+    # regression process. Leave time for its owned cleanup and evidence upload.
+    timeout-minutes: 70
     env:
       COCHEM_EXPECTED_REVISION: ${{ github.sha }}
       OMP_NUM_THREADS: '1'

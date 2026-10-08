@@ -699,6 +699,10 @@ def validate_runtime_record(record: dict, artifact_dir: Path, repository_root: P
     source = Path(record.get("source_path", "")).expanduser().resolve()
     python = Path(record.get("python_path", "")).expanduser().absolute()
     if record.get("kind") == "assignment":
+        authority = record.get("authority_path", str(artifact_dir))
+        if (not isinstance(authority, str) or not authority
+                or Path(authority).expanduser().resolve() != artifact_dir.expanduser().resolve()):
+            raise StudentSetupError("Assignment execution authority must remain in its selected artifact directory.")
         # Assignment rollback may be requested from a newer external runtime.
         origin = _read(artifact_dir / "StudentSetup" / "assignment-runtime.json")
         expected = Path(origin["source_path"]).resolve() if isinstance(origin, dict) else repository_root

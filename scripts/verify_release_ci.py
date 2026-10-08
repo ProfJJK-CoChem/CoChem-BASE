@@ -44,6 +44,8 @@ HOSTED_TESTS = (
     "tests/base/test_srs_runtime_foundations.py::test_crash_source_identity_follows_linked_worktree",
     "tests/base/test_actions_calculation_contract.py",
     "tests/base/test_cli_memory_budget.py",
+    "tests/base/test_cli_runtime_preflight_cleanup.py",
+    "tests/base/test_process_reaper_ownership.py",
     "tests/base/test_stage0_authority_completion.py",
     "tests/base/test_workspace_facade.py",
     "tests/base/test_hardware_observation_authority.py",
@@ -128,7 +130,9 @@ def regressions(output: Path, *, expected_revision: str | None = None) -> dict:
     """Run every bounded selected case through the authenticated quarantine gate."""
     from ci_tools.base_ci import run_profile
 
-    report = run_profile(ROOT, output, test_paths=HOSTED_TESTS,
+    # The hosted job also provisions audited runtimes before this process starts.
+    # Finish and retain owned cleanup/outcome evidence before its outer deadline.
+    report = run_profile(ROOT, output, test_paths=HOSTED_TESTS, timeout=3600,
                          environment=_environment(), strict_deferred=True,
                          expected_revision=expected_revision)
     report.update(scope="Bounded public hosted regression set; not the full canonical release gate",

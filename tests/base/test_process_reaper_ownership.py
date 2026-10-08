@@ -222,6 +222,182 @@ def test_actual_interrupt_during_tracking_registration_cleans_before_unregister(
     _run_owned_python(_OWNED_NATIVE_SIGNAL_SCRIPT, tmp_path, transport, "int", "setup")
 
 
+_INTERRUPT_DURING_CLEANUP_SCRIPT = r'''
+import hashlib, json, os, pathlib, signal, subprocess, sys, threading, time
+import psutil
+from cochem_base.core_engine import cochem_core_subprocess_broker as broker
+workspace = pathlib.Path(sys.argv[1])
+transport, event = sys.argv[2:]
+pid_path = workspace / "cleanup-native-pids.json"
+release_lock = threading.Event()
+lock_ready = threading.Event()
+observed = {"tracking_registration_timed_out":False,"actual_signal_sent":False}
+handler_calls = []
+cleanup_owner = None
+unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+native_script = r"""
+import json, os, pathlib, signal, subprocess, sys, time
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+child = subprocess.Popen([sys.executable, "-c",
+    "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(30)"],
+    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+pathlib.Path(sys.argv[1]).write_text(json.dumps({"launcher":os.getpid(),"grandchild":child.pid}))
+time.sleep(30)
+"""
+command = [sys.executable, "-u", "-c", native_script, str(pid_path)]
+def verify_handler(signum):
+    actual = json.loads(pid_path.read_text())
+    delivery = {"signal":int(signum),"signal_delivery_method":"signal.raise_signal",
+        "native_pids":actual,
+        "broker_module_file":broker.__file__,
+        "broker_module_sha256":hashlib.sha256(pathlib.Path(broker.__file__).read_bytes()).hexdigest(),
+        "launcher_exists_at_handler":psutil.pid_exists(actual["launcher"]),
+        "grandchild_exists_at_handler":psutil.pid_exists(actual["grandchild"]),
+        "unrelated_alive_at_handler":unrelated.poll() is None,
+        "application_handlers_restored":signal.getsignal(signal.SIGINT) is interrupt
+            and signal.getsignal(signal.SIGTERM) is terminate}
+    (workspace / "signal-delivery-evidence.json").write_text(json.dumps(delivery))
+    assert not psutil.pid_exists(actual["launcher"]), actual
+    assert not psutil.pid_exists(actual["grandchild"]), actual
+    assert unrelated.poll() is None
+    assert signal.getsignal(signal.SIGINT) is interrupt
+    assert signal.getsignal(signal.SIGTERM) is terminate
+    handler_calls.append(signum)
+def interrupt(signum, frame):
+    verify_handler(signum)
+    raise KeyboardInterrupt
+def terminate(signum, frame):
+    verify_handler(signum)
+    raise SystemExit(128 + signum)
+signal.signal(signal.SIGINT, interrupt)
+signal.signal(signal.SIGTERM, terminate)
+def hold_tracking_lock():
+    with broker._GLOBAL_TRACKING_LOCK:
+        lock_ready.set()
+        release_lock.wait(15)
+locker = threading.Thread(target=hold_tracking_lock, daemon=True)
+locker.start()
+assert lock_ready.wait(5)
+signum = signal.SIGINT if event == "int" else signal.SIGTERM
+cleanup_function = ("_terminate_owned_popen_impl" if hasattr(broker, "_terminate_owned_popen_impl")
+                    else "_terminate_owned_popen")
+def trace_actual_cleanup(frame, trace_event, argument):
+    global cleanup_owner
+    # This observes real execution and raises an actual C-runtime signal. No broker
+    # function, subprocess or result is replaced, and the assertion runs against
+    # the actual kernel-owned PIDs after their waits have completed.
+    if frame.f_code.co_filename == broker.__file__:
+        if trace_event == "exception" and frame.f_code.co_name == "register_popen_process":
+            error = argument[1]
+            if isinstance(error, broker.SubprocessBrokerError) and "tracking-lock deadline" in str(error):
+                observed["tracking_registration_timed_out"] = True
+        if (trace_event == "line" and frame.f_code.co_name == cleanup_function
+                and not observed["actual_signal_sent"]):
+            assert observed["tracking_registration_timed_out"]
+            deadline = time.monotonic() + 5
+            while not pid_path.exists():
+                assert time.monotonic() < deadline
+                time.sleep(.005)
+            actual = json.loads(pid_path.read_text())
+            assert frame.f_locals["proc"].pid == actual["launcher"]
+            cleanup_owner = (frame.f_locals["proc"], frame.f_locals.get("leader_identity"))
+            observed["actual_signal_sent"] = True
+            sys.settrace(None)
+            signal.raise_signal(signum)
+            assert not handler_calls
+    return trace_actual_cleanup
+owned_broker = None
+previous_trace = sys.gettrace()
+started = time.monotonic()
+try:
+    sys.settrace(trace_actual_cleanup)
+    try:
+        if transport == "safe":
+            broker.safe_subprocess_run(command, cwd=workspace, required_disk_gb=0, timeout=15)
+        else:
+            owned_broker = broker.SubprocessBroker(cwd=workspace, total_ram_threshold_gb=10**9)
+            owned_broker.execute(command, timeout=15, daemonize_on_timeout=False)
+        raise AssertionError("The actual deferred application signal did not propagate")
+    except KeyboardInterrupt:
+        assert event == "int"
+    except SystemExit as error:
+        assert event == "term" and error.code == 128 + signal.SIGTERM
+    assert handler_calls == [signum]
+    assert observed["tracking_registration_timed_out"] and observed["actual_signal_sent"]
+    assert signal.getsignal(signal.SIGINT) is interrupt
+    assert signal.getsignal(signal.SIGTERM) is terminate
+    assert time.monotonic() - started < 10
+    evidence = {**observed,"application_handler_called_after_owned_reap":True,
+        "application_handlers_restored":True,"transport":transport,"signal":event,
+        "signal_delivery_method":"signal.raise_signal",
+        "native_pids":json.loads(pid_path.read_text()),"unrelated_pid":unrelated.pid,
+        "unrelated_alive":unrelated.poll() is None,"elapsed_seconds":time.monotonic()-started}
+    (workspace / "cleanup-interrupt-evidence.json").write_text(json.dumps(evidence))
+    print(json.dumps(evidence))
+finally:
+    sys.settrace(previous_trace)
+    release_lock.set()
+    locker.join(2)
+    # A deliberately executed historical implementation must fail its strict
+    # handler-time assertion without leaving this regression's native workers
+    # behind. This recovery is diagnostic control teardown, never a pass.
+    if cleanup_owner is not None and pid_path.exists():
+        actual = json.loads(pid_path.read_text())
+        if any(psutil.pid_exists(pid) for pid in actual.values()):
+            recovered = broker._terminate_owned_popen(
+                cleanup_owner[0], owns_posix_group=True,
+                leader_identity=cleanup_owner[1])
+            (workspace / "control-teardown-recovery.json").write_text(json.dumps({
+                "historical_failure_control_cleanup":True,"cleanup_completed":recovered,
+                "remaining_pids":[pid for pid in actual.values() if psutil.pid_exists(pid)]}))
+    if owned_broker is not None:
+        owned_broker.close()
+    if unrelated.poll() is None:
+        unrelated.kill()
+    unrelated.wait(timeout=5)
+    assert not broker.get_active_popen_processes()
+'''
+
+
+@pytest.mark.parametrize("transport", ["safe", "instance"])
+@pytest.mark.parametrize("event", ["int", "term"])
+def test_actual_signal_during_post_registration_timeout_cleanup_reaps_before_handler(
+    tmp_path, transport, event,
+):
+    _run_owned_python(_INTERRUPT_DURING_CLEANUP_SCRIPT, tmp_path, transport, event)
+
+
+def test_cleanup_signal_guard_restores_exact_application_routing_after_normal_and_exception(tmp_path):
+    script = r'''
+import signal
+from cochem_base.core_engine import cochem_core_subprocess_broker as broker
+def interrupt(signum, frame):
+    raise KeyboardInterrupt
+def terminate(signum, frame):
+    raise SystemExit(128 + signum)
+signal.signal(signal.SIGINT, interrupt)
+signal.signal(signal.SIGTERM, terminate)
+before_mask = signal.pthread_sigmask(signal.SIG_BLOCK, set()) if hasattr(signal, "pthread_sigmask") else None
+with broker._defer_owned_cleanup_signals():
+    pass
+assert signal.getsignal(signal.SIGINT) is interrupt
+assert signal.getsignal(signal.SIGTERM) is terminate
+try:
+    with broker._defer_owned_cleanup_signals():
+        raise ValueError("Actual application exception while the cleanup guard is active")
+except ValueError as error:
+    assert "Actual application exception" in str(error)
+else:
+    raise AssertionError("The original application exception was swallowed")
+assert signal.getsignal(signal.SIGINT) is interrupt
+assert signal.getsignal(signal.SIGTERM) is terminate
+if before_mask is not None:
+    assert signal.pthread_sigmask(signal.SIG_BLOCK, set()) == before_mask
+print("Exact application handlers and POSIX mask restored after normal and exception exits")
+'''
+    _run_owned_python(script, tmp_path)
+
+
 def test_actual_shutdown_with_worker_held_tracking_lock_is_bounded_and_reaps_native_tree(tmp_path):
     _run_owned_python(_OWNED_NATIVE_SIGNAL_SCRIPT, tmp_path, "safe", "term", "during")
 

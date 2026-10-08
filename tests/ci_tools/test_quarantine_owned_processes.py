@@ -21,6 +21,7 @@ import pytest
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 RUNNER = REPOSITORY / "ci_tools" / "zero_trust_runner.py"
+ADMISSION = REPOSITORY / "ci_tools" / "posix_admission.py"
 
 
 CONTROL_SUPPORT = r'''
@@ -116,6 +117,7 @@ def _publish_control_receipt(receipt: dict) -> None:
 
 def _run_control(tmp_path: Path, body: str) -> dict:
     before = hashlib.sha256(RUNNER.read_bytes()).hexdigest()
+    admission_before = hashlib.sha256(ADMISSION.read_bytes()).hexdigest()
     control = tmp_path / "control.py"
     control.write_text(
         "import sys\n"
@@ -204,18 +206,21 @@ def _run_control(tmp_path: Path, body: str) -> dict:
                 forced_cleanup = True
                 os.killpg(group_id, signal.SIGKILL)
     after = hashlib.sha256(RUNNER.read_bytes()).hexdigest()
+    admission_after = hashlib.sha256(ADMISSION.read_bytes()).hexdigest()
     receipt = {
         "platform": sys.platform, "python": sys.executable,
         "returncode": process.returncode, "stdout": stdout, "stderr": stderr,
         "duration_s": time.monotonic() - start, "forced_cleanup": forced_cleanup,
         "runner_sha256_before": before, "runner_sha256_after": after,
+        "admission_sha256_before": admission_before, "admission_sha256_after": admission_after,
     }
     (tmp_path / "control-receipt.json").write_text(
         json.dumps(receipt, indent=2) + "\n", encoding="utf-8",
     )
-    if forced_cleanup or process.returncode != 0 or before != after:
+    if forced_cleanup or process.returncode != 0 or before != after or admission_before != admission_after:
         _publish_control_receipt(receipt)
     assert before == after
+    assert admission_before == admission_after
     assert not forced_cleanup, json.dumps(receipt, indent=2)
     assert process.returncode == 0, json.dumps(receipt, indent=2)
     observations = json.loads(stdout.strip().splitlines()[-1])
@@ -225,6 +230,104 @@ def _run_control(tmp_path: Path, body: str) -> dict:
     )
     _publish_control_receipt(receipt)
     return observations
+
+
+def test_launch_admission_precedes_fast_commands_and_preserves_native_status(tmp_path: Path) -> None:
+    observations = _run_control(tmp_path, '''
+        import json, os
+        import psutil
+        from ci_tools import zero_trust_runner as runner
+        recorded = []
+        for index in range(12):
+            marker = evidence_dir / ('admitted-command-' + str(index) + '.json')
+            exit_code = 7 if index % 2 else 0
+            command = (
+                "import json,os,sys,psutil; from pathlib import Path; "
+                "Path(sys.argv[1]).write_text(json.dumps({'pid':os.getpid(),"
+                "'created':psutil.Process().create_time(),'arguments':sys.argv[2:]})); "
+                "raise SystemExit(" + str(exit_code) + ")"
+            )
+            captured = []
+            def observe_registration(frame, event, argument):
+                if event == 'call' and frame.f_code is runner._register_process.__code__:
+                    process, owner = frame.f_locals['process'], frame.f_locals['owner']
+                    assert not marker.exists()
+                    assert process.poll() is None
+                    assert owner.launcher_create_time == psutil.Process(process.pid).create_time()
+                    if os.name == 'posix':
+                        assert owner.admission_pending
+                        assert os.getpgid(process.pid) == os.getsid(process.pid) == process.pid
+                    else:
+                        assert owner.windows_job is not None
+                    captured.append({'pid':process.pid,'created':owner.launcher_create_time})
+                    (evidence_dir/'owned.json').write_text(json.dumps({'launcher_pid':process.pid}))
+                return None
+            with runner.QuarantineEnvironment() as quarantine:
+                try:
+                    sys.settrace(observe_registration)
+                    result = quarantine.run_command(
+                        [sys.executable, '-B', '-c', command, str(marker), 'native ü argument'], timeout=2,
+                    )
+                finally:
+                    sys.settrace(None)
+            actual = json.loads(marker.read_text())
+            assert len(captured) == 1
+            assert actual['pid'] == captured[0]['pid']
+            assert actual['created'] == captured[0]['created']
+            assert actual['arguments'] == ['native ü argument']
+            assert result.exit_code == exit_code and result.passed is (exit_code == 0)
+            assert not result.timed_out
+            assert result.cleanup_observation.owned_work_stopped
+            assert result.cleanup_observation.admitted_before_exec
+            assert result.cleanup_observation.launcher_create_time == actual['created']
+            recorded.append({'command':actual,'cleanup':result.cleanup_observation.to_dict()})
+        print(json.dumps({'native_model':'posix-gate' if os.name=='posix' else 'suspended-windows-job',
+                          'commands':recorded,'admitted_before_real_command':True}))
+    ''')
+    assert observations["admitted_before_real_command"]
+    assert len(observations["commands"]) == 12
+
+
+def test_unadmitted_launchers_cannot_execute_requested_commands(tmp_path: Path) -> None:
+    observations = _run_control(tmp_path, '''
+        import json, os, subprocess
+        from ci_tools import zero_trust_runner as runner
+        refusals = []
+        for token in (b'', b'bad', b'\\x01extra'):
+            marker = evidence_dir / ('unadmitted-' + str(len(refusals)) + '.txt')
+            command = [sys.executable, '-B', '-c',
+                       'from pathlib import Path; import sys; Path(sys.argv[1]).write_text("executed")', str(marker)]
+            if os.name == 'posix':
+                read_descriptor, write_descriptor = os.pipe()
+                process = subprocess.Popen(
+                    [sys.executable, '-I', '-S', '-B', str(Path(runner.__file__).with_name('posix_admission.py')),
+                     str(read_descriptor), *command], pass_fds=(read_descriptor,),
+                    start_new_session=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                )
+                os.close(read_descriptor)
+                try:
+                    if token:
+                        os.write(write_descriptor, token)
+                finally:
+                    os.close(write_descriptor)
+                stdout, stderr = process.communicate(timeout=3)
+                assert process.returncode == 125 and '[HARD_ABORT: PROCESS ADMISSION]' in stderr
+            else:
+                process = subprocess.Popen(command, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004,
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                assert process.poll() is None
+                assert not marker.exists()
+                process.terminate()
+                stdout, stderr = process.communicate(timeout=3)
+                assert process.returncode is not None
+            assert not marker.exists()
+            refusals.append({'pid':process.pid,'returncode':process.returncode,'stderr':stderr,
+                             'command_executed':False})
+        print(json.dumps({'native_model':'posix-gate' if os.name=='posix' else 'suspended-windows-handle',
+                          'refusals':refusals}))
+    ''')
+    assert len(observations["refusals"]) == 3
+    assert all(not observation["command_executed"] for observation in observations["refusals"])
 
 
 @pytest.mark.parametrize("exit_code", [0, 7])

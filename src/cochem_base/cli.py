@@ -16,10 +16,10 @@ Authoritative Standards:
 Supported Subcommands:
 - setup:     Execute complete Stage 0 setup sequence (Phases 1 through 11) or specific phases.
 - audit:     Execute fast, non-mutating OS, hardware, engine, and security integrity audit.
-- preflight: Run end-to-end preflight integration validation suite (silos, artifacts, ORCA, MPI).
+- preflight: Verify current setup, isolated runtimes and sealed ecosystem installations.
 - status:    Query Golden Master Registry (cochem_system_config.json) and Phase audit records.
 - phase:     Execute a single setup phase directly with granular argument control.
-- clean:     Purge ephemeral sandboxes, temporary files, and sweep zombie subprocesses.
+- clean:     Inspect registered completed work while preserving runtime and scientific files.
 - mass:      Query dynamic elemental and isotopic masses via the mendeleev library.
 
 Usage Examples:
@@ -39,10 +39,8 @@ import json
 import logging
 import os
 import platform
-import shutil
 import signal
 import sys
-import tempfile
 import threading
 import time
 from datetime import datetime, timezone
@@ -72,7 +70,6 @@ os.environ["COCHEM_BASE_ROOT"] = str(REPO_ROOT)
 from cochem_base.config_loader import (  # noqa: E402
     get_artifact_dir,
     get_modules_dir,
-    get_scratch_dir,
 )
 from cochem_base._version import __version__  # noqa: E402
 
@@ -363,6 +360,17 @@ def execute_phase(
 
 def action_setup(args: argparse.Namespace, on_event: Optional[Callable[[Dict[str, Any]], None]] = None) -> int:
     """Handles the 'setup' subcommand, executing all or specified Stage 0 phases."""
+    if getattr(args, "clean", False):
+        failure = {"overall_status": "FAILED", "error": (
+            "In-place runtime reset is unsupported. Use BASE's verified update or a new "
+            "artifact directory; existing silos, inputs, results and rollback generations are retained.")}
+        if on_event:
+            on_event({"event": "setup_complete", "summary": failure})
+        if args.json and not getattr(args, "native_service", False):
+            print(json.dumps(failure))
+        elif not args.json:
+            print(TermColor.fail(failure["error"]))
+        return 1
     artifact_dir = Path(args.artifact_dir).resolve() if args.artifact_dir else get_artifact_dir()
     os.environ["COCHEM_ARTIFACT_DIR"] = str(artifact_dir)
 
@@ -396,13 +404,6 @@ def action_setup(args: argparse.Namespace, on_event: Optional[Callable[[Dict[str
         print(f"Phases Scheduled:     {', '.join(str(p) for p in phases_to_run)}")
         print(f"Dry Run Mode:         {args.dry_run}")
         print("-" * 78)
-
-    if args.clean and not args.dry_run:
-        silo_dir = artifact_dir / "Silos"
-        if silo_dir.exists():
-            if not args.json:
-                print(TermColor.info(f"Purging existing Silo environment directory at {silo_dir}..."))
-            shutil.rmtree(silo_dir, ignore_errors=True)
 
     summary_results: Dict[str, Any] = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -617,55 +618,117 @@ def action_audit(args: argparse.Namespace) -> int:
 
 
 def action_preflight(args: argparse.Namespace) -> int:
-    """Executes the preflight test suite via test_suite.run_tests."""
-    artifact_dir = Path(args.artifact_dir).resolve() if args.artifact_dir else get_artifact_dir()
-    module_dir = Path(args.module_dir).resolve() if args.module_dir else Path(get_modules_dir())
+    """Revalidate actual setup and installation authority without running science.
 
-    if not args.json:
-        print(TermColor.title("=" * 78))
-        print(TermColor.title(" CoChem-BASE: Preflight Environment & Execution Test Suite "))
-        print(TermColor.title("=" * 78))
-        print(f"Artifact Directory: {artifact_dir}")
-        print(f"Modules Directory:  {module_dir}")
+    Missing licensed engines are optional. An advertised available runtime must
+    satisfy its full authority, and empty provider directories never establish
+    an installation. This entrypoint is also available in the installed wheel.
+    """
+    from filelock import FileLock
+    from cochem_base.cochem_core_registry_schema import CoChemSystemConfig
+    from cochem_base.core_engine.execution_authority import authorize_engine_execution
+    from cochem_base.interfaces.module_execution import installed_module_status
+    from cochem_base.interfaces.student_setup import DEFAULT_MODULES, _read, validate_runtime_record
+    from cochem_base.orchestrator.micro_silo_manager import (
+        MicroSiloValidationError, validate_pins, verify_micro_silo,
+    )
+    from cochem_base.orchestrator.silo_dependency_pins import DEFAULT_PINS
+
+    artifact_dir = Path(args.artifact_dir).resolve() if args.artifact_dir else get_artifact_dir()
+    module_dir = Path(args.module_dir).resolve() if args.module_dir else artifact_dir / "Modules"
+    authority_dir = artifact_dir
+    results = {}
+    try:
+        runtime = _read(artifact_dir / "StudentSetup" / "active-runtime.json")
+        if runtime is not None:
+            validate_runtime_record(runtime, artifact_dir, REPO_ROOT)
+            if runtime.get("kind") == "reviewed-release":
+                from scripts.manage_modules import verify_installation
+                verify_installation("base", runtime["base_spec"], artifact_dir / "BaseRuntime")
+            authority_dir = Path(runtime.get("authority_path", str(artifact_dir))).resolve()
+        registry_path = authority_dir / "Registry" / "cochem_system_config.json"
+        if registry_path.is_symlink() or not registry_path.is_file():
+            raise ValueError("A current regular Golden Registry file is required; run BASE setup first.")
+        with FileLock(str(registry_path) + ".lock", timeout=10):
+            config = CoChemSystemConfig.model_validate_json(registry_path.read_text(encoding="utf-8"))
+        if (config.status not in {"LOCKED", "ACTIVE", "PASSED", "DEGRADED_OPERATIONAL"}
+                or not config.verify_checksum() or config.stage0 is None):
+            raise ValueError("Preflight requires checksummed complete eleven-phase execution authority.")
+        results["registry"] = {"status": "verified", "passed": True, "required": True,
+            "scope": "base", "path": str(registry_path), "phases": len(config.stage0.phases)}
+    except Exception as exc:
+        results["registry"] = {"status": "invalid", "passed": False, "required": True,
+            "scope": "base", "reason": str(exc)}
+        config = None
+
+    if config is not None:
+        for name, lock in (("cochem_core_silo", "core"), ("cochem_ui_silo", "ui")):
+            item = {"status": "invalid", "passed": False, "required": True, "scope": "base"}
+            try:
+                silo = config.stage0.micro_silos.get(name)
+                if silo is None or not silo.packages:
+                    raise ValueError("The mandatory isolated runtime has no complete package authority.")
+                pins = validate_pins(DEFAULT_PINS[lock])
+                if any(silo.packages.get(package) != version for package, version in pins.items()):
+                    raise ValueError("The mandatory runtime contradicts the reviewed dependency lock.")
+                expected_python = Path(silo.root) / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+                if Path(silo.python_executable).absolute() != expected_python.absolute():
+                    raise ValueError("The runtime interpreter is outside its audited micro-silo.")
+                verify_micro_silo(silo.root, python_version=silo.python_version,
+                    requirements=[f"{package}=={version}" for package, version in sorted(silo.packages.items())],
+                    imports=["pydantic", "numpy", "h5py"] if lock == "core" else ["ipywidgets", "voila"])
+                item.update(status="verified", passed=True, package_count=len(silo.packages))
+            except (Exception, MicroSiloValidationError) as exc:
+                item["reason"] = str(exc)
+            results[name] = item
+
+        engine_names = set(config.engines) | {"orca", "cfour"}
+        overrides = {"orca": getattr(args, "orca_cmd", None), "mpirun": getattr(args, "mpi_cmd", None)}
+        engine_names.update(name for name, value in overrides.items() if value)
+        for name in sorted(engine_names):
+            record = config.engines.get(name)
+            available = record is not None and record.status in {"found", "ready"}
+            item = {"status": "unavailable", "passed": False,
+                "required": bool(overrides.get(name)) or (available and name not in {"orca", "cfour"}),
+                "scope": "engine", "optional": True, "scientific_execution_performed": False}
+            if not available:
+                item["reason"] = "Not installed; dependent operations remain unavailable."
+            else:
+                try:
+                    authorization = authorize_engine_execution(name, registry_path=registry_path,
+                        executable=overrides.get(name), cores=1, maxcore_mb=1)
+                    item.update(status="verified", passed=True, binary_sha256=authorization.binary_sha256)
+                except (Exception, MicroSiloValidationError) as exc:
+                    item.update(status="invalid", reason=str(exc))
+            results["engine:" + name] = item
 
     try:
-        from test_suite.run_tests import run_all_preflight_checks
-
-        res = run_all_preflight_checks(
-            artifact_dir=artifact_dir,
-            module_dir=module_dir,
-            orca_path=Path(args.orca_cmd) if args.orca_cmd else None,
-            mpi_path=Path(args.mpi_cmd) if args.mpi_cmd else None,
-        )
-
-        res_dict = res.model_dump()
-        all_passed = all(item.get("status", False) for item in res_dict.values())
-
-        if args.json:
-            print(json.dumps({"all_passed": all_passed, "results": res_dict}, indent=2))
-        else:
-            print("\nPreflight Test Results:")
-            for test_key, item in res_dict.items():
-                label = test_key.replace("_", " ").title()
-                st = TermColor.ok("PASS") if item.get("status") else TermColor.fail("FAIL")
-                print(f"  [{st}] {label:20s}: {item.get('message')}")
-
-            print("\n" + "=" * 78)
-            if all_passed:
-                print(TermColor.ok("All Preflight Checks Passed! Environment fully verified."))
-            else:
-                print(TermColor.fail("One or more Preflight Checks Failed."))
-            print("=" * 78)
-
-        return 0 if all_passed else 1
-
+        observations = installed_module_status(module_dir)
+        for observed in observations:
+            name = observed["module_id"]
+            results["module:" + name] = {**observed, "scope": "ecosystem",
+                "passed": observed["status"] == "installed", "required": name in DEFAULT_MODULES}
+        for name in DEFAULT_MODULES:
+            if "module:" + name not in results:
+                raise ValueError("The reviewed catalog does not declare the required default providers.")
     except Exception as exc:
-        logger.error(f"Preflight runner failed with exception: {exc}")
-        if args.json:
-            print(json.dumps({"all_passed": False, "error": str(exc)}, indent=2))
-        else:
-            print(TermColor.fail(f"Preflight suite crashed: {exc}"))
-        return 1
+        results["modules"] = {"status": "invalid", "passed": False, "required": True,
+            "scope": "ecosystem", "reason": str(exc)}
+
+    all_passed = all(item["passed"] for item in results.values() if item["required"])
+    base_ready = all(item["passed"] for item in results.values() if item["scope"] == "base")
+    payload = {"schema_version": "cochem.preflight/1", "all_passed": all_passed, "base_ready": base_ready,
+        "artifact_directory": str(artifact_dir), "modules_directory": str(module_dir),
+        "scientific_execution_performed": False, "results": results}
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(TermColor.title("CoChem-BASE: current runtime preflight"))
+        for name, item in results.items():
+            print(f"  {name}: {item['status']} {item.get('reason', '')}")
+        print(TermColor.ok("Required runtime authority verified.") if all_passed else
+              TermColor.fail("Required runtime authority is missing or invalid; affected operations remain unavailable."))
+    return 0 if all_passed else 1
 
 
 def action_status(args: argparse.Namespace) -> int:
@@ -791,88 +854,38 @@ def action_phase(args: argparse.Namespace) -> int:
 
 
 def action_clean(args: argparse.Namespace) -> int:
-    """Sweeps ephemeral sandboxes (/tmp/cochem_exec_* or $SLURM_TMPDIR), temp files, and zombies."""
-    artifact_dir = Path(args.artifact_dir).resolve() if args.artifact_dir else get_artifact_dir()
+    """Inspect only broker-owned work; file reclamation stays with its owner.
 
-    if not args.json:
-        print(TermColor.title("=" * 78))
-        print(TermColor.title(" CoChem-BASE: Workspace Garbage Collection & Sandbox Purge "))
-        print(TermColor.title("=" * 78))
-
-    reaped = reap_zombie_processes()
-    if not args.json and reaped > 0:
-        print(TermColor.info(f"Reaped {reaped} orphaned/zombie subprocesses."))
-
-    # Clean ephemeral sandboxes in temp directory
-    temp_dir_str = tempfile.gettempdir()
-    purged_sandboxes = 0
-
-    try:
-        with os.scandir(temp_dir_str) as entries:
-            for entry in entries:
-                if entry.name.startswith(("cochem_exec_", "cochem_mps_", "cochem_tmp_")):
-                    try:
-                        if entry.is_dir(follow_symlinks=False):
-                            shutil.rmtree(entry.path, ignore_errors=True)
-                            purged_sandboxes += 1
-                        elif entry.is_file(follow_symlinks=False):
-                            try:
-                                os.remove(entry.path)
-                            except OSError:
-                                pass
-                            purged_sandboxes += 1
-                    except Exception as e:
-                        logger.debug(f"Failed to remove {entry.name}: {e}")
-    except Exception as exc:
-        logger.debug(f"Temp sweep error: {exc}")
-
-    # Clean ephemeral sandboxes in scratch if configured
-    try:
-        scratch_dir = get_scratch_dir()
-        if scratch_dir and scratch_dir.exists():
-            with os.scandir(str(scratch_dir)) as entries:
-                for entry in entries:
-                    if entry.name.startswith(("cochem_exec_", "cochem_mps_", "cochem_tmp_")):
-                        try:
-                            if entry.is_dir(follow_symlinks=False):
-                                shutil.rmtree(entry.path, ignore_errors=True)
-                                purged_sandboxes += 1
-                            elif entry.is_file(follow_symlinks=False):
-                                try:
-                                    os.remove(entry.path)
-                                except OSError:
-                                    pass
-                                purged_sandboxes += 1
-                        except Exception as e:
-                            logger.debug(f"Failed to remove {entry.name}: {e}")
-    except Exception as exc:
-        logger.debug(f"Scratch sweep error: {exc}")
-
-    # Clean Silos if --all specified
-    purged_silos = False
+    A pathname prefix or a selected artifact root cannot prove the immutable
+    generation, absence of live tasks or right to delete another user's files.
+    Producers clean their own verified ephemeral lifecycle directories. This
+    CLI never resets accepted/rollback runtimes, inputs, results or micro-silos.
+    """
+    payload = {"zombies_reaped": 0, "sandboxes_purged": 0, "silos_purged": False,
+        "status": "CLEAN_COMPLETE", "filesystem_preserved": True,
+        "filesystem_cleanup": "Retained; only the creating task's verified lifecycle may reclaim its files."}
     if getattr(args, "all", False):
-        silo_dir = artifact_dir / "Silos"
-        if silo_dir.exists():
-            shutil.rmtree(silo_dir, ignore_errors=True)
-            purged_silos = True
-
-    payload = {
-        "zombies_reaped": reaped,
-        "sandboxes_purged": purged_sandboxes,
-        "silos_purged": purged_silos,
-        "status": "CLEAN_COMPLETE",
-    }
-
+        payload.update(status="CLEAN_REFUSED", error=(
+            "Destructive runtime reset is unsupported. Use BASE's verified update or a new artifact directory."))
+    else:
+        try:
+            from cochem_base.core_engine.cochem_core_subprocess_broker import get_active_popen_processes
+            active = get_active_popen_processes()
+            payload["active_owned_process_count"] = len(active)
+            if active:
+                payload.update(status="CLEAN_BLOCKED_ACTIVE_WORK", error=(
+                    "Registered calculations are active; finish or cancel them through their owner before cleanup."))
+            else:
+                from cochem_base.process_cleanup import reap_owned_children
+                reap_owned_children()
+        except Exception as exc:
+            payload.update(status="CLEAN_REFUSED", error=str(exc))
     if args.json:
         print(json.dumps(payload, indent=2))
     else:
-        print(TermColor.ok(f"Purged {purged_sandboxes} ephemeral quarantine sandboxes and temporary files."))
-        if purged_silos:
-            print(TermColor.info("Purged micro-silos directory."))
-        print(TermColor.ok("Workspace cleanup complete."))
-        print("=" * 78)
-
-    return 0
+        print(TermColor.ok("Registered work inspected; runtime and scientific files retained.")
+              if payload["status"] == "CLEAN_COMPLETE" else TermColor.fail(payload["error"]))
+    return 0 if payload["status"] == "CLEAN_COMPLETE" else 1
 
 
 def action_mass(args: argparse.Namespace) -> int:
@@ -1008,7 +1021,7 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     p_setup.add_argument("-p", "--phase", type=int, nargs="+", choices=range(1, 12), help="Specific phase numbers to run (1-11)")
     p_setup.add_argument("-a", "--artifact-dir", type=str, default=None, help="Custom artifact directory root")
     p_setup.add_argument("--min-disk-space-gb", type=float, default=50.0, help="Required free storage capacity for the chosen workload (GB; default 50)")
-    p_setup.add_argument("--clean", action="store_true", help="Purge existing micro-silos before running")
+    p_setup.add_argument("--clean", action="store_true", help="Unsupported destructive reset; existing runtimes are retained")
     p_setup.add_argument("--dry-run", action="store_true", help="Audit and validate without persisting modifications")
     p_setup.add_argument("--skip-heavy", action="store_true", help="Skip heavy micro-silo builds (PySCF/MACE)")
     p_setup.add_argument("--skip-iops", action="store_true", help="Skip unbuffered disk IOPS benchmark in Phase 10")
@@ -1021,7 +1034,7 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     p_audit.add_argument("--json", action="store_true", help="Output audit results in structured JSON format")
 
     # --- Subcommand: preflight ---
-    p_preflight = subparsers.add_parser("preflight", help="Run preflight validation test suite")
+    p_preflight = subparsers.add_parser("preflight", help="Reverify current setup, engine and sealed module authority")
     p_preflight.add_argument("-a", "--artifact-dir", type=str, default=None, help="Custom artifact directory root")
     p_preflight.add_argument("-m", "--module-dir", type=str, default=None, help="Custom modules directory root")
     p_preflight.add_argument("--orca-cmd", type=str, default=None, help="Explicit path to ORCA executable")
@@ -1044,9 +1057,9 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     p_phase.add_argument("--json", action="store_true", help="Output phase result in structured JSON format")
 
     # --- Subcommand: clean ---
-    p_clean = subparsers.add_parser("clean", help="Purge ephemeral sandboxes, temp files, and reap zombies")
+    p_clean = subparsers.add_parser("clean", help="Inspect registered work while retaining runtime and scientific files")
     p_clean.add_argument("-a", "--artifact-dir", type=str, default=None, help="Custom artifact directory root")
-    p_clean.add_argument("--all", action="store_true", help="Also wipe micro-silo environments")
+    p_clean.add_argument("--all", action="store_true", help="Unsupported destructive reset; existing runtimes are retained")
     p_clean.add_argument("--json", action="store_true", help="Output clean results in structured JSON format")
 
     # --- Subcommand: mass ---
@@ -1174,6 +1187,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 def entrypoint() -> int:
     """Arm crash provenance and process cleanup for executable CLI invocation."""
+    preliminary = build_cli_parser().parse_args()
+    if preliminary.subcommand in {"clean", "preflight"} or (
+            preliminary.subcommand == "setup" and preliminary.clean):
+        # Inspection/refusal does not own a scientific controller's shutdown.
+        # Importing/arming that controller here would also provision diagnostics
+        # before an unsupported destructive request can be refused.
+        return main()
     from cochem_base.core_engine.cochem_core_telemetry_logger import install_global_excepthook
 
     install_global_excepthook(chain=True)

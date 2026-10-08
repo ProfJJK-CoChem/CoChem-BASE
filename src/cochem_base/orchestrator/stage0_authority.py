@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import hashlib
 import json
 import math
 import os
+import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -14,12 +15,13 @@ from cochem_base.cochem_core_registry_schema import (
     CoChemSystemConfig,
     EngineInfo,
     EnvironmentSchema,
+    GPUComputeSchema,
     HardwareSchema,
+    MicroSiloAuthority,
     SiloConfig,
     SiloPathsSchema,
     Stage0Authority,
     Stage0PhaseEvidence,
-    MicroSiloAuthority,
 )
 from cochem_base.core.cochem_core_registry_manager import save_system_config
 from cochem_base.core_engine.hardware_profiler import profile_hardware
@@ -29,6 +31,40 @@ from cochem_base.orchestrator.silo_dependency_pins import DEFAULT_PINS
 
 class Stage0AuthorityError(RuntimeError):
     """The observed setup evidence is incomplete or cannot authorize execution."""
+
+
+def _gpu_compute_from_phase2(report: dict[str, Any]) -> GPUComputeSchema:
+    """Publish device observations, without estimating unmeasured GPU features."""
+    from pydantic import ValidationError
+
+    from cochem_base.orchestrator.cochem_setup_phase_2 import GPUProfile
+
+    try:
+        observed = GPUProfile.model_validate(report.get("gpu") or {})
+    except ValidationError as exc:
+        raise Stage0AuthorityError("Invalid phase 2 GPU observations") from exc
+    if not observed.available or not observed.devices:
+        return GPUComputeSchema(gpu_profile="Unavailable")
+
+    devices = observed.devices
+    names = list(dict.fromkeys(device.name.strip() for device in devices if device.name.strip()))
+    memory = [device.memory_total_bytes for device in devices]
+    # A partial sum would mislabel incomplete observations as total VRAM.
+    total_bytes = sum(memory) if all(value is not None and value >= 0 for value in memory) else 0
+    capabilities = [device.compute_capability for device in devices]
+    # The registry has one scalar capability, so heterogeneous or incomplete
+    # observations cannot establish a common CUDA capability.
+    common_capability = None
+    if all(device.vendor.upper() == "NVIDIA" for device in devices):
+        normalized = [value.strip() if value else "" for value in capabilities]
+        if all(re.fullmatch(r"\d+\.\d+", value) for value in normalized) and len(set(normalized)) == 1:
+            common_capability = normalized[0]
+    return GPUComputeSchema(
+        gpu_profile="; ".join(names) or "Unavailable",
+        vram_gb=total_bytes / 1024**3,
+        device_count=len(devices),
+        compute_capability=common_capability,
+    )
 
 
 def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
@@ -75,6 +111,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
         raise Stage0AuthorityError("Phase 11 omitted measured bounded RAM")
     ram_gb = min(profile.allocatable_ram_bytes / 1024**3, float(memory) / 1024)
     maxcore = int(ram_gb * 1024 / cores * 0.75)
+    gpu = _gpu_compute_from_phase2(p2)
     hardware = HardwareSchema(
         ram_gb=ram_gb,
         cpu_physical_cores=profile.physical_cores,
@@ -88,8 +125,9 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
             for n in p11.get("numa_profile", {}).get("numa_nodes", [])
         },
         avx_512_capable=profile.avx512 is True,
-        vram_gb=(profile.vram_bytes or 0) / 1024**3,
-        gpu_profile="NVIDIA" if profile.gpu_probe_status == "measured" else "Unavailable",
+        vram_gb=gpu.vram_gb,
+        gpu_profile=gpu.gpu_profile,
+        gpu_compute_metrics=gpu,
         os_target=profile.environment.os_target,
     )
     capabilities = {
@@ -160,8 +198,8 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
             raise Stage0AuthorityError(f"No exact dependency lock is defined for {name}")
         lock = lock_groups[name]
         if name == "cochem_mace_silo":
-            from cochem_base.orchestrator.ml_silo_manager import mace_profile_lock
             from cochem_base.orchestrator.micro_silo_manager import MicroSiloValidationError
+            from cochem_base.orchestrator.ml_silo_manager import mace_profile_lock
             try:
                 lock = mace_profile_lock(record.get("dependency_profile", "cpu"))
             except MicroSiloValidationError as exc:

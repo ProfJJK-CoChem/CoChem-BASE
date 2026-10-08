@@ -13,6 +13,41 @@ import pytest
 from scripts import mandatory_ecosystem as ecosystem
 
 
+def test_catalog_bootstrap_hashes_match_the_reviewed_source_bytes():
+    """Git archive preserves CRLF blobs; normalized text is a different payload."""
+    from scripts.manage_modules import load_manifest
+
+    source = Path(ecosystem.__file__).resolve().parents[1]
+    authority = ecosystem.validate_spec(load_manifest()["modules"]["topos"])
+    actual = {name: hashlib.sha256((source / name).read_bytes()).hexdigest()
+              for name in authority["base_bootstrap_sha256"]}
+    assert actual == authority["base_bootstrap_sha256"]
+
+
+def test_catalog_complete_source_anchor_matches_the_reviewed_tracked_snapshot(tmp_path):
+    """Exclude generated build/cache metadata without dropping reviewed source."""
+    from scripts.manage_modules import _build_env, load_manifest
+
+    source = Path(ecosystem.__file__).resolve().parents[1]
+    tracked = subprocess.check_output(
+        ["git", "-C", str(source), "ls-files", "--stage", "-z"],
+        env=_build_env(), timeout=30,
+    ).decode().split("\0")
+    snapshot = tmp_path / "reviewed-source"
+    snapshot.mkdir()
+    for entry in filter(None, tracked):
+        identity, name = entry.split("\t", 1)
+        mode, _object_id, stage = identity.split()
+        assert stage == "0" and mode in {"100644", "100755"}
+        target = snapshot / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((source / name).read_bytes())
+        target.chmod(0o755 if mode == "100755" else 0o644)
+    authority = ecosystem.validate_spec(load_manifest()["modules"]["topos"])
+    observed = ecosystem.base_source_content_identity(snapshot)
+    assert observed["sha256"] == authority["base_source_content_sha256"]
+
+
 def test_default_acceptance_selects_critical_installer_and_export_boundaries():
     config = configparser.ConfigParser()
     config.read(Path(ecosystem.__file__).resolve().parents[1] / "pytest.ini")

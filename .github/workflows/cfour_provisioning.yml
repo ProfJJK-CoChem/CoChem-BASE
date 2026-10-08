@@ -22,6 +22,10 @@ permissions:
 
 jobs:
   provision:
+    # Draft visibility needs push authority; actual run validation needs Actions read.
+    permissions:
+      contents: write
+      actions: read
     if: ${{ github.event.repository.private && github.event.repository.owner.type == 'User' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30

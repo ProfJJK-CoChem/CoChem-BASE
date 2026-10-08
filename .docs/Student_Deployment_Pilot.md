@@ -33,9 +33,12 @@ Do not impersonate a student or create a fictional provider acceptance.
 1. Commit one bounded reviewed ORCA or CFOUR request with actual job-file digest,
    cores and memory. Stage its exact descriptor/source/request/workflow tuple;
    retain immutable intent, journal and canonical receipt outside Git.
-2. Qualify genuine private upload/readback and owning Actions `contents:read`
-   access to that draft release and exact asset. This permission contract was
-   not observed here. A denial remains a pilot failure until reviewed.
+2. Qualify genuine private upload/readback and owning Actions draft/asset access
+   with the consuming job's `contents:write`, plus actual run verification with
+   `actions:read`. Workflow defaults and separate validation jobs stay read-only;
+   see the [permission rationale](Private_Student_Projects.md#authorize-codespaces-and-stage-one-task).
+   This provider contract was not observed here. A denial remains a pilot failure
+   until reviewed.
 3. Dispatch with the exact receipt/digest/task and select its real matching run.
    Exercise status and cancellation as appropriate, then a genuine completed
    native calculation. Dedicated acceptance must establish its own physical

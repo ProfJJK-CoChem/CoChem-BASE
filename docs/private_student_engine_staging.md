@@ -82,10 +82,13 @@ qualify provider access.
    contain the task's standalone 32-character hexadecimal identifier. Actions
    verifies the real run ID, source SHA, head branch/repository, workflow, live
    private repository, release marker, request and asset before reading bytes.
-   The first pilot must explicitly establish that the owning workflow's
-   `contents:read` token can retrieve the private draft release and its exact
-   asset. That provider permission contract has not been observed here. A denial
-   requires review of the private release/permission route before acceptance.
+   Only the consuming job receives `contents:write` for draft visibility and
+   `actions:read` for actual run verification; workflow defaults and separate
+   validation jobs remain `contents:read`. See the [permission rationale and
+   official references](../.docs/Private_Student_Projects.md#authorize-codespaces-and-stage-one-task).
+   The first pilot must explicitly establish actual draft/asset and current-run
+   access with those scopes. That provider permission contract has not been
+   observed here. A denial requires review before acceptance.
 6. Verify genuine native provisioning and scientific jobs, and retain their
    own evidence. Local staged archive and installation cleanup belongs to the
    workflow. After the genuine owning-repository run is terminal, Codespaces

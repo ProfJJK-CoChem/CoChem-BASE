@@ -28,6 +28,14 @@ LICENSED_WORKFLOWS = (
 )
 STAGING_INPUTS = ("asset_receipt", "asset_receipt_sha256", "asset_task_id")
 PRIVATE_OWNER_IF = "${{ github.event.repository.private && github.event.repository.owner.type == 'User' }}"
+DRAFT_CONSUMER_JOBS = {
+    "orca_calculation.yml": "calculate",
+    "cfour_calculation.yml": "calculate",
+    "orca_acceptance.yml": "licensed-calculations",
+    "cfour_acceptance.yml": "licensed-calculations",
+    "orca_asset_access.yml": "verify-archive",
+    "cfour_provisioning.yml": "provision",
+}
 
 
 class UniqueSafeLoader(yaml.SafeLoader):
@@ -51,6 +59,55 @@ UniqueSafeLoader.add_constructor(
 
 def document(path: Path) -> dict:
     return yaml.load(path.read_text(), Loader=UniqueSafeLoader)
+
+
+@pytest.mark.parametrize("filename,job_name", DRAFT_CONSUMER_JOBS.items())
+def test_draft_consumers_have_job_scoped_authority_and_keep_private_receipt_guards(filename, job_name):
+    # This checks actual authored permissions, not provider access or native success.
+    workflow = document(WORKFLOWS / filename)
+    assert workflow["permissions"] == {"contents": "read"}
+    job = workflow["jobs"][job_name]
+    assert job["permissions"] == {"contents": "write", "actions": "read"}
+    assert job["if"] == PRIVATE_OWNER_IF
+    triggers = workflow.get("on", workflow.get(True))
+    for field in STAGING_INPUTS:
+        assert triggers["workflow_dispatch"]["inputs"][field]["required"] is True
+    for other_name, other in workflow["jobs"].items():
+        if other_name != job_name:
+            assert other.get("permissions", workflow["permissions"]) == {"contents": "read"}
+    checkouts = [step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout@")]
+    assert checkouts and all(step["with"]["persist-credentials"] is False for step in checkouts)
+    for step in job["steps"]:
+        if step.get("uses", "").startswith("./.github/actions/setup-"):
+            if "asset-receipt" in step.get("with", {}):
+                for field in STAGING_INPUTS:
+                    assert step["with"][field.replace("_", "-")] == "${{ inputs." + field + " }}"
+        if "scripts.consume_private_engine_asset" in step.get("run", ""):
+            assert step["env"]["GH_TOKEN"] == "${{ github.token }}"
+            for field in STAGING_INPUTS:
+                assert step["env"]["COCHEM_STAGING_" + field.removeprefix("asset_").upper()] == "${{ inputs." + field + " }}"
+
+
+def test_only_actual_staged_draft_consumer_jobs_receive_contents_write():
+    observed = set()
+    privileged = set()
+    for path in WORKFLOWS.glob("*.yml"):
+        workflow = document(path)
+        assert "write" not in workflow.get("permissions", {}).values()
+        for job_name, job in workflow["jobs"].items():
+            steps = job.get("steps", [])
+            consumes = any(
+                step.get("uses") in {"./.github/actions/setup-orca", "./.github/actions/setup-cfour"}
+                or "scripts.consume_private_engine_asset" in step.get("run", "")
+                for step in steps
+            )
+            if consumes:
+                observed.add((path.name, job_name))
+            permissions = job.get("permissions", workflow.get("permissions", {}))
+            if permissions.get("contents") == "write":
+                privileged.add((path.name, job_name))
+                assert permissions == {"contents": "write", "actions": "read"}
+    assert observed == privileged == set(DRAFT_CONSUMER_JOBS.items())
 
 
 def run_guard(source: str, **updates: str) -> subprocess.CompletedProcess[str]:

@@ -490,7 +490,7 @@ cancellation and cleanup. Preserve original failed attempts and scientific limit
 | Classroom assignment opens but lab staging fails | Course enrollment is separate from the student's authorized private source access. |
 | Additional repository permission did not help | Personal Codespaces cannot gain cross-owner access through that declaration; verify the real authorized identity. |
 | Workflow is absent | The canonical files must be on the personal project's default branch and Actions must be allowed. |
-| Private draft download fails | The first pilot must qualify owning Actions `contents:read` visibility; do not silently broaden or invent success. |
+| Private draft download fails | Verify consuming-job `contents:write` draft visibility and `actions:read` run access against the [documented scopes](Private_Student_Projects.md#authorize-codespaces-and-stage-one-task); the live pilot remains unrun. Preserve a real denial. |
 | Native execution fails | Preserve genuine logs and unsupported/failed reasons. Installation is not accepted chemistry. |
 | Asset remains after cancellation | Use the exact historical receipt and terminal-run cleanup/repair, preserving unrelated assets. |
 | Costs attributed to organization | Check the actual calculation repository owner; starting a run as a student does not change its payer. |

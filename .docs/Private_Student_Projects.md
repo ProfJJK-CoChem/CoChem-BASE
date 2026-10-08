@@ -52,6 +52,19 @@ Its own repository authority reads only the exact staged task asset. Do not
 configure a separate cross-owner archive credential in the student's Actions
 settings. Each calculation uses its own source/request/resource intent.
 
+The workflow default and separate validation jobs retain `contents:read`.
+Only a job consuming a staged draft receives `contents:write` and `actions:read`.
+GitHub restricts draft release visibility to push access; ordinary release GET
+permission tables do not establish draft visibility. The consumer also reads
+the actual Actions run, which needs `actions:read`. Unspecified token permissions
+are `none`, so a contents-only token does not satisfy that run check. These are
+job permissions: every command in the consuming job has that repository authority.
+Checkout credentials are not persisted, and the personal/private ownership,
+exact task, branch, commit, request and byte-digest checks still apply. Reusable
+acceptance callers must permit the same job scopes; a called workflow cannot
+raise a caller's token permissions. This correction uses the existing owning
+token and retains draft assets; it does not publish archives or add a credential.
+
 ## Run, retrieve and clean up
 
 Use `.github/workflows/orca_calculation.yml` for scientific ORCA jobs or
@@ -79,9 +92,11 @@ they are not a guarantee that an arbitrary calculation will fit.
 No real student-owned private target was available for this implementation
 cycle. Live source access, upload/readback, owning-token consumption, dispatch,
 result retrieval and cleanup remain **UNRUN**. The first pilot must explicitly
-establish owning Actions `contents:read` access to the private draft release and
-its exact asset. A denial requires review of the private permission/release route,
-not a fabricated provider response or silent permission expansion.
+establish draft/asset visibility with the consuming job's owning
+`contents:write` token and current-run access with `actions:read`. The configured
+scopes correct the source contract; they are not observed provider authorization
+or native qualification. A denial requires review of the actual repository policy
+and private permission route, never a fabricated provider response.
 
 The personal repository owner's billing settings must permit Actions. An
 organization-owned assignment uses organization Actions minutes even when a
@@ -94,3 +109,7 @@ Classroom50 collection and grading remain separate from calculation ownership.
 - [Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
 - [Codespaces repository access](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-repository-access-for-your-codespaces)
 - [Codespaces ownership and billing](https://docs.github.com/en/codespaces/managing-codespaces-for-your-organization/choosing-who-owns-and-pays-for-codespaces-in-your-organization)
+- [Draft release visibility](https://docs.github.com/en/rest/releases/releases?apiVersion=2022-11-28#list-releases)
+- [Workflow-run API permission](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#get-a-workflow-run)
+- [Job-scoped token permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions)
+- [Reusable workflow permission limits](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#access-and-permissions-for-nested-workflows)

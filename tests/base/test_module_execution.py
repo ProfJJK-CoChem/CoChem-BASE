@@ -112,7 +112,7 @@ def test_missing_and_invalid_installations_stay_unavailable(tmp_path):
 
 
 def test_provider_environment_removes_credentials_and_injection():
-    blocked = ["COCHEM_SOURCE_READ_TOKEN", "PRIVATE_ORCA_ASSET_CREDENTIAL", "GITHUB_TOKEN", "GH_TOKEN",
+    blocked = ["COCHEM_SOURCE_READ_TOKEN", "LAB_ENGINE_ACCESS_TOKEN", "GITHUB_TOKEN", "GH_TOKEN",
                "MY_API_KEY", "PRIVATE_PASSWORD", "SOURCE_CREDENTIAL", "MY_SECRET", "GIT_CONFIG_COUNT",
                "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_ASKPASS", "SSH_ASKPASS", "PYTHONPATH",
                "PYTHONHOME", "PYTHONUSERBASE", "VIRTUAL_ENV", "LD_PRELOAD", "LD_LIBRARY_PATH"]

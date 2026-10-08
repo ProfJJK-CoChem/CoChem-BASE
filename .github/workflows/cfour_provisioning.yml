@@ -1,0 +1,57 @@
+name: CFOUR private native provisioning
+run-name: CoChem CFOUR provisioning ${{ inputs.asset_task_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      asset_receipt:
+        description: Canonical Codespaces receipt containing an authentic private CFOUR descriptor
+        required: true
+        type: string
+      asset_receipt_sha256:
+        description: Exact staging receipt SHA-256
+        required: true
+        type: string
+      asset_task_id:
+        description: Exact task identity from the receipt
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    if: ${{ github.event.repository.private && github.event.repository.owner.type == 'User' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: ./.github/actions/setup-cfour
+        with:
+          asset-receipt: ${{ inputs.asset_receipt }}
+          asset-receipt-sha256: ${{ inputs.asset_receipt_sha256 }}
+          asset-task-id: ${{ inputs.asset_task_id }}
+      - name: Explain the observed scope
+        run: |
+          {
+            echo 'Actual approved CFOUR archive/native/version provisioning completed.'
+            echo 'No electronic-structure, Hessian, VPT2 or spectroscopy acceptance calculation ran.'
+            echo 'This private student project owns the job and uses its personal Actions quota.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain installation evidence, without licensed binaries or archives
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfour-provisioning-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cfour-evidence/*.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Remove the job-local licensed installation
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/cochem-cfour-install" "$RUNNER_TEMP/cochem-cfour-download"

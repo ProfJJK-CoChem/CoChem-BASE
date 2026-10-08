@@ -1,8 +1,14 @@
 name: Provision the approved ORCA distribution
 description: Install checksum-pinned ORCA 6.1.1 and Open MPI 4.1.8 on a Linux x86-64 runner.
 inputs:
-  asset-token:
-    description: Read-only Contents access to the private ORCA release repository.
+  asset-receipt:
+    description: Exact canonical receipt from authorized Codespaces private staging.
+    required: true
+  asset-receipt-sha256:
+    description: Independently retained SHA-256 of the exact staging receipt.
+    required: true
+  asset-task-id:
+    description: Exact 32-character task identity from the private staging receipt.
     required: true
 runs:
   using: composite
@@ -11,6 +17,10 @@ runs:
       shell: bash
       env:
         COCHEM_ACTION_PATH: ${{ github.action_path }}
+        GH_TOKEN: ${{ github.token }}
+        COCHEM_STAGING_RECEIPT: ${{ inputs.asset-receipt }}
+        COCHEM_STAGING_RECEIPT_SHA256: ${{ inputs.asset-receipt-sha256 }}
+        COCHEM_STAGING_TASK_ID: ${{ inputs.asset-task-id }}
       run: |
         set -euo pipefail
         mkdir -p "$RUNNER_TEMP/orca-evidence"
@@ -18,13 +28,12 @@ runs:
         import os, sys
         from pathlib import Path
         scripts = Path(os.environ['COCHEM_ACTION_PATH']).resolve().parents[2] / 'scripts'
-        sys.path.insert(0, str(scripts))
-        from provision_orca import load_distribution_manifest
-        manifest = load_distribution_manifest(scripts / 'orca-distribution.json')
+        sys.path.insert(0, str(scripts.parent))
+        from scripts.consume_private_engine_asset import load_workflow_receipt
+        receipt = load_workflow_receipt('orca')
+        manifest = receipt['approved_distribution']
         fields = {
             'COCHEM_ORCA_SCRIPTS': str(scripts),
-            'COCHEM_ORCA_ASSET_REPOSITORY': manifest['repository'],
-            'COCHEM_ORCA_RELEASE_TAG': manifest['release_tag'],
             'COCHEM_ORCA_ARCHIVE_NAME': manifest['archive_name'],
         }
         with open(os.environ['GITHUB_ENV'], 'a') as output:
@@ -33,32 +42,21 @@ runs:
                     raise ValueError('Invalid multiline distribution setting')
                 output.write(f'{key}={value}\n')
         PY
-    - name: Download the private release asset
+    - name: Verify and consume the owning project's privately staged asset
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.asset-token }}
+        GH_TOKEN: ${{ github.token }}
+        COCHEM_STAGING_RECEIPT: ${{ inputs.asset-receipt }}
+        COCHEM_STAGING_RECEIPT_SHA256: ${{ inputs.asset-receipt-sha256 }}
+        COCHEM_STAGING_TASK_ID: ${{ inputs.asset-task-id }}
       run: |
         set -euo pipefail
-        if [[ -z "$GH_TOKEN" ]]; then
-          echo "::error::PRIVATE_ORCA_ASSET_CREDENTIAL must have read access to $COCHEM_ORCA_ASSET_REPOSITORY."
-          exit 1
-        fi
         mkdir -p "$RUNNER_TEMP/cochem-orca-download"
-        gh release download "$COCHEM_ORCA_RELEASE_TAG" \
-          --repo "$COCHEM_ORCA_ASSET_REPOSITORY" \
-          --pattern "$COCHEM_ORCA_ARCHIVE_NAME" \
-          --dir "$RUNNER_TEMP/cochem-orca-download"
-        python - <<'PY'
-        import hashlib, json, os
-        from pathlib import Path
-        manifest = json.loads((Path(os.environ['COCHEM_ORCA_SCRIPTS']) / 'orca-distribution.json').read_text())
-        archive = Path(os.environ['RUNNER_TEMP']) / 'cochem-orca-download' / manifest['archive_name']
-        with archive.open('rb') as source:
-            digest = hashlib.file_digest(source, 'sha256').hexdigest()
-        if digest != manifest['sha256']:
-            raise SystemExit('ORCA archive SHA-256 mismatch; installation refused.')
-        print('Approved ORCA archive SHA-256 verified.')
-        PY
+        python -m scripts.consume_private_engine_asset \
+          --engine orca \
+          --archive "$RUNNER_TEMP/cochem-orca-download/$COCHEM_ORCA_ARCHIVE_NAME" \
+          --descriptor "$RUNNER_TEMP/cochem-orca-download/distribution.json" \
+          --receipt-output "$RUNNER_TEMP/orca-evidence/staging-receipt.json"
     - name: Build and test the pinned Open MPI runtime
       shell: bash
       run: |
@@ -74,6 +72,7 @@ runs:
         set -euo pipefail
         python "$COCHEM_ORCA_SCRIPTS/provision_orca.py" \
           --archive "$RUNNER_TEMP/cochem-orca-download/$COCHEM_ORCA_ARCHIVE_NAME" \
+          --manifest "$RUNNER_TEMP/cochem-orca-download/distribution.json" \
           --install-root "$RUNNER_TEMP/cochem-orca-install" \
           --mpi-prefix "$RUNNER_TEMP/cochem-openmpi-4.1.8" \
           --github-env "$GITHUB_ENV" --github-path "$GITHUB_PATH" \

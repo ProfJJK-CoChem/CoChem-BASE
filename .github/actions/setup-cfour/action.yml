@@ -1,0 +1,56 @@
+name: Provision an explicitly approved private CFOUR distribution
+description: Verify actual staged archive, native binaries and reviewed version response.
+inputs:
+  asset-receipt:
+    description: Canonical Codespaces private staging receipt with authentic CFOUR descriptor.
+    required: true
+  asset-receipt-sha256:
+    description: Exact staging receipt SHA-256.
+    required: true
+  asset-task-id:
+    description: Exact task identity from the receipt.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Consume the approved CFOUR bytes from the owning private project
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        COCHEM_STAGING_RECEIPT: ${{ inputs.asset-receipt }}
+        COCHEM_STAGING_RECEIPT_SHA256: ${{ inputs.asset-receipt-sha256 }}
+        COCHEM_STAGING_TASK_ID: ${{ inputs.asset-task-id }}
+      run: |
+        set -euo pipefail
+        python - <<'PY'
+        import os
+        from pathlib import Path
+        from scripts.consume_private_engine_asset import consume, load_workflow_receipt
+        receipt = load_workflow_receipt('cfour')
+        root = Path(os.environ['RUNNER_TEMP']) / 'cochem-cfour-download'
+        root.mkdir(mode=0o700)
+        evidence = Path(os.environ['RUNNER_TEMP']) / 'cfour-evidence'
+        evidence.mkdir(exist_ok=True)
+        consume(
+            'cfour',
+            root / receipt['approved_distribution']['archive_name'],
+            root / 'distribution.json',
+            evidence / 'staging-receipt.json',
+        )
+        with Path(os.environ['GITHUB_ENV']).open('a') as output:
+            output.write('COCHEM_CFOUR_ARCHIVE_NAME=' + receipt['approved_distribution']['archive_name'] + '\n')
+        PY
+    - name: Validate the actual CFOUR native distribution and metadata
+      shell: bash
+      run: |
+        set -euo pipefail
+        python -m scripts.provision_cfour \
+          --archive "$RUNNER_TEMP/cochem-cfour-download/$COCHEM_CFOUR_ARCHIVE_NAME" \
+          --manifest "$RUNNER_TEMP/cochem-cfour-download/distribution.json" \
+          --install-root "$RUNNER_TEMP/cochem-cfour-install" \
+          --output "$RUNNER_TEMP/cfour-evidence/installation.json" \
+          --github-env "$GITHUB_ENV" --github-path "$GITHUB_PATH"
+    - name: Remove the downloaded licensed archive and private descriptor
+      if: always()
+      shell: bash
+      run: rm -rf -- "$RUNNER_TEMP/cochem-cfour-download"

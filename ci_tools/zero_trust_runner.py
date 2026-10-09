@@ -760,9 +760,9 @@ class QuarantineEnvironment:
         elif exc_type is not None and self.preserve_on_failure:
             logger.warning(f"Preserving failed quarantine directory: {self.quarantine_dir}")
         else:
-            self._remove_owned_directory()
+            self._remove_owned_directory(deadline=deadline)
 
-    def _remove_owned_directory(self) -> None:
+    def _remove_owned_directory(self, *, deadline: float | None = None) -> None:
         """Retire this stopped quarantine, including native readonly Git files.
 
         A removal failure remains visible. Only an actual readonly regular file
@@ -771,11 +771,38 @@ class QuarantineEnvironment:
         root = self.quarantine_dir
         if root.is_symlink() or root.resolve() != root.absolute() or not root.is_dir():
             raise PermissionError("Quarantine cleanup source boundary changed")
+        root_info = root.lstat()
+        root_identity = (root_info.st_dev, root_info.st_ino)
+        retirement_deadline = time.monotonic() + _CLEANUP_TIMEOUT_S if deadline is None else deadline
 
         def remove_readonly(function: Any, supplied: str, error: tuple) -> None:
             failure = error[1]
             path = Path(supplied)
             info = path.lstat()
+            if (os.name == "nt" and function is os.rmdir and path.absolute() == root.absolute()
+                    and isinstance(failure, PermissionError) and getattr(failure, "winerror", None) == 32):
+                # Windows may still hold a directory handle at retirement. Only
+                # retry removal of this unchanged empty root within the existing
+                # cleanup budget; never signal an unidentified handle owner.
+                while True:
+                    info = path.lstat()
+                    if (path.is_symlink() or path.resolve() != path.absolute()
+                            or (info.st_dev, info.st_ino) != root_identity
+                            or not stat.S_ISDIR(info.st_mode)
+                            or getattr(info, "st_file_attributes", 0) & 0x400):
+                        raise PermissionError("Quarantine cleanup source boundary changed")
+                    if time.monotonic() >= retirement_deadline:
+                        raise failure
+                    try:
+                        function(supplied)
+                        return
+                    except PermissionError as sharing_failure:
+                        if getattr(sharing_failure, "winerror", None) != 32:
+                            raise
+                        remaining = retirement_deadline - time.monotonic()
+                        if remaining <= 0:
+                            raise
+                        time.sleep(min(0.01, remaining))
             if (os.name != "nt" or not isinstance(failure, PermissionError)
                     or function not in (os.unlink, os.remove)
                     or not path.absolute().is_relative_to(root)

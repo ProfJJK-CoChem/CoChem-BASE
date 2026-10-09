@@ -26,7 +26,7 @@ RUNNER = SOURCE / 'ci_tools/zero_trust_runner.py'
 ADMISSION = SOURCE / 'ci_tools/posix_admission.py'
 TEST = SOURCE / 'tests/ci_tools/test_quarantine_owned_processes.py'
 sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
-assert sha(RUNNER) == 'db723b3b9f4aa7a5817e6213aecf65a11676e1504a98ad411cc1dbe2b17d49c1'
+assert sha(RUNNER) == '3ed284ff44fb8b472364ce70fcb2dc9745f2ae010332785725bd13a03d2a19e5'
 assert sha(ADMISSION) == 'ac275a9be93955d5caab29dddda25ec9c83a1782632ee1059a2f4f2aa76a1792'
 source_hashes = {str(p.relative_to(SOURCE)): sha(p) for p in (RUNNER, ADMISSION, TEST)}
 namespace = runpy.run_path(str(TEST))

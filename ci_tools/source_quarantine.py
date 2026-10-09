@@ -12,6 +12,7 @@ import json
 import os
 import runpy
 import sys
+import tempfile
 import tomllib
 import uuid
 from pathlib import Path
@@ -206,10 +207,21 @@ def _receipt(state: dict[str, Any], stage: str, result: dict[str, Any]) -> None:
               "retired_source_roots": sorted(str(root) for root in state.get("retired_roots", ())),
               **result}
     path = state["evidence"] / (str(os.getpid()) + "-" + state["instance"] + "-" + stage + ".json")
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    # The strict evidence directory contains only completely published records.
+    # Retain an interrupted private stage for diagnosis without advertising it
+    # as source authority. A same-filesystem hard link publishes exclusively;
+    # an existing destination must never be replaced.
+    staging_directory = Path(tempfile.mkdtemp(prefix=".cochem-source-receipt-", dir=state["evidence"].parent))
+    staged = staging_directory / "record.json"
+    descriptor = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         json.dump(record, handle, indent=2, sort_keys=True)
         handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.link(staged, path, follow_symlinks=False)
+    staged.unlink()
+    staging_directory.rmdir()
 
 
 def _finish(state: dict[str, Any]) -> None:

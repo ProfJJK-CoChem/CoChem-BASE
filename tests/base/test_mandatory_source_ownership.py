@@ -192,7 +192,8 @@ def test_v2_catalog_requires_typed_complete_source_identity(value):
 
     from scripts.manage_modules import load_manifest
 
-    spec = copy.deepcopy(load_manifest()["modules"]["topos"])
+    catalog = Path(ecosystem.__file__).with_name("module-distribution-legacy-kit-1.0.1.json")
+    spec = copy.deepcopy(load_manifest(catalog)["modules"]["topos"])
     if value is None:
         del spec["mandatory_ecosystem"]["base_source_content_sha256"]
     else:
@@ -206,7 +207,8 @@ def test_legacy_catalog_cannot_opt_out_of_complete_source_identity():
 
     from scripts.manage_modules import load_manifest
 
-    spec = copy.deepcopy(load_manifest()["modules"]["topos"])
+    catalog = Path(ecosystem.__file__).with_name("module-distribution-legacy-kit-1.0.1.json")
+    spec = copy.deepcopy(load_manifest(catalog)["modules"]["topos"])
     spec["mandatory_ecosystem"]["schema_version"] = "cochem.mandatory-ecosystem-catalog/1"
     with pytest.raises(ValueError, match="reviewed typed"):
         ecosystem.validate_spec(spec)

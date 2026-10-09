@@ -22,6 +22,13 @@ from pathlib import Path
 import pytest
 
 from cochem_base.core_engine.engine_environment import engine_runtime_environment
+from ci_tools.base_ci import (
+    _copy_reviewed_source,
+    _profile_environment,
+    _source_origin_receipts,
+    tracked_source_snapshot,
+    verify_source_binding,
+)
 from scripts import setup_licensed_engines as setup
 
 PROTOCOL_CLIENT = '''import json, os, sys, urllib.error, urllib.request
@@ -77,28 +84,19 @@ class ProtocolServer(ThreadingHTTPServer):
 
 
 class GitHubProtocol:
-    def __init__(self, directory: Path):
+    def __init__(self, directory: Path, project: Path, binding: dict):
         self.server = ProtocolServer()
         self.url = f"http://127.0.0.1:{self.server.server_port}"
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.directory = directory
         self.directory.mkdir()
-        self.project = directory.parent / "private-project-source"
-        scripts = self.project / "scripts"
-        scripts.mkdir(parents=True)
-        # These byte-identical production sources derive their repository root
-        # from the actual isolated project, rather than changing module globals.
-        for name in ("__init__.py", "setup_licensed_engines.py", "install_openmpi.py",
-                     "provision_orca.py", "provision_cfour.py",
-                     "orca-distribution.json", "cfour-distribution.json"):
-            source = setup.REPO_ROOT / "scripts" / name
-            destination = scripts / name
-            destination.write_bytes(source.read_bytes())
-            assert destination.read_bytes() == source.read_bytes()
+        self.project = project
+        self.binding = binding
+        self.source_before = tracked_source_snapshot(project)
+        self.evidence = directory.parent / "nested-source-origin-observations"
+        self.evidence.mkdir(mode=0o700)
         environment = self.child_environment()
-        subprocess.run(["git", "init", "--quiet", str(self.project)], env=environment,
-                       stdin=subprocess.DEVNULL, check=True, timeout=15)
-        subprocess.run(["git", "remote", "add", "origin", "https://github.com/student/project.git"],
+        subprocess.run(["git", "remote", "set-url", "origin", "https://github.com/student/project.git"],
                        cwd=self.project, env=environment, stdin=subprocess.DEVNULL,
                        check=True, timeout=15)
         client = self.directory / "protocol_client.py"
@@ -118,6 +116,20 @@ class GitHubProtocol:
         self.server.server_close()
         self.thread.join(timeout=5)
         assert not self.thread.is_alive()
+        self.verify_observations()
+
+    def verify_observations(self):
+        assert tracked_source_snapshot(self.project) == self.source_before
+        verified = verify_source_binding(self.project, expected_revision=self.binding["revision"])
+        assert verified["tracked_source_sha256"] == self.binding["tracked_source_sha256"]
+        observed = _source_origin_receipts(
+            self.evidence, self.project, setup.REPO_ROOT, self.binding["revision"])
+        assert not observed["authority_errors"], observed
+        assert not observed["failed"] and not observed["startup_only"], observed
+        assert observed["records"] and any(record["stage"] == "final" for record in observed["records"])
+        (self.directory.parent / "nested-source-origin-verification.json").write_text(
+            json.dumps(observed, indent=2) + "\n", encoding="utf-8")
+        return observed
 
     def route(self, path: str, value, *, status: int = 200):
         body = value if isinstance(value, bytes) else json.dumps(value).encode("utf-8")
@@ -141,17 +153,20 @@ class GitHubProtocol:
     def child_environment(self):
         # The isolated project's own Git configuration supplies its origin. No
         # original repository, parent environment or callable is modified.
-        environment = {
-            key: value for key, value in os.environ.items()
-            if not key.startswith("GIT_CONFIG_")
-            and key not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_NAMESPACE"}
-        }
+        environment = _profile_environment(setup.REPO_ROOT, self.project)
+        environment = {key: value for key, value in environment.items()
+                       if not key.startswith("GIT_CONFIG_")
+                       and key not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_NAMESPACE"}}
         environment.update({
-            "PATH": str(self.directory) + os.pathsep + os.environ.get("PATH", ""),
+            "PATH": str(self.directory) + os.pathsep + environment.get("PATH", ""),
             "COCHEM_TEST_PROTOCOL_URL": self.url,
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": os.devnull,
             "PYTHONDONTWRITEBYTECODE": "1",
+            "COCHEM_SOURCE_QUARANTINE_ROOT": str(self.project),
+            "COCHEM_SOURCE_QUARANTINE_ORIGINAL": str(setup.REPO_ROOT),
+            "COCHEM_SOURCE_QUARANTINE_EVIDENCE": str(self.evidence),
+            "COCHEM_SOURCE_QUARANTINE_REVISION": self.binding["revision"],
         })
         return environment
 
@@ -159,21 +174,64 @@ class GitHubProtocol:
         environment = self.child_environment()
         subprocess.run(["git", "remote", "set-url", "origin", origin], cwd=self.project,
                        env=environment, stdin=subprocess.DEVNULL, check=True, timeout=15)
-        return subprocess.run(
+        process = subprocess.run(
             [sys.executable, "-B", "-c", source, *arguments],
             cwd=self.project, env=environment,
             stdin=subprocess.DEVNULL, capture_output=True, text=True,
             check=False, timeout=45,
         )
+        self.verify_observations()
+        return process
+
+
+@pytest.fixture(scope="module")
+def reviewed_private_project(tmp_path_factory):
+    # One complete immutable Git source fixture admits its genuine production
+    # modules through the canonical boundary. No production root is overridden.
+    binding = verify_source_binding(setup.REPO_ROOT)
+    before = tracked_source_snapshot(setup.REPO_ROOT)
+    project = tmp_path_factory.mktemp("reviewed-private-project") / "source"
+    _copy_reviewed_source(setup.REPO_ROOT, project, binding)
+    assert tracked_source_snapshot(project) == before
+    verify_source_binding(project, expected_revision=binding["revision"])
+    try:
+        yield project, binding
+    finally:
+        assert tracked_source_snapshot(setup.REPO_ROOT) == before
+        assert tracked_source_snapshot(project) == before
+        verify_source_binding(project, expected_revision=binding["revision"])
 
 
 @pytest.fixture
-def github_protocol(tmp_path):
-    protocol = GitHubProtocol(tmp_path / "protocol-client")
+def github_protocol(tmp_path, reviewed_private_project):
+    protocol = GitHubProtocol(tmp_path / "protocol-client", *reviewed_private_project)
     try:
         yield protocol
     finally:
         protocol.close()
+
+
+def test_real_stdin_entry_point_has_no_filesystem_pseudo_origin(github_protocol):
+    source = '''import json, os, sys
+from scripts import setup_licensed_engines as setup
+assert __name__ == "__main__" and __file__ == "<stdin>"
+assert sys.argv == ["-"] and __spec__ is None
+assert setup.REPO_ROOT == __import__("pathlib").Path.cwd()
+print(json.dumps({"pid": os.getpid()}))
+'''
+    process = subprocess.run(
+        [sys.executable, "-B", "-"], input=source, cwd=github_protocol.project,
+        env=github_protocol.child_environment(), capture_output=True, text=True,
+        check=False, timeout=45)
+    assert process.returncode == 0, process.stderr
+    pid = json.loads(process.stdout)["pid"]
+    observations = github_protocol.verify_observations()
+    final = [record for record in observations["records"]
+             if record["stage"] == "final" and record["pid"] == pid]
+    assert len(final) == 1 and final[0]["passed"]
+    assert "__main__" not in final[0]["origins"]
+    assert final[0]["origins"]["scripts.setup_licensed_engines"] == [
+        str(github_protocol.project / "scripts/setup_licensed_engines.py")]
 
 
 @pytest.mark.parametrize("remote", [

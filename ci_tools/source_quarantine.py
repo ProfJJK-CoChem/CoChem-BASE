@@ -79,7 +79,12 @@ def loaded_origins(state: dict[str, Any]) -> dict[str, Any]:
             continue
         paths = list(getattr(module, "__path__", ()) or ())
         filename = getattr(module, "__file__", None)
-        if filename:
+        # Python's real stdin entry point uses a compiler label, not a source
+        # file. Keep aliases and every actual namespace path under inspection.
+        stdin_main = (name == "__main__" and module is sys.modules.get("__main__")
+                      and filename == "<stdin>" and sys.argv[:1] == ["-"]
+                      and getattr(module, "__spec__", None) is None)
+        if filename and not stdin_main:
             paths.append(filename)
         # Re-resolve on every observation so moved symlinks remain visible.
         # Resolving once per module path avoids filesystem work for each

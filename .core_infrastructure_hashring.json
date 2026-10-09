@@ -46,7 +46,7 @@
     "ci_tools/run_owned_cleanup_diagnostic.py": "ef09a41bc9af76ac6ebb85dfbea421fec3609f92dc57aac3ae1bfcb3aad500fd",
     "ci_tools/source_fixtures.json": "1982bbad5a940e8911b391484558ac5a74072813cb5990d0c864e38a6d3e6974",
     "ci_tools/source_fixtures.py": "26168892e51384e8cdd6625b37983f1949fe5666218920ecdb4aeeca208597f6",
-    "ci_tools/source_quarantine.py": "338d59718cd4b317914d9b9f14ddfc24f1e40afd709bd93a1576a86e5bcdc018",
+    "ci_tools/source_quarantine.py": "f32efcc2856ee402deaf907e1cc99d3015ef2eb4013c0d568da968edced88b02",
     "ci_tools/verify_anti_patching.py": "9cb181c9d4072213b39ff04cafefd96c88e9c75c746dc5bcf24769c60cd651e4",
     "ci_tools/verify_core_integrity.py": "8f60c4bc47ea89e80637ae4b24b82e3b5c80b9fe6c9f73015e1bc219249a5950",
     "ci_tools/zero_trust_runner.py": "db723b3b9f4aa7a5817e6213aecf65a11676e1504a98ad411cc1dbe2b17d49c1",

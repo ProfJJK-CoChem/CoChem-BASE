@@ -130,7 +130,10 @@ def test_companion_source_paths_use_complete_validated_module_specs(tmp_path, pr
     spec = ecosystem._companion_spec(project, pin)
     _, location, source, _ = manager._paths(project, spec, tmp_path)
     assert source == location / 'source'
-    assert location == tmp_path / project / pin
+    policy_sha = hashlib.sha256(
+        json.dumps(spec, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    ).hexdigest()
+    assert location == tmp_path / project / pin / 'policies' / policy_sha
     assert spec['operations'] == [] and spec['adapter_requirements'] == []
     assert spec['adapter'] is None
 

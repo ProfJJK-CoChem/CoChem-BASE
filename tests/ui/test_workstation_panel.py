@@ -1,0 +1,97 @@
+"""Lab-workstation panel: folder assignment, job list, status rendering and result display."""
+from __future__ import annotations
+
+import io
+import json
+import time
+import zipfile
+from pathlib import Path
+
+from cochem_base.interfaces.workstation_panel import WorkstationQueuePanel
+
+CALCULATION = {"geometry": "O 0 0 0\nH 0.7586 0 0.5043\nH -0.7586 0 0.5043", "engine": "pyscf", "method": "HF",
+               "basis_set": "sto-3g", "charge": 0, "multiplicity": 1, "is_opt": False, "is_freq": False}
+
+
+def _wait(predicate, timeout: float = 20.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.02)
+    raise AssertionError("condition not reached")
+
+
+def _panel(tmp_path: Path) -> tuple[WorkstationQueuePanel, Path]:
+    (tmp_path / "Drive").mkdir()
+    panel = WorkstationQueuePanel(artifact_dir=tmp_path / "artifacts", start_polling=False)
+    folder = tmp_path / "Drive" / "alice"
+    panel.folder.value, panel.student.value, panel.memory.value = str(folder), "alice", 4
+    panel.assign()
+    _wait(lambda: not panel.btn_assign.disabled and "Folder" in panel.settings_status.value)
+    return panel, folder
+
+
+def test_assignment_validation_messages(tmp_path):
+    panel = WorkstationQueuePanel(artifact_dir=tmp_path / "artifacts", start_polling=False)
+    assert "Assign your workstation Drive folder" in panel.ready_reason()
+    panel.folder.value, panel.student.value = "relative/folder", "alice"
+    panel.assign()
+    _wait(lambda: not panel.btn_assign.disabled and "not assigned" in panel.settings_status.value)
+    panel.cores.value = "many"
+    panel.assign()
+    assert "Cores must be" in panel.settings_status.value
+
+
+def test_submit_status_and_failed_result_rendering(tmp_path):
+    panel, folder = _panel(tmp_path)
+    assert panel.ready_reason() == ""
+    panel.submit(CALCULATION)
+    _wait(lambda: panel.history.value != "")
+    submission = json.loads(panel.history.value)
+    assert (folder / "inbox" / submission["job_name"] / "calculation.json").is_file()
+    payload = (folder / "inbox" / submission["job_name"] / "calculation.json").read_bytes()
+
+    label = submission["job_name"] + "__a1b2c3d4"
+    job = folder / "jobs" / label
+    job.mkdir(parents=True)
+    (folder / "inbox" / submission["job_name"]).rename(job / "input")
+    status = {"schema": "cochem.workstation-job-status/1", "label": label, "client_job_id": submission["client_job_id"],
+              "state": "PAUSED", "message": "owner is running a game", "attempts": 1, "queue_position": 2,
+              "resources": {"cores": 4, "memory_per_core_mb": 768}, "repairs": ["cores reduced from 8 to 4"],
+              "progress": {"optimization_cycle": 3, "_queue_position": 2}, "output_tail": ["SCF iteration 7"]}
+    (job / "status.json").write_text(json.dumps(status))
+    panel.refresh()
+    _wait(lambda: "PAUSED" in panel.job_status.value)
+    rendered = panel.job_status.value
+    assert "owner uses the machine" in rendered and "cores reduced from 8 to 4" in rendered
+    assert "optimization_cycle = 3" in rendered and "_queue_position" not in rendered and "SCF iteration 7" in rendered
+    assert panel.btn_retrieve.disabled and not panel.btn_cancel.disabled
+
+    import hashlib
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as bundle:
+        bundle.writestr("_runner/job_summary.json", json.dumps({
+            "schema": "cochem.workstation-job-summary/1", "client_job_id": submission["client_job_id"],
+            "input_hashes": {"calculation.json": hashlib.sha256(payload).hexdigest()}}))
+        bundle.writestr("cochem_base_run.log", "Calculation was not accepted: example diagnostics\n")
+    archive = stream.getvalue()
+    (job / f"{label}_results.zip").write_bytes(archive)
+    status.update(state="FAILED", message="cochem-cli exited with code 1", result_file=f"{label}_results.zip",
+                  result_sha256=hashlib.sha256(archive).hexdigest())
+    (job / "status.json").write_text(json.dumps(status))
+    panel.refresh()
+    _wait(lambda: not panel.btn_retrieve.disabled)
+    panel.retrieve()
+    _wait(lambda: "No accepted scientific result" in panel.result.value)
+    assert "cochem-cli exited with code 1" in panel.result.value
+    assert panel.download.value.startswith("<a download=")
+
+
+def test_history_survives_a_new_panel(tmp_path):
+    panel, _folder = _panel(tmp_path)
+    panel.submit(CALCULATION)
+    _wait(lambda: panel.history.value != "")
+    reopened = WorkstationQueuePanel(artifact_dir=tmp_path / "artifacts", start_polling=False)
+    assert reopened.folder.value.endswith("alice") and reopened.student.value == "alice"
+    assert json.loads(reopened.history.options[0][1])["request_id"] == json.loads(panel.history.value)["request_id"]

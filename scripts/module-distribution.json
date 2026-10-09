@@ -156,7 +156,7 @@
     },
     "topos": {
       "repository": "ProfJJK-CoChem/CoChem-TOPOS",
-      "revision": "e92ee020341fa10ab5d924acaadb5cfffc104fa4",
+      "revision": "0100356889828a70a2e7dee35d92c3ee951332dc",
       "distribution": "cochem-topos",
       "adapter": "topos_handoff",
       "adapter_requirements": [],

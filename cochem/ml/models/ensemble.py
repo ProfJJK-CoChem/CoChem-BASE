@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from Libraries.cochem_torq_committee_ensemble import (
+from cochem_base.numerics.committee_ensemble import (
     CommitteeEnsemble,
     CommitteePrediction,
     compute_committee_moments,

@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,38 @@ from cochem_base.orchestrator.silo_dependency_pins import DEFAULT_PINS
 
 class Stage0AuthorityError(RuntimeError):
     """The observed setup evidence is incomplete or cannot authorize execution."""
+
+
+def _gpu_compute_from_phase2(report: dict[str, Any]) -> GPUComputeSchema:
+    """Publish measured devices and preserve unknown or heterogeneous features."""
+    from pydantic import ValidationError
+
+    from cochem_base.orchestrator.cochem_setup_phase_2 import GPUProfile
+
+    try:
+        observed = GPUProfile.model_validate(report.get("gpu") or {})
+    except ValidationError as exc:
+        raise Stage0AuthorityError("Invalid phase 2 GPU observations") from exc
+    if not observed.available or not observed.devices:
+        return GPUComputeSchema(gpu_profile="Unavailable")
+    devices = observed.devices
+    names = list(dict.fromkeys(device.name.strip() for device in devices if device.name.strip()))
+    memory = [device.memory_total_bytes for device in devices]
+    if any(value is not None and value < 0 for value in memory):
+        raise Stage0AuthorityError("Invalid phase 2 GPU memory observation")
+    total_bytes = sum(memory) if all(value is not None for value in memory) else None
+    common_capability = None
+    if all(device.vendor.upper() == "NVIDIA" for device in devices):
+        capabilities = [device.compute_capability.strip() if device.compute_capability else ""
+                        for device in devices]
+        if all(re.fullmatch(r"\d+\.\d+", value) for value in capabilities) and len(set(capabilities)) == 1:
+            common_capability = capabilities[0]
+    return GPUComputeSchema(
+        gpu_profile="; ".join(names) or "Unknown",
+        vram_gb=total_bytes / 1024**3 if total_bytes is not None else None,
+        device_count=len(devices),
+        compute_capability=common_capability,
+    )
 
 
 def validate_stage0_scratch(phase6: dict[str, Any], phase7: dict[str, Any]) -> Path:
@@ -105,6 +138,7 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
         raise Stage0AuthorityError("Phase 11 omitted measured bounded RAM")
     ram_gb = min(profile.allocatable_ram_bytes / 1024**3, float(memory) / 1024)
     maxcore = int(ram_gb * 1024 / cores * 0.75)
+    gpu = _gpu_compute_from_phase2(p2)
     hardware = HardwareSchema(
         ram_gb=ram_gb,
         cpu_physical_cores=profile.physical_cores,
@@ -118,13 +152,9 @@ def build_stage0_authority(summary: dict[str, Any]) -> CoChemSystemConfig:
             for n in p11.get("numa_profile", {}).get("numa_nodes", [])
         },
         avx_512_capable=profile.avx512,
-        vram_gb=profile.vram_bytes / 1024**3 if profile.vram_bytes is not None else None,
-        gpu_compute_metrics=GPUComputeSchema(
-            gpu_profile="NVIDIA" if profile.gpu_probe_status == "measured" else "Unknown",
-            vram_gb=profile.vram_bytes / 1024**3 if profile.vram_bytes is not None else None,
-            device_count=profile.gpu_device_count,
-        ),
-        gpu_profile="NVIDIA" if profile.gpu_probe_status == "measured" else "Unavailable",
+        vram_gb=gpu.vram_gb,
+        gpu_compute_metrics=gpu,
+        gpu_profile=gpu.gpu_profile,
         os_target=profile.environment.os_target,
     )
     capabilities = {

@@ -156,7 +156,7 @@
     },
     "topos": {
       "repository": "ProfJJK-CoChem/CoChem-TOPOS",
-      "revision": "b157b7e210aee5bdfa09c22270d77d794f52cdde",
+      "revision": "c8895754e4bb430596b07a26c1e7dcbd11255c1b",
       "distribution": "cochem-topos",
       "adapter": "topos_provider",
       "adapter_requirements": [
@@ -175,7 +175,7 @@
         "matrix"
       ],
       "science_base_version": "1.1.0",
-      "science_base_revision": "d5cf1a844b81e84db22d66ff93fb7febfed22032"
+      "science_base_revision": "09059f052adbe5bb8208ec68a824bd45a0cab0dc"
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",

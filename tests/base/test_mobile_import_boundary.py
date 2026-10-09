@@ -47,7 +47,7 @@ for package in (mobile, inorganic, cloud):
         raise AssertionError('unknown exports must raise AttributeError')
 """
     result = subprocess.run(
-        [sys.executable, "-I", "-c", code, str(preferred_root), str(repository / "src")],
+        [sys.executable, "-I", "-B", "-c", code, str(preferred_root), str(repository / "src")],
         cwd=tmp_path,
         capture_output=True,
         text=True,

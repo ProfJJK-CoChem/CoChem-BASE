@@ -56,7 +56,10 @@ scribe = ["google-genai>=2.28.0", "zstandard>=0.25.0", "tiktoken"]
 ui = ["ase", "ipykernel", "ipywidgets", "jinja2", "matplotlib", "py3Dmol", "pynacl", "requests", "voila", "watchdog>=6.0.0"]
 
 [tool.setuptools]
-py-modules = ["cli"]
+py-modules = ["cli", "Libraries.cochem_base_pes_store"]
+
+[tool.setuptools.cmdclass]
+build_py = "scripts.build_namespace.BaseNamespaceBuildPy"
 
 [tool.setuptools.package-dir]
 cochem = "src/cochem"
@@ -75,8 +78,8 @@ Libraries = "Libraries"
 
 [tool.setuptools.packages.find]
 where = [".", "src"]
-include = ["cochem", "cochem.*", "cochem_base*", "cochem_topos*", "cochem_geom*", "cochem_ml*", "cochem_mobile*", "cochem_torq*", "frontend", "frontend.*", "ui", "ui.*", "scripts", "scripts.*", "Libraries", "Libraries.*"]
-exclude = ["*.egg-info*"]
+include = ["cochem", "cochem.*", "cochem_base*", "cochem_topos*", "cochem_geom*", "cochem_ml*", "cochem_mobile*", "cochem_torq*", "frontend", "frontend.*", "ui", "ui.*", "scripts", "scripts.*"]
+exclude = ["*.egg-info*", "Libraries", "Libraries.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["test_suite", "tests"]

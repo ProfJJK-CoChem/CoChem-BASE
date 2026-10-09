@@ -41,7 +41,7 @@ import zipfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any, Protocol
+from typing import Any
 
 from .student_request import canonical_json, safe_relative_path, strict_json
 
@@ -168,18 +168,6 @@ def save_settings(settings: WorkstationSettings, artifact_dir: Path | str | None
 # ---------------------------------------------------------------------------
 # Transports
 # ---------------------------------------------------------------------------
-class Transport(Protocol):
-    description: str
-
-    def ensure(self, student_id: str) -> None: ...
-    def submit(self, job_name: str, files: dict[str, bytes]) -> None: ...
-    def pending(self, job_name: str) -> bool: ...
-    def status(self, job_name: str, client_job_id: str) -> dict | None: ...
-    def download_result(self, status: dict, destination: Path) -> None: ...
-    def cancel(self, job_name: str, status: dict | None) -> None: ...
-    def health(self) -> list[dict]: ...
-
-
 def _job_manifest(job_name: str, files: dict[str, bytes], *, student_id: str, client_job_id: str,
                   resources: dict) -> bytes:
     manifest = {"schema": JOB_SCHEMA, "engine": ENGINE, "name": job_name, "input": "calculation.json",
@@ -592,6 +580,10 @@ class DriveApiTransport:
                 if doc is not None:
                     documents[str(doc.get("node_id"))] = doc
         return list(documents.values())
+
+
+# Both provide ensure, submit, pending, status, download_result, cancel and health.
+Transport = LocalFolderTransport | DriveApiTransport
 
 
 def open_transport(settings: WorkstationSettings, **drive_options: Any) -> Transport:

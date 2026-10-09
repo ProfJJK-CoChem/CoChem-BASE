@@ -329,7 +329,8 @@ class FakeDrive:
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
-                pass
+                # Requests carry the bearer token; the loopback server keeps no log.
+                return None
 
             def reply(self, code: int, body: bytes | dict = b"", content_type="application/json"):
                 data = json.dumps(body).encode() if isinstance(body, dict) else body

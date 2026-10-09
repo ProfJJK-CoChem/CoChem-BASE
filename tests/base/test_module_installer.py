@@ -118,6 +118,27 @@ def test_real_isolated_build_install_verify_and_reuse(repository):
     assert "cochem_installer_fixture" not in sys.modules
 
 
+def test_fetch_preserves_committed_bytes_despite_global_line_ending_conversion(repository):
+    origin, spec, root = repository
+    crlf = b"Preserve the native archive bytes.\r\n"
+    (origin / "archive-record.txt").write_bytes(crlf)
+    git(origin, "add", "archive-record.txt")
+    git(origin, "-c", "user.name=CoChem test", "-c", "user.email=test@example.invalid",
+        "commit", "-m", "Actual CRLF source preservation fixture")
+    spec = dict(spec, revision=git(origin, "rev-parse", "HEAD"))
+    expected = (origin / "pyproject.toml").read_bytes()
+    assert b"\r\n" not in expected
+    configuration = origin.parent / "offline-git.conf"
+    configuration.write_text(configuration.read_text() + "[core]\n\tautocrlf = true\n")
+    result = fixture_command("fetch", "fixture", spec, root, origin)
+    assert result.returncode == 0, result.stderr
+    source = Path(json.loads(result.stdout)["modules"][0]["source_path"])
+    assert git(source, "config", "--get", "core.autocrlf") == "false"
+    assert (source / "pyproject.toml").read_bytes() == expected
+    assert (source / "backend.py").read_bytes() == (origin / "backend.py").read_bytes()
+    assert (source / "archive-record.txt").read_bytes() == crlf
+
+
 @pytest.mark.parametrize("change", ["tracked", "untracked", "ignored"])
 def test_dirty_source_is_rejected_without_overwrite(repository, change):
     origin, spec, root = repository

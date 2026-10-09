@@ -366,6 +366,10 @@ def fetch_module(module_id: str, spec: dict, root: Path) -> dict:
     except FileExistsError as error:
         raise ModuleInstallationError("An unreceipted installation already exists at this pin; inspect it before choosing a clean root.") from error
     _run(["git", "init", str(source)], env=_build_env(), label="Initialize module checkout")
+    # The complete kit retains the committed archive bytes. Inherited Windows
+    # conversion settings must not rewrite those bytes in a new checkout.
+    _run(["git", "-C", str(source), "config", "core.autocrlf", "false"],
+         env=_build_env(), label="Preserve committed module line endings")
     _run(["git", "-C", str(source), "remote", "add", "origin", _repository_url(spec)], env=_build_env(), label="Configure module origin")
     with _git_auth() as (git_env, options):
         _run(["git", *options, "-C", str(source), "fetch", "--depth", "1", "origin", spec["revision"]], env=git_env, label="Fetch pinned module source")

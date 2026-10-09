@@ -10,6 +10,15 @@ Every table row has a bounded status and a remaining acceptance limit. **Local**
 
 ## Current private-project delivery and candidate gate
 
+The later [workstation completion review](WORKSTATION_COMPLETION_HANDOFF.md)
+identifies concrete BASE access-lifecycle work: project withdrawal and old-reader
+cleanup are not implemented, and current calculation identity checks do not
+recheck membership/enrollment. GUI updates and separately pinned hosted-worker
+approval also need coordinated acceptance across existing projects. These are
+unfinished behavior/integration, alongside the scientific/provider/platform
+limits below; the accepted C33 gate does not close them. The handoff preserves
+all 108 obligation IDs and assigns genuine closure checks.
+
 The selected course delivery uses **personal-owned independent private BASE
 template projects**. Classroom50 remains course roster, instructions and
 collection; personal Codespaces and chemistry Actions consume the student's own

@@ -199,6 +199,11 @@ BASE does not manufacture results for absent modules.
 
 ## Verification and architecture
 
+Maintainers completing the student release should start with the
+[local workstation completion handoff](.docs/WORKSTATION_COMPLETION_HANDOFF.md).
+It records the tested starting point, remaining implementation/integration work,
+actual student deployment checks and release acceptance criteria.
+
 The SRS baseline is Chunk 17 plus architectural proposal additions. See
 [SRS implementation status](.docs/SRS_Implementation_Status.md),
 [ORCA integration evidence](.docs/ORCA_Actions_Setup.md), and

@@ -18,6 +18,8 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Mapping
 
+from .cfour_basis_profile import BASIS_PROFILE, DERIVED_INVENTORY_SHA256
+
 APPROVED_ARCHIVE_SHA256 = "19ea269fcc7a13eb059bf43d34f0ef32e07cc9bb98f4ce84bdc4d0d7b20ccd63"
 APPROVED_INVENTORY_SHA256 = "e9a59cfcaeed3df210d8276b7d3055aed68ba082b2dbc31e826b8eafebd4e286"
 APPROVED_SOURCE_SHA256 = "3c596dcdb866d500d3c37e602d8e5491deea6cfad9e4595c50dfc08b4088944a"
@@ -89,9 +91,14 @@ def _relative(name: str) -> str:
 
 def _packaged_inventory(root: Path) -> dict:
     metadata = root / "manifest.json"
-    if metadata.is_symlink() or not metadata.is_file() or _sha256(metadata) != APPROVED_INVENTORY_SHA256:
+    if metadata.is_symlink() or not metadata.is_file():
+        raise ValueError("Packaged CFOUR inventory checksum does not match the approved runtime.")
+    inventory_sha256 = _sha256(metadata)
+    if inventory_sha256 not in (APPROVED_INVENTORY_SHA256, DERIVED_INVENTORY_SHA256):
         raise ValueError("Packaged CFOUR inventory checksum does not match the approved runtime.")
     inventory = json.loads(metadata.read_text())
+    if inventory_sha256 == DERIVED_INVENTORY_SHA256 and inventory.get("basis_derivation") != BASIS_PROFILE:
+        raise ValueError("Derived CFOUR basis provenance does not match its reviewed profile.")
     expected = {
         "schema_version": 1, "software": "CFOUR", "version": "2.1",
         "source_sha256": APPROVED_SOURCE_SHA256, "platform": "linux-x86_64",
@@ -132,7 +139,7 @@ def _packaged_inventory(root: Path) -> dict:
         if (not isinstance(receipt, dict) or receipt.get("software") != "CFOUR"
                 or receipt.get("status") != "available"
                 or receipt.get("archive_sha256") != APPROVED_ARCHIVE_SHA256
-                or receipt.get("runtime_manifest_sha256") != APPROVED_INVENTORY_SHA256
+                or receipt.get("runtime_manifest_sha256") != inventory_sha256
                 or receipt.get("native_cfour_version") != "2.1"):
             raise ValueError("CFOUR installation provenance does not match its approved inventory.")
     if actual != seen:
@@ -260,9 +267,11 @@ checks are pure file verification suitable before and after every calculation.
     bindings = {
         "mode": "packaged" if packaged else "local_unsealed", "executable": binary_record,
         "basis": basis, "helpers": helpers,
-        "runtime_inventory_sha256": APPROVED_INVENTORY_SHA256 if packaged else None,
+        "runtime_inventory_sha256": _sha256(root / "manifest.json") if packaged else None,
         "path_entries": paths, "ld_library_path": libraries,
     }
+    if packaged and "basis_derivation" in inventory:
+        bindings["basis_derivation"] = inventory["basis_derivation"]
     seal = hashlib.sha256(json.dumps(bindings, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     observed = _dependencies(files, paths, libraries) if audit_dependencies else None
     return {
@@ -274,6 +283,7 @@ checks are pure file verification suitable before and after every calculation.
                                    *(record["path"] for record in basis.values())}),
         "version": "2.1" if packaged else None, "mpi": False if packaged else None,
         "openmp": True if packaged else None, "dependency_audit": observed,
-        "identity_scope": "Approved complete runtime inventory" if packaged else
+        "identity_scope": ("Approved complete derived runtime inventory; unchanged licensed binaries and explicit reviewed H/O basis addon"
+                           if inventory and "basis_derivation" in inventory else "Approved complete runtime inventory") if packaged else
                           "Unsealed local/HPC installation; actual launcher, required helper and basis hashes; Stage 0 version authority required",
     }

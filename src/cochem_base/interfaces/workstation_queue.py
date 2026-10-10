@@ -53,6 +53,8 @@ STATUS_SCHEMA = "cochem.workstation-job-status/1"
 SUMMARY_SCHEMA = "cochem.workstation-job-summary/1"
 HEALTH_SCHEMA = "cochem.workstation-health/1"
 FOLDER_SCHEMA = "cochem.workstation-folder/1"
+ATTESTATION_SCHEMA = "cochem.workstation-attestation/1"
+TRUSTED_KEYS_ENV = "COCHEM_WORKSTATION_TRUSTED_KEYS"
 FOLDER_MARKER = "cochem_workstation_folder.json"
 ENGINE = "cochem_base"
 FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -95,6 +97,7 @@ class WorkstationSettings:
     cores: int | str = "auto"
     memory_gb: float | None = None
     max_hours: int = 48
+    trusted_keys: tuple[str, ...] = ()
 
     @property
     def drive_folder_id(self) -> str | None:
@@ -106,7 +109,42 @@ class WorkstationSettings:
         return "drive_api" if self.drive_folder_id else "local"
 
     def to_json(self) -> dict:
-        return {"schema": SETTINGS_SCHEMA, **asdict(self)}
+        return {"schema": SETTINGS_SCHEMA, **asdict(self), "trusted_keys": list(self.trusted_keys)}
+
+
+def key_fingerprints(value: Any) -> tuple[str, ...]:
+    """Normalise workstation keys given as SHA-256 fingerprints or base64 Ed25519 public keys.
+
+    Accepts a list or one string of entries separated by commas or whitespace
+    (as an instructor would paste into ``COCHEM_WORKSTATION_TRUSTED_KEYS``).
+    """
+    if value is None:
+        return ()
+    entries = re.split(r"[\s,]+", value) if isinstance(value, str) else value
+    if not isinstance(entries, (list, tuple)) or len(entries) > 32:
+        raise ValueError("Workstation keys must be a short list of key fingerprints")
+    found: list[str] = []
+    for entry in entries:
+        if not isinstance(entry, str):
+            raise ValueError("Workstation keys must be text")
+        text = entry.strip()
+        if not text:
+            continue
+        compact = re.sub(r"^(?:sha256|ed25519):", "", text, flags=re.I).replace(":", "").lower()
+        if re.fullmatch(r"[0-9a-f]{64}", compact):
+            fingerprint = compact
+        else:
+            try:
+                raw = base64.b64decode(text, validate=True)
+            except ValueError:
+                raw = b""
+            if len(raw) != 32:
+                raise ValueError(f"'{text[:20]}' is not a workstation key fingerprint (64 hexadecimal "
+                                 "characters, from `cochem-runner key` on the workstation)")
+            fingerprint = _hash_bytes(raw)
+        if fingerprint not in found:
+            found.append(fingerprint)
+    return tuple(found)
 
 
 def validate_settings(value: dict) -> WorkstationSettings:
@@ -114,7 +152,7 @@ def validate_settings(value: dict) -> WorkstationSettings:
         raise ValueError("Workstation settings must be an object")
     value = dict(value)
     value.pop("schema", None)
-    allowed = {"folder", "student_id", "cores", "memory_gb", "max_hours"}
+    allowed = {"folder", "student_id", "cores", "memory_gb", "max_hours", "trusted_keys"}
     if set(value) - allowed or not {"folder", "student_id"} <= set(value):
         raise ValueError("Workstation settings need exactly a folder, a student ID and optional resources")
     folder, student = value["folder"], value["student_id"]
@@ -135,7 +173,8 @@ def validate_settings(value: dict) -> WorkstationSettings:
     if not DRIVE_LINK.match(folder) and not Path(folder).expanduser().is_absolute():
         raise ValueError("Give the full path of the synced Google Drive folder, or its drive.google.com link")
     return WorkstationSettings(folder=folder, student_id=student, cores=cores,
-                               memory_gb=float(memory) if memory is not None else None, max_hours=hours)
+                               memory_gb=float(memory) if memory is not None else None, max_hours=hours,
+                               trusted_keys=key_fingerprints(value.get("trusted_keys")))
 
 
 def settings_path(artifact_dir: Path | str | None = None) -> Path:
@@ -144,7 +183,11 @@ def settings_path(artifact_dir: Path | str | None = None) -> Path:
 
 
 def load_settings(artifact_dir: Path | str | None = None) -> WorkstationSettings | None:
-    """Saved settings, overridden by ``COCHEM_WORKSTATION_FOLDER``/``COCHEM_WORKSTATION_STUDENT``."""
+    """Saved settings, overridden by ``COCHEM_WORKSTATION_FOLDER``/``COCHEM_WORKSTATION_STUDENT``.
+
+    Keys in ``COCHEM_WORKSTATION_TRUSTED_KEYS`` (an instructor's class setting) are
+    trusted in addition to the ones saved in the Lab workstation panel.
+    """
     saved: dict = {}
     path = settings_path(artifact_dir)
     if path.exists():
@@ -157,7 +200,8 @@ def load_settings(artifact_dir: Path | str | None = None) -> WorkstationSettings
     student = os.environ.get("COCHEM_WORKSTATION_STUDENT") or saved.get("student_id")
     if not folder or not student:
         return None
-    return validate_settings({**saved, "folder": folder, "student_id": student})
+    trusted = key_fingerprints(saved.get("trusted_keys")) + key_fingerprints(os.environ.get(TRUSTED_KEYS_ENV))
+    return validate_settings({**saved, "folder": folder, "student_id": student, "trusted_keys": list(trusted)})
 
 
 def save_settings(settings: WorkstationSettings, artifact_dir: Path | str | None = None) -> Path:
@@ -597,10 +641,16 @@ def open_transport(settings: WorkstationSettings, **drive_options: Any) -> Trans
 
 
 def assign_folder(folder: str, student_id: str, *, artifact_dir: Path | str | None = None, cores: int | str = "auto",
-                  memory_gb: float | None = None, max_hours: int = 48, transport: Transport | None = None) -> dict:
-    """Validate, prepare (inbox/, jobs/, identity marker) and save the user's chosen folder."""
+                  memory_gb: float | None = None, max_hours: int = 48, transport: Transport | None = None,
+                  trusted_keys: Any = None) -> dict:
+    """Validate, prepare (inbox/, jobs/, identity marker) and save the user's chosen folder.
+
+    ``trusted_keys`` are the workstation key fingerprints whose signed results
+    this user accepts (the owner prints them with ``cochem-runner key``).
+    """
     settings = validate_settings({"folder": folder, "student_id": student_id, "cores": cores,
-                                  "memory_gb": memory_gb, "max_hours": max_hours})
+                                  "memory_gb": memory_gb, "max_hours": max_hours,
+                                  "trusted_keys": list(key_fingerprints(trusted_keys))})
     transport = transport or open_transport(settings)
     transport.ensure(settings.student_id)
     path = save_settings(settings, artifact_dir)
@@ -617,7 +667,9 @@ def summarize_health(documents: list[dict]) -> list[dict]:
                         "cores_available": capacity.get("cores_available_for_jobs"),
                         "gpu_available": capacity.get("gpu_available_for_jobs"),
                         "queued": sum((doc.get("queue") or {}).values()),
-                        "engines": doc.get("engines", []), "reasons": doc.get("reasons", [])})
+                        "engines": doc.get("engines", []), "reasons": doc.get("reasons", []),
+                        # advertised in the folder: for comparing with the owner's fingerprint, never trusted
+                        "key_fingerprint": (doc.get("signing_key") or {}).get("key_fingerprint")})
     return summary
 
 
@@ -716,6 +768,38 @@ def _verify_published_checksums(extracted: Path, summary: dict) -> list[str]:
             raise WorkstationQueueError("A returned BASE artifact has no checksum record: "
                                         + path.relative_to(extracted).as_posix())
     return omitted
+
+
+def verify_attestation(status: dict, trusted: tuple[str, ...]) -> dict:
+    """The runner's signed statement for this status, if it verifies against a trusted key."""
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    attestation = status.get("attestation")
+    if (not isinstance(attestation, dict) or attestation.get("schema") != ATTESTATION_SCHEMA
+            or attestation.get("algorithm") != "ed25519"):
+        raise WorkstationQueueError("The results are not signed by the workstation; update its job runner")
+    try:
+        public_key = base64.b64decode(attestation["public_key"], validate=True)
+        payload = base64.b64decode(attestation["statement"], validate=True)
+        signature = base64.b64decode(attestation["signature"], validate=True)
+    except (KeyError, TypeError, ValueError) as error:
+        raise WorkstationQueueError("The workstation signature is malformed") from error
+    fingerprint = _hash_bytes(public_key)
+    if fingerprint not in trusted:
+        hint = ("No workstation key is trusted yet. " if not trusted else "")
+        raise WorkstationQueueError(
+            f"{hint}These results are signed by workstation key {fingerprint}. If that is the fingerprint the "
+            "workstation owner gave you, enter it under 'Workstation key' in the Lab workstation panel (or set "
+            f"{TRUSTED_KEYS_ENV}) and retrieve again")
+    try:
+        Ed25519PublicKey.from_public_bytes(public_key).verify(signature, payload)
+    except (InvalidSignature, ValueError) as error:
+        raise WorkstationQueueError("The workstation signature does not match these results") from error
+    statement = strict_json(payload)
+    if statement.get("schema") != ATTESTATION_SCHEMA:
+        raise WorkstationQueueError("The signed workstation statement is malformed")
+    return {"key_fingerprint": fingerprint, "statement": statement}
 
 
 def _finite(value: Any) -> bool:
@@ -930,6 +1014,15 @@ class StudentWorkstationClient:
                 self.transport.download_result(remote, archive)
                 if _hash(archive) != expected:
                     raise WorkstationQueueError("The results archive is still syncing (checksum differs); try again shortly")
+                attested = verify_attestation(remote, self.settings.trusted_keys if self.settings else ())
+                signed = attested["statement"]
+                if (signed.get("client_job_id") != saved["client_job_id"] or signed.get("label") != remote.get("label")
+                        or signed.get("result_file") != remote.get("result_file") or signed.get("result_sha256") != expected
+                        or (signed.get("input_hashes") or {}).get("calculation.json") != request["calculation_sha256"]
+                        or signed.get("state") not in TERMINAL):
+                    raise WorkstationQueueError("The workstation signature is for different results")
+                report.update(workstation_state=signed["state"], workstation=signed.get("workstation"),
+                              attestation=attested)
                 extracted = staging / "results"
                 files = _safe_extract(archive, extracted)
                 summary = strict_json((extracted / "_runner" / "job_summary.json").read_bytes())
@@ -944,9 +1037,10 @@ class StudentWorkstationClient:
                 report["omitted_files"] = omitted
                 problem = _execution_problem(execution, extracted / "base_output", request)
                 verified = problem is None
+                completed = signed["state"] == "COMPLETED"
                 report.update(files=files, execution=execution, operation_performed=verified,
-                              status="completed" if remote["state"] == "COMPLETED" and verified else "failed")
-                if remote["state"] == "COMPLETED" and not verified:
+                              status="completed" if completed and verified else "failed")
+                if completed and not verified:
                     report["message"] = f"The workstation finished, but {problem}; the result is not accepted"
                 shutil.move(str(extracted), str(root))
             else:

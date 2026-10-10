@@ -19,6 +19,9 @@ the same folder. No folder is hard-coded anywhere.
      link;
    * your **Student ID**; optionally cores (`auto` = whatever the workstation
      can spare), memory and a time limit;
+   * the **Workstation key**: the fingerprint the workstation owner gives you
+     (`cochem-runner key` on the workstation). Your instructor may set it for
+     the whole class instead;
 
    then press **Assign folder**. BASE creates `inbox/`, `jobs/` and
    `cochem_workstation_folder.json` (your ID) inside it. Give the folder to
@@ -35,6 +38,14 @@ the same folder. No folder is hard-coded anywhere.
 ## What is verified
 
 A returned result is accepted only if
+
+* it is **signed by a workstation key you trust**. The workstation signs, with
+  an Ed25519 key that never leaves it, a statement naming this submission, the
+  SHA-256 of the `calculation.json` you sent, the SHA-256 of the results
+  archive and the job's final state. Anyone who can edit the shared folder
+  could write files there, but not this signature. Results signed by an
+  unknown key are not imported (and not discarded: add the key and retrieve
+  again). The signed final state is used, not the editable `status.json`;
 
 * the runner's `_runner/job_summary.json` names this exact submission and the
   SHA-256 of the submitted `calculation.json`;
@@ -68,12 +79,25 @@ the Google Drive API. The instructor provides one of these Codespaces secrets:
 Credentials are read from the environment only; they are never written into
 BASE settings, requests or results.
 
+## Trusting the workstation key
+
+The workstation owner runs `cochem-runner key` and hands out the fingerprint
+(64 hexadecimal characters). Students enter it under **Workstation key**, or
+an instructor sets it once for a class as `COCHEM_WORKSTATION_TRUSTED_KEYS`
+(a Codespaces secret or variable; several keys may be separated by commas).
+The panel also shows the fingerprint each workstation advertises in the folder,
+but only for comparison: that copy could be edited, so it is never trusted by
+itself. If the workstation's key is ever replaced, users add the new
+fingerprint.
+
 ## Settings and environment
 
 * Saved in `<artifacts>/StudentSetup/workstation-queue.json`
   (schema `cochem.workstation-queue/1`).
 * `COCHEM_WORKSTATION_FOLDER` and `COCHEM_WORKSTATION_STUDENT` override the
   saved folder and ID (an instructor can set them as Codespaces variables).
+* `COCHEM_WORKSTATION_TRUSTED_KEYS` adds trusted workstation key fingerprints
+  to the ones saved in the panel.
   TOPOS and TORQ read the same variables, and TOPOS also falls back to the
   folder assigned here.
 

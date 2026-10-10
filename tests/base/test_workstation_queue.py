@@ -5,7 +5,10 @@ the subset of Google Drive v3 used by BASE and verifies the service-account
 JWT signature. Workstation status/summary documents below are protocol
 records of the job runner; no scientific result or execution record is
 fabricated - completed science is accepted only with BASE's own verified
-execution record, which these cases deliberately do not provide.
+execution record, which these cases deliberately do not provide. The runner's
+result signature is a real Ed25519 signature made with a key generated here
+in place of the workstation's (the genuine runner-signed path is the runner
+repository's end-to-end test).
 """
 from __future__ import annotations
 
@@ -24,6 +27,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from cochem_base.interfaces.workstation_queue import (
     FOLDER_MARKER,
@@ -62,11 +67,43 @@ def _results_zip(*, client_job_id: str, calculation_sha256: str, extra: dict[str
     return stream.getvalue()
 
 
+WORKSTATION_KEY = Ed25519PrivateKey.generate()  # stands in for the workstation's own signing key
+
+
+def _fingerprint(key: Ed25519PrivateKey = WORKSTATION_KEY) -> str:
+    return _sha(key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw))
+
+
+def _attestation(statement: dict, key: Ed25519PrivateKey = WORKSTATION_KEY) -> dict:
+    """Exactly what the runner's ``Signer.attest`` publishes in status.json."""
+    payload = json.dumps({"schema": "cochem.workstation-attestation/1", **statement}, sort_keys=True,
+                         separators=(",", ":")).encode()
+    public = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    return {"schema": "cochem.workstation-attestation/1", "algorithm": "ed25519",
+            "public_key": base64.b64encode(public).decode(), "key_fingerprint": _sha(public),
+            "statement": base64.b64encode(payload).decode(), "signature": base64.b64encode(key.sign(payload)).decode()}
+
+
+def _signed_inputs(archive: bytes) -> dict:
+    """The runner signs the input hashes it recorded, which it also writes into the archive summary."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+            return json.loads(bundle.read("_runner/job_summary.json")).get("input_hashes") or {}
+    except (KeyError, ValueError, zipfile.BadZipFile):
+        return {}
+
+
 def _status(*, label: str, client_job_id: str, state: str, result: bytes | None = None, attempts: int = 1) -> dict:
-    return {"schema": "cochem.workstation-job-status/1", "label": label, "client_job_id": client_job_id,
-            "state": state, "message": "the workstation reported " + state.lower(), "attempts": attempts,
-            "workstation": "lab-ws", "result_file": f"{label}_results.zip" if result is not None else None,
-            "result_sha256": _sha(result) if result is not None else None, "progress": {}, "output_tail": []}
+    status = {"schema": "cochem.workstation-job-status/1", "label": label, "client_job_id": client_job_id,
+              "state": state, "message": "the workstation reported " + state.lower(), "attempts": attempts,
+              "workstation": "lab-ws", "result_file": f"{label}_results.zip" if result is not None else None,
+              "result_sha256": _sha(result) if result is not None else None, "progress": {}, "output_tail": []}
+    if result is not None:
+        status["attestation"] = _attestation({
+            "client_job_id": client_job_id, "label": label, "student_id": "alice", "engine": "cochem_base",
+            "state": state, "workstation": "lab-ws", "runner_version": "0.1.0", "input_hashes": _signed_inputs(result),
+            "result_file": status["result_file"], "result_sha256": status["result_sha256"], "finished_utc": None})
+    return status
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +164,7 @@ def _local_client(tmp_path, **settings) -> tuple[StudentWorkstationClient, Path]
     drive = tmp_path / "GoogleDrive"
     drive.mkdir(exist_ok=True)
     folder = drive / "alice-workstation"
+    settings.setdefault("trusted_keys", [_fingerprint()])
     assign_folder(str(folder), "alice", artifact_dir=tmp_path / "artifacts", **settings)
     return StudentWorkstationClient(artifact_dir=tmp_path / "artifacts"), folder
 
@@ -276,6 +314,78 @@ def test_execution_records_without_accepted_science_are_refused(tmp_path, case):
     report = client.retrieve_results(submission)["report"]
     assert report["status"] == "failed" and report["operation_performed"] is False
     assert "not accepted" in report["message"]
+
+
+def _failed_job(client, folder, suffix: str) -> tuple[dict, dict, bytes]:
+    submission = client.submit(CALCULATION)
+    payload = (folder / "inbox" / submission["job_name"] / "calculation.json").read_bytes()
+    archive = _results_zip(client_job_id=submission["client_job_id"], calculation_sha256=_sha(payload))
+    status = _status(label=submission["job_name"] + suffix, client_job_id=submission["client_job_id"],
+                     state="FAILED", result=archive)
+    return submission, status, archive
+
+
+def test_results_are_imported_only_with_a_trusted_workstation_signature(tmp_path):
+    client, folder = _local_client(tmp_path, trusted_keys=[])
+    submission, status, archive = _failed_job(client, folder, "__5a5a5a01")
+    _publish(folder, submission, status, archive)
+    with pytest.raises(WorkstationQueueError, match=f"No workstation key is trusted yet.*{_fingerprint()}"):
+        client.retrieve_results(submission)
+    results = Path(client.jobs) / submission["request_id"] / "results"
+    assert not results.exists()  # nothing retained: trusting the key later still imports the results
+    assign_folder(str(folder), "alice", artifact_dir=tmp_path / "artifacts", trusted_keys=f"sha256:{_fingerprint()}")
+    trusted = StudentWorkstationClient(artifact_dir=tmp_path / "artifacts")
+    report = trusted.retrieve_results(submission)["report"]
+    assert report["attestation"]["key_fingerprint"] == _fingerprint()
+    assert report["attestation"]["statement"]["result_sha256"] == _sha(archive)
+
+
+@pytest.mark.parametrize("case", ["unsigned", "other-key", "other-archive", "other-calculation"])
+def test_forged_or_mismatched_signatures_are_refused(tmp_path, case):
+    client, folder = _local_client(tmp_path)
+    submission, status, archive = _failed_job(client, folder, "__5a5a5a02")
+    statement = json.loads(base64.b64decode(status["attestation"]["statement"]))
+    statement.pop("schema")
+    if case == "unsigned":
+        status.pop("attestation")
+    if case == "other-key":  # a validly signed statement, by a key nobody trusts
+        status["attestation"] = _attestation(statement, Ed25519PrivateKey.generate())
+    if case == "other-archive":
+        status["attestation"] = _attestation(dict(statement, result_sha256=_sha(b"other archive")))
+    if case == "other-calculation":
+        status["attestation"] = _attestation(dict(statement, input_hashes={"calculation.json": _sha(b"other")}))
+    _publish(folder, submission, status, archive)
+    with pytest.raises(WorkstationQueueError, match="not signed|not trusted yet|signed by workstation key|"
+                                                    "different results"):
+        client.retrieve_results(submission)
+    assert not (Path(client.jobs) / submission["request_id"] / "results").exists()
+
+
+def test_the_signed_outcome_wins_over_an_edited_status(tmp_path):
+    client, folder = _local_client(tmp_path)
+    submission, status, archive = _failed_job(client, folder, "__5a5a5a03")
+    status["state"] = "COMPLETED"  # edited in the folder after the workstation signed FAILED
+    _publish(folder, submission, status, archive)
+    report = client.retrieve_results(submission)["report"]
+    assert report["workstation_state"] == "FAILED" and report["status"] == "failed"
+
+
+def test_class_wide_trusted_key_from_the_environment(tmp_path):
+    artifacts = tmp_path / "artifacts"
+    (tmp_path / "Drive").mkdir()
+    assign_folder(str(tmp_path / "Drive" / "alice"), "alice", artifact_dir=artifacts, trusted_keys="")
+    previous = os.environ.get("COCHEM_WORKSTATION_TRUSTED_KEYS")
+    os.environ["COCHEM_WORKSTATION_TRUSTED_KEYS"] = f"{_fingerprint()}, {'ab' * 32}"
+    try:
+        assert load_settings(artifacts).trusted_keys == (_fingerprint(), "ab" * 32)
+    finally:
+        if previous is None:
+            os.environ.pop("COCHEM_WORKSTATION_TRUSTED_KEYS", None)
+        else:
+            os.environ["COCHEM_WORKSTATION_TRUSTED_KEYS"] = previous
+    assert load_settings(artifacts).trusted_keys == ()
+    with pytest.raises(ValueError, match="not a workstation key fingerprint"):
+        assign_folder(str(tmp_path / "Drive" / "alice"), "alice", artifact_dir=artifacts, trusted_keys="not-a-key")
 
 
 def test_a_status_whose_label_names_another_folder_is_ignored(tmp_path):
@@ -513,10 +623,12 @@ def drive():
 def test_drive_folder_link_round_trip(tmp_path, drive):
     fake, transport = drive
     link = "https://drive.google.com/drive/folders/AliceFolder000001"
-    assign_folder(link, "alice", artifact_dir=tmp_path / "artifacts", transport=transport())
+    assign_folder(link, "alice", artifact_dir=tmp_path / "artifacts", transport=transport(),
+                  trusted_keys=_fingerprint())
     inbox, jobs = fake.find("AliceFolder000001", "inbox"), fake.find("AliceFolder000001", "jobs")
     assert inbox and jobs and json.loads(fake.find("AliceFolder000001", FOLDER_MARKER)["content"])["student_id"] == "alice"
-    assign_folder(link, "alice", artifact_dir=tmp_path / "artifacts", transport=transport())  # idempotent
+    assign_folder(link, "alice", artifact_dir=tmp_path / "artifacts", transport=transport(),
+                  trusted_keys=_fingerprint())  # idempotent
     assert len([f for f in fake.children("AliceFolder000001") if f["name"] == "inbox"]) == 1
 
     client = StudentWorkstationClient(artifact_dir=tmp_path / "artifacts", transport=transport())

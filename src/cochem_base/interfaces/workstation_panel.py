@@ -65,6 +65,10 @@ class WorkstationQueuePanel(widgets.VBox):
         self.max_hours = widgets.BoundedIntText(description="Time limit (h):", min=1, max=168,
                                                 value=settings.max_hours if settings else 48,
                                                 style={"description_width": "initial"})
+        self.trusted_keys = widgets.Text(
+            description="Workstation key:", value=", ".join(settings.trusted_keys) if settings else "",
+            placeholder="fingerprint from the workstation owner (cochem-runner key)",
+            style={"description_width": "initial"}, layout=widgets.Layout(width="95%"))
         self.btn_assign = widgets.Button(description="Assign folder", button_style="primary", icon="folder-open")
         self.btn_assign.on_click(self.assign)
         self.settings_status = widgets.HTML(
@@ -92,6 +96,10 @@ class WorkstationQueuePanel(widgets.VBox):
                          "computer, or a drive.google.com folder link from a Codespace (needs the "
                          "<code>COCHEM_WORKSTATION_DRIVE_CREDENTIALS</code> secret from your instructor).</p>"),
             self.folder, widgets.HBox([self.student, self.cores]), widgets.HBox([self.memory, self.max_hours]),
+            self.trusted_keys,
+            widgets.HTML("<p style='font-size:90%'>The workstation signs every result it returns; BASE imports "
+                         "only results signed by a key you trust. Enter the fingerprint the workstation owner gave "
+                         "you (your instructor may set it for the class).</p>"),
             self.btn_assign, self.settings_status, self.health,
             self.history, widgets.HBox([self.btn_refresh, self.btn_retrieve, self.btn_cancel]),
             self.job_status, self.result, self.download,
@@ -172,6 +180,7 @@ class WorkstationQueuePanel(widgets.VBox):
             self.settings_status.value = "<p role='alert'>Cores must be 'auto' or a whole number.</p>"
             return
         folder, student = self.folder.value.strip(), self.student.value.strip()
+        trusted = self.trusted_keys.value
         memory = float(self.memory.value) or None
         hours = int(self.max_hours.value)
         self.btn_assign.disabled = True
@@ -181,7 +190,8 @@ class WorkstationQueuePanel(widgets.VBox):
             try:
                 transport = self._transport_factory() if self._transport_factory else None
                 result = assign_folder(folder, student, artifact_dir=self.artifact_dir, cores=cores,
-                                       memory_gb=memory, max_hours=hours, transport=transport)
+                                       memory_gb=memory, max_hours=hours, transport=transport,
+                                       trusted_keys=trusted)
                 message = (f"<p role='status'>Folder assigned for <b>{_escape(student)}</b> "
                            f"({'Google Drive API' if result['transport'] == 'drive_api' else 'synced folder'}). "
                            "Give your instructor this folder (or share it with the workstation owner) so the "
@@ -208,6 +218,8 @@ class WorkstationQueuePanel(widgets.VBox):
             + ("offline" if w["stale"] else f"{_escape(w['mode'])}, {w.get('cores_available') or 0} cores free, "
                f"{w['queued']} job(s) in its queue")
             + (f" — {_escape('; '.join(w.get('reasons') or []))}" if w.get("reasons") and not w["stale"] else "")
+            + (f"<br><small>reports signing key {_escape(w['key_fingerprint'])} — compare it with the fingerprint "
+               "the workstation owner gave you</small>" if w.get("key_fingerprint") else "")
             + "</li>" for w in workstations)
         self.health.value = f"<p>Workstations serving this folder:</p><ul>{rows}</ul>"
 

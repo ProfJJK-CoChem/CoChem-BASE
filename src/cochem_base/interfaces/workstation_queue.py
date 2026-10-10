@@ -28,6 +28,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -188,12 +189,14 @@ def _health_document(contents: bytes) -> dict | None:
     return doc
 
 
-def _status_document(contents: bytes, client_job_id: str) -> dict | None:
+def _status_document(contents: bytes, client_job_id: str, folder_name: str) -> dict | None:
+    """Parse ``jobs/<folder_name>/status.json``; its label must name that same folder."""
     try:
         doc = strict_json(contents)
     except ValueError:
         return None
-    if doc.get("schema") != STATUS_SCHEMA or doc.get("client_job_id") != client_job_id:
+    if (doc.get("schema") != STATUS_SCHEMA or doc.get("client_job_id") != client_job_id
+            or doc.get("label") != folder_name):
         return None
     return doc
 
@@ -247,7 +250,7 @@ class LocalFolderTransport:
     def _job_folder(self, job_name: str, client_job_id: str) -> tuple[Path, dict] | None:
         for path in sorted((self.folder / "jobs").glob(job_name + "__*/status.json")):
             try:
-                doc = _status_document(path.read_bytes(), client_job_id)
+                doc = _status_document(path.read_bytes(), client_job_id, path.parent.name)
             except OSError:
                 continue
             if doc is not None:
@@ -522,7 +525,7 @@ class DriveApiTransport:
             if status is None:
                 continue
             doc = _status_document(self._call("GET", self.api + "/files/" + status["id"],
-                                              params={"alt": "media"}, raw=True), client_job_id)
+                                              params={"alt": "media"}, raw=True), client_job_id, folder["name"])
             if doc is not None:
                 return folder["id"], doc
         return None
@@ -676,27 +679,79 @@ TRANSIENT = ("*.tmp", "*.tmp.*", "*.proc*", "*.lock")
 
 
 def _verify_published_checksums(extracted: Path, summary: dict) -> list[str]:
-    """Check every BASE ``<file>.sha256`` sidecar; return files the workstation deliberately omitted."""
+    """Every BASE artifact must match its ``<file>.sha256`` sidecar; return files deliberately omitted.
+
+    Only transient scratch files (the runner's archive exclusions) and files the
+    runner lists in ``files_not_included`` (as ``"<path> (<reason>)"``) may be absent.
+    """
     import fnmatch
     output = extracted / "base_output"
     if not output.is_dir():
         return []
-    reported = " ".join(summary.get("files_not_included") or [])
-    omitted = []
+    reported = summary.get("files_not_included") or []
+    if not isinstance(reported, list) or not all(isinstance(entry, str) for entry in reported):
+        raise WorkstationQueueError("The workstation's list of omitted files is malformed")
+
+    def transient(name: str) -> bool:
+        return any(fnmatch.fnmatch(name, pattern) for pattern in TRANSIENT)
+
+    omitted, recorded = [], set()
     for sidecar in sorted(output.rglob("*.sha256")):
         target = sidecar.with_name(sidecar.name[:-len(".sha256")])
+        recorded.add(target)
         relative = target.relative_to(extracted).as_posix()
         fields = sidecar.read_text(encoding="utf-8").split()
         if not fields or not re.fullmatch(r"[0-9a-f]{64}", fields[0]):
             raise WorkstationQueueError("A returned BASE checksum record is malformed: " + relative)
         if not target.exists():
-            if any(fnmatch.fnmatch(target.name, pattern) for pattern in TRANSIENT) or relative in reported:
+            if transient(target.name) or any(entry == relative or entry.startswith(relative + " (")
+                                             for entry in reported):
                 omitted.append(relative)
                 continue
             raise WorkstationQueueError("A returned BASE artifact is missing: " + relative)
         if target.is_symlink() or not target.is_file() or _hash(target) != fields[0]:
             raise WorkstationQueueError("A returned BASE artifact differs from its recorded checksum: " + relative)
+    for path in sorted(output.rglob("*")):
+        if path.is_file() and not path.name.endswith(".sha256") and path not in recorded and not transient(path.name):
+            raise WorkstationQueueError("A returned BASE artifact has no checksum record: "
+                                        + path.relative_to(extracted).as_posix())
     return omitted
+
+
+def _finite(value: Any) -> bool:
+    return type(value) in (int, float) and math.isfinite(value)
+
+
+def _execution_problem(execution: Any, output: Path, request: dict) -> str | None:
+    """Why the returned execution record is not accepted science, or None.
+
+    Applies what BASE itself requires before writing these records: a real
+    (not dry) run of the requested engine, a converged result with a finite
+    energy, and for T9 the explicit rejection of the single-reference result.
+    """
+    if not isinstance(execution, dict):
+        return "BASE's verified execution record is missing"
+    status = execution.get("status")
+    if status not in {"EXECUTION_VERIFIED", "T9_FALLBACK_VERIFIED"} or execution.get("dry_run") is not False:
+        return f"BASE's execution record says {status}, not a verified calculation"
+    engine = str(request["calculation"].get("engine", "")).lower()
+    ran = execution.get("requested_engine" if status == "T9_FALLBACK_VERIFIED" else "engine")
+    if str(ran).lower() != engine:
+        return "BASE's execution record names a different engine than the submitted calculation"
+    if status == "T9_FALLBACK_VERIFIED":
+        fallback = execution.get("fallback")
+        if (execution.get("original_single_reference_rejected") is not True or not isinstance(fallback, dict)
+                or not _finite(fallback.get("energy_hartree"))):
+            return "the T9 recovery record lacks its rejected single reference or a finite energy"
+        return None
+    result_path = output / "result.json"
+    if result_path.is_file():
+        result = strict_json(result_path.read_bytes())
+        if any(key in result and result[key] is not True for key in ("converged", "scf_converged")):
+            return "BASE's returned result is not converged"
+        if "energy_hartree" in result and not _finite(result["energy_hartree"]):
+            return "BASE's returned result lacks a finite energy"
+    return None
 
 
 class StudentWorkstationClient:
@@ -867,10 +922,13 @@ class StudentWorkstationClient:
         staging = Path(tempfile.mkdtemp(prefix=".results-", dir=package))
         try:
             if remote.get("result_file"):
+                expected = remote.get("result_sha256")
+                if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+                    raise WorkstationQueueError("The workstation has not published the results archive checksum; "
+                                                "update its job runner or try again shortly")
                 archive = staging / "results.zip"
                 self.transport.download_result(remote, archive)
-                expected = remote.get("result_sha256")
-                if expected and _hash(archive) != expected:
+                if _hash(archive) != expected:
                     raise WorkstationQueueError("The results archive is still syncing (checksum differs); try again shortly")
                 extracted = staging / "results"
                 files = _safe_extract(archive, extracted)
@@ -884,12 +942,12 @@ class StudentWorkstationClient:
                 if execution_path.is_file():
                     execution = strict_json(execution_path.read_bytes())
                 report["omitted_files"] = omitted
-                verified = bool(execution and execution.get("status") in {"EXECUTION_VERIFIED", "T9_FALLBACK_VERIFIED"})
+                problem = _execution_problem(execution, extracted / "base_output", request)
+                verified = problem is None
                 report.update(files=files, execution=execution, operation_performed=verified,
                               status="completed" if remote["state"] == "COMPLETED" and verified else "failed")
                 if remote["state"] == "COMPLETED" and not verified:
-                    report["message"] = ("The workstation finished, but BASE's verified execution record is "
-                                         "missing; the result is not accepted")
+                    report["message"] = f"The workstation finished, but {problem}; the result is not accepted"
                 shutil.move(str(extracted), str(root))
             else:
                 root.mkdir()

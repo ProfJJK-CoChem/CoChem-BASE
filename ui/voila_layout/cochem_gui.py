@@ -5031,9 +5031,13 @@ class CoChemGUI:
         except (ValueError, RuntimeError, OSError, MethodologyViolationError) as exc:
             self.state.error_message = str(exc)
             return
-        self.workstation_panel.submit(calculation)
-        self.calculation_result.value = ("<p role='status'>Sent to the lab workstation. Follow its progress and "
-                                         "retrieve verified results in the Lab workstation panel.</p>")
+        def reported(sent: bool, text: str) -> None:
+            self.calculation_result.value = text + (
+                "<p>Follow its progress and retrieve verified results in the Lab workstation panel.</p>"
+                if sent else "")
+
+        self.calculation_result.value = "<p role='status'>Depositing the calculation in your workstation folder…</p>"
+        self.workstation_panel.submit(calculation, on_result=reported)
 
     def _submit_student_hpc(self, b: Any = None, *, calculation_override: dict[str, Any] | None = None,
                             provider: dict[str, Any] | None = None, geometry: str | None = None,

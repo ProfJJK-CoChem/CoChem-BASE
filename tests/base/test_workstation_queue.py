@@ -193,7 +193,8 @@ def test_completed_job_without_base_execution_record_is_not_accepted(tmp_path):
     assert report["status"] == "failed" and "not accepted" in report["message"]
 
 
-@pytest.mark.parametrize("case", ["other-calculation", "other-client", "tampered", "unsafe-path", "partial-sync"])
+@pytest.mark.parametrize("case", ["other-calculation", "other-client", "tampered", "unsafe-path", "partial-sync",
+                                  "unrecorded-artifact", "omission-name-prefix", "no-archive-checksum"])
 def test_results_that_do_not_match_the_submission_are_rejected(tmp_path, case):
     client, folder = _local_client(tmp_path)
     submission = client.submit(CALCULATION)
@@ -207,11 +208,20 @@ def test_results_that_do_not_match_the_submission_are_rejected(tmp_path, case):
         extra = {"base_output/result.json": b"{}", "base_output/result.json.sha256": ("0" * 64 + "  result.json\n").encode()}
     if case == "unsafe-path":
         extra = {"../../escape.txt": b"x"}
-    archive = _results_zip(client_job_id=cid, calculation_sha256=sha, extra=extra)
+    summary = {}
+    if case == "unrecorded-artifact":  # every BASE artifact needs its checksum record
+        extra = {"base_output/result.json": b"{}"}
+    if case == "omission-name-prefix":  # "result.json.bak" being too large does not excuse "result.json"
+        extra = {"base_output/result.json.sha256": (_sha(b"{}") + "  result.json\n").encode()}
+        summary = {"files_not_included": ["base_output/result.json.bak (5000 MB, above the 4096 MB limit; "
+                                          "kept on the workstation for 7 days)"]}
+    archive = _results_zip(client_job_id=cid, calculation_sha256=sha, extra=extra, summary=summary)
     status = _status(label=submission["job_name"] + "__abcdef01", client_job_id=submission["client_job_id"],
                      state="FAILED", result=archive)
     if case == "partial-sync":
         status["result_sha256"] = "f" * 64
+    if case == "no-archive-checksum":
+        status["result_sha256"] = None
     _publish(folder, submission, status, archive)
     with pytest.raises(WorkstationQueueError):
         client.retrieve_results(submission)
@@ -223,12 +233,63 @@ def test_omitted_transient_files_are_reported_not_rejected(tmp_path):
     submission = client.submit(CALCULATION)
     payload = (folder / "inbox" / submission["job_name"] / "calculation.json").read_bytes()
     extra = {"base_output/kept.txt": b"kept", "base_output/kept.txt.sha256": (_sha(b"kept") + "  kept.txt\n").encode(),
-             "base_output/scratch.tmp.sha256": (_sha(b"x") + "  scratch.tmp\n").encode()}
-    archive = _results_zip(client_job_id=submission["client_job_id"], calculation_sha256=_sha(payload), extra=extra)
+             "base_output/scratch.tmp.sha256": (_sha(b"x") + "  scratch.tmp\n").encode(),
+             "base_output/scratch.tmp.1": b"transient scratch is never recorded",
+             "base_output/large.h5.sha256": (_sha(b"y") + "  large.h5\n").encode()}
+    summary = {"files_not_included": ["base_output/large.h5 (5000 MB, above the 4096 MB limit; "
+                                      "kept on the workstation for 7 days)"]}
+    archive = _results_zip(client_job_id=submission["client_job_id"], calculation_sha256=_sha(payload), extra=extra,
+                           summary=summary)
     _publish(folder, submission, _status(label=submission["job_name"] + "__abcdef02",
                                          client_job_id=submission["client_job_id"], state="FAILED", result=archive),
              archive)
-    assert client.retrieve_results(submission)["report"]["omitted_files"] == ["base_output/scratch.tmp"]
+    assert client.retrieve_results(submission)["report"]["omitted_files"] == ["base_output/large.h5",
+                                                                             "base_output/scratch.tmp"]
+
+
+@pytest.mark.parametrize("case", ["dry-run", "other-engine", "not-converged", "t9-without-rejection"])
+def test_execution_records_without_accepted_science_are_refused(tmp_path, case):
+    """Altered records with consistent checksums are still refused (accepted runs: runner integration test)."""
+    client, folder = _local_client(tmp_path)
+    submission = client.submit(CALCULATION)
+    payload = (folder / "inbox" / submission["job_name"] / "calculation.json").read_bytes()
+    execution = {"status": "EXECUTION_VERIFIED", "engine": "pyscf", "dry_run": False}
+    outputs = {}
+    if case == "dry-run":
+        execution["dry_run"] = True
+    if case == "other-engine":
+        execution["engine"] = "orca"
+    if case == "not-converged":
+        outputs["result.json"] = json.dumps({"engine": "pyscf", "converged": False}).encode()
+    if case == "t9-without-rejection":
+        execution.update(status="T9_FALLBACK_VERIFIED", requested_engine="pyscf", fallback={})
+    outputs["execution.json"] = json.dumps(execution).encode()
+    extra = {}
+    for name, contents in outputs.items():
+        extra[f"base_output/{name}"] = contents
+        extra[f"base_output/{name}.sha256"] = (_sha(contents) + f"  {name}\n").encode()
+    archive = _results_zip(client_job_id=submission["client_job_id"], calculation_sha256=_sha(payload), extra=extra,
+                           summary={"state": "COMPLETED"})
+    _publish(folder, submission, _status(label=submission["job_name"] + "__abcdef04",
+                                         client_job_id=submission["client_job_id"], state="COMPLETED", result=archive),
+             archive)
+    report = client.retrieve_results(submission)["report"]
+    assert report["status"] == "failed" and report["operation_performed"] is False
+    assert "not accepted" in report["message"]
+
+
+def test_a_status_whose_label_names_another_folder_is_ignored(tmp_path):
+    client, folder = _local_client(tmp_path)
+    submission = client.submit(CALCULATION)
+    job = folder / "jobs" / (submission["job_name"] + "__abcdef05")
+    job.mkdir(parents=True)
+    forged = _status(label="../../outside", client_job_id=submission["client_job_id"], state="COMPLETED",
+                     result=b"zip")
+    (job / "status.json").write_text(json.dumps(forged))
+    assert client.status(submission)["status"] == "queued"  # still waiting in inbox/
+    client.cancel(submission)
+    assert not (folder / "inbox" / submission["job_name"]).exists()
+    assert not (folder.parent.parent / "outside").exists()
 
 
 def test_cancel_pending_and_running(tmp_path):

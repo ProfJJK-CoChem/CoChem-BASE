@@ -106,15 +106,36 @@ class WorkstationQueuePanel(widgets.VBox):
         transport = self._transport_factory() if self._transport_factory else None
         return StudentWorkstationClient(artifact_dir=self.artifact_dir, transport=transport)
 
-    def _background(self, work: Callable[[], None]) -> None:
+    @property
+    def busy(self) -> bool:
+        return self._busy
+
+    def _reserve(self) -> bool:
+        """Claim the panel for one operation; button handlers and the poller share this."""
+        with self._lock:
+            if self._busy:
+                return False
+            self._busy = True
+            return True
+
+    def _release(self) -> None:
+        with self._lock:
+            self._busy = False
+
+    def _background(self, work: Callable[[], None], status: str | None = None) -> bool:
+        if not self._reserve():
+            self.job_status.value = "<p role='alert'>Wait for the current workstation operation to finish.</p>"
+            return False
+        if status is not None:
+            self.job_status.value = status
+
         def run() -> None:
-            with self._lock:
-                self._busy = True
-                try:
-                    work()
-                finally:
-                    self._busy = False
+            try:
+                work()
+            finally:
+                self._release()
         threading.Thread(target=run, daemon=True).start()
+        return True
 
     def ready_reason(self) -> str:
         try:
@@ -173,7 +194,9 @@ class WorkstationQueuePanel(widgets.VBox):
                 self._ui_call(lambda: setattr(self.settings_status, "value", text))
             finally:
                 self._ui_call(lambda: setattr(self.btn_assign, "disabled", False))
-        self._background(work)
+        if not self._background(work):
+            self.btn_assign.disabled = False
+            self.settings_status.value = "<p role='alert'>Wait for the current workstation operation to finish.</p>"
 
     def _render_health(self, workstations: list[dict]) -> None:
         if not workstations:
@@ -188,12 +211,17 @@ class WorkstationQueuePanel(widgets.VBox):
             + "</li>" for w in workstations)
         self.health.value = f"<p>Workstations serving this folder:</p><ul>{rows}</ul>"
 
-    def submit(self, calculation: dict) -> None:
-        """Deposit a calculation in the assigned folder (called by the main Run button)."""
-        if self._busy:
-            self.job_status.value = "<p role='alert'>Wait for the current workstation operation to finish.</p>"
-            return
-        self.job_status.value = "<p role='status'>Depositing the calculation in your workstation folder…</p>"
+    def submit(self, calculation: dict,
+               on_result: Callable[[bool, str], None] | None = None) -> bool:
+        """Deposit a calculation in the assigned folder (called by the main Run button).
+
+        Returns whether the deposit started; ``on_result(sent, html)`` reports
+        the outcome once the folder write has succeeded or failed.
+        """
+        def report(sent: bool, text: str) -> None:
+            self.job_status.value = text
+            if on_result is not None:
+                on_result(sent, text)
 
         def work() -> None:
             try:
@@ -203,13 +231,17 @@ class WorkstationQueuePanel(widgets.VBox):
                 def done() -> None:
                     self._load_history(select=submission["request_id"])
                     self._render_health(preflight.get("workstations", []))
-                    self.job_status.value = ("<p role='status'>Queued for the lab workstation. You can keep working; "
-                                             f"{_escape(preflight.get('reason', ''))}.</p>")
+                    report(True, "<p role='status'>Queued for the lab workstation. You can keep working; "
+                                 f"{_escape(preflight.get('reason', ''))}.</p>")
                 self._ui_call(done)
             except (WorkstationQueueError, ValueError, OSError) as error:
                 text = f"<p role='alert'>Not sent to the workstation: {_escape(error)}</p>"
-                self._ui_call(lambda: setattr(self.job_status, "value", text))
-        self._background(work)
+                self._ui_call(lambda: report(False, text))
+        started = self._background(
+            work, "<p role='status'>Depositing the calculation in your workstation folder…</p>")
+        if not started and on_result is not None:
+            on_result(False, self.job_status.value)
+        return started
 
     def refresh(self, b: Any = None) -> None:
         submission = self._selected()
@@ -333,16 +365,14 @@ class WorkstationQueuePanel(widgets.VBox):
     def _poll_loop(self) -> None:
         while not self._stop.wait(self.poll_seconds):
             submission = self._selected()
-            if submission is None or self._busy:
+            if submission is None or not self._reserve():
                 continue
-            with self._lock:
-                self._busy = True
-                try:
-                    self._refresh_now(submission, auto_retrieve=True)
-                except Exception:  # never let a transient Drive problem kill the poller
-                    pass
-                finally:
-                    self._busy = False
+            try:
+                self._refresh_now(submission, auto_retrieve=True)
+            except Exception:  # never let a transient Drive problem kill the poller
+                continue
+            finally:
+                self._release()
 
     def close(self) -> None:
         self._stop.set()

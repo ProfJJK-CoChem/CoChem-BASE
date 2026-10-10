@@ -42,7 +42,8 @@ def case_assign_folder_then_send_without_blocking(gui):
     panel = gui.workstation_panel
     panel.folder.value, panel.student.value, panel.cores.value = str(folder), "alice", "2"
     panel.assign()
-    _wait(lambda: (folder / "cochem_workstation_folder.json").is_file() and not panel.btn_assign.disabled)
+    _wait(lambda: (folder / "cochem_workstation_folder.json").is_file() and not panel.btn_assign.disabled
+          and not panel.busy)
     assert "Folder assigned" in panel.settings_status.value
     gui.matrix_engine.value = "PYSCF"
     gui.matrix_geometry.value = WATER
@@ -58,6 +59,8 @@ def case_assign_folder_then_send_without_blocking(gui):
     assert manifest["engine"] == "cochem_base" and manifest["resources"]["cores"] == 2
     assert manifest["student_id"] == "alice" and calculation["engine"] == "pyscf"
     assert calculation["geometry"] == WATER
+    # The app reports "queued" only once the deposit has actually succeeded.
+    _wait(lambda: "Queued for the lab workstation" in gui.calculation_result.value)
     assert "Lab workstation panel" in gui.calculation_result.value
     _wait(lambda: panel.history.value != "")
     assert json.loads(panel.history.value)["job_name"] == job.name

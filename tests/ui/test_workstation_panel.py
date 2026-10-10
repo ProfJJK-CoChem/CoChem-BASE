@@ -28,7 +28,7 @@ def _panel(tmp_path: Path) -> tuple[WorkstationQueuePanel, Path]:
     folder = tmp_path / "Drive" / "alice"
     panel.folder.value, panel.student.value, panel.memory.value = str(folder), "alice", 4
     panel.assign()
-    _wait(lambda: not panel.btn_assign.disabled and "Folder" in panel.settings_status.value)
+    _wait(lambda: not panel.btn_assign.disabled and "Folder" in panel.settings_status.value and not panel.busy)
     return panel, folder
 
 
@@ -47,7 +47,7 @@ def test_submit_status_and_failed_result_rendering(tmp_path):
     panel, folder = _panel(tmp_path)
     assert panel.ready_reason() == ""
     panel.submit(CALCULATION)
-    _wait(lambda: panel.history.value != "")
+    _wait(lambda: panel.history.value != "" and not panel.busy)
     submission = json.loads(panel.history.value)
     assert (folder / "inbox" / submission["job_name"] / "calculation.json").is_file()
     payload = (folder / "inbox" / submission["job_name"] / "calculation.json").read_bytes()
@@ -62,7 +62,7 @@ def test_submit_status_and_failed_result_rendering(tmp_path):
               "progress": {"optimization_cycle": 3, "_queue_position": 2}, "output_tail": ["SCF iteration 7"]}
     (job / "status.json").write_text(json.dumps(status))
     panel.refresh()
-    _wait(lambda: "PAUSED" in panel.job_status.value)
+    _wait(lambda: "PAUSED" in panel.job_status.value and not panel.busy)
     rendered = panel.job_status.value
     assert "owner uses the machine" in rendered and "cores reduced from 8 to 4" in rendered
     assert "optimization_cycle = 3" in rendered and "_queue_position" not in rendered and "SCF iteration 7" in rendered
@@ -81,7 +81,7 @@ def test_submit_status_and_failed_result_rendering(tmp_path):
                   result_sha256=hashlib.sha256(archive).hexdigest())
     (job / "status.json").write_text(json.dumps(status))
     panel.refresh()
-    _wait(lambda: not panel.btn_retrieve.disabled)
+    _wait(lambda: not panel.btn_retrieve.disabled and not panel.busy)
     panel.retrieve()
     _wait(lambda: "No accepted scientific result" in panel.result.value)
     assert "cochem-cli exited with code 1" in panel.result.value
@@ -91,7 +91,21 @@ def test_submit_status_and_failed_result_rendering(tmp_path):
 def test_history_survives_a_new_panel(tmp_path):
     panel, _folder = _panel(tmp_path)
     panel.submit(CALCULATION)
-    _wait(lambda: panel.history.value != "")
+    _wait(lambda: panel.history.value != "" and not panel.busy)
     reopened = WorkstationQueuePanel(artifact_dir=tmp_path / "artifacts", start_polling=False)
     assert reopened.folder.value.endswith("alice") and reopened.student.value == "alice"
     assert json.loads(reopened.history.options[0][1])["request_id"] == json.loads(panel.history.value)["request_id"]
+
+
+def test_a_second_operation_is_refused_while_one_is_in_flight(tmp_path):
+    panel, folder = _panel(tmp_path)
+    outcomes = []
+    assert panel._reserve()  # e.g. the background poller is mid-refresh
+    assert panel.submit(CALCULATION, on_result=lambda sent, text: outcomes.append(sent)) is False
+    assert outcomes == [False] and "Wait for the current" in panel.job_status.value
+    assert not (folder / "inbox").exists() or not any((folder / "inbox").iterdir())
+    panel._release()
+    assert panel.submit(CALCULATION, on_result=lambda sent, text: outcomes.append(sent)) is True
+    _wait(lambda: len(outcomes) == 2)
+    assert outcomes == [False, True] and "Queued for the lab workstation" in panel.job_status.value
+    assert len(list((folder / "inbox").iterdir())) == 1

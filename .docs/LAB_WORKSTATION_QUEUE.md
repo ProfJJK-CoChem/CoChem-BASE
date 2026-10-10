@@ -9,6 +9,10 @@ picks it up, runs `cochem-cli run` on its own fast local disk when its owner is
 not using the machine, and writes the status and a results archive back into
 the same folder. No folder is hard-coded anywhere.
 
+When a GitHub Actions calculation fails because the classroom worker ran out
+of memory or time, the app says so and suggests sending the same calculation
+to the lab workstation.
+
 ## For students (no code)
 
 1. Choose **Calculation Environment → Lab workstation (Drive folder queue)**.

@@ -676,6 +676,20 @@ def summarize_health(documents: list[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 # When the hosted classroom worker is not enough
 # ---------------------------------------------------------------------------
+RESOURCE_EXHAUSTION = re.compile(
+    r"\bout of memory\b|\bmemoryerror\b|\boom\b|\bkilled\b|exit (?:code|status) 137|\bsigkill\b"
+    r"|\btime ?limit\b|\btimed out\b|\btimeout\b|\bwall[- ]?(?:clock|time)\b", re.IGNORECASE)
+
+
+def workstation_suggestion(reason: Any) -> str:
+    """Point a student to the lab workstation when an Actions run failed for lack of memory or time."""
+    if not RESOURCE_EXHAUSTION.search(str(reason or "")):
+        return ""
+    return ("The GitHub Actions classroom worker appears to have run out of memory or time. Larger calculations can "
+            "run on the lab workstation: choose Calculation Environment → Lab workstation (Drive folder queue) and "
+            "send the same calculation there.")
+
+
 def actions_limit_reasons(calculation: dict, *, cores: int = 2, maxcore_mb: int = 1024) -> list[str]:
     """Why a calculation cannot run on the classroom GitHub Actions worker (empty if it can)."""
     from . import actions_jobs

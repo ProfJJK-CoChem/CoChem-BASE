@@ -5659,7 +5659,10 @@ class CoChemGUI:
                             self.state.system_status = "Actions results imported"
                         else:
                             reason = report.get("error", "The workflow did not complete its scientific operation. Review the retained diagnostics.")
-                            self.actions_status.value = f"<p role='alert'><b>Diagnostics verified and imported.</b> Calculation did not complete: {html.escape(str(reason))}. No scientific result has been accepted.</p>"
+                            from cochem_base.interfaces import workstation_queue
+                            suggestion = workstation_queue.workstation_suggestion(reason)
+                            self.actions_status.value = (f"<p role='alert'><b>Diagnostics verified and imported.</b> Calculation did not complete: {html.escape(str(reason))}. No scientific result has been accepted.</p>"
+                                                         + (f"<p role='status'>{html.escape(suggestion)}</p>" if suggestion else ""))
                             self.state.system_status = "Actions diagnostics imported"
                         self.actions_results_download.value = download
                     except (ValueError, RuntimeError, OSError, KeyError, TypeError) as exc:

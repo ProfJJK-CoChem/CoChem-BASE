@@ -148,6 +148,21 @@ def test_assign_local_folder_persists_and_environment_overrides(tmp_path):
         assign_folder(str(tmp_path / "not-mounted" / "x"), "alice", artifact_dir=artifacts)
 
 
+@pytest.mark.parametrize("reason, suggested", [
+    ("Process exited with exit code 137 (Killed)", True),
+    ("numpy.core._exceptions._ArrayMemoryError: MemoryError", True),
+    ("MemoryError while building the Fock matrix", True),
+    ("The job running on runner GitHub Actions 3 has exceeded the maximum execution time; timed out", True),
+    ("SCF did not converge in 128 cycles", False),
+    ("Calculation was rejected: zoom level invalid", False),
+])
+def test_resource_failures_on_actions_suggest_the_workstation(reason, suggested):
+    from cochem_base.interfaces.workstation_queue import workstation_suggestion
+    assert bool(workstation_suggestion(reason)) is suggested
+    if suggested:
+        assert "Lab workstation (Drive folder queue)" in workstation_suggestion(reason)
+
+
 def test_actions_limits_explain_when_to_use_the_workstation():
     small = dict(CALCULATION, engine="orca", method="B3LYP", basis_set="def2-SVP", timeout_seconds=600)
     assert actions_limit_reasons(small, cores=2, maxcore_mb=512) == []

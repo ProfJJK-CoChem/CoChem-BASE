@@ -387,6 +387,11 @@ class CoChemGUI:
             artifact_dir=get_artifact_dir(),
             controller_repository=os.environ.get("COCHEM_ACCESS_CONTROLLER_REPOSITORY", ""),
             app_slug=os.environ.get("COCHEM_ACCESS_APP_SLUG", ""), on_refresh=self._refresh_lab_access)
+        from cochem_base.interfaces.workstation_panel import WorkstationQueuePanel
+        self.workstation_panel = WorkstationQueuePanel(
+            artifact_dir=get_artifact_dir(), ui_call=self._ui_call,
+            on_change=lambda: self._refresh_execution_gate() if hasattr(self, 'btn_execute') else None,
+            start_polling=os.environ.get("COCHEM_WORKSTATION_POLL", "true").lower() != "false")
         self.gh_setup_box = widgets.VBox([
             self.gh_repo_input, self.gh_branch_input, self.course_access_panel,
             widgets.HBox([self.btn_remote_engine_check, self.btn_remote_engine_cancel]), self.remote_engine_status, self.gh_guidance,
@@ -421,7 +426,8 @@ class CoChemGUI:
             self.actions_operation, self.actions_timeout, self.actions_cores, self.actions_memory,
             widgets.HTML("<p>Course profile: ORCA or CFOUR, up to 50 atoms, one or two cores, "
                          "512 MB per core by default (maximum 1024 MB), and at most 1800 seconds per calculation. "
-                         "BASE submits the selected resources and monitors the calculation here.</p>"
+                         "BASE submits the selected resources and monitors the calculation here. Larger "
+                         "calculations can use the <b>Lab workstation</b> route instead.</p>"
                          "<p>Harmonic frequencies at supplied coordinates do not certify a stationary structure. "
                          "Choose <b>Optimize + harmonic frequencies</b> to optimize first. VPT2 remains a separate module integration.</p>"),
         ], layout=widgets.Layout(display='none'))
@@ -436,7 +442,8 @@ class CoChemGUI:
                 ('macOS', 'macos'), 
                 ('Linux', 'linux'), 
                 ('GitHub Actions (Cloud Compute)', 'github-actions'), 
-                ('HPC Cluster (Slurm/PBS)', 'hpc')
+                ('HPC Cluster (Slurm/PBS)', 'hpc'),
+                ('Lab workstation (Drive folder queue)', 'workstation')
             ],
             value='github-actions' if os.environ.get('CODESPACES', '').lower() == 'true' else
                   'macos' if sys.platform == 'darwin' else 'local' if os.name == 'nt' else 'linux',
@@ -565,6 +572,8 @@ class CoChemGUI:
                 self._check_student_hpc_connection()
             if env == 'github-actions':
                 self.dynamic_setup_container.children = [self.gh_setup_box]
+            elif env == 'workstation':
+                self.dynamic_setup_container.children = [self.workstation_panel]
             elif env == 'wsl':
                 self.dynamic_setup_container.children = [self.wsl_setup_box, self.local_setup_box]
             elif env in ['local', 'windows', 'macos', 'linux', 'hpc']:
@@ -3147,6 +3156,10 @@ class CoChemGUI:
                   + [("xTB (free Actions optimization)", "XTB")])
             if remote else self._local_engine_options
         )
+        if self.calc_env_dropdown.value == 'workstation':
+            options = (("Choose a calculation engine", None), ("ORCA (on the lab workstation)", "ORCA"),
+                       ("CFOUR (on the lab workstation)", "CFOUR"), ("xTB (on the lab workstation)", "XTB"),
+                       ("PySCF (on the lab workstation)", "PYSCF"))
         values = {value for _, value in options}
         self.matrix_engine.options = options
         self.matrix_engine.value = selected if selected in values else None
@@ -3929,6 +3942,11 @@ class CoChemGUI:
                     self._actions_repository()
                 except ValueError as exc:
                     reason = str(exc)
+        elif self.calc_env_dropdown.value == "workstation":
+            if self.matrix_engine.value not in {"ORCA", "CFOUR", "XTB", "PYSCF"}:
+                reason = "Choose the engine the lab workstation should run."
+            else:
+                reason = self.workstation_panel.ready_reason()
         elif self.matrix_engine.value is None:
             reason = "Choose an available engine; licensed engines are optional."
         elif self.matrix_engine.value not in {"ORCA", "XTB", "PYSCF", "CFOUR"}:
@@ -3950,6 +3968,8 @@ class CoChemGUI:
                                             "CFOUR": "Run CFOUR calculation", None: "Select a calculation engine"}.get(self.matrix_engine.value, "Run ORCA optimization")
         if self.calc_env_dropdown.value == "hpc":
             self.btn_execute.description = "Submit HPC calculation"
+        elif self.calc_env_dropdown.value == "workstation":
+            self.btn_execute.description = "Send to lab workstation"
         elif not remote and self.matrix_engine.value == 'ORCA':
             self.btn_execute.description = {'single_point': 'Run ORCA single point', 'optimization': 'Run ORCA optimization',
                 'harmonic_frequencies': 'Run ORCA frequencies', 'optimization_frequencies': 'Run ORCA optimize + frequencies'}[self.native_operation.value]
@@ -4661,7 +4681,7 @@ class CoChemGUI:
             return self._cfour_run_config()
         if self.matrix_engine.value != "ORCA":
             raise MethodologyViolationError("Select an available calculation engine; ORCA and CFOUR are optional.")
-        remote = self.calc_env_dropdown.value in {"github-actions", "hpc"}
+        remote = self.calc_env_dropdown.value in {"github-actions", "hpc", "workstation"}
         operation = self.actions_operation.value if self.calc_env_dropdown.value == "github-actions" else self.native_operation.value
         timeout = self.actions_timeout.value if self.calc_env_dropdown.value == "github-actions" else self.native_timeout.value
         if remote and self.t9_config_path.value.strip():
@@ -4801,6 +4821,8 @@ class CoChemGUI:
             raise ValueError("GitHub Actions is selected. Use Run on GitHub Actions in BASE to submit, monitor and retrieve this calculation.")
         if self.calc_env_dropdown.value == "hpc":
             raise ValueError("HPC is selected. Use Submit HPC calculation so the configured scheduler allocates a compute node; a local CLI command is not generated.")
+        if self.calc_env_dropdown.value == "workstation":
+            raise ValueError("The lab workstation is selected. Use Send to lab workstation; the workstation runs the calculation and returns its results to your Drive folder.")
         config_path = self._prepare_pipeline()
         runtime = config_path.parent
         cli_path = Path(__file__).resolve().parents[2] / "cli.py"
@@ -4848,6 +4870,9 @@ class CoChemGUI:
             return
         if self.calc_env_dropdown.value == "github-actions":
             self._submit_student_actions()
+            return
+        if self.calc_env_dropdown.value == "workstation":
+            self._submit_student_workstation()
             return
         self._check_dispersion_gate()
         if self.btn_execute.disabled:
@@ -4994,6 +5019,25 @@ class CoChemGUI:
         if self.email_input.value.strip():
             resources["email"] = self.email_input.value.strip()
         return resources
+
+    def _submit_student_workstation(self) -> None:
+        """Deposit the current calculation in the user's workstation Drive folder (non-blocking)."""
+        self._check_dispersion_gate()
+        if self.btn_execute.disabled:
+            self.state.error_message = "Resolve the engine or methodology validation message before sending."
+            return
+        try:
+            calculation = self._collect_run_config()
+        except (ValueError, RuntimeError, OSError, MethodologyViolationError) as exc:
+            self.state.error_message = str(exc)
+            return
+        def reported(sent: bool, text: str) -> None:
+            self.calculation_result.value = text + (
+                "<p>Follow its progress and retrieve verified results in the Lab workstation panel.</p>"
+                if sent else "")
+
+        self.calculation_result.value = "<p role='status'>Depositing the calculation in your workstation folder…</p>"
+        self.workstation_panel.submit(calculation, on_result=reported)
 
     def _submit_student_hpc(self, b: Any = None, *, calculation_override: dict[str, Any] | None = None,
                             provider: dict[str, Any] | None = None, geometry: str | None = None,
@@ -5615,7 +5659,10 @@ class CoChemGUI:
                             self.state.system_status = "Actions results imported"
                         else:
                             reason = report.get("error", "The workflow did not complete its scientific operation. Review the retained diagnostics.")
-                            self.actions_status.value = f"<p role='alert'><b>Diagnostics verified and imported.</b> Calculation did not complete: {html.escape(str(reason))}. No scientific result has been accepted.</p>"
+                            from cochem_base.interfaces import workstation_queue
+                            suggestion = workstation_queue.workstation_suggestion(reason)
+                            self.actions_status.value = (f"<p role='alert'><b>Diagnostics verified and imported.</b> Calculation did not complete: {html.escape(str(reason))}. No scientific result has been accepted.</p>"
+                                                         + (f"<p role='status'>{html.escape(suggestion)}</p>" if suggestion else ""))
                             self.state.system_status = "Actions diagnostics imported"
                         self.actions_results_download.value = download
                     except (ValueError, RuntimeError, OSError, KeyError, TypeError) as exc:

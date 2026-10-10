@@ -981,8 +981,8 @@ class StudentWorkstationClient:
         status, conclusion = {"QUEUED": ("queued", None), "PAUSED": ("queued", None),
                               "RUNNING": ("running", None), "SUSPENDED": ("running", None)}.get(state, ("unknown", None))
         if state in TERMINAL:
-            # Terminal only once the results archive (if any) has been published.
-            if remote.get("result_file") or remote.get("attempts", 0) == 0:
+            # Terminal once the outcome is published: with its results archive, or signed without one.
+            if remote.get("result_file") or remote.get("attestation"):
                 status = "completed"
                 conclusion = {"COMPLETED": "success", "FAILED": "failure", "CANCELLED": "cancelled"}[state]
             else:
@@ -1057,7 +1057,14 @@ class StudentWorkstationClient:
                 if completed and not verified:
                     report["message"] = f"The workstation finished, but {problem}; the result is not accepted"
                 shutil.move(str(extracted), str(root))
-            else:
+            else:  # ended without results: accepted only as the workstation signed it
+                attested = verify_attestation(remote, self.settings.trusted_keys if self.settings else ())
+                signed = attested["statement"]
+                if (signed.get("client_job_id") != saved["client_job_id"] or signed.get("label") != remote.get("label")
+                        or signed.get("result_file") is not None or signed.get("state") not in TERMINAL):
+                    raise WorkstationQueueError("The workstation signature is for a different outcome")
+                report.update(workstation_state=signed["state"], workstation=signed.get("workstation"),
+                              attestation=attested)
                 root.mkdir()
             _write(retained, report)
         finally:

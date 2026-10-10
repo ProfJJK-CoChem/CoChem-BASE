@@ -98,10 +98,12 @@ def _status(*, label: str, client_job_id: str, state: str, result: bytes | None 
               "state": state, "message": "the workstation reported " + state.lower(), "attempts": attempts,
               "workstation": "lab-ws", "result_file": f"{label}_results.zip" if result is not None else None,
               "result_sha256": _sha(result) if result is not None else None, "progress": {}, "output_tail": []}
-    if result is not None:
+    if result is not None or (state in {"COMPLETED", "FAILED", "CANCELLED"} and attempts == 0):
+        # The runner signs a final outcome once delivered: with its archive, or without one.
         status["attestation"] = _attestation({
             "client_job_id": client_job_id, "label": label, "student_id": "alice", "engine": "cochem_base",
-            "state": state, "workstation": "lab-ws", "runner_version": "0.1.0", "input_hashes": _signed_inputs(result),
+            "state": state, "workstation": "lab-ws", "runner_version": "0.1.0",
+            "input_hashes": _signed_inputs(result) if result is not None else {},
             "result_file": status["result_file"], "result_sha256": status["result_sha256"], "finished_utc": None})
     return status
 
@@ -383,6 +385,23 @@ def test_the_signed_outcome_wins_over_an_edited_status(tmp_path):
     _publish(folder, submission, status, archive)
     report = client.retrieve_results(submission)["report"]
     assert report["workstation_state"] == "FAILED" and report["status"] == "failed"
+
+
+def test_an_outcome_without_results_is_final_only_when_signed(tmp_path):
+    client, folder = _local_client(tmp_path)
+    submission = client.submit(CALCULATION)
+    label = submission["job_name"] + "__5a5a5a04"
+    signed = _status(label=label, client_job_id=submission["client_job_id"], state="FAILED", attempts=0)
+    signed["message"] = "Rejected: unknown engine"
+    unsigned = {key: value for key, value in signed.items() if key != "attestation"}
+    _publish(folder, submission, unsigned, None)
+    assert client.status(submission)["status"] == "running"  # an unsigned "final" status ends nothing
+    with pytest.raises(WorkstationQueueError, match="not signed"):
+        client.retrieve_results(submission)
+    _publish(folder, submission, signed, None)
+    assert client.status(submission)["conclusion"] == "failure"
+    report = client.retrieve_results(submission)["report"]
+    assert report["status"] == "failed" and report["attestation"]["statement"]["result_file"] is None
 
 
 def test_class_wide_trusted_key_from_the_environment(tmp_path):

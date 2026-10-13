@@ -836,6 +836,8 @@ def main() -> None:
             assert not request_failures, request_failures
             final_paths = sorted(Path("src/cochem_base").rglob("*.py")) + [
                 Path("tests/ui/student_entrypoint_browser_acceptance.py"), Path("ui/voila_layout/cochem_gui.py"),
+                Path("ui/voila_layout/research_panels.py"), Path("ui/voila_layout/input_management.py"),
+                Path("ui/voila_layout/disclosure.py"),
                 Path("scripts/student_voila.py"), Path("scripts/bootstrap_environment.py"),
             ]
             report["source_after_sha256"] = {str(path): hashlib.sha256(path.read_bytes()).hexdigest()

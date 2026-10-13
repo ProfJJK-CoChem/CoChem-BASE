@@ -153,9 +153,9 @@ def case_uninstalled_research_capabilities_cannot_start_science(gui):
     upload(gui)
     gui._research_capability_observations = {}
     gui._run_student_topos()
-    assert "does not support" in gui.research_status.value
+    assert "This TOPOS calculation is unavailable" in gui.research_status.value
     gui._run_student_torq()
-    assert "does not support" in gui.research_status.value
+    assert "Distance scans are unavailable" in gui.research_status.value
     assert not gui._pipeline_running and not gui._actions_running
     assert gui.btn_research_nbo.disabled
 

@@ -87,7 +87,7 @@ to its organization.
 
    | Permission | Access | Purpose |
    | --- | --- | --- |
-   | Contents | Read-only | Verify the student's actual starter against instructor-approved Git blob hashes; no source writes. |
+   | Contents | Read and write | Verify the starter and write the reviewed `.devcontainer/devcontainer.json` permissions for this selected project, so its next Codespace can submit calculations. |
    | Secrets | Read and write | Encrypt the approved readers into the student's selected private project's Actions secrets. |
    | Variables | Read and write | Connect opaque private secret labels to the BASE workflows and set the approved worker SHA. |
    | Codespaces secrets | Read and write | Encrypt the module-source reader and course discovery settings into that same private project's Codespaces secrets. |
@@ -95,8 +95,9 @@ to its organization.
 
 5. Under **Organization permissions**, select **Members → Read-only**. This lets
    the controller confirm active membership in your research-student team. Do
-   not grant administration, workflow/source write, Actions write or user-level
-   Codespaces permissions.
+   not grant administration, workflow write, Actions write or user-level
+   Codespaces permissions. The Contents write permission above is used by the
+   controller for the reviewed Codespaces configuration change only.
 6. Under **Where can this GitHub App be installed?**, allow **Any account**.
    Students own their projects personally, so an App restricted to your
    organization alone cannot serve them. The controller still refuses anyone
@@ -105,6 +106,14 @@ to its organization.
    GitHub downloads a PEM file. Its entire content belongs only in the private
    instructor organization's App-key secret in step 5 below. Never commit it,
    upload it to an issue, put it in BASE or send it to students.
+
+If you registered the App with **Contents: Read-only** using an earlier guide,
+change it to **Read and write** in the App's permission settings. The owner of
+each installation must approve GitHub's permission-change request. Rerun the
+project's enrollment or instructor maintenance after approval; the updated App
+writes the required Codespaces settings. Students then create a **new**
+Codespace and authorize the displayed project permissions. Rebuilding an old
+Codespace does not update its access.
 
 ### 4. Install the App on the lab organization
 
@@ -163,9 +172,10 @@ do not need to handle labels or enter credential values.
 
 Provide the **App install link**, the **private controller repository link** and
 your reviewed BASE template link in the course handout/Classroom50 assignment.
-BASE's **Lab access** panel accepts the controller repository and exact App slug
-as nonsecret invitation details and creates the enrollment links for the current
-student project. There is no student token field or terminal step.
+In **Start here → Connect using an instructor invitation**, students paste
+the full URLs into **Instructor's setup link** and **Instructor's App installation
+link**, then choose **Save invitation** to create the enrollment links for
+their current project. There is no student token field or terminal step.
 
 Classroom50 can hold the roster, instructions, feedback and student project
 URLs. It does not change the owner/payer of a personal GitHub repository and does
@@ -183,14 +193,14 @@ use each student's personal Actions allowance.
    or put it under the lab organization for this route.
 3. In your private project, choose **Code → Codespaces → Create codespace**. Wait
    for the BASE dashboard to open. The first Codespace can render BASE and ingest
-   inputs while private provider/engine access is unavailable. In **Lab access**,
-   enter the instructor's access repository and exact App slug from the course
-   invitation; choose the optional engines you want to request.
+   inputs while private provider/engine access is unavailable. In **Start here → Connect using an instructor invitation**,
+   paste the instructor's full setup and App installation links, choose
+   **Save invitation**, then choose the optional engines you want to request.
 4. Open **Authorize lab app** in that panel (or the instructor's App install
    link). Choose your personal account,
    choose **Only select repositories**, select that private project, review the
    requested permissions and install. Do not choose all repositories.
-5. Open **Request project access** in BASE's **Lab access** panel. BASE has already filled in a
+5. Open **Request project access** in BASE's **Start here** panel. BASE has already filled in a
    small data-only issue identifying your project and selected optional engines.
    Click **Submit new issue** in the private instructor controller. No token,
    program or command belongs in this request.
@@ -200,15 +210,18 @@ use each student's personal Actions allowance.
    corrects App installation, team membership, approved source or access policy.
 7. In **your private project**, choose **Code → Codespaces → Create codespace**.
    Use the reviewed default branch and the instructor's recommended machine.
-   A fresh Codespace receives the repository's newly encrypted Codespaces source
+   Approve the requested **Contents: Read and write** and **Actions: Read and
+   write** access to this project. These are the Codespace's permissions to
+   submit inputs and manage its calculations, separate from the App's own
+   permissions. A fresh Codespace receives the repository's newly encrypted Codespaces source
    access; organization Actions secrets are not its environment. If you made a
    Codespace before enrollment, create a fresh one after provisioning rather than
    assuming a rebuild supplies previously missing permissions/secrets.
 8. Wait for BASE's automatic setup and the Voilà dashboard. BASE installs TOPOS
    and TORQ into isolated private runtime directories and shows their actual
    capabilities. You never open/install their repositories yourself.
-9. Select **GitHub Actions** as the calculation environment. In **Lab access**,
-   refresh the actual engine access check. A verified downloadable archive is
+9. In **Start here**, select **GitHub Actions** under **Run calculations on**
+   and choose **Check ORCA & CFOUR**. A verified downloadable archive is
    provisionable, not yet an installed or scientifically accepted engine; the
    requested calculation job downloads it, checks the pinned SHA-256 and version,
    and runs fresh Stage 0/native checks. Missing engines disable their dependent
@@ -240,10 +253,21 @@ In the private controller's **Actions → CoChem private project access controll
 private-repository, selected-installation and approved-source checks run again.
 Only an instructor with controller write/maintain/admin access can use this
 maintenance route. It writes fresh encrypted reader labels, updates the private
-workflow bindings and refreshes the separate Codespaces source reader; it never
-changes student source, uploads or results. Refresh students' Codespaces after
-source-access rotation before the next module update. Expired asset/source
+workflow bindings and refreshes the separate Codespaces source reader. It
+writes the reviewed `.devcontainer/devcontainer.json` permission declaration
+for the selected student project; it does not modify scientific inputs or
+results. Create new Codespaces after changed permissions or source-access
+rotation before the next module update. Expired asset/source
 readers must first be renewed in your private organization configuration.
+
+A missing/outdated project workflow needs an instructor update to the actual
+files in that project's default branch, including
+`.github/workflows/student_project_setup.yml` and
+`scripts/check_student_project_setup.py` from the approved BASE source. The
+student's **Check for updates** button manages the external runtime and does
+not publish these workflow files. Update the complete compatible workflow and
+script set together, then recheck project setup. Students should not edit
+workflow code.
 
 ## What must pass before course rollout
 

@@ -16,6 +16,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -35,6 +36,9 @@ from .student_request import (
 )
 
 WORKFLOW = "student_research.yml"
+SETUP_WORKFLOW = "student_project_setup.yml"
+SETUP_RUN_PREFIX = "CoChem setup "
+MAX_SETUP_BYTES = 64 * 1024
 CANONICAL_BASE = "ProfJJK-CoChem/CoChem-BASE"
 RUN_PREFIX = "CoChem student "
 MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
@@ -50,6 +54,8 @@ class StudentActionsError(RuntimeError):
         self.http_status = http_status
         self.uncertain = uncertain
         self.submission: dict | None = None
+        self.setup_url: str | None = None
+        self.project_access: dict[str, bool] | None = None
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -215,7 +221,7 @@ class StudentActionsClient:
                  repository_root: Path | None = None, artifact_dir: Path | None = None,
                  api_url: str = "https://api.github.com", allow_loopback: bool = False):
         if not isinstance(repository, str) or not REPOSITORY_PATTERN.fullmatch(repository):
-            raise ValueError("Select the owner/name of your assignment repository")
+            raise ValueError("Select your GitHub project using its account/project name")
         parsed = urllib.parse.urlsplit(api_url)
         local_test = (allow_loopback and parsed.scheme == "http"
                       and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
@@ -232,7 +238,7 @@ class StudentActionsClient:
         self._opener = urllib.request.build_opener(_NoRedirect())
 
     def _request(self, path: str, *, method: str = "GET", body: dict | None = None,
-                 binary: bool = False):
+                 binary: bool = False, maximum_bytes: int | None = None):
         if not path.startswith("/") or path.startswith("//"):
             raise ValueError("GitHub API paths must be relative to api.github.com")
         request = urllib.request.Request(self._api_url + path,
@@ -240,9 +246,10 @@ class StudentActionsClient:
             headers={"Authorization": "Bearer " + self._token, "Accept": "application/vnd.github+json",
                      "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "CoChem-BASE-student-actions",
                      "Content-Type": "application/json"})
+        limit = maximum_bytes if maximum_bytes is not None else (MAX_ARCHIVE_BYTES if binary else 4 * 1024 * 1024)
         try:
             with self._opener.open(request, timeout=30) as response:
-                contents = _read_bounded(response, MAX_ARCHIVE_BYTES if binary else 4 * 1024 * 1024)
+                contents = _read_bounded(response, limit)
                 return contents if binary else strict_json(contents) if contents else {}
         except urllib.error.HTTPError as error:
             if binary and error.code == 302:
@@ -258,16 +265,20 @@ class StudentActionsClient:
                 download = urllib.request.Request(location, headers={"User-Agent": "CoChem-BASE-student-actions"})
                 try:
                     with self._opener.open(download, timeout=60) as response:
-                        return _read_bounded(response, MAX_ARCHIVE_BYTES)
+                        return _read_bounded(response, limit)
                 except (urllib.error.URLError, OSError):
                     raise StudentActionsError("The result download failed; retry from the completed run") from None
             if error.code in (401, 403):
-                raise StudentActionsError(
-                    "GitHub denied this action. Your authorized GitHub identity needs Actions read/write "
-                    "access to this assignment repository; the instructor's binary/source-reader secrets do not grant it.",
-                    http_status=error.code) from None
+                refused = StudentActionsError(
+                    f"GitHub has not allowed this Codespace to start or read jobs in {self.repository}. "
+                    "Create a new Codespace for this project and approve the requested GitHub Actions permissions. "
+                    "Rebuilding the existing Codespace does not refresh those permissions. "
+                    "If no permission request appears, ask your instructor to update the project's Codespaces setup.",
+                    http_status=error.code)
+                refused.setup_url = f"https://github.com/{CANONICAL_BASE}/blob/main/.docs/Student_Research_No_Code.md"
+                raise refused from None
             if error.code == 404:
-                raise StudentActionsError("The assignment repository, workflow or result is unavailable to your GitHub identity",
+                raise StudentActionsError("GitHub could not find this project, calculation workflow or result for your account",
                                           http_status=error.code) from None
             raise StudentActionsError(f"GitHub could not complete the request (HTTP {error.code})",
                                       http_status=error.code) from None
@@ -299,32 +310,162 @@ class StudentActionsClient:
         repo = self._request(f"/repos/{self.repository}")
         branch = repo["default_branch"]
         if self.branch is not None and self.branch != branch:
-            raise StudentActionsError("Student calculations use the assignment's approved default branch")
+            raise StudentActionsError("Select this project's main working branch before submitting calculations")
         if repo.get("archived") or repo.get("disabled"):
-            raise StudentActionsError("This assignment repository is archived or disabled")
+            raise StudentActionsError("This project is archived or disabled; its owner must reopen it before running jobs")
         permissions = repo.get("permissions", {})
         if permissions and not any(permissions.get(key) for key in ("push", "maintain", "admin")):
-            raise StudentActionsError("Your instructor must give you Write access to this assignment repository")
+            raise StudentActionsError("Ask the project owner to give your GitHub account Write access so you can submit jobs")
         workflow = self._request(f"/repos/{self.repository}/actions/workflows/{WORKFLOW}")
         if workflow.get("state") != "active":
             raise StudentActionsError("The student calculation workflow must be enabled by the instructor")
         commit = self._request(f"/repos/{self.repository}/commits/{urllib.parse.quote(branch, safe='')}")
         if not COMMIT_PATTERN.fullmatch(commit.get("sha", "")):
             raise StudentActionsError("GitHub did not return an exact assignment source commit")
-        worker = self._resolve_worker_source()
+        setup = self._project_setup(branch=branch, source_sha=commit["sha"])
+        try:
+            worker = self._resolve_worker_source(setup)
+        except StudentActionsError as exc:
+            exc.project_access = setup["access"]
+            exc.setup_url = exc.setup_url or setup["url"]
+            raise
         return {"repository": self.repository, "branch": branch, "source_sha": commit["sha"],
                 "worker_source_sha": worker["revision"], "worker_approval": worker["approval"],
+                "project_access": setup["access"], "setup_check_url": setup["url"],
                 "workflow_id": workflow["id"], "workflow_ready": True,
                 "actions_write_permission": "not_yet_verified",
                 "secret_inspection_required": False, "student_source_commit_required": False}
 
-    def _resolve_worker_source(self) -> dict:
+    def _project_setup(self, *, branch: str, source_sha: str) -> dict:
+        """Read project settings through Actions, which a Codespace can authorize.
+
+        This check discloses only version selections and credential-presence
+        booleans. It does not install an engine or authorize a scientific result.
+        The calculation worker rechecks its current settings before execution.
+        """
+        setup_url = f"https://github.com/{self.repository}/actions/workflows/{SETUP_WORKFLOW}"
+        try:
+            workflow = self._request(f"/repos/{self.repository}/actions/workflows/{SETUP_WORKFLOW}")
+        except StudentActionsError as exc:
+            if exc.http_status == 404:
+                error = StudentActionsError(
+                    "This project is missing the current CoChem setup workflow. Ask the instructor to update "
+                    "the CoChem workflow files in this project's repository, then check GitHub Actions again. "
+                    "'Check for updates' updates the interface but does not change those project files.",
+                    http_status=404)
+                error.setup_url = f"https://github.com/{CANONICAL_BASE}#readme"
+                raise error from None
+            raise
+        if (not isinstance(workflow, dict) or workflow.get("state") != "active" or type(workflow.get("id")) is not int
+                or workflow["id"] < 1
+                or workflow.get("path") != ".github/workflows/" + SETUP_WORKFLOW):
+            error = StudentActionsError(
+                "The project's setup check is unavailable. Open its GitHub Actions page and enable "
+                "'CoChem project setup check', then try again.")
+            error.setup_url = setup_url
+            raise error
+        request_id = str(uuid.uuid4())
+        created = datetime.now(timezone.utc) - timedelta(seconds=30)
+        query = urllib.parse.quote(">=" + created.strftime("%Y-%m-%dT%H:%M:%SZ"), safe="")
+        try:
+            self._request(f"/repos/{self.repository}/actions/workflows/{workflow['id']}/dispatches",
+                          method="POST", body={"ref": branch, "inputs": {"request_id": request_id}})
+        except StudentActionsError as exc:
+            if not exc.uncertain:
+                exc.setup_url = setup_url
+                raise
+            # A lost response can follow a successful dispatch. Look up this
+            # exact check before declaring it unavailable; never POST it twice.
+        deadline = time.monotonic() + 180
+        while True:
+            matches = []
+            for page in range(1, 6):
+                listing = self._request(f"/repos/{self.repository}/actions/workflows/{workflow['id']}/runs"
+                    f"?event=workflow_dispatch&created={query}&per_page=100&page={page}")
+                if (not isinstance(listing, dict) or not isinstance(listing.get("workflow_runs"), list)
+                        or any(not isinstance(run, dict) for run in listing["workflow_runs"])):
+                    raise StudentActionsError("GitHub returned an invalid setup-check status. No calculation was submitted.")
+                matches.extend(run for run in listing["workflow_runs"]
+                               if run.get("display_title") == SETUP_RUN_PREFIX + request_id)
+                if len(listing["workflow_runs"]) < 100:
+                    break
+            if len(matches) > 1:
+                raise StudentActionsError("GitHub returned duplicate setup checks. No calculation was submitted.")
+            if matches:
+                run = matches[0]
+                if (run.get("event") != "workflow_dispatch" or run.get("head_sha") != source_sha
+                        or run.get("head_branch") != branch or run.get("workflow_id") != workflow["id"]
+                        or type(run.get("id")) is not int or run["id"] < 1
+                        or type(run.get("run_attempt")) is not int or run["run_attempt"] < 1):
+                    raise StudentActionsError(
+                        "The project changed while GitHub checked its setup. Check GitHub Actions again; "
+                        "your structures have been kept.")
+                setup_url = f"https://github.com/{self.repository}/actions/runs/{run['id']}"
+                if run.get("status") == "completed":
+                    if run.get("conclusion") != "success":
+                        error = StudentActionsError(
+                            "GitHub could not finish the project setup check. Open the check's result "
+                            "and ask the instructor to correct the reported setup problem. No calculation was submitted.")
+                        error.setup_url = setup_url
+                        raise error
+                    return {**self._setup_artifact(request_id, source_sha, run), "url": setup_url}
+            if time.monotonic() >= deadline:
+                error = StudentActionsError(
+                    "GitHub is still checking this project's setup. Open the check's progress, then try again "
+                    "after it finishes. No calculation was submitted; your structures have been kept.")
+                error.setup_url = setup_url
+                raise error
+            time.sleep(min(2, max(0, deadline - time.monotonic())))
+
+    def _setup_artifact(self, request_id: str, source_sha: str, run: dict) -> dict:
+        listing = self._request(f"/repos/{self.repository}/actions/runs/{run['id']}/artifacts?per_page=100")
+        name = f"cochem-setup-{request_id}-{run['id']}-{run['run_attempt']}"
+        matches = [entry for entry in listing.get("artifacts", []) if entry.get("name") == name]
+        if (len(matches) != 1 or matches[0].get("expired") is not False
+                or type(matches[0].get("id")) is not int or matches[0]["id"] < 1
+                or type(matches[0].get("size_in_bytes")) is not int
+                or not 0 < matches[0]["size_in_bytes"] <= MAX_SETUP_BYTES):
+            raise StudentActionsError("GitHub did not provide a complete setup-check result. Check the project again.")
+        artifact = matches[0]
+        contents = self._request(f"/repos/{self.repository}/actions/artifacts/{artifact['id']}/zip",
+                                 binary=True, maximum_bytes=MAX_SETUP_BYTES)
+        if (len(contents) > MAX_SETUP_BYTES
+                or artifact.get("digest") != "sha256:" + hashlib.sha256(contents).hexdigest()):
+            raise StudentActionsError("The setup-check download failed its integrity check. No calculation was submitted.")
+        try:
+            with zipfile.ZipFile(io.BytesIO(contents)) as archive:
+                entries = archive.infolist()
+                if (len(entries) != 1 or entries[0].filename != "project-setup.json"
+                        or entries[0].is_dir() or entries[0].flag_bits & 1
+                        or stat.S_IFMT(entries[0].external_attr >> 16) not in (0, stat.S_IFREG)
+                        or entries[0].file_size > MAX_SETUP_BYTES):
+                    raise ValueError("Unexpected setup archive")
+                metadata = strict_json(archive.read(entries[0]))
+            identity = {"schema_version": "cochem.project-setup/1", "request_id": request_id,
+                        "repository": self.repository, "source_sha": source_sha,
+                        "run_id": run["id"], "run_attempt": run["run_attempt"]}
+            if (not isinstance(metadata, dict)
+                    or set(metadata) != {*identity, "approved_base_sha", "course_channel", "access"}
+                    or any(metadata.get(key) != value for key, value in identity.items())
+                    or type(metadata["run_id"]) is not int or type(metadata["run_attempt"]) is not int
+                    or not isinstance(metadata["approved_base_sha"], str)
+                    or not isinstance(metadata["course_channel"], str)
+                    or not isinstance(metadata["access"], dict)
+                    or set(metadata["access"]) != {"source", "orca", "cfour"}
+                    or any(type(value) is not bool for value in metadata["access"].values())):
+                raise ValueError("Mismatched setup identity")
+        except (ValueError, TypeError, KeyError, UnicodeError, zipfile.BadZipFile):
+            raise StudentActionsError(
+                "The setup-check result is invalid or does not match this project and GitHub run. "
+                "No calculation was submitted; check the project again.") from None
+        return metadata
+
+    def _resolve_worker_source(self, setup: dict) -> dict:
         """Student work stays in its repository; science comes from approved BASE."""
         from .student_setup import resolve_worker_source
-        # The private access controller maintains these target-project bindings.
-        # Resolve them through the student's own authorized identity on every
-        # submission, rather than guessing that latest main matches the course.
-        resolved = self._project_worker_approval()
+        # The check reads current protected settings inside Actions. The normal
+        # Codespaces identity needs no separate Variables API permission.
+        resolved = self._project_worker_approval(setup)
         if resolved is None:
             resolved = resolve_worker_source(repository_root=self.repository_root, artifact_dir=self.artifact_dir,
                                              token=self._token)
@@ -335,61 +476,45 @@ class StudentActionsClient:
                           f"?ref={resolved['revision']}")
         except StudentActionsError:
             raise StudentActionsError(
-                "The instructor-approved BASE revision does not provide this student worker or is unavailable "
-                "to your GitHub identity. Ask the instructor to check the approved course version and BASE read access; "
-                "the selected scientific version has been preserved.") from None
+                "The BASE version selected for this project cannot run student calculations or could not be read. "
+                "Ask the instructor to update the project's BASE version and access. Your structures have been kept.") from None
         if not COMMIT_PATTERN.fullmatch(resolved.get("revision", "")):
-            raise StudentActionsError("The canonical BASE worker has no immutable approved source identity")
+            raise StudentActionsError("GitHub could not verify the exact BASE version selected for this project")
         return resolved
 
-    def _project_worker_approval(self) -> dict | None:
-        """Read current nonsecret course approval, without inspecting secrets."""
-        def variable(name: str) -> str:
-            try:
-                metadata = self._request(f"/repos/{self.repository}/actions/variables/{name}")
-            except StudentActionsError as exc:
-                if exc.http_status == 404:
-                    return ""
-                raise StudentActionsError(
-                    "The project's current course approval could not be read. Your authorized GitHub identity "
-                    "needs Variables read access; no alternate BASE revision was selected.",
-                    http_status=exc.http_status) from None
-            if (not isinstance(metadata, dict) or metadata.get("name") != name
-                    or not isinstance(metadata.get("value"), str)):
-                raise StudentActionsError("GitHub returned invalid project course-approval metadata")
-            return metadata["value"]
-
-        revision = variable("COCHEM_APPROVED_BASE_SHA")
+    def _project_worker_approval(self, setup: dict) -> dict | None:
+        """Resolve the software version selected by the instructor's settings."""
+        revision = setup["approved_base_sha"]
         if revision:
             if not COMMIT_PATTERN.fullmatch(revision):
-                raise StudentActionsError("The instructor-approved project BASE revision is invalid")
+                raise StudentActionsError("This project's selected BASE version is invalid. Ask the instructor to correct its version setting.")
             approval = "instructor-actions-variable"
             label = "Instructor-approved BASE " + revision[:12]
         else:
-            channel = variable("COCHEM_COURSE_CHANNEL")
+            channel = setup["course_channel"]
             if not channel:
                 return None
             if not re.fullmatch(r"\.cochem/course-channels/[a-z0-9][a-z0-9_-]*\.json", channel):
-                raise StudentActionsError("The project course channel must name canonical BASE approval data")
+                raise StudentActionsError("The project's update setting must name a BASE version file published by the instructor")
             document = self._request(f"/repos/{CANONICAL_BASE}/contents/{channel}")
             if (not isinstance(document, dict) or document.get("type") != "file"
                     or document.get("encoding") != "base64"
                     or not isinstance(document.get("content"), str)):
-                raise StudentActionsError("The canonical project course channel is not a JSON data file")
+                raise StudentActionsError("The instructor's BASE version file could not be read. Ask them to check the project's update setting.")
             try:
                 course = strict_json(base64.b64decode(document["content"], validate=False))
             except (ValueError, TypeError):
-                raise StudentActionsError("The canonical project course channel has invalid approval data") from None
+                raise StudentActionsError("The instructor's BASE version file is invalid. Ask them to correct it.") from None
             if (not isinstance(course, dict) or course.get("schema_version") != "cochem.course-approval/1"
                     or course.get("repository", CANONICAL_BASE) != CANONICAL_BASE
                     or not COMMIT_PATTERN.fullmatch(str(course.get("approved_base_revision", "")))):
-                raise StudentActionsError("The canonical project course channel has no immutable approved BASE revision")
+                raise StudentActionsError("The instructor's version file does not select an exact BASE version")
             revision = course["approved_base_revision"]
             approval = "instructor-course-channel"
             label = "Instructor course channel " + channel
         commit = self._request(f"/repos/{CANONICAL_BASE}/commits/{revision}")
         if not isinstance(commit, dict) or commit.get("sha") != revision:
-            raise StudentActionsError("Canonical BASE did not verify the project's exact approved worker revision")
+            raise StudentActionsError("GitHub could not verify this project's selected BASE version. Ask the instructor to check its update setting.")
         return {"revision": revision, "approval": approval, "label": label, "repository": CANONICAL_BASE}
 
     def submit(self, calculation: dict | None, *, xyz_files: dict[str, str | bytes] | None = None,
@@ -398,6 +523,27 @@ class StudentActionsClient:
                ingestion_inputs: dict | None = None, periodic_inputs: dict | None = None,
                cores: int = 2, maxcore_mb: int = 512) -> dict:
         prepared = self.preflight()
+        # Licensed engines and private modules are independent options. Public
+        # BASE/free-engine jobs need only the job's ordinary GitHub token.
+        missing = []
+        if provider is not None and not prepared["project_access"]["source"]:
+            missing.append("TOPOS/TORQ module access")
+        if capability_probe is None:
+            if provider is not None:
+                from .student_research import required_provider_engines
+                engines = required_provider_engines(provider)
+            else:
+                engines = [calculation.get("engine")] if isinstance(calculation, dict) else []
+            missing.extend(engine.upper() + " access" for engine in engines
+                           if engine in {"orca", "cfour"} and not prepared["project_access"][engine])
+        if missing:
+            error = StudentActionsError(
+                "This project has not been given " + ", ".join(missing) + ". "
+                "Use the lab access controls in BASE, or ask the instructor to connect this project, "
+                "then check GitHub Actions again. Your structures have been kept.")
+            error.setup_url = prepared["setup_check_url"]
+            error.project_access = prepared["project_access"]
+            raise error
         files = {}
         for name, value in (xyz_files or {}).items():
             contents = value.encode("utf-8") if isinstance(value, str) else bytes(value)

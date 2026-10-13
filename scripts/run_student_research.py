@@ -93,15 +93,24 @@ def verify_project(output: Path) -> dict:
     return receipt
 
 
-def approve_worker(output: Path) -> dict:
+def approve_worker(output: Path, *, api_url: str = "https://api.github.com", allow_loopback: bool = False) -> dict:
     """Approve only an instructor-controlled canonical revision, never a user ref."""
+    parsed = urllib.parse.urlsplit(api_url)
+    loopback = (allow_loopback and parsed.scheme == "http"
+                and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+                and not parsed.username and not parsed.password and not parsed.path
+                and not parsed.query and not parsed.fragment)
+    if api_url != "https://api.github.com" and not loopback:
+        raise ValueError("Software verification uses GitHub's verified HTTPS API.")
     request = contract.strict_json((output / "request.json").read_bytes())
     transported = contract.decode_transport_request(os.environ["REQUEST_BASE64"], os.environ["REQUEST_SHA256"])
     if request != transported:
         raise ValueError("The saved request differs from the submitted transport bytes")
-    token = os.environ.get("COCHEM_SOURCE_CREDENTIAL", "")
+    # Canonical BASE is public. An optional private-module credential must not
+    # prevent public/free or directly licensed jobs when it expires or is revoked.
+    token = os.environ.get("GITHUB_TOKEN", "")
     if not token:
-        raise ValueError("The instructor must authorize this assignment for BASE source-reader access")
+        raise ValueError("GitHub did not provide access to the public BASE software. Enable Actions with Contents read access for this project.")
     canonical = "ProfJJK-CoChem/CoChem-BASE"
 
     class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -111,7 +120,7 @@ def approve_worker(output: Path) -> dict:
     opener = urllib.request.build_opener(NoRedirect())
 
     def get(path):
-        operation = urllib.request.Request("https://api.github.com/repos/" + canonical + path,
+        operation = urllib.request.Request(api_url + "/repos/" + canonical + path,
             headers={"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json",
                      "User-Agent": "CoChem-BASE-approved-worker", "X-GitHub-Api-Version": "2022-11-28"})
         try:

@@ -1,82 +1,37 @@
-# Student guide: molecular research in CoChem
-
-You use **one private research project containing CoChem-BASE, owned by your
-personal GitHub account**. BASE prepares the
-interface, installs its analysis components, submits calculations and brings
-results back. You do not open other CoChem repositories, install Python
-packages, enter access tokens or type terminal commands.
-
-Your instructor supplies the reviewed BASE template, lab App invitation,
-Classroom50 collection instructions and approved scientific protocol.
-**You supply your own starting structures and scientific inputs.** For this
-course, monomer and complex geometries made in Avogadro 2 are common starting
-points. BASE also ingests the other molecular, periodic, Hessian, spectroscopy
-and numerical data described under **Input library** below. An example used
-during setup is only an installation check.
+# Scientific inputs and research in CoChem
 
 ## Start your workspace
 
-1. Sign into GitHub and Classroom50 with your own account. Accept the course
-   organization/team invitation if one is pending. Classroom50 handles course
-   enrollment, report links and feedback; it does not create or fund your
-   personal research project automatically.
-2. Open your instructor's approved BASE template. Choose **Use this template →
-   Create a new repository**. Select **your personal account** as owner, name it
-   for your project and choose **Private**. Create an independent template copy,
-   not a fork. Bookmark this project; it will hold your research files.
-3. In your private project choose **Code → Codespaces → Create codespace** on
-   the instructor's reviewed branch. If **New with options** appears, choose
-   the recommended machine and confirm your personal account is the payer.
-   Let automatic BASE setup finish. Private modules and engines may remain
-   unavailable before enrollment; you do not install them manually.
-4. In VS Code's **Ports** panel, open **8866 — CoChem Voilà dashboard → Open in
-   Browser** and keep its visibility **Private**. In BASE's **Lab access**,
-   confirm your personal project and enter the instructor access repository
-   and exact lab App slug from the course invitation. These are nonsecret invitation
-   details, not tokens. Choose the optional engines requested for your course.
-5. Select **Authorize lab app**. On GitHub choose your personal account, then
-   **Only select repositories**, select this private project, review permissions
-   and install. Do not authorize every repository on your account.
-6. Select **Request project access** in BASE. GitHub opens a prefilled data-only
-   enrollment issue in the instructor's private access repository. Choose
-   **Submit new issue**; do not add code, commands or credentials.
-7. Wait for the controller's success comment. If enrollment fails, give the
-   instructor its issue/run link and visible error. The instructor corrects
-   access; you do not create or paste a token. Stop this initial Codespace after
-   approval. Use it for enrollment before beginning your research uploads.
-8. From **your private project's** Codespaces menu create a **fresh Codespace**
-   after approval. It receives the separately provisioned private source access.
-   A rebuild of the initial Codespace is not evidence that access arrived.
-9. Wait for automatic BASE/module setup, then reopen the private dashboard.
-   Look at **CoChem setup and updates**. BASE installs TOPOS/TORQ in managed
-   storage; you never open or install their repositories. Required setup must
-   finish before dependent calculations become available. If an error remains,
-   give it to your instructor and use **Retry setup** after access is corrected.
-10. Choose **GitHub Actions** as the calculation environment. In **Lab access**,
-    refresh engine access. ORCA/CFOUR are optional and strongly recommended;
-    missing access disables their dependent methods while independent BASE
-    features remain usable. The actual calculation worker still verifies its
-    engine installation and scientific execution before reporting success.
+**New to CoChem? [Start with the quick guide](GET_STARTED.md).** It explains
+opening the dashboard, ORCA/CFOUR access and the first calculation.
 
-The instructor's [personal-project App guide](Personal_Project_App_Deployment.md)
-explains the setup and enrollment checks. Students use browser controls only.
-Your personal project's Actions jobs use the allowance shown on your account;
-Classroom50 or team membership does not transfer organization secrets or billing.
-The Codespace supplies the interface. A calculation runs on a separate Actions
-worker and can continue after you close or stop the Codespace.
+This page is a reference: open only the section you need. You supply your own
+starting structures and scientific files. CoChem-BASE prepares its analysis
+components and brings their results into the same interface.
+
+- [Upload structures](#upload-your-structures)
+- [Other scientific files, conformers and measured outputs](#use-the-scientific-input-library)
+- [Run and retrieve a calculation](#run-your-calculation)
+- [Read results and create a report](#read-results-and-create-your-report)
+- [Get updates](#get-bug-fixes-without-losing-your-work)
 
 ## Upload your structures
+
+<details>
+<summary><strong>Show instructions</strong></summary>
 
 1. In Avogadro 2, save each structure as **XYZ**. Use a complete file with an
    atom-count line, comment line and one element plus three coordinates per
    atom. Coordinates are in ångströms. Include all atoms and explicit hydrogens.
-2. Upload one or several files with **Upload .xyz** in **No Code Matrix**.
-   You can supply a monomer, a complete complex, or several starting
-   arrangements. You do not need an instructor-provided structure.
-3. Select the desired file under **Starting geometry**. Select its **Input
-   type** and inspect the displayed geometry and upload status. BASE preserves
-   the original file and its identity separately from any working geometry.
-4. In **Base Config**, set the **Charge** and **Multiplicity** required by your molecule. XYZ does
+2. Open **Your files**, choose **Upload scientific inputs** and select one
+   or several files. You can supply a monomer, a complete complex or several
+   starting arrangements. You do not need an instructor-provided structure.
+3. Select the file and its **Structure / frame**, then choose **Use selected
+   starting geometry**. Check the displayed molecule and **Input type**. BASE
+   keeps the original separately from any working geometry. If you uploaded
+   the wrong file, choose **Remove from list**; use **Undo remove** or
+   **Show removed inputs → Restore selected input** to bring it back.
+4. In **Method and settings**, set the **Charge** and **Multiplicity** required by your molecule. XYZ does
    not reliably store these values. For a complex, supply fragment definitions
    and the charges/multiplicities of its components whenever the selected
    research operation requests them. Do not guess a default for an ion,
@@ -99,10 +54,15 @@ computing interaction energies are distinct operations. Select a capability
 that is actually available in the interface. A missing provider or required
 input leaves that operation unavailable with an explanation.
 
+</details>
+
 ## Use the scientific input library
 
+<details>
+<summary><strong>Show instructions</strong></summary>
+
 XYZ is the usual Avogadro 2 route for this course. BASE also accepts complete
-scientific source files through **Input library**. You choose files and frames;
+scientific source files through **Your files**. You choose files and frames;
 BASE retains the untouched original alongside its validated interpretation.
 
 | Your source file | What BASE retains and exposes |
@@ -118,7 +78,7 @@ BASE retains the untouched original alongside its validated interpretation.
 | Canonical trajectory HDF5 or numerical NPZ/HDF5 | Bounded dataset previews, measured records and declared units/provenance. External file references and pickled arrays are rejected. |
 | PAW UPF pseudopotential | Untouched potential, element, header and hash; the selected calculation must separately pass its native scientific checks. |
 
-1. Choose **Input library** on the left.
+1. Choose **Your files** on the left.
 2. Leave **Scientific input type → Detect from file** for ordinary structures,
    or select the appropriate type for a Hessian, spectroscopy output or data
    archive. Choose **Upload scientific inputs** and select your files.
@@ -129,7 +89,7 @@ BASE retains the untouched original alongside its validated interpretation.
    SDF and multi-frame files keep every record; selecting one does not delete
    the others.
 5. Choose **Use selected starting geometry**. BASE opens the molecule panel
-   with that ordered frame. Confirm charge and multiplicity in **Base Config**
+   with that ordered frame. Confirm charge and multiplicity in **Method and settings**
    when the source did not declare them. Supply the scientific state explicitly
    before running a calculation.
 
@@ -143,7 +103,12 @@ Explorer sidebar, alongside **CoChem-BASE**, then choose
 new files; **Stop watching inbox** stops that watcher. The original files,
 record selections and source hashes remain available when the dashboard restarts.
 
-### Import and compare conformer pools
+</details>
+
+## Import and compare conformer pools
+
+<details>
+<summary><strong>Show instructions</strong></summary>
 
 Choose **Scientific input type → CREST / ORCA GOAT conformer pool**, select the
 actual **Pool producer** and its **Recorded energy unit**, and upload the native
@@ -161,9 +126,15 @@ unranked. Missing energies, states or protocols remain unranked and retained.
 A geometric sieve does not certify minima, thermodynamic populations or chemical
 accuracy; those require their own accepted calculation evidence.
 
-### Inspect measured outputs and isotope changes
+</details>
 
-Choose **Data Inspector (Ab-Initio)**, upload/select **Native output** and choose
+## Inspect measured outputs and isotope changes
+
+<details>
+<summary><strong>Show instructions</strong></summary>
+
+Open **Spectra and properties**, select the rotational-observables tab,
+upload/select **Native output** and choose
 **Parse Observables**. The panel distinguishes constants from the supplied
 geometry, validated equilibrium results when evidence exists, and measured
 vibrational corrections. It keeps an absent ground-state constant or correction
@@ -177,12 +148,17 @@ Anharmonic corrections and stationary-minimum qualification need additional
 native evidence; an uploaded model Hessian is not presented as an accepted
 physical force field.
 
-For a numerical archive, choose **HDF5 SWMR Store**, upload/select **Physical
+For a numerical archive, choose **Data tables (HDF5/NPZ)**, upload/select **Physical
 data**, and choose **Inspect HDF5 / NPZ data**. Check dataset names, dimensions,
 units and source alongside the bounded values. Missing units/provenance are
 shown explicitly.
 
-### Prepare a periodic request
+</details>
+
+## Prepare a periodic request
+
+<details>
+<summary><strong>Show instructions</strong></summary>
 
 Use **Periodic structures** only for an assigned periodic-materials project.
 Upload/select the ordered periodic structure and inspect its cell and species.
@@ -193,7 +169,12 @@ BASE. The interface and worker validate original source hashes and potential
 headers; an accepted input alone does not certify the required band-gap or
 lattice accuracy.
 
-### Build an initial molecule in BASE
+</details>
+
+## Build an initial molecule in BASE
+
+<details>
+<summary><strong>Show instructions</strong></summary>
 
 The **Molecule Builder** also accepts an explicit SMILES string or a supported
 chemical name under **Name or SMILES**. Choose **Build starting geometry** and
@@ -201,11 +182,16 @@ inspect the generated structure, resolved identity and builder provenance.
 This produces an initial guess. It does not provide a measured energy or claim
 a minimum. Your own Avogadro 2 structures remain the usual course inputs.
 
+</details>
+
 ## Run your calculation
 
-1. Select **GitHub Codespaces** as the interface environment and **GitHub
-   Actions** as the calculation environment. BASE should identify your current
-   personal private project and approved branch. Confirm it shows your
+<details>
+<summary><strong>Show instructions</strong></summary>
+
+1. In **Start here**, select **GitHub Actions** under **Run calculations on**.
+   BASE should identify your current project. For a personal student project,
+   confirm it shows your
    `username/project`, rather than upstream BASE or an organization collection
    repository.
 2. Choose the engine, operation and scientific settings specified by your
@@ -229,9 +215,14 @@ and CFOUR are optional, strongly recommended components of CoChem. Their
 absence does not prevent geometry upload or independent supported analysis;
 methods that require the unavailable engine cannot be run.
 
-### Use reference-dependent protocols when assigned
+</details>
 
-In **No Code Matrix → Fragments / Frozen**, **Upload R2 references** accepts a ZIP containing
+## Use reference-dependent protocols when assigned
+
+<details>
+<summary><strong>Show instructions</strong></summary>
+
+In **Calculations → Fragments / Frozen**, **Upload R2 references** accepts a ZIP containing
 the reference manifest, original monomer geometries, original canonical
 CCSD(T) outputs for both basis sizes, and any referenced geometry-optimization
 evidence. Use the authentic package produced for your monomers by the approved
@@ -247,7 +238,7 @@ coordinate frame is rejected. BASE retains the original and records any
 required frame transformation; this does not calculate a new electronic
 Hessian.
 
-In **Base Config → T9 recovery**, enable recovery only with the assigned
+In **Method and settings → T9 recovery**, enable recovery only with the assigned
 scientific active space. Set **Recovery method**, **Recovery basis**, **Active
 electrons**, **Active MO indices** and **Active-space rationale**. Molecular
 orbital indices start at zero. BASE supplies the authorized worker interpreter;
@@ -258,27 +249,37 @@ optimization or frequency calculation.
 These inputs remain scientific data. Use the same **Run on GitHub Actions**
 and result-retrieval buttons; you do not upload engine binaries or run code.
 
+</details>
+
 ## Read results and create your report
 
-The **TOPOS** tab provides installed research operations such as optimizing a
-starting geometry or searching isomer/association candidates. Select an enabled
-**Research operation**, the instructor's **Research method**, and any required
-monomer states, then use **Run TOPOS research**. It follows the selected
+<details>
+<summary><strong>Show instructions</strong></summary>
+
+In **Calculations**, open **TOPOS: structures and energies** to optimize a
+starting geometry or search for isomer/association candidates. Select the enabled
+**Calculation**, the instructor's **Method**, and any required monomer states,
+then choose **Start TOPOS calculation**. It follows the selected
 calculation environment through BASE.
 
-The **TORQ** tab offers **Run TORQ potential energy scan** when its provider is
-ready. Its current rigid scan moves one of two fragments along their initial
-mass-center separation. Supply the fragment groups, method/basis, separation
+In **Calculations**, open **TORQ: energy scans and bonding → Distance scan**
+and choose **Start distance scan** when it is available. Its current rigid scan
+moves one of two fragments along their initial mass-center separation. Supply the fragment groups, method/basis, separation
 range and number of evaluated points. A rigid scan is distinct from optimized
 scan points or a multidimensional potential surface.
 
-**Run Löwdin Wiberg analysis** uses an actual supported electronic calculation
+**Bond analysis → Calculate Löwdin Wiberg indices** uses a supported
+electronic calculation
 to produce bond-index tables and a bond diagram in the Löwdin orthogonalized
 atomic-orbital basis. It is distinct from natural atomic orbital Wiberg indices
-and NBO donor–acceptor analysis. Those other buttons stay unavailable unless
-the installed provider supplies the corresponding authentic analysis.
+and NBO donor–acceptor analysis. The separate **Calculate NAO Wiberg indices**
+and **Calculate NBO analysis**
+buttons stay unavailable unless the installed program supplies the
+corresponding analysis. ORCA access alone does not make NBO available.
 
-Open **Research results** for available tables, figures and report downloads.
+Open **Results** for available tables, figures and report downloads.
+**Clear comparison selection** clears highlighted choices while retaining
+every saved calculation and report.
 
 Use the available analysis panels to compare verified calculations. BASE can
 present tables and figures supplied by an installed provider, and can make
@@ -315,7 +316,12 @@ the instructor can access the intended report; enrollment alone does not grant
 collection access to a private personal repository. Follow the course policy for
 large files rather than committing an entire runtime or binary archive.
 
+</details>
+
 ## Get bug fixes without losing your work
+
+<details>
+<summary><strong>Show instructions</strong></summary>
 
 1. Finish, cancel or wait for an active calculation before applying a setup
    update. Save your course report and retrieve any completed results first.
@@ -332,11 +338,22 @@ large files rather than committing an entire runtime or binary archive.
    controls as directed. Do not install from another repository manually.
 
 New permissions require a **new Codespace**, after your instructor corrects
-access and you have synchronized the course files you wish to keep. An ordinary
-module bug fix that uses existing permissions does not require granting new
-repository permissions yourself.
+access and you have synchronized the course files you wish to keep. Approve the
+project permissions GitHub shows when creating it. Rebuilding an existing
+Codespace does not refresh those permissions. An ordinary module bug fix that
+uses existing permissions does not require this step.
+
+If CoChem says a project workflow is missing or out of date, give that message
+and your project link to the instructor. **Check for updates** updates the
+managed CoChem installation; it does not replace your project's GitHub workflow
+files. The instructor must update those project files before you retry.
+
+</details>
 
 ## Finish a session
+
+<details>
+<summary><strong>Show instructions</strong></summary>
 
 After saving your work, use the Codespaces menu to **Stop current codespace**.
 Closing the browser alone does not stop it. Delete a Codespace only after your
@@ -346,3 +363,5 @@ can disappear when it is deleted.
 For a problem report, supply the visible error, project/calculation identifier,
 run link and the relevant starting XYZ through the course's approved channel.
 Never include access tokens or licensed engine archives.
+
+</details>

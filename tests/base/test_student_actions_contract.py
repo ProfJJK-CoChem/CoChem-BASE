@@ -10,6 +10,7 @@ import secrets
 import stat
 import subprocess
 import sys
+import uuid
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -30,7 +31,8 @@ class ProjectApprovalServer(ThreadingHTTPServer):
     """Actual local REST exchange for approval metadata, never science output."""
 
     def __init__(self, *, variable_name_changed: bool = False,
-                 commit_changed: bool = False, worker_missing: bool = False):
+                 commit_changed: bool = False, worker_missing: bool = False,
+                 repository: str = "student/project"):
         super().__init__(("127.0.0.1", 0), ProjectApprovalHandler)
         self.token = secrets.token_urlsafe(32)
         self.revision = "b" * 40
@@ -42,6 +44,16 @@ class ProjectApprovalServer(ThreadingHTTPServer):
         self.worker_missing = worker_missing
         self.paths = []
         self.metadata_auth_verified = False
+        self.repository = repository
+        self.setup_request = None
+        self.setup_revision = "a" * 40
+        self.setup_workflow_available = True
+        self.setup_artifact_changes = {}
+        self.setup_run_changes = {}
+        self.setup_access = {"source": True, "orca": True, "cfour": True}
+        self.setup_digest_changed = False
+        self.setup_status = 200
+        self.submitted = []
 
 
 class ProjectApprovalHandler(BaseHTTPRequestHandler):
@@ -54,7 +66,7 @@ class ProjectApprovalHandler(BaseHTTPRequestHandler):
         if self.headers.get("Authorization") != "Bearer " + peer.token:
             self.answer({}, 401)
             return
-        prefix = "/repos/student/project"
+        prefix = "/repos/" + peer.repository
         if self.path == prefix:
             self.answer({"full_name": "student/project", "private": True,
                          "owner": {"type": "User", "login": "student"},
@@ -64,6 +76,25 @@ class ProjectApprovalHandler(BaseHTTPRequestHandler):
             self.answer({"id": 123, "state": "active"})
         elif self.path == prefix + "/commits/main":
             self.answer({"sha": "a" * 40})
+        elif self.path == prefix + "/actions/workflows/student_project_setup.yml":
+            peer.metadata_auth_verified = True
+            self.answer({"id": 124, "state": "active", "path": ".github/workflows/student_project_setup.yml"},
+                        peer.setup_status if peer.setup_workflow_available else 404)
+        elif self.path.startswith(prefix + "/actions/workflows/124/runs?"):
+            run = {"id": 456, "run_attempt": 1, "display_title": "CoChem setup " + peer.setup_request,
+                   "event": "workflow_dispatch", "head_sha": peer.setup_revision,
+                   "head_branch": "main", "workflow_id": 124, "status": "completed",
+                   "conclusion": "success", "html_url": "https://github.com/" + peer.repository + "/actions/runs/456"}
+            self.answer({"workflow_runs": [{**run, **peer.setup_run_changes}]})
+        elif self.path == prefix + "/actions/runs/456/artifacts?per_page=100":
+            content = self.setup_archive()
+            digest = "0" * 64 if peer.setup_digest_changed else hashlib.sha256(content).hexdigest()
+            self.answer({"artifacts": [{"id": 789, "name": "cochem-setup-" + peer.setup_request + "-456-1",
+                         "expired": False, "size_in_bytes": len(content), "digest": "sha256:" + digest}]})
+        elif self.path == prefix + "/actions/artifacts/789/zip":
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(self.setup_archive())
         elif self.path.startswith(prefix + "/actions/variables/"):
             peer.metadata_auth_verified = True
             name = self.path.rsplit("/", 1)[1]
@@ -92,6 +123,43 @@ class ProjectApprovalHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(canonical_json(payload))
 
+    def do_POST(self):
+        peer = self.server
+        peer.paths.append(self.path)
+        if self.headers.get("Authorization") != "Bearer " + peer.token:
+            self.answer({}, 401)
+            return
+        if self.path == "/repos/" + peer.repository + "/actions/workflows/123/dispatches":
+            data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            peer.submitted.append(decode_request(data["inputs"]["request_base64"], data["inputs"]["request_sha256"]))
+            self.answer({}, 204)
+            return
+        if self.path != "/repos/" + peer.repository + "/actions/workflows/124/dispatches":
+            self.answer({}, 404)
+            return
+        data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        assert data["ref"] == "main"
+        peer.setup_request = data["inputs"]["request_id"]
+        assert str(uuid.UUID(peer.setup_request)) == peer.setup_request
+        self.answer({}, 204)
+
+    def setup_archive(self):
+        peer = self.server
+        metadata = {"schema_version": "cochem.project-setup/1", "request_id": peer.setup_request,
+                    "repository": peer.repository, "source_sha": peer.setup_revision,
+                    "run_id": 456, "run_attempt": 1,
+                    "approved_base_sha": peer.variables.get("COCHEM_APPROVED_BASE_SHA", ""),
+                    "course_channel": peer.variables.get("COCHEM_COURSE_CHANNEL", ""),
+                    "access": peer.setup_access}
+        metadata.update(peer.setup_artifact_changes)
+        if peer.variable_name_changed:
+            metadata["unexpected_field"] = "not part of the version contract"
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as archive:
+            info = zipfile.ZipInfo("project-setup.json", date_time=(2026, 1, 1, 0, 0, 0))
+            archive.writestr(info, canonical_json(metadata))
+        return buffer.getvalue()
+
 
 @pytest.fixture
 def project_approval_peer(request):
@@ -109,8 +177,200 @@ def project_approval_peer(request):
 
 
 def project_approval_client(peer, tmp_path):
-    return StudentActionsClient("student/project", token=peer.token, repository_root=tmp_path,
+    return StudentActionsClient(peer.repository, token=peer.token, repository_root=tmp_path / "source",
+                                artifact_dir=tmp_path / "runtime",
                                 api_url=f"http://127.0.0.1:{peer.server_port}", allow_loopback=True)
+
+
+def test_codespace_can_check_setup_without_variables_read_permission(project_approval_peer, tmp_path):
+    peer = project_approval_peer
+    peer.variable_status = 403
+    selected = project_approval_client(peer, tmp_path).preflight()
+    assert selected["worker_source_sha"] == peer.revision
+    assert selected["project_access"] == {"source": True, "orca": True, "cfour": True}
+    assert selected["setup_check_url"] == "https://github.com/student/project/actions/runs/456"
+    assert not any("/actions/variables/" in path or "/secrets/" in path for path in peer.paths)
+
+
+@pytest.mark.parametrize("project_approval_peer", [{"repository": "ProfJJK-CoChem/CoChem-BASE"}], indirect=True)
+def test_instructor_canonical_codespace_checks_setup_with_actions_access(project_approval_peer, tmp_path):
+    peer = project_approval_peer
+    peer.variable_status = 403
+    selected = project_approval_client(peer, tmp_path).preflight()
+    assert selected["repository"] == "ProfJJK-CoChem/CoChem-BASE"
+    assert selected["worker_source_sha"] == peer.revision
+    assert peer.metadata_auth_verified
+    assert not any("/actions/variables/" in path for path in peer.paths)
+
+
+@pytest.mark.parametrize("changes", [
+    {"request_id": "71134ed2-5204-4756-8cf8-1b12be69474e"},
+    {"repository": "someone/else"}, {"source_sha": "c" * 40},
+    {"run_id": 457}, {"run_attempt": 2}, {"run_attempt": True},
+    {"access": {"source": "true", "orca": True, "cfour": True}},
+    {"access": {"source": True, "orca": True}}, {"unexpected_field": "rejected"},
+])
+def test_setup_result_must_match_original_project_and_run(project_approval_peer, tmp_path, changes):
+    peer = project_approval_peer
+    peer.setup_artifact_changes = changes
+    with pytest.raises(StudentActionsError, match="setup-check result"):
+        project_approval_client(peer, tmp_path).preflight()
+    assert not peer.submitted
+    assert not any("/repos/ProfJJK-CoChem/CoChem-BASE/" in path for path in peer.paths)
+
+
+@pytest.mark.parametrize("changes", [{"head_sha": "c" * 40}, {"workflow_id": 999},
+                                     {"event": "push"}, {"head_branch": "other"}])
+def test_changed_setup_run_is_rejected_before_artifact_download(project_approval_peer, tmp_path, changes):
+    peer = project_approval_peer
+    peer.setup_run_changes = changes
+    with pytest.raises(StudentActionsError, match="project changed"):
+        project_approval_client(peer, tmp_path).preflight()
+    assert not any("/artifacts" in path for path in peer.paths)
+    assert not peer.submitted
+
+
+def test_setup_artifact_digest_mismatch_prevents_calculation(project_approval_peer, tmp_path):
+    peer = project_approval_peer
+    peer.setup_digest_changed = True
+    with pytest.raises(StudentActionsError, match="integrity check"):
+        project_approval_client(peer, tmp_path).preflight()
+    assert not peer.submitted
+
+
+def test_old_project_missing_setup_workflow_has_an_actionable_update_link(project_approval_peer, tmp_path):
+    peer = project_approval_peer
+    peer.setup_workflow_available = False
+    with pytest.raises(StudentActionsError, match="workflow files in this project's repository") as refused:
+        project_approval_client(peer, tmp_path).preflight()
+    assert refused.value.setup_url == "https://github.com/ProfJJK-CoChem/CoChem-BASE#readme"
+    assert not peer.submitted
+
+
+def test_free_base_calculation_submits_without_any_private_component_access(project_approval_peer, tmp_path):
+    peer = project_approval_peer
+    peer.setup_access = {"source": False, "orca": False, "cfour": False}
+    submitted = project_approval_client(peer, tmp_path).submit(_request()["calculation"])
+    assert submitted["status"] == "dispatching"
+    assert len(peer.submitted) == 1
+    assert peer.submitted[0]["calculation"]["engine"] == "xtb"
+    assert peer.submitted[0]["worker_source_sha"] == peer.revision
+    assert peer.submitted[0]["source_sha"] == peer.setup_revision
+    assert peer.token not in json.dumps(peer.submitted)
+
+
+@pytest.mark.parametrize("engine", ["orca", "cfour"])
+def test_available_licensed_engine_is_independent_of_other_optional_components(project_approval_peer, tmp_path, engine):
+    peer = project_approval_peer
+    peer.setup_access = {"source": False, "orca": engine == "orca", "cfour": engine == "cfour"}
+    calculation = {**_request()["calculation"], "engine": engine, "method": "HF", "basis_set": "STO-3G"}
+    submitted = project_approval_client(peer, tmp_path).submit(calculation)
+    assert submitted["status"] == "dispatching"
+    assert len(peer.submitted) == 1
+    assert peer.submitted[0]["calculation"] == calculation
+
+
+def test_private_provider_requires_its_own_module_access_before_any_upload(project_approval_peer, tmp_path):
+    peer = project_approval_peer
+    peer.setup_access = {"source": False, "orca": True, "cfour": True}
+    provider = {"schema_version": "cochem.student-provider/1", "module": "topos",
+                "operation": "geometry_analysis", "artifact": "inputs/water.xyz",
+                "artifact_sha256": "a" * 64, "options": {}}
+    with pytest.raises(StudentActionsError, match="TOPOS/TORQ module access") as refused:
+        project_approval_client(peer, tmp_path).submit(None, provider=provider)
+    assert refused.value.setup_url.endswith("/actions/runs/456")
+    assert not peer.submitted
+    assert not any("/git/" in path for path in peer.paths)
+
+
+def test_setup_report_producer_emits_only_nonsecret_status_from_actual_process(tmp_path):
+    root = Path(__file__).resolve().parents[2]
+    output = tmp_path / "project-setup.json"
+    env = {**os.environ, "SETUP_REQUEST_ID": str(uuid.uuid4()), "GITHUB_REPOSITORY": "student/project",
+           "GITHUB_SHA": "a" * 40, "GITHUB_EVENT_NAME": "workflow_dispatch", "DEFAULT_BRANCH": "main",
+           "GITHUB_REF": "refs/heads/main", "GITHUB_RUN_ID": "456", "GITHUB_RUN_ATTEMPT": "1",
+           "COCHEM_APPROVED_BASE_SHA": "b" * 40, "COCHEM_COURSE_CHANNEL": "",
+           "COCHEM_SOURCE_AVAILABLE": "false", "COCHEM_ORCA_AVAILABLE": "true",
+           "COCHEM_CFOUR_AVAILABLE": "false", "UNRELATED_PRIVATE_VALUE": secrets.token_hex(32)}
+    executed = subprocess.run([sys.executable, "-B", "-I", "-S",
+        str(root / "scripts/check_student_project_setup.py"), "--output", str(output)],
+        env=env, text=True, capture_output=True, timeout=15, check=False)
+    assert executed.returncode == 0, executed.stderr
+    metadata = json.loads(output.read_bytes())
+    assert metadata["access"] == {"source": False, "orca": True, "cfour": False}
+    assert metadata["approved_base_sha"] == "b" * 40
+    assert metadata["request_id"] == env["SETUP_REQUEST_ID"]
+    assert env["UNRELATED_PRIVATE_VALUE"] not in output.read_text() + executed.stdout + executed.stderr
+    # The producer refuses a branch change and creates no second report.
+    env["GITHUB_REF"] = "refs/heads/other"
+    refused_output = tmp_path / "refused.json"
+    refused = subprocess.run([sys.executable, "-B", "-I", "-S",
+        str(root / "scripts/check_student_project_setup.py"), "--output", str(refused_output)],
+        env=env, text=True, capture_output=True, timeout=15, check=False)
+    assert refused.returncode != 0
+    assert not refused_output.exists()
+
+
+@pytest.mark.parametrize("credential_kind", ["public-job", "invalid-optional-source", "approval-changed"])
+def test_worker_public_source_access_preserves_server_version_guard(project_approval_peer, tmp_path, credential_kind):
+    """Real HTTP + isolated Python prove authorization, without running chemistry."""
+    peer = project_approval_peer
+    root = Path(__file__).resolve().parents[2]
+    output = tmp_path / "worker"
+    output.mkdir()
+    request = _request()
+    request["worker_source_sha"] = peer.revision
+    encoded, digest = encode_request(request)
+    (output / "request.json").write_bytes(canonical_json(request))
+    optional_source = secrets.token_urlsafe(32) if credential_kind == "invalid-optional-source" else ""
+    env = {**os.environ, "COCHEM_SOURCE_CREDENTIAL": optional_source,
+           "GITHUB_TOKEN": peer.token,
+           "COCHEM_APPROVED_BASE_SHA": "c" * 40 if credential_kind == "approval-changed" else peer.revision,
+           "COCHEM_COURSE_CHANNEL": "", "REQUEST_BASE64": encoded, "REQUEST_SHA256": digest}
+    code = ("import runpy,sys; from pathlib import Path; "
+            "module=runpy.run_path(sys.argv[1]); "
+            "module['approve_worker'](Path(sys.argv[2]),api_url=sys.argv[3],allow_loopback=True)")
+    executed = subprocess.run([sys.executable, "-B", "-I", "-S", "-c", code,
+        str(root / "scripts/run_student_research.py"), str(output), f"http://127.0.0.1:{peer.server_port}"],
+        env=env, capture_output=True, text=True, timeout=15, check=False)
+    assert peer.token not in executed.stdout + executed.stderr
+    if optional_source:
+        assert optional_source not in executed.stdout + executed.stderr
+    if credential_kind == "approval-changed":
+        assert executed.returncode != 0
+        assert "not authorized" in executed.stderr
+        assert not (output / "worker-approval.json").exists()
+        assert not peer.paths
+    else:
+        assert executed.returncode == 0, executed.stderr
+        result = json.loads((output / "worker-approval.json").read_bytes())
+        assert result["worker_source_sha"] == peer.revision
+        assert result["assignment_source_sha"] == request["source_sha"]
+        assert result["approval"] == "instructor-actions-variable"
+        assert peer.paths == ["/repos/ProfJJK-CoChem/CoChem-BASE/commits/" + peer.revision]
+
+
+def test_project_setup_workflow_receives_only_presence_booleans_and_job_identity():
+    import yaml
+
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/student_project_setup.yml").read_text())
+    assert workflow["permissions"] == {"contents": "read"}
+    steps = workflow["jobs"]["setup"]["steps"]
+    producer = next(step for step in steps if "check_student_project_setup.py" in step.get("run", ""))
+    for kind in ("SOURCE", "ORCA", "CFOUR"):
+        assert producer["env"]["COCHEM_" + kind + "_AVAILABLE"] == (
+            "${{ secrets[vars.COCHEM_" + kind + "_ACCESS_SECRET] != '' }}")
+    assert not any("TOKEN" in name or "CREDENTIAL" in name for name in producer["env"])
+    worker = yaml.safe_load((root / ".github/workflows/student_research.yml").read_text())
+    steps = worker["jobs"]["research"]["steps"]
+    approval = next(step for step in steps if "--approve-worker-only" in step.get("run", ""))
+    assert approval["env"]["GITHUB_TOKEN"] == "${{ github.token }}"
+    assert "COCHEM_SOURCE_CREDENTIAL" not in approval["env"]
+    source = next(step for step in steps if step.get("with", {}).get("path") == "worker")
+    assert source["with"]["token"] == "${{ github.token }}"
+    execution = next(step for step in steps if step.get("name") == "Run the requested native calculation or reviewed scientific provider")
+    assert "env" not in execution
 
 
 def test_current_target_approval_is_used_instead_of_latest_main(project_approval_peer, tmp_path):
@@ -138,10 +398,10 @@ def test_target_course_channel_resolves_exact_canonical_approval(project_approva
 
 
 @pytest.mark.parametrize("status", [401, 403, 422])
-def test_target_approval_denial_never_falls_back_to_main(project_approval_peer, tmp_path, status):
+def test_setup_workflow_denial_never_falls_back_to_main(project_approval_peer, tmp_path, status):
     peer = project_approval_peer
-    peer.variable_status = status
-    with pytest.raises(StudentActionsError, match="course approval could not be read") as refused:
+    peer.setup_status = status
+    with pytest.raises(StudentActionsError) as refused:
         project_approval_client(peer, tmp_path).preflight()
     assert refused.value.http_status == status
     assert not any("/repos/ProfJJK-CoChem/CoChem-BASE/" in path for path in peer.paths)
@@ -170,7 +430,7 @@ def test_changed_target_approval_or_missing_exact_worker_refuses(project_approva
 def test_project_course_channel_is_data_only(project_approval_peer, tmp_path, channel):
     peer = project_approval_peer
     peer.variables = {"COCHEM_COURSE_CHANNEL": channel}
-    with pytest.raises(StudentActionsError, match="canonical BASE approval data"):
+    with pytest.raises(StudentActionsError, match="BASE version file"):
         project_approval_client(peer, tmp_path).preflight()
     assert not any("/repos/ProfJJK-CoChem/CoChem-BASE/" in path for path in peer.paths)
 
@@ -179,7 +439,7 @@ def test_project_channel_invalid_revision_refuses_without_latest_fallback(projec
     peer = project_approval_peer
     peer.variables = {"COCHEM_COURSE_CHANNEL": ".cochem/course-channels/research.json"}
     peer.channel_changed = True
-    with pytest.raises(StudentActionsError, match="immutable approved BASE revision"):
+    with pytest.raises(StudentActionsError, match="exact BASE version"):
         project_approval_client(peer, tmp_path).preflight()
     assert not any("/commits/" in path and "CoChem-BASE" in path for path in peer.paths)
 

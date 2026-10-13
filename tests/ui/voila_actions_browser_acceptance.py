@@ -1,17 +1,18 @@
 """Exercise real Voilà widgets and downloaded classroom JSON through Chromium.
 
 Run in the browser test environment against a running Start_Here.ipynb server.
-This proves preparation/download and local execution isolation, not hosted engine
-acceptance: the downloaded request still requires its real GitHub workflow run.
+This requires an authorized real project and verifies ORCA archive access through
+its real Actions check before testing request exports. It does not run chemistry
+or establish physical engine acceptance. No credentials are entered in the page.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import re
 import tempfile
+from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -28,7 +29,12 @@ def main():
     parser.add_argument("--url", default="http://127.0.0.1:8867")
     parser.add_argument("--chromium", default="/usr/bin/chromium")
     parser.add_argument("--artifacts", type=Path)
+    parser.add_argument("--repository", help="Authorized project; otherwise use the project's discovered identity")
+    parser.add_argument("--branch", default="main")
+    parser.add_argument("--readiness-timeout", type=int, default=1200)
     args = parser.parse_args()
+    if not 30 <= args.readiness_timeout <= 3600:
+        parser.error("--readiness-timeout must be between 30 and 3600 seconds")
     artifact = args.artifacts or Path(tempfile.mkdtemp(prefix="cochem-actions-browser-"))
     artifact.mkdir(parents=True, exist_ok=True)
     errors, failures = [], []
@@ -39,28 +45,38 @@ def main():
         page.on("requestfailed", lambda request: failures.append({"url": request.url, "failure": request.failure}))
         try:
             page.goto(args.url, wait_until="domcontentloaded", timeout=60000)
-            environment = page.get_by_label("Calculation Environment:", exact=True)
+            environment = page.get_by_label("Run calculations on:", exact=True)
             expect(environment).to_be_visible(timeout=90000)
             select_label(environment, "GitHub Actions")
-            page.get_by_label("Course repository:", exact=True).fill("course-organization/student-water")
-            page.get_by_label("Approved branch:", exact=True).fill("main")
-            expect(page.get_by_text("GitHub Actions: Classroom50 course setup", exact=True)).to_be_visible()
+            page.get_by_role("button", name="Show Project details (normally filled in automatically)", exact=True).click()
+            project = page.get_by_label("GitHub project:", exact=True)
+            if args.repository:
+                project.fill(args.repository)
+            repository = project.input_value()
+            assert re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository), "An actual authorized project is required"
+            page.get_by_label("Project branch:", exact=True).fill(args.branch)
+            expect(page.get_by_role("heading", name="ORCA and CFOUR on GitHub Actions", exact=True)).to_be_visible()
             assert page.locator('input[type="password"]').count() == 0
-            for name, anchor in (("Student quick start", "student-quick-start"),
-                                 ("Instructor setup", "instructor-setup"), ("Troubleshooting", "troubleshooting")):
-                expect(page.get_by_role("link", name=name, exact=True)).to_have_attribute(
-                    "href", "https://github.com/course-organization/student-water/blob/main/"
-                    f".docs/GitHub_Classroom_ORCA_Setup.md#{anchor}")
+            from urllib.parse import quote
+            expect(page.get_by_role("link", name="Setup help: ORCA, CFOUR and project access", exact=True)).to_have_attribute(
+                "href", f"https://github.com/{repository}/blob/{quote(args.branch, safe='')}/.docs/GET_STARTED.md")
             expect(page.get_by_label("Scientific data:", exact=True)).to_be_hidden()
             review = page.get_by_role("button", name="Review Actions setup", exact=True)
             expect(review).to_be_enabled()
             review.click()
             expect(page.get_by_text("[System: Actions setup instructions]", exact=True)).to_be_visible()
+            readiness = page.get_by_role("button", name="Check ORCA & CFOUR", exact=True)
+            if readiness.is_enabled():
+                readiness.click()
             page.screenshot(path=str(artifact / "classroom50-instructions.png"), full_page=True)
-            page.get_by_role("button", name="No Code Matrix", exact=True).click()
+            page.get_by_role("button", name="Calculations", exact=True).click()
             page.get_by_label("Geometry (XYZ):", exact=True).fill("O 0 0 0\nH 0 0 0.96\nH 0.92 0 -0.24")
             page.get_by_label("Screening (no product accuracy claim)", exact=True).check()
-            page.get_by_text("Base Config", exact=True).click()
+            page.get_by_text("Method and settings", exact=True).click()
+            engine = page.get_by_label("Engine:", exact=True)
+            expect(engine.locator("option").filter(has_text=re.compile(r"^ORCA\b"))).to_have_count(
+                1, timeout=args.readiness_timeout * 1000)
+            select_label(engine, "ORCA")
             select_label(page.get_by_label("Theory Tier:", exact=True), "T2")
             select_label(page.get_by_label("Method:", exact=True), "HF/STO-3G")
             select_label(page.get_by_label("Basis Set:", exact=True), "STO-3G")
@@ -68,13 +84,16 @@ def main():
             page.get_by_label("Project Name:", exact=True).fill("water-browser")
             select_label(page.get_by_label("Actions operation:", exact=True), "Single point")
             expect(page.get_by_label("Output Dir:", exact=True)).to_be_hidden()
-            prepare = page.get_by_role("button", name="Prepare GitHub Actions job", exact=True)
+            page.get_by_role("button", name="Show Calculation resources and frequency guidance", exact=True).click()
+            expect(page.get_by_label("Calculation timeout (s):", exact=True)).to_have_value("300")
+            page.get_by_role("button", name="Show Optional reproducibility export", exact=True).click()
+            prepare = page.get_by_role("button", name="Save configuration", exact=True)
             expect(prepare).to_be_enabled()
             prepare.click()
             expect(page.get_by_text("[System: Actions job prepared]", exact=True)).to_be_visible()
             expect(page.get_by_text("No calculation has been submitted or run.", exact=False)).to_be_visible()
             with page.expect_download() as download:
-                page.get_by_role("link", name="Download ORCA job JSON", exact=True).click()
+                page.get_by_role("link", name="Download ORCA request JSON", exact=True).click()
             assert download.value.suggested_filename == "water-browser-orca-job.json"
             target = artifact / download.value.suggested_filename
             download.value.save_as(target)
@@ -83,15 +102,14 @@ def main():
             assert data["is_opt"] is False and data["is_freq"] is False and data["is_vpt2"] is False
             assert data["timeout_seconds"] == 300 and data["product_class"] is None
             assert all(data[field] is None for field in ("hessian_file", "r2_reference_manifest", "t9_fallback", "periodic"))
-            expect(page.get_by_role("link", name="ORCA calculation", exact=True)).to_have_attribute(
-                "href", "https://github.com/course-organization/student-water/actions/workflows/orca_calculation.yml")
+            expect(page.get_by_role("button", name="Run on GitHub Actions", exact=True)).to_be_enabled()
             page.screenshot(path=str(artifact / "classroom-job-prepared.png"), full_page=True)
             select_label(page.get_by_label("Actions operation:", exact=True), "Optimize + harmonic frequencies")
-            expect(page.get_by_role("link", name="Download ORCA job JSON", exact=True)).to_have_count(0)
+            expect(page.get_by_role("link", name="Download ORCA request JSON", exact=True)).to_have_count(0)
             prepare.click()
             expect(page.get_by_text("[System: Actions job prepared]", exact=True)).to_be_visible()
             with page.expect_download() as frequency_download:
-                page.get_by_role("link", name="Download ORCA job JSON", exact=True).click()
+                page.get_by_role("link", name="Download ORCA request JSON", exact=True).click()
             frequency_target = artifact / "water-browser-harmonic-job.json"
             frequency_download.value.save_as(frequency_target)
             frequency_data = json.loads(frequency_target.read_bytes())
@@ -99,22 +117,32 @@ def main():
             assert frequency_data["grid_stage"] == 3 and frequency_data["initial_hessian"] == "XTB2"
             page.screenshot(path=str(artifact / "classroom-harmonic-job-prepared.png"), full_page=True)
             select_label(page.get_by_label("Engine:", exact=True), "xTB")
-            expect(prepare).to_be_disabled()
-            expect(page.get_by_role("link", name="Download ORCA job JSON", exact=True)).to_have_count(0)
-            expect(page.get_by_text("The course Actions workflow accepts ORCA jobs.", exact=False)).to_be_visible()
-            page.get_by_role("button", name="Seamless Install", exact=True).click()
+            expect(page.get_by_role("link", name="Download ORCA request JSON", exact=True)).to_have_count(0)
+            select_label(page.get_by_label("Actions operation:", exact=True), "Optimization")
+            prepare.click()
+            with page.expect_download() as free_download:
+                page.get_by_role("link", name="Download XTB request JSON", exact=True).click()
+            free_target = artifact / "water-browser-xtb-job.json"
+            free_download.value.save_as(free_target)
+            free_data = json.loads(free_target.read_bytes())
+            assert free_data["engine"] == "xtb" and free_data["is_opt"] is True
+            assert free_data["is_freq"] is False and free_data["method"] == "GFN2-xTB"
+            page.get_by_role("button", name="Start here", exact=True).click()
             select_label(environment, "Linux")
-            expect(page.get_by_label("Scientific data:", exact=True)).to_be_visible()
-            page.get_by_role("button", name="No Code Matrix", exact=True).click()
+            expect(page.get_by_role("button", name="Show Advanced local setup", exact=True)).to_be_visible()
+            page.get_by_role("button", name="Calculations", exact=True).click()
             expect(page.get_by_role("button", name="Run xTB optimization", exact=True)).to_be_visible()
             expect(page.get_by_label("Actions operation:", exact=True)).to_be_hidden()
-            expect(page.get_by_label("Output Dir:", exact=True)).to_be_visible()
+            expect(page.get_by_label("Output Dir:", exact=True)).to_be_hidden()
             assert not errors, errors
             assert not failures, failures
             report = {"status": "UI_EXPORT_VERIFIED", "hosted_execution_performed": False,
+                      "repository": repository, "branch": args.branch,
+                      "orca_choice_enabled_by_actual_archive_check": True,
                       "job_sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
                       "harmonic_job_sha256": hashlib.sha256(frequency_target.read_bytes()).hexdigest(),
                       "harmonic_grid_stage": frequency_data["grid_stage"],
+                      "free_xtb_job_sha256": hashlib.sha256(free_target.read_bytes()).hexdigest(),
                       "job_file": "jobs/water-browser-orca-job.json", "page_errors": errors,
                       "request_failures": failures}
             (artifact / "browser-summary.json").write_text(json.dumps(report, indent=2) + "\n")

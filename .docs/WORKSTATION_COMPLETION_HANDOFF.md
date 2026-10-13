@@ -4,6 +4,41 @@ Prepared 2026-10-09. This is the working brief for the agent running on the
 instructor's local workstation. **Complete the implementation and genuine
 acceptance below; this document does not declare the unfinished work complete.**
 
+## 2026-10-13 interface and access update
+
+Start the next review with the [plain-language quick guide](GET_STARTED.md).
+The instructor reported that the dashboard was unusable because access fields,
+setup errors and long explanations obscured the required actions. This update
+addresses that specific failure:
+
+- Navigation now starts with **Start here**, **Your files**, **Calculations**,
+  **Spectra and properties**, **Periodic structures** and **Results**. Long
+  explanations are collapsed; TOPOS/TORQ show operation-specific controls.
+- Existing instructor projects use their configured access. Student invitations
+  accept complete GitHub links. **Clear invitation** corrects saved invitation
+  details; input removal/restore and comparison reset correct selections while
+  retaining original inputs and calculation records.
+- The GUI reads the project's approved software choice through a short
+  **CoChem project setup check** Actions job, avoiding a Codespaces requirement
+  to read the Actions Variables API. This metadata check is not an engine
+  installation or successful chemistry calculation.
+- The instructor App now needs **Contents: Read and write** to prepare the
+  selected personal project's `.devcontainer/devcontainer.json`. It writes
+  reviewed permissions for that exact project, preserves the other approved
+  settings and refuses conflicting source changes. Updated App permissions
+  need installation-owner approval; a **new Codespace** and the student's
+  authorization are required to receive the revised project permissions.
+- Older project copies need the current workflow files on their own default
+  branch. The GUI's runtime update does not publish those files. The
+  [App deployment guide](Personal_Project_App_Deployment.md) explains the
+  instructor's update responsibility.
+
+**Validation for this update is pending the current focused UI/access and
+browser checks.** Record their actual revisions, outcomes and remaining service
+prerequisites before release. The historical acceptance below belongs to its
+recorded producers; it does not certify these new changes. This update does not
+close the scientific, platform or real-student acceptance backlog.
+
 ## Assignment and starting point
 
 Finish CoChem-BASE as the canonical installation, setup, ingestion and GUI entry

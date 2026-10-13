@@ -49,13 +49,30 @@ def configure(widget: CourseAccessWidget) -> None:
     widget.app_slug.value = "instructor-chemistry-app"
 
 
+def test_full_github_invitation_links_and_recoverable_clear(tmp_path):
+    widget = panel(tmp_path)
+    widget.controller.value = "https://github.com/instructor/private-lab-controller"
+    widget.app_slug.value = "https://github.com/apps/instructor-chemistry-app/installations/new"
+    assert enrollment(widget).repository == "student/vdw-research"
+    widget.btn_save.click()
+    assert widget._settings_path.exists()
+    widget.btn_clear.click()
+    assert widget.controller.value == widget.app_slug.value == ""
+    assert widget.links.value == ""
+    reopened = CourseAccessWidget(project_repository="student/vdw-research", artifact_dir=tmp_path / "data",
+        controller_repository="instructor/private-lab-controller", app_slug="instructor-chemistry-app")
+    assert reopened.controller.value == reopened.app_slug.value == ""
+    assert reopened.project.value == "student/vdw-research"
+
+
 def test_unconfigured_invitation_keeps_links_unavailable(tmp_path):
     widget = panel(tmp_path)
     assert widget.links.value == ""
     assert widget.btn_save.disabled
     assert widget.btn_refresh.disabled
-    assert widget.app_slug.description == "Instructor lab App slug:"
-    assert "[MISSING DATA]" in widget.status.value
+    assert widget.app_slug.description == "Instructor's App installation link:"
+    assert "Paste both setup links" in widget.status.value
+    assert widget.children[0].selected_index is None
     assert not widget._settings_path.exists()
 
 
@@ -82,7 +99,10 @@ def test_optional_engines_can_both_be_declined(tmp_path):
 
 
 @pytest.mark.parametrize("field, value", [
-    ("controller", "https://github.com/instructor/private-controller"),
+    ("controller", "https://example.org/instructor/private-controller"),
+    ("controller", "https://github.com@evil.example/instructor/private-controller"),
+    ("controller", "https://github.com/instructor/private-controller?token=secret"),
+    ("app_slug", "https://github.com/apps/lab/other/path"),
     ("controller", "instructor/../project"),
     ("app_slug", "bad-app' onclick='steal()"),
     ("app_slug", "<script>alert(1)</script>"),
@@ -129,8 +149,8 @@ def test_save_click_retains_only_nonsecret_settings_and_reopens(tmp_path):
     assert "Access has not been verified" in reopened.status.value
     configured = CourseAccessWidget(project_repository="student/vdw-research", artifact_dir=tmp_path / "data",
         controller_repository="instructor/new-controller", app_slug="new-course-app")
-    assert configured.controller.value == "instructor/new-controller"
-    assert configured.app_slug.value == "new-course-app"
+    assert configured.controller.value == "instructor/private-lab-controller"
+    assert configured.app_slug.value == "instructor-chemistry-app"
 
 
 def test_damaged_retained_invitation_does_not_abort_widget(tmp_path):

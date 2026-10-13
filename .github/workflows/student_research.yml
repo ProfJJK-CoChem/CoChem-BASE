@@ -75,7 +75,7 @@ jobs:
       - name: Verify the instructor-approved canonical worker revision
         working-directory: assignment
         env:
-          COCHEM_SOURCE_CREDENTIAL: ${{ secrets[vars.COCHEM_SOURCE_ACCESS_SECRET] }}
+          GITHUB_TOKEN: ${{ github.token }}
           COCHEM_APPROVED_BASE_SHA: ${{ vars.COCHEM_APPROVED_BASE_SHA }}
           COCHEM_COURSE_CHANNEL: ${{ vars.COCHEM_COURSE_CHANNEL }}
         run: |
@@ -87,7 +87,7 @@ jobs:
           repository: ProfJJK-CoChem/CoChem-BASE
           ref: ${{ steps.request.outputs.worker_sha }}
           path: worker
-          token: ${{ secrets[vars.COCHEM_SOURCE_ACCESS_SECRET] }}
+          token: ${{ github.token }}
           persist-credentials: false
       - name: Audit the approved BASE source before application imports
         env:

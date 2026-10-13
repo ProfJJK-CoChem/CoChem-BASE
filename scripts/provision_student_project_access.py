@@ -106,15 +106,19 @@ def main() -> int:
         # credential body or target's opaque secret label enters workflow logs.
         print(json.dumps(receipt, sort_keys=True))
         if issue_number is not None:
-            availability = ", ".join(receipt["available"]) or "BASE without private optional components"
+            availability = ", ".join("module downloads" if name == "source" else name.upper()
+                                     for name in receipt["available"]) or "BASE without optional components"
             controller_api.call("POST", f"/repos/{config.repository}/issues/{issue_number}/comments", {
-                "body": "Private credential bindings provisioned for " + receipt["repository"] + ". Configured readers: "
-                + availability + ". Create a fresh personal Codespace, let BASE finish automatic setup, "
-                + "then select GitHub Actions for calculations. Private credentials were encrypted directly "
-                + "into the project; no token or command is needed from you. Codespaces private module source: "
-                + receipt["codespaces_source"] + ". If unavailable, ask the instructor to configure module-source "
-                + "access before expecting TOPOS/TORQ automatic installation. Actual reader validity, module installation "
-                + "and engine scientific execution are checked by BASE setup and the requested calculation, not by this enrollment job."})
+                "body": "Your project " + receipt["repository"] + " is connected to the lab for " + availability + ".\n\n"
+                + "1. Open your project's **Code → Codespaces** menu and create a **new Codespace** from its default branch. "
+                + "Authorize the requested access to this project so BASE can submit calculations and retrieve results. "
+                + "Rebuilding an existing Codespace does not update these permissions.\n"
+                + "2. Let BASE finish automatic setup, then open its dashboard.\n"
+                + "3. Under **Start here**, select **GitHub Actions** and click **Check ORCA & CFOUR**. "
+                + "That check confirms whether the selected engines can be downloaded; a calculation confirms actual execution.\n\n"
+                + "No terminal commands or access tokens are needed from you. "
+                + ("" if receipt["codespaces_source"] == "available" else
+                   "TOPOS/TORQ downloads are not connected yet; ask the instructor to enable module downloads.")})
         return 0
     except CourseAccessError as exc:
         # CourseAccessError messages are controlled strings, never response data.

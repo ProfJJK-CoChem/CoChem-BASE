@@ -429,7 +429,8 @@ def report_html(report: dict) -> str:
             'table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccd4dc;padding:.5rem;text-align:left}'
             'svg{max-width:100%;height:auto}code{overflow-wrap:anywhere}</style></head><body><h1>'
             + _escaped(report["title"]) + '</h1><p>' + _escaped(report["scope"]) + '</p>' + _table(report)
-            + diagrams + '<h2>Retained source receipts</h2><ul>' + receipts + '</ul></body></html>')
+            + diagrams + '<details><summary>Source files and verification details</summary><ul>'
+            + receipts + '</ul></details></body></html>')
 
 
 def export_report(report: dict, directory: str | Path) -> dict[str, str]:

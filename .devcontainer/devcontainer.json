@@ -71,7 +71,8 @@
         },
         "ProfJJK-CoChem/CoChem-BASE": {
           "permissions": {
-            "contents": "read"
+            "actions": "write",
+            "contents": "write"
           }
         }
       }

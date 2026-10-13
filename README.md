@@ -3,118 +3,90 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 
-CoChem-BASE provides scientific input ingestion, environment setup, the Voilà
-interface, validated calculation execution and handoffs to the CoChem ecosystem.
-It preserves actual inputs, engine identity, resource allocation, outputs and
-scientific records needed to assess a result.
+CoChem-BASE is the place to upload your scientific files, choose a calculation
+and inspect its results. It prepares the other CoChem components, including
+TOPOS and TORQ, for you.
 
-**Instructors: follow the
-[personal-project App deployment guide](.docs/Personal_Project_App_Deployment.md)**
-to configure access and pilot one student. Use the
-[Classroom50 collection guide](.docs/Classroom50_Assignment_Deployment.md)
-for course enrollment, submissions and feedback. **Students: start with the
-[graphical research guide](.docs/Student_Research_No_Code.md).**
-Create a **Private** copy of the instructor's approved BASE template under
-**your personal GitHub account**, then choose **Code → Codespaces → Create codespace**.
-Open the private **8866 CoChem Voilà dashboard** from VS Code's Ports panel.
-Use **Lab access** to authorize the instructor's App for this selected project
-and request enrollment. After approval, stop the initial Codespace and create
-a **fresh Codespace** for automatic private-module setup. Classroom50 collects
-course work separately. The student route uses buttons and file uploads.
-Students upload their own Avogadro 2 monomers or complexes. BASE automatically
-installs its approved modules and provides calculation submission, monitoring,
-result retrieval, scientific reports and compatible updates in the GUI.
-Students using the instructor's provisioned route do not enter tokens in CoChem,
-type terminal commands, edit Python/JSON or obtain another CoChem repository.
-The [complete input-library guide](.docs/Student_Research_No_Code.md#use-the-scientific-input-library)
-also covers MOL V2000/V3000, multi-record SDF, MOL2, PDB, QCSchema,
-conformer pools, periodic structures, native outputs and geometry-bound Hessians.
+**[Start here: open CoChem and run your first calculation](.docs/GET_STARTED.md)**
 
-For CFOUR runtime access, classroom setup and host compatibility, follow the
-[CFOUR setup guide](.docs/CFOUR_Actions_Setup.md). **ORCA and CFOUR are optional,
-strongly recommended engines.** BASE remains usable when either is absent or
-its optional installation fails; only dependent calculations are unavailable.
+Already viewing the CoChem dashboard in your browser?
 
-For private module downloads, isolated installations and TOPOS/TORQ geometry
-handoffs, follow the [ecosystem modules guide](.docs/Ecosystem_Modules_Setup.md).
-It explains private credential bindings, automatic installation and execution.
-For personal-owned private projects that use students' own Actions allowance,
-follow the [instructor-managed GitHub App guide](.docs/Personal_Project_App_Deployment.md).
-Students authorize their selected project without handling token values.
+1. Open **Start here**, select **GitHub Actions** under **Run calculations on**,
+   and choose **Check ORCA & CFOUR**.
+2. Open **Your files** and upload your own structures or other scientific inputs.
+3. Open **Calculations**, choose the assigned operation and method, then select
+   **Run on GitHub Actions**.
 
-The **1.1.0 release candidate** adds automatic module setup, student geometry
-uploads, direct Actions submission and retrieval, research reports and preserved
-runtime updates. Its validation is recorded separately from earlier releases.
-Version **1.0.1** brought the integrated CFOUR/module routes and SRS
-closure work into the distribution. Its complete profile
-passed **1,827 tests** with **two explicit physical Slurm deferrals** and no
-failures. Hosted ORCA/CFOUR science, three-platform package/control checks and
-a fresh local Voilà container also passed. The
-[release and validation record](.docs/Release_1_0_1.md) identifies
-actual tested revisions, application equivalence to the complete-profile
-source `583a6d2`, supported operations and how to verify publication through
-the actual GitHub release and its attached validation/checksum records. The older
-[1.0.0 record](.docs/Release_1_0_0.md) remains historical. Existing Classroom50
-assignment copies must be updated to the approved course source; pulling this
-repository does not grant assignment secrets or private-module permissions.
-Use the [single-student deployment pilot](.docs/Student_Deployment_Pilot.md)
-before rolling a new template out to the course.
+If an engine is unavailable, follow the explanation beside it in **Start here**.
+ORCA and CFOUR are **optional and strongly recommended**. Missing access to one
+leaves only its dependent choices unavailable. You can still upload files and
+use the installed free methods.
 
-## Choose a calculation environment
+## Open the interface
 
-| Route | How to use it | Validation boundary |
-| --- | --- | --- |
-| Personal private project / GitHub Actions | Create a private BASE template copy, enroll it through **Lab access**, open a fresh Codespace after approval, upload scientific inputs and select **Run on GitHub Actions**. Classroom50 handles course collection separately. | Exact submitted structures and approved scientific worker revisions bind the retained results. Hosted execution is distinct from actual student Codespaces acceptance. |
-| Local Linux CPU | Complete Stage 0 and select an audited installed engine. | Local tests and real bounded calculations provide evidence for documented operations. |
-| Windows / WSL2 | Submit Actions jobs from the interface; use WSL2 for local Linux ORCA. | The Linux archive does not run natively on Windows. WSL acceptance is separate from Linux cloud tests. |
-| macOS | Use Actions or install the matching macOS engine build and complete setup. | Native macOS acceptance needs an appropriate host. Linux binaries and registries are not portable to it. |
-| HPC / Slurm | Use permitted site engines/MPI and a registry generated in the allocation. | Physical Slurm-node and GPU acceptance remains deferred until a suitable host is supplied. |
-| Codespaces interface | Host the interface in Codespaces and choose the calculation destination independently. | Local lifecycle/browser evidence is separate from an actual Codespaces rebuild. |
+In your project on GitHub, choose **Code → Codespaces → Create codespace**.
+A Codespace is your browser-based VS Code workspace. Approve the project
+permissions GitHub requests, then wait for automatic setup.
+Open **8866 — CoChem Voilà dashboard** from VS Code's **Ports** panel; keep
+that port **Private**.
 
-Selecting Actions preserves the local/HPC choices. Every execution host needs
-its own engine paths, measured resource limits and Stage 0 registry.
+The Codespace displays the interface. **GitHub Actions** runs a calculation on a
+separate computer and returns its results. No student terminal commands, Python
+editing, access-token entry or separate TOPOS/TORQ checkout are required.
 
-## Student Actions calculations
+**Using the instructor's existing repository?** Start with its configured
+access; you do not need a student App invitation. **Creating your own private
+project?** Follow the [student setup steps](.docs/GET_STARTED.md#student-personal-project).
+Your instructor must prepare that access before you can use private engines.
 
-The instructor prepares the private archive and grants selected repositories
-access. All ORCA workflows read the same reviewed
-[`scripts/orca-distribution.json`](scripts/orca-distribution.json). The supported
-distribution is ORCA 6.1.1 for Linux x86-64 with Open MPI 4.1.8; its SHA-256 is
-checked before extraction. The licensed binary is not included in this
-repository, Python distributions or calculation artifacts.
+## Find what you need
 
-1. Create a private BASE template copy under your personal account. Open its
-   initial Codespace and private Voilà dashboard on port 8866. Follow **Lab
-   access** to authorize the instructor's App and request enrollment. After
-   approval, stop that Codespace, create a fresh one and wait for automatic setup.
-2. Upload your own monomer or complex XYZ files and declare their charge and
-   multiplicity. BASE preserves the original files separately from software.
-3. Select **GitHub Actions**, your enrolled private project repository, a supported
-   method and operation, then submit through BASE. No JSON editing, terminal
-   command, separate module checkout or manual workflow dispatch is required.
-4. Use BASE's status, cancellation and verified result retrieval controls.
-   Review computed structures, tables, diagrams and provenance before writing
-   your research report. Use BASE's update controls when a compatible fix is
-   published; software updates preserve uploaded structures and results.
+| I want to… | Open… |
+| --- | --- |
+| Get started, enable an engine, or understand a setup message | [Quick start and troubleshooting](.docs/GET_STARTED.md) |
+| Upload XYZ, MOL/SDF, MOL2, PDB, QCSchema, conformer pools or measured data | [Scientific input and research guide](.docs/Student_Research_No_Code.md#use-the-scientific-input-library) |
+| Set up student-owned projects as an instructor | [Instructor access setup](.docs/GET_STARTED.md#instructor-prepare-student-access) |
+| Collect student work through Classroom50 | [Classroom50 assignment guide](.docs/Classroom50_Assignment_Deployment.md) |
+| Read the software's tested scope and remaining work | [Implementation status](.docs/SRS_Implementation_Status.md) |
 
-The [student research guide](.docs/Student_Research_No_Code.md) describes the
-buttons and actual supported provider scope. Unavailable scientific providers
-disable their dependent operations rather than returning illustrative numbers.
+Students supply their own starting structures and scientific files. XYZ is one
+supported format, not the only input route. BASE keeps uploaded originals and
+calculation records so results can be checked later.
 
-The course workflow supports bounded molecular single points, optimizations
-and harmonic frequencies: up to 50 atoms, one or two processes, at most 1024 MB
-per process and 1800 seconds of chemistry execution. Defaults are two processes
-and 512 MB per process. The same BASE entrypoint also provides typed R2/READ input uploads, explicit T9
-recovery and supported periodic requests, with original-source transport and
-operation-specific scientific checks. VPT2 and other unavailable provider
-operations remain explicitly gated; a successful upload does not certify them.
+<details>
+<summary><strong>Other calculation environments: local computer or HPC</strong></summary>
 
-Examples are [water single point](examples/jobs/water-single-point.json),
-[water optimization](examples/jobs/water-optimization.json), and
-[water optimization plus harmonic frequencies](examples/jobs/water-harmonic.json).
-These HF/STO-3G examples validate execution, not research-level chemical accuracy.
-A harmonic calculation at supplied coordinates does not certify a stationary
-geometry; optimize first when appropriate.
+The interface and calculation location are separate choices. BASE also supports
+local Linux, Windows/WSL2, macOS and configured HPC schedulers. Use the correct
+engine build and complete setup on the computer that will run the calculation.
+A Linux ORCA archive does not run natively on Windows or macOS.
+
+[ORCA setup](.docs/ORCA_Actions_Setup.md) ·
+[CFOUR setup](.docs/CFOUR_Actions_Setup.md) ·
+[Ecosystem module setup](.docs/Ecosystem_Modules_Setup.md)
+
+</details>
+
+<details>
+<summary><strong>Instructor deployment and release records</strong></summary>
+
+The [instructor-managed App guide](.docs/Personal_Project_App_Deployment.md)
+contains the one-time configuration for students' personal private projects.
+An App is GitHub's way to grant the lab's setup service permission to configure
+selected projects. Team membership alone does not copy an organization's
+credentials into a personal repository.
+
+Run the [single-student pilot](.docs/Student_Deployment_Pilot.md) before a class
+rollout. The current **1.1 release candidate** is not a blanket certification
+of every scientific method or student deployment. See the
+[SRS conformance record](.docs/SRS_Student_1_1_Conformance_Trace.md) for evidence
+and open qualifications. The [1.0.1](.docs/Release_1_0_1.md) and
+[1.0.0](.docs/Release_1_0_0.md) records describe earlier releases.
+
+</details>
+
+<details>
+<summary><strong>Workstation and developer installation</strong></summary>
 
 ## Expert local and developer setup
 
@@ -178,57 +150,26 @@ The default setup storage profile requires 50 GB free. Small hosted examples
 use an explicit bounded profile after provisioner disk checks; that does not
 reduce the requirements of larger calculations.
 
-## Setup, data and scientific boundaries
 
-Stage 0 executes eleven setup phases and records their results. Native
-authorization uses the measured registry and verified executable identity;
-a GUI selection alone does not authorize an unavailable engine.
+</details>
 
-Code and schemas stay in the source directory. Registries, HDF5 stores and
-results use an external artifact directory; temporary calculation files use
-external scratch storage. The source gate checks this boundary and retained
-scientific fixture provenance.
+<details>
+<summary><strong>Architecture, development checks and completion handoff</strong></summary>
 
-Connected pathways include xTB, CREST, PySCF, ORCA and periodic Quantum ESPRESSO,
-each subject to its installed capabilities and supported operations. The
-[CFOUR guide](.docs/CFOUR_Actions_Setup.md) describes its bounded molecular
-runtime and calculation pathway. VPT2 and other incomplete domain capabilities
-remain explicit pending handoffs.
-TOPOS and TORQ domain development belongs to their respective repositories.
-BASE does not manufacture results for absent modules.
+Maintainers should read the [workstation completion handoff](.docs/WORKSTATION_COMPLETION_HANDOFF.md).
+The governing requirements are [SRS Chunk 17](.docs/SRS_Chunk_17_CoChem_BASE_Architecture.md)
+plus [proposal additions](.docs/SRS_Chunk_Proposal_CoChem_BASE_Architectural_Review.md).
+The [ingestion specification](.docs/task1_subsystems_architectural_specification.md)
+and [Method Matrix](Method_Matrix.md) define input and scientific requirements.
 
-## Verification and architecture
-
-Maintainers completing the student release should start with the
-[local workstation completion handoff](.docs/WORKSTATION_COMPLETION_HANDOFF.md).
-It records the tested starting point, remaining implementation/integration work,
-actual student deployment checks and release acceptance criteria.
-
-The SRS baseline is Chunk 17 plus architectural proposal additions. See
-[SRS implementation status](.docs/SRS_Implementation_Status.md),
-[ORCA integration evidence](.docs/ORCA_Actions_Setup.md), and
-[scientific acceptance](.docs/ORCA_Scientific_Acceptance.md).
-
-In a prepared environment, run the canonical suite:
+In a prepared development environment, the canonical check is:
 
 ```bash
 python ci_tools/base_ci.py all --output /path/outside/checkout/acceptance
 ```
 
-Reports retain outcomes, exact external deferrals and source integrity.
-Scientific checks use actual calculations where claimed. Download tests, unit
-tests, browser checks and hosted physical acceptance establish different facts.
-Small examples do not certify every method, molecule or a universal PES or
-spectroscopic accuracy bound.
+[Scientific acceptance](.docs/ORCA_Scientific_Acceptance.md) distinguishes actual
+calculations from setup, browser and software checks. Code, managed runtimes,
+original inputs and results are stored separately.
 
-## Project and license
-
-Principal Investigator / Architect: Dr. Joshua John Klaassen
-([ORCID](https://orcid.org/0009-0007-1506-4401)).
-Organization: [ProfJJK-CoChem](https://github.com/ProfJJK-CoChem).
-
-CoChem-BASE uses [Apache-2.0](LICENSE). Separately installed engines and models
-retain their own terms. See the [Method Matrix](Method_Matrix.md),
-[user manual](CoChem_User_Manual.md), and [changelog](CHANGELOG.md). Historical
-alpha documents describe their recorded revisions; current release claims
-require the evidence in the release record.
+</details>

@@ -450,6 +450,141 @@ def case_hpc_selection_denies_interface_host_scientific_execution(gui):
     gui._hpc_monitor_stop.set()
 
 
+
+def case_remove_input_and_geometry_choices_is_recoverable_after_restart(gui):
+    raw = NATIVE.joinpath('water.xyz').read_bytes()
+    upload(gui, raw, 'first-water.xyz')
+    source_id = gui.input_library_choice.value
+    source = gui._input_library[source_id]
+    gui._use_library_geometry()
+    first_geometry = gui.student_geometry_choice.value
+    original = Path(source['path'])
+    receipt = original.parent / 'receipt.json'
+    original_state = (original.read_bytes(), receipt.read_bytes(), original.stat().st_mode)
+    upload(gui, raw, 'second-water.xyz')
+    other_source = gui.input_library_choice.value
+    gui._use_library_geometry()
+    other_geometry = gui.student_geometry_choice.value
+    gui.student_geometry_choice.value = first_geometry
+    gui.input_library_choice.value = source_id
+    gui.btn_remove_input.click()
+    assert source_id not in gui._input_library, gui.input_management_status.value
+    assert other_source in gui._input_library
+    assert first_geometry not in gui._student_uploads
+    assert other_geometry in gui._student_uploads
+    assert gui.student_geometry_choice.value == '' and gui.matrix_geometry.value == ''
+    assert gui.input_library_choice.value == ''
+    assert original_state == (original.read_bytes(), receipt.read_bytes(), original.stat().st_mode)
+    gui.btn_undo_input_remove.click()
+    assert source_id in gui._input_library, gui.input_management_status.value
+    assert first_geometry in gui._student_uploads
+    assert gui.student_geometry_choice.value == ''
+    gui.student_geometry_choice.value = first_geometry
+    gui.btn_remove_geometry.click()
+    assert first_geometry not in gui._student_uploads
+    assert source_id in gui._input_library
+    reopened = CoChemGUI()
+    reopened._input_library_worker.join(timeout=30)
+    assert first_geometry not in reopened._student_uploads
+    assert other_geometry in reopened._student_uploads
+    assert reopened.student_geometry_choice.value == ''
+    reopened.removed_input_choice.value = 'geometries:' + first_geometry
+    reopened.btn_restore_input.click()
+    assert first_geometry in reopened._student_uploads, reopened.input_management_status.value
+    assert reopened.student_geometry_choice.value == ''
+    assert original_state == (original.read_bytes(), receipt.read_bytes(), original.stat().st_mode)
+    reopened._actions_monitor_stop.set()
+    reopened._hpc_monitor_stop.set()
+    reopened._inbox_stop.set()
+
+
+def case_remove_selected_hessian_clears_loaded_force_field(gui):
+    raw = NATIVE.joinpath('water.hess').read_bytes()
+    upload(gui, raw, 'water-for-removal.hess', kind='hessian', control=gui.hessian_input_upload)
+    source_id = gui.input_library_choice.value
+    source = gui._input_library[source_id]
+    gui.btn_load_hessian.click()
+    gui._hessian_load_worker.join(timeout=30)
+    assert gui._isotope_hessian_data is not None
+    gui.btn_remove_input.click()
+    assert source_id not in gui._input_library
+    assert gui._input_selectors['hessian'].value == ''
+    assert gui.isotope_hessian_path.value == ''
+    assert gui._isotope_hessian_data is None
+    assert Path(source['path']).read_bytes() == raw
+
+
+def case_remove_input_during_actual_upload_waits_for_worker(gui):
+    raw = NATIVE.joinpath('water.xyz').read_bytes()
+    upload(gui, raw, 'kept-water.xyz')
+    source_id = gui.input_library_choice.value
+    many_frames = raw * 300
+    gui.input_upload.value = ({'name': 'water-ensemble.xyz', 'type': 'application/octet-stream',
+        'size': len(many_frames), 'content': memoryview(many_frames), 'last_modified': datetime.now(timezone.utc)},)
+    assert gui._ingestion_busy
+    gui.btn_remove_input.click()
+    assert source_id in gui._input_library
+    assert 'Wait for the current upload' in gui.input_management_status.value
+    gui._ingestion_worker.join(timeout=30)
+    assert not gui._ingestion_worker.is_alive()
+    assert source_id in gui._input_library
+
+
+def case_clear_starting_hessian_attachment_stays_clear_after_restart(gui):
+    raw = NATIVE.joinpath('water.xyz').read_bytes()
+    upload(gui, raw, 'water-for-read-hessian.xyz')
+    gui._use_library_geometry()
+    tensor = NATIVE.joinpath('water.hess').read_bytes()
+    gui.scientific_read_upload.value = ({'name': 'water.hess', 'type': 'application/octet-stream',
+        'size': len(tensor), 'content': memoryview(tensor), 'last_modified': datetime.now(timezone.utc)},)
+    gui._scientific_input_worker.join(timeout=30)
+    assert 'read_hessian' in gui._scientific_inputs
+    retained_path = Path(gui._scientific_inputs['read_hessian']['entrypoint_path'])
+    gui.btn_clear_read_attachment.click()
+    assert 'read_hessian' not in gui._scientific_inputs
+    assert retained_path.read_bytes() == tensor
+    reopened = CoChemGUI()
+    reopened._input_library_worker.join(timeout=30)
+    reopened._scientific_restore_worker.join(timeout=30)
+    assert 'read_hessian' not in reopened._scientific_inputs
+    reopened.removed_input_choice.value = 'attachments:read_hessian'
+    reopened.btn_restore_input.click()
+    reopened._scientific_restore_worker.join(timeout=30)
+    assert 'read_hessian' in reopened._scientific_inputs
+    assert Path(reopened._scientific_inputs['read_hessian']['entrypoint_path']).read_bytes() == tensor
+    assert retained_path.read_bytes() == tensor
+    reopened._actions_monitor_stop.set()
+    reopened._hpc_monitor_stop.set()
+    reopened._inbox_stop.set()
+
+
+
+def case_corrupt_saved_dependency_does_not_hide_unrelated_geometry(gui):
+    raw = NATIVE.joinpath('water.xyz').read_bytes()
+    upload(gui, raw, 'damaged-details-water.xyz')
+    gui._use_library_geometry()
+    damaged = gui._student_uploads[gui.student_geometry_choice.value]
+    damaged_original = Path(damaged['path']).read_bytes()
+    metadata = Path(damaged['path']).parent / 'input-manifest.json'
+    changed = json.loads(metadata.read_text())
+    changed['monomer_sources'] = [None]
+    metadata.write_text(json.dumps(changed))
+    damaged_metadata = metadata.read_bytes()
+    upload(gui, raw, 'other-water.xyz')
+    gui._use_library_geometry()
+    other_id = gui.student_geometry_choice.value
+    reopened = CoChemGUI()
+    reopened._input_library_worker.join(timeout=30)
+    assert damaged['id'] not in reopened._student_uploads
+    assert other_id in reopened._student_uploads
+    assert 'damaged source records' in reopened.student_upload_status.value
+    assert Path(damaged['path']).read_bytes() == damaged_original
+    assert metadata.read_bytes() == damaged_metadata
+    reopened._actions_monitor_stop.set()
+    reopened._hpc_monitor_stop.set()
+    reopened._inbox_stop.set()
+
+
 CASES = [name.removeprefix('case_') for name in globals() if name.startswith('case_')]
 
 

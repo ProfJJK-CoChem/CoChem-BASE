@@ -21,6 +21,7 @@ REQUEST_SCHEMA = "cochem.student-project-access.v1"
 RECEIPT_SCHEMA = "cochem.student-project-access-receipt.v1"
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\Z")
 _SHA = re.compile(r"[a-f0-9]{40}\Z")
+_DEVCONTAINER = ".devcontainer/devcontainer.json"
 _CRITICAL_PREFIXES = (
     "src/", "scripts/", ".scripts/", "ci_tools/", "ui/", "frontend/", "cochem/",
     "cochem_topos/", "cochem_geom/", "cochem_ml/", "cochem_mobile/", "cochem_torq/",
@@ -312,20 +313,131 @@ def _tree(api: GitHubAPI, repository: str, revision: str) -> dict[str, tuple[str
     return entries
 
 
+def _git_blob_sha(content: bytes) -> str:
+    return hashlib.sha1(b"blob " + str(len(content)).encode("ascii") + b"\0" + content).hexdigest()
+
+
+def _project_codespaces_configuration(api: GitHubAPI, config: ControllerConfig,
+                                      template_sha: str, project: str) -> bytes:
+    """Derive one exact project grant from the approved configuration blob.
+
+    Every lifecycle command, environment setting and extension comes from the
+    instructor-approved source. GitHub permits additional repository requests
+    only within the source repository's owner, so personal projects replace the
+    canonical owner's repository list instead of requesting cross-owner access.
+    """
+    repository_name(project)
+    value = api.call("GET", f"/repos/{config.approved_base_repository}/git/blobs/{template_sha}")
+    if (not isinstance(value, dict) or value.get("sha") != template_sha
+            or value.get("encoding") != "base64" or type(value.get("size")) is not int
+            or not 0 < value["size"] <= 65536 or not isinstance(value.get("content"), str)
+            or len(value["content"]) > 90000):
+        raise CourseAccessError("The approved Codespaces configuration could not be read.")
+    def unique_object(pairs):
+        result = {}
+        for key, item in pairs:
+            if key in result:
+                raise ValueError("duplicate configuration key")
+            result[key] = item
+        return result
+
+    try:
+        content = base64.b64decode("".join(value["content"].split()), validate=True)
+        if len(content) != value["size"] or _git_blob_sha(content) != template_sha:
+            raise ValueError("configuration blob identity differs")
+        document = json.loads(content, object_pairs_hook=unique_object)
+        codespaces = document["customizations"]["codespaces"]
+        if not isinstance(codespaces["repositories"], dict):
+            raise ValueError("repository permissions must be explicit")
+        codespaces["repositories"] = {project: {"permissions": {"actions": "write", "contents": "write"}}}
+        return (json.dumps(document, indent=2, allow_nan=False) + "\n").encode("utf-8")
+    except (ValueError, TypeError, KeyError, UnicodeError):
+        raise CourseAccessError("The approved Codespaces configuration is invalid; ask the instructor to update BASE.") from None
+
+
+def _project_revision(api: GitHubAPI, project: dict) -> str:
+    branch = parse.quote(project["default_branch"], safe="")
+    value = api.call("GET", f"/repos/{project['full_name']}/git/ref/heads/{branch}")
+    item = value.get("object") if isinstance(value, dict) else None
+    if (not isinstance(item, dict) or item.get("type") != "commit"
+            or not _SHA.fullmatch(str(item.get("sha", "")))):
+        raise CourseAccessError("The project's current source revision could not be verified.")
+    return item["sha"]
+
+
 def verify_project_source(project_api: GitHubAPI, authority_api: GitHubAPI,
                           config: ControllerConfig, project: dict) -> dict[str, str]:
-    """Template history may differ; required executable blobs must be identical."""
-    actual = _tree(project_api, project["full_name"], project["default_branch"])
+    """Require exact executable blobs and the exact generated project grant."""
+    project_revision = _project_revision(project_api, project)
+    actual = _tree(project_api, project["full_name"], project_revision)
     for revision in dict.fromkeys((config.approved_base_sha, *config.allowed_starter_shas)):
         approved = _tree(authority_api, config.approved_base_repository, revision)
         critical = {name: value for name, value in approved.items() if _protected_source_path(name)}
+        template = critical.get(_DEVCONTAINER)
+        if not template or template[1] != "100644":
+            continue
+        generated = _project_codespaces_configuration(authority_api, config, template[0], project["full_name"])
+        generated_identity = (_git_blob_sha(generated), "100644")
         if (critical and "scripts/run_student_research.py" in critical
                 and ".github/workflows/student_research.yml" in critical
-                and all(actual.get(name) == identity for name, identity in critical.items())
+                and all(actual.get(name) == identity or
+                        (name == _DEVCONTAINER and actual.get(name) == generated_identity)
+                        for name, identity in critical.items())
                 and not any(_protected_source_path(name) and name not in approved for name in actual)):
-            return {"starter_sha": revision, "source_digest": hashlib.sha256(
+            return {"starter_sha": revision, "project_revision": project_revision,
+                    "devcontainer_template_sha": template[0],
+                    "devcontainer_current_sha": actual[_DEVCONTAINER][0],
+                    "source_digest": hashlib.sha256(
                 json.dumps(critical, sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
     raise CourseAccessError("The project starter is not an instructor-approved BASE revision. Ask the instructor to approve your compatible starter or use BASE's reviewed update; retain your student data.")
+
+
+def _configure_project_codespaces(app_api: GitHubAPI, installation: dict,
+                                  project_api: GitHubAPI, authority_api: GitHubAPI,
+                                  config: ControllerConfig, project: dict,
+                                  binding: dict[str, str]) -> dict[str, Any]:
+    content = _project_codespaces_configuration(authority_api, config,
+        binding["devcontainer_template_sha"], project["full_name"])
+    digest = _git_blob_sha(content)
+    result = {"codespaces_configuration_sha": digest, "codespaces_authorization_required": True}
+    if binding["devcontainer_current_sha"] == digest:
+        return result
+    try:
+        writer = _installation_api(app_api, installation, {"contents": "write"}, project["id"])
+    except CourseAccessHTTPError as exc:
+        if exc.status not in {403, 422}:
+            raise
+        raise CourseAccessError("The instructor must change the lab GitHub App's Contents permission to Read and write, approve that change for this project, then retry setup. BASE uses it only to configure this project's Codespace.") from None
+    prefix = f"/repos/{project['full_name']}/git"
+    commit = project_api.call("GET", prefix + "/commits/" + binding["project_revision"])
+    if (not isinstance(commit, dict) or commit.get("sha") != binding["project_revision"]
+            or not isinstance(commit.get("tree"), dict)
+            or not _SHA.fullmatch(str(commit["tree"].get("sha", "")))):
+        raise CourseAccessError("The verified project tree could not be read; retry setup.")
+    blob = writer.call("POST", prefix + "/blobs", {
+        "encoding": "base64", "content": base64.b64encode(content).decode("ascii")})
+    if not isinstance(blob, dict) or blob.get("sha") != digest:
+        raise CourseAccessError("GitHub did not retain the exact project Codespaces configuration.")
+    tree = writer.call("POST", prefix + "/trees", {"base_tree": commit["tree"]["sha"],
+        "tree": [{"path": _DEVCONTAINER, "mode": "100644", "type": "blob", "sha": digest}]})
+    if not isinstance(tree, dict) or not _SHA.fullmatch(str(tree.get("sha", ""))):
+        raise CourseAccessError("GitHub did not prepare the project Codespaces configuration.")
+    saved = writer.call("POST", prefix + "/commits", {
+        "message": "Configure this project's Codespace to submit CoChem calculations",
+        "tree": tree["sha"], "parents": [binding["project_revision"]]})
+    if not isinstance(saved, dict) or not _SHA.fullmatch(str(saved.get("sha", ""))):
+        raise CourseAccessError("GitHub did not save the project Codespaces configuration.")
+    try:
+        updated = writer.call("PATCH", prefix + "/refs/heads/" + parse.quote(project["default_branch"], safe=""),
+                              {"sha": saved["sha"], "force": False})
+    except CourseAccessHTTPError as exc:
+        if exc.status not in {403, 409, 422}:
+            raise
+        raise CourseAccessError("The project's setup update was refused. Its branch may have changed or may restrict App changes. Ask the instructor to check the App's access and retry; existing project files were not overwritten.") from None
+    if (not isinstance(updated, dict) or not isinstance(updated.get("object"), dict)
+            or updated["object"].get("type") != "commit" or updated["object"].get("sha") != saved["sha"]):
+        raise CourseAccessError("The project's Codespaces setup update could not be confirmed.")
+    return result
 
 
 def encrypted_secret(public_key: str, value: str) -> str:
@@ -382,6 +494,8 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
             or not isinstance(project.get("default_branch"), str) or not project["default_branch"]):
         raise CourseAccessError("Select an active private personal project created with BASE's Use this template button.")
     source_binding = verify_project_source(read_api, authority_api, config, project)
+    codespaces_configuration = _configure_project_codespaces(app_api, installation, read_api,
+        authority_api, config, project, source_binding)
     writer_api = _installation_api(app_api, installation,
         {"secrets": "write", "actions_variables": "write", "codespaces_secrets": "write"}, project["id"])
     selected = {kind: value for kind, value in config.credentials.items()
@@ -429,7 +543,7 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
     # Binding names and values are private repository metadata, never returned
     # as public acceptance evidence or posted into the enrollment issue.
     return {"schema": RECEIPT_SCHEMA, "repository": project["full_name"], "author": author,
-            "approved_base_sha": config.approved_base_sha, **source_binding,
+            "approved_base_sha": config.approved_base_sha, **source_binding, **codespaces_configuration,
             "available": sorted(selected),
             "unavailable": sorted(set(enrollment.engines) - selected.keys()),
             "codespaces_source": "available" if "source" in selected else "unavailable",

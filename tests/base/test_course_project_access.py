@@ -44,6 +44,10 @@ def _decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
+def _blob_sha(value: bytes) -> str:
+    return hashlib.sha1(b"blob " + str(len(value)).encode() + b"\0" + value).hexdigest()
+
+
 @dataclass(frozen=True)
 class ProtocolConfiguration:
     """Initial response data for the actual local HTTP engineering peer."""
@@ -94,6 +98,15 @@ class ProtocolServer(ThreadingHTTPServer):
         self.secret_values = {}
         self.codespaces_values = {}
         self.variables = {}
+        self.devcontainer = (Path(__file__).resolve().parents[2] / ".devcontainer/devcontainer.json").read_bytes()
+        self.project_devcontainer = self.devcontainer
+        self.project_revision = hashlib.sha1(b"original project commit").hexdigest()
+        self.project_tree = hashlib.sha1(b"original project tree").hexdigest()
+        self.git_blobs = {}
+        self.git_trees = {}
+        self.git_commits = {}
+        self.deny_contents_write = False
+        self.move_project_before_update = False
         self.critical = [
             {"path": "scripts/run_student_research.py", "sha": hashlib.sha1(b"worker-script").hexdigest(), "mode": "100644", "type": "blob"},
             {"path": ".github/workflows/student_research.yml", "sha": hashlib.sha1(b"workflow").hexdigest(), "mode": "100644", "type": "blob"},
@@ -102,6 +115,8 @@ class ProtocolServer(ThreadingHTTPServer):
         for name in ("cli.py", "requirements-ui.txt", ".core_infrastructure_hashring.json",
                      "pytest.ini", "pytest-srs.ini", ".scripts/entry.sh", "Launch_CoChem_Mac.command"):
             self.critical.append({"path": name, "sha": hashlib.sha1(name.encode()).hexdigest(), "mode": "100644", "type": "blob"})
+        self.critical.append({"path": ".devcontainer/devcontainer.json", "sha": _blob_sha(self.devcontainer),
+                              "mode": "100644", "type": "blob"})
 
     @property
     def url(self):
@@ -166,6 +181,9 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                          "type": "Organization" if org else "User"}})
             return
         if path.startswith("/app/installations/") and path.endswith("/access_tokens"):
+            if state.deny_contents_write and payload["permissions"] == {"contents": "write"}:
+                self.answer({"message": state.error_secret}, 422)
+                return
             token = secrets.token_urlsafe(32)
             state.tokens[token] = payload
             permissions = dict(payload["permissions"])
@@ -210,6 +228,8 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                 if state.source_changed:
                     tree[0]["sha"] = "0" * 40
                 for item in tree:
+                    if item["path"] == ".devcontainer/devcontainer.json":
+                        item["sha"] = _blob_sha(state.project_devcontainer)
                     if item["path"] == state.tampered_path:
                         item["sha"] = hashlib.sha1(b"unapproved changed executable").hexdigest()
                 if state.source_extra:
@@ -217,9 +237,64 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                 tree.append({"path": "student-complex.xyz", "sha": "c" * 40, "mode": "100644", "type": "blob"})
             self.answer({"tree": tree, "truncated": state.source_truncated})
             return
+        if path.startswith("/repos/Lab/BASE/git/blobs/"):
+            assert path.rsplit("/", 1)[1] == _blob_sha(state.devcontainer)
+            self.answer({"sha": _blob_sha(state.devcontainer), "encoding": "base64",
+                         "size": len(state.devcontainer), "content": base64.b64encode(state.devcontainer).decode()})
+            return
+        if path == "/repos/student/project/git/ref/heads/main":
+            assert permissions == {"contents": "read"}
+            self.answer({"object": {"type": "commit", "sha": state.project_revision}})
+            return
+        if path.startswith("/repos/student/project/git/commits/") and method == "GET":
+            assert permissions == {"contents": "read"}
+            assert path.rsplit("/", 1)[1] == state.project_revision
+            self.answer({"sha": state.project_revision, "tree": {"sha": state.project_tree}})
+            return
         prefix = "/repos/student/project/"
         if path.startswith(prefix):
             assert state.tokens[auth]["repository_ids"] == [42]
+            if "/git/" in path:
+                assert permissions == {"contents": "write"}
+                state.writes.append((method, path))
+                if path.endswith("/git/blobs") and method == "POST":
+                    assert payload["encoding"] == "base64"
+                    content = base64.b64decode(payload["content"], validate=True)
+                    digest = _blob_sha(content)
+                    state.git_blobs[digest] = content
+                    self.answer({"sha": digest}, 201)
+                    return
+                if path.endswith("/git/trees") and method == "POST":
+                    assert payload["base_tree"] == state.project_tree
+                    assert len(payload["tree"]) == 1
+                    entry = payload["tree"][0]
+                    assert entry["path"] == ".devcontainer/devcontainer.json"
+                    assert entry["mode"] == "100644" and entry["type"] == "blob"
+                    assert entry["sha"] in state.git_blobs
+                    digest = hashlib.sha1(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+                    state.git_trees[digest] = payload
+                    self.answer({"sha": digest}, 201)
+                    return
+                if path.endswith("/git/commits") and method == "POST":
+                    assert payload["parents"] == [state.project_revision]
+                    assert payload["tree"] in state.git_trees
+                    digest = hashlib.sha1(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+                    state.git_commits[digest] = payload
+                    self.answer({"sha": digest}, 201)
+                    return
+                if path.endswith("/git/refs/heads/main") and method == "PATCH":
+                    assert payload["force"] is False
+                    if state.move_project_before_update:
+                        self.answer({"message": "Reference update is not a fast-forward"}, 422)
+                        return
+                    commit = state.git_commits[payload["sha"]]
+                    assert commit["parents"] == [state.project_revision]
+                    tree = state.git_trees[commit["tree"]]
+                    state.project_devcontainer = state.git_blobs[tree["tree"][0]["sha"]]
+                    state.project_revision = payload["sha"]
+                    state.project_tree = commit["tree"]
+                    self.answer({"object": {"type": "commit", "sha": state.project_revision}})
+                    return
             assert permissions == {"secrets": "write", "actions_variables": "write", "codespaces_secrets": "write"}
             if path.endswith("/secrets/public-key"):
                 key = state.codespaces_key if "/codespaces/" in path else state.actions_key
@@ -297,6 +372,74 @@ def test_actual_http_provisions_encrypted_actions_and_codespaces_separately(peer
     assert all(value not in json.dumps(receipt) for value in config.credentials.values())
     assert config.private_key not in repr(config)
     assert peer.variables["COCHEM_APPROVED_BASE_SHA"] == config.approved_base_sha
+
+
+def test_canonical_codespace_explicitly_authorizes_submission_to_its_own_project():
+    path = Path(__file__).resolve().parents[2] / ".devcontainer/devcontainer.json"
+    repositories = json.loads(path.read_bytes())["customizations"]["codespaces"]["repositories"]
+    assert repositories["ProfJJK-CoChem/CoChem-BASE"]["permissions"] == {
+        "actions": "write", "contents": "write"}
+    assert all(value["permissions"] == {"contents": "read"}
+               for name, value in repositories.items() if name != "ProfJJK-CoChem/CoChem-BASE")
+
+
+def test_enrollment_prepares_exact_project_permissions_without_changing_launch_code(peer):
+    receipt = provision(peer)
+    original = json.loads(peer.devcontainer)
+    actual = json.loads(peer.project_devcontainer)
+    assert actual["customizations"]["codespaces"]["repositories"] == {
+        "student/project": {"permissions": {"actions": "write", "contents": "write"}}}
+    original["customizations"]["codespaces"]["repositories"] = actual["customizations"]["codespaces"]["repositories"]
+    assert actual == original
+    assert receipt["codespaces_configuration_sha"] == _blob_sha(peer.project_devcontainer)
+    assert receipt["codespaces_authorization_required"] is True
+    assert len(peer.git_commits) == 1
+    assert all(request.get("repository_ids") == [42] for request in peer.tokens.values()
+               if request["permissions"] == {"contents": "write"})
+    previous = peer.project_revision
+    provision(peer)
+    assert peer.project_revision == previous
+    assert len(peer.git_commits) == 1
+
+
+@pytest.mark.parametrize("change", ["other_project", "broad_grant", "extra_permission", "startup_command", "environment", "formatting"])
+def test_only_exact_generated_codespace_configuration_is_accepted(peer, change):
+    provision(peer)
+    actual = json.loads(peer.project_devcontainer)
+    if change == "other_project":
+        actual["customizations"]["codespaces"]["repositories"] = {"student/other": {"permissions": {"actions": "write", "contents": "write"}}}
+    elif change == "broad_grant":
+        actual["customizations"]["codespaces"]["repositories"] = {"student/*": {"permissions": "write-all"}}
+    elif change == "extra_permission":
+        actual["customizations"]["codespaces"]["repositories"]["student/project"]["permissions"]["workflows"] = "write"
+    elif change == "startup_command":
+        actual["postCreateCommand"] = "python unapproved.py"
+    elif change == "environment":
+        actual["containerEnv"]["UNAPPROVED"] = "1"
+    peer.project_devcontainer = json.dumps(actual, indent=None if change == "formatting" else 2).encode() + b"\n"
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError, match="starter"):
+        provision(peer)
+    assert peer.writes == []
+
+
+def test_missing_app_contents_write_reports_instructor_action_before_credentials(peer):
+    peer.deny_contents_write = True
+    with pytest.raises(CourseAccessError, match="Contents.*Read and write") as result:
+        provision(peer)
+    assert peer.error_secret not in str(result.value)
+    assert peer.secret_values == {} and peer.codespaces_values == {}
+    assert peer.writes == []
+
+
+def test_concurrent_project_change_is_not_overwritten_or_given_credentials(peer):
+    peer.move_project_before_update = True
+    original = peer.project_revision
+    with pytest.raises(CourseAccessError, match="changed|update"):
+        provision(peer)
+    assert peer.project_revision == original
+    assert peer.project_devcontainer == peer.devcontainer
+    assert peer.secret_values == {} and peer.codespaces_values == {}
 
 
 def test_optional_engines_are_not_required_for_base_and_source_setup(peer):

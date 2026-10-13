@@ -334,3 +334,92 @@ def test_retained_archive_preview_does_not_bypass_external_or_pickled_data_guard
     np.savez(objects, unsupported_objects=np.asarray([{'declared': 'not science'}], dtype=object))
     with pytest.raises(ValueError, match='object arrays'):
         preview_scientific_archive(objects)
+
+
+def test_remove_and_restore_input_preserves_original_and_receipt(tmp_path):
+    from cochem_base.interfaces.student_input_visibility import set_input_visibility
+    from cochem_base.interfaces.student_ingestion import scan_ingested_inputs
+    first = ingest_uploaded_file('first-water.xyz', WATER, artifact_dir=tmp_path)
+    second = ingest_uploaded_file('second-water.xyz', WATER, artifact_dir=tmp_path)
+    original = Path(first['path'])
+    receipt = original.parent / 'receipt.json'
+    before = (original.read_bytes(), receipt.read_bytes(), original.stat().st_mode, receipt.stat().st_mode)
+    set_input_visibility(tmp_path, 'inputs', first['input_id'], hidden=True)
+    current = scan_ingested_inputs(tmp_path)
+    assert [item['input_id'] for item in current['inputs']] == [second['input_id']]
+    assert [item['input_id'] for item in current['removed_inputs']] == [first['input_id']]
+    assert list_ingested_inputs(tmp_path) == [second]
+    assert before == (original.read_bytes(), receipt.read_bytes(), original.stat().st_mode, receipt.stat().st_mode)
+    set_input_visibility(tmp_path, 'inputs', first['input_id'], hidden=False)
+    assert {item['input_id'] for item in list_ingested_inputs(tmp_path)} == {first['input_id'], second['input_id']}
+    assert before == (original.read_bytes(), receipt.read_bytes(), original.stat().st_mode, receipt.stat().st_mode)
+
+
+def test_concurrent_input_removals_retain_both_choices(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from cochem_base.interfaces.student_input_visibility import read_input_visibility, set_input_visibility
+    sources = [ingest_uploaded_file(name + '.xyz', WATER, artifact_dir=tmp_path) for name in ('first', 'second')]
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        outcomes = [workers.submit(set_input_visibility, tmp_path, 'inputs', item['input_id'], hidden=True) for item in sources]
+        for outcome in outcomes:
+            outcome.result(timeout=20)
+    assert set(read_input_visibility(tmp_path)['inputs']) == {item['input_id'] for item in sources}
+    assert not list_ingested_inputs(tmp_path)
+
+
+def test_removal_state_corruption_does_not_silently_restore_inputs(tmp_path):
+    from cochem_base.interfaces.student_input_visibility import set_input_visibility
+    first = ingest_uploaded_file('first-water.xyz', WATER, artifact_dir=tmp_path)
+    set_input_visibility(tmp_path, 'inputs', first['input_id'], hidden=True)
+    (tmp_path / 'InputLibrary' / 'selection-state.json').write_text('{"inputs":')
+    with pytest.raises(ValueError, match='removed input choices'):
+        list_ingested_inputs(tmp_path)
+    assert Path(first['path']).read_bytes() == WATER
+
+
+def test_removed_monomer_hides_dependent_assembly_without_losing_records():
+    from cochem_base.interfaces.student_input_visibility import partition_geometry_choices
+    source_id, monomer_id, assembly_id, other_id = ('1' * 32, '2' * 32, '3' * 32, '4' * 32)
+    records = {
+        monomer_id: {'id': monomer_id, 'source_input_id': source_id},
+        assembly_id: {'id': assembly_id, 'monomer_sources': [{'id': monomer_id}]},
+        other_id: {'id': other_id},
+    }
+    active, removed = partition_geometry_choices(records, {'inputs': [source_id], 'geometries': []})
+    assert set(active) == {other_id}
+    assert set(removed) == {monomer_id, assembly_id}
+    active, removed = partition_geometry_choices(records, {'inputs': [], 'geometries': [monomer_id]})
+    assert set(active) == {other_id}
+    active, removed = partition_geometry_choices(records, {'inputs': [], 'geometries': []})
+    assert active == records and not removed
+
+
+def test_changed_removed_original_cannot_be_restored(tmp_path):
+    from cochem_base.interfaces.student_input_visibility import read_input_visibility, set_input_visibility
+    original = ingest_uploaded_file('my-water.xyz', WATER, artifact_dir=tmp_path)
+    set_input_visibility(tmp_path, 'inputs', original['input_id'], hidden=True)
+    path = Path(original['path'])
+    path.chmod(0o600)
+    path.write_bytes(WATER + b'Changed after upload\n')
+    with pytest.raises(ValueError, match='changed|checksum'):
+        set_input_visibility(tmp_path, 'inputs', original['input_id'], hidden=False)
+    assert original['input_id'] in read_input_visibility(tmp_path)['inputs']
+    assert path.read_bytes() == WATER + b'Changed after upload\n'
+
+
+@pytest.mark.parametrize('attachment', [{}, []])
+def test_malformed_removed_attachment_choices_are_readable_errors(tmp_path, attachment):
+    from cochem_base.interfaces.student_input_visibility import read_input_visibility
+    ingest_uploaded_file('water.xyz', WATER, artifact_dir=tmp_path)
+    (tmp_path / 'InputLibrary' / 'selection-state.json').write_text(json.dumps({
+        'schema_version': 'cochem.student-input-selection/1', 'inputs': [], 'geometries': [],
+        'attachments': [attachment]}))
+    with pytest.raises(ValueError, match='saved removed input choices'):
+        read_input_visibility(tmp_path)
+
+
+@pytest.mark.parametrize('sources', [[None], {}, 3])
+def test_invalid_saved_monomer_sources_are_rejected_before_choice_filtering(sources):
+    from cochem_base.interfaces.student_input_visibility import partition_geometry_choices
+    with pytest.raises(ValueError, match='monomer source'):
+        partition_geometry_choices({'1' * 32: {'monomer_sources': sources}}, {'inputs': [], 'geometries': []})

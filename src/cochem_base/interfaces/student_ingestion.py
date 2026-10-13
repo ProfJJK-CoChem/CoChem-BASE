@@ -398,17 +398,20 @@ def _load_retained_input(folder: Path) -> dict:
 
 def scan_ingested_inputs(artifact_dir: Path) -> dict:
     """Recover valid inputs independently, retaining explicit rejected originals."""
+    from .student_input_visibility import read_input_visibility
     library = _library(Path(artifact_dir))
+    hidden = set(read_input_visibility(artifact_dir)["inputs"])
     entries = sorted(item for item in library.iterdir() if re.fullmatch(r"[0-9a-f]{32}", item.name))
     if len(entries) > MAX_RECORDS:
         raise ValueError("Student input library exceeds bounded receipt inventory")
-    accepted, rejected = [], []
+    accepted, rejected, removed = [], [], []
     for folder in entries:
         try:
-            accepted.append(_load_retained_input(folder))
+            record = _load_retained_input(folder)
+            (removed if folder.name in hidden else accepted).append(record)
         except (ValueError, OSError, KeyError, TypeError, UnicodeError) as error:
             rejected.append({"input_id": folder.name, "reason": str(error), "original_retained": True})
-    return {"inputs": accepted, "rejections": rejected}
+    return {"inputs": accepted, "removed_inputs": removed, "rejections": rejected}
 
 
 def list_ingested_inputs(artifact_dir: Path) -> list[dict]:

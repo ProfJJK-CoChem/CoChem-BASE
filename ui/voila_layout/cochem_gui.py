@@ -32,6 +32,15 @@ _lib_path = str(_REPO_ROOT / "Libraries")
 if _lib_path not in sys.path:
     sys.path.insert(0, _lib_path)
 
+from ui.voila_layout.research_panels import (
+    OPERATION_LABELS,
+    bond_analysis_help_html,
+    build_results_panel,
+    build_topos_panel,
+    build_torq_panel,
+    research_capabilities_html,
+)
+
 # Core CoChem imports for Method Matrix v4 and SRS Chunk 4
 from cochem.hpc.slurm_controller import (
     SlurmSubmissionController,
@@ -55,6 +64,7 @@ from cochem_base.theory_matrix import (
     validate_method_matrix_compliance,
     validate_product_class_policy,
 )
+from ui.voila_layout.input_management import InputManagementMixin
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -118,6 +128,20 @@ def _observable(value: Optional[float], precision: int = 3) -> str:
     return "[MISSING DATA]" if value is None else f"{value:.{precision}f}"
 
 
+def _collapsed_section(title: str, *children: widgets.Widget) -> widgets.VBox:
+    from ui.voila_layout.disclosure import Disclosure
+
+    return Disclosure(title, *children)
+
+
+def _setup_check_link(url: str | None) -> str:
+    """Show only a bounded, ordinary GitHub run link supplied by the client."""
+    if not isinstance(url, str) or not re.fullmatch(
+            r"https://github\.com/[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*/actions/runs/[0-9]+", url):
+        return ""
+    return f"<p><a href='{html.escape(url, quote=True)}' target='_blank' rel='noopener noreferrer'>Open project setup check on GitHub</a></p>"
+
+
 class CourseAccessWidget(widgets.VBox):
     """Data-only lab enrollment; access remains the worker's observed authority."""
 
@@ -130,12 +154,12 @@ class CourseAccessWidget(widgets.VBox):
         saved = self._load_settings()
         self.project = widgets.Text(description="Current project:", value=project_repository,
             disabled=True, style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
-        self.controller = widgets.Text(description="Instructor access repository:",
-            value=controller_repository or saved.get("controller_repository", ""),
-            placeholder="instructor-organization/private-access-controller",
+        self.controller = widgets.Text(description="Instructor's setup link:",
+            value=saved.get("controller_repository", controller_repository),
+            placeholder="https://github.com/your-lab/project-access",
             style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
-        self.app_slug = widgets.Text(description="Instructor lab App slug:", value=app_slug or saved.get("app_slug", ""),
-            placeholder="App slug from your instructor's invitation", style={'description_width': 'initial'},
+        self.app_slug = widgets.Text(description="Instructor's App installation link:", value=saved.get("app_slug", app_slug),
+            placeholder="https://github.com/apps/your-lab-app", style={'description_width': 'initial'},
             layout=widgets.Layout(width='95%'))
         selected = saved.get("engines", ["orca", "cfour"])
         self.orca = widgets.Checkbox(description="Request optional ORCA access", value="orca" in selected,
@@ -144,31 +168,34 @@ class CourseAccessWidget(widgets.VBox):
             style={'description_width': 'initial'}, indent=False)
         self.links = widgets.HTML()
         self.status = widgets.HTML()
-        self.btn_save = widgets.Button(description="Save lab invitation")
+        self.btn_save = widgets.Button(description="Save invitation")
         self.btn_save.on_click(self._save_settings)
-        self.btn_refresh = widgets.Button(description="Refresh lab access", disabled=on_refresh is None)
+        self.btn_clear = widgets.Button(description="Clear invitation")
+        self.btn_clear.on_click(self._clear_settings)
+        self.btn_refresh = widgets.Button(description="Check granted access", disabled=on_refresh is None)
         if on_refresh is not None:
             self.btn_refresh.on_click(on_refresh)
-        super().__init__(children=[
-            widgets.HTML("<h3>Lab Access for your personal project</h3>"
-                "<p>Use your own <b>private</b> GitHub project and the invitation supplied by your instructor. "
-                "This keeps Actions usage with the project owner. Organization-owned assignments use the organization's Actions allowance. "
-                "Organization secrets do not transfer to personal projects.</p>"),
+        invitation = widgets.VBox([
+            widgets.HTML("<p>Only use this form if your instructor gave you two setup links for a <b>personal private project</b>. "
+                "The first link opens your lab's access-request repository; the second installs the lab's GitHub App. "
+                "These are not the ORCA or CFOUR download repositories. Ask your instructor for these links; do not enter a token.</p>"),
             self.project, self.controller, self.app_slug, self.orca, self.cfour,
             widgets.HTML("<p>ORCA and CFOUR are optional and strongly recommended. You can request module access without either licensed engine. "
                 "Your instructor must authorize the applicable license access.</p>"),
-            self.links, self.status, widgets.HBox([self.btn_save, self.btn_refresh]),
-            widgets.HTML("<ol><li>Select <b>Authorize lab app</b>. On GitHub, choose your personal account and "
+            self.links, self.status, widgets.HBox([self.btn_save, self.btn_clear, self.btn_refresh],
+                layout=widgets.Layout(flex_flow='row wrap')),
+            widgets.HTML("<details><summary>How to connect your personal project</summary><ol><li>Select <b>Authorize lab app</b>. On GitHub, choose your personal account and "
                 "<b>Only select repositories</b>, select the private project shown above, and approve the instructor's App.</li>"
                 "<li>Select <b>Request project access</b>, then <b>Submit new issue</b> on GitHub. "
                 "The request is already filled in; do not add passwords or tokens. Wait for the instructor controller's result on that issue.</li>"
-                "<li>After access is granted, select <b>Refresh lab access</b> for a real Actions archive-access check. "
+                "<li>After access is granted, select <b>Check granted access</b> for an Actions download check. "
                 "Each calculation separately verifies installation and scientific execution.</li>"
                 "<li>To receive newly granted private module access, create a <b>fresh Codespace</b> for this same project. "
-                "BASE installs the approved modules automatically. Your existing Codespace does not prove it has received the new access.</li></ol>"
-                "<p>For an organization-owned assignment whose instructor already configured access, use the existing "
-                "<b>Retry remote engine check</b>; personal-project enrollment is unnecessary.</p>"),
-        ], layout=widgets.Layout(border='1px solid #b8daff', padding='12px', margin='10px 0'))
+                "BASE installs the approved modules automatically.</li></ol>"
+                "<p>Actions usage belongs to the repository owner. Organization secrets do not transfer to a personal project.</p></details>"),
+        ])
+        super().__init__(children=[_collapsed_section("Connect using an instructor invitation (personal projects)", invitation)],
+            layout=widgets.Layout(width='100%'))
         for control in (self.controller, self.app_slug, self.orca, self.cfour):
             control.observe(self._render_links, names="value")
         self._render_links()
@@ -178,7 +205,7 @@ class CourseAccessWidget(widgets.VBox):
         if not path.exists() and not path.is_symlink():
             return {}
         try:
-            if path.is_symlink() or path.parent.is_symlink() or path.stat().st_size > 4096:
+            if path.is_symlink() or path.parent.is_symlink() or not path.is_file() or path.stat().st_size > 4096:
                 raise ValueError("The retained invitation is not a bounded regular settings file.")
             saved = json.loads(path.read_text(encoding="utf-8"))
             if (not isinstance(saved, dict) or set(saved) != {"schema", "controller_repository", "app_slug", "engines"}
@@ -198,16 +225,37 @@ class CourseAccessWidget(widgets.VBox):
         self._render_links()
 
     def _enrollment_links(self) -> dict[str, str]:
+        from urllib.parse import urlsplit
+
         from cochem_base.interfaces.course_access import enrollment_links
+
+        def github_name(value: str, *, app: bool = False) -> str:
+            value = value.strip()
+            if "://" not in value:
+                return value
+            parsed = urlsplit(value)
+            if (parsed.scheme != "https" or parsed.netloc != "github.com"
+                    or parsed.query or parsed.fragment):
+                raise ValueError("Use the https://github.com link supplied by your instructor.")
+            parts = parsed.path.strip("/").split("/")
+            if app:
+                if (len(parts) not in (2, 4) or parts[0] != "apps"
+                        or (len(parts) == 4 and parts[2:] != ["installations", "new"])):
+                    raise ValueError("The App link should look like https://github.com/apps/your-lab-app.")
+                return parts[1]
+            if len(parts) != 2:
+                raise ValueError("The setup link should look like https://github.com/your-lab/project-access.")
+            return "/".join(parts)
+
         engines = tuple(engine for engine, selected in (("orca", self.orca.value), ("cfour", self.cfour.value)) if selected)
-        return enrollment_links(self.controller.value.strip(), self.app_slug.value.strip(),
+        return enrollment_links(github_name(self.controller.value), github_name(self.app_slug.value, app=True),
             self.project.value.strip(), engines)
 
     def _render_links(self, change: Any = None) -> None:
         self.links.value = ""
         self.btn_save.disabled = True
         if not self.controller.value.strip() or not self.app_slug.value.strip() or not self.project.value.strip():
-            message = "[MISSING DATA] Confirm your project above and enter the access repository and App slug from your instructor's invitation."
+            message = "Paste both setup links from your instructor to create the two buttons below. If this project already has access, close this section and select Check ORCA & CFOUR."
         else:
             try:
                 links = self._enrollment_links()
@@ -219,23 +267,33 @@ class CourseAccessWidget(widgets.VBox):
                     "style='display:inline-block;padding:8px 12px;border:1px solid #0056b3;border-radius:4px;color:#0056b3'>"
                     + label + "</a>" for key, label in (("install", "Authorize lab app"), ("enroll", "Request project access"))) + "</p>"
                 self.btn_save.disabled = False
-                message = "Enrollment links are ready. Access has not been verified; submitting a request does not enable calculation methods."
+                message = "Open Authorize lab app first, then Request project access. Access has not been verified yet."
         if self._restore_warning:
             message += " " + self._restore_warning
         self.status.value = "<p role='status' aria-live='polite'>" + html.escape(message) + "</p>"
 
     def _save_settings(self, b: Any = None) -> None:
+        self._write_settings(clear=False)
+
+    def _clear_settings(self, b: Any = None) -> None:
+        if self._write_settings(clear=True):
+            self.controller.value = ""
+            self.app_slug.value = ""
+            self.status.value = "<p role='status'>Invitation cleared. Your files and existing GitHub access are unchanged.</p>"
+
+    def _write_settings(self, *, clear: bool) -> bool:
         from cochem_base.config_loader import get_artifact_dir
         try:
-            self._enrollment_links()
+            if not clear:
+                self._enrollment_links()
             # Recheck the data tier rather than following a changed settings symlink.
             root = get_artifact_dir(self._settings_path.parent.parent)
             directory = root / "StudentSetup"
             if directory.is_symlink() or self._settings_path.is_symlink():
                 raise ValueError("Lab invitation settings must remain in the owned data directory.")
             directory.mkdir(parents=True, exist_ok=True)
-            saved = {"schema": "cochem.course-invitation/1", "controller_repository": self.controller.value.strip(),
-                "app_slug": self.app_slug.value.strip(), "engines": [engine for engine, selected in
+            saved = {"schema": "cochem.course-invitation/1", "controller_repository": "" if clear else self.controller.value.strip(),
+                "app_slug": "" if clear else self.app_slug.value.strip(), "engines": [engine for engine, selected in
                 (("orca", self.orca.value), ("cfour", self.cfour.value)) if selected]}
             temporary = directory / (".course-access-" + uuid.uuid4().hex + ".json")
             with temporary.open("x", encoding="utf-8") as stream:
@@ -244,9 +302,10 @@ class CourseAccessWidget(widgets.VBox):
             temporary.replace(self._settings_path)
         except (ImportError, ValueError, RuntimeError, OSError) as exc:
             self.status.value = "<p role='alert'>Lab invitation could not be retained: " + html.escape(str(exc)) + "</p>"
-            return
+            return False
         self._restore_warning = ""
-        self.status.value = "<p role='status'>Lab invitation saved with your research data. No credentials were stored and no access has been granted by this action.</p>"
+        self.status.value = "<p role='status'>Invitation saved. Open Authorize lab app, then Request project access. No credentials were stored.</p>"
+        return True
 
 
 def licensed_engine_availability(registry_path: str | Path | None = None) -> dict[str, dict[str, Any]]:
@@ -264,7 +323,7 @@ def licensed_engine_availability(registry_path: str | Path | None = None) -> dic
     return availability
 
 
-class CoChemGUI:
+class CoChemGUI(InputManagementMixin):
     def __init__(self) -> None:
         self.state = CoChemGUIState()
         self._pipeline_running = False
@@ -317,7 +376,7 @@ class CoChemGUI:
         # --- UI Components ---
 
         # 1. Header (Appbar)
-        self.header_title = widgets.HTML("<h2>CoChem No-Code Interface</h2>", layout=widgets.Layout(margin='0px 20px 0px 0px'))
+        self.header_title = widgets.HTML("<h2>CoChem research workspace</h2>", layout=widgets.Layout(margin='0px 20px 0px 0px'))
         self.header_status = widgets.HTML(f"<b role='status' aria-live='polite'>[System: {self.state.system_status}]</b>", layout=widgets.Layout(margin='10px 20px 0px 0px'))
         # Remote assistance must not claim a connection without a live backend.
         self.ai_container = widgets.VBox([widgets.HTML(
@@ -330,19 +389,19 @@ class CoChemGUI:
             layout=widgets.Layout(
                 display='flex',
                 justify_content='flex-start',
-                align_items='center',
+                align_items='center', flex_flow='row wrap',
                 padding='10px',
                 border='1px solid #ccc',
             )
         )
 
         # 2. Sidebar (Navigation)
-        self.btn_install = widgets.Button(description="Seamless Install", icon='cogs', layout=widgets.Layout(width='auto', margin='5px 0'))
-        self.btn_matrix = widgets.Button(description="No Code Matrix", icon='table', layout=widgets.Layout(width='auto', margin='5px 0'))
-        self.btn_inspector = widgets.Button(description="Data Inspector (Ab-Initio)", icon='search', layout=widgets.Layout(width='auto', margin='5px 0'))
-        self.btn_modules = widgets.Button(description="Research results", layout=widgets.Layout(width='auto', margin='5px 0'))
+        self.btn_install = widgets.Button(description="Start here", icon='cogs', layout=widgets.Layout(width='auto', margin='5px 0'))
+        self.btn_matrix = widgets.Button(description="Calculations", icon='table', layout=widgets.Layout(width='auto', margin='5px 0'))
+        self.btn_inspector = widgets.Button(description="Spectra and properties", icon='search', layout=widgets.Layout(width='auto', margin='5px 0'))
+        self.btn_modules = widgets.Button(description="Results", layout=widgets.Layout(width='auto', margin='5px 0'))
         self.btn_periodic = widgets.Button(description="Periodic structures", layout=widgets.Layout(width='auto', margin='5px 0'))
-        self.btn_inputs = widgets.Button(description="Input library", layout=widgets.Layout(width='auto', margin='5px 0'))
+        self.btn_inputs = widgets.Button(description="Your files", layout=widgets.Layout(width='auto', margin='5px 0'))
 
         # Configuration and inspection work without provisioned quantum engines.
         # Execution performs its own dependency and scientific validation.
@@ -368,19 +427,19 @@ class CoChemGUI:
         # 3.1 Seamless Install View
         
         self.gh_repo_input = widgets.Text(
-            description="Course repository:", value=os.environ.get("GITHUB_REPOSITORY", ""),
-            placeholder="course-organization/student-repository", style={'description_width': 'initial'},
+            description="GitHub project:", value=os.environ.get("GITHUB_REPOSITORY", ""),
+            placeholder="your-account/project-name", style={'description_width': 'initial'},
             layout=widgets.Layout(width='90%'),
         )
         self.gh_branch_input = widgets.Text(
-            description="Approved branch:", value=os.environ.get("GITHUB_REF_NAME", "main"),
+            description="Project branch:", value=os.environ.get("GITHUB_REF_NAME", "main"),
             style={'description_width': 'initial'},
         )
         self.gh_guidance = widgets.HTML()
-        self.remote_engine_status = widgets.HTML("<p role='status'>Remote licensed-engine availability has not been checked.</p>")
-        self.btn_remote_engine_check = widgets.Button(description="Retry remote engine check")
+        self.remote_engine_status = widgets.HTML("<p role='status'>Select Check ORCA &amp; CFOUR to find out which programs this project can download.</p>")
+        self.btn_remote_engine_check = widgets.Button(description="Check ORCA & CFOUR")
         self.btn_remote_engine_check.on_click(self._check_remote_engines)
-        self.btn_remote_engine_cancel = widgets.Button(description="Cancel remote engine check", disabled=True)
+        self.btn_remote_engine_cancel = widgets.Button(description="Cancel check", disabled=True)
         self.btn_remote_engine_cancel.on_click(self._cancel_remote_engine_check)
         from cochem_base.config_loader import get_artifact_dir
         self.course_access_panel = CourseAccessWidget(project_repository=self.gh_repo_input.value,
@@ -388,8 +447,12 @@ class CoChemGUI:
             controller_repository=os.environ.get("COCHEM_ACCESS_CONTROLLER_REPOSITORY", ""),
             app_slug=os.environ.get("COCHEM_ACCESS_APP_SLUG", ""), on_refresh=self._refresh_lab_access)
         self.gh_setup_box = widgets.VBox([
-            self.gh_repo_input, self.gh_branch_input, self.course_access_panel,
-            widgets.HBox([self.btn_remote_engine_check, self.btn_remote_engine_cancel]), self.remote_engine_status, self.gh_guidance,
+            widgets.HTML("<h3>ORCA and CFOUR on GitHub Actions</h3><p>If your instructor already enabled access for this project, "
+                "select <b>Check ORCA &amp; CFOUR</b>. You do not need the invitation form below. "
+                "Both programs are optional and strongly recommended; unavailable programs disable only calculations that need them.</p>"),
+            widgets.HBox([self.btn_remote_engine_check, self.btn_remote_engine_cancel], layout=widgets.Layout(flex_flow='row wrap')),
+            self.remote_engine_status, self.gh_guidance, self.course_access_panel,
+            _collapsed_section("Project details (normally filled in automatically)", self.gh_repo_input, self.gh_branch_input),
         ], layout=widgets.Layout(border='1px solid #0056b3', padding='15px', margin='10px 0'))
         self.gh_repo_input.observe(self._refresh_actions_guidance, names='value')
         self.gh_repo_input.observe(lambda change: self.course_access_panel.set_project(change['new']), names='value')
@@ -418,12 +481,13 @@ class CoChemGUI:
             widgets.HTML('<p>Choose an actual native operation. Frequencies at supplied coordinates do not establish a stationary structure; optimize first when a minimum is required. HPC resource requests are configured in the scheduler panel.</p>')],
             layout=widgets.Layout(display='none'))
         self.actions_job_options = widgets.VBox([
-            self.actions_operation, self.actions_timeout, self.actions_cores, self.actions_memory,
-            widgets.HTML("<p>Course profile: ORCA or CFOUR, up to 50 atoms, one or two cores, "
+            self.actions_operation,
+            _collapsed_section("Calculation resources and frequency guidance", self.actions_timeout, self.actions_cores, self.actions_memory,
+            widgets.HTML("<p>This classroom calculation route allows up to 50 atoms, one or two cores, "
                          "512 MB per core by default (maximum 1024 MB), and at most 1800 seconds per calculation. "
                          "BASE submits the selected resources and monitors the calculation here.</p>"
                          "<p>Harmonic frequencies at supplied coordinates do not certify a stationary structure. "
-                         "Choose <b>Optimize + harmonic frequencies</b> to optimize first. VPT2 remains a separate module integration.</p>"),
+                         "Choose <b>Optimize + harmonic frequencies</b> to optimize first. VPT2 remains a separate module integration.</p>")),
         ], layout=widgets.Layout(display='none'))
         self.actions_operation.observe(self._invalidate_actions_job, names='value')
         self.actions_timeout.observe(self._invalidate_actions_job, names='value')
@@ -435,18 +499,18 @@ class CoChemGUI:
                 ('WSL2 (Recommended for Windows)', 'wsl'), 
                 ('macOS', 'macos'), 
                 ('Linux', 'linux'), 
-                ('GitHub Actions (Cloud Compute)', 'github-actions'), 
+                ('GitHub Actions', 'github-actions'),
                 ('HPC Cluster (Slurm/PBS)', 'hpc')
             ],
             value='github-actions' if os.environ.get('CODESPACES', '').lower() == 'true' else
                   'macos' if sys.platform == 'darwin' else 'local' if os.name == 'nt' else 'linux',
-            description='Calculation Environment:',
+            description='Run calculations on:',
             style={'description_width': 'initial'}
         )
         self.interact_env_dropdown = widgets.Dropdown(
             options=['Local', 'GitHub Codespaces'],
             value='GitHub Codespaces' if os.environ.get('CODESPACES', '').lower() == 'true' else 'Local',
-            description='Interaction Environment:',
+            description='Interface runs in:',
             style={'description_width': 'initial'}
         )
 
@@ -516,8 +580,8 @@ class CoChemGUI:
         self.bin_orca = widgets.Text(description="ORCA Path:", placeholder="Absolute path to orca executable", layout=widgets.Layout(width='80%'))
         self.bin_cfour = widgets.Text(description="CFOUR Path:", placeholder="Absolute path to xcfour executable", layout=widgets.Layout(width='80%'))
         
-        self.btn_detect_bins = widgets.Button(description="Auto-Detect from PATH", button_style="info", icon="search", layout=widgets.Layout(width='auto'))
-        self.btn_save_bins = widgets.Button(description="Inject Paths into Environment", button_style="success", icon="save", layout=widgets.Layout(width='auto'))
+        self.btn_detect_bins = widgets.Button(description="Find installed engines", button_style="info", icon="search", layout=widgets.Layout(width='auto'))
+        self.btn_save_bins = widgets.Button(description="Use these executable paths", button_style="success", icon="save", layout=widgets.Layout(width='auto'))
         self.local_setup_output = widgets.HTML("")
 
         def _auto_detect(b):
@@ -589,35 +653,36 @@ class CoChemGUI:
         self.run_install_btn.on_click(self._run_installation)
 
         self.install_output = BoundedTelemetryOutput(layout=widgets.Layout(border='1px solid #ccc', height='300px', overflow='auto'))
+        self.advanced_local_setup = _collapsed_section("Advanced local setup", self.install_data_path,
+            self.btn_validate_install_data, self.install_data_status, self.install_min_disk,
+            widgets.HTML("<p>Required disk space defaults to 50 GB. Choose the measured needs of your workload.</p>"))
         self.local_install_options = widgets.VBox([
             self.license_mode,
             widgets.HTML("<p>ORCA and CFOUR are optional and strongly recommended. Free dependencies are installed or audited; "
                          "licensed engines are discovered when separately provisioned. An unavailable licensed engine does not fail BASE setup. "
                          "Its dependent methods remain unavailable until that engine passes its execution audit.</p>"),
             self.licensed_engine_status,
-            self.install_data_path, self.btn_validate_install_data, self.install_data_status,
-            self.install_min_disk,
-            widgets.HTML("<p>Set the required disk space to the measured needs of your workload. The default reserves 50 GB.</p>"),
-            widgets.HTML("<h4>Installation Logs</h4>"),
-            self.install_output,
+            self.advanced_local_setup,
+            _collapsed_section("Installation output", self.install_output),
         ], layout=widgets.Layout(display='none' if self.calc_env_dropdown.value == 'github-actions' else ''))
         self.view_install = widgets.VBox([
-            widgets.HTML("<h3>Seamless Install Wizard</h3>"),
-            widgets.HTML("<p>Setup pipeline and real physical data ingestion.</p>"),
+            widgets.HTML("<h3>Start here</h3><p><b>1.</b> Check your calculation access below. "
+                "<b>2.</b> Open <b>Your files</b> to upload your research inputs. "
+                "<b>3.</b> Open <b>Calculations</b> to choose a calculation.</p>"),
             self.calc_env_dropdown,
-            self.interact_env_dropdown,
+            _collapsed_section("Where is this interface running?", self.interact_env_dropdown),
             self.dynamic_setup_container,
             self.local_install_options,
             self.run_install_btn,
         ], layout=widgets.Layout(padding='20px'))
         self._build_student_setup_panel()
-        self.view_install.children = (self.student_setup_panel, *self.view_install.children)
+        self.view_install.children = (*self.view_install.children, self.student_setup_panel)
 
         # 3.2 Step 0: Product Class Gate & No Code Matrix View
         self.product_class_selector = widgets.RadioButtons(
             options=[pc.value for pc in ProductClass] + ["Screening (no product accuracy claim)"],
             value=ProductClass.PRODUCT_A.value,
-            description="Step 0 Gate:",
+            description="Calculation goal:",
             style={'description_width': 'initial'},
             layout=widgets.Layout(width='100%')
         )
@@ -1050,16 +1115,15 @@ class CoChemGUI:
 
         self.config_tabs = widgets.Tab(children=[self.tab_builder, self.tab_base, self.tab_topos, self.tab_torq, self.tab_fragments])
         self.config_tabs.set_title(0, 'Molecule Builder')
-        self.config_tabs.set_title(1, 'Base Config')
+        self.config_tabs.set_title(1, 'Method and settings')
         self.config_tabs.set_title(2, 'TOPOS')
         self.config_tabs.set_title(3, 'TORQ')
         self.config_tabs.set_title(4, 'Fragments / Frozen')
         
 
         self.output_destination_guidance = widgets.HTML()
-        self.configuration_export = widgets.Accordion(children=[widgets.VBox([
-            self.live_preview, self.btn_save_matrix, self.matrix_output, self.actions_job_download])])
-        self.configuration_export.set_title(0, 'Optional reproducibility export')
+        self.configuration_export = _collapsed_section('Optional reproducibility export',
+            self.live_preview, self.btn_save_matrix, self.matrix_output, self.actions_job_download)
         self.configuration_export.selected_index = None
         self.matrix_config_panel = widgets.VBox([
             widgets.HTML("<h4>Simulation Parameters</h4>"),
@@ -1152,19 +1216,19 @@ class CoChemGUI:
         self.actions_controls.children += (self.actions_calculated_geometry, self.btn_actions_use_geometry)
 
         self.telemetry_panel = widgets.VBox([
-            widgets.HTML("<h4>Live Telemetry & Execution</h4>"),
+            widgets.HTML("<h4>Run calculation</h4>"),
             self.execution_description,
             widgets.HBox([self.btn_execute, self.btn_cancel]),
             self.actions_controls,
             self.calculation_result,
-            self.telemetry_output
+            _collapsed_section("Live calculation output", self.telemetry_output)
         ], layout=widgets.Layout(border='1px solid #ccc', padding='10px', margin='10px 0'))
 
         self.view_matrix = widgets.VBox([
-            widgets.HTML("<h3>No Code Matrix Configuration</h3>"),
-            widgets.HTML("<p>Interface for configuring and launching physical simulations mapped to the Method Matrix [M].</p>"),
-            self.product_class_card,
+            widgets.HTML("<h3>Calculations</h3><p>Select your calculation goal, then choose inputs and a method below. "
+                "TOPOS searches and compares structures; TORQ explores distance scans and bonding.</p>"),
             self.product_class_selector,
+            _collapsed_section("What do the calculation goals mean?", self.product_class_card),
             self.matrix_config_panel,
             self.slurm_panel,
             self.telemetry_panel
@@ -1246,10 +1310,10 @@ class CoChemGUI:
         ])
         self.inspector_tabs.set_title(0, "Rotational Observables (B_e vs B_0)")
         self.inspector_tabs.set_title(1, "Isotopic Re-analysis")
-        self.inspector_tabs.set_title(2, "HDF5 SWMR Store")
+        self.inspector_tabs.set_title(2, "Data tables (HDF5/NPZ)")
 
         self.data_inspector_widget = DataInspectorWidget([
-            widgets.HTML("<h3>Data Inspector (Ab-Initio Spectroscopic Observables)</h3>"),
+            widgets.HTML("<h3>Spectra and properties</h3>"),
             widgets.HTML("<p>Rigorous extraction of rotational constants, vibrational corrections, dipole moments, and dynamic isotopic shifts.</p>"),
             widgets.HBox([self.inspector_file_input, self.btn_parse_inspector]),
             self.inspector_tabs
@@ -1320,6 +1384,18 @@ class CoChemGUI:
             self.calculation_result, self.telemetry_output,
         ], layout=widgets.Layout(padding='20px'))
         self._build_input_library_panel()
+        self._build_input_management()
+        self.tab_fragments.children = tuple(
+            widget for child in self.tab_fragments.children for widget in
+            ((child, self.btn_clear_r2_attachment) if child is self.scientific_r2_upload else
+             (child, self.btn_clear_read_attachment) if child is self.scientific_read_upload else (child,)))
+        builder_controls = self.tab_builder.children[0]
+        builder_controls.children = tuple(
+            widget for child in builder_controls.children
+            for widget in ((child, self.geometry_management_controls) if child is self.student_geometry_choice else (child,)))
+        self.view_inputs.children = tuple(
+            widget for child in self.view_inputs.children
+            for widget in ((child, self.input_management_controls) if child is self.input_library_choice else (child,)))
         self.view_periodic.children += (self.slurm_panel,)
 
         self.main_content = widgets.VBox(
@@ -1330,8 +1406,7 @@ class CoChemGUI:
         # 4. Footer (Error & Notification System)
         self.footer_message = widgets.HTML("")
         self.telemetry_html = widgets.HTML("")
-        self.telemetry_accordion = widgets.Accordion(children=[self.telemetry_html])
-        self.telemetry_accordion.set_title(0, "Diagnostic Telemetry")
+        self.telemetry_accordion = _collapsed_section("Technical diagnostics", self.telemetry_html)
         self.telemetry_accordion.layout.display = 'none'
 
         self.footer = widgets.VBox(
@@ -1519,8 +1594,9 @@ class CoChemGUI:
             self._input_selectors[key] = chooser
             setattr(self, f'{key}_input_upload', uploader)
         # Paths remain private bindings for the native APIs. The student chooses files.
-        self.local_install_options.children = tuple(self._input_selectors['install'] if child is self.install_data_path else child
-            for child in self.local_install_options.children)
+        advanced = self.advanced_local_setup.body
+        advanced.children = tuple(self._input_selectors['install'] if child is self.install_data_path else child
+            for child in advanced.children)
         self.local_install_options.children = (self.install_input_upload, *self.local_install_options.children)
         isotope_panel = self.inspector_tabs.children[1]
         isotope_panel.children = tuple(self._input_selectors['hessian'] if child is self.isotope_hessian_path else child
@@ -1531,7 +1607,7 @@ class CoChemGUI:
         self.inspector_rot_table.value = "<i>Upload or select a native calculation output, then choose Parse Observables.</i>"
         self.data_inspector_widget.children = (self.data_inspector_widget.children[0], self.data_inspector_widget.children[1],
             self.telemetry_input_upload, self._input_selectors['telemetry'], self.btn_parse_inspector, self.inspector_tabs)
-        advanced = self.view_modules.children[-1].children[0]
+        advanced = self.view_modules.children[-1].body.children[0]
         advanced.children = tuple(self._input_selectors['module'] if child is self.module_artifact else child
             for child in advanced.children if child not in (self.module_root, self.module_output, self.module_operation))
         advanced.children = (self.module_input_upload, *advanced.children)
@@ -1541,6 +1617,7 @@ class CoChemGUI:
     def _bind_library_path(self, kind: str, input_id: str) -> None:
         record = self._input_library.get(input_id)
         if not record:
+            self._clear_input_binding(kind)
             return
         if kind == "hessian" and self.calculation_hessian_choice.value:
             self.calculation_hessian_choice.value = ""
@@ -1602,6 +1679,11 @@ class CoChemGUI:
                                 selector.value = input_id
                 if hasattr(self, '_paw_pseudopotential_choices'):
                     self._refresh_paw_species()
+                    for receipt in accepted:
+                        if receipt.get('kind') == 'pseudopotential':
+                            chooser = self._paw_pseudopotential_choices.get(receipt.get('metadata', {}).get('element'))
+                            if chooser is not None and receipt['input_id'] in [value for _, value in chooser.options]:
+                                chooser.value = receipt['input_id']
             self._ui_call(finish)
         self._ingestion_worker = threading.Thread(target=ingest, daemon=True)
         self._ingestion_worker.start()
@@ -1630,14 +1712,14 @@ class CoChemGUI:
         return scan_ingested_inputs(get_artifact_dir())
 
     def _apply_input_library(self, snapshot: dict[str, Any]) -> None:
+        snapshot = self._filter_input_snapshot(snapshot)
         self._input_library = {item['input_id']: item for item in snapshot['inputs']}
         self.btn_input_refresh.disabled = False
         choices = [(str(item['filename']) + ' (' + item['kind'].replace('_', ' ') + ')', key)
                    for key, item in self._input_library.items()]
         selected = self.input_library_choice.value
-        self.input_library_choice.options = choices or [("Upload a scientific input", "")]
-        if selected in self._input_library:
-            self.input_library_choice.value = selected
+        self.input_library_choice.options = [("Choose an uploaded input", "")] + choices
+        self.input_library_choice.value = selected if selected in self._input_library else ""
         for kind, selector in self._input_selectors.items():
             selected = selector.value
             allowed = {'install': {'hessian'}, 'hessian': {'hessian'}, 'telemetry': {'spectroscopy'},
@@ -1648,10 +1730,8 @@ class CoChemGUI:
                      and (kind != 'physical_data' or Path(item['path']).suffix.lower() in {'.h5', '.hdf5', '.npz'})
                      and (kind != 'module' or item['kind'] != 'molecular'
                           or Path(item['path']).suffix.lower() == '.xyz' and len(item.get('records', [])) == 1)]
-            selector.options = ([("Choose uploaded data or inspect the retained calculation result", "")] + items
-                                if kind == 'physical_data' else items or [("Upload or choose a retained input", "")])
-            if selected in [value for _, value in items]:
-                selector.value = selected
+            selector.options = [("Choose an uploaded input", "")] + items
+            selector.value = selected if selected in [value for _, value in items] else ""
         self.input_pool_choices.options = [(item['filename'], key) for key, item in self._input_library.items()
                                           if item['kind'] in {'conformer_pool', 'molecular'}]
         rows = ''.join('<tr>' + ''.join('<td>' + html.escape(str(value)) + '</td>' for value in
@@ -1663,6 +1743,7 @@ class CoChemGUI:
             self.input_library_table.value += '<p role="alert">Rejected retained inputs; original files remain preserved: ' + '<br/>'.join(
                 html.escape(item['input_id'] + ': ' + item['reason']) for item in self._input_library_rejections) + '</p>'
         self._refresh_paw_species()
+        self._sync_input_management(snapshot)
 
     def _select_library_input(self, change: Any) -> None:
         receipt = self._input_library.get(change['new'], {})
@@ -1748,7 +1829,8 @@ class CoChemGUI:
                         if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
                             continue  # A producer is still writing; read on the next scan.
                         digest = hashlib.sha256(content).hexdigest()
-                        if any(item['sha256'] == digest and item['filename'] == path.name for item in self._input_library.values()):
+                        if any(item['sha256'] == digest and item['filename'] == path.name
+                               for item in [*self._input_library.values(), *self._removed_input_library.values()]):
                             continue
                         ingest_uploaded_file(path.name, content, artifact_dir=get_artifact_dir(), kind='auto')
                         count += 1
@@ -1897,7 +1979,7 @@ class CoChemGUI:
                 if item['kind'] == 'pseudopotential' and item.get('metadata', {}).get('element') == symbol
                 and ' '.join(item.get('metadata', {}).get('header', {}).get('functional', '').upper().split()) in {'PBE', 'SLA PW PBX PBC'}
                 and item.get('metadata', {}).get('header', {}).get('has_so', '').strip().upper() in {'F', 'FALSE', '.FALSE.'}]
-            selector = widgets.Dropdown(options=choices or [(f'Upload a PBE PAW UPF for {symbol}', '')],
+            selector = widgets.Dropdown(options=[(f'Choose a PBE PAW UPF for {symbol}', '')] + choices,
                 description=f'{symbol} PAW file:', style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
             if previous.get(symbol) in [value for _, value in choices]:
                 selector.value = previous[symbol]
@@ -1988,10 +2070,10 @@ class CoChemGUI:
                                (self.btn_setup_restart, "restart_dashboard")):
             button.on_click(lambda _, name=action: self._student_setup_action(name))
         self.student_setup_panel = widgets.VBox([
-            widgets.HTML("<h3>CoChem setup and updates</h3><p>BASE prepares TOPOS and TORQ automatically in separate environments. You use every module here; no terminal commands or separate repository installation are needed. Your input geometries and results stay outside application source during updates.</p>"),
+            widgets.HTML("<h3>Setup and updates</h3><p>BASE installs TOPOS and TORQ for you. Use them here. No terminal commands are needed. Updates preserve your research files.</p>"),
             self.student_setup_status,
-            widgets.HBox([self.btn_setup_retry, self.btn_setup_updates, self.btn_setup_apply]),
-            widgets.HBox([self.btn_setup_rollback, self.btn_setup_restart]),
+            widgets.HBox([self.btn_setup_retry, self.btn_setup_updates, self.btn_setup_apply], layout=widgets.Layout(flex_flow='row wrap')),
+            _collapsed_section("Recover from an update", self.btn_setup_rollback, self.btn_setup_restart),
         ], layout=widgets.Layout(border='1px solid #b8daff', padding='12px', margin='10px 0'))
 
     def _render_student_setup_status(self, status: dict[str, Any]) -> None:
@@ -2009,12 +2091,16 @@ class CoChemGUI:
                     (name.upper(), observed.get('status', 'unavailable'), observed.get('version', ''), observed.get('message', observed.get('reason', '')))) + '</tr>')
         base = status.get("base", {})
         operation = status.get("operation", {})
+        message = str(operation.get('message') or '').strip()
+        if not status.get('ready') and message.rstrip('.').lower() == 'ready':
+            message = ''
         self.student_setup_status.value = (
-            f"<p role='status' aria-live='polite'><b>{'Ready' if status.get('ready') else 'Setup requires attention'}</b>. "
-            f"BASE revision: {html.escape(str(base.get('revision', 'unavailable')))}. "
-            f"{html.escape(str(operation.get('message', '')))}</p>"
+            f"<p role='status' aria-live='polite'><b>{'CoChem setup is ready' if status.get('ready') else 'Some components are not ready'}</b>. "
+            f"{html.escape(message) if message else 'Choose Retry setup to check installation.' if not status.get('ready') else ''}</p>"
+            "<details><summary>Installation details and software versions</summary>"
+            f"<p>BASE version: {html.escape(str(base.get('revision') or 'not yet checked'))}</p>"
             "<table><caption>CoChem components</caption><thead><tr><th>Component</th><th>Status</th><th>Revision</th><th>Details</th></tr></thead><tbody>"
-            + "".join(rows) + "</tbody></table>"
+            + "".join(rows) + "</tbody></table></details>"
         )
         self.btn_setup_restart.disabled = self._student_setup_busy or not base.get("restart_required", False)
         self.btn_setup_rollback.disabled = self._student_setup_busy or not bool(status.get("rollback_available", False))
@@ -2175,7 +2261,10 @@ class CoChemGUI:
     def _select_student_geometry(self, change: Any) -> None:
         key = change["new"]
         record = self._student_uploads.get(key)
-        if not record or self._input_selection_running:
+        if self._input_selection_running:
+            return
+        if not record:
+            self._clear_geometry_selection()
             return
         path = Path(record["path"])
         try:
@@ -2246,10 +2335,12 @@ class CoChemGUI:
         """Reopen the student's retained, hash-checked inputs after GUI updates."""
         from cochem_base.config_loader import get_artifact_dir
         from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+        from cochem_base.interfaces.student_input_visibility import geometry_dependencies
         root = get_artifact_dir() / "StudentInputs"
         if not root.is_dir() or root.is_symlink():
             return
         records = {}
+        invalid_dependencies = []
         manifests = []
         for candidate in root.glob("*/input-manifest.json"):
             try:
@@ -2303,14 +2394,25 @@ class CoChemGUI:
                         for state, group in zip(states, groups, strict=True))
                     if not valid_states or sum(state["charge"] for state in states) != record["charge"]:
                         continue
+                try:
+                    geometry_dependencies(record)
+                except ValueError:
+                    invalid_dependencies.append(record['label'])
+                    continue
                 records[key] = record
             except (ValueError, KeyError, TypeError, UnicodeError, OSError):
                 continue
-        if records:
-            self._student_uploads.update(records)
-            self.student_geometry_choice.options = [(record["label"], key) for key, record in self._student_uploads.items()]
+        records = self._active_geometry_records(records)
+        self._student_uploads = records
+        self._sync_input_management()
+        visibility = self._input_visibility()
+        if records and not self._input_selection_running and not visibility['inputs'] and not visibility['geometries']:
             self.student_geometry_choice.value = next(reversed(records))
-            self._refresh_student_monomer_choices()
+        if invalid_dependencies:
+            self.student_upload_status.value = (
+                "<p role='alert'>These saved geometries have damaged source records: "
+                + html.escape(', '.join(invalid_dependencies))
+                + ". Their original files are kept. Select the original input again to prepare a new starting geometry.</p>")
 
     def _assemble_student_monomers(self, b: Any = None) -> None:
         try:
@@ -2582,8 +2684,11 @@ class CoChemGUI:
                 metadata = destination / 'student-scientific-input.json'
                 metadata.write_text(json.dumps(retained, indent=2, allow_nan=False) + '\n', encoding='utf-8')
                 metadata.chmod(0o444)
+                from cochem_base.interfaces.student_input_visibility import set_attachment_visibility
+                set_attachment_visibility(get_artifact_dir(), kind, hidden=False)
                 def success() -> None:
                     self._scientific_inputs[kind] = receipt
+                    self._sync_input_management()
                     if kind == 'r2_reference':
                         self.r2_reference_manifest.value = str(receipt['entrypoint_path'])
                     self.scientific_input_status.value = (
@@ -2621,11 +2726,12 @@ class CoChemGUI:
                 except OSError:
                     continue
             restored = {}
+            removed_attachments = set(self._input_visibility()['attachments'])
             for _, path in sorted(candidates, reverse=True)[:20]:
                 try:
                     record = json.loads(path.read_text(encoding='utf-8'))
                     kind = record['kind']
-                    if kind in restored or kind not in {'r2_reference', 'read_hessian'} or record.get('schema_version') != 'cochem.student-scientific-input/1':
+                    if kind in removed_attachments or kind in restored or kind not in {'r2_reference', 'read_hessian'} or record.get('schema_version') != 'cochem.student-scientific-input/1':
                         continue
                     if not re.fullmatch('[a-f0-9]{64}', record['geometry_sha256']) or not isinstance(record.get('files'), dict) or not 1 <= len(record['files']) <= 512:
                         continue
@@ -2650,8 +2756,11 @@ class CoChemGUI:
                 except (ValueError, TypeError, KeyError, OSError):
                     continue
             def complete() -> None:
+                still_removed = set(self._input_visibility()['attachments'])
                 for kind, receipt in restored.items():
-                    self._scientific_inputs.setdefault(kind, receipt)
+                    if kind not in still_removed:
+                        self._scientific_inputs.setdefault(kind, receipt)
+                self._sync_input_management()
                 if restored:
                     self.scientific_input_status.value = '<p role="status">Retained R2/READ evidence was reopened after verifying its original file hashes. Choose the matching geometry; native scientific validation remains required.</p>'
                     self._check_dispersion_gate()
@@ -2701,14 +2810,8 @@ class CoChemGUI:
         self.btn_research_topos = widgets.Button(description="Run TOPOS research", button_style="success", disabled=True)
         self.btn_research_topos.on_click(self._run_student_topos)
         self.research_status = widgets.HTML("<p role='status'>Upload your own monomer or complex starting geometries in Molecule Builder.</p>")
-        self.research_topos_panel = widgets.VBox([
-            widgets.HTML("<h4>TOPOS research through BASE</h4><p>Use your uploaded starting geometry or a documented seed assembled from your own monomers. Choose an installed operation; results retain the actual method, input and provider identities.</p>"),
-            self.research_capabilities, self.btn_research_refresh, self.research_topos_operation,
-            self.research_topos_engine, self.research_matrix_recipe, self.research_matrix_guidance, self.research_candidates, self.research_temperature,
-            self.btn_research_fragment_states, self.research_fragment_states, self.btn_research_topos, self.research_status,
-        ])
-        old_topos = widgets.Accordion(children=[self.tab_topos])
-        old_topos.set_title(0, "Advanced native conformer search")
+        self.research_topos_panel = build_topos_panel(self)
+        old_topos = _collapsed_section("Advanced native conformer search", self.tab_topos)
         old_topos.selected_index = None
         self.tab_topos = widgets.VBox([self.research_topos_panel, old_topos])
         self.research_scan_method = widgets.Dropdown(options=[("HF (installation example)", "hf"),
@@ -2733,14 +2836,8 @@ class CoChemGUI:
         self.research_orbital_backend = widgets.Dropdown(options=[('No verified orbital backend', None)],
             description='Orbital backend:', style={'description_width': 'initial'}, disabled=True)
         self.research_orbital_backend.observe(lambda change: self._refresh_execution_gate(), names='value')
-        self.research_bond_capability = widgets.HTML("<p>NBO and Wiberg calculations require an installed provider that returns authentic, hash-bound analysis. An unavailable provider disables those selections. Mayer, Löwdin and NAO-Wiberg bond definitions are distinct.</p>")
-        self.tab_torq = widgets.VBox([
-            widgets.HTML("<h4>TORQ research through BASE</h4><p>Rigid two-fragment scans translate the second monomer along the initial mass-center separation. They calculate each point and preserve all monomer internal coordinates. This operation does not optimize the scan points or claim a multidimensional surface.</p>"),
-            self.research_scan_method, self.research_scan_basis,
-            widgets.HBox([self.research_scan_start, self.research_scan_end]), self.research_scan_points,
-            self.btn_research_torq, self.research_orbital_backend, widgets.HBox([self.btn_research_nbo, self.btn_research_wiberg, self.btn_research_wiberg_nao]),
-            self.research_bond_capability,
-        ])
+        self.research_bond_capability = widgets.HTML(bond_analysis_help_html({}))
+        self.tab_torq = build_torq_panel(self)
         children = list(self.config_tabs.children)
         children[2:4] = [self.tab_topos, self.tab_torq]
         self.config_tabs.children = children
@@ -2751,16 +2848,11 @@ class CoChemGUI:
             style={'description_width': 'initial'}, layout=widgets.Layout(width='95%', height='130px'))
         self.btn_research_compare = widgets.Button(description="Compare calculated isomers", disabled=True)
         self.btn_research_compare.on_click(self._compare_student_isomers)
-        self.research_report_output = widgets.HTML("<p role='status'>Verified calculations produce energy tables, population models, potential-energy diagrams and available orbital/bond diagrams here. Starting XYZ coordinates alone do not supply those observations.</p>")
+        self.research_report_output = widgets.HTML("<p role='status'>No calculation results yet. Run a calculation to see its energy tables and available diagrams here.</p>")
         self.research_report_download = widgets.HTML()
-        advanced = widgets.Accordion(children=[self.view_modules])
-        advanced.set_title(0, "Advanced module installation and validated handoff")
+        advanced = _collapsed_section("Advanced: module installation and data transfer", self.view_modules)
         advanced.selected_index = None
-        self.view_modules = widgets.VBox([
-            widgets.HTML("<h3>Research results</h3>"), self.research_report_output,
-            self.research_isomer_choices, self.research_energy_kind, self.research_populations, self.btn_research_compare,
-            self.research_report_download, advanced,
-        ], layout=widgets.Layout(padding='20px'))
+        self.view_modules = build_results_panel(self, advanced)
         self._refresh_research_capabilities()
 
     def _refresh_research_capabilities(self, b: Any = None) -> None:
@@ -2774,12 +2866,11 @@ class CoChemGUI:
                 def render() -> None:
                     self._research_capability_observations = {item["module_id"]: item for item in observations}
                     available = self._research_capability_observations.get("topos", {})
-                    labels = {"energy": "Single-point energy", "gradient": "Energy and Cartesian gradient",
-                        "optimize": "Optimize starting geometry", "search": "Find isomer candidates",
-                        "frequency": "Harmonic frequencies", "thermochemistry": "Thermochemistry",
-                        "association": "Monomer association search", "matrix": "Validated matrix optimization recipe"}
+                    labels = {name: OPERATION_LABELS[name] for name in (
+                        "energy", "gradient", "optimize", "search", "frequency",
+                        "thermochemistry", "association", "matrix")}
                     options = [(labels[operation], operation) for operation in available.get("operations", []) if operation in labels]
-                    self.research_topos_operation.options = options or [("No installed research provider", "")]
+                    self.research_topos_operation.options = options or [("Finish TOPOS setup first", "")]
                     self.research_topos_operation.disabled = not options
                     self.btn_research_topos.disabled = not options or self._actions_running or self._pipeline_running
                     torq = self._research_capability_observations.get("torq", {})
@@ -2790,13 +2881,8 @@ class CoChemGUI:
                     definitions = torq.get("provider_capabilities", {}).get("scientific_apis", {})
                     reasons = {name: item.get("reason", item.get("scope", "No installed provider"))
                                for name, item in definitions.items() if isinstance(item, dict) and not item.get("available")}
-                    if reasons:
-                        self.research_bond_capability.value = "<ul>" + "".join(
-                            f"<li>{html.escape(str(name))}: {html.escape(str(reason))}</li>" for name, reason in reasons.items()) + "</ul>"
-                    self.research_capabilities.value = "<ul>" + "".join(
-                        f"<li><b>{html.escape(item['module_id'].upper())}</b>: {html.escape(item.get('status', 'unavailable'))}; "
-                        f"{html.escape(', '.join(item.get('operations', [])) or 'no reviewed scientific operation available')}. "
-                        f"{html.escape(str(item.get('reason', '')))}</li>" for item in observations) + "</ul>"
+                    self.research_bond_capability.value = bond_analysis_help_html(reasons)
+                    self.research_capabilities.value = research_capabilities_html(observations)
                     self._refresh_research_engine_choices()
                     self._refresh_orbital_backend_choices()
                     self._refresh_execution_gate()
@@ -2804,7 +2890,7 @@ class CoChemGUI:
                 self._ui_call(render)
             except (ValueError, RuntimeError, OSError, ImportError) as exc:
                 message = str(exc)
-                self._ui_call(lambda: setattr(self.research_capabilities, "value", f"<p role='alert'>Research capabilities could not be checked: {html.escape(message)}</p>"))
+                self._ui_call(lambda: setattr(self.research_capabilities, "value", f"<p role='alert'>Available calculations could not be checked. Open Start here to check setup, then try again.</p><details><summary>Technical details</summary><p>{html.escape(message)}</p></details>"))
                 self._ui_call(lambda: setattr(self.btn_research_refresh, "disabled", False))
         self._research_capability_worker = threading.Thread(target=refresh, daemon=True)
         self._research_capability_worker.start()
@@ -2895,7 +2981,7 @@ class CoChemGUI:
             geometry = self._student_current_xyz()
             operation = self.research_topos_operation.value
             if operation not in self._research_capability_observations.get("topos", {}).get("operations", []):
-                raise ValueError("The installed TOPOS provider does not support this operation")
+                raise ValueError("This TOPOS calculation is unavailable. Open Start here and check the module installation")
             engine = self.research_topos_engine.value
             fragments, states = None, None
             if operation == "association":
@@ -2910,7 +2996,7 @@ class CoChemGUI:
             if operation == 'matrix':
                 row = self.research_matrix_recipe.value
                 if row not in getattr(self, '_student_matrix_recipes', {}):
-                    raise ValueError("Select a complete optimization recipe from the verified installed catalog")
+                    raise ValueError("Choose an available predefined optimization method. If none is listed, open Start here and check TOPOS setup")
                 request = build_topos_matrix_request(geometry, row_id=row,
                     charge=self.charge_input.value, multiplicity=self.multiplicity_input.value,
                     capabilities=list(self._research_capability_observations.values()), options={
@@ -2929,7 +3015,7 @@ class CoChemGUI:
                 "options": {"topos_request": request}}
             self._run_student_provider(provider, geometry)
         except (ValueError, RuntimeError, OSError, ImportError) as exc:
-            self.research_status.value = f"<p role='alert'>TOPOS research was not started: {html.escape(str(exc))}</p>"
+            self.research_status.value = f"<p role='alert'>TOPOS calculation was not started: {html.escape(str(exc))}</p>"
 
     def _run_student_torq(self, b: Any = None) -> None:
         try:
@@ -2937,7 +3023,7 @@ class CoChemGUI:
             from cochem_base.interfaces.student_research import SCHEMA
             from cochem_base.interfaces.torq_research import validate_scan_options
             if "research_scan" not in self._research_capability_observations.get("torq", {}).get("operations", []):
-                raise ValueError("The installed TORQ provider does not support this scan")
+                raise ValueError("Distance scans are unavailable. Open Start here and check TORQ installation")
             geometry = self._student_current_xyz()
             if self.research_scan_end.value <= self.research_scan_start.value:
                 raise ValueError("Scan end separation must exceed its start")
@@ -2959,13 +3045,13 @@ class CoChemGUI:
     def _run_student_provider(self, provider: dict[str, Any], geometry: str) -> None:
         if self.calc_env_dropdown.value == "hpc":
             self._submit_student_hpc(provider=provider, geometry=geometry)
-            self.research_status.value = "<p role='status'>Preparing the research request for the selected HPC scheduler. Track its queue state and retrieve verified results in the HPC panel.</p>"
+            self.research_status.value = "<p role='status'>Submitting the calculation to your HPC cluster. Track it and collect its results in the HPC panel.</p>"
             return
         if self.calc_env_dropdown.value == "github-actions":
             self._submit_student_actions(provider=provider)
             self.research_status.value = (
-                "<p role='status'>Preparing this research request for the selected Actions route. Monitor its submission and calculation below; retrieve verified results when complete.</p>"
-                if self._actions_running else f"<p role='alert'>Research request was not submitted: {html.escape(self.state.error_message)}</p>"
+                "<p role='status'>Preparing the calculation for GitHub Actions. Monitor it below and collect its results when complete.</p>"
+                if self._actions_running else f"<p role='alert'>Calculation was not submitted: {html.escape(self.state.error_message)}</p>"
             )
             return
         if self._pipeline_running or self._topos_running or self._hpc_running or self._actions_running:
@@ -2974,7 +3060,7 @@ class CoChemGUI:
         self._student_research_running = True
         self._pipeline_running = True
         self.btn_cancel.disabled = False
-        self.research_status.value = "<p role='status'>Running the installed scientific provider on the configured local host…</p>"
+        self.research_status.value = "<p role='status'>Running the calculation on the selected local computer…</p>"
         self._refresh_execution_gate()
         def run() -> None:
             try:
@@ -2991,7 +3077,7 @@ class CoChemGUI:
                 def success() -> None:
                     self._last_module_result = result
                     self._load_student_research_report(root / "results")
-                    self.research_status.value = "<p role='status'>Research calculation completed. Open Research results for retained tables and diagrams.</p>"
+                    self.research_status.value = "<p role='status'>Calculation completed. Open Results for tables and diagrams.</p>"
                 self._ui_call(success)
             except ModuleOperationCancelled as exc:
                 message = str(exc)
@@ -3014,9 +3100,9 @@ class CoChemGUI:
         try:
             from cochem_base.interfaces.student_research import SCHEMA
             if operation not in self._research_capability_observations.get("torq", {}).get("operations", []):
-                raise ValueError("The installed TORQ provider does not support authentic " + operation)
+                raise ValueError(OPERATION_LABELS.get(operation, "This analysis") + " is unavailable. Open Start here and check TORQ setup")
             if self.research_scan_method.value == "mp2":
-                raise ValueError("The installed Wiberg provider requires HF, PBE-D4 or B3LYP-D4; MP2 density is not supported")
+                raise ValueError("Choose HF, PBE-D4 or B3LYP-D4 for bond analysis. MP2 is supported for scans, but not for bond analysis")
             geometry = self._student_current_xyz()
             provider = {"schema_version": SCHEMA, "module": "torq", "operation": operation,
                 "artifact": "inputs/starting-geometry.xyz", "artifact_sha256": hashlib.sha256(geometry.encode("utf-8")).hexdigest(),
@@ -3027,7 +3113,7 @@ class CoChemGUI:
                 declaration = self._research_capability_observations.get('torq', {}).get('provider_capabilities', {}).get('scientific_apis', {}).get(operation, {})
                 engine = self.research_orbital_backend.value
                 if declaration.get('available') is not True or engine not in declaration.get('supported_engines', []):
-                    raise ValueError('Choose an authentic provider-declared orbital backend; unavailable dependencies cannot be substituted')
+                    raise ValueError('Select an available program for this analysis. If none is listed, open Start here and check setup')
                 provider['options']['engine'] = engine
             self._run_student_provider(provider, geometry)
         except (ValueError, RuntimeError, OSError, ImportError) as exc:
@@ -3181,12 +3267,13 @@ class CoChemGUI:
             branch = self.gh_branch_input.value.strip() or "main"
             probe_target = (repository, branch)
         except ValueError as exc:
-            self.remote_engine_status.value = f"<p role='status'>Remote engine check requires your assignment repository: {html.escape(str(exc))}</p>"
+            self.remote_engine_status.value = f"<p role='status'>Open Project details and check the GitHub repository name: {html.escape(str(exc))}</p>"
             return
         self._remote_probe_running = True
+        self._remote_probe_submission = None
         self.btn_remote_engine_check.disabled = True
-        self.btn_remote_engine_cancel.disabled = False
-        self.remote_engine_status.value = "<p role='status' aria-live='polite'>Checking approved ORCA and CFOUR archive access on GitHub Actions. BASE remains usable with free engines.</p>"
+        self.btn_remote_engine_cancel.disabled = True
+        self.remote_engine_status.value = "<p role='status' aria-live='polite'>Checking this project and its ORCA/CFOUR downloads on GitHub Actions. This can take a few minutes. You can continue uploading research files.</p>"
         def check() -> None:
             try:
                 from cochem_base.config_loader import get_artifact_dir
@@ -3209,6 +3296,7 @@ class CoChemGUI:
                             continue
                 submission = max(pending, key=lambda item: item[0])[1] if pending else client.check_engines(engines=["orca", "cfour"])
                 self._remote_probe_submission = submission
+                self._ui_call(lambda: setattr(self.btn_remote_engine_cancel, 'disabled', False))
                 deadline = time.monotonic() + 20 * 60
                 while True:
                     current = client.status(submission)
@@ -3234,15 +3322,19 @@ class CoChemGUI:
                     self._remote_engine_target = probe_target
                     self._remote_engine_availability = engines
                     self.remote_engine_status.value = "<ul>" + "".join(
-                        f"<li><b>{html.escape(engine.upper())}:</b> {html.escape(str(item.get('status', 'unavailable')))}. "
-                        f"{html.escape(str(item.get('reason', '')))}</li>" for engine, item in engines.items()) + "</ul><p>Provisionable means approved archive access was verified. Each calculation still verifies installation, Stage 0 authority and native execution.</p>"
+                        f"<li><b>{html.escape(engine.upper())}:</b> "
+                        + ("Ready to download for calculations." if item.get('provisionable') is True else "Not available for this project.")
+                        + "<details><summary>Check details</summary>" + html.escape(str(item.get('reason', '')))
+                        + "</details></li>" for engine, item in engines.items()) + "</ul><p>Each calculation installs and checks its selected program before running.</p>"
                     self._refresh_engine_choices()
                     self._refresh_research_capabilities()
                 self._ui_call(success)
             except (ValueError, RuntimeError, OSError, ImportError, AttributeError) as exc:
                 message = str(exc)
+                setup_link = _setup_check_link(getattr(exc, 'setup_url', None))
                 self._ui_call(lambda: setattr(self.remote_engine_status, "value",
-                    f"<p role='alert'>Remote licensed-engine access was not verified: {html.escape(message)}. Those methods remain unavailable; free-engine calculations and geometry ingestion remain available.</p>"))
+                    f"<p role='alert'>ORCA/CFOUR access could not be checked: {html.escape(message)}</p>"
+                    + setup_link + "<p>Open <b>Setup help</b> below for the next steps. You can still upload files and use available free programs.</p>"))
             finally:
                 def finished() -> None:
                     self._remote_probe_running = False
@@ -3275,28 +3367,26 @@ class CoChemGUI:
             self._remote_engine_availability = {engine: {"status": "unknown", "provisionable": False,
                 "reason": "Archive access has not been verified for this assignment repository and branch."}
                 for engine in ("orca", "cfour")}
-            self.remote_engine_status.value = "<p role='status'>Licensed-engine archive access has not been checked for this assignment repository and branch.</p>"
+            self.remote_engine_status.value = "<p role='status'>Select Check ORCA &amp; CFOUR to check downloads for this project.</p>"
         valid_repository = bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*", repository))
         guide_repository = repository if valid_repository else "ProfJJK-CoChem/CoChem-BASE"
         branch = self.gh_branch_input.value.strip() or "main"
         guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/GitHub_Classroom_ORCA_Setup.md"
         student_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/Student_Research_No_Code.md"
         cfour_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/CFOUR_Actions_Setup.md"
+        quick_guide = f"https://github.com/{guide_repository}/blob/{quote(branch, safe='')}/.docs/GET_STARTED.md"
         self.gh_guidance.value = (
-            "<h4>GitHub Actions: research project setup</h4>"
-            "<p>Use your own private project or an organization-owned assignment provided by your Classroom50 instructor. "
-            "For a personal project, use <b>Lab Access</b> above to request approved module and optional engine access. "
-            "For an organization-owned assignment, your instructor configures the applicable repository access. "
-            "Students do not enter tokens or binary download links in this interface.</p>"
-            "<ol><li>Confirm the assignment repository and branch shown here.</li>"
-            "<li>Open <b>No Code Matrix</b>, upload your Avogadro starting XYZ, and confirm charge, multiplicity and calculation method.</li>"
-            "<li>Select <b>Run on GitHub Actions</b>. BASE checks your access, submits the request and shows its progress here.</li>"
-            "<li>After successful completion, select <b>Retrieve and inspect results</b>. BASE verifies and imports the result bundle. "
-            "You can also download the bundle for your research records.</li></ol>"
-            f"<p><a href='{student_guide}#start-your-workspace' target='_blank' rel='noopener'>Student quick start</a> · "
-            f"<a href='{guide}#instructor-setup' target='_blank' rel='noopener'>Instructor setup</a> · "
-            f"<a href='{guide}#troubleshooting' target='_blank' rel='noopener'>Troubleshooting</a></p>"
-            f"<p><a href='{cfour_guide}' target='_blank' rel='noopener'>CFOUR setup and calculation instructions</a></p>"
+            f"<p><a href='{quick_guide}' target='_blank' rel='noopener noreferrer'>Setup help: ORCA, CFOUR and project access</a></p>"
+            "<details><summary>How a GitHub Actions calculation works</summary>"
+            "<ol><li>Upload research inputs under <b>Your files</b>.</li>"
+            "<li>Open <b>Calculations</b>, select your inputs, charge, multiplicity and method.</li>"
+            "<li>Select <b>Run on GitHub Actions</b>. This sends the job to a separate GitHub computer.</li>"
+            "<li>When it finishes, select <b>Retrieve and inspect results</b>.</li></ol>"
+            "<p>The project uses a tested CoChem software version selected by your instructor or BASE's published release. "
+            "Older messages called this <em>course approval</em>. It is a software-version check, not approval of your chemistry or your assignment.</p>"
+            f"<p><a href='{student_guide}' target='_blank' rel='noopener noreferrer'>Research guide</a> · "
+            f"<a href='{guide}' target='_blank' rel='noopener noreferrer'>ORCA instructor setup</a> · "
+            f"<a href='{cfour_guide}' target='_blank' rel='noopener noreferrer'>CFOUR instructor setup</a></p></details>"
         )
         remote = hasattr(self, 'calc_env_dropdown') and self.calc_env_dropdown.value == "github-actions"
         if hasattr(self, 'matrix_engine'):
@@ -3657,7 +3747,9 @@ class CoChemGUI:
                 telemetry = None
 
         safe_guidance = html.escape(str(guidance))
-        self.footer_message.value = f'<div role="alert" style="color: #721c24; background-color: #f8d7da; padding: 10px; border: 1px solid #f5c6cb; border-radius: 5px; width: 100%;"><b>Guidance:</b> {safe_guidance}</div>'
+        short_guidance = html.escape(str(guidance).splitlines()[0][:180])
+        self.footer_message.value = (f'<div role="alert" style="color: #721c24; background-color: #f8d7da; padding: 10px; border: 1px solid #f5c6cb; border-radius: 5px; width: 100%;">'
+            f'<b>{short_guidance}</b><details><summary>Full problem details</summary><p>{safe_guidance}</p></details></div>')
 
         if hasattr(self, 'telemetry_accordion') and hasattr(self, 'telemetry_html'):
             if telemetry:
@@ -4240,7 +4332,7 @@ class CoChemGUI:
             return
         geom_str = self.matrix_geometry.value.strip()
         if not geom_str:
-            self.isotope_results_table.value = "<b style='color:red;'>Please provide molecular geometry in Base Config tab first.</b>"
+            self.isotope_results_table.value = "<b style='color:red;'>Select a starting geometry under Calculations first.</b>"
             return
         artifact = self._isotope_hessian_data
         selected_nuclides = tuple(selector.value for selector in self.isotope_selectors)
@@ -4395,8 +4487,8 @@ class CoChemGUI:
 
     def _on_read_hdf5_clicked(self, b: Any, *, result_source: dict[str, Any] | None = None) -> None:
         if result_source is not None:
-            self._managed_physical_data = dict(result_source)
             self._input_selectors['physical_data'].value = ''
+            self._managed_physical_data = dict(result_source)
         if self._ingestion_busy:
             self.hdf5_results_table.value = '<p role="status">Wait for the current scientific input operation to finish, then inspect this dataset.</p>'
             return
@@ -4553,7 +4645,7 @@ class CoChemGUI:
             if self.multiplicity_input.value != 1 or electrons < 1 or electrons % 2:
                 raise ValueError("This conformer interface accepts closed-shell, even-electron inputs; open-shell spin acceptance is not yet connected")
             if not self.topos_heuristic.value or self.topos_heuristic.disabled:
-                raise ValueError("Refresh search engines after completing the Golden Registry audit")
+                raise ValueError("Open Start here and complete setup, then refresh the available search engines")
             root = self._run_artifact_root() / "TOPOS" / f"submission_{uuid.uuid4().hex}"
             root.mkdir(parents=True)
             source = root / "input.xyz"
@@ -5160,7 +5252,7 @@ class CoChemGUI:
                         self._publish_calculation_hessians(hessians)
                         self._load_student_research_report(root)
                         self._collect_student_calculated_geometries(root)
-                        self.calculation_result.value = '<p>Verified scheduler calculation results are available in Research results and Data Inspector.</p>'
+                        self.calculation_result.value = '<p>Verified scheduler calculation results are available in Results and Spectra and properties.</p>'
                         self.slurm_status_output.value = '<p role="status">HPC results verified and imported. Scheduler job identity, compute-node setup and retained scientific file hashes were checked.</p>'
                         self.state.system_status = 'HPC results imported'
                     else:
@@ -5373,6 +5465,7 @@ class CoChemGUI:
                 self._poll_student_actions()
             except (ValueError, RuntimeError, OSError, ImportError) as exc:
                 message = str(exc)
+                setup_link = _setup_check_link(getattr(exc, 'setup_url', None))
                 rejected = getattr(exc, 'submission', None)
                 if isinstance(rejected, dict) and rejected.get('status') == 'rejected':
                     self._retain_student_actions_submission(rejected)
@@ -5385,6 +5478,7 @@ class CoChemGUI:
                     self.actions_status.value = (
                         f"<p role='alert'>Calculation {'was submitted, but monitoring paused' if dispatched else 'was not submitted'}: "
                         f"{html.escape(message)}. {'Use Refresh calculation status; do not create a duplicate request.' if dispatched else 'BASE has retained your original geometry.'}</p>"
+                        + setup_link
                     )
                     self._refresh_execution_gate()
                 self._ui_call(failure)
@@ -5669,7 +5763,7 @@ class CoChemGUI:
             manifest.write_text(json.dumps(self._actions_input_record, indent=2) + "\n", encoding="utf-8")
         self.calculation_result.value = (
             f"<p><b>Verified calculation results</b> for request <code>{html.escape(str(receipt.get('request_id', '')))}</code>. "
-            "Open Data Inspector for native observables and Research results for module tables and figures.</p>"
+            "Open Spectra and properties for native observables and Results for module tables and figures.</p>"
         )
         if hasattr(self, "_load_student_research_report"):
             self._load_student_research_report(root)
@@ -5874,8 +5968,26 @@ class CoChemGUI:
             self._refresh_topos_capabilities()
 
     def display(self) -> widgets.VBox:
+        self.app.add_class("cochem-mainlayout")
+        self.sidebar.add_class("cochem-navigation")
         styles = widgets.HTML("""<style>
-        .cochem-accessible .jupyter-button {color: #17212b; background: #eef1f4;}
+        .cochem-accessible, .cochem-accessible .widget-box {min-width: 0; max-width: 100%;}
+        .cochem-accessible .widget-hbox {flex-wrap: wrap; gap: 4px;}
+        .cochem-accessible .widget-inline-hbox {max-width: 100%;}
+        .cochem-accessible .widget-label {white-space: normal; height: auto;}
+        .cochem-accessible .widget-html-content {overflow-wrap: anywhere;}
+        .cochem-accessible details {margin: 8px 0;}
+        .cochem-accessible summary {cursor: pointer; color: #005a9c; padding: 4px 0;}
+        .cochem-accessible .p-TabBar-content, .cochem-accessible .lm-TabBar-content {flex-wrap: wrap;}
+        @media (max-width: 900px) {
+          .cochem-accessible .cochem-mainlayout {display: flex !important; flex-direction: column; gap: 8px;}
+          .cochem-accessible .cochem-navigation {width: 100% !important; flex-flow: row wrap; padding: 4px !important;}
+          .cochem-accessible .cochem-navigation .jupyter-button {flex: 1 1 150px;}
+          .cochem-accessible .widget-inline-hbox {flex-wrap: wrap; height: auto;}
+          .cochem-accessible .widget-inline-hbox .widget-label {width: auto !important; flex: 0 0 100%; text-align: left;}
+        }
+        .cochem-accessible .jupyter-button {color: #17212b; background: #eef1f4;
+          width: auto; min-height: 30px; height: auto; white-space: normal; overflow-wrap: anywhere; padding: 6px 12px;}
         .cochem-accessible .jupyter-button.mod-primary,
         .cochem-accessible .jupyter-button.mod-info {color: #fff; background: #005a9c;}
         .cochem-accessible .jupyter-button.mod-success {color: #fff; background: #216334;}
@@ -5889,7 +6001,7 @@ class CoChemGUI:
         .cochem-accessible th, .cochem-accessible td {padding: 6px; border: 1px solid #68737d;}
         .cochem-accessible pre {white-space: pre-wrap; overflow-wrap: anywhere;}
         </style>""")
-        return widgets.VBox([styles, self.ai_container, self.app]).add_class("cochem-accessible")
+        return widgets.VBox([styles, self.app, _collapsed_section("Optional assistant status", self.ai_container)]).add_class("cochem-accessible")
 
 def create_gui() -> widgets.VBox:
     """Entry point to instantiate and display the GUI."""

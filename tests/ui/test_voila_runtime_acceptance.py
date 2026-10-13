@@ -217,16 +217,29 @@ def _exercise_actions_export(tmp_path):
 
 
 def test_actions_guidance_has_course_links_and_no_secret_widgets():
+    import ipywidgets as widgets
+
     gui = _classroom_gui()
     gui.gh_branch_input.value = "approved/course"
-    assert ("course-organization/student-water/blob/approved%2Fcourse/"
-            ".docs/Student_Research_No_Code.md#start-your-workspace") in gui.gh_guidance.value
-    for anchor in ("instructor-setup", "troubleshooting"):
-        assert ("course-organization/student-water/blob/approved%2Fcourse/"
-                f".docs/GitHub_Classroom_ORCA_Setup.md#{anchor}") in gui.gh_guidance.value
+    for guide in ("GET_STARTED.md", "Student_Research_No_Code.md",
+                  "GitHub_Classroom_ORCA_Setup.md", "CFOUR_Actions_Setup.md"):
+        assert ("href='https://github.com/course-organization/student-water/"
+                f"blob/approved%2Fcourse/.docs/{guide}'") in gui.gh_guidance.value
+        assert (Path(__file__).resolve().parents[2] / ".docs" / guide).is_file()
     for obsolete in ("gh_pat_input", "gh_orca_url_input", "gh_cfour_url_input", "btn_provision_secrets"):
         assert not hasattr(gui, obsolete)
-    assert "Students do not enter tokens" in gui.gh_guidance.value
+    pending, text_controls = [gui.gh_setup_box], []
+    while pending:
+        control = pending.pop()
+        assert not isinstance(control, widgets.Password)
+        if isinstance(control, (widgets.Text, widgets.Textarea)):
+            text_controls.append(control)
+        pending.extend(getattr(control, "children", ()))
+    assert {id(control) for control in text_controls} == {
+        id(gui.gh_repo_input), id(gui.gh_branch_input),
+        id(gui.course_access_panel.project), id(gui.course_access_panel.controller),
+        id(gui.course_access_panel.app_slug),
+    }
     assert gui.run_install_btn.description == "Review Actions setup"
     assert not gui.run_install_btn.disabled
     gui._run_installation(None)

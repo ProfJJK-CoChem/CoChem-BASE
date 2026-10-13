@@ -54,8 +54,9 @@ the Codespace to run an Actions calculation.
 
 **If you administer this repository and an engine is unavailable:** open its
 GitHub **Actions** tab and the check linked by CoChem. The failure identifies
-whether the archive cannot be downloaded, installation failed, or the project
-configuration is incomplete. The private archive must be a GitHub **Release
+whether GitHub permits access to the approved archive or the project
+configuration is incomplete. This short check reads the archive's metadata;
+the calculation job downloads, installs and tests the program. The private archive must be a GitHub **Release
 asset** in a repository the instructor's download credential can read.
 Organization-level credentials must also be permitted for this calculation
 repository. Having Read access to the archive repository in your browser is
@@ -79,8 +80,28 @@ organization, you do not need to copy them into this repository.
 4. Repeat for CFOUR using `COCHEM_CFOUR_ACCESS_SECRET` and the name of its
    existing download secret.
 5. Return to CoChem and choose **Check ORCA & CFOUR**. If the check fails, open
-   its run link to see whether GitHub denied the download or the engine package
-   could not be prepared.
+   its run link to see whether GitHub denied access or could not verify the
+   approved archive.
+6. For TOPOS/TORQ calculations, repeat the same setup with
+   `COCHEM_SOURCE_ACCESS_SECRET` and the name of your existing private-module
+   download secret. Include the calculation project in both access lists.
+
+For the public instructor repository, an organization setting restricted to
+**private repositories** does not include CoChem-BASE. Select CoChem-BASE
+explicitly in the allowed repositories. If the check says Actions received no
+download credential, verify these connections before replacing the credential;
+the check has not yet attempted to download the archive.
+
+If the check instead reports **HTTP 401**, GitHub rejected the stored download
+credential. The instructor replaces the value of that existing organization
+secret with a valid token; its name and the matching variable stay the same.
+The token needs access to the engine's private repository. On GitHub's
+fine-grained token page, use **Permissions → Add permissions → Contents →
+Read-only**, select the correct organization/repository and an expiration date,
+and complete organization approval if required. Paste the generated value only
+into the organization's **Secrets** page, never into a variable or the CoChem
+interface. A **403** or **404** instead needs an access/organization-policy check;
+repeatedly creating tokens does not repair an incorrect repository selection.
 
 These organization settings cover organization-owned projects only. Use the
 App setup below for student-owned projects. The
@@ -122,7 +143,9 @@ before this route can work. Do not invent a repository name or App name.
    **Submit new issue**. The form is already filled in.
 7. Wait for the success comment on that request. It says which components
    have been enabled. If it reports a failure, send its link to your instructor.
-8. After success, stop the initial Codespace and create a **new Codespace**
+8. After success, keep the initial Codespace until you have downloaded any
+   research files and results you need. A new Codespace does not copy its local
+   research data. Stop the initial Codespace and create a **new Codespace**
    from your private project's **Code → Codespaces** menu. Approve the
    permissions GitHub shows for this project; they let CoChem submit files
    and start/cancel its Actions jobs. Rebuilding the old Codespace does not

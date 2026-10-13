@@ -33,7 +33,8 @@ def probe_engine(engine: str) -> dict:
               "distribution_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
               "verified_at": datetime.now(timezone.utc).isoformat()}
     if not token:
-        return {**result, "reason": f"The instructor has not authorized this assignment for {engine.upper()} asset access."}
+        return {**result, "reason": f"GitHub Actions did not receive the {engine.upper()} download credential for this project. "
+                "Instructor: check organization-secret repository access and this program's access setting in Setup help."}
     location = ("https://api.github.com/repos/" + distribution["repository"]
                 + "/releases/tags/" + urllib.parse.quote(distribution["release_tag"], safe=""))
     request = urllib.request.Request(location, headers={"Authorization": "Bearer " + token,
@@ -59,7 +60,7 @@ def probe_engine(engine: str) -> dict:
                       hash_verification="GitHub asset digest matched" if server_digest else "Approved SHA-256 will be verified on download",
                       reason="Approved archive access is available. Installation and native scientific acceptance occur in the calculation job.")
     except urllib.error.HTTPError as error:
-        result["reason"] = f"The assignment's reader cannot access the approved {engine.upper()} archive (GitHub HTTP {error.code})."
+        result["reason"] = f"GitHub refused access to the {engine.upper()} download (HTTP {error.code}). Ask the instructor to check the download credential's access and expiration."
     except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError):
         result["reason"] = "Approved archive metadata could not be verified. Retry the engine check or contact the instructor."
     return result

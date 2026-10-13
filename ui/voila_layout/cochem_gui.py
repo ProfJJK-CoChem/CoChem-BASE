@@ -3323,7 +3323,7 @@ class CoChemGUI(InputManagementMixin):
                     self._remote_engine_availability = engines
                     self.remote_engine_status.value = "<ul>" + "".join(
                         f"<li><b>{html.escape(engine.upper())}:</b> "
-                        + ("Ready to download for calculations." if item.get('provisionable') is True else "Not available for this project.")
+                        + ("Ready to download for calculations." if item.get('provisionable') is True else "Not available. The instructor can connect this program using Setup help below.")
                         + "<details><summary>Check details</summary>" + html.escape(str(item.get('reason', '')))
                         + "</details></li>" for engine, item in engines.items()) + "</ul><p>Each calculation installs and checks its selected program before running.</p>"
                     self._refresh_engine_choices()

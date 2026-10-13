@@ -91,7 +91,7 @@
     "scripts/oet_client.py": "789eb98ad73bd69bf011078291fbf60e181eb3fcd92bf77418fd15c57ef9b304",
     "scripts/oet_maceoff.py": "f2a298ac5d3fb0d766441121bdf19b157a7943e03794ba2ea709918c7080a9d4",
     "scripts/orca-distribution.json": "913896cfe57ef69688619252e79a38acb84f137c725ad8039976285c5cabccc9",
-    "scripts/probe_student_engines.py": "ea46b63f5f625a97379219eed2e0190bad410836d627d8e7eaf7c2f5815fc30b",
+    "scripts/probe_student_engines.py": "a666000ba9f861e415d5530fe65e4336a4ed6cdb2aa81ea74297e7f8f0ceeb08",
     "scripts/provision_cfour.py": "5446b6db569718f714376e5cf98cb5d317313118b0c51ba8e1f2195f54568532",
     "scripts/provision_orca.py": "5c60e9e99272c77fedba9a0f3282e2c3ef26ac5db752f047a7b5e5084ed516a3",
     "scripts/provision_student_project_access.py": "2a1816239a9a05cedf8ea72e17fa59c9b32b506b3151b02aa13c5fba7177d4b5",

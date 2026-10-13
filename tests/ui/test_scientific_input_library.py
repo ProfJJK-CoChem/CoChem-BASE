@@ -310,7 +310,7 @@ def case_native_result_hessian_selection_and_tamper_rejection(gui):
     hessian = root / 'water.hess'
     raw = NATIVE.joinpath('water.hess').read_bytes()
     hessian.write_bytes(raw)
-    artifact = load_hessian_artifact(hessian)
+    artifact = load_hessian_artifact(hessian, read_only=True)
     source = 'Actual ORCA 6.1.1 HF/STO-3G Hessian, original SHA-256 ' + artifact.sha256
     np.savez(root / 'water.npz', symbols=np.asarray(artifact.symbols),
         coordinates_angstrom=artifact.coordinates_angstrom,
@@ -320,8 +320,19 @@ def case_native_result_hessian_selection_and_tamper_rejection(gui):
         handle.create_dataset('coordinates_angstrom', data=artifact.coordinates_angstrom)
         handle.create_dataset('hessian_hartree_bohr2', data=artifact.hessian_hartree_bohr2)
         handle.create_dataset('source', data=source, dtype=h5py.string_dtype('utf-8'))
-    candidates = gui._prepare_calculation_hessians(root)
+    # Genuine coordinate data in an ordinary telemetry H5 is not a Hessian.
+    # Discovery must reject it without adding a lock to a sealed result bundle.
+    with h5py.File(root / 'complexes.h5', 'w', libver='latest') as handle:
+        handle.create_dataset('coordinates_angstrom', data=artifact.coordinates_angstrom)
+    def retained_inventory():
+        return {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in root.rglob('*') if path.is_file()}
+    before = retained_inventory()
+    for _ in range(2):
+        candidates = gui._prepare_calculation_hessians(root)
+        assert retained_inventory() == before
     assert {Path(item['path']).suffix for item in candidates.values()} == {'.hess', '.npz', '.h5'}
+    assert all(Path(item['path']).name != 'complexes.h5' for item in candidates.values())
     gui._publish_calculation_hessians(candidates)
     for key, record in candidates.items():
         gui.calculation_hessian_choice.value = key
@@ -335,6 +346,7 @@ def case_native_result_hessian_selection_and_tamper_rejection(gui):
         gui._isotope_worker.join(timeout=30)
         assert record['sha256'] in gui.isotope_results_table.value
         assert 'not established' in gui.isotope_results_table.value
+        assert retained_inventory() == before
     native_key = next(key for key, item in candidates.items() if Path(item['path']).suffix == '.hess')
     hessian.write_bytes(raw + b'\n')
     gui.calculation_hessian_choice.value = ''

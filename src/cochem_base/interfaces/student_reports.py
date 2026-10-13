@@ -312,13 +312,28 @@ def _escaped(value: Any) -> str:
 
 def _table(report: dict) -> str:
     columns = report["columns"]
-    header = "".join(f"<th>{_escaped(item)}</th>" for item in columns)
+    labels = {
+        "label": "Structure", "energy_hartree": "Energy (Eh)",
+        "relative_energy_kj_mol": "Relative energy (kJ/mol)",
+        "degeneracy": "Degeneracy", "population_fraction": "Population fraction",
+        "coordinate": "Scan coordinate", "status": "Status", "reason": "Explanation",
+        "atom_i_label": "First atom", "atom_j_label": "Second atom",
+        "value": "Index", "unit": "Unit", "donor": "Donor orbital",
+        "acceptor": "Acceptor orbital", "stabilization_kcal_mol": "Stabilization (kcal/mol)",
+    }
+    if report.get("coordinate_unit"):
+        labels["coordinate"] = f"{report.get('coordinate_label', 'Scan coordinate')} ({report['coordinate_unit']})"
+    header = "".join(
+        f"<th scope='col'>{_escaped(labels.get(item, item.replace('_', ' ').capitalize()))}</th>"
+        for item in columns)
     rows = []
     for row in report["rows"]:
         cells = []
         for key in columns:
             value = row.get(key)
-            cells.append(f"<td>{_escaped('Unavailable' if value is None else format(value, '.10g') if isinstance(value, float) else value)}</td>")
+            numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
+            style = " style='white-space:nowrap'" if numeric else ""
+            cells.append(f"<td{style}>{_escaped('Unavailable' if value is None else format(value, '.10g') if isinstance(value, float) else value)}</td>")
         rows.append("<tr>" + "".join(cells) + "</tr>")
     return f"<table><thead><tr>{header}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
 
@@ -555,7 +570,7 @@ def discover_observations(root: str | Path) -> list[dict]:
                             break
                         try:
                             tensor_path = _receipt_file(base, receipt)
-                            tensor = load_hessian_artifact(tensor_path, native_result_path=path)
+                            tensor = load_hessian_artifact(tensor_path, native_result_path=path, read_only=True)
                             if tensor.qualification.get("minimum_verified") is True:
                                 item["minimum_verified"] = True
                                 item["minimum_source"] = {**item["source"], "pointer": "/harmonic_frequencies_cm1"}

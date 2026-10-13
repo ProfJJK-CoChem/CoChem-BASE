@@ -86,11 +86,14 @@ def _replay_native_derivative_acceptance(tmp_path):
     return result, result_path
 
 
-def test_real_native_receipts_qualify_minimum_without_modifying_source(tmp_path):
+@pytest.mark.parametrize("read_only", [False, True])
+def test_real_native_receipts_qualify_minimum_without_modifying_source(tmp_path, read_only):
     result, result_path = _replay_native_derivative_acceptance(tmp_path)
     path = tmp_path / "water.hess"
     original = path.read_bytes()
-    artifact = load_hessian_artifact(path)
+    before = {item.relative_to(tmp_path).as_posix(): hashlib.sha256(item.read_bytes()).hexdigest()
+              for item in tmp_path.rglob("*") if item.is_file()}
+    artifact = load_hessian_artifact(path, read_only=read_only)
     qualification = artifact.qualification
     assert qualification["physical_hessian_verified"] is True
     assert qualification["stationary_geometry_verified"] is True
@@ -105,24 +108,28 @@ def test_real_native_receipts_qualify_minimum_without_modifying_source(tmp_path)
     assert heavy.physical_hessian_verified and heavy.equilibrium_geometry_verified
     assert len(heavy.harmonic_frequencies_cm1) == 3 and min(heavy.harmonic_frequencies_cm1) > 0
     assert heavy.B_0_MHz is None
+    if read_only:
+        assert {item.relative_to(tmp_path).as_posix(): hashlib.sha256(item.read_bytes()).hexdigest()
+                for item in tmp_path.rglob("*") if item.is_file()} == before
     # A file name or a positive spectrum is not a substitute for measured
     # stationarity. Removing the native optimization receipt removes B_e scope.
     result["optimization_performed"] = False
     result_path.write_text(json.dumps(result, allow_nan=False))
-    frequency_only = load_hessian_artifact(path)
+    frequency_only = load_hessian_artifact(path, read_only=read_only)
     assert frequency_only.qualification["physical_hessian_verified"] is True
     assert frequency_only.qualification["stationary_geometry_verified"] is False
     assert frequency_only.qualification["minimum_verified"] is False
 
 
-def test_modified_native_gradient_or_tensor_cannot_retain_minimum_qualification(tmp_path):
+@pytest.mark.parametrize("read_only", [False, True])
+def test_modified_native_gradient_or_tensor_cannot_retain_minimum_qualification(tmp_path, read_only):
     _, result_path = _replay_native_derivative_acceptance(tmp_path)
-    artifact = load_hessian_artifact(tmp_path / "water.hess")
+    artifact = load_hessian_artifact(tmp_path / "water.hess", read_only=read_only)
     gradient = tmp_path / "water.engrad"
     gradient.write_text(gradient.read_text() + "\nmodified\n")
     with pytest.raises(ValueError, match="checksum"):
         qualify_native_hessian(artifact, result_path)
-    assert load_hessian_artifact(artifact.path).qualification["minimum_verified"] is False
+    assert load_hessian_artifact(artifact.path, read_only=read_only).qualification["minimum_verified"] is False
 
 
 def test_standalone_native_tensor_stays_supplied_without_stationarity_receipt(tmp_path):

@@ -4231,7 +4231,7 @@ class CoChemGUI(InputManagementMixin):
             if not path.resolve(strict=True).is_relative_to(root):
                 continue
             try:
-                artifact = load_hessian_artifact(path)
+                artifact = load_hessian_artifact(path, read_only=True)
                 key = hashlib.sha256((str(path) + ':' + artifact.sha256).encode('utf-8')).hexdigest()
                 candidates[key] = {'path': str(path), 'sha256': artifact.sha256,
                     'label': root.name + ' · ' + path.relative_to(root).as_posix(),
@@ -4294,7 +4294,7 @@ class CoChemGUI(InputManagementMixin):
             return
         def load() -> None:
             try:
-                artifact = load_hessian_artifact(path)
+                artifact = load_hessian_artifact(path, read_only=True)
                 def loaded() -> None:
                     self.matrix_geometry.value = "\n".join(
                         f"{symbol} {row[0]:.15g} {row[1]:.15g} {row[2]:.15g}"
@@ -4552,7 +4552,7 @@ class CoChemGUI(InputManagementMixin):
                     )
                 ) + "</tr>")
             rendered = container_source + (
-                f"<b>Scientific data read succeeded:</b> Previewed {len(previews)} datasets. HDF5 reads use SWMR and the shared file lock. "
+                f"<b>Scientific data read succeeded:</b> Previewed {len(previews)} datasets without changing the original file. "
                 "Values are a bounded prefix of each dataset.<br/>"
                 "<table><caption>Stored scientific values</caption><thead><tr>"
                 + "".join(f"<th scope='col'>{label}</th>" for label in ("Dataset", "Shape", "Units", "Source", "Shown / total", "Values"))

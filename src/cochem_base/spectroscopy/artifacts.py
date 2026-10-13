@@ -32,19 +32,28 @@ class HessianArtifact:
     qualification: dict = field(default_factory=_supplied_qualification)
 
 
-def load_hessian_artifact(path: str | Path, *, native_result_path: str | Path | None = None) -> HessianArtifact:
+def load_hessian_artifact(
+    path: str | Path, *, native_result_path: str | Path | None = None,
+    read_only: bool = False,
+) -> HessianArtifact:
     """Load an ORCA .hess, or an explicitly unit-labelled .npz/.h5 bundle.
 
     Bundles contain ``symbols``, ``coordinates_angstrom``,
     ``hessian_hartree_bohr2`` and scalar ``source`` datasets. Geometry travels
     with the Hessian so a matrix from another geometry cannot be silently reused.
-    Pickled NumPy objects and absent provenance are rejected.
+    Pickled NumPy objects and absent provenance are rejected. Completed, retained
+    artifacts can be inspected with ``read_only=True`` without creating a lock
+    file inside their sealed publication. This mode rechecks the source digest;
+    live producers retain the default adjacent-lock coordination.
     """
     from cochem_base.core.cochem_core_registry_manager import AtomicFileLock
 
     path = Path(path).expanduser().resolve(strict=True)
-    with AtomicFileLock(str(path) + ".lock", timeout=10.0):
+    if read_only:
         artifact = _load_locked_artifact(path)
+    else:
+        with AtomicFileLock(str(path) + ".lock", timeout=10.0):
+            artifact = _load_locked_artifact(path)
     # Qualification is optional and separate from admission: students may
     # inspect external tensors without their provenance becoming a native claim.
     candidates = ([Path(native_result_path).expanduser().resolve(strict=True)] if native_result_path else
@@ -55,7 +64,14 @@ def load_hessian_artifact(path: str | Path, *, native_result_path: str | Path | 
                 qualification = qualify_native_hessian(artifact, result_path)
             except (ValueError, OSError, KeyError, TypeError, IndexError):
                 continue
-            return replace(artifact, qualification=qualification)
+            artifact = replace(artifact, qualification=qualification)
+            break
+    if read_only:
+        if path.stat().st_size > 64 * 1024 * 1024:
+            raise ValueError("Hessian artifact changed during read-only inspection")
+        with path.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != artifact.sha256:
+                raise ValueError("Hessian artifact changed during read-only inspection")
     return artifact
 
 

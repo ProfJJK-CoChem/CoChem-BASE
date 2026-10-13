@@ -1,0 +1,8 @@
+{
+  "code_commit": "60760ae70d53cd4828f6218118e2efc2dfbf8295",
+  "browser_base_commit": "ade50d7549222a1b3180cb71e6661222b6aa7817",
+  "tested_source_count": 512,
+  "different_paths": [],
+  "passed": true,
+  "browser_receipt_sha256": "c639a8181c1b2737b14b422e70f1bc29376655a697148646682bf33dcca12c5d"
+}

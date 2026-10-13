@@ -50,7 +50,27 @@ for the selected personal-project route.
 
 `tests/base/test_module_handoff_contract.py` verifies copied input, tamper detection, invalid geometry, source-tree write rejection, destination preservation, GUI handoff, raw/exported periodic structures and rejection of false verification claims. Legacy boundary tests prepare and revalidate actual geometry packages. The physical UI tests start real child processes with explicit configuration environments; they do not replace imported functions or use environment monkeypatches.
 
-`tests/ui/voila_browser_acceptance.py` supports `--module-handoff`, `--periodic-input` and `--periodic-settings`, in addition to the established native xTB/PySCF/CREST and Hessian flows. It validates downloaded handoff contents and can run actual periodic PBE/PAW science. Real ASE/EMT finite-difference Hessians test transport and isotope reweighting; they are not ab-initio accuracy references.
+The old `tests/ui/voila_browser_acceptance.py` implementation and its
+`--module-handoff`, `--periodic-input`, `--periodic-settings`, xTB/PySCF/CREST
+and Hessian switches belong to the historical evidence above. That entry point
+now forwards to the current
+[`student_entrypoint_browser_acceptance.py`](../tests/ui/student_entrypoint_browser_acceptance.py).
+Its supported maintainer options can be inspected in a prepared Playwright
+Python environment:
+
+```bash
+python tests/ui/student_entrypoint_browser_acceptance.py --help
+```
+
+The current harness exercises actual uploads/selections, saved-input recovery
+and fresh-kernel cleanup. Full-format inputs, admission checks, local native
+ORCA Hessian calculations and hosted ORCA/CFOUR submission/retrieval are separate,
+explicit options; only lanes actually requested and completed establish their
+respective evidence. It does not inherit the retired harness's physical-engine
+or periodic coverage. Separate native engine suites retain their own execution
+checks. The [2026-10-13 interface/access record](GUI_Access_Acceptance_2026-10-13.md)
+describes this update. Historical ASE/EMT finite-difference Hessians establish
+transport and isotope reweighting, not ab-initio accuracy.
 
 The hosted launcher was validated twice through all eleven phases in `/workspace/cochem-runtime/hosted-authority-final`; its CLI/lifecycle selection passed 27 cases, actual render/start/reuse passed, and all workflow files passed `actionlint`. Its explicit 1 GB workload budget applies to bounded small-molecule acceptance; the setup GUI and command retain their 50 GB defaults. Current alpha browser and focused-regression evidence is recorded separately in the main implementation report.
 

@@ -1,0 +1,26 @@
+{
+  "scope": "Cross-engine consistency for the same fixed water geometry, closed-shell HF/STO-3G; not an experimental-accuracy or full capability claim",
+  "accepted": true,
+  "absolute_energy_difference_hartree": 2.2647455466540123e-08,
+  "comparison_tolerance_hartree": 1e-07,
+  "same_original_xyz": true,
+  "original_xyz_sha256": "42398c1443349a8fa505ab01389c103b89f44e7e0703e41d02c5dfef4e47bbba",
+  "engines": {
+    "orca": {
+      "version": "6.1.1",
+      "energy_hartree": -74.963063130293,
+      "run_id": 38406460669,
+      "request_id": "6b7a2c7d-8fbd-419a-bdfb-a23808493101",
+      "source_sha": "ade50d7549222a1b3180cb71e6661222b6aa7817",
+      "worker_source_sha": "ade50d7549222a1b3180cb71e6661222b6aa7817"
+    },
+    "cfour": {
+      "version": "2.1",
+      "energy_hartree": -74.96306310764554,
+      "run_id": 38405425754,
+      "request_id": "baebe0f6-25ac-4b76-abff-e7dd39e7231a",
+      "source_sha": "ade50d7549222a1b3180cb71e6661222b6aa7817",
+      "worker_source_sha": "ade50d7549222a1b3180cb71e6661222b6aa7817"
+    }
+  }
+}

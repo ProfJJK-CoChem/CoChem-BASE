@@ -33,11 +33,26 @@ addresses that specific failure:
   [App deployment guide](Personal_Project_App_Deployment.md) explains the
   instructor's update responsibility.
 
-**Validation for this update is pending the current focused UI/access and
-browser checks.** Record their actual revisions, outcomes and remaining service
-prerequisites before release. The historical acceptance below belongs to its
-recorded producers; it does not certify these new changes. This update does not
-close the scientific, platform or real-student acceptance backlog.
+Current results and exact producers are recorded in the
+[GUI and access acceptance report](GUI_Access_Acceptance_2026-10-13.md).
+The rendered interface passed 23 visual states at two widths, seven keyboard
+flows, recoverable input removal and the canonical upload/reload checks. A real
+hosted xTB optimization and verified result retrieval passed. Fresh hosted
+ORCA/CFOUR HF/STO-3G water calculations and strict retrieval also passed after
+the finalizer was corrected to include nested manifests. BASE installed pinned
+TOPOS/TORQ and completed a structural geometry handoff. A separate browser
+replay found and fixed a reader that added a temporary lock inside a sealed
+result. Two fresh browser sessions now reopen the genuine CFOUR result without
+changing any of its 78 files; readable table labels and full-precision exports
+were checked. Final `60760ae` validation passed **3,119 complete-profile tests**
+with six reviewed external deferrals, and **1,699 hosted bounded regressions**
+with native CI controls/fresh wheels on all three operating systems. Exact
+terminal and readback receipts are portable in
+[the repository's evidence directory](evidence/2026-10-13-gui-access/README.md).
+Follow their bounded scopes before declaring readiness. The historical acceptance
+below belongs to its recorded producers.
+This update does not close the scientific, platform or real-student acceptance
+backlog.
 
 ## Assignment and starting point
 

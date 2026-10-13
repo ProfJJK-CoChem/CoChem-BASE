@@ -625,7 +625,9 @@ def finalize(output: Path) -> dict:
         if path.is_symlink():
             path.unlink()
             continue
-        if not path.is_file() or path.name == "publication-manifest.json":
+        # Native wrappers publish their own manifests inside this evidence tree.
+        # Bind those bytes too; only this outer manifest cannot include itself.
+        if not path.is_file() or path == output / "publication-manifest.json":
             continue
         if path.name.upper() in {"GENBAS", "ECPDATA"} or any(part in {"native-scratch", "CrashRecords"} for part in path.relative_to(output).parts):
             path.unlink()

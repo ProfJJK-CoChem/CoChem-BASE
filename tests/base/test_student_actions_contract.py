@@ -559,6 +559,41 @@ def test_verified_failure_evidence_is_imported_without_claiming_science(tmp_path
     assert json.loads((destination / "request.json").read_bytes()) == _request()
 
 
+def test_worker_seals_nested_native_manifest_and_rejects_later_tampering(tmp_path):
+    """Exercise the real finalizer and importer with filesystem-only evidence."""
+    from scripts.run_student_research import finalize
+
+    contents, submission = _archive(_request())
+    evidence = tmp_path / "worker-evidence"
+    evidence.mkdir()
+    with zipfile.ZipFile(io.BytesIO(contents)) as archive:
+        archive.extractall(evidence)
+    native_manifest = evidence / "native/publication-manifest.json"
+    native_manifest.parent.mkdir()
+    original = canonical_json({"schema_version": "cochem.actions-publication/1",
+                               "files": {}, "scientific_execution_performed": False})
+    native_manifest.write_bytes(original)
+
+    manifest = finalize(evidence)
+    assert manifest["files"]["native/publication-manifest.json"] == {
+        "sha256": hashlib.sha256(original).hexdigest(), "size_bytes": len(original)}
+    assert "publication-manifest.json" not in manifest["files"]
+    assert finalize(evidence) == manifest
+
+    sealed = io.BytesIO()
+    with zipfile.ZipFile(sealed, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(evidence.rglob("*")):
+            if path.is_file():
+                archive.write(path, path.relative_to(evidence).as_posix())
+    destination = tmp_path / "results"
+    result = _extract_verified_archive(sealed.getvalue(), destination, submission, submission)
+    assert result["report"]["operation_performed"] is False
+    assert (destination / "native/publication-manifest.json").read_bytes() == original
+    (destination / "native/publication-manifest.json").write_bytes(original + b" ")
+    with pytest.raises(StudentActionsError, match="integrity failed: native/publication-manifest.json"):
+        verify_retained_results(destination, submission)
+
+
 def test_retained_results_reopen_offline_and_reject_later_tampering(tmp_path):
     contents, submission = _archive(_request())
     destination = tmp_path / "results"

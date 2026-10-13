@@ -99,7 +99,7 @@
     "scripts/run_module_handoff.py": "e3710135e67cf1da035a0006aae4599e6be9eb85d6b0c2fde90dff03c43b3b56",
     "scripts/run_module_installation.py": "10a3c4d9243e741736da3b72c443e6dbaedda087fe06087a8c4c1c6be22a22b0",
     "scripts/run_module_job.py": "9f675fd9d2a3af7967c0e887de907e23c3c0f8509e2f93c3e848f652f3c7381f",
-    "scripts/run_student_research.py": "df6c57ce85f27cc0d9bb9f33062763d6e31e6acd82e0795fa29887b198f1ed4d",
+    "scripts/run_student_research.py": "265e3abcdf76ad3ed9ff863f63fcc1f786e73e9542775c5019c01b543b622b35",
     "scripts/setup_devcontainer.sh": "b4b43a2f9d3767a58ff6f6480fb01244ae1bcec57bee141e73b19bee293fe8d2",
     "scripts/setup_licensed_engines.py": "c166390948b586b9b6eeff4ed37c3a53c73b334b8b5ea046cdff44c42727b482",
     "scripts/spcat_runner.py": "6d39e3af765451b32c3ded68a9a066b2cd5d2c56766f357c48897563e1f01952",

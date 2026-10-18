@@ -32,6 +32,9 @@ class Disclosure(widgets.VBox):
         )
         self.toggle.observe(self._toggle_changed, names="value")
         self.observe(self._selection_changed, names="selected_index")
+        self.add_class("cochem-disclosure")
+        self.toggle.add_class("cochem-disclosure-toggle")
+        self.body.add_class("cochem-disclosure-body")
 
     @validate("selected_index")
     def _valid_selection(self, proposal):

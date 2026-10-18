@@ -13,6 +13,7 @@ import json
 import re
 import tempfile
 from pathlib import Path
+from urllib.parse import quote
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -55,34 +56,32 @@ def main():
             repository = project.input_value()
             assert re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository), "An actual authorized project is required"
             page.get_by_label("Project branch:", exact=True).fill(args.branch)
-            expect(page.get_by_role("heading", name="ORCA and CFOUR on GitHub Actions", exact=True)).to_be_visible()
+            expect(page.get_by_role("heading", name="Check calculation access", exact=True)).to_be_visible()
             assert page.locator('input[type="password"]').count() == 0
-            from urllib.parse import quote
             expect(page.get_by_role("link", name="Setup help: ORCA, CFOUR and project access", exact=True)).to_have_attribute(
                 "href", f"https://github.com/{repository}/blob/{quote(args.branch, safe='')}/.docs/GET_STARTED.md")
             expect(page.get_by_label("Scientific data:", exact=True)).to_be_hidden()
-            review = page.get_by_role("button", name="Review Actions setup", exact=True)
-            expect(review).to_be_enabled()
-            review.click()
-            expect(page.get_by_text("[System: Actions setup instructions]", exact=True)).to_be_visible()
             readiness = page.get_by_role("button", name="Check ORCA & CFOUR", exact=True)
             if readiness.is_enabled():
                 readiness.click()
             page.screenshot(path=str(artifact / "classroom50-instructions.png"), full_page=True)
             page.get_by_role("button", name="Calculations", exact=True).click()
+            page.get_by_role("tab", name="Starting structure", exact=True).click()
+            page.get_by_role("button", name="Show Edit XYZ coordinates directly", exact=True).click()
             page.get_by_label("Geometry (XYZ):", exact=True).fill("O 0 0 0\nH 0 0 0.96\nH 0.92 0 -0.24")
-            page.get_by_label("Screening (no product accuracy claim)", exact=True).check()
-            page.get_by_text("Method and settings", exact=True).click()
+            page.get_by_role("tab", name="Method and settings", exact=True).click()
             engine = page.get_by_label("Engine:", exact=True)
             expect(engine.locator("option").filter(has_text=re.compile(r"^ORCA\b"))).to_have_count(
                 1, timeout=args.readiness_timeout * 1000)
             select_label(engine, "ORCA")
-            select_label(page.get_by_label("Theory Tier:", exact=True), "T2")
-            select_label(page.get_by_label("Method:", exact=True), "HF/STO-3G")
+            page.get_by_role("radio", name="Exploratory calculation — no accuracy certification", exact=True).check()
+            select_label(page.get_by_label("Theory family:", exact=True), "T2")
+            select_label(page.get_by_role("combobox", name="Method:", exact=True), "HF/STO-3G")
             select_label(page.get_by_label("Basis Set:", exact=True), "STO-3G")
-            select_label(page.get_by_label("Solvation:", exact=True), "None")
-            page.get_by_label("Project Name:", exact=True).fill("water-browser")
-            select_label(page.get_by_label("Actions operation:", exact=True), "Single point")
+            select_label(page.get_by_label("Surroundings:", exact=True), "Gas phase (no solvent model)")
+            page.get_by_label("Calculation label:", exact=True).fill("water-browser")
+            actions_operation = page.get_by_role("combobox", name="Calculate:", exact=True)
+            select_label(actions_operation, "Single point")
             expect(page.get_by_label("Output Dir:", exact=True)).to_be_hidden()
             page.get_by_role("button", name="Show Calculation resources and frequency guidance", exact=True).click()
             expect(page.get_by_label("Calculation timeout (s):", exact=True)).to_have_value("300")
@@ -90,7 +89,7 @@ def main():
             prepare = page.get_by_role("button", name="Save configuration", exact=True)
             expect(prepare).to_be_enabled()
             prepare.click()
-            expect(page.get_by_text("[System: Actions job prepared]", exact=True)).to_be_visible()
+            expect(page.get_by_role("status").filter(has_text="Workspace status: Actions job prepared")).to_be_visible()
             expect(page.get_by_text("No calculation has been submitted or run.", exact=False)).to_be_visible()
             with page.expect_download() as download:
                 page.get_by_role("link", name="Download ORCA request JSON", exact=True).click()
@@ -104,10 +103,10 @@ def main():
             assert all(data[field] is None for field in ("hessian_file", "r2_reference_manifest", "t9_fallback", "periodic"))
             expect(page.get_by_role("button", name="Run on GitHub Actions", exact=True)).to_be_enabled()
             page.screenshot(path=str(artifact / "classroom-job-prepared.png"), full_page=True)
-            select_label(page.get_by_label("Actions operation:", exact=True), "Optimize + harmonic frequencies")
+            select_label(actions_operation, "Optimize + harmonic frequencies")
             expect(page.get_by_role("link", name="Download ORCA request JSON", exact=True)).to_have_count(0)
             prepare.click()
-            expect(page.get_by_text("[System: Actions job prepared]", exact=True)).to_be_visible()
+            expect(page.get_by_role("status").filter(has_text="Workspace status: Actions job prepared")).to_be_visible()
             with page.expect_download() as frequency_download:
                 page.get_by_role("link", name="Download ORCA request JSON", exact=True).click()
             frequency_target = artifact / "water-browser-harmonic-job.json"
@@ -118,7 +117,7 @@ def main():
             page.screenshot(path=str(artifact / "classroom-harmonic-job-prepared.png"), full_page=True)
             select_label(page.get_by_label("Engine:", exact=True), "xTB")
             expect(page.get_by_role("link", name="Download ORCA request JSON", exact=True)).to_have_count(0)
-            select_label(page.get_by_label("Actions operation:", exact=True), "Optimization")
+            select_label(actions_operation, "Geometry optimization")
             prepare.click()
             with page.expect_download() as free_download:
                 page.get_by_role("link", name="Download XTB request JSON", exact=True).click()
@@ -132,7 +131,9 @@ def main():
             expect(page.get_by_role("button", name="Show Advanced local setup", exact=True)).to_be_visible()
             page.get_by_role("button", name="Calculations", exact=True).click()
             expect(page.get_by_role("button", name="Run xTB optimization", exact=True)).to_be_visible()
-            expect(page.get_by_label("Actions operation:", exact=True)).to_be_hidden()
+            # Native xTB has one fixed operation; neither operation selector is
+            # exposed after leaving the hosted calculation route.
+            expect(actions_operation).to_be_hidden()
             expect(page.get_by_label("Output Dir:", exact=True)).to_be_hidden()
             assert not errors, errors
             assert not failures, failures

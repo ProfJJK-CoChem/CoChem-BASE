@@ -81,13 +81,16 @@ def test_exception_registry_and_polymorphic_roundtrip():
 def test_exception_pedagogical_guidance():
     """Verify that to_pedagogical_guidance returns actionable didactic advice."""
     col_err = OntologicalCollisionError("Mixed parameters")
-    assert "Ontological collision" in col_err.to_pedagogical_guidance()
+    assert "isolated molecule" in col_err.to_pedagogical_guidance()
+    assert "repeating crystal" in col_err.to_pedagogical_guidance()
 
     dens_err = ReciprocalDensityViolation("Under-resolved kmesh")
-    assert "Periodic k-point mesh density" in dens_err.to_pedagogical_guidance()
+    assert "k-point mesh" in dens_err.to_pedagogical_guidance()
+    assert "same physical cell" in dens_err.to_pedagogical_guidance()
 
     rot_err = InvalidRotationalAnchorError("Ordering violated")
-    assert "Rotational constant ordering" in rot_err.to_pedagogical_guidance()
+    assert "A >= B >= C" in rot_err.to_pedagogical_guidance()
+    assert "symmetric rotors" in rot_err.to_pedagogical_guidance()
 
     cell_err = InvalidPeriodicCellError("Degenerate cell")
     assert "unit cell volume" in cell_err.to_pedagogical_guidance()

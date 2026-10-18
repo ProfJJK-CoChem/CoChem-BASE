@@ -75,7 +75,10 @@ def case_all_specified_molecular_uploads_and_record_selection(gui):
         assert len(gui.input_record_choice.options) == count
         gui.input_record_choice.value = count - 1
         gui.charge_input.value = 2
-        gui._use_library_geometry()
+        gui.state.active_view = 'inputs'
+        gui.btn_use_input_geometry.click()
+        assert gui.state.active_view == 'inputs'
+        assert 'Continue to calculation settings' in gui.input_library_status.value
         record = gui._student_uploads[gui.student_geometry_choice.value]
         assert record['source_sha256'] == receipt['sha256'] and record['source_frame'] == count - 1
         assert record['atom_count'] == 3 and record['origin'] == 'canonical_ingestion'
@@ -85,6 +88,9 @@ def case_all_specified_molecular_uploads_and_record_selection(gui):
         if filename.endswith('.sdf'):
             assert record['multiplicity'] == 1
         assert Path(receipt['path']).read_bytes() == raw
+        gui.btn_continue_calculation_settings.click()
+        assert gui.state.active_view == 'matrix'
+        assert gui.config_tabs.selected_index == 1
     reopened = CoChemGUI()
     reopened._input_library_worker.join(timeout=30)
     assert len(reopened._input_library) == 7
@@ -296,7 +302,12 @@ def case_real_inbox_watcher_and_corrupt_receipt_isolation(gui):
     assert record['input_id'] not in gui._input_library
     assert len(gui._input_library) == 1
     assert len(gui._input_library_rejections) == 1
-    assert 'Rejected retained inputs' in gui.input_library_table.value
+    assert 'Rejected retained inputs' in gui.input_library_rejections.value
+    assert 'role="alert"' in gui.input_library_rejections.value
+    assert record['input_id'] in gui.input_library_rejections.value
+    assert gui.input_library_rejections in gui.view_inputs.children
+    assert gui.input_library_rejections.layout.display != 'none'
+    assert 'Rejected retained inputs' not in gui.input_library_table.value
     assert original.read_bytes().endswith(b'corrupt trailing content\n')
 
 

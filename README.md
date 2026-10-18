@@ -14,8 +14,15 @@ Already viewing the CoChem dashboard in your browser?
 1. Open **Start here**, select **GitHub Actions** under **Run calculations on**,
    and choose **Check ORCA & CFOUR**.
 2. Open **Your files** and upload your own structures or other scientific inputs.
-3. Open **Calculations**, choose the assigned operation and method, then select
-   **Run on GitHub Actions**.
+   For a molecular calculation, select the intended frame, choose **Use selected
+   starting geometry**, then **Continue to calculation settings**.
+3. In **Calculations → Method and settings**, check charge and spin, then choose
+   the assigned engine, method, basis and surroundings. Choose the task under
+   **Calculate** and select **Run on GitHub Actions**.
+
+Open **Explain…** beside a setting for examples and scientific guidance. Use
+**Scientific terms** in the sidebar to search definitions; your calculation draft
+stays in place. The TOPOS and TORQ tabs have their own named start buttons.
 
 If an engine is unavailable, follow the explanation beside it in **Start here**.
 ORCA and CFOUR are **optional and strongly recommended**. Missing access to one

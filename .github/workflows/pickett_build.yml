@@ -42,11 +42,12 @@ jobs:
       - name: Audit the checked-out BASE source before application imports
         run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "$RUNNER_TEMP/cochem-evidence/source-audit"
       - name: Build the four programs outside the checkout and record the receipt
-        run: >-
-          python -B -I scripts/provision_pickett.py build
-          --root "$RUNNER_TEMP/cochem-pickett/install"
-          --output "$RUNNER_TEMP/cochem-evidence/pickett-build.json"
-          --github-env "$GITHUB_ENV"
+        run: |
+          mkdir -p "$RUNNER_TEMP/cochem-pickett"
+          python -B -I scripts/provision_pickett.py build \
+            --root "$RUNNER_TEMP/cochem-pickett/install" \
+            --output "$RUNNER_TEMP/cochem-evidence/pickett-build.json" \
+            --github-env "$GITHUB_ENV"
       - name: Verify the installation against its receipt and the manifest
         run: >-
           python -B -I scripts/provision_pickett.py verify

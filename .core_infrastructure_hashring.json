@@ -113,7 +113,7 @@
     "scripts/verify_quantum_pes.py": "99fd62c0df5093f2c4cf4664f3b796dcd13c9db3cefbed1c7121d84ee63daa98",
     "scripts/verify_quantum_pes_dual.py": "9bb991c0712a0c866a8efc14472e651acfbf03f21efb77f28d7ad0a800c1a43b",
     "scripts/verify_r2.py": "f92c2fae502db9686154a7dab45761343bee38304a8484b2ee2d2384ed6318da",
-    "scripts/verify_release_ci.py": "da931d95c80af196369c5ee39c6b027f8023da477d9199f448af369ff9adc40f",
+    "scripts/verify_release_ci.py": "9c83b7035a071921a1460a642a4410b6f241382cccfc658f35df37a467c2e1e3",
     "scripts/verify_srs_completion.py": "c6b541c6c24215439bb6d89c8b48115f680d658fd51cfa2411ad1740dc5007a3",
     "src/cochem_base/calc/calculation_service.py": "db3fb947c53650017773051c2db9b6b2a7e6b3316f24d14a0012ae3dec490ff2",
     "src/cochem_base/calc/cfour_execution.py": "7f4ccdd53ab3984a2b9510b6dd1dfabf9685245774d88916c6781dad3e3e263e",

@@ -34,6 +34,23 @@ def _actions(*buttons: widgets.Widget) -> widgets.HBox:
     return widgets.HBox(list(buttons)).add_class("cochem-actions")
 
 
+def _keep_none_option_visible(dropdown: widgets.Dropdown) -> None:
+    """Show the authored label for None without changing its scientific value.
+
+    ipywidgets otherwise clears the displayed selection when a None-valued
+    option is selected, including the valid gas-phase choice.
+    """
+    def restore_label(_: Any = None) -> None:
+        if dropdown.value is None and dropdown.index is None:
+            for index, (_, value) in enumerate(dropdown.options):
+                if value is None:
+                    dropdown.index = index
+                    break
+
+    dropdown.observe(restore_label, names="index")
+    restore_label()
+
+
 def _navigate(gui: Any, view: str, title: str, tab: int | None = None) -> widgets.Button:
     button = widgets.Button(description=title, button_style="primary", layout=widgets.Layout(width="auto"))
 
@@ -138,6 +155,10 @@ def _molecular_settings(gui: Any) -> None:
     gui.matrix_solvation.options = [("Gas phase (no solvent model)", None), ("Water (CPCM)", "CPCM(Water)"),
         ("Acetone (CPCM)", "CPCM(Acetone)"), ("Ethanol (CPCM)", "CPCM(Ethanol)")]
     gui.matrix_solvation.value = selected_solvent
+    for field in (gui.charge_input, gui.multiplicity_input, gui.matrix_tier, gui.matrix_solvation):
+        field.style.description_width = "initial"
+    _keep_none_option_visible(gui.matrix_engine)
+    _keep_none_option_visible(gui.matrix_solvation)
     gui.t9_disclosure = Disclosure("Advanced: multireference spin recovery (T9)",
         _help("active_space"), gui.t9_panel)
     gui.t9_panel.children = gui.t9_panel.children[1:]
@@ -169,8 +190,8 @@ def _molecular_settings(gui: Any) -> None:
         gui.student_monomer_choices, gui.student_seed_separation, gui.btn_assemble_monomers)
     gui.viewer_output.layout.width = "100%"
     gui.viewer_output.layout.max_width = "100%"
-    gui.geometry_charge = widgets.IntText(description="Structure charge:")
-    gui.geometry_multiplicity = widgets.IntText(description="Structure multiplicity:")
+    gui.geometry_charge = widgets.IntText(description="Structure charge:", style={"description_width": "initial"})
+    gui.geometry_multiplicity = widgets.IntText(description="Structure multiplicity:", style={"description_width": "initial"})
     gui._geometry_state_links = (
         widgets.link((gui.charge_input, "value"), (gui.geometry_charge, "value")),
         widgets.link((gui.multiplicity_input, "value"), (gui.geometry_multiplicity, "value")),
@@ -242,6 +263,7 @@ def _calculations(gui: Any) -> None:
         gui.config_tabs, gui.output_config_box, gui.output_destination_guidance, gui.configuration_export,
     )
     gui.project_name.description = "Calculation label:"
+    gui.project_name.style.description_width = "initial"
     gui.project_name.layout.width = "100%"
     gui.project_name.placeholder = "Optional label, for example water-dimer-scan"
     gui.context_summary = _text("").add_class("cochem-selection")

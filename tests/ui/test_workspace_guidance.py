@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 
-@pytest.mark.parametrize("case", ["goal_navigation", "help_preserves_draft", "input_disclosure"])
+@pytest.mark.parametrize("case", ["goal_navigation", "help_preserves_draft", "input_disclosure", "choice_labels"])
 def test_workspace_guidance_in_fresh_process(tmp_path, case):
     environment = dict(os.environ,
         COCHEM_CONFIG=str(tmp_path / "absent-registry.json"),
@@ -41,6 +41,23 @@ def _exercise(case):
     gui.matrix_geometry.value = geometry
     before = (gui.charge_input.value, gui.multiplicity_input.value, gui.matrix_geometry.value,
               gui.matrix_method.value, gui.matrix_basis.value, gui.btn_execute.disabled)
+    if case == "choice_labels":
+        # A valid None-valued solvent and the unavailable-engine prompt must
+        # remain named in the UI, without changing their underlying values.
+        assert gui.matrix_engine.value is None
+        assert gui.matrix_engine.label
+        assert gui.btn_execute.disabled
+        for solvent in (None, "CPCM(Water)", None):
+            gui.matrix_solvation.value = solvent
+            assert gui.matrix_solvation.value == solvent
+            assert gui.matrix_solvation.label
+            if solvent is None:
+                assert "Gas phase" in gui.matrix_solvation.label
+        gui.matrix_engine.value = "XTB"
+        gui.matrix_engine.value = None
+        assert gui.matrix_engine.label
+        assert gui.btn_execute.disabled
+        return
     if case == "help_preserves_draft":
         gui.btn_terms.click()
         assert gui.state.active_view == "guide"

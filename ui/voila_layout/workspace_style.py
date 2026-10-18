@@ -57,6 +57,12 @@ WORKSPACE_CSS = """
 .cochem-accessible .widget-html:has(> .widget-html-content:empty) {display: none;}
 .cochem-accessible .widget-label {color: var(--cc-ink); font-size: 14px;
   white-space: normal; height: auto; line-height: 1.5;}
+.cochem-accessible .jupyter-widgets .widget-radio-box {height: auto;}
+.cochem-accessible .jupyter-widgets .widget-radio-box > label {
+  display: flex; align-items: flex-start; gap: 8px; height: auto; min-height: 28px;
+  white-space: normal; line-height: 1.5; padding: 3px 0;}
+.cochem-accessible .jupyter-widgets .widget-radio-box > label > input[type=radio] {
+  order: -1; flex: 0 0 auto; margin: 3px 0 0; height: 18px;}
 .cochem-accessible input, .cochem-accessible select, .cochem-accessible textarea {
   color: var(--cc-ink); background: #fff; border: 1px solid #82999e; border-radius: 4px;
   font-family: inherit; font-size: 14px; min-width: 0; line-height: 1.5;}

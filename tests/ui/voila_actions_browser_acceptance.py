@@ -89,7 +89,7 @@ def main():
             prepare = page.get_by_role("button", name="Save configuration", exact=True)
             expect(prepare).to_be_enabled()
             prepare.click()
-            expect(page.get_by_text("[System: Actions job prepared]", exact=True)).to_be_visible()
+            expect(page.get_by_role("status").filter(has_text="Workspace status: Actions job prepared")).to_be_visible()
             expect(page.get_by_text("No calculation has been submitted or run.", exact=False)).to_be_visible()
             with page.expect_download() as download:
                 page.get_by_role("link", name="Download ORCA request JSON", exact=True).click()
@@ -106,7 +106,7 @@ def main():
             select_label(actions_operation, "Optimize + harmonic frequencies")
             expect(page.get_by_role("link", name="Download ORCA request JSON", exact=True)).to_have_count(0)
             prepare.click()
-            expect(page.get_by_text("[System: Actions job prepared]", exact=True)).to_be_visible()
+            expect(page.get_by_role("status").filter(has_text="Workspace status: Actions job prepared")).to_be_visible()
             with page.expect_download() as frequency_download:
                 page.get_by_role("link", name="Download ORCA request JSON", exact=True).click()
             frequency_target = artifact / "water-browser-harmonic-job.json"

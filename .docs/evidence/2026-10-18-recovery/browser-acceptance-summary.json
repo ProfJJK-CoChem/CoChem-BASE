@@ -1,0 +1,51 @@
+{
+  "status": "BOUNDED_RENDERED_UI_ACCEPTANCE_PASSED",
+  "source_commit": "7d5cebdb88365e70ecdc77390eda570e08ebf306",
+  "source_method": "git archive of exact commit; no working-tree content copied",
+  "source_manifest_sha256": "088a1cf8cda23e5ddb18951c48604afb36453de7e5d489df04a5bffb48ce484c",
+  "frozen_source_files_unchanged": 2219,
+  "recorded_gui_import_origins_in_frozen_source": 63,
+  "canonical_status": "STUDENT_ENTRYPOINT_UI_VERIFIED",
+  "rendered_states": 16,
+  "widths": [
+    320,
+    1440
+  ],
+  "source_before_after_harness_unchanged": true,
+  "original_upload_hashes_still_unchanged": {
+    "student-water.xyz": "5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3",
+    "student-water-b.xyz": "bf5c0baf6cd3270438683e9343d25eac0c5b8875519298b7e8519494836fc71f",
+    "student-complex.xyz": "46ec171c448a217adceea7402eb6d8468f0550e59729f52c1c8e720ed32a7e32"
+  },
+  "remove_and_undo": {
+    "original_identity_retained": "e59f1898a7d14af085f5e38f014b145c",
+    "removed_choice_hidden": true,
+    "restored_original_bytes_and_hash": true
+  },
+  "fresh_kernel_recovery": true,
+  "page_errors": [],
+  "console_errors": [],
+  "request_failures": [],
+  "console_warning_count": 17,
+  "owned_server_stopped": true,
+  "receipt_hashes": {
+    "server.json": "0945a15fe8bbd4f53ec0c12fd33ac25512f2ee327dbebb7110f9db1b6718fff6",
+    "source-manifest.json": "088a1cf8cda23e5ddb18951c48604afb36453de7e5d489df04a5bffb48ce484c",
+    "canonical-ui-smoke/browser-summary.json": "cc037b1956d24b4995e5be65718e7f70203a6d926f8b0a6524ee14987412ffbf",
+    "rendered-review.json": "a6e3034068f1d04274630bde8617b9794a0be222ed7c4026a6bc65f4ceb6aade",
+    "runtime/actual-gui-import-origins.json": "395d636c6e2a793d139fc1b2c7a40c0c2f3b592abe5215950362b4450c91b55f",
+    "shutdown.json": "a8de2870a24acad40efa50b90a7d4915369295c8336dfe75ec94bd527ee93ef6"
+  },
+  "scope_limitations": [
+    "Local Chromium/Voil\u00e0 only; no student account or real Codespace acceptance",
+    "Existing registry used; no bootstrap/setup, installation, workflow dispatch or chemistry performed",
+    "TOPOS/TORQ unavailable in isolated runtime; their view layout and honest absence checked",
+    "Show/Hide controls work by keyboard but aria-expanded/aria-controls remain absent",
+    "13 retained-runtime Jupyter shared-version warnings plus4 WebGL performance warnings; external CDN assets used",
+    "Concurrent working-tree public-gate changes deliberately excluded from frozen7d5 source"
+  ],
+  "independent_audit": {
+    "agent": "/root/gui_browser_baseline/actions_harness_update",
+    "result": "Independently compared all2219manifest files against git archive7d5cebd,321before/after harness hashes,63recorded import origins,unchanged registry,original3inputs+assembledseed; no discrepancy. Reviewed current visual receipt and exact limitations; no remembered evidence used."
+  }
+}

@@ -4,6 +4,27 @@ Prepared 2026-10-09. This is the working brief for the agent running on the
 instructor's local workstation. **Complete the implementation and genuine
 acceptance below; this document does not declare the unfinished work complete.**
 
+## 2026-10-18 recovery and module ownership update
+
+Start with the [recovery/validation record](GUI_Recovery_2026-10-18.md) and
+[module ownership audit](Module_Ownership_Audit_2026-10-18.md). The GUI corrections
+and public-source access fix are separate from the unresolved scientific-module
+ownership migration. BASE downloads canonical pinned TOPOS/TORQ providers, but
+also distributes overlapping namespaces and owns some TORQ scan/bond-analysis
+implementation. Follow the concrete canonical-module handoff before changing
+pins or deleting active code; keep every BASE SRS ingestion/conformer duty and
+scientific assertion.
+
+Use the [updated student pilot](Student_Deployment_Pilot.md) for a private
+independent project, initial GUI enrollment, App provisioning and a new Codespace
+with the resulting project permissions. Public forks, instructor API access and
+Classroom50 roster enrollment do not establish the selected student route.
+
+Run complete source-bound profiles with installed site packages enabled:
+`-B -I`, without `-S`. The process-admission guard needs installed `psutil`.
+The standard-library-only source audit can use `-S`. Preserve the original
+refused/failed results when correcting an invocation or implementation.
+
 ## 2026-10-13 interface and access update
 
 Start the next review with the [plain-language quick guide](GET_STARTED.md).
@@ -357,7 +378,7 @@ and fresh external output paths; placeholders are **not runnable defaults**:
 
 ```bash
 python -B -I -S ci_tools/base_ci.py audit --expected-revision <reviewed-commit> --output <external-audit>
-python -B -I -S ci_tools/base_ci.py all --expected-revision <reviewed-commit> --output <external-full> --timeout 7200
+python -B -I ci_tools/base_ci.py all --expected-revision <reviewed-commit> --output <external-full> --timeout 7200
 python -B scripts/verify_release_ci.py regressions --expected-revision <reviewed-commit> --output <external-bounded>
 python -B scripts/verify_release_ci.py wheel --expected-revision <reviewed-commit> --output <external-wheel>
 python scripts/verify_orca.py --registry <fresh-registry> --output <external-orca-report>

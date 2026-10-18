@@ -1,0 +1,31 @@
+{
+  "scope": "Read-only independent public-module credential-gate review; no test execution or source edits",
+  "base_revision": "7d5cebdb88365e70ecdc77390eda570e08ebf306",
+  "reviewed_at_utc": "2026-10-18T02:47:33.850532+00:00",
+  "approved": true,
+  "files_sha256": {
+    ".github/workflows/student_research.yml": "08438920bd2d3b7d3ef59bdeb4a0412ee49d2191f67f40cd390517183f6e7e81",
+    "src/cochem_base/interfaces/student_actions.py": "72c85dff81fa84535ca847755584174bf02d8814b00bb47f5413a6f3432fa2f7",
+    "tests/base/test_student_actions_contract.py": "d68725dcac1fb4a21c06d3ef555c629d3c6b30cb1b4ce34b5455ec078d1acf39",
+    "tests/base/test_student_setup.py": "1871656bc1674177cf2ccf5171873a92795962fd9f904e3946fa7df5b4553b23"
+  },
+  "checks": [
+    "Python AST differs only by removal of source-secret-presence conditional from submit; all other nodes identical",
+    "Workflow bytes differ only by replacement of early credential prerequisite with explanatory comments",
+    "Optional source credential remains install-scoped; no credential exposed to scientific execution",
+    "Actual pinned source revision, clean origin/hash validation, build environment credential filtering and ready=false failure retained",
+    "ORCA/CFOUR preflight and provisioning gates unchanged",
+    "No existing unrelated test assertions removed; replaced credential-presence test by public module dispatch and retained licensed-engine refusal coverage",
+    "Workflow installer test uses genuine offline Git, isolated wheels and live local HTTP403 refusal; it does not claim scientific accuracy"
+  ],
+  "approved_existing_hash_targets": [
+    ".github/workflows/student_research.yml",
+    "src/cochem_base/interfaces/student_actions.py"
+  ],
+  "runtime_acceptance": {
+    "before": "/tmp/cochem-public-module-gates-before.xml: 5 cases, 4 failures, 1 pass, no errors/skips",
+    "after": "/tmp/cochem-public-module-gates-after.xml: 5 cases, 5 passes in16.993s, no errors/skips",
+    "scope": "Actual local HTTP dispatch contract, workflow installer program, offline pinned Git/wheel and local HTTP403 refusal; no chemistry or anonymous-internet claim",
+    "broader_suite": "Author-owned broader run pending separate result"
+  }
+}

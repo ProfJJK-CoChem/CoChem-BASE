@@ -1,0 +1,556 @@
+{
+  "scope": "Actual local rendered GUI with retained registry; auto setup and remote checks false; notebook bootstrap installation deliberately not run. No chemistry, workflow dispatch or student Codespace acceptance.",
+  "source_commit": "7d5cebdb88365e70ecdc77390eda570e08ebf306",
+  "source_manifest_sha256": "088a1cf8cda23e5ddb18951c48604afb36453de7e5d489df04a5bffb48ce484c",
+  "states": [
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Start here",
+        "Where will calculations run?",
+        "Check calculation access",
+        "CoChem tools and updates"
+      ],
+      "overflow": [],
+      "tabs": [],
+      "name": "start-actions"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Start here",
+        "Where will calculations run?",
+        "Check calculation access",
+        "CoChem tools and updates"
+      ],
+      "overflow": [],
+      "tabs": [],
+      "name": "explain-open"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Your files",
+        "1 \u00b7 Upload a scientific file",
+        "2 \u00b7 Choose a structure or dataset"
+      ],
+      "overflow": [],
+      "tabs": [],
+      "name": "retained-inputs"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Scientific terms"
+      ],
+      "overflow": [],
+      "tabs": [],
+      "name": "glossary-hessian"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Calculation goal",
+        "Electronic state",
+        "Method and basis",
+        "Surroundings",
+        "Run calculation"
+      ],
+      "overflow": [],
+      "tabs": [
+        {
+          "text": "Starting structure",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Method and settings",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TOPOS",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TORQ",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Monomer constraints",
+          "height": 40,
+          "whiteSpace": "normal"
+        }
+      ],
+      "name": "spin-rejection-guidance"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Calculation goal",
+        "Electronic state",
+        "Method and basis",
+        "Surroundings",
+        "Run calculation"
+      ],
+      "overflow": [],
+      "tabs": [
+        {
+          "text": "Starting structure",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Method and settings",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TOPOS",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TORQ",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Monomer constraints",
+          "height": 40,
+          "whiteSpace": "normal"
+        }
+      ],
+      "name": "optional-preview-label"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Structures and energies \u00b7 TOPOS",
+        "1. Choose what to calculate",
+        "2. Set the calculation conditions",
+        "3. Run and review",
+        "Current calculation"
+      ],
+      "overflow": [],
+      "tabs": [
+        {
+          "text": "Starting structure",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Method and settings",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TOPOS",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TORQ",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Monomer constraints",
+          "height": 40,
+          "whiteSpace": "normal"
+        }
+      ],
+      "name": "topos"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Energy scans and bonding \u00b7 TORQ",
+        "1. Choose the electronic-structure settings",
+        "2. Choose the bonding analysis",
+        "3. Run the selected analysis",
+        "Current calculation"
+      ],
+      "overflow": [],
+      "tabs": [
+        {
+          "text": "Starting structure",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Method and settings",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TOPOS",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TORQ",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Monomer constraints",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Distance scan",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Bond analysis",
+          "height": 40,
+          "whiteSpace": "normal"
+        }
+      ],
+      "name": "torq-bond-analysis"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Start here",
+        "Where will calculations run?",
+        "Check calculation access",
+        "CoChem tools and updates"
+      ],
+      "overflow": [],
+      "tabs": [],
+      "name": "start-actions"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Start here",
+        "Where will calculations run?",
+        "Check calculation access",
+        "CoChem tools and updates"
+      ],
+      "overflow": [],
+      "tabs": [],
+      "name": "explain-open"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Your files",
+        "1 \u00b7 Upload a scientific file",
+        "2 \u00b7 Choose a structure or dataset"
+      ],
+      "overflow": [],
+      "tabs": [],
+      "name": "retained-inputs"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Scientific terms"
+      ],
+      "overflow": [],
+      "tabs": [],
+      "name": "glossary-hessian"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Calculation goal",
+        "Electronic state",
+        "Method and basis",
+        "Surroundings",
+        "Run calculation"
+      ],
+      "overflow": [],
+      "tabs": [
+        {
+          "text": "Starting structure",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Method and settings",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TOPOS",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TORQ",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Monomer constraints",
+          "height": 40,
+          "whiteSpace": "normal"
+        }
+      ],
+      "name": "spin-rejection-guidance"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Calculation goal",
+        "Electronic state",
+        "Method and basis",
+        "Surroundings",
+        "Run calculation"
+      ],
+      "overflow": [],
+      "tabs": [
+        {
+          "text": "Starting structure",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Method and settings",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TOPOS",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TORQ",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Monomer constraints",
+          "height": 40,
+          "whiteSpace": "normal"
+        }
+      ],
+      "name": "optional-preview-label"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Structures and energies \u00b7 TOPOS",
+        "1. Choose what to calculate",
+        "2. Set the calculation conditions",
+        "3. Run and review",
+        "Current calculation"
+      ],
+      "overflow": [],
+      "tabs": [
+        {
+          "text": "Starting structure",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Method and settings",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TOPOS",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TORQ",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Monomer constraints",
+          "height": 40,
+          "whiteSpace": "normal"
+        }
+      ],
+      "name": "topos"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Energy scans and bonding \u00b7 TORQ",
+        "1. Choose the electronic-structure settings",
+        "2. Choose the bonding analysis",
+        "3. Run the selected analysis",
+        "Current calculation"
+      ],
+      "overflow": [],
+      "tabs": [
+        {
+          "text": "Starting structure",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Method and settings",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TOPOS",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "TORQ",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Monomer constraints",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Distance scan",
+          "height": 40,
+          "whiteSpace": "normal"
+        },
+        {
+          "text": "Bond analysis",
+          "height": 40,
+          "whiteSpace": "normal"
+        }
+      ],
+      "name": "torq-bond-analysis"
+    }
+  ],
+  "checks": [
+    {
+      "width": 1440,
+      "native_help_keyboard": "Explain where my interface and calculations run"
+    },
+    {
+      "width": 1440,
+      "show_hide_keyboard": true,
+      "aria_expanded": null,
+      "aria_controls": null
+    },
+    {
+      "width": 1440,
+      "unsupported_spin_rejected": true,
+      "intended_singlet_restoration_clears_error": true,
+      "geometry_unchanged": true,
+      "geometry_sha256": "417763766f36c2dcb4a44fe333a021609a9d355b67465ee719a90d0c1a572b07",
+      "charge_and_calculation_label_retained": true,
+      "export_label": {
+        "text": "Run configuration:",
+        "labelWidth": 122.09375,
+        "textWidth": 122.09375,
+        "labelHeight": 21,
+        "textHeight": 19
+      },
+      "gas_phase_label": [
+        "Gas phase (no solvent model)"
+      ],
+      "validated_request_sha256": "99eb95a30ab2a924b3ad4cad7a2bc907824eb748f4955ccbd914d5ac780ae250"
+    },
+    {
+      "width": 320,
+      "native_help_keyboard": "Explain where my interface and calculations run"
+    },
+    {
+      "width": 320,
+      "show_hide_keyboard": true,
+      "aria_expanded": null,
+      "aria_controls": null
+    },
+    {
+      "width": 320,
+      "unsupported_spin_rejected": true,
+      "intended_singlet_restoration_clears_error": true,
+      "geometry_unchanged": true,
+      "geometry_sha256": "417763766f36c2dcb4a44fe333a021609a9d355b67465ee719a90d0c1a572b07",
+      "charge_and_calculation_label_retained": true,
+      "export_label": {
+        "text": "Run configuration:",
+        "labelWidth": 246,
+        "textWidth": 122.09375,
+        "labelHeight": 21,
+        "textHeight": 19
+      },
+      "gas_phase_label": [
+        "Gas phase (no solvent model)"
+      ],
+      "validated_request_sha256": "99eb95a30ab2a924b3ad4cad7a2bc907824eb748f4955ccbd914d5ac780ae250"
+    }
+  ],
+  "page_errors": [],
+  "console_errors": [],
+  "console_warnings": [
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/console (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/logconsole (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/mainmenu (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/notebook (required ^4.6.2)",
+    "No satisfying version (^4.6.2) of shared module @jupyterlab/outputarea found in shared scope default.\nAvailable versions: 4.2.5 from _JUPYTERLAB.CORE_OUTPUT",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.6.2)",
+    "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/settingregistry (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/translation (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.5.10)",
+    "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.5.10)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/statedb (required ^4.5.10)",
+    "Unsatisfied version 6.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/coreutils (required ^6.5.10)",
+    "[.WebGL-0x4c40124ee00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x4c40124ee00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x4c40124ee00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x4c40124ee00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+  ],
+  "request_failures": [],
+  "external_requests": [
+    "https://cdn.jsdelivr.net/npm/3dmol@2.5.5/build/3Dmol-min.js",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/all.min.css",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/v4-shims.min.css",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/webfonts/fa-solid-900.woff2"
+  ],
+  "status": "PASSED"
+}

@@ -1,0 +1,15 @@
+{
+  "passed": false,
+  "stages": {
+    "audit": {
+      "passed": false
+    },
+    "tests": {
+      "passed": false,
+      "error": "[HARD_ABORT: AUDIT FAIL] Test subprocess was not started"
+    }
+  },
+  "evidence_directory": "/tmp/cochem-recovery-full-a02998c",
+  "mode": "release",
+  "release_accepted": false
+}

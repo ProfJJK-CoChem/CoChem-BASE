@@ -1,5 +1,126 @@
 # Accept the actual no-code student research deployment
 
+## Pilot status — 18 October 2026
+
+**A real student-account pilot is still required.** BASE, TOPOS and TORQ are
+public GitHub repositories. Their source can be downloaded without a private
+source credential; BASE must install the reviewed TOPOS/TORQ revisions from
+those repositories automatically. The corrected public-download path requires
+its own current installation evidence. Public visibility is not proof that
+installation, calculation submission or licensed archive access works.
+
+The [13 October acceptance report](GUI_Access_Acceptance_2026-10-13.md) records
+successful instructor-repository [ORCA](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/38406460669)
+and [CFOUR](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/38405425754)
+HF/STO-3G water calculations, strict result retrieval and a separate pinned
+[TOPOS/TORQ installation](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/38406682907).
+The [portable receipts](evidence/2026-10-13-gui-access/README.md) preserve their
+exact producer revisions and scope. They supersede the earlier maintainer
+archive-access failures as the latest evidence in that report; they do not
+establish a student App installation, fresh Codespace or personal-project run.
+
+Record the student's **GitHub username and personal project URL** privately
+before the pilot. Google sign-in is a way to authenticate
+that GitHub account; using it for both services does not create a separate
+student permission level. If the enrolled account still has instructor or
+organization-owner access, record this as an instructor test rather than a
+normal student-access test. No password, token or private credential belongs in
+the pilot record.
+
+**Diagnostic example reviewed on 18 October:** a public fork can contain the
+current BASE source and still be the wrong project type for this route. The
+reviewed example matched canonical revision
+`a02998c18639871dfca011c09777eb6e034b282e`; outdated code was not the reason
+it could not enter private-project provisioning. The App requires an independent
+private template copy. Preserve the fork and create a new private project using
+**Use this template**. GitHub does not allow a fork's visibility to be changed
+independently. A maintainer integration receiving HTTP 403 while inspecting
+project settings establishes that integration's limited access, not a failed
+student installation. Actual first-Codespace startup and enrollment remain
+unaccepted until observed under the student's account.
+
+For the selected private personal-project route, Actions usage belongs to the
+repository owner. Codespaces has its own payer and allowance, which the student
+checks when creating it. Organization membership and Education enrollment do
+not transfer organization secrets or change the repository's billable owner.
+The [instructor App guide](Personal_Project_App_Deployment.md) handles optional
+private engine access. Classroom50's assignment repository is the submission
+and feedback location; it does not automatically collect an unrelated private
+personal repository or grant the instructor access to one.
+
+## Ten-step pilot without terminal commands
+
+The student performs these steps with GitHub, BASE and VS Code buttons. The
+instructor or maintainer retains the evidence; the student does not install
+modules, edit workflow code or enter credentials.
+
+1. **Confirm the account.** Sign in to GitHub and check the profile username.
+   Accept the lab organization/team and Classroom50 invitations. The instructor
+   confirms this account has normal student access, then records its username
+   and the Classroom50 assignment link.
+2. **Create the research project.** On the reviewed BASE template, choose
+   **Use this template → Create a new repository**. Select the student's personal
+   account, a project name and **Private**. Record its URL, owner and reviewed
+   BASE revision. A personal template copy keeps calculation usage on that
+   account; an organization-owned assignment has a different payer.
+3. **Open BASE to request access.** In the new private project, use
+   **Code → Codespaces → Create codespace** to open the initial BASE dashboard.
+   This first Codespace supplies the enrollment interface. In **Start here**,
+   save the instructor invitation, authorize the instructor App only for this
+   project and submit the prepared request. Wait for the controller's success
+   comment; record its run URL and selected installation. Public module source
+   needs no private-source reader; ORCA/CFOUR access remains separate and
+   optional. Do not mark this initial startup passed until it has been observed
+   under the student's account.
+4. **Stop the first Codespace and create a new one.** After successful
+   provisioning, open GitHub's **Your codespaces** page and use the initial
+   Codespace's menu to choose **Stop codespace**. Keep it until any saved files
+   are accounted for; do not delete it. Return to the project's
+   **Code → Codespaces** controls and create a new Codespace, rather than reopen
+   the first. Review the project permissions, machine and payer that GitHub
+   shows. Record both Codespace identities and the new creation time. Changed
+   permissions apply to a new Codespace; rebuilding the initial one does not
+   update them.
+5. **Wait for automatic setup.** BASE opens its dashboard and installs the
+   reviewed TOPOS/TORQ providers from their own repositories. Record actual
+   source revisions and setup outcomes. No separate module repository or
+   terminal command is part of the student's work. Missing optional engines
+   must leave ingestion and independent available calculations usable.
+6. **Use the student's scientific inputs.** Upload their own geometry and a
+   second course-relevant supported format, select the intended structure and
+   check charge, spin and isotopes. Test a malformed upload and recovery.
+   Confirm original files and valid selections survive a restart. XYZ is one
+   input route; the full ingestion requirements remain in the table below.
+7. **Run bounded real calculations.** Select **GitHub Actions** and check engine
+   access. Through BASE, complete the instructor-reviewed small ORCA and CFOUR
+   jobs when authorized, plus a free-engine check with licensed options absent.
+   Record each request ID, personal-repository run URL, source revision, resource
+   settings and native result. An archive check alone is not a calculation.
+8. **Retrieve and inspect results.** Use BASE to refresh status, cancel a
+   separate bounded test job and retrieve the completed results. Inspect the
+   supported TOPOS/TORQ operations, genuine tables/figures, units and scientific
+   limitations. Record artifact hashes and verify each result matches its
+   request. Unavailable operations must remain unavailable.
+9. **Test an approved update.** Use BASE's update controls and restart. Record
+   the old/new runtime and module revisions; verify uploaded originals and
+   earlier results remain unchanged. Exercise input removal/undo and the
+   documented rollback when applicable. Workflow updates remain instructor
+   maintenance, not a student coding task.
+10. **Submit and collect.** Export the report and save it into the actual
+    Classroom50 assignment repository using browser upload or VS Code's
+    graphical Source Control controls. The instructor observes collection and
+    opens the report for feedback. A private personal-project link alone does
+    not prove that submission or instructor access works.
+
+Reviewed sources: [GitHub account authentication](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github),
+[Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions),
+[Codespaces billing](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces),
+[Codespaces repository permissions](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-repository-access-for-your-codespaces),
+[fork visibility](https://docs.github.com/en/pull-requests/reference/forks),
+and the [Classroom50 student guide](https://github.com/foundation50/classroom50/wiki/Web-Student-Guide).
+
+## Acceptance scope
+
 The selected deployment passes only when a student uses their own independent
 private personal BASE project, its App-managed access, a fresh Codespace and the
 ordinary GUI route. Source installation,
@@ -87,7 +208,12 @@ and actual hosted run/artifact evidence together. Distinguish UI-only acceptance
 from real hosted calculation acceptance in the report. Never report an optional
 hosted check as performed when no real run occurred.
 
-## Current candidate and service boundary
+## Historical C33 candidate and service boundary
+
+This section preserves the earlier C33-era receipts and failures. Its revision
+labels and outcomes describe those producers, not today's published `main`.
+The dated status above and [13 October report](GUI_Access_Acceptance_2026-10-13.md)
+identify later maintainer evidence. None supplies the missing student pilot.
 
 The instructor-managed App controller, encrypted Actions/private-variable
 bindings and separate Codespaces source-reader delivery are implemented in
@@ -96,7 +222,7 @@ credential-isolation evidence. That is not a live App installation or a successf
 student enrollment. The instructor must register/configure the App and verify its
 actual selected-project permissions before this pilot can pass.
 
-The current reviewed candidate is C33
+The reviewed candidate at the time was C33
 `8946f53ab1d9261eef4eb9c5b117c9936b49eabf` on
 `codex/no-code-student-entrypoint`. These receipts bind code producer C33; verify
 the published main ref independently. Production,
@@ -122,7 +248,7 @@ source and the reused genuine C27 registry stayed unchanged, with an empty reape
 owned boundary. This actual terminal source/test/process result is separate from
 the student App/Codespaces pilot and physical accuracy acceptance.
 
-The latest fully accepted bounded [C33 hosted run37878684516](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37878684516)
+The accepted bounded [C33 hosted run37878684516](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/37878684516)
 passed 221 actual controls on each Ubuntu/macOS/Windows worker, three clean
 installed wheels with 601 hashed RECORD members verified each, 1,641 bounded
 regressions, genuine free-engine calculations, all eleven CPU setup phases and
@@ -136,7 +262,7 @@ This maintainer result does not establish student App/Codespaces consent,
 private licensed access, whole-profile or physical accuracy acceptance.
 
 C23 ORCA8/CFOUR10 direct native Linux CPU calculations passed with independent
-readback of 840 immutable artifacts/40 origin records. Current C27 installed
+readback of 840 immutable artifacts/40 origin records. The then-current C27 installed
 TOPOS/TORQ and scientific BASE C22 member/source/registry authority were
 reverified. TOPOS remains resource-limited at seven of nine operation kinds:
 nine accepted controller cases, but minimum-qualified frequency/RRHO unaccepted.
@@ -165,7 +291,7 @@ calculation. Separate READ passed with all 32 authority records and zero browser
 complete C29/C30/C31 producers subsequently failed and retain no full acceptance.
 Their three required native R2/T9/CREST–GOAT calls passed execution checks, but
 R2 retains its counterpoise-ordering warning, frozen-bond residual and unverified
-physical accuracy. Current C33 focused/hosted results establish their stated
+physical accuracy. The C33 focused/hosted results establish their stated
 engineering scope; the complete local producer E80 also passed its source/test/
 process gate with six reviewed external deferrals, preserving all original failed
 producers and scientific limits. Exact original failed and accepted records are in the
@@ -174,8 +300,10 @@ producers and scientific limits. Exact original failed and accepted records are 
 
 Live instructor App/controller setup, selected personal-project enrollment,
 a real student's fresh Codespace, personal hosted chemistry/retrieval and
-Classroom50 collection remain external pilot checks. Current hosted licensed
-asset authorization also remains unverified after the recorded access failure.
+Classroom50 collection remain external pilot checks. Hosted licensed-asset
+authorization was unverified after the access failure recorded at this stage.
+The later 13 October instructor-repository authorization, calculations and
+retrieval passed as linked above; this does not supply student authorization.
 Organization secrets and team membership cannot automatically deliver readers
 into a student-owned personal repository; the configured App performs separate
 Actions/Codespaces provisioning. Students use BASE/VS Code controls without
@@ -209,9 +337,10 @@ Those historical outcomes do not qualify later changed science or student delive
 
 Historical maintainer-hosted eleven-phase/free-engine setup, isolated xTB/PySCF
 numerical checks and fresh calculation-silo authority passed; the scientific
-worker is C16 `68496c225fc90ff13f0ec6ff7c97570737917615`. Current hosted
-licensed-archive access remains a separate prerequisite, without an accepted
-current ORCA/CFOUR hosted replay. Personal-project chemistry still needs the real student
+worker is C16 `68496c225fc90ff13f0ec6ff7c97570737917615`. At that stage, hosted
+licensed-archive access remained a separate prerequisite without an accepted
+ORCA/CFOUR replay for that producer. The later 13 October results retain their
+own source identity. Personal-project chemistry still needs the real student
 pilot, whichever available engine the approved protocol uses. The cancelled C15 science
 run supplies no accepted final count or dashboard proof. Earlier source-specific
 successes and actual failed/aborted attempts remain retained. Current result

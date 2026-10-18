@@ -1,0 +1,22 @@
+{
+  "reviewed_at_utc": "2026-10-18T02:43:52.107836+00:00",
+  "base_revision": "d423c02a5bf9f15dd9626d46e17b6650414633c1",
+  "scope": "Independent read-only source/AST review of four restored targeted files only; no module architecture audit and no test execution",
+  "approved": true,
+  "files_sha256": {
+    "src/cochem_base/calc/xtb_execution.py": "c23ef8c71b8393b6fbee1190072fc31c176edf0372518cd727a8e1554f31ca19",
+    "ui/voila_layout/cochem_gui.py": "c21da7748c254cf0f5a37d57bb3dacd722c2d5d994b878733bac0b0d4ad21564",
+    "tests/base/test_module_handoff_contract.py": "3856b6e95454488cfeef46e8198e51102fa0d2620d70d521c29af7b86f0203c3",
+    ".docs/Student_Research_No_Code.md": "15a31aed78e72de64302fd7c09ce543bc82ef30d07a4f2ff54d8d62120462756"
+  },
+  "xtb_change": "Exactly one string-literal AST difference; condition, exception type, spin rejection and all calculation logic unchanged",
+  "gui_change": "Exactly one style keyword on live_preview; after removing it, full file AST equals HEAD",
+  "test_change": "Exactly two expected main_content tuples gain the existing footer; all 31 assertions remain, and after removing those tuple additions the full file AST equals HEAD",
+  "guide_change": "Starting structure instructions now match actual Structure charge / Structure multiplicity labels; values remain linked to canonical Total charge / Spin multiplicity state",
+  "protected_target_approval": {
+    "path": "src/cochem_base/calc/xtb_execution.py",
+    "new_sha256": "c23ef8c71b8393b6fbee1190072fc31c176edf0372518cd727a8e1554f31ca19",
+    "scope": "Update only existing target; no inventory/policy changes"
+  },
+  "test_execution": "Not run by reviewer; parent-owned focused session70879 is separate pending evidence"
+}

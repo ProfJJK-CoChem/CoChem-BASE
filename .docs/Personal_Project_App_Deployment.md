@@ -1,5 +1,51 @@
 # Personal private research projects with instructor-managed access
 
+## Access and account check — 18 October 2026
+
+**Students obtain BASE once. BASE installs TOPOS and TORQ from their own
+reviewed GitHub repositories.** BASE, TOPOS and TORQ are public as of this review;
+downloading that public source does not require an instructor credential. The
+automatic public-download route needs its own installation receipt on the
+published revision; repository visibility alone is not a passed setup test.
+The instructor App described below supplies access to **private licensed engine
+archives**, approved project settings and any genuinely private modules. It must
+not become a prerequisite merely to download public TOPOS/TORQ source. ORCA and
+CFOUR remain optional: missing access disables their dependent calculations.
+
+Use the student's **GitHub username**, visible on their profile, to identify the
+account being tested. Google sign-in is a way to sign into that GitHub account;
+enrolling the same instructor account in Classroom50 does not remove its
+instructor permissions. A normal student pilot uses a student account without
+organization-owner or instructor-controller write access. Share only its
+username and project URL with the maintainer, never a login credential.
+
+| Service | Who supplies access and pays for this route? |
+| --- | --- |
+| Public BASE/TOPOS/TORQ source | Public download; BASE verifies the reviewed versions and installs modules automatically. |
+| Private ORCA/CFOUR archives | The instructor's configured App delivers approved read-only access to the selected private project after consent and membership checks. Team membership does not transfer organization secrets. |
+| Personal project's Actions calculations | The student owns the private repository, so its jobs use that account's allowance. A student starting a job in an organization-owned repository uses the organization's allowance instead. |
+| Codespaces interface | Check the payer shown when creating the Codespace and the account's current allowance. Codespaces usage is separate from Actions usage. |
+| Classroom50 submission | Use the classroom's assignment repository for the report and feedback. Enrollment does not give the instructor automatic access to an unrelated private personal project. |
+
+Standard GitHub-hosted Actions runners are free for public repositories. The
+chosen research route keeps student projects private; do not make research
+public solely to change its billing. Education benefits depend on the actual
+account's active plan and do not provide unlimited private-repository compute.
+
+Follow the [ten-step student pilot](Student_Deployment_Pilot.md#ten-step-pilot-without-terminal-commands)
+before class-wide rollout. The [13 October acceptance report](GUI_Access_Acceptance_2026-10-13.md)
+records genuine instructor-repository ORCA/CFOUR calculations and retrieval.
+Those results do not establish student App consent, a fresh student Codespace or
+student-owned calculation access.
+
+This route uses **two Codespace creations**: the initial BASE dashboard supplies
+the enrollment form; after the App provisions the project, the student stops
+that Codespace and creates a new one to receive the approved permissions. A
+rebuild does not apply changed permissions. The initial student startup and
+enrollment still need actual pilot acceptance. A public fork, even with current
+BASE code, does not satisfy the private independent-project requirement; use
+the template button to make the private project and preserve any existing fork.
+
 Students create a **private repository owned by their own GitHub account** from
 the public BASE template and name it after their research project. Their
 Codespace runs the BASE interface; their repository's GitHub Actions runs the
@@ -90,7 +136,7 @@ to its organization.
    | Contents | Read and write | Verify the starter and write the reviewed `.devcontainer/devcontainer.json` permissions for this selected project, so its next Codespace can submit calculations. |
    | Secrets | Read and write | Encrypt the approved readers into the student's selected private project's Actions secrets. |
    | Variables | Read and write | Connect opaque private secret labels to the BASE workflows and set the approved worker SHA. |
-   | Codespaces secrets | Read and write | Encrypt the module-source reader and course discovery settings into that same private project's Codespaces secrets. |
+   | Codespaces secrets | Read and write | Deliver course discovery settings and, when private modules are used, their source reader into that same private project's Codespaces secrets. |
    | Metadata | Read-only | GitHub's required repository identification permission. |
 
 5. Under **Organization permissions**, select **Members → Read-only**. This lets
@@ -145,7 +191,7 @@ entered only here, not in public source or instructions.
 | `COCHEM_ACCESS_COURSE_CHANNEL` | Optional canonical approval data path such as `.cochem/course-channels/course.json`. The explicit approved worker SHA takes precedence; leave this empty for the normal pinned worker route. It is not a branch name. |
 | `COCHEM_ORCA_ACCESS_SECRET` | The actual existing private organization reader's secret label for ORCA. Leave empty to keep ORCA unavailable. |
 | `COCHEM_CFOUR_ACCESS_SECRET` | The actual existing private organization reader's secret label for CFOUR. Leave empty to keep CFOUR unavailable. |
-| `COCHEM_SOURCE_ACCESS_SECRET` | The actual existing private organization module-source reader's secret label. Required for automatic private TOPOS/TORQ installation. |
+| `COCHEM_SOURCE_ACCESS_SECRET` | The actual existing private organization module-source reader's secret label, only when installing approved private modules. Public TOPOS/TORQ source does not require a reader. |
 
 Then open **Organization Settings → Secrets and variables → Actions**:
 
@@ -192,8 +238,9 @@ use each student's personal Actions allowance.
    after your project and choose **Private**. Do not create a fork, make it public
    or put it under the lab organization for this route.
 3. In your private project, choose **Code → Codespaces → Create codespace**. Wait
-   for the BASE dashboard to open. The first Codespace can render BASE and ingest
-   inputs while private provider/engine access is unavailable. In **Start here → Connect using an instructor invitation**,
+   for the BASE dashboard to open. This initial Codespace is the enrollment
+   interface while optional private module/engine access is unavailable; its
+   actual startup is one of the student pilot's required checks. In **Start here → Connect using an instructor invitation**,
    paste the instructor's full setup and App installation links, choose
    **Save invitation**, then choose the optional engines you want to request.
 4. Open **Authorize lab app** in that panel (or the instructor's App install
@@ -208,17 +255,21 @@ use each student's personal Actions allowance.
    were authorized. A failed job is not an authorization. If it fails, your
    instructor checks the controller's Actions log for the controlled error and
    corrects App installation, team membership, approved source or access policy.
-7. In **your private project**, choose **Code → Codespaces → Create codespace**.
+7. On GitHub's **Your codespaces** page, open the initial Codespace's menu and
+   choose **Stop codespace**. Preserve it until any saved files are accounted
+   for. In **your private project**, choose **Code → Codespaces → Create codespace**
+   to create a new one rather than reopen the first.
    Use the reviewed default branch and the instructor's recommended machine.
    Approve the requested **Contents: Read and write** and **Actions: Read and
    write** access to this project. These are the Codespace's permissions to
    submit inputs and manage its calculations, separate from the App's own
-   permissions. A fresh Codespace receives the repository's newly encrypted Codespaces source
-   access; organization Actions secrets are not its environment. If you made a
+   permissions. When private modules are configured, a fresh Codespace receives
+   their separately provisioned source access; public module downloads need no
+   source credential. Organization Actions secrets are not its environment. If you made a
    Codespace before enrollment, create a fresh one after provisioning rather than
    assuming a rebuild supplies previously missing permissions/secrets.
 8. Wait for BASE's automatic setup and the Voilà dashboard. BASE installs TOPOS
-   and TORQ into isolated private runtime directories and shows their actual
+   and TORQ from their reviewed repositories into isolated runtime directories and shows their actual
    capabilities. You never open/install their repositories yourself.
 9. In **Start here**, select **GitHub Actions** under **Run calculations on**
    and choose **Check ORCA & CFOUR**. A verified downloadable archive is
@@ -253,7 +304,7 @@ In the private controller's **Actions → CoChem private project access controll
 private-repository, selected-installation and approved-source checks run again.
 Only an instructor with controller write/maintain/admin access can use this
 maintenance route. It writes fresh encrypted reader labels, updates the private
-workflow bindings and refreshes the separate Codespaces source reader. It
+workflow bindings and refreshes any configured private-module Codespaces reader. It
 writes the reviewed `.devcontainer/devcontainer.json` permission declaration
 for the selected student project; it does not modify scientific inputs or
 results. Create new Codespaces after changed permissions or source-access
@@ -273,7 +324,7 @@ workflow code.
 
 Use one actual student-owned private project as a pilot. Keep its identity,
 repository owner/private setting, selected App installation, current full source
-SHA and actual controller run URL. Verify its fresh Codespace installs private
+SHA and actual controller run URL. Verify its fresh Codespace installs canonical
 TOPOS/TORQ without student commands. From the dashboard, verify optional engine
 access and run a bounded genuine ORCA and CFOUR calculation through the student's
 Actions, retrieve the associated artifacts and confirm native values/provenance.
@@ -292,5 +343,8 @@ GitHub references: [App installation tokens](https://docs.github.com/en/apps/cre
 [Codespaces repository secrets](https://docs.github.com/en/rest/codespaces/repository-secrets),
 [Actions variables](https://docs.github.com/en/rest/actions/variables),
 [Codespaces repository permissions](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-repository-access-for-your-codespaces),
-[Actions billing](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions),
-[Codespaces billing](https://docs.github.com/en/billing/managing-billing-for-your-products/about-billing-for-github-codespaces).
+[Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions),
+[Codespaces billing](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces),
+[GitHub social sign-in](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github),
+[Classroom50 student guide](https://github.com/foundation50/classroom50/wiki/Web-Student-Guide).
+These account, billing and Classroom50 sources were reviewed on 18 October 2026.

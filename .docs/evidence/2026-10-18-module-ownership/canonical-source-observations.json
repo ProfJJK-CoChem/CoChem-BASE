@@ -1,0 +1,85 @@
+{
+  "inspection_date_utc": "2026-10-18",
+  "base_revision": "d423c02a5bf9f15dd9626d46e17b6650414633c1",
+  "scope": "Read-only GitHub repository metadata, ls-remote, immutable Git source inspection; no upstream writes or native calculations. Main may advance after this observation.",
+  "repositories": [
+    {
+      "repository": "ProfJJK-CoChem/CoChem-TOPOS",
+      "observed_visibility": "public",
+      "base_manifest_revision": "b157b7e210aee5bdfa09c22270d77d794f52cdde",
+      "observed_main_revision": "a6f763c5efce85b6cc3ed7870427f4a6686f3d5d",
+      "commits_reachable_from_main_not_pin": 54,
+      "source_hashes": [
+        {
+          "revision": "b157b7e210aee5bdfa09c22270d77d794f52cdde",
+          "path": "pyproject.toml",
+          "sha256": "5ad82087f167326d7e6bdfdebcdea4c1973b9065fc94963876785a31aeba8413"
+        },
+        {
+          "revision": "b157b7e210aee5bdfa09c22270d77d794f52cdde",
+          "path": "topos/base_integration.py",
+          "sha256": "1f6ca51689468b8912dc1d4003379bdd1e4943e8783318745acafd510da2550a"
+        },
+        {
+          "revision": "b157b7e210aee5bdfa09c22270d77d794f52cdde",
+          "path": "topos/base_provider.py",
+          "sha256": "a96333a8e1e9cff5194ddbbc728e8f02511abe28e7cbfed1a0c6b78ced306ad4"
+        },
+        {
+          "revision": "a6f763c5efce85b6cc3ed7870427f4a6686f3d5d",
+          "path": "pyproject.toml",
+          "sha256": "008c381d30c78f48224927c57bc25545b2e58ee1369eb4c482911d6b5dcafbb3"
+        },
+        {
+          "revision": "a6f763c5efce85b6cc3ed7870427f4a6686f3d5d",
+          "path": "topos/base_integration.py",
+          "sha256": "f0d79e3b7789dd326bbedf0e1bb0082e1998926972070b40d7d94d5e66b96f4d"
+        },
+        {
+          "revision": "a6f763c5efce85b6cc3ed7870427f4a6686f3d5d",
+          "path": "topos/base_provider.py",
+          "sha256": "7e68f57d020b4dbd0e85562492572302b6f3d2c90ef576108882208b9665eb98"
+        }
+      ]
+    },
+    {
+      "repository": "ProfJJK-CoChem/CoChem-TORQ",
+      "observed_visibility": "public",
+      "base_manifest_revision": "4ce8eecba56e91e27c6abb32473b2ee4d44767c4",
+      "observed_main_revision": "e0019e7b0150e56a425942a06094b55cb60e0b73",
+      "commits_reachable_from_main_not_pin": 35,
+      "source_hashes": [
+        {
+          "revision": "4ce8eecba56e91e27c6abb32473b2ee4d44767c4",
+          "path": "pyproject.toml",
+          "sha256": "41f571c502c90093939c8b74e24f512cb3a92a5285c8d6bbca7e0afa0cfd4d47"
+        },
+        {
+          "revision": "4ce8eecba56e91e27c6abb32473b2ee4d44767c4",
+          "path": "src/cochem_torq/ecosystem.py",
+          "sha256": "9581b992519ab5c536b45c90583daddd2f9a461820216bcf76d64c12a144143d"
+        },
+        {
+          "revision": "4ce8eecba56e91e27c6abb32473b2ee4d44767c4",
+          "path": "src/cochem_torq/engines/pyscf_backend.py",
+          "sha256": "93c1028800b14fe9fa9b1d94f9789926128f1af86a50c035d325b5a3cff2011b"
+        },
+        {
+          "revision": "e0019e7b0150e56a425942a06094b55cb60e0b73",
+          "path": "pyproject.toml",
+          "sha256": "6e6645cdca74b39b497c4a329bcb48046975015b799423bf5cbf39736fb6ea4c"
+        },
+        {
+          "revision": "e0019e7b0150e56a425942a06094b55cb60e0b73",
+          "path": "src/cochem_torq/ecosystem.py",
+          "sha256": "465ce34d430c40b8f4c49e116ba95f549f1ee16f1e4426d15b134fd5cf085141"
+        },
+        {
+          "revision": "e0019e7b0150e56a425942a06094b55cb60e0b73",
+          "path": "src/cochem_torq/engines/pyscf_backend.py",
+          "sha256": "d62d7d517816ee08bf905d1b2858f4e21b85e020ac0063b4cde9c11c2c8e14cf"
+        }
+      ]
+    }
+  ]
+}

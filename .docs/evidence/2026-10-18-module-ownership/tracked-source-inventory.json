@@ -1,0 +1,3653 @@
+{
+  "scope": "Read-only tracked-source inventory; no import or chemistry execution; no canonical remote divergence claim inferred from local names alone",
+  "base_revision": "d423c02a5bf9f15dd9626d46e17b6650414633c1",
+  "groups": {
+    "cochem/topos/": {
+      "files": 30,
+      "lines": 9520,
+      "members": [
+        {
+          "path": "cochem/topos/__init__.py",
+          "sha256": "6d26d9fad758badfbd06ec153620a0f1180d7e18d4c5037a2d7bf94b2d80a1f8"
+        },
+        {
+          "path": "cochem/topos/alignment.py",
+          "sha256": "455c8f848d00bcb3020a5fa455517cb6c4b960e2bf8ded77e0aba752dc0af27b"
+        },
+        {
+          "path": "cochem/topos/canonicalization.py",
+          "sha256": "e56f2d20833b53e798f433c23e8d2da354045bd560e066fd770046efb2e6d45c"
+        },
+        {
+          "path": "cochem/topos/clash.py",
+          "sha256": "c29f6eabdfba04710eec45822bf77418df65db62ca72fb56e0871b4166192c40"
+        },
+        {
+          "path": "cochem/topos/coarse_grain.py",
+          "sha256": "79f2887b44de1cbea00d76a1b96f7c38f49a78500678ed7511df97968c7a1aff"
+        },
+        {
+          "path": "cochem/topos/diff.py",
+          "sha256": "88902f6ba137dfbdaab5773834c9e54e21395e0ab57b757e9d19a4bb1e8157d1"
+        },
+        {
+          "path": "cochem/topos/exceptions.py",
+          "sha256": "286e0f0d62da0ebb332d1b4779556002cc23aa6891381b362c8aa67f3fd52a0c"
+        },
+        {
+          "path": "cochem/topos/fingerprint.py",
+          "sha256": "dcf618d8f6bd4872e19d9eee26c965b186f06bd68820abe990c72803052c0fbf"
+        },
+        {
+          "path": "cochem/topos/forcefield.py",
+          "sha256": "b114e61dab86a889e315560b26557559676170797ea7ad6d21d6e70d443d53ce"
+        },
+        {
+          "path": "cochem/topos/fragmentation.py",
+          "sha256": "4d22fdf4788d97003ac68ae659714f24a75ac12388666f4959cdd60e16b3bd7c"
+        },
+        {
+          "path": "cochem/topos/geometry_validation.py",
+          "sha256": "06bc218f63e2b8ddbed87ae62b5a4852a6ffa4018fcd3ffa3a7bd59ea97fb2b4"
+        },
+        {
+          "path": "cochem/topos/graph.py",
+          "sha256": "148c647a38881bb32ef60d6f6673d42d3db376309f7ba686ace0430945c88792"
+        },
+        {
+          "path": "cochem/topos/io.py",
+          "sha256": "3e24d3477fc31e1740c1e771b4382e7dbaaedee9f6024f769bc3c7f4cdd67ef0"
+        },
+        {
+          "path": "cochem/topos/isotopes.py",
+          "sha256": "f719767b3a7ad70fd9b72d88538a0a02ef41435921827db2ef372acc9e9f52f1"
+        },
+        {
+          "path": "cochem/topos/metal_coordination.py",
+          "sha256": "64085a86e9316d91272eb35dc7ca65e91b34e3f2ca73f9791b76158accd99443"
+        },
+        {
+          "path": "cochem/topos/models.py",
+          "sha256": "0cb67f34f19a288248834e33f349b6ea8badfb154fbf11ca53c4e1868bcfed59"
+        },
+        {
+          "path": "cochem/topos/perception.py",
+          "sha256": "eaca5d52a2900ac9123ab7475fe2935e05a20762dddacc526a250b6b444da488"
+        },
+        {
+          "path": "cochem/topos/pharmacophore.py",
+          "sha256": "82f575b3a7b44692730ce4ad03eff916beedd64e32c36892df8c3b891f4369f4"
+        },
+        {
+          "path": "cochem/topos/pymol_export.py",
+          "sha256": "af8cee629f931b031850742a2f3d39c81cb9d2addf2a59cc688041e86e54e8c6"
+        },
+        {
+          "path": "cochem/topos/resonance.py",
+          "sha256": "b48eff7b0113d2d52fcaf21bdcc2a449f175acbaf3cfa9da4fc5210dcc2637d7"
+        },
+        {
+          "path": "cochem/topos/rings.py",
+          "sha256": "09ec0b4797bee8817d2e4a44f683e5e438c427dcd1141ecdd0b17248eaee5c95"
+        },
+        {
+          "path": "cochem/topos/sanitizer.py",
+          "sha256": "87ec711df878e16228c68fb8e5a442758c52b28272899de6bf6625327af13352"
+        },
+        {
+          "path": "cochem/topos/scaffold_hopper.py",
+          "sha256": "6072c0f6fb0d4c45dcd10210533119d0562302cf2f8d4adf5fa39d496946969a"
+        },
+        {
+          "path": "cochem/topos/solvent.py",
+          "sha256": "06114f43c3b164bf507ddb8e5f7d4f61ae042cf134abf7a3cc6c4b2e960b00f3"
+        },
+        {
+          "path": "cochem/topos/sparsification.py",
+          "sha256": "4b36cad485bdc146bd6f285b34b9c8592bd2e4967327b777f448ce12918e051a"
+        },
+        {
+          "path": "cochem/topos/stereochemistry.py",
+          "sha256": "06b74e589512271894d6e8f9b859f05c3abfa94d9573f52990c37b6c02bcd307"
+        },
+        {
+          "path": "cochem/topos/symmetry.py",
+          "sha256": "194d8ea92fec512cec5bd4f8c7d265ff45d1e3d2821fc68afffba4361fb0d7ff"
+        },
+        {
+          "path": "cochem/topos/tautomer.py",
+          "sha256": "205682c07f4505417cda4f624c12973844baf475a602415c46036865893877b7"
+        },
+        {
+          "path": "cochem/topos/tpsa.py",
+          "sha256": "74ad7d2827c5ae8a5f00fffbe55def21b3e6719d66057a413942b228898bb61f"
+        },
+        {
+          "path": "cochem/topos/visualization.py",
+          "sha256": "5e2e3e9ec00633d4ac2c1672ce898b1ba3cc805a14bf6d6e8b639a4ea6921d03"
+        }
+      ]
+    },
+    "src/cochem/topos/": {
+      "files": 30,
+      "lines": 9520,
+      "members": [
+        {
+          "path": "src/cochem/topos/__init__.py",
+          "sha256": "6d26d9fad758badfbd06ec153620a0f1180d7e18d4c5037a2d7bf94b2d80a1f8"
+        },
+        {
+          "path": "src/cochem/topos/alignment.py",
+          "sha256": "455c8f848d00bcb3020a5fa455517cb6c4b960e2bf8ded77e0aba752dc0af27b"
+        },
+        {
+          "path": "src/cochem/topos/canonicalization.py",
+          "sha256": "e56f2d20833b53e798f433c23e8d2da354045bd560e066fd770046efb2e6d45c"
+        },
+        {
+          "path": "src/cochem/topos/clash.py",
+          "sha256": "c29f6eabdfba04710eec45822bf77418df65db62ca72fb56e0871b4166192c40"
+        },
+        {
+          "path": "src/cochem/topos/coarse_grain.py",
+          "sha256": "79f2887b44de1cbea00d76a1b96f7c38f49a78500678ed7511df97968c7a1aff"
+        },
+        {
+          "path": "src/cochem/topos/diff.py",
+          "sha256": "88902f6ba137dfbdaab5773834c9e54e21395e0ab57b757e9d19a4bb1e8157d1"
+        },
+        {
+          "path": "src/cochem/topos/exceptions.py",
+          "sha256": "286e0f0d62da0ebb332d1b4779556002cc23aa6891381b362c8aa67f3fd52a0c"
+        },
+        {
+          "path": "src/cochem/topos/fingerprint.py",
+          "sha256": "dcf618d8f6bd4872e19d9eee26c965b186f06bd68820abe990c72803052c0fbf"
+        },
+        {
+          "path": "src/cochem/topos/forcefield.py",
+          "sha256": "b114e61dab86a889e315560b26557559676170797ea7ad6d21d6e70d443d53ce"
+        },
+        {
+          "path": "src/cochem/topos/fragmentation.py",
+          "sha256": "4d22fdf4788d97003ac68ae659714f24a75ac12388666f4959cdd60e16b3bd7c"
+        },
+        {
+          "path": "src/cochem/topos/geometry_validation.py",
+          "sha256": "06bc218f63e2b8ddbed87ae62b5a4852a6ffa4018fcd3ffa3a7bd59ea97fb2b4"
+        },
+        {
+          "path": "src/cochem/topos/graph.py",
+          "sha256": "148c647a38881bb32ef60d6f6673d42d3db376309f7ba686ace0430945c88792"
+        },
+        {
+          "path": "src/cochem/topos/io.py",
+          "sha256": "3e24d3477fc31e1740c1e771b4382e7dbaaedee9f6024f769bc3c7f4cdd67ef0"
+        },
+        {
+          "path": "src/cochem/topos/isotopes.py",
+          "sha256": "f719767b3a7ad70fd9b72d88538a0a02ef41435921827db2ef372acc9e9f52f1"
+        },
+        {
+          "path": "src/cochem/topos/metal_coordination.py",
+          "sha256": "64085a86e9316d91272eb35dc7ca65e91b34e3f2ca73f9791b76158accd99443"
+        },
+        {
+          "path": "src/cochem/topos/models.py",
+          "sha256": "0cb67f34f19a288248834e33f349b6ea8badfb154fbf11ca53c4e1868bcfed59"
+        },
+        {
+          "path": "src/cochem/topos/perception.py",
+          "sha256": "eaca5d52a2900ac9123ab7475fe2935e05a20762dddacc526a250b6b444da488"
+        },
+        {
+          "path": "src/cochem/topos/pharmacophore.py",
+          "sha256": "82f575b3a7b44692730ce4ad03eff916beedd64e32c36892df8c3b891f4369f4"
+        },
+        {
+          "path": "src/cochem/topos/pymol_export.py",
+          "sha256": "af8cee629f931b031850742a2f3d39c81cb9d2addf2a59cc688041e86e54e8c6"
+        },
+        {
+          "path": "src/cochem/topos/resonance.py",
+          "sha256": "b48eff7b0113d2d52fcaf21bdcc2a449f175acbaf3cfa9da4fc5210dcc2637d7"
+        },
+        {
+          "path": "src/cochem/topos/rings.py",
+          "sha256": "09ec0b4797bee8817d2e4a44f683e5e438c427dcd1141ecdd0b17248eaee5c95"
+        },
+        {
+          "path": "src/cochem/topos/sanitizer.py",
+          "sha256": "87ec711df878e16228c68fb8e5a442758c52b28272899de6bf6625327af13352"
+        },
+        {
+          "path": "src/cochem/topos/scaffold_hopper.py",
+          "sha256": "6072c0f6fb0d4c45dcd10210533119d0562302cf2f8d4adf5fa39d496946969a"
+        },
+        {
+          "path": "src/cochem/topos/solvent.py",
+          "sha256": "06114f43c3b164bf507ddb8e5f7d4f61ae042cf134abf7a3cc6c4b2e960b00f3"
+        },
+        {
+          "path": "src/cochem/topos/sparsification.py",
+          "sha256": "4b36cad485bdc146bd6f285b34b9c8592bd2e4967327b777f448ce12918e051a"
+        },
+        {
+          "path": "src/cochem/topos/stereochemistry.py",
+          "sha256": "06b74e589512271894d6e8f9b859f05c3abfa94d9573f52990c37b6c02bcd307"
+        },
+        {
+          "path": "src/cochem/topos/symmetry.py",
+          "sha256": "194d8ea92fec512cec5bd4f8c7d265ff45d1e3d2821fc68afffba4361fb0d7ff"
+        },
+        {
+          "path": "src/cochem/topos/tautomer.py",
+          "sha256": "205682c07f4505417cda4f624c12973844baf475a602415c46036865893877b7"
+        },
+        {
+          "path": "src/cochem/topos/tpsa.py",
+          "sha256": "74ad7d2827c5ae8a5f00fffbe55def21b3e6719d66057a413942b228898bb61f"
+        },
+        {
+          "path": "src/cochem/topos/visualization.py",
+          "sha256": "5e2e3e9ec00633d4ac2c1672ce898b1ba3cc805a14bf6d6e8b639a4ea6921d03"
+        }
+      ]
+    },
+    "cochem_topos/": {
+      "files": 6,
+      "lines": 210,
+      "members": [
+        {
+          "path": "cochem_topos/__init__.py",
+          "sha256": "e0a58d8c7553a0810505cb2b7ed3ea89d1a38407e2574b0f0091a9531d75b883"
+        },
+        {
+          "path": "cochem_topos/exceptions.py",
+          "sha256": "e7c4c8b2121977d239ae804c8d30e36eeb933f9268a9be65dcb66cc5a2e3e617"
+        },
+        {
+          "path": "cochem_topos/general_utilities.py",
+          "sha256": "64ab5f7499e9e7742d0ca1563a8099fb82a851d0769285c4d0b61363d977dfa4"
+        },
+        {
+          "path": "cochem_topos/models.py",
+          "sha256": "f23da8afe7852e25b16a9166fbf702d1ace5666fe72ec0a9f5016604c816f43f"
+        },
+        {
+          "path": "cochem_topos/telemetry/__init__.py",
+          "sha256": "c63ee01d7ac9b14cb24cf95639773daf0111419511c742c394ce0c08376c07c1"
+        },
+        {
+          "path": "cochem_topos/telemetry/hardware.py",
+          "sha256": "9cc2502410beb69fe2caf5c5d803630b03740e9fc33e48bc30b01e46098d8b93"
+        }
+      ]
+    },
+    "cochem/torq/": {
+      "files": 17,
+      "lines": 2141,
+      "members": [
+        {
+          "path": "cochem/torq/__init__.py",
+          "sha256": "43ad0eab34b792690251cfabcd15fe976c25ddeafe804ec8e9615d757096e40b"
+        },
+        {
+          "path": "cochem/torq/backbones/__init__.py",
+          "sha256": "4147b3477319182453bbb65dcaa362dca7b797aaedbd807174cba73912c4a32f"
+        },
+        {
+          "path": "cochem/torq/backbones/cutoff.py",
+          "sha256": "06905d21dabe2726d2104bc7d977a2312ccb2a5b01178b6c0160e2621a820b60"
+        },
+        {
+          "path": "cochem/torq/backbones/equivariant_tensor.py",
+          "sha256": "a0d74bc5d822c5269757c5099b88d1cbafbaf77e87f258c55dcab236bd6b5aaa"
+        },
+        {
+          "path": "cochem/torq/backbones/observables.py",
+          "sha256": "90879e5704c22d72948915ccad3b21496322c9f97cb95885986cfb0dddea16bb"
+        },
+        {
+          "path": "cochem/torq/backbones/schnet.py",
+          "sha256": "34479c0f17e64ef1b66462cca3cb391d7fec8df9d631ecc229b9aff81b5def30"
+        },
+        {
+          "path": "cochem/torq/backbones/spherical_harmonics.py",
+          "sha256": "ca6cd04beb3bbe11101dd4fea44d9ce47ef8e59f00244dc0ddb2a03dca06d839"
+        },
+        {
+          "path": "cochem/torq/calculators/__init__.py",
+          "sha256": "e030574115784c6f9ddb6f27d68cc2308e5409bf327b79c0339ed2e2845fb8b6"
+        },
+        {
+          "path": "cochem/torq/calculators/ase_calc.py",
+          "sha256": "5e940ece865095fa7003d7dfa51754ce92dd0cf734bdce1f4d7ce3437cb22236"
+        },
+        {
+          "path": "cochem/torq/constants.py",
+          "sha256": "9b67a3a19f32952000103a7a1ee2d71a1b0b581e90330d9f398d15a003a764bb"
+        },
+        {
+          "path": "cochem/torq/errors.py",
+          "sha256": "07d63ef448c267e764c0ba97db5e700d09260121a0cbac60f46bd2231dc86526"
+        },
+        {
+          "path": "cochem/torq/models/__init__.py",
+          "sha256": "23cc92d7a382ccfcb8dcb30c7d075518a97754657fdc033b9df79d29b3eefff1"
+        },
+        {
+          "path": "cochem/torq/models/schemas.py",
+          "sha256": "28bb0701805ce8d353100da6ba32d58b08d2afadf312e26064dff4076f4825ff"
+        },
+        {
+          "path": "cochem/torq/storage/__init__.py",
+          "sha256": "e0f5f005f47810bae1f6202cab3b445b7cafed63e8dc125d778bd6e1114bd97d"
+        },
+        {
+          "path": "cochem/torq/storage/hdf5_persister.py",
+          "sha256": "9dbb91212f46755cf39ef2d9cb825e5517ff30af109a55228a6f92e8d17d78a1"
+        },
+        {
+          "path": "cochem/torq/utils/__init__.py",
+          "sha256": "7d8e8ab024ddc05a73696fed9f229d38bd57f8820bef497ccdb2a672be975664"
+        },
+        {
+          "path": "cochem/torq/utils/mendeleev_masses.py",
+          "sha256": "e2dcc45efdc7ed73d2a883b90f8cfeb8b82e31856b0cb72b9929c6fba0ae1e32"
+        }
+      ]
+    },
+    "src/cochem_torq/": {
+      "files": 9,
+      "lines": 496,
+      "members": [
+        {
+          "path": "src/cochem_torq/__init__.py",
+          "sha256": "a7416f1a776aee9fc9bb20ea7cdadc4fa6a8a55b8286d9220d1525991e5277d8"
+        },
+        {
+          "path": "src/cochem_torq/cfour/__init__.py",
+          "sha256": "dae6d29bcc5c7e80d520a58944aeaa0551f7be5fa1ef514ef1ff967dd10500b2"
+        },
+        {
+          "path": "src/cochem_torq/cfour/bridge.py",
+          "sha256": "8d7d372ea215ca7ae1ebca9bcf0cd50a37731f18e0c1804ae65c107ab2eb6a72"
+        },
+        {
+          "path": "src/cochem_torq/conformer/__init__.py",
+          "sha256": "277f86ad4d0a1d9650bd262e385708744cf4c30223df96cb44ffefe5effa0b76"
+        },
+        {
+          "path": "src/cochem_torq/conformer/orchestrator.py",
+          "sha256": "74fbc09264da029db82edcbfa69e5caf8e5f6dba4685fb2deb7f94ca23a5fb02"
+        },
+        {
+          "path": "src/cochem_torq/counterpoise.py",
+          "sha256": "9d0309484f3bc95791c4123eb5866aacad42f1662d5776decfdf6e59185e4702"
+        },
+        {
+          "path": "src/cochem_torq/crest/__init__.py",
+          "sha256": "fc71cc12a9fa8b8a8e853c03111a73aaba57af3e81a7b9ddcebaeba680e723a4"
+        },
+        {
+          "path": "src/cochem_torq/crest/runner.py",
+          "sha256": "3d4a4735787baf8b7c90e6fc99b90a265cbf5c3459a799c0f880a98b21eaba1e"
+        },
+        {
+          "path": "src/cochem_torq/quench_broker.py",
+          "sha256": "a19a2d23cb2510ab6c494e40908cfe462cbb3a4d8ef0b44f847082ac3a029554"
+        }
+      ]
+    },
+    "src/cochem_base/cochem_torq": {
+      "files": 12,
+      "lines": 4990,
+      "members": [
+        {
+          "path": "src/cochem_base/cochem_torq_alignment.py",
+          "sha256": "0411430546e0b46fc6d03279536f093a33e70046e29636dc893f871cbd112247"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_engine.py",
+          "sha256": "e0db439c3dfe77795d2b3fad3bbea9edffec1c8db7c5d31889458baa921b24a0"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_export.py",
+          "sha256": "edb00bdfda6f1339c3f53278a97d08fd2464cd0ab0ec987824a0d9d88cfe6174"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_init.py",
+          "sha256": "f1121d4164d618703ac4d941fbbaf98c6cad5c62cceb0ef9d5ba6045d17b9833"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_mace.py",
+          "sha256": "52994b7f35e337c145148fb44adcba1195a395d50dcf612042ac7bb2d0876e21"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_quench.py",
+          "sha256": "cee104bb70f2409765130f31c6636422b66b3195b7a8754477726aba12f8c98a"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_schema.py",
+          "sha256": "d6118580896d0c131fbd496bdd2337a0417ad3273866a2cdcdbcce7c2b01f857"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_slicer.py",
+          "sha256": "27b947460ba2fb9df78f42b7cf41251bc02253c6b88d55ea0d346a9f018b6e8b"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_telemetry.py",
+          "sha256": "eb573710d5b852f26e162cc22873d097073a2c1b4656528adc4dc03ef0a2c88c"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_topology.py",
+          "sha256": "141811d8a76414582f4b105ab236e323f013bf19fafa406ea7071c38e44ecdb8"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_vault.py",
+          "sha256": "bdba967ad43adf7eb9f4615da2fadc1c01556912d7830d82ebb627d46d0320f4"
+        },
+        {
+          "path": "src/cochem_base/cochem_torq_watchdog.py",
+          "sha256": "022172e62d3c685628ccce9c93767343f13b470f6bff5521ded7500ae113376f"
+        }
+      ]
+    },
+    "Libraries/cochem_torq": {
+      "files": 3,
+      "lines": 749,
+      "members": [
+        {
+          "path": "Libraries/cochem_torq_c2_cutoff.py",
+          "sha256": "e635e7769cad054e34bbb2c84c9339b8e5af96e9269597c320c9d7aa64ec0e67"
+        },
+        {
+          "path": "Libraries/cochem_torq_committee_ensemble.py",
+          "sha256": "cc463581dffb20ba8fe17af9ed74ccceecaf5228344792039c71c2de39f632bc"
+        },
+        {
+          "path": "Libraries/cochem_torq_dvr.py",
+          "sha256": "1ddf6c0907a6e0186185f23b5a303c25f9ee8c2bcbbeef073990017ca8b13374"
+        }
+      ]
+    }
+  },
+  "imports": [
+    {
+      "path": "Libraries/__init__.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_training_errors",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 35,
+      "module": "Libraries.cochem_torq_training_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 48,
+      "module": "Libraries.cochem_torq_masses",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 58,
+      "module": "Libraries.cochem_torq_gnn_scheduler",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 65,
+      "module": "Libraries.cochem_torq_force_matching",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 73,
+      "module": "Libraries.cochem_torq_dynamic_batch",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 83,
+      "module": "Libraries.cochem_torq_graph_pruning",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 97,
+      "module": "Libraries.cochem_torq_gradient_checkpointing",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 105,
+      "module": "Libraries.cochem_torq_ani2x_transfer",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 116,
+      "module": "Libraries.cochem_torq_torchscript_export",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 125,
+      "module": "Libraries.cochem_torq_distributed_early_stopping",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 132,
+      "module": "Libraries.cochem_torq_loss_landscape",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 143,
+      "module": "Libraries.cochem_torq_amp_trainer",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 149,
+      "module": "Libraries.cochem_torq_training_persistence",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 158,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 182,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 204,
+      "module": "Libraries.cochem_torq_multitask",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 211,
+      "module": "Libraries.cochem_torq_finite_difference",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 216,
+      "module": "Libraries.cochem_torq_vibrational",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 227,
+      "module": "Libraries.cochem_torq_onnx_export",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 235,
+      "module": "Libraries.cochem_torq_environment",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 244,
+      "module": "Libraries.cochem_torq_md_errors",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 251,
+      "module": "Libraries.cochem_torq_md_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 258,
+      "module": "Libraries.cochem_torq_md_env",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 262,
+      "module": "Libraries.cochem_torq_symplectic",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 275,
+      "module": "Libraries.cochem_torq_remd",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 283,
+      "module": "Libraries.cochem_torq_trajectory",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 290,
+      "module": "Libraries.cochem_torq_active_learning",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 305,
+      "module": "Libraries.cochem_torq_hdf5_datamodule",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 313,
+      "module": "Libraries.cochem_torq_committee_ensemble",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 320,
+      "module": "Libraries.cochem_torq_c2_cutoff",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 331,
+      "module": "Libraries.cochem_torq_gnn_debugger",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 336,
+      "module": "Libraries.cochem_torq_pbc_graph",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 349,
+      "module": "Libraries.cochem_torq_hpo",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 361,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 372,
+      "module": "Libraries.cochem_torq_storage",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 378,
+      "module": "Libraries.cochem_torq_conformal",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 384,
+      "module": "Libraries.cochem_torq_lbfgs_optimizer",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 391,
+      "module": "Libraries.cochem_torq_dispersion_d3",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/__init__.py",
+      "line": 398,
+      "module": "Libraries.cochem_torq_neighbor_list",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/cochem_torq_c2_cutoff.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/cochem_torq_c2_cutoff.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "Libraries/cochem_torq_committee_ensemble.py",
+      "line": 31,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/ml/conformal.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_conformal",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/ml/conformal.py",
+      "line": 16,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/ml/delta.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/ml/delta.py",
+      "line": 21,
+      "module": "Libraries.cochem_torq_dispersion_d3",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/ml/delta.py",
+      "line": 25,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/ml/models.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_ani2x_transfer",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/ml/models.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_force_matching",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/ml/models/__init__.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_ani2x_transfer",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/ml/models/__init__.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_force_matching",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/ml/models/ensemble.py",
+      "line": 5,
+      "module": "Libraries.cochem_torq_committee_ensemble",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/__init__.py",
+      "line": 5,
+      "module": "cochem.topos.clash",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/__init__.py",
+      "line": 6,
+      "module": "cochem.topos.coarse_grain",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/__init__.py",
+      "line": 7,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/__init__.py",
+      "line": 13,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/__init__.py",
+      "line": 14,
+      "module": "cochem.topos.rings",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/__init__.py",
+      "line": 19,
+      "module": "cochem.topos.stereochemistry",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/__init__.py",
+      "line": 24,
+      "module": "cochem.topos.visualization",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/alignment.py",
+      "line": 27,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/canonicalization.py",
+      "line": 22,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/canonicalization.py",
+      "line": 23,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/clash.py",
+      "line": 19,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/clash.py",
+      "line": 20,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/coarse_grain.py",
+      "line": 16,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/coarse_grain.py",
+      "line": 17,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/diff.py",
+      "line": 15,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/diff.py",
+      "line": 16,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/fingerprint.py",
+      "line": 62,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/fingerprint.py",
+      "line": 63,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/forcefield.py",
+      "line": 17,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/forcefield.py",
+      "line": 18,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/fragmentation.py",
+      "line": 14,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/fragmentation.py",
+      "line": 15,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/geometry_validation.py",
+      "line": 12,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/geometry_validation.py",
+      "line": 13,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/graph.py",
+      "line": 20,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/io.py",
+      "line": 20,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/io.py",
+      "line": 25,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/isotopes.py",
+      "line": 18,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/isotopes.py",
+      "line": 19,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/metal_coordination.py",
+      "line": 12,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/metal_coordination.py",
+      "line": 13,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/perception.py",
+      "line": 14,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/perception.py",
+      "line": 15,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/pharmacophore.py",
+      "line": 15,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/pharmacophore.py",
+      "line": 16,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/pharmacophore.py",
+      "line": 17,
+      "module": "cochem.topos.rings",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/pymol_export.py",
+      "line": 13,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/pymol_export.py",
+      "line": 14,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/resonance.py",
+      "line": 18,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/resonance.py",
+      "line": 19,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/resonance.py",
+      "line": 20,
+      "module": "cochem.topos.rings",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/rings.py",
+      "line": 16,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/sanitizer.py",
+      "line": 12,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/sanitizer.py",
+      "line": 13,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/scaffold_hopper.py",
+      "line": 12,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/scaffold_hopper.py",
+      "line": 13,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/solvent.py",
+      "line": 21,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/solvent.py",
+      "line": 22,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/sparsification.py",
+      "line": 22,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/sparsification.py",
+      "line": 23,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/stereochemistry.py",
+      "line": 14,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/symmetry.py",
+      "line": 16,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/symmetry.py",
+      "line": 17,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/tpsa.py",
+      "line": 14,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/tpsa.py",
+      "line": 15,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/tpsa.py",
+      "line": 16,
+      "module": "cochem.topos.rings",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/topos/visualization.py",
+      "line": 17,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/__init__.py",
+      "line": 5,
+      "module": "cochem.torq.backbones",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/__init__.py",
+      "line": 20,
+      "module": "cochem.torq.calculators",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/__init__.py",
+      "line": 21,
+      "module": "cochem.torq.constants",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/__init__.py",
+      "line": 31,
+      "module": "cochem.torq.errors",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/__init__.py",
+      "line": 42,
+      "module": "cochem.torq.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/__init__.py",
+      "line": 49,
+      "module": "cochem.torq.storage",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/__init__.py",
+      "line": 50,
+      "module": "cochem.torq.utils",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/__init__.py",
+      "line": 5,
+      "module": "cochem.torq.backbones.cutoff",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/__init__.py",
+      "line": 11,
+      "module": "cochem.torq.backbones.equivariant_tensor",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/__init__.py",
+      "line": 17,
+      "module": "cochem.torq.backbones.observables",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/__init__.py",
+      "line": 18,
+      "module": "cochem.torq.backbones.schnet",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/__init__.py",
+      "line": 19,
+      "module": "cochem.torq.backbones.spherical_harmonics",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/equivariant_tensor.py",
+      "line": 10,
+      "module": "cochem.torq.backbones.cutoff",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/equivariant_tensor.py",
+      "line": 11,
+      "module": "cochem.torq.errors",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/equivariant_tensor.py",
+      "line": 16,
+      "module": "cochem.torq.models.schemas",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/observables.py",
+      "line": 10,
+      "module": "cochem.torq.constants",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/observables.py",
+      "line": 11,
+      "module": "cochem.torq.errors",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/observables.py",
+      "line": 12,
+      "module": "cochem.torq.models.schemas",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/observables.py",
+      "line": 13,
+      "module": "cochem.torq.utils.mendeleev_masses",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/schnet.py",
+      "line": 10,
+      "module": "cochem.torq.backbones.cutoff",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/schnet.py",
+      "line": 11,
+      "module": "cochem.torq.errors",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/backbones/schnet.py",
+      "line": 16,
+      "module": "cochem.torq.models.schemas",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/calculators/__init__.py",
+      "line": 5,
+      "module": "cochem.torq.calculators.ase_calc",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/calculators/ase_calc.py",
+      "line": 11,
+      "module": "cochem.torq.backbones.equivariant_tensor",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/calculators/ase_calc.py",
+      "line": 12,
+      "module": "cochem.torq.backbones.observables",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/calculators/ase_calc.py",
+      "line": 13,
+      "module": "cochem.torq.errors",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/calculators/ase_calc.py",
+      "line": 18,
+      "module": "cochem.torq.models.schemas",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/errors.py",
+      "line": 8,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/models/__init__.py",
+      "line": 5,
+      "module": "cochem.torq.models.schemas",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/storage/__init__.py",
+      "line": 5,
+      "module": "cochem.torq.storage.hdf5_persister",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/storage/hdf5_persister.py",
+      "line": 12,
+      "module": "cochem.torq.errors",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/storage/hdf5_persister.py",
+      "line": 13,
+      "module": "cochem.torq.models.schemas",
+      "selected_test": false
+    },
+    {
+      "path": "cochem/torq/utils/__init__.py",
+      "line": 5,
+      "module": "cochem.torq.utils.mendeleev_masses",
+      "selected_test": false
+    },
+    {
+      "path": "cochem_topos/exceptions.py",
+      "line": 5,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "cochem_topos/general_utilities.py",
+      "line": 5,
+      "module": "cochem.topos.scaffold_hopper",
+      "selected_test": false
+    },
+    {
+      "path": "cochem_topos/general_utilities.py",
+      "line": 6,
+      "module": "cochem.topos.geometry_validation",
+      "selected_test": false
+    },
+    {
+      "path": "cochem_topos/general_utilities.py",
+      "line": 7,
+      "module": "cochem.topos.pymol_export",
+      "selected_test": false
+    },
+    {
+      "path": "cochem_topos/general_utilities.py",
+      "line": 8,
+      "module": "cochem.topos.metal_coordination",
+      "selected_test": false
+    },
+    {
+      "path": "cochem_topos/general_utilities.py",
+      "line": 9,
+      "module": "cochem.topos.sanitizer",
+      "selected_test": false
+    },
+    {
+      "path": "cochem_topos/models.py",
+      "line": 5,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "cochem_topos/telemetry/__init__.py",
+      "line": 3,
+      "module": "cochem_topos.telemetry.hardware",
+      "selected_test": false
+    },
+    {
+      "path": "scripts/module_adapter_torq.py",
+      "line": 89,
+      "module": "Libraries.cochem_torq_alignment",
+      "selected_test": false
+    },
+    {
+      "path": "scripts/module_adapter_torq.py",
+      "line": 314,
+      "module": "Libraries.cochem_torq_alignment",
+      "selected_test": false
+    },
+    {
+      "path": "scripts/module_adapter_torq.py",
+      "line": 444,
+      "module": "cochem_torq.engines",
+      "selected_test": false
+    },
+    {
+      "path": "scripts/module_adapter_torq.py",
+      "line": 527,
+      "module": "cochem_torq.engines",
+      "selected_test": false
+    },
+    {
+      "path": "scripts/module_adapter_torq.py",
+      "line": 528,
+      "module": "cochem_torq.engines.diagnostics",
+      "selected_test": false
+    },
+    {
+      "path": "scripts/module_adapter_torq.py",
+      "line": 320,
+      "module": "cochem_torq.engines",
+      "selected_test": false
+    },
+    {
+      "path": "scripts/spcat_runner.py",
+      "line": 33,
+      "module": "cochem_torq_asymmetric_rotor",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/ml/conformal.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_conformal",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/ml/conformal.py",
+      "line": 16,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/ml/delta.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/ml/delta.py",
+      "line": 21,
+      "module": "Libraries.cochem_torq_dispersion_d3",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/ml/delta.py",
+      "line": 25,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/ml/models.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_ani2x_transfer",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/ml/models.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_force_matching",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/__init__.py",
+      "line": 5,
+      "module": "cochem.topos.clash",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/__init__.py",
+      "line": 6,
+      "module": "cochem.topos.coarse_grain",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/__init__.py",
+      "line": 7,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/__init__.py",
+      "line": 13,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/__init__.py",
+      "line": 14,
+      "module": "cochem.topos.rings",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/__init__.py",
+      "line": 19,
+      "module": "cochem.topos.stereochemistry",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/__init__.py",
+      "line": 24,
+      "module": "cochem.topos.visualization",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/alignment.py",
+      "line": 27,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/canonicalization.py",
+      "line": 22,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/canonicalization.py",
+      "line": 23,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/clash.py",
+      "line": 19,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/clash.py",
+      "line": 20,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/coarse_grain.py",
+      "line": 16,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/coarse_grain.py",
+      "line": 17,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/diff.py",
+      "line": 15,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/diff.py",
+      "line": 16,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/fingerprint.py",
+      "line": 62,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/fingerprint.py",
+      "line": 63,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/forcefield.py",
+      "line": 17,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/forcefield.py",
+      "line": 18,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/fragmentation.py",
+      "line": 14,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/fragmentation.py",
+      "line": 15,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/geometry_validation.py",
+      "line": 12,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/geometry_validation.py",
+      "line": 13,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/graph.py",
+      "line": 20,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/io.py",
+      "line": 20,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/io.py",
+      "line": 25,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/isotopes.py",
+      "line": 18,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/isotopes.py",
+      "line": 19,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/metal_coordination.py",
+      "line": 12,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/metal_coordination.py",
+      "line": 13,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/perception.py",
+      "line": 14,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/perception.py",
+      "line": 15,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/pharmacophore.py",
+      "line": 15,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/pharmacophore.py",
+      "line": 16,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/pharmacophore.py",
+      "line": 17,
+      "module": "cochem.topos.rings",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/pymol_export.py",
+      "line": 13,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/pymol_export.py",
+      "line": 14,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/resonance.py",
+      "line": 18,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/resonance.py",
+      "line": 19,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/resonance.py",
+      "line": 20,
+      "module": "cochem.topos.rings",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/rings.py",
+      "line": 16,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/sanitizer.py",
+      "line": 12,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/sanitizer.py",
+      "line": 13,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/scaffold_hopper.py",
+      "line": 12,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/scaffold_hopper.py",
+      "line": 13,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/solvent.py",
+      "line": 21,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/solvent.py",
+      "line": 22,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/sparsification.py",
+      "line": 22,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/sparsification.py",
+      "line": 23,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/stereochemistry.py",
+      "line": 14,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/symmetry.py",
+      "line": 16,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/symmetry.py",
+      "line": 17,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/tpsa.py",
+      "line": 14,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/tpsa.py",
+      "line": 15,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/tpsa.py",
+      "line": 16,
+      "module": "cochem.topos.rings",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem/topos/visualization.py",
+      "line": 17,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/cochem_torq_mace.py",
+      "line": 23,
+      "module": "cochem_base.cochem_torq_topology",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/export_utils/__init__.py",
+      "line": 7,
+      "module": "cochem_topos_cleanup",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/export_utils/__init__.py",
+      "line": 24,
+      "module": "cochem_topos_export",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/intake/cochem_molsym_eckart_aligner.py",
+      "line": 67,
+      "module": "cochem_topos.topology",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/intake/cochem_topos_alignment.py",
+      "line": 31,
+      "module": "cochem_topos.topology",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/intake/topos_alignment.py",
+      "line": 40,
+      "module": "cochem_topos.topology",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/ml/baselines.py",
+      "line": 5,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/ml/baselines.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_dispersion_d3",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/ml/baselines.py",
+      "line": 18,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/ml/conformal.py",
+      "line": 5,
+      "module": "Libraries.cochem_torq_conformal",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/ml/conformal.py",
+      "line": 9,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/spectroscopy/spcat_runner.py",
+      "line": 33,
+      "module": "cochem_torq_asymmetric_rotor",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/topology/__init__.py",
+      "line": 8,
+      "module": "cochem_topos_crusher",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/topology/__init__.py",
+      "line": 37,
+      "module": "cochem_topos_graph",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/topology/__init__.py",
+      "line": 49,
+      "module": "cochem_topos_wiggle",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/topology/cochem_topos_crusher.py",
+      "line": 1638,
+      "module": "Libraries.cochem_torq_environment",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_base/topology/cochem_topos_wiggle.py",
+      "line": 38,
+      "module": "cochem_topos_crusher",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_torq/cfour/__init__.py",
+      "line": 5,
+      "module": "cochem_torq.cfour.bridge",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_torq/cfour/bridge.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_cfour_bridge",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_torq/cfour/bridge.py",
+      "line": 20,
+      "module": "cochem_torq_cfour_bridge",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_torq/conformer/__init__.py",
+      "line": 5,
+      "module": "cochem_torq.conformer.orchestrator",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_torq/counterpoise.py",
+      "line": 5,
+      "module": "Libraries.cochem_torq_counterpoise",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_torq/crest/__init__.py",
+      "line": 5,
+      "module": "cochem_torq.crest.runner",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_torq/crest/runner.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_crest",
+      "selected_test": false
+    },
+    {
+      "path": "src/cochem_torq/crest/runner.py",
+      "line": 25,
+      "module": "cochem_torq_crest",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_topos_escape.py",
+      "line": 26,
+      "module": "cochem_topos.cochem_topos_escape",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_topos_graph.py",
+      "line": 39,
+      "module": "cochem_topos.cochem_topos_graph",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_export_telemetry.py",
+      "line": 41,
+      "module": "cochem_torq_export",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_export_telemetry.py",
+      "line": 49,
+      "module": "cochem_torq_telemetry",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 74,
+      "module": "cochem_torq_alignment",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 78,
+      "module": "cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 82,
+      "module": "cochem_torq_export",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 87,
+      "module": "cochem_torq_init",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 94,
+      "module": "cochem_torq_mace",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 99,
+      "module": "cochem_torq_quench",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 103,
+      "module": "cochem_torq_schema",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 107,
+      "module": "cochem_torq_slicer",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 111,
+      "module": "cochem_torq_telemetry",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 115,
+      "module": "cochem_torq_topology",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 121,
+      "module": "cochem_torq_vault",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_master_context.py",
+      "line": 125,
+      "module": "cochem_torq_watchdog",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 40,
+      "module": "cochem_torq_alignment",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 44,
+      "module": "cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 51,
+      "module": "cochem_torq_init",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 59,
+      "module": "cochem_torq_mace",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 65,
+      "module": "cochem_torq_quench",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 70,
+      "module": "cochem_torq_schema",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 76,
+      "module": "cochem_torq_slicer",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 82,
+      "module": "cochem_torq_topology",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 88,
+      "module": "cochem_torq_vault",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 94,
+      "module": "cochem_torq_watchdog",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 896,
+      "module": "cochem_base.cochem_torq_alignment",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 899,
+      "module": "cochem_base.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 900,
+      "module": "cochem_base.cochem_torq_init",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 901,
+      "module": "cochem_base.cochem_torq_mace",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 904,
+      "module": "cochem_base.cochem_torq_quench",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 905,
+      "module": "cochem_base.cochem_torq_schema",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 906,
+      "module": "cochem_base.cochem_torq_slicer",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 909,
+      "module": "cochem_base.cochem_torq_topology",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 912,
+      "module": "cochem_base.cochem_torq_vault",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_1_to_5.py",
+      "line": 913,
+      "module": "cochem_base.cochem_torq_watchdog",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_6_to_10.py",
+      "line": 92,
+      "module": "cochem_torq_export",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_cochem_torq_phases_6_to_10.py",
+      "line": 99,
+      "module": "cochem_torq_telemetry",
+      "selected_test": false
+    },
+    {
+      "path": "test_suite/test_topology.py",
+      "line": 20,
+      "module": "cochem_topos.topology",
+      "selected_test": false
+    },
+    {
+      "path": "tests/base/test_internal_coordinate_constraint_generation.py",
+      "line": 18,
+      "module": "Libraries.cochem_torq_constraints",
+      "selected_test": false
+    },
+    {
+      "path": "tests/base/test_legacy_measured_data_admission.py",
+      "line": 11,
+      "module": "cochem_base.cochem_torq_vault",
+      "selected_test": true
+    },
+    {
+      "path": "tests/base/test_topology_scientific_admission.py",
+      "line": 20,
+      "module": "cochem.topos.graph",
+      "selected_test": true
+    },
+    {
+      "path": "tests/base/test_topology_scientific_admission.py",
+      "line": 21,
+      "module": "cochem.topos.resonance",
+      "selected_test": true
+    },
+    {
+      "path": "tests/base/test_topology_scientific_admission.py",
+      "line": 22,
+      "module": "cochem.topos.tautomer",
+      "selected_test": true
+    },
+    {
+      "path": "tests/base/test_torq_engine_evidence.py",
+      "line": 17,
+      "module": "cochem_base.cochem_torq_engine",
+      "selected_test": true
+    },
+    {
+      "path": "tests/base/test_tripartite_scratch_resolution.py",
+      "line": 11,
+      "module": "Libraries.cochem_torq_environment",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk08/test_active_learning_dag.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_active_learning",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk08/test_active_learning_dag.py",
+      "line": 21,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk08/test_crest_missing_binary_exception.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_crest",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk09/test_cfour_dual_engine_routing.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_cfour_bridge",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk09/test_cfour_dual_engine_routing.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk09/test_counterpoise_frozen_monomer.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk09/test_frozen_monomer_cartesian_constraints.py",
+      "line": 8,
+      "module": "Libraries.cochem_torq_constraints",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk09/test_frozen_monomer_cartesian_constraints.py",
+      "line": 9,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk09/test_goat_crest_union_pipeline.py",
+      "line": 8,
+      "module": "Libraries.cochem_torq_goat",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk09/test_goat_crest_union_pipeline.py",
+      "line": 9,
+      "module": "Libraries.cochem_torq_pipeline",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk09/test_spin_contamination_abort.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk10/test_geometry_validation_hbond.py",
+      "line": 3,
+      "module": "cochem.topos.geometry_validation",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk10/test_rotational_tensor_deduplication.py",
+      "line": 2,
+      "module": "cochem_torq_goat",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk10/test_torq_watchdog_mpi_memory.py",
+      "line": 4,
+      "module": "cochem_base.cochem_torq_watchdog",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk11/test_active_learning_hardware_gating.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_active_learning",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk11/test_tripartite_scratch_resolution.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_environment",
+      "selected_test": false
+    },
+    {
+      "path": "tests/chunk11/test_xtb_python_dual_engine.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_physics_integrity_chunk2.py",
+      "line": 31,
+      "module": "cochem_base.cochem_torq_alignment",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_physics_integrity_chunk2.py",
+      "line": 35,
+      "module": "cochem_base.cochem_torq_topology",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_physics_integrity_chunk2.py",
+      "line": 36,
+      "module": "cochem_base.cochem_torq_vault",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_rotational_constants_unification.py",
+      "line": 15,
+      "module": "cochem_base.cochem_torq_alignment",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk01_ecosystem.py",
+      "line": 242,
+      "module": "Libraries.cochem_torq_crest",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk01_ecosystem.py",
+      "line": 277,
+      "module": "Libraries.cochem_torq_constraints",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk01_ecosystem.py",
+      "line": 312,
+      "module": "Libraries.cochem_torq_compiler",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk01_ecosystem.py",
+      "line": 355,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk01_ecosystem.py",
+      "line": 370,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk01_ecosystem.py",
+      "line": 393,
+      "module": "Libraries.cochem_torq_parser",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk01_ecosystem.py",
+      "line": 414,
+      "module": "Libraries.cochem_torq_cfour_bridge",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk01_ecosystem.py",
+      "line": 486,
+      "module": "Libraries.cochem_torq_pipeline",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk02_ecosystem.py",
+      "line": 51,
+      "module": "cochem.topos.geometry_validation",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk02_ecosystem.py",
+      "line": 70,
+      "module": "cochem.topos.geometry_validation",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk02_ecosystem.py",
+      "line": 95,
+      "module": "cochem_torq_goat",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk02_ecosystem.py",
+      "line": 119,
+      "module": "cochem_torq_goat",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk03_ecosystem.py",
+      "line": 66,
+      "module": "cochem_base.cochem_torq_watchdog",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk03_ecosystem.py",
+      "line": 178,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk03_ecosystem.py",
+      "line": 223,
+      "module": "Libraries.cochem_torq_active_learning",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk03_ecosystem.py",
+      "line": 281,
+      "module": "Libraries.cochem_torq_storage",
+      "selected_test": false
+    },
+    {
+      "path": "tests/core/test_srs_chunk03_ecosystem.py",
+      "line": 366,
+      "module": "Libraries.cochem_torq_environment",
+      "selected_test": false
+    },
+    {
+      "path": "tests/hpc/test_torq_pipeline_cli_slurm.py",
+      "line": 25,
+      "module": "Libraries.cochem_torq_pipeline",
+      "selected_test": false
+    },
+    {
+      "path": "tests/ml/test_conformal_force_coverage.py",
+      "line": 8,
+      "module": "Libraries.cochem_torq_conformal",
+      "selected_test": false
+    },
+    {
+      "path": "tests/ml/test_force_matching_loss_scaling.py",
+      "line": 8,
+      "module": "Libraries.cochem_torq_force_matching",
+      "selected_test": false
+    },
+    {
+      "path": "tests/ml/test_vectorized_committee_ensemble.py",
+      "line": 18,
+      "module": "Libraries.cochem_torq_committee_ensemble",
+      "selected_test": false
+    },
+    {
+      "path": "tests/models/test_ani2x_cutoff_and_masking.py",
+      "line": 8,
+      "module": "Libraries.cochem_torq_ani2x_transfer",
+      "selected_test": false
+    },
+    {
+      "path": "tests/physics/test_maceoff_graph_partitioning.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_mace",
+      "selected_test": false
+    },
+    {
+      "path": "tests/telemetry/test_honest_hardware_telemetry.py",
+      "line": 8,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/telemetry/test_honest_hardware_telemetry.py",
+      "line": 10,
+      "module": "cochem_topos.telemetry.hardware",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk20_verification_suite.py",
+      "line": 23,
+      "module": "Libraries.cochem_torq_environment",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk20_verification_suite.py",
+      "line": 27,
+      "module": "Libraries.cochem_torq_finite_difference",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk20_verification_suite.py",
+      "line": 30,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk20_verification_suite.py",
+      "line": 35,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk20_verification_suite.py",
+      "line": 41,
+      "module": "Libraries.cochem_torq_multitask",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk20_verification_suite.py",
+      "line": 46,
+      "module": "Libraries.cochem_torq_onnx_export",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk20_verification_suite.py",
+      "line": 52,
+      "module": "Libraries.cochem_torq_vibrational",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk21_molecular_dynamics.py",
+      "line": 27,
+      "module": "Libraries.cochem_torq_masses",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk21_molecular_dynamics.py",
+      "line": 31,
+      "module": "Libraries.cochem_torq_md_env",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk21_molecular_dynamics.py",
+      "line": 35,
+      "module": "Libraries.cochem_torq_md_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk21_molecular_dynamics.py",
+      "line": 42,
+      "module": "Libraries.cochem_torq_md_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk21_molecular_dynamics.py",
+      "line": 49,
+      "module": "Libraries.cochem_torq_remd",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk21_molecular_dynamics.py",
+      "line": 56,
+      "module": "Libraries.cochem_torq_symplectic",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_chunk21_molecular_dynamics.py",
+      "line": 71,
+      "module": "Libraries.cochem_torq_trajectory",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_alignment.py",
+      "line": 62,
+      "module": "cochem_topos.topology",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_cleanup.py",
+      "line": 29,
+      "module": "cochem_topos.cochem_topos_cleanup",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_cleanup.py",
+      "line": 788,
+      "module": "cochem_topos",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_export.py",
+      "line": 33,
+      "module": "cochem_topos.cochem_topos_export",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_goat.py",
+      "line": 30,
+      "module": "cochem_topos.cochem_topos_goat",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_goat.py",
+      "line": 52,
+      "module": "cochem_topos.cochem_topos_memory",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_goat.py",
+      "line": 60,
+      "module": "cochem_topos.cochem_topos_quench",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_goat.py",
+      "line": 67,
+      "module": "cochem_topos.cochem_topos_escape",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_goat.py",
+      "line": 161,
+      "module": "cochem_topos.cochem_topos_crusher",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_goat.py",
+      "line": 117,
+      "module": "cochem_topos_goat",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_goat.py",
+      "line": 139,
+      "module": "cochem_topos_memory",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_goat.py",
+      "line": 147,
+      "module": "cochem_topos_quench",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_goat.py",
+      "line": 154,
+      "module": "cochem_topos_escape",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_graph.py",
+      "line": 24,
+      "module": "cochem_topos.cochem_topos_graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_iso_recycle.py",
+      "line": 22,
+      "module": "cochem_topos.cochem_topos_iso_recycle",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_iso_recycle.py",
+      "line": 59,
+      "module": "cochem_topos.cochem_topos_memory",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_cochem_topos_memory.py",
+      "line": 18,
+      "module": "cochem_topos.cochem_topos_memory",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_active_learning.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_active_learning",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_active_learning.py",
+      "line": 27,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_amp_trainer.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_amp_trainer",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_amp_trainer.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_training_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_amp_trainer.py",
+      "line": 18,
+      "module": "Libraries.cochem_torq_training_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_ani2x_transfer.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_ani2x_transfer",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_ani2x_transfer.py",
+      "line": 23,
+      "module": "Libraries.cochem_torq_training_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_c2_cutoff.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_c2_cutoff",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_c2_cutoff.py",
+      "line": 22,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_c2_cutoff.py",
+      "line": 23,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_committee_ensemble.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_committee_ensemble",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_committee_ensemble.py",
+      "line": 20,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_committee_ensemble.py",
+      "line": 21,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_conformal.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_conformal",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_conformal.py",
+      "line": 18,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_conformal.py",
+      "line": 19,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_conformal.py",
+      "line": 20,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_delta_ml.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_delta_ml.py",
+      "line": 20,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_delta_ml.py",
+      "line": 21,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_dispersion_d3.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_dispersion_d3",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_dispersion_d3.py",
+      "line": 18,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_dispersion_d3.py",
+      "line": 19,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_distributed_early_stopping.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_distributed_early_stopping",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_distributed_early_stopping.py",
+      "line": 18,
+      "module": "Libraries.cochem_torq_training_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_dynamic_batch.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_dynamic_batch",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_dynamic_batch.py",
+      "line": 19,
+      "module": "Libraries.cochem_torq_training_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_dynamic_batch.py",
+      "line": 20,
+      "module": "Libraries.cochem_torq_training_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_force_matching.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_force_matching",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_force_matching.py",
+      "line": 20,
+      "module": "Libraries.cochem_torq_training_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_gnn_debugger.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_gnn_debugger",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_gnn_debugger.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_gnn_debugger.py",
+      "line": 18,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_gnn_scheduler.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_gnn_scheduler",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_gnn_scheduler.py",
+      "line": 19,
+      "module": "Libraries.cochem_torq_training_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_gnn_scheduler.py",
+      "line": 20,
+      "module": "Libraries.cochem_torq_training_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_gradient_checkpointing.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_gradient_checkpointing",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_graph_pruning.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_graph_pruning",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_graph_pruning.py",
+      "line": 25,
+      "module": "Libraries.cochem_torq_training_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_graph_pruning.py",
+      "line": 29,
+      "module": "Libraries.cochem_torq_training_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_hdf5_datamodule.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_hdf5_datamodule",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_hdf5_datamodule.py",
+      "line": 23,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_hpo.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_hpo",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_hpo.py",
+      "line": 24,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_lbfgs_optimizer.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_lbfgs_optimizer.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_lbfgs_optimizer.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_lbfgs_optimizer.py",
+      "line": 18,
+      "module": "Libraries.cochem_torq_lbfgs_optimizer",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_lbfgs_optimizer.py",
+      "line": 23,
+      "module": "Libraries.cochem_torq_masses",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_loss_landscape.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_loss_landscape",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_loss_landscape.py",
+      "line": 24,
+      "module": "Libraries.cochem_torq_training_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_neighbor_list.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_neighbor_list",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_pbc_graph.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_inference_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_pbc_graph.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_pbc_graph.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_pbc_graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_torchscript_export.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_torchscript_export",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_torchscript_export.py",
+      "line": 21,
+      "module": "Libraries.cochem_torq_training_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_torchscript_export.py",
+      "line": 22,
+      "module": "Libraries.cochem_torq_training_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_training_persistence.py",
+      "line": 18,
+      "module": "Libraries.cochem_torq_training_errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_training_persistence.py",
+      "line": 22,
+      "module": "Libraries.cochem_torq_training_persistence",
+      "selected_test": false
+    },
+    {
+      "path": "tests/test_torq_training_persistence.py",
+      "line": 147,
+      "module": "Libraries.cochem_torq_training_persistence",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_canonicalization.py",
+      "line": 29,
+      "module": "cochem.topos.canonicalization",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_canonicalization.py",
+      "line": 35,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_canonicalization.py",
+      "line": 36,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_clash_detector.py",
+      "line": 20,
+      "module": "cochem.topos.clash",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_clash_detector.py",
+      "line": 21,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_clash_detector.py",
+      "line": 22,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_coarse_grain.py",
+      "line": 14,
+      "module": "cochem.topos.coarse_grain",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_coarse_grain.py",
+      "line": 15,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_coarse_grain.py",
+      "line": 16,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_diff.py",
+      "line": 7,
+      "module": "cochem.topos.diff",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_diff.py",
+      "line": 8,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_fingerprint.py",
+      "line": 7,
+      "module": "cochem.topos.fingerprint",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_fingerprint.py",
+      "line": 12,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_forcefield.py",
+      "line": 7,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_forcefield.py",
+      "line": 8,
+      "module": "cochem.topos.forcefield",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_forcefield.py",
+      "line": 13,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_fragmentation.py",
+      "line": 7,
+      "module": "cochem.topos.fragmentation",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_fragmentation.py",
+      "line": 8,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_io.py",
+      "line": 9,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_io.py",
+      "line": 10,
+      "module": "cochem.topos.io",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_io.py",
+      "line": 11,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_isotopes.py",
+      "line": 14,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_isotopes.py",
+      "line": 15,
+      "module": "cochem.topos.isotopes",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_models.py",
+      "line": 6,
+      "module": "cochem.topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_non_initializing_gpu_telemetry.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_perception.py",
+      "line": 9,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_perception.py",
+      "line": 10,
+      "module": "cochem.topos.perception",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_pharmacophore.py",
+      "line": 12,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_pharmacophore.py",
+      "line": 13,
+      "module": "cochem.topos.pharmacophore",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_resonance.py",
+      "line": 11,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_resonance.py",
+      "line": 12,
+      "module": "cochem.topos.resonance",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_rings_aromaticity.py",
+      "line": 18,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_rings_aromaticity.py",
+      "line": 19,
+      "module": "cochem.topos.rings",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_solvent.py",
+      "line": 21,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_solvent.py",
+      "line": 22,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_solvent.py",
+      "line": 23,
+      "module": "cochem.topos.solvent",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_sparsification.py",
+      "line": 15,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_sparsification.py",
+      "line": 16,
+      "module": "cochem.topos.sparsification",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_stereochemistry.py",
+      "line": 15,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_stereochemistry.py",
+      "line": 16,
+      "module": "cochem.topos.stereochemistry",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_symmetry.py",
+      "line": 13,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_symmetry.py",
+      "line": 14,
+      "module": "cochem.topos.symmetry",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_topology_graph.py",
+      "line": 18,
+      "module": "cochem.topos.exceptions",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_topology_graph.py",
+      "line": 19,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_topos_alignment.py",
+      "line": 18,
+      "module": "cochem.topos.alignment",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_topos_general_utilities_part2.py",
+      "line": 6,
+      "module": "cochem_topos.general_utilities",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_topos_general_utilities_part2.py",
+      "line": 13,
+      "module": "cochem_topos.models",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_topos_tautomer.py",
+      "line": 17,
+      "module": "cochem.topos.tautomer",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_tpsa.py",
+      "line": 12,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_tpsa.py",
+      "line": 13,
+      "module": "cochem.topos.tpsa",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_visualization.py",
+      "line": 18,
+      "module": "cochem.topos.graph",
+      "selected_test": false
+    },
+    {
+      "path": "tests/topos/test_visualization.py",
+      "line": 19,
+      "module": "cochem.topos.visualization",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_active_learning_delta_ml_dag_integration.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_active_learning",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_active_learning_delta_ml_dag_integration.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_pipeline",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_active_learning_hardware_gating.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_active_learning",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_ani2x_diagonal_mask_and_cutoff.py",
+      "line": 10,
+      "module": "Libraries.cochem_torq_ani2x_transfer",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_asymmetric_rotor_line_catalog.py",
+      "line": 19,
+      "module": "cochem_torq_asymmetric_rotor",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_asymmetric_rotor_line_catalog.py",
+      "line": 23,
+      "module": "cochem_torq_spcat",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_bspline_dvr_tunneling.py",
+      "line": 14,
+      "module": "cochem_torq_dvr",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_c2_cutoff_switching_envelope.py",
+      "line": 22,
+      "module": "Libraries.cochem_torq_c2_cutoff",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_cfour_bridge_registration_and_scratch_isolation.py",
+      "line": 20,
+      "module": "Libraries.cochem_torq_cfour_bridge",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_cfour_bridge_registration_and_scratch_isolation.py",
+      "line": 24,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_committee_ensemble_vectorized_vmap.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_committee_ensemble_vectorized_vmap.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_committee_ensemble",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_conformal_pooled_sample_size.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_conformal",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_counterpoise_multijob_workflow.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_counterpoise",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_counterpoise_multijob_workflow.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_covalent_graph_mace_fallback.py",
+      "line": 23,
+      "module": "Libraries.cochem_torq_mace",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_crest_binary_resolution_and_missing_data.py",
+      "line": 17,
+      "module": "Libraries.cochem_torq_crest",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_delta_ml_d3_dispersion_augmentation.py",
+      "line": 10,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_delta_ml_d3_dispersion_augmentation.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_dispersion_d3",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_delta_ml_d3_dispersion_augmentation.py",
+      "line": 15,
+      "module": "Libraries.cochem_torq_inference_schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_dvr_spline_jax_x64.py",
+      "line": 31,
+      "module": "cochem_torq_dvr",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_force_matching_loss_normalization.py",
+      "line": 10,
+      "module": "Libraries.cochem_torq_force_matching",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_goat_crest_conformer_union_pipeline.py",
+      "line": 14,
+      "module": "cochem_torq.conformer.orchestrator",
+      "selected_test": true
+    },
+    {
+      "path": "tests/torq/test_goat_multi_seed_concurrency.py",
+      "line": 30,
+      "module": "Libraries.cochem_torq_goat",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_goat_multi_seed_parsl_parallelism.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_goat",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 21,
+      "module": "cochem.torq.constants",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 22,
+      "module": "cochem.torq.backbones.cutoff",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 28,
+      "module": "cochem.torq.backbones.equivariant_tensor",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 33,
+      "module": "cochem.torq.backbones.observables",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 34,
+      "module": "cochem.torq.backbones.schnet",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 35,
+      "module": "cochem.torq.backbones.spherical_harmonics",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 36,
+      "module": "cochem.torq.calculators.ase_calc",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 37,
+      "module": "cochem.torq.constants",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 47,
+      "module": "cochem.torq.errors",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 58,
+      "module": "cochem.torq.models.schemas",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 65,
+      "module": "cochem.torq.storage.hdf5_persister",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_model_backbones.py",
+      "line": 66,
+      "module": "cochem.torq.utils.mendeleev_masses",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_native_quench_broker.py",
+      "line": 21,
+      "module": "cochem_torq.quench_broker",
+      "selected_test": true
+    },
+    {
+      "path": "tests/torq/test_oet_fallback_provenance_alert.py",
+      "line": 20,
+      "module": "Libraries.cochem_torq_oet_client",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_pipeline_cli_and_slurm_forwarding.py",
+      "line": 16,
+      "module": "Libraries.cochem_torq_pipeline",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_prohibition_calc_hess_true.py",
+      "line": 12,
+      "module": "Libraries.cochem_torq_compiler",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_retired_legacy_potential_admission.py",
+      "line": 10,
+      "module": "cochem_base.cochem_torq_mace",
+      "selected_test": true
+    },
+    {
+      "path": "tests/torq/test_retired_legacy_potential_admission.py",
+      "line": 11,
+      "module": "cochem_base.cochem_torq_quench",
+      "selected_test": true
+    },
+    {
+      "path": "tests/torq/test_spin_contamination_validation.py",
+      "line": 13,
+      "module": "Libraries.cochem_torq_engine",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_spin_contamination_validation.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_parser",
+      "selected_test": false
+    },
+    {
+      "path": "tests/torq/test_xtb_python_dual_engine.py",
+      "line": 14,
+      "module": "Libraries.cochem_torq_delta_ml",
+      "selected_test": false
+    }
+  ],
+  "paired_topos_files_identical": true
+}

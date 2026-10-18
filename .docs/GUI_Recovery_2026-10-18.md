@@ -126,6 +126,18 @@ The optional native diagnostic-tracing job was deliberately not selected and
 remains skipped. These bounded checks do not replace the full local profile or
 the real student pilot.
 
+The final hosted [run `39165766092`](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/39165766092)
+on `2c655b47b1cc63eca3ab417946513c9763b0933e`, including the follow-up GUI
+changes, completed successfully: **1,791 of 1,791 bounded tests passed**, with
+zero failures or skips. All 1,777 prior cases remain, alongside 14 added UI
+cases. All three operating systems again passed 221 CI-control tests and clean
+wheel installation; downloaded wheel bytes matched their recorded hashes.
+The real xTB/PySCF numerical checks and dashboard HTTP/widget readiness and
+repeated startup passed. Source, import origins and cleanup passed. Optional
+diagnostic tracing remained deliberately skipped. The later publication commits
+change documentation and evidence storage only; this hosted result retains its
+exact `2c655b4` identity. It is not a full local profile on that later GUI source.
+
 The earlier hosted run
 [`39088443391`](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/39088443391)
 on `d423c02` remains failed: 1,770 bounded tests passed and three old layout

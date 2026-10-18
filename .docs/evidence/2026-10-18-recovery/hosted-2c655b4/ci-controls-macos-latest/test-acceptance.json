@@ -1,0 +1,91 @@
+{
+  "passed": true,
+  "executed": true,
+  "release_accepted": true,
+  "source_binding": {
+    "passed": true,
+    "mode": "release",
+    "release_accepted": true,
+    "revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+    "expected_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+    "authority": "explicit-reviewed-revision",
+    "tracked_file_count": 2279,
+    "tracked_source_sha256": "feaf513659f2cac1b099c0b6645398f68e082314147c877231972d99b44f9f7b",
+    "initial_changed_paths": [],
+    "initial_dirty": false,
+    "excluded_untracked_paths": [],
+    "excluded_untrusted_source_paths": [],
+    "infrastructure_ring": {
+      "path": ".core_infrastructure_hashring.json",
+      "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+      "file_count": 224,
+      "passed": true,
+      "authority": "reviewed-committed-git-bytes"
+    }
+  },
+  "selected_test_files": [],
+  "cleanup_observation": {
+    "launcher_pid": 1515,
+    "launcher_returncode": 0,
+    "owned_work_stopped": true,
+    "ownership_scope": "posix-group",
+    "collection_observation": "owned-boundary-empty",
+    "launcher_create_time": 1792357218.662025,
+    "admitted_before_exec": true,
+    "external_reaping_pending": []
+  },
+  "passed_tests": 221,
+  "failed_tests": [],
+  "pending_external_acceptance": [],
+  "unexpected_skips": [],
+  "coverage_errors": [],
+  "collected": 221,
+  "scope": "Local runnable acceptance; pending external checks do not count as passed",
+  "command_exit_code": 0,
+  "timed_out": false,
+  "quarantine_source_changed": [],
+  "quarantine_workspace_changed": false,
+  "descendant_evidence_directory": "/Users/runner/work/_temp/ci-controls/descendant-origins-eddf8914218c402ab59941b6b9c4d030",
+  "descendant_source_records": 107,
+  "descendant_source_failures": [],
+  "descendant_source_authority_errors": [],
+  "descendant_startup_only": [
+    {
+      "pid": 1538,
+      "instance": "42952d3dbf584337abb4729a37f5fcaf",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 1546,
+      "instance": "89db29480f4548d58ce8f48a97f63414",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 1547,
+      "instance": "058d6b76e6e34bac9c943adaa58b145f",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 2020,
+      "instance": "5057e870f370404d85f363a90218e18b",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 2026,
+      "instance": "8decd2535b7d431a854946d33e9b3dcd",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 2034,
+      "instance": "434fdda4a2bf445cb7ee29e504933eea",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 2043,
+      "instance": "6e260db215004417abb53b934c2669da",
+      "scope": "startup-only-no-finalizer-observation"
+    }
+  ],
+  "source_origins_verified": true,
+  "source_changed": []
+}

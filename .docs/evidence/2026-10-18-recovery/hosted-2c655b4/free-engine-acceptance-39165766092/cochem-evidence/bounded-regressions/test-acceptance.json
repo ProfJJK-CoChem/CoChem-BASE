@@ -1,0 +1,315 @@
+{
+  "passed": true,
+  "executed": true,
+  "release_accepted": true,
+  "source_binding": {
+    "passed": true,
+    "mode": "release",
+    "release_accepted": true,
+    "revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+    "expected_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+    "authority": "explicit-reviewed-revision",
+    "tracked_file_count": 2279,
+    "tracked_source_sha256": "feaf513659f2cac1b099c0b6645398f68e082314147c877231972d99b44f9f7b",
+    "initial_changed_paths": [],
+    "initial_dirty": false,
+    "excluded_untracked_paths": [
+      "CoChem_BASE.egg-info/PKG-INFO",
+      "CoChem_BASE.egg-info/SOURCES.txt",
+      "CoChem_BASE.egg-info/dependency_links.txt",
+      "CoChem_BASE.egg-info/entry_points.txt",
+      "CoChem_BASE.egg-info/requires.txt",
+      "CoChem_BASE.egg-info/top_level.txt"
+    ],
+    "excluded_untrusted_source_paths": [],
+    "infrastructure_ring": {
+      "path": ".core_infrastructure_hashring.json",
+      "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+      "file_count": 224,
+      "passed": true,
+      "authority": "reviewed-committed-git-bytes"
+    }
+  },
+  "selected_test_files": [
+    "tests/test_cochem_bench_cv.py",
+    "tests/base/test_qe_paw_input_provisioning.py",
+    "tests/base/test_native_grid_execution.py",
+    "tests/base/test_native_crash_provenance.py",
+    "tests/base/test_python_hook_swmr.py",
+    "tests/base/test_gradient_telemetry.py",
+    "tests/base/test_scientific_swmr_lifecycle.py",
+    "tests/base/test_micro_silo_import_boundaries.py",
+    "tests/base/test_native_free_engine_locks.py",
+    "tests/base/test_free_engine_setup_recovery.py",
+    "tests/test_bootstrap_environment.py",
+    "tests/base/test_chain_integrity.py",
+    "tests/calc/test_nuclide_ingress_handoff.py",
+    "tests/ui/test_optional_licensed_engines.py",
+    "tests/ui/test_research_panel_clarity.py",
+    "tests/ui/test_disclosure.py",
+    "tests/ui/test_learning_guidance.py",
+    "tests/ui/test_scientific_error_guidance.py",
+    "tests/ui/test_workspace_guidance.py",
+    "tests/calc/test_cfour_execution_contract.py",
+    "tests/base/test_cfour_provisioning.py",
+    "tests/base/test_context_compression_contract.py",
+    "tests/base/test_scribe_missing_observations.py",
+    "tests/base/test_dark_branch_measured_admission.py",
+    "tests/base/test_srs_runtime_foundations.py::test_crash_tail_preserves_exact_physical_stderr",
+    "tests/base/test_srs_runtime_foundations.py::test_canonical_broker_persists_exact_crash_provenance",
+    "tests/base/test_srs_runtime_foundations.py::test_optional_git_failure_preserves_real_broker_crash",
+    "tests/base/test_srs_runtime_foundations.py::test_source_layout_git_failures_preserve_real_crash",
+    "tests/base/test_srs_runtime_foundations.py::test_crash_source_identity_ignores_foreign_git_repository",
+    "tests/base/test_srs_runtime_foundations.py::test_crash_source_identity_follows_linked_worktree",
+    "tests/base/test_actions_calculation_contract.py",
+    "tests/base/test_cli_memory_budget.py",
+    "tests/base/test_cli_runtime_preflight_cleanup.py",
+    "tests/base/test_process_reaper_ownership.py",
+    "tests/base/test_stage0_authority_completion.py",
+    "tests/base/test_workspace_facade.py",
+    "tests/base/test_hardware_observation_authority.py",
+    "tests/base/test_course_project_access.py",
+    "tests/ui/test_course_access_widget.py",
+    "tests/base/test_module_handoff_contract.py",
+    "tests/base/test_legacy_scientific_retirement.py",
+    "tests/base/test_physical_mass_consumers.py",
+    "tests/base/test_principal_mass_normalization.py",
+    "tests/base/test_aligned_geometry_immutability.py",
+    "tests/base/test_shared_physical_conversions.py",
+    "tests/base/test_measured_scientific_admission.py",
+    "tests/base/test_requested_worker_model_contract.py",
+    "tests/torq/test_native_quench_broker.py",
+    "tests/base/test_topology_scientific_admission.py",
+    "tests/base/test_legacy_measured_data_admission.py",
+    "tests/torq/test_retired_legacy_potential_admission.py",
+    "tests/base/test_module_installer.py",
+    "tests/base/test_module_execution.py",
+    "tests/base/test_module_adapter_topos.py",
+    "tests/base/test_module_adapter_torq.py",
+    "tests/base/test_student_actions_contract.py",
+    "tests/base/test_student_hpc_contract.py",
+    "tests/base/test_student_setup.py",
+    "tests/base/test_student_research_contract.py",
+    "tests/base/test_student_reports.py",
+    "tests/base/test_scientific_inputs.py",
+    "tests/base/test_student_ingestion.py",
+    "tests/base/test_student_data_inputs.py",
+    "tests/calc/test_read_hessian_frame.py",
+    "tests/intake/test_structure_formats.py",
+    "tests/base/test_ingestion_toolchain.py",
+    "tests/base/test_conformer_pool_srs.py",
+    "tests/topos/test_async_search_execution.py",
+    "tests/torq/test_goat_crest_conformer_union_pipeline.py",
+    "tests/ui/test_student_entrypoint.py",
+    "tests/ui/test_scientific_input_library.py",
+    "tests/spectroscopy/test_native_property_import.py",
+    "tests/base/test_ingestion_watchdog_events.py",
+    "tests/base/test_trajectory_telemetry.py",
+    "tests/base/test_srs_execution_authority.py",
+    "tests/base/test_srs_mass_geometry_contracts.py",
+    "tests/base/test_grid_policy_contract.py",
+    "tests/base/test_hosted_dashboard_runtime.py",
+    "tests/base/test_orca_provisioning.py",
+    "tests/base/test_openmpi_installer_contract.py",
+    "tests/base/test_slurm_submission_contract.py",
+    "tests/calc/test_orca_derivative_acceptance.py",
+    "tests/calc/test_scientific_job_boundaries.py",
+    "tests/calc/test_calculation_service_integrity.py",
+    "tests/calc/test_scientific_policy.py",
+    "tests/calc/test_xtb_cli_execution.py",
+    "tests/calc/test_orca_input_tight_constraints.py",
+    "tests/ui/test_gui_spectroscopy_inspector.py",
+    "tests/ui/test_hessian_inspector.py",
+    "tests/ui/test_cli_run_and_gui_parity.py",
+    "tests/ui/test_voila_runtime_acceptance.py"
+  ],
+  "cleanup_observation": {
+    "launcher_pid": 4182,
+    "launcher_returncode": 0,
+    "owned_work_stopped": true,
+    "ownership_scope": "posix-group",
+    "collection_observation": "owned-boundary-empty",
+    "launcher_create_time": 1792357707.39,
+    "admitted_before_exec": true,
+    "external_reaping_pending": []
+  },
+  "passed_tests": 1791,
+  "failed_tests": [],
+  "pending_external_acceptance": [],
+  "unexpected_skips": [],
+  "coverage_errors": [],
+  "collected": 1791,
+  "scope": "Local runnable acceptance; pending external checks do not count as passed",
+  "command_exit_code": 0,
+  "timed_out": false,
+  "quarantine_source_changed": [],
+  "quarantine_workspace_changed": false,
+  "descendant_evidence_directory": "/home/runner/work/_temp/cochem-evidence/bounded-regressions/descendant-origins-a4eb61b6fb5e47758149661a52c1b686",
+  "descendant_source_records": 430,
+  "descendant_source_failures": [],
+  "descendant_source_authority_errors": [],
+  "descendant_startup_only": [
+    {
+      "pid": 11116,
+      "instance": "b3e00e738ecb4fe58eb61db31ed56002",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 12063,
+      "instance": "9f6ef93af35f4e8a9fef348955738615",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 12066,
+      "instance": "2537b261c973436b851b1ad6d561f311",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 12069,
+      "instance": "088103412cdd4a229ffecd6e588d58bb",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 12070,
+      "instance": "9a8a52453bf5410bba056591959b4c22",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 12073,
+      "instance": "2db46e0be8da4e6f8c0e7bf1f8d8ec72",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4226,
+      "instance": "46645e69a3b34d9ab275dc3ca2af5d83",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4229,
+      "instance": "da27d90ca7c148eb89d93451bd214b0a",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4234,
+      "instance": "044b6abeb37e485aaa57fbdcbc155d4f",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4237,
+      "instance": "bea901f417d44efdabacd133e3a039e5",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4242,
+      "instance": "14288c2c9f224bc19a7d6b6ddb76da62",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4245,
+      "instance": "ef3cc587d1fd4ee49d536d1b3ea8cc66",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4250,
+      "instance": "29a91d4da55247e190f85b74705ff014",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4253,
+      "instance": "41b0a288630446108212c3e93494cfd5",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4256,
+      "instance": "b8627aa895c14991876957afe394946d",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4259,
+      "instance": "d63e63b1ba954a22b83b78c7883a2684",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4264,
+      "instance": "3d304a9a66444a8c96643dc429938e0b",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4272,
+      "instance": "91b0bf607d2b4f2199ab938403943524",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4275,
+      "instance": "c3299eacee674482aca4b7fd7bc5614e",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4278,
+      "instance": "ea7c264259ab4aec868cc8e59f38e555",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4281,
+      "instance": "076995f2c3264da1b11706234cd7875a",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4285,
+      "instance": "de954a97a2d246fc9e2bea3f9c7d6729",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4288,
+      "instance": "19eb887b544f4b38bbf0ebbf3bda44a9",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 5096,
+      "instance": "b332eb351d9f48dfaa64935cb97542c8",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 5101,
+      "instance": "eb42571f52894f96ae8ffa375659c3c4",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 5109,
+      "instance": "7b7fc48363f349b38ab25ac68dfb0b5f",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 5117,
+      "instance": "70df9957646744fcbcf0ed254b706cbb",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 5121,
+      "instance": "88473d3f259c4ab1aa4e7cd50f6f66f8",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 5123,
+      "instance": "8c2f5c30435d43b1a020f477aa2c861c",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 5127,
+      "instance": "a1f314d8443047c4bf5834eacfcc0cd2",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 5140,
+      "instance": "d5acb840b020474d8f02446b258b9ddd",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 5152,
+      "instance": "32b78b2fcf7c45edbe8a27fd51fc7c98",
+      "scope": "startup-only-no-finalizer-observation"
+    }
+  ],
+  "source_origins_verified": true,
+  "source_changed": []
+}

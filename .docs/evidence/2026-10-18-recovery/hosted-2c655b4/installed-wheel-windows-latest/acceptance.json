@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
+  "source_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+  "source_binding": {
+    "passed": true,
+    "mode": "release",
+    "release_accepted": true,
+    "revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+    "expected_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+    "authority": "explicit-reviewed-revision",
+    "tracked_file_count": 2279,
+    "tracked_source_sha256": "feaf513659f2cac1b099c0b6645398f68e082314147c877231972d99b44f9f7b",
+    "initial_changed_paths": [],
+    "initial_dirty": false,
+    "excluded_untracked_paths": [],
+    "excluded_untrusted_source_paths": [],
+    "infrastructure_ring": {
+      "path": ".core_infrastructure_hashring.json",
+      "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+      "file_count": 224,
+      "passed": true,
+      "authority": "reviewed-committed-git-bytes"
+    }
+  },
+  "version": "1.1.0",
+  "wheel": "cochem_base-1.1.0-py3-none-any.whl",
+  "wheel_sha256": "6ae4d3e4c5702d770920da2d25bf288d7bb3b01d3a1c53dc726b2dbbb787518e"
+}

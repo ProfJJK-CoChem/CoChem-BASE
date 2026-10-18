@@ -1,0 +1,447 @@
+{
+  "schema_version": "cochem.independent-hosted-validation/1",
+  "run_id": 39165766092,
+  "source_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+  "status": "completed",
+  "conclusion": "success",
+  "bounded_regressions": {
+    "receipt_path": "/tmp/cochem-independent-hosted2c-39165766092/free-engine-acceptance-39165766092/cochem-evidence/bounded-regressions/test-acceptance.json",
+    "receipt_sha256": "2a646e7a6df1b72f65a460a366ecf088da58c23fa79789480102a048f3a58eae",
+    "source_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+    "passed": true,
+    "executed": true,
+    "release_accepted": true,
+    "collected": 1791,
+    "passed_tests": 1791,
+    "failed_tests": [],
+    "pending_external_acceptance": [],
+    "unexpected_skips": [],
+    "coverage_errors": [],
+    "command_exit_code": 0,
+    "timed_out": false,
+    "source_changed": [],
+    "quarantine_source_changed": [],
+    "quarantine_workspace_changed": false,
+    "source_origins_verified": true,
+    "descendant_source_records": 430,
+    "descendant_source_failures": [],
+    "descendant_source_authority_errors": [],
+    "cleanup_observation": {
+      "launcher_pid": 4182,
+      "launcher_returncode": 0,
+      "owned_work_stopped": true,
+      "ownership_scope": "posix-group",
+      "collection_observation": "owned-boundary-empty",
+      "launcher_create_time": 1792357707.39,
+      "admitted_before_exec": true,
+      "external_reaping_pending": []
+    }
+  },
+  "controls": {
+    "ubuntu-24.04": {
+      "receipt_path": "/tmp/cochem-independent-hosted2c-39165766092/ci-controls-ubuntu-24.04/test-acceptance.json",
+      "receipt_sha256": "07fa95f8bd2ab35b8dfdb57e2b47afee35737e83cef9917fd371f513a28b6565",
+      "source_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+      "passed": true,
+      "executed": true,
+      "release_accepted": true,
+      "collected": 221,
+      "passed_tests": 221,
+      "failed_tests": [],
+      "pending_external_acceptance": [],
+      "unexpected_skips": [],
+      "coverage_errors": [],
+      "command_exit_code": 0,
+      "timed_out": false,
+      "source_changed": [],
+      "quarantine_source_changed": [],
+      "quarantine_workspace_changed": false,
+      "source_origins_verified": true,
+      "descendant_source_records": 107,
+      "descendant_source_failures": [],
+      "descendant_source_authority_errors": [],
+      "cleanup_observation": {
+        "launcher_pid": 2183,
+        "launcher_returncode": 0,
+        "owned_work_stopped": true,
+        "ownership_scope": "posix-group",
+        "collection_observation": "owned-boundary-empty",
+        "launcher_create_time": 1792357197.66,
+        "admitted_before_exec": true,
+        "external_reaping_pending": []
+      }
+    },
+    "macos-latest": {
+      "receipt_path": "/tmp/cochem-independent-hosted2c-39165766092/ci-controls-macos-latest/test-acceptance.json",
+      "receipt_sha256": "c17d52292bb8a7e0a0d6ddb07a9cb06293b0fab9ad2ca1a14c093ed65915058f",
+      "source_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+      "passed": true,
+      "executed": true,
+      "release_accepted": true,
+      "collected": 221,
+      "passed_tests": 221,
+      "failed_tests": [],
+      "pending_external_acceptance": [],
+      "unexpected_skips": [],
+      "coverage_errors": [],
+      "command_exit_code": 0,
+      "timed_out": false,
+      "source_changed": [],
+      "quarantine_source_changed": [],
+      "quarantine_workspace_changed": false,
+      "source_origins_verified": true,
+      "descendant_source_records": 107,
+      "descendant_source_failures": [],
+      "descendant_source_authority_errors": [],
+      "cleanup_observation": {
+        "launcher_pid": 1515,
+        "launcher_returncode": 0,
+        "owned_work_stopped": true,
+        "ownership_scope": "posix-group",
+        "collection_observation": "owned-boundary-empty",
+        "launcher_create_time": 1792357218.662025,
+        "admitted_before_exec": true,
+        "external_reaping_pending": []
+      }
+    },
+    "windows-latest": {
+      "receipt_path": "/tmp/cochem-independent-hosted2c-39165766092/ci-controls-windows-latest/test-acceptance.json",
+      "receipt_sha256": "84719731b9bdac1fae8be508b3674ca477c0393e450c9ac5d7701b8f83ff15a8",
+      "source_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+      "passed": true,
+      "executed": true,
+      "release_accepted": true,
+      "collected": 221,
+      "passed_tests": 221,
+      "failed_tests": [],
+      "pending_external_acceptance": [],
+      "unexpected_skips": [],
+      "coverage_errors": [],
+      "command_exit_code": 0,
+      "timed_out": false,
+      "source_changed": [],
+      "quarantine_source_changed": [],
+      "quarantine_workspace_changed": false,
+      "source_origins_verified": true,
+      "descendant_source_records": 101,
+      "descendant_source_failures": [],
+      "descendant_source_authority_errors": [],
+      "cleanup_observation": {
+        "launcher_pid": 4128,
+        "launcher_returncode": 0,
+        "owned_work_stopped": true,
+        "ownership_scope": "windows-job",
+        "collection_observation": "owned-boundary-empty",
+        "launcher_create_time": 1792357228.2307425,
+        "admitted_before_exec": true,
+        "external_reaping_pending": []
+      }
+    }
+  },
+  "installed_wheels": {
+    "ubuntu-24.04": {
+      "passed": true,
+      "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
+      "source_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+      "source_binding": {
+        "passed": true,
+        "mode": "release",
+        "release_accepted": true,
+        "revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+        "expected_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+        "authority": "explicit-reviewed-revision",
+        "tracked_file_count": 2279,
+        "tracked_source_sha256": "feaf513659f2cac1b099c0b6645398f68e082314147c877231972d99b44f9f7b",
+        "initial_changed_paths": [],
+        "initial_dirty": false,
+        "excluded_untracked_paths": [],
+        "excluded_untrusted_source_paths": [],
+        "infrastructure_ring": {
+          "path": ".core_infrastructure_hashring.json",
+          "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+          "file_count": 224,
+          "passed": true,
+          "authority": "reviewed-committed-git-bytes"
+        }
+      },
+      "version": "1.1.0",
+      "wheel": "cochem_base-1.1.0-py3-none-any.whl",
+      "wheel_sha256": "9533512e124f3c6c1b106fd14618882f063064306171986865c9e021817c2ed8",
+      "receipt_sha256": "dccd9c892042d331531a0c2fef2c2cbd7ba4b1a24e6dc631cdf6b62385800715"
+    },
+    "macos-latest": {
+      "passed": true,
+      "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
+      "source_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+      "source_binding": {
+        "passed": true,
+        "mode": "release",
+        "release_accepted": true,
+        "revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+        "expected_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+        "authority": "explicit-reviewed-revision",
+        "tracked_file_count": 2279,
+        "tracked_source_sha256": "feaf513659f2cac1b099c0b6645398f68e082314147c877231972d99b44f9f7b",
+        "initial_changed_paths": [],
+        "initial_dirty": false,
+        "excluded_untracked_paths": [],
+        "excluded_untrusted_source_paths": [],
+        "infrastructure_ring": {
+          "path": ".core_infrastructure_hashring.json",
+          "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+          "file_count": 224,
+          "passed": true,
+          "authority": "reviewed-committed-git-bytes"
+        }
+      },
+      "version": "1.1.0",
+      "wheel": "cochem_base-1.1.0-py3-none-any.whl",
+      "wheel_sha256": "e14dfcfc3841a200813d7fecdffe65e4b3909519b6f2e8208adcfee04cfd0596",
+      "receipt_sha256": "d672fe3472b1bae5bc083b40aac013393f434774c28d85b4c971a345c8e3962e"
+    },
+    "windows-latest": {
+      "passed": true,
+      "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
+      "source_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+      "source_binding": {
+        "passed": true,
+        "mode": "release",
+        "release_accepted": true,
+        "revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+        "expected_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+        "authority": "explicit-reviewed-revision",
+        "tracked_file_count": 2279,
+        "tracked_source_sha256": "feaf513659f2cac1b099c0b6645398f68e082314147c877231972d99b44f9f7b",
+        "initial_changed_paths": [],
+        "initial_dirty": false,
+        "excluded_untracked_paths": [],
+        "excluded_untrusted_source_paths": [],
+        "infrastructure_ring": {
+          "path": ".core_infrastructure_hashring.json",
+          "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+          "file_count": 224,
+          "passed": true,
+          "authority": "reviewed-committed-git-bytes"
+        }
+      },
+      "version": "1.1.0",
+      "wheel": "cochem_base-1.1.0-py3-none-any.whl",
+      "wheel_sha256": "6ae4d3e4c5702d770920da2d25bf288d7bb3b01d3a1c53dc726b2dbbb787518e",
+      "receipt_sha256": "a95a4961843998e5e907b29862ed68a066311ae68e70800af33e440a8f7daa7a"
+    }
+  },
+  "physical_free_engine_verification": {
+    "receipt_sha256": "e7ae7961667f9d1f53e9ea89333c1eac02996d740eb8fbc9dcb51a8394b1db93",
+    "engines": {
+      "xtb": {
+        "status": "passed",
+        "elapsed_seconds": 0.04139216700002635,
+        "GFN-FF": {
+          "energy_hartree": -0.327656028983,
+          "converged": true,
+          "log": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_/xtb/GFN-FF/calculation.log"
+        },
+        "GFN2-xTB": {
+          "energy_hartree": -5.07054444035,
+          "converged": true,
+          "log": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_/xtb/GFN2-xTB/calculation.log",
+          "hessian": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_/xtb/GFN2-xTB/hessian",
+          "vibrational_spectrum": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_/xtb/GFN2-xTB/vibspectrum"
+        }
+      },
+      "pyscf": {
+        "status": "passed",
+        "elapsed_seconds": 2.2208693270000026,
+        "calculations": {
+          "HF/STO-3G": {
+            "energy_hartree": -74.96306312972916,
+            "converged": true,
+            "gradient_norm_hartree_per_bohr": 0.08183100215287105,
+            "basis_functions": 7
+          },
+          "PBE-D4/def2-SVP": {
+            "energy_hartree": -76.27220981405755,
+            "converged": true,
+            "gradient_norm_hartree_per_bohr": 0.03162092118014579,
+            "basis_functions": 24,
+            "dispersion_hartree": -0.0001953413873068167
+          },
+          "B3LYP-D4/def2-TZVP": {
+            "energy_hartree": -76.46323717312879,
+            "converged": true,
+            "gradient_norm_hartree_per_bohr": 0.00885783288320667,
+            "basis_functions": 43,
+            "dispersion_hartree": -0.0003095622489944931
+          }
+        },
+        "log": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_/pyscf/calculation.log"
+      }
+    }
+  },
+  "dashboard": {
+    "workflow_step": "Verify rendered dashboard lifecycle with the audited registry",
+    "status": "passed",
+    "operation": "start; check; idempotent second start",
+    "validated_stage0_phases": 11,
+    "stage0_status": "DEGRADED_OPERATIONAL",
+    "acceptance_scope": "HTTP200 response includes Jupyter configuration, widget-view MIME and CoChem; no Traceback; exact server process identity checked. No headless browser interaction, student-account permission or screenshot acceptance is claimed."
+  },
+  "optional_native_tracing_job": {
+    "conclusion": "skipped",
+    "scope": "Intentionally disabled observational tracing job; mandatory cross-platform native lifecycle controls passed separately."
+  },
+  "artifact_metadata": {
+    "artifacts": [
+      {
+        "digest": "sha256:e198de7b255139b7be986952b0d0adcc24e1e44fbdba0cf02a17463c2cb7e4ea",
+        "expired": false,
+        "id": 12151581146,
+        "name": "free-engine-acceptance-39165766092",
+        "size_in_bytes": 1551010,
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1325368799,
+          "head_sha": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+          "id": 39165766092,
+          "repository_id": 1325368799
+        }
+      },
+      {
+        "digest": "sha256:5d77bb7f187f40bc3a75062f167e106c7bf88f5aa69c6a9f6fc9a085ec665442",
+        "expired": false,
+        "id": 12151205032,
+        "name": "ci-controls-windows-latest",
+        "size_in_bytes": 606277,
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1325368799,
+          "head_sha": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+          "id": 39165766092,
+          "repository_id": 1325368799
+        }
+      },
+      {
+        "digest": "sha256:770f5a67baa795f6a25e8d34f3073396249e2386b57d4540acbe2ebf8e014ee4",
+        "expired": false,
+        "id": 12151145137,
+        "name": "installed-wheel-macos-latest",
+        "size_in_bytes": 9815778,
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1325368799,
+          "head_sha": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+          "id": 39165766092,
+          "repository_id": 1325368799
+        }
+      },
+      {
+        "digest": "sha256:3cb7e44f7631489fee07ba42c25503eea12439a854488ec1f9bb90b837aa5e8e",
+        "expired": false,
+        "id": 12150970547,
+        "name": "base-source-evidence",
+        "size_in_bytes": 11884,
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1325368799,
+          "head_sha": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+          "id": 39165766092,
+          "repository_id": 1325368799
+        }
+      },
+      {
+        "digest": "sha256:5c5dfde2bc24c5cc5ce47d38ab52fd93e3afae8ef372f1d7ca66856f98894227",
+        "expired": false,
+        "id": 12150915901,
+        "name": "ci-controls-ubuntu-24.04",
+        "size_in_bytes": 611893,
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1325368799,
+          "head_sha": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+          "id": 39165766092,
+          "repository_id": 1325368799
+        }
+      },
+      {
+        "digest": "sha256:acd61ec22e42d36c34392d6a671725032efaacaa5379e9a708e789b063b457a7",
+        "expired": false,
+        "id": 12150358812,
+        "name": "installed-wheel-windows-latest",
+        "size_in_bytes": 9812772,
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1325368799,
+          "head_sha": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+          "id": 39165766092,
+          "repository_id": 1325368799
+        }
+      },
+      {
+        "digest": "sha256:42c441d754a63febbe7d3bdceacdb6f35b0846134309671b35dfb652dc9cdc25",
+        "expired": false,
+        "id": 12150343840,
+        "name": "ci-controls-macos-latest",
+        "size_in_bytes": 613060,
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1325368799,
+          "head_sha": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+          "id": 39165766092,
+          "repository_id": 1325368799
+        }
+      },
+      {
+        "digest": "sha256:9fce2bec9098489e5f2607f98cdea7101c4bd571a4e6d821ff0b7f52a5a88395",
+        "expired": false,
+        "id": 12150309009,
+        "name": "installed-wheel-ubuntu-24.04",
+        "size_in_bytes": 9814937,
+        "workflow_run": {
+          "head_branch": "main",
+          "head_repository_id": 1325368799,
+          "head_sha": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+          "id": 39165766092,
+          "repository_id": 1325368799
+        }
+      }
+    ],
+    "total_count": 8
+  },
+  "downloaded_wheel_bytes_verified": true,
+  "scope_limits": [
+    "This is the bounded hosted profile, not a complete native-scientific rerun.",
+    "Complete local profile remains bound to31ed7a79dbf2fafa412db33877c228e7a67569cb.",
+    "No student-owned Codespace/App consent, private-project engine access, or full SRS qualification is established."
+  ],
+  "changes_from_full_profile_source": {
+    "production_and_tests": [
+      "tests/ui/test_learning_guidance.py",
+      "tests/ui/test_workspace_guidance.py",
+      "ui/voila_layout/cochem_gui.py",
+      "ui/voila_layout/learning.py",
+      "ui/voila_layout/workspace_layout.py"
+    ],
+    "science_provisioning_serialization_ci_unchanged": true,
+    "review": "Independent AST and patch review preserved at /tmp/cochem-gui-guidance-final-independent-review.json; only presentation methods/help and added UI assertions changed."
+  },
+  "selection_comparison_to_31": {
+    "preserved_previous_nodes": 1777,
+    "removed_nodes": [],
+    "added_nodes": [
+      "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[awaiting_workflow-waiting for GitHub]",
+      "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[cancellation_requested-waiting for GitHub]",
+      "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[dispatch_unconfirmed-confirm submission]",
+      "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[dispatching-request received; waiting for the run]",
+      "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[in_progress-running]",
+      "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[prepared-request prepared]",
+      "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[queued-queued; waiting to run]",
+      "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[rolled_back-previous version restored]",
+      "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[submitted-submission recorded]",
+      "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[updates_available-updates are available]",
+      "tests/ui/test_learning_guidance.py::test_unknown_progress_is_not_presented_as_success",
+      "tests/ui/test_workspace_guidance.py::test_workspace_guidance_in_fresh_process[progress_rendering]",
+      "tests/ui/test_workspace_guidance.py::test_workspace_guidance_in_fresh_process[reference_instructions]",
+      "tests/ui/test_workspace_guidance.py::test_workspace_guidance_in_fresh_process[visible_recovery]"
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "root": "/home/runner/work/_temp/cochem-free-engines",
+  "work_directory": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_",
+  "threads": 1,
+  "engines": {
+    "xtb": {
+      "status": "passed",
+      "elapsed_seconds": 0.04139216700002635,
+      "GFN-FF": {
+        "energy_hartree": -0.327656028983,
+        "converged": true,
+        "log": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_/xtb/GFN-FF/calculation.log"
+      },
+      "GFN2-xTB": {
+        "energy_hartree": -5.07054444035,
+        "converged": true,
+        "log": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_/xtb/GFN2-xTB/calculation.log",
+        "hessian": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_/xtb/GFN2-xTB/hessian",
+        "vibrational_spectrum": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_/xtb/GFN2-xTB/vibspectrum"
+      }
+    },
+    "pyscf": {
+      "status": "passed",
+      "elapsed_seconds": 2.2208693270000026,
+      "calculations": {
+        "HF/STO-3G": {
+          "energy_hartree": -74.96306312972916,
+          "converged": true,
+          "gradient_norm_hartree_per_bohr": 0.08183100215287105,
+          "basis_functions": 7
+        },
+        "PBE-D4/def2-SVP": {
+          "energy_hartree": -76.27220981405755,
+          "converged": true,
+          "gradient_norm_hartree_per_bohr": 0.03162092118014579,
+          "basis_functions": 24,
+          "dispersion_hartree": -0.0001953413873068167
+        },
+        "B3LYP-D4/def2-TZVP": {
+          "energy_hartree": -76.46323717312879,
+          "converged": true,
+          "gradient_norm_hartree_per_bohr": 0.00885783288320667,
+          "basis_functions": 43,
+          "dispersion_hartree": -0.0003095622489944931
+        }
+      },
+      "log": "/home/runner/work/_temp/cochem-evidence/science-91qhn5t_/pyscf/calculation.log"
+    }
+  }
+}

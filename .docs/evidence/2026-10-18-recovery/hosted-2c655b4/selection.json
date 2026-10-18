@@ -1,0 +1,43 @@
+{
+  "run_id": 39165766092,
+  "source_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+  "scope": "Selected unchanged JSON receipts from the actual terminal hosted run; complete artifact payloads remain with GitHub Actions. This bounded hosted run is distinct from the full local profile on 31ed7a7.",
+  "files": {
+    "base-source-evidence/summary.json": {
+      "sha256": "b6e0154ec8b2b9487122c2aa79ee0d2810b5419fc240d531c525f1188688637f",
+      "bytes": 203
+    },
+    "ci-controls-ubuntu-24.04/test-acceptance.json": {
+      "sha256": "07fa95f8bd2ab35b8dfdb57e2b47afee35737e83cef9917fd371f513a28b6565",
+      "bytes": 2923
+    },
+    "installed-wheel-ubuntu-24.04/acceptance.json": {
+      "sha256": "dccd9c892042d331531a0c2fef2c2cbd7ba4b1a24e6dc631cdf6b62385800715",
+      "bytes": 1166
+    },
+    "ci-controls-macos-latest/test-acceptance.json": {
+      "sha256": "c17d52292bb8a7e0a0d6ddb07a9cb06293b0fab9ad2ca1a14c093ed65915058f",
+      "bytes": 2928
+    },
+    "installed-wheel-macos-latest/acceptance.json": {
+      "sha256": "d672fe3472b1bae5bc083b40aac013393f434774c28d85b4c971a345c8e3962e",
+      "bytes": 1166
+    },
+    "ci-controls-windows-latest/test-acceptance.json": {
+      "sha256": "84719731b9bdac1fae8be508b3674ca477c0393e450c9ac5d7701b8f83ff15a8",
+      "bytes": 3010
+    },
+    "installed-wheel-windows-latest/acceptance.json": {
+      "sha256": "a95a4961843998e5e907b29862ed68a066311ae68e70800af33e440a8f7daa7a",
+      "bytes": 1195
+    },
+    "free-engine-acceptance-39165766092/cochem-evidence/bounded-regressions/test-acceptance.json": {
+      "sha256": "2a646e7a6df1b72f65a460a366ecf088da58c23fa79789480102a048f3a58eae",
+      "bytes": 11564
+    },
+    "free-engine-acceptance-39165766092/cochem-evidence/verification.json": {
+      "sha256": "e7ae7961667f9d1f53e9ea89333c1eac02996d740eb8fbc9dcb51a8394b1db93",
+      "bytes": 1851
+    }
+  }
+}

@@ -1,0 +1,4 @@
+# Preserve the original Windows receipts, including their CRLF line endings.
+# Their immutable producer hashes must also match the committed Git blobs.
+hosted-*/ci-controls-windows-latest/test-acceptance.json -text whitespace=cr-at-eol
+hosted-*/installed-wheel-windows-latest/acceptance.json -text whitespace=cr-at-eol

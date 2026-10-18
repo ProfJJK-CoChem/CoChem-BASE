@@ -1,0 +1,74 @@
+{
+  "schema": "cochem.independent-evidence-line-ending-review/1",
+  "reviewed_at_utc": "2026-10-18T21:31:19.716781+00:00",
+  "result": "passed_for_corrected_staged_bytes_and_scoped_attribute_rule",
+  "scope": "Static policy/source review, staged Git-blob hash comparison and isolated Git add/checkout byte-preservation probe; no application or chemistry tests performed.",
+  "issue": "Global text=auto eol=lf normalized two original Windows JSON receipts during staging at recovery checkpoint f412a99; worktree original hashes still matched, Git blobs did not.",
+  "observations": [
+    {
+      "path": ".docs/evidence/2026-10-18-recovery/hosted-31ed7a7/ci-controls-windows-latest/test-acceptance.json",
+      "original_sha256": "627aa3b2e13815da9a3ddd4caa8c1a0adfb984ff61852fbe29d9914ca880ce68",
+      "normalized_checkpoint_sha256": "8fa2db30192f6e9528610a7045784f551c500ff5bedcec0cf928aff8087f0696",
+      "corrected_staged_sha256": "627aa3b2e13815da9a3ddd4caa8c1a0adfb984ff61852fbe29d9914ca880ce68",
+      "original_crlf_count": 91,
+      "normalized_checkpoint_crlf_count": 0,
+      "normalization_exactly_explains_checkpoint_difference": true,
+      "staged_matches_original": true
+    },
+    {
+      "path": ".docs/evidence/2026-10-18-recovery/hosted-31ed7a7/installed-wheel-windows-latest/acceptance.json",
+      "original_sha256": "99a2db2eae593d9895a0eee1e42f76a232ded09c41ce19d4efed170ae439d57f",
+      "normalized_checkpoint_sha256": "5c8b4bacb95bb511e221989c871bc63343372979e383c5572b4618f4aa349b67",
+      "corrected_staged_sha256": "99a2db2eae593d9895a0eee1e42f76a232ded09c41ce19d4efed170ae439d57f",
+      "original_crlf_count": 29,
+      "normalized_checkpoint_crlf_count": 0,
+      "normalization_exactly_explains_checkpoint_difference": true,
+      "staged_matches_original": true
+    }
+  ],
+  "nested_attributes": {
+    "path": ".docs/evidence/2026-10-18-recovery/.gitattributes",
+    "sha256": "14ba379fc5c2d50705f9192b54061ea591e51e1e862a6fd6f76259c7adeba2f0",
+    "rules": [
+      "hosted-*/ci-controls-windows-latest/test-acceptance.json -text whitespace=cr-at-eol",
+      "hosted-*/installed-wheel-windows-latest/acceptance.json -text whitespace=cr-at-eol"
+    ],
+    "scope": "Only Windows CI-control and installed-wheel receipt paths in this recovery evidence directory, including later hosted revision directories. Other JSON/source files keep root text/eol rules. text unset preserves native bytes even though inherited eol attribute remains lf; cr-at-eol recognizes CRLF without disabling whitespace checks generally."
+  },
+  "staged_git_blob_inventory": {
+    "entries_verified": 81,
+    "mismatches": [],
+    "inventory_file_sha256": "77d13982dc8b69da7af7b6400a624d48fb3fe88b5d9bfcd66425603732e16522",
+    "scope": "Current 81 entries; final inventory must include newly added .gitattributes and this receipt if published."
+  },
+  "isolated_git_probe": {
+    "add_preserves_original_bytes": {
+      ".docs/evidence/2026-10-18-recovery/hosted-31ed7a7/ci-controls-windows-latest/test-acceptance.json": true,
+      ".docs/evidence/2026-10-18-recovery/hosted-31ed7a7/installed-wheel-windows-latest/acceptance.json": true
+    },
+    "checkout_preserves_bytes_by_core_autocrlf": {
+      "false": {
+        ".docs/evidence/2026-10-18-recovery/hosted-31ed7a7/ci-controls-windows-latest/test-acceptance.json": true,
+        ".docs/evidence/2026-10-18-recovery/hosted-31ed7a7/installed-wheel-windows-latest/acceptance.json": true
+      },
+      "true": {
+        ".docs/evidence/2026-10-18-recovery/hosted-31ed7a7/ci-controls-windows-latest/test-acceptance.json": true,
+        ".docs/evidence/2026-10-18-recovery/hosted-31ed7a7/installed-wheel-windows-latest/acceptance.json": true
+      },
+      "input": {
+        ".docs/evidence/2026-10-18-recovery/hosted-31ed7a7/ci-controls-windows-latest/test-acceptance.json": true,
+        ".docs/evidence/2026-10-18-recovery/hosted-31ed7a7/installed-wheel-windows-latest/acceptance.json": true
+      }
+    },
+    "cached_diff_check_passed": true
+  },
+  "source_policy_review": {
+    "root_gitattributes_unchanged": true,
+    "hashring_unchanged": true,
+    "test_and_hash_policy_unchanged": true,
+    "source_binding": "Nested .gitattributes remains a tracked file under whole-source byte binding. It grants no source-fixture/air-gap exemption and changes no runtime/test/hash gate.",
+    "final_gate": "Run the unchanged clean-source audit on the final committed revision and recheck final Git blob SHA inventory before main publication."
+  },
+  "historical_receipt_handling": "Keep original producer checksums unchanged; preserve the normalized checkpoint as a publication-handling failure, not a failed scientific test.",
+  "repository_files_changed_by_reviewer": false
+}

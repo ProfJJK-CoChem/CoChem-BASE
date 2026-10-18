@@ -4,6 +4,14 @@ These files support the [recovery report](../../GUI_Recovery_2026-10-18.md).
 They are exact copies of inspected outputs from the restored workspace, not
 reconstructions of the temporary files lost during the earlier disconnect.
 `SHA256SUMS` records each evidence file; this README is excluded from the list.
+The local `.gitattributes` preserves the two types of Windows receipt with
+their original CRLF line endings. Verify hashes against committed Git blobs as
+well as working files; Git's ordinary text normalization must not rewrite these
+independently hashed outputs. The original producer checksums remain unchanged.
+`windows-receipt-byte-preservation-review.json` records the detected Git
+normalization, restored original bytes and independent add/checkout checks under
+all three `core.autocrlf` settings. The correction is limited to receipt storage;
+scientific tests, source gates and the infrastructure hash ring are unchanged.
 
 - `gui-focused-tests.xml` and `gui-independent-review.json`: 34 focused passes
   and review of the restored GUI changes. The review preserves all scientific
@@ -72,6 +80,15 @@ reconstructions of the temporary files lost during the earlier disconnect.
   interaction. Optional diagnostic tracing was deliberately skipped. The
   independent review separately covers the exact-revision local full profile;
   none of these results is relabelled as a later GUI revision's full profile.
+- `hosted-2c655b4/`: unchanged selected JSON receipts and independent review of
+  final successful run `39165766092` on exact `2c655b4`: 1,791 bounded passes
+  with no failures/skips, 221 CI controls per operating system, three verified
+  clean-wheel checks, and genuine xTB/PySCF numerical results. Original source,
+  quarantined source, import origins and cleanup passed. The 1,777 previous
+  bounded cases remain, with 14 added UI cases. Dashboard scope is HTTP/widget
+  readiness and repeated startup, and diagnostic tracing is deliberately
+  skipped. This later GUI validation does not replace the full local `31ed7a7`
+  profile or establish student account, full accessibility or SRS acceptance.
 - `failed-abbreviated-revision-81f5e04.json`: the command-input refusal before
   pytest. `failed-source-audit-81f5e04.json` and its summary preserve the
   subsequent full-SHA refusal for four raw evidence files in source control.

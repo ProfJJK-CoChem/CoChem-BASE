@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "stages": {
+    "audit": {
+      "passed": true
+    }
+  },
+  "evidence_directory": "/home/runner/work/_temp/base-source-evidence",
+  "mode": "release",
+  "release_accepted": true
+}

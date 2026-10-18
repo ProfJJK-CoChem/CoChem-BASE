@@ -451,6 +451,23 @@ def test_optional_engines_are_not_required_for_base_and_source_setup(peer):
     assert peer.variables["COCHEM_CFOUR_ACCESS_SECRET"] == ""
 
 
+@pytest.mark.parametrize("private_source", [False, True])
+def test_enrollment_message_keeps_public_modules_available_without_certifying_installation(peer, private_source):
+    credentials = {"source": secrets.token_urlsafe(32)} if private_source else {}
+    receipt = provision(peer, config_for(peer, credentials=credentials))
+    comment = controller_script.enrollment_comment(receipt)
+    assert "Public TOPOS/TORQ source downloads do not require a private source credential" in comment
+    assert "Module installation has not been verified" in comment
+    assert "TOPOS/TORQ downloads are not connected" not in comment
+    assert "**new Codespace**" in comment
+    assert receipt["module_installation_performed"] is False
+    assert receipt["engine_execution_performed"] is False
+    assert receipt["codespaces_source"] == ("available" if private_source else "unavailable")
+    assert ("private module downloads" in comment) is private_source
+    assert peer.codespaces_values["COCHEM_SOURCE_CREDENTIAL"] == credentials.get("source", "")
+    assert all(value not in comment for value in credentials.values())
+
+
 def test_no_licensed_engine_selection_leaves_only_requested_source(peer):
     receipt = provision(peer, enrollment=EnrollmentRequest("student/project", ()))
     assert receipt["available"] == ["source"]

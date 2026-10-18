@@ -159,9 +159,15 @@ before this route can work. Do not invent a repository name or App name.
 2. Open the instructor's BASE template link. Choose **Use this template →
    Create a new repository**. Select **your personal account** as owner,
    name the project and choose **Private**. This creates your own copy.
-3. In that project choose **Code → Codespaces → Create codespace**. Let BASE
-   setup finish, then open the private **8866 CoChem Voilà dashboard** in VS
-   Code's **Ports** panel.
+3. In that project choose **Code → Codespaces → Create codespace**. If GitHub
+   asks for extra access to the instructor's repositories that you cannot
+   approve, choose **Continue without authorizing** if offered. This is
+   [GitHub's documented option](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-repository-access-for-your-codespaces#authorizing-requested-permissions)
+   for creating the workspace with access to its own project. You do not need
+   write access to the instructor's source. If creation fails or that option
+   is absent, send the displayed message to your instructor. Let BASE setup
+   finish, then open the private **8866 CoChem Voilà dashboard** in VS Code's
+   **Ports** panel.
 4. Open **Start here → Connect using an instructor invitation**. Paste the
    complete access-setup repository URL into **Instructor's setup link** and
    the App URL into **Instructor's App installation link**, then choose

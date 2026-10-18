@@ -1,0 +1,91 @@
+{
+  "passed": true,
+  "executed": true,
+  "release_accepted": true,
+  "source_binding": {
+    "passed": true,
+    "mode": "release",
+    "release_accepted": true,
+    "revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+    "expected_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+    "authority": "explicit-reviewed-revision",
+    "tracked_file_count": 2271,
+    "tracked_source_sha256": "533ba29245eadf812c10b7356d581e3bec69656bd19d47d92120ab1ac3d5d11c",
+    "initial_changed_paths": [],
+    "initial_dirty": false,
+    "excluded_untracked_paths": [],
+    "excluded_untrusted_source_paths": [],
+    "infrastructure_ring": {
+      "path": ".core_infrastructure_hashring.json",
+      "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+      "file_count": 224,
+      "passed": true,
+      "authority": "reviewed-committed-git-bytes"
+    }
+  },
+  "selected_test_files": [],
+  "cleanup_observation": {
+    "launcher_pid": 6240,
+    "launcher_returncode": 0,
+    "owned_work_stopped": true,
+    "ownership_scope": "windows-job",
+    "collection_observation": "owned-boundary-empty",
+    "launcher_create_time": 1792352126.3311017,
+    "admitted_before_exec": true,
+    "external_reaping_pending": []
+  },
+  "passed_tests": 221,
+  "failed_tests": [],
+  "pending_external_acceptance": [],
+  "unexpected_skips": [],
+  "coverage_errors": [],
+  "collected": 221,
+  "scope": "Local runnable acceptance; pending external checks do not count as passed",
+  "command_exit_code": 0,
+  "timed_out": false,
+  "quarantine_source_changed": [],
+  "quarantine_workspace_changed": false,
+  "descendant_evidence_directory": "D:\\a\\_temp\\ci-controls\\descendant-origins-1be1360310754e4a881c012bbf73ea42",
+  "descendant_source_records": 101,
+  "descendant_source_failures": [],
+  "descendant_source_authority_errors": [],
+  "descendant_startup_only": [
+    {
+      "pid": 1908,
+      "instance": "9c03972d9b8a42dda68e31a64bf592de",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 4072,
+      "instance": "4b85f901e095433cac9664574df4fb94",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 596,
+      "instance": "251827571faf4bf6bfa133eb9616d688",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6196,
+      "instance": "2a13178e90e74fa68467c1e4366f41c3",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7244,
+      "instance": "9d6414217909407a9bc33530f707f5c5",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 8588,
+      "instance": "93b5d33fe108469badb81eb49c21e24b",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 9832,
+      "instance": "9b5a6059e3504bac89b0186b5f77f050",
+      "scope": "startup-only-no-finalizer-observation"
+    }
+  ],
+  "source_origins_verified": true,
+  "source_changed": []
+}

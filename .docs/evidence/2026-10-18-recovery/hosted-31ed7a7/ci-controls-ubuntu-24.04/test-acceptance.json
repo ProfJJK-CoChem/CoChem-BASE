@@ -1,0 +1,91 @@
+{
+  "passed": true,
+  "executed": true,
+  "release_accepted": true,
+  "source_binding": {
+    "passed": true,
+    "mode": "release",
+    "release_accepted": true,
+    "revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+    "expected_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+    "authority": "explicit-reviewed-revision",
+    "tracked_file_count": 2271,
+    "tracked_source_sha256": "533ba29245eadf812c10b7356d581e3bec69656bd19d47d92120ab1ac3d5d11c",
+    "initial_changed_paths": [],
+    "initial_dirty": false,
+    "excluded_untracked_paths": [],
+    "excluded_untrusted_source_paths": [],
+    "infrastructure_ring": {
+      "path": ".core_infrastructure_hashring.json",
+      "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+      "file_count": 224,
+      "passed": true,
+      "authority": "reviewed-committed-git-bytes"
+    }
+  },
+  "selected_test_files": [],
+  "cleanup_observation": {
+    "launcher_pid": 2393,
+    "launcher_returncode": 0,
+    "owned_work_stopped": true,
+    "ownership_scope": "posix-group",
+    "collection_observation": "owned-boundary-empty",
+    "launcher_create_time": 1792352118.62,
+    "admitted_before_exec": true,
+    "external_reaping_pending": []
+  },
+  "passed_tests": 221,
+  "failed_tests": [],
+  "pending_external_acceptance": [],
+  "unexpected_skips": [],
+  "coverage_errors": [],
+  "collected": 221,
+  "scope": "Local runnable acceptance; pending external checks do not count as passed",
+  "command_exit_code": 0,
+  "timed_out": false,
+  "quarantine_source_changed": [],
+  "quarantine_workspace_changed": false,
+  "descendant_evidence_directory": "/home/runner/work/_temp/ci-controls/descendant-origins-23a6c1de4a4e4562842a90a9918c9e09",
+  "descendant_source_records": 107,
+  "descendant_source_failures": [],
+  "descendant_source_authority_errors": [],
+  "descendant_startup_only": [
+    {
+      "pid": 2422,
+      "instance": "5e80143e9dce461d92143df22f236774",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 2426,
+      "instance": "432601af776049b6ad9264e3e15ed304",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 2427,
+      "instance": "69d7f058170249e2ad1312401ed60f6a",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 2777,
+      "instance": "7dfbac87cb9447ba8025dd7dfa61c834",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 2784,
+      "instance": "3b5c30afa01d40b38b1cb085c5450106",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 2790,
+      "instance": "3b3d188e52f04b7585b2c1dee2fc1742",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 2796,
+      "instance": "f4ee2529191945e784a70c638a34ce07",
+      "scope": "startup-only-no-finalizer-observation"
+    }
+  ],
+  "source_origins_verified": true,
+  "source_changed": []
+}

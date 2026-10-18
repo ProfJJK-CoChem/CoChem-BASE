@@ -58,6 +58,13 @@ the existing project's source before its final pilot. BASE's managed-runtime
 update does not rewrite the project's committed workflows or tests. Read-only
 public access is insufficient to apply that update.
 
+The available maintainer integration also received HTTP 403, "Resource not
+accessible by integration", from the BASE repository's Codespaces-list API.
+This establishes an integration-access limit, not an absent or broken Codespace.
+Repository write access can permit project updates and Actions work; it does
+not impersonate the student's Codespaces authorization. Observe the actual
+student sign-in and fresh startup separately.
+
 No live instructor App registration and controller deployment has yet been
 verified for this pilot. The code and the setup guide do not establish that
 those services have been configured. Confirm the actual installation link,

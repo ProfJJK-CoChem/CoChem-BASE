@@ -1,0 +1,142 @@
+{
+  "schema": "cochem.independent-hosted-report-crosscheck/1",
+  "reviewed_at_utc": "2026-10-18T21:21:25.304524+00:00",
+  "source_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+  "run_id": 39159363374,
+  "scope": "Second read-only cross-check of copied original receipts, independent hosted review and exact report wording. No new GitHub request or test execution by this reviewer.",
+  "result": "passed",
+  "original_selection_checks": {
+    "base-source-evidence/summary.json": {
+      "sha256_matches_selection": true,
+      "bytes_matches_selection": true,
+      "byte_identical_to_downloaded_original": true
+    },
+    "ci-controls-ubuntu-24.04/test-acceptance.json": {
+      "sha256_matches_selection": true,
+      "bytes_matches_selection": true,
+      "byte_identical_to_downloaded_original": true
+    },
+    "installed-wheel-ubuntu-24.04/acceptance.json": {
+      "sha256_matches_selection": true,
+      "bytes_matches_selection": true,
+      "byte_identical_to_downloaded_original": true
+    },
+    "ci-controls-macos-latest/test-acceptance.json": {
+      "sha256_matches_selection": true,
+      "bytes_matches_selection": true,
+      "byte_identical_to_downloaded_original": true
+    },
+    "installed-wheel-macos-latest/acceptance.json": {
+      "sha256_matches_selection": true,
+      "bytes_matches_selection": true,
+      "byte_identical_to_downloaded_original": true
+    },
+    "ci-controls-windows-latest/test-acceptance.json": {
+      "sha256_matches_selection": true,
+      "bytes_matches_selection": true,
+      "byte_identical_to_downloaded_original": true
+    },
+    "installed-wheel-windows-latest/acceptance.json": {
+      "sha256_matches_selection": true,
+      "bytes_matches_selection": true,
+      "byte_identical_to_downloaded_original": true
+    },
+    "free-engine-acceptance-39159363374/cochem-evidence/bounded-regressions/test-acceptance.json": {
+      "sha256_matches_selection": true,
+      "bytes_matches_selection": true,
+      "byte_identical_to_downloaded_original": true
+    },
+    "free-engine-acceptance-39159363374/cochem-evidence/verification.json": {
+      "sha256_matches_selection": true,
+      "bytes_matches_selection": true,
+      "byte_identical_to_downloaded_original": true
+    }
+  },
+  "independent_review_matches_original": true,
+  "bounded_passed_collected": 1777,
+  "bounded_failures": 0,
+  "bounded_skips": 0,
+  "controls_passed_by_os": {
+    "ubuntu-24.04": 221,
+    "macos-latest": 221,
+    "windows-latest": 221
+  },
+  "clean_wheel_scopes": {
+    "ubuntu-24.04": {
+      "passed": true,
+      "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution"
+    },
+    "macos-latest": {
+      "passed": true,
+      "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution"
+    },
+    "windows-latest": {
+      "passed": true,
+      "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution"
+    }
+  },
+  "physical_engine_receipt": {
+    "sha256": "4e16fcba81a3508d971a1dec18e6b7223a451ba2ebc4391bb0d898bcd6ba7cbf",
+    "engines": {
+      "root": "/home/runner/work/_temp/cochem-free-engines",
+      "work_directory": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu",
+      "threads": 1,
+      "engines": {
+        "xtb": {
+          "status": "passed",
+          "elapsed_seconds": 0.04079473199999484,
+          "GFN-FF": {
+            "energy_hartree": -0.327656028983,
+            "converged": true,
+            "log": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu/xtb/GFN-FF/calculation.log"
+          },
+          "GFN2-xTB": {
+            "energy_hartree": -5.07054444035,
+            "converged": true,
+            "log": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu/xtb/GFN2-xTB/calculation.log",
+            "hessian": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu/xtb/GFN2-xTB/hessian",
+            "vibrational_spectrum": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu/xtb/GFN2-xTB/vibspectrum"
+          }
+        },
+        "pyscf": {
+          "status": "passed",
+          "elapsed_seconds": 2.119555128000002,
+          "calculations": {
+            "HF/STO-3G": {
+              "energy_hartree": -74.96306312972916,
+              "converged": true,
+              "gradient_norm_hartree_per_bohr": 0.08183100215287105,
+              "basis_functions": 7
+            },
+            "PBE-D4/def2-SVP": {
+              "energy_hartree": -76.27220981405755,
+              "converged": true,
+              "gradient_norm_hartree_per_bohr": 0.03162092118014579,
+              "basis_functions": 24,
+              "dispersion_hartree": -0.0001953413873068167
+            },
+            "B3LYP-D4/def2-TZVP": {
+              "energy_hartree": -76.46323717312879,
+              "converged": true,
+              "gradient_norm_hartree_per_bohr": 0.00885783288320667,
+              "basis_functions": 43,
+              "dispersion_hartree": -0.0003095622489944931
+            }
+          },
+          "log": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu/pyscf/calculation.log"
+        }
+      }
+    }
+  },
+  "dashboard_scope": "Hosted HTTP/widget readiness, process identity and repeated startup; not headless-browser interaction or student Codespace acceptance. Matches independent producer review.",
+  "optional_diagnostic_job": "Deliberately skipped, retained as skipped.",
+  "reviewed_report_file_sha256": {
+    ".docs/GUI_Recovery_2026-10-18.md": "0a7188a3ac6e0523b372c018f55a6acc0964d92cc4dac110a2951fb09d231d47",
+    ".docs/evidence/2026-10-18-recovery/README.md": "233342b6beae4e4ed34abf0891ef4c2c85f1b11415bb91a958fcb32a8b236bcf",
+    ".docs/Student_Deployment_Pilot.md": "d7afc3e3336ff90aaa3c876d6eada657cfff3ff8dcd729f8402e0d474b87e1c2"
+  },
+  "report_findings": [],
+  "student_codespaces_note_scope": "The report states a connected-integration 403 denial only, not absence of Codespaces or student inability. Fresh API observation belongs to parent; no independent API retry performed.",
+  "later_2c655b4_scope": "Pending; not included or relabelled as accepted here.",
+  "repository_files_changed_by_reviewer": false
+}

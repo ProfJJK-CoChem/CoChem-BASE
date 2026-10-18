@@ -1,0 +1,693 @@
+{
+  "source_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+  "scope": "Independent inspection of exact-revision terminal acceptance; no claim for later GUI commits",
+  "local_full": {
+    "status": "completed",
+    "summary": {
+      "receipt_sha256": "c0c692611acc69d6bc558f6baa995a98637b7e6fda447004a374bbf06af423a3",
+      "source_binding": {
+        "passed": true,
+        "mode": "release",
+        "release_accepted": true,
+        "revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+        "expected_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+        "authority": "explicit-reviewed-revision",
+        "tracked_file_count": 2271,
+        "tracked_source_sha256": "533ba29245eadf812c10b7356d581e3bec69656bd19d47d92120ab1ac3d5d11c",
+        "initial_changed_paths": [],
+        "initial_dirty": false,
+        "excluded_untracked_paths": [],
+        "excluded_untrusted_source_paths": [],
+        "infrastructure_ring": {
+          "path": ".core_infrastructure_hashring.json",
+          "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+          "file_count": 224,
+          "passed": true,
+          "authority": "reviewed-committed-git-bytes"
+        }
+      },
+      "passed": true,
+      "executed": true,
+      "release_accepted": true,
+      "collected": 3198,
+      "passed_tests": 3192,
+      "failed_tests": [],
+      "pending_external_acceptance": [
+        {
+          "nodeid": "tests/base/test_abcluster_authority.py::test_actual_rigidmol_metadata_audit",
+          "expected_skip_reason": "Actual optional ABCluster installation not provided",
+          "prerequisites": [
+            "Actual ABCluster 3.4 rigidmol executable"
+          ],
+          "category": "optional_native_distribution",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "tests/base/test_crest_source_authority.py::test_genuine_reviewed_crest_source_distribution_binds_immutable_components",
+          "expected_skip_reason": "Reviewed patched CREST installation not provided",
+          "prerequisites": [
+            "Actual reviewed TOPOS generic-paths CREST build, source patch and shared-library receipts"
+          ],
+          "category": "optional_native_distribution",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "tests/base/test_psi4_native_authority.py::test_genuine_psi4_native_audit_and_component_change_rejection",
+          "expected_skip_reason": "Optional genuine Psi4 installation not supplied",
+          "prerequisites": [
+            "Actual Psi4 1.10.2 compiled runtime with native core and successful helium Hartree-Fock probe"
+          ],
+          "category": "optional_native_distribution",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "tests/base/test_aimnet_cpu_lock.py::test_actual_isolated_aimnet_cpu_installation_and_phase4_audit",
+          "expected_skip_reason": "Set COCHEM_TEST_AIMNET_SILO to test an actually provisioned native AIMNet CPU installation",
+          "prerequisites": [
+            "Actual isolated AIMNet CPU installation matching the separately reviewed dependency lock"
+          ],
+          "category": "optional_native_distribution",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "test_suite/test_cochem_core_hdf5_manager.py::test_is_master_node_detection_slurm",
+          "expected_skip_reason": "Requires physical SLURM node",
+          "prerequisites": [
+            "Execution on a physical Slurm allocation"
+          ],
+          "category": "host",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "test_suite/test_cochem_core_registry_manager.py::test_is_master_node_detection_slurm",
+          "expected_skip_reason": "Requires physical SLURM node",
+          "prerequisites": [
+            "Execution on a physical Slurm allocation"
+          ],
+          "category": "host",
+          "status": "pending_external_acceptance"
+        }
+      ],
+      "unexpected_skips": [],
+      "coverage_errors": [],
+      "command_exit_code": 0,
+      "timed_out": false,
+      "source_changed": [],
+      "quarantine_source_changed": [],
+      "quarantine_workspace_changed": false,
+      "source_origins_verified": true,
+      "descendant_source_records": 816,
+      "descendant_source_failures": [],
+      "descendant_source_authority_errors": [],
+      "cleanup_observation": {
+        "launcher_pid": 67001,
+        "launcher_returncode": 0,
+        "owned_work_stopped": true,
+        "ownership_scope": "posix-group",
+        "collection_observation": "owned-boundary-empty",
+        "launcher_create_time": 1792352076.34,
+        "admitted_before_exec": true,
+        "external_reaping_pending": []
+      }
+    },
+    "selected_native_and_gui_test_outcomes": {
+      "tests/base/test_crest_source_authority.py::test_actual_stock_crest_installer_metadata_remains_supported": [
+        {
+          "phase": "setup",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.0007740610017208382
+        },
+        {
+          "phase": "call",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.6800257849972695
+        },
+        {
+          "phase": "teardown",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.00026909299776889384
+        }
+      ],
+      "tests/base/test_mace_cpu_lock.py::test_actual_cpu_silo_passes_the_phase4_provisioner_boundary": [
+        {
+          "phase": "setup",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.0003595340022002347
+        },
+        {
+          "phase": "call",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 4.017496390995802
+        },
+        {
+          "phase": "teardown",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.0002938550023827702
+        }
+      ],
+      "tests/calc/test_recipe_r2_execution.py::test_actual_recipe_r2_orca_five_leg_acceptance": [
+        {
+          "phase": "setup",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.001191821000247728
+        },
+        {
+          "phase": "call",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 178.30847085400455
+        },
+        {
+          "phase": "teardown",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.00036138900031801313
+        }
+      ],
+      "tests/srs/test_topos_physical_runner.py::test_physical_crest_goat_union": [
+        {
+          "phase": "setup",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.0019875409998348914
+        },
+        {
+          "phase": "call",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 92.67174612200324
+        },
+        {
+          "phase": "teardown",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.003618060000007972
+        }
+      ],
+      "tests/ui/test_voila_runtime_acceptance.py::test_gui_xtb_serialization_and_invalid_spin": [
+        {
+          "phase": "setup",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.00013324299652595073
+        },
+        {
+          "phase": "call",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 2.417971381000825
+        },
+        {
+          "phase": "teardown",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.0002952169961645268
+        }
+      ],
+      "tests/ui/test_voila_runtime_acceptance.py::test_gui_cancellation_stops_its_actual_worker": [
+        {
+          "phase": "setup",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.05569390899472637
+        },
+        {
+          "phase": "call",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 5.86066197600303
+        },
+        {
+          "phase": "teardown",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.0008678899976075627
+        }
+      ],
+      "tests/ui/test_voila_runtime_acceptance.py::test_gui_executes_real_xtb_optimization": [
+        {
+          "phase": "setup",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.05556088899902534
+        },
+        {
+          "phase": "call",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 8.715260322998802
+        },
+        {
+          "phase": "teardown",
+          "outcome": "passed",
+          "reason": null,
+          "xfail": null,
+          "duration_seconds": 0.000323846994433552
+        }
+      ]
+    },
+    "scope_limitations": [
+      "Passing tests do not certify every SRS requirement.",
+      "Six explicit optional-runtime/physical-host deferrals are admitted by the existing profile policy; they do not establish complete SRS or native-platform qualification.",
+      "R2 execution acceptance preserves its existing physical-qualification limitations.",
+      "This local run does not establish student-owned Codespaces/App consent or private project Actions access."
+    ]
+  },
+  "hosted": {
+    "run_id": 39159363374,
+    "source_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+    "status": "completed",
+    "conclusion": "success",
+    "bounded_regressions": {
+      "receipt_path": "/tmp/cochem-independent-hosted31-39159363374/free-engine-acceptance-39159363374/cochem-evidence/bounded-regressions/test-acceptance.json",
+      "receipt_sha256": "b6b83596623d720e4858eafd30fc03a74f48b5447ab93228e10d11a8f8cc7586",
+      "source_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+      "passed": true,
+      "executed": true,
+      "release_accepted": true,
+      "collected": 1777,
+      "passed_tests": 1777,
+      "failed_tests": [],
+      "pending_external_acceptance": [],
+      "unexpected_skips": [],
+      "coverage_errors": [],
+      "command_exit_code": 0,
+      "timed_out": false,
+      "source_changed": [],
+      "quarantine_source_changed": [],
+      "quarantine_workspace_changed": false,
+      "source_origins_verified": true,
+      "descendant_source_records": 424,
+      "descendant_source_failures": [],
+      "descendant_source_authority_errors": [],
+      "cleanup_observation": {
+        "launcher_pid": 3588,
+        "launcher_returncode": 0,
+        "owned_work_stopped": true,
+        "ownership_scope": "posix-group",
+        "collection_observation": "owned-boundary-empty",
+        "launcher_create_time": 1792352564.44,
+        "admitted_before_exec": true,
+        "external_reaping_pending": []
+      }
+    },
+    "controls": {
+      "ubuntu-24.04": {
+        "receipt_path": "/tmp/cochem-independent-hosted31-39159363374/ci-controls-ubuntu-24.04/test-acceptance.json",
+        "receipt_sha256": "d86117c763f32279c1341ad671e780ccf3c4c88b80f5f48958d1da52dbe759d6",
+        "source_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+        "passed": true,
+        "executed": true,
+        "release_accepted": true,
+        "collected": 221,
+        "passed_tests": 221,
+        "failed_tests": [],
+        "pending_external_acceptance": [],
+        "unexpected_skips": [],
+        "coverage_errors": [],
+        "command_exit_code": 0,
+        "timed_out": false,
+        "source_changed": [],
+        "quarantine_source_changed": [],
+        "quarantine_workspace_changed": false,
+        "source_origins_verified": true,
+        "descendant_source_records": 107,
+        "descendant_source_failures": [],
+        "descendant_source_authority_errors": [],
+        "cleanup_observation": {
+          "launcher_pid": 2393,
+          "launcher_returncode": 0,
+          "owned_work_stopped": true,
+          "ownership_scope": "posix-group",
+          "collection_observation": "owned-boundary-empty",
+          "launcher_create_time": 1792352118.62,
+          "admitted_before_exec": true,
+          "external_reaping_pending": []
+        }
+      },
+      "macos-latest": {
+        "receipt_path": "/tmp/cochem-independent-hosted31-39159363374/ci-controls-macos-latest/test-acceptance.json",
+        "receipt_sha256": "b29f7678be40e0673e38b5241176b2577649026337529a8d940b8a83564b8f29",
+        "source_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+        "passed": true,
+        "executed": true,
+        "release_accepted": true,
+        "collected": 221,
+        "passed_tests": 221,
+        "failed_tests": [],
+        "pending_external_acceptance": [],
+        "unexpected_skips": [],
+        "coverage_errors": [],
+        "command_exit_code": 0,
+        "timed_out": false,
+        "source_changed": [],
+        "quarantine_source_changed": [],
+        "quarantine_workspace_changed": false,
+        "source_origins_verified": true,
+        "descendant_source_records": 107,
+        "descendant_source_failures": [],
+        "descendant_source_authority_errors": [],
+        "cleanup_observation": {
+          "launcher_pid": 14974,
+          "launcher_returncode": 0,
+          "owned_work_stopped": true,
+          "ownership_scope": "posix-group",
+          "collection_observation": "owned-boundary-empty",
+          "launcher_create_time": 1792352131.729676,
+          "admitted_before_exec": true,
+          "external_reaping_pending": []
+        }
+      },
+      "windows-latest": {
+        "receipt_path": "/tmp/cochem-independent-hosted31-39159363374/ci-controls-windows-latest/test-acceptance.json",
+        "receipt_sha256": "627aa3b2e13815da9a3ddd4caa8c1a0adfb984ff61852fbe29d9914ca880ce68",
+        "source_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+        "passed": true,
+        "executed": true,
+        "release_accepted": true,
+        "collected": 221,
+        "passed_tests": 221,
+        "failed_tests": [],
+        "pending_external_acceptance": [],
+        "unexpected_skips": [],
+        "coverage_errors": [],
+        "command_exit_code": 0,
+        "timed_out": false,
+        "source_changed": [],
+        "quarantine_source_changed": [],
+        "quarantine_workspace_changed": false,
+        "source_origins_verified": true,
+        "descendant_source_records": 101,
+        "descendant_source_failures": [],
+        "descendant_source_authority_errors": [],
+        "cleanup_observation": {
+          "launcher_pid": 6240,
+          "launcher_returncode": 0,
+          "owned_work_stopped": true,
+          "ownership_scope": "windows-job",
+          "collection_observation": "owned-boundary-empty",
+          "launcher_create_time": 1792352126.3311017,
+          "admitted_before_exec": true,
+          "external_reaping_pending": []
+        }
+      }
+    },
+    "installed_wheels": {
+      "ubuntu-24.04": {
+        "passed": true,
+        "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
+        "source_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+        "source_binding": {
+          "passed": true,
+          "mode": "release",
+          "release_accepted": true,
+          "revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+          "expected_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+          "authority": "explicit-reviewed-revision",
+          "tracked_file_count": 2271,
+          "tracked_source_sha256": "533ba29245eadf812c10b7356d581e3bec69656bd19d47d92120ab1ac3d5d11c",
+          "initial_changed_paths": [],
+          "initial_dirty": false,
+          "excluded_untracked_paths": [],
+          "excluded_untrusted_source_paths": [],
+          "infrastructure_ring": {
+            "path": ".core_infrastructure_hashring.json",
+            "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+            "file_count": 224,
+            "passed": true,
+            "authority": "reviewed-committed-git-bytes"
+          }
+        },
+        "version": "1.1.0",
+        "wheel": "cochem_base-1.1.0-py3-none-any.whl",
+        "wheel_sha256": "e925046268fd60cb79ba2f8196445a2a38abed967cd8ff3212278572f2fa9bb0",
+        "receipt_sha256": "d3f1f70658787fcce9ba9d34ec857eacb2ae381bb572963be682d5c1877bea85"
+      },
+      "macos-latest": {
+        "passed": true,
+        "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
+        "source_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+        "source_binding": {
+          "passed": true,
+          "mode": "release",
+          "release_accepted": true,
+          "revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+          "expected_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+          "authority": "explicit-reviewed-revision",
+          "tracked_file_count": 2271,
+          "tracked_source_sha256": "533ba29245eadf812c10b7356d581e3bec69656bd19d47d92120ab1ac3d5d11c",
+          "initial_changed_paths": [],
+          "initial_dirty": false,
+          "excluded_untracked_paths": [],
+          "excluded_untrusted_source_paths": [],
+          "infrastructure_ring": {
+            "path": ".core_infrastructure_hashring.json",
+            "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+            "file_count": 224,
+            "passed": true,
+            "authority": "reviewed-committed-git-bytes"
+          }
+        },
+        "version": "1.1.0",
+        "wheel": "cochem_base-1.1.0-py3-none-any.whl",
+        "wheel_sha256": "8cd52f8bf9403cf0512e930fab94318ffa12e6a77d97caa265b8ed990f9046e0",
+        "receipt_sha256": "e24ceeaa7ce72c9b31416bf6260d4871f9b298acb45d94c0bb4cd205ef6ea87f"
+      },
+      "windows-latest": {
+        "passed": true,
+        "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
+        "source_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+        "source_binding": {
+          "passed": true,
+          "mode": "release",
+          "release_accepted": true,
+          "revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+          "expected_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+          "authority": "explicit-reviewed-revision",
+          "tracked_file_count": 2271,
+          "tracked_source_sha256": "533ba29245eadf812c10b7356d581e3bec69656bd19d47d92120ab1ac3d5d11c",
+          "initial_changed_paths": [],
+          "initial_dirty": false,
+          "excluded_untracked_paths": [],
+          "excluded_untrusted_source_paths": [],
+          "infrastructure_ring": {
+            "path": ".core_infrastructure_hashring.json",
+            "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+            "file_count": 224,
+            "passed": true,
+            "authority": "reviewed-committed-git-bytes"
+          }
+        },
+        "version": "1.1.0",
+        "wheel": "cochem_base-1.1.0-py3-none-any.whl",
+        "wheel_sha256": "0f2aad507638103b23988757f4f1cca1e1b13282f7267a383cae680d3531552e",
+        "receipt_sha256": "99a2db2eae593d9895a0eee1e42f76a232ded09c41ce19d4efed170ae439d57f"
+      }
+    },
+    "physical_free_engine_verification": {
+      "receipt_sha256": "4e16fcba81a3508d971a1dec18e6b7223a451ba2ebc4391bb0d898bcd6ba7cbf",
+      "engines": {
+        "xtb": {
+          "status": "passed",
+          "elapsed_seconds": 0.04079473199999484,
+          "GFN-FF": {
+            "energy_hartree": -0.327656028983,
+            "converged": true,
+            "log": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu/xtb/GFN-FF/calculation.log"
+          },
+          "GFN2-xTB": {
+            "energy_hartree": -5.07054444035,
+            "converged": true,
+            "log": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu/xtb/GFN2-xTB/calculation.log",
+            "hessian": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu/xtb/GFN2-xTB/hessian",
+            "vibrational_spectrum": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu/xtb/GFN2-xTB/vibspectrum"
+          }
+        },
+        "pyscf": {
+          "status": "passed",
+          "elapsed_seconds": 2.119555128000002,
+          "calculations": {
+            "HF/STO-3G": {
+              "energy_hartree": -74.96306312972916,
+              "converged": true,
+              "gradient_norm_hartree_per_bohr": 0.08183100215287105,
+              "basis_functions": 7
+            },
+            "PBE-D4/def2-SVP": {
+              "energy_hartree": -76.27220981405755,
+              "converged": true,
+              "gradient_norm_hartree_per_bohr": 0.03162092118014579,
+              "basis_functions": 24,
+              "dispersion_hartree": -0.0001953413873068167
+            },
+            "B3LYP-D4/def2-TZVP": {
+              "energy_hartree": -76.46323717312879,
+              "converged": true,
+              "gradient_norm_hartree_per_bohr": 0.00885783288320667,
+              "basis_functions": 43,
+              "dispersion_hartree": -0.0003095622489944931
+            }
+          },
+          "log": "/home/runner/work/_temp/cochem-evidence/science-wbl_wniu/pyscf/calculation.log"
+        }
+      }
+    },
+    "dashboard": {
+      "workflow_step": "Verify rendered dashboard lifecycle with the audited registry",
+      "status": "passed",
+      "operation": "start; check; idempotent second start",
+      "validated_stage0_phases": 11,
+      "stage0_status": "DEGRADED_OPERATIONAL",
+      "acceptance_scope": "HTTP200 response includes Jupyter configuration, widget-view MIME and CoChem; no Traceback; exact server process identity checked. No headless browser interaction, student-account permission or screenshot acceptance is claimed."
+    },
+    "optional_native_tracing_job": {
+      "conclusion": "skipped",
+      "scope": "Intentionally disabled observational tracing job; mandatory cross-platform native lifecycle controls passed separately."
+    },
+    "artifact_metadata": {
+      "artifacts": [
+        {
+          "digest": "sha256:48cc77b819a01e18a0100ee0e28199b6663a7c994e4fe99ec22e4896d8a8aa80",
+          "expired": false,
+          "id": 12148822913,
+          "name": "free-engine-acceptance-39159363374",
+          "size_in_bytes": 1533708,
+          "workflow_run": {
+            "head_branch": "main",
+            "head_repository_id": 1325368799,
+            "head_sha": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+            "id": 39159363374,
+            "repository_id": 1325368799
+          }
+        },
+        {
+          "digest": "sha256:a29c93cdf32cbf8f972c01f31e517d9567a713e2d983cc9d64f211153d93e042",
+          "expired": false,
+          "id": 12148680242,
+          "name": "installed-wheel-ubuntu-24.04",
+          "size_in_bytes": 9801097,
+          "workflow_run": {
+            "head_branch": "main",
+            "head_repository_id": 1325368799,
+            "head_sha": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+            "id": 39159363374,
+            "repository_id": 1325368799
+          }
+        },
+        {
+          "digest": "sha256:a17b0177476338cb55abfb544fc4a90a522eefef9933c5b4b1f7526553c3539b",
+          "expired": false,
+          "id": 12148580906,
+          "name": "installed-wheel-macos-latest",
+          "size_in_bytes": 9802242,
+          "workflow_run": {
+            "head_branch": "main",
+            "head_repository_id": 1325368799,
+            "head_sha": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+            "id": 39159363374,
+            "repository_id": 1325368799
+          }
+        },
+        {
+          "digest": "sha256:dfa6ff4aa85e95f9192f7d31ef2dea527e13265272e15295afa654d15d6f8822",
+          "expired": false,
+          "id": 12148108427,
+          "name": "ci-controls-windows-latest",
+          "size_in_bytes": 604242,
+          "workflow_run": {
+            "head_branch": "main",
+            "head_repository_id": 1325368799,
+            "head_sha": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+            "id": 39159363374,
+            "repository_id": 1325368799
+          }
+        },
+        {
+          "digest": "sha256:001118f1183d2f003f55d597a6c1105d06f233ccc1fb3b907b338a8d2576438d",
+          "expired": false,
+          "id": 12147934153,
+          "name": "ci-controls-macos-latest",
+          "size_in_bytes": 611759,
+          "workflow_run": {
+            "head_branch": "main",
+            "head_repository_id": 1325368799,
+            "head_sha": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+            "id": 39159363374,
+            "repository_id": 1325368799
+          }
+        },
+        {
+          "digest": "sha256:101f716de12e7cc99ac22ad7f15451dc738f34dfa14bd414fe42e0e1a43979fa",
+          "expired": false,
+          "id": 12147934090,
+          "name": "ci-controls-ubuntu-24.04",
+          "size_in_bytes": 609979,
+          "workflow_run": {
+            "head_branch": "main",
+            "head_repository_id": 1325368799,
+            "head_sha": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+            "id": 39159363374,
+            "repository_id": 1325368799
+          }
+        },
+        {
+          "digest": "sha256:1bb182357ad24398a23ff7b8e0db41e6678098fe65e83fc8c07e9276f391ae7f",
+          "expired": false,
+          "id": 12147849485,
+          "name": "installed-wheel-windows-latest",
+          "size_in_bytes": 9798987,
+          "workflow_run": {
+            "head_branch": "main",
+            "head_repository_id": 1325368799,
+            "head_sha": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+            "id": 39159363374,
+            "repository_id": 1325368799
+          }
+        },
+        {
+          "digest": "sha256:1ce51cbcd3454a391b812c0f15e36fdf5c5166cfbce6227941355e8270f155bd",
+          "expired": false,
+          "id": 12147578402,
+          "name": "base-source-evidence",
+          "size_in_bytes": 11884,
+          "workflow_run": {
+            "head_branch": "main",
+            "head_repository_id": 1325368799,
+            "head_sha": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+            "id": 39159363374,
+            "repository_id": 1325368799
+          }
+        }
+      ],
+      "total_count": 8
+    },
+    "downloaded_wheel_bytes_verified": true
+  }
+}

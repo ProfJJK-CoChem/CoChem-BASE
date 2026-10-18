@@ -13,6 +13,16 @@ This inspection is bound to BASE revision
 Later GUI wording and public-source access fixes are separate changes. The
 findings below do not assert that those changes completed this migration.
 
+An [immutable-source recheck](evidence/2026-10-18-module-ownership/revision-recheck-2c655b4.json)
+at `2c655b47b1cc63eca3ab417946513c9763b0933e` confirmed that the ownership
+defects persist: all 107 inventoried namespace files, including the 92 files in
+the five primary groups, and the relevant packaging and scientific adapters
+are unchanged. All 115 previously overlapping BASE Python paths retain their
+bytes, including the 37 differences against the retained TORQ wheel. This is a
+static comparison, not new runtime acceptance. Finding 4 below is historical
+and has been corrected; the [recovery report](GUI_Recovery_2026-10-18.md) records
+its regression and hosted installation evidence.
+
 ## Requirements and intended ownership
 
 The governing baseline is [SRS Chunk 17](SRS_Chunk_17_CoChem_BASE_Architecture.md)
@@ -84,10 +94,11 @@ student route substitutes BASE's `cochem_topos` files for the canonical TOPOS so
    evaluations come from canonical TORQ's real PySCF backend, but the scan/analysis
    implementation belongs in TORQ. BASE records its adapter hash separately;
    these findings do not establish fabricated calculation results.
-4. **Public-module access was incorrectly treated as private access.** At the
+4. **Corrected historical defect: public-module access was treated as private access.** At the
    audited BASE revision, GUI submission and the student Actions installation
    step reject absent private-source authorization even for these public
-   repositories. This has a separate correction path. Public source access does
+   repositories. The later public-source correction removes that prerequisite.
+   Public source access does
    not establish licensed-engine access, student account permissions, or a
    completed student Codespace pilot.
 

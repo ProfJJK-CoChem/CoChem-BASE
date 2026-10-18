@@ -115,6 +115,17 @@ This is acceptance of the profile's runnable scope, not complete SRS or physical
 accuracy certification. Later GUI presentation changes retain their separate
 focused, browser and hosted validation identities.
 
+Hosted [run `39159363374`](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/39159363374)
+on the same `31ed7a7` revision also completed successfully: **1,777 bounded tests
+passed**, with no failures or skips; **221 CI-control tests passed on each of
+Linux, macOS and Windows**; all three clean-wheel checks passed. The real
+free-engine calculations passed their numerical checks. Dashboard HTTP/widget
+readiness and repeated startup passed; that hosted lifecycle check is not a
+headless-browser interaction test.
+The optional native diagnostic-tracing job was deliberately not selected and
+remains skipped. These bounded checks do not replace the full local profile or
+the real student pilot.
+
 The earlier hosted run
 [`39088443391`](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/39088443391)
 on `d423c02` remains failed: 1,770 bounded tests passed and three old layout

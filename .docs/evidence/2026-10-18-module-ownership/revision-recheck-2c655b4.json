@@ -1,0 +1,189 @@
+{
+  "schema": "cochem.module-ownership-revision-recheck/1",
+  "reviewed_at_utc": "2026-10-18T21:20:50.972945+00:00",
+  "baseline_revision": "d423c02a5bf9f15dd9626d46e17b6650414633c1",
+  "target_revision": "2c655b47b1cc63eca3ab417946513c9763b0933e",
+  "scope": "Static immutable Git path/byte comparison and narrow source inspection only; no imports, wheel rebuilds, runtime calculations or upstream API changes.",
+  "specifications_consulted": [
+    ".docs/SRS_Chunk_17_CoChem_BASE_Architecture.md",
+    ".docs/SRS_Chunk_Proposal_CoChem_BASE_Architectural_Review.md",
+    ".docs/Module_Ownership_Audit_2026-10-18.md"
+  ],
+  "result": "Ownership and package overlap findings persist; public-source credential precondition finding has been corrected.",
+  "prior_inventory_sha256": "16a6a06546bb8d4a6d0221409eb792aa048434ebcef9416e787bde766409185d",
+  "prior_overlap_receipt_sha256": "3567bd290f95f5175f7356dd7dc7a274a13dbb4b11fd53ea0e4b2b3e61bad9a7",
+  "group_comparisons": {
+    "cochem/topos/": {
+      "baseline_count": 30,
+      "target_count": 30,
+      "same_paths_and_bytes": true,
+      "target_path_sha256_map_digest": "83aadb323b313088ee3505b0e8dfc6b669d4aac439798aa5ddeec7dd18d6ad7d",
+      "prior_inventory_member_hashes_match_both_revisions": true
+    },
+    "src/cochem/topos/": {
+      "baseline_count": 30,
+      "target_count": 30,
+      "same_paths_and_bytes": true,
+      "target_path_sha256_map_digest": "393b54831f2e32794b429d57634462346793257bcf775c18c136e393e10ed997",
+      "prior_inventory_member_hashes_match_both_revisions": true
+    },
+    "cochem_topos/": {
+      "baseline_count": 6,
+      "target_count": 6,
+      "same_paths_and_bytes": true,
+      "target_path_sha256_map_digest": "3665958762f6ad1664dc03dfbccdff9f6200b57e973fbe9be6f5c9bfe29ccbc0",
+      "prior_inventory_member_hashes_match_both_revisions": true
+    },
+    "cochem/torq/": {
+      "baseline_count": 17,
+      "target_count": 17,
+      "same_paths_and_bytes": true,
+      "target_path_sha256_map_digest": "c53f2225cb08b001b96f8041ce99beeb533d788fd3e4f653ed18f1fc86f70aab",
+      "prior_inventory_member_hashes_match_both_revisions": true
+    },
+    "src/cochem_torq/": {
+      "baseline_count": 9,
+      "target_count": 9,
+      "same_paths_and_bytes": true,
+      "target_path_sha256_map_digest": "ec9da4e4050e1f02ca8b057d5ae2c925a52b2403384d61187f3793d7f049c368",
+      "prior_inventory_member_hashes_match_both_revisions": true
+    },
+    "src/cochem_base/cochem_torq": {
+      "baseline_count": 12,
+      "target_count": 12,
+      "same_paths_and_bytes": true,
+      "target_path_sha256_map_digest": "e4f797aaf885edec99785421047c7c5ee7b83f3aa3fa45f4128c463ae075b103",
+      "prior_inventory_member_hashes_match_both_revisions": true
+    },
+    "Libraries/cochem_torq": {
+      "baseline_count": 3,
+      "target_count": 3,
+      "same_paths_and_bytes": true,
+      "target_path_sha256_map_digest": "7b80f4381d45c647ec59428d3c441b8ab685fc99c97f3764b9839a4e7cd085bf",
+      "prior_inventory_member_hashes_match_both_revisions": true
+    }
+  },
+  "primary_five_namespace_file_total": 92,
+  "all_seven_inventory_groups_file_total": 107,
+  "primary_topos_paired_files": {
+    "count": 30,
+    "target_pairs_identical": true
+  },
+  "packaging_and_route_comparisons": {
+    "pyproject.toml": {
+      "baseline_sha256": "cc47926f1da8aef03e37eb6b17386f325eaab644981eb15e9fa6b334c3ec3c3e",
+      "target_sha256": "cc47926f1da8aef03e37eb6b17386f325eaab644981eb15e9fa6b334c3ec3c3e",
+      "identical": true
+    },
+    "MANIFEST.in": {
+      "baseline_sha256": "a598cbfaa7b98d76bfd8990ed543f3b362ec2daae9275b368a8ddee1abeed997",
+      "target_sha256": "a598cbfaa7b98d76bfd8990ed543f3b362ec2daae9275b368a8ddee1abeed997",
+      "identical": true
+    },
+    "scripts/manage_modules.py": {
+      "baseline_sha256": "4d8a5fed1dac383073c4318a01ec03b3308ed614d8fdf70ff96442bcedfe422c",
+      "target_sha256": "4d8a5fed1dac383073c4318a01ec03b3308ed614d8fdf70ff96442bcedfe422c",
+      "identical": true
+    },
+    "scripts/module-distribution.json": {
+      "baseline_sha256": "e5cee7540a0e686a14a3a3332e6717ff7c7b878da3b7fd9adc0c48ad76079c69",
+      "target_sha256": "e5cee7540a0e686a14a3a3332e6717ff7c7b878da3b7fd9adc0c48ad76079c69",
+      "identical": true
+    },
+    "scripts/module_adapter_torq.py": {
+      "baseline_sha256": "5bfe3ee623c399ed8561c117eb099a8a4ed5c28e0e13abeb9142a0c2ffe98043",
+      "target_sha256": "5bfe3ee623c399ed8561c117eb099a8a4ed5c28e0e13abeb9142a0c2ffe98043",
+      "identical": true
+    },
+    "scripts/module_adapter_topos.py": {
+      "baseline_sha256": "b55cde3271c083ca838346c36a0fb982547a64c4d1071cc0745c3b85c203ae9d",
+      "target_sha256": "b55cde3271c083ca838346c36a0fb982547a64c4d1071cc0745c3b85c203ae9d",
+      "identical": true
+    },
+    "src/cochem_base/interfaces/module_execution.py": {
+      "baseline_sha256": "b39c2bb521b4356c2ea508eaeb42f78b8e8eada46bdb53080e3c2d28a5e20107",
+      "target_sha256": "b39c2bb521b4356c2ea508eaeb42f78b8e8eada46bdb53080e3c2d28a5e20107",
+      "identical": true
+    },
+    "src/cochem_base/interfaces/student_research.py": {
+      "baseline_sha256": "f2e270ba04a7095973a690e4cf9c57057c0fce65914b3531dea2b5472435be8d",
+      "target_sha256": "f2e270ba04a7095973a690e4cf9c57057c0fce65914b3531dea2b5472435be8d",
+      "identical": true
+    },
+    "src/cochem_base/interfaces/student_setup.py": {
+      "baseline_sha256": "6a92fff23075d6a5e316b42240c87b70b5eabb9bf6be5527d60b8bfd6f9a2091",
+      "target_sha256": "6a92fff23075d6a5e316b42240c87b70b5eabb9bf6be5527d60b8bfd6f9a2091",
+      "identical": true
+    },
+    ".github/workflows/student_research.yml": {
+      "baseline_sha256": "edb588a0a4e85b38f74aaa449e28096a6389b534975f6562bf7e4df4eec8f9f2",
+      "target_sha256": "08438920bd2d3b7d3ef59bdeb4a0412ee49d2191f67f40cd390517183f6e7e81",
+      "identical": false
+    },
+    "src/cochem_base/interfaces/student_actions.py": {
+      "baseline_sha256": "24bc340e0c8840e5a433c6c21f1606ebf33b1a6d2cba73ce214016b592413a85",
+      "target_sha256": "72c85dff81fa84535ca847755584174bf02d8814b00bb47f5413a6f3432fa2f7",
+      "identical": false
+    }
+  },
+  "package_directory_mapping_unchanged": true,
+  "prior_overlap_recheck": {
+    "base_members_rechecked": 115,
+    "base_member_hashes_match_prior_receipt": true,
+    "shared_python_paths": 115,
+    "different_python_paths": 37,
+    "torq_revision": "4ce8eecba56e91e27c6abb32473b2ee4d44767c4",
+    "prior_torq_wheel_sha256": "3acc4e62af959d5bdaa4e2aa1903568f81d62143ad25bde531edcdb1924c6ab2",
+    "scope": "All 115 prior mapped BASE Python members and packaging are unchanged. Retains comparison to the prior verified pinned TORQ wheel; no fresh wheel build or new remote wheel verification. Non-Python and dependency collisions remain outside this count."
+  },
+  "scientific_adapter_inspection": {
+    "path": "scripts/module_adapter_torq.py",
+    "entire_file_unchanged": true,
+    "functions": [
+      "research_scan",
+      "wiberg_lowdin",
+      "_extension_provider",
+      "execute_extension"
+    ],
+    "findings": [
+      "research_scan still resolves isotope/principal masses, constructs rigid mass-COM scan geometries and invokes the actual TORQ PySCF backend.",
+      "wiberg_lowdin still reconstructs density from a restricted SCF checkpoint, verifies overlap and conservation, and computes Lowdin-AO bond indices and charges in BASE.",
+      "NBO/NAO operations still require the executable extension contract; no substitution or fabricated calculation claim follows from this inspection."
+    ]
+  },
+  "isolated_route_inspection": {
+    "unchanged": [
+      "scripts/manage_modules.py",
+      "scripts/module-distribution.json",
+      "scripts/module_adapter_topos.py",
+      "src/cochem_base/interfaces/module_execution.py",
+      "src/cochem_base/interfaces/student_research.py",
+      "src/cochem_base/interfaces/student_setup.py"
+    ],
+    "findings": [
+      "Reviewed canonical pins, detached fetch/build/install and installed identity checks remain in unchanged files.",
+      "Receipt interpreter invocation with -I -B, removal of inherited Python overrides and provider-file validation remain in unchanged module_execution.py.",
+      "Static byte identity does not newly prove runtime execution; hosted canonical-module evidence retains its separate revision and scope."
+    ]
+  },
+  "changed_route_paths": [
+    ".github/workflows/student_research.yml",
+    "src/cochem_base/interfaces/student_actions.py"
+  ],
+  "public_source_gate_correction": {
+    "paths": [
+      ".github/workflows/student_research.yml",
+      "src/cochem_base/interfaces/student_actions.py"
+    ],
+    "reviewed_diff_scope": "Only source-secret presence preconditions and explanatory comments changed in these files. Module fetch/origin/install validation and licensed-engine gates remain.",
+    "historical_finding_4_status": "Corrected, not an outstanding ownership defect."
+  },
+  "canonical_upstream_scope": "No fresh remote inspection performed by this recheck. Canonical commit observations retain their original receipt scope; the parent separately reports unchanged remote heads.",
+  "limits": [
+    "No ownership migration has occurred in the compared files.",
+    "No new student account/Codespace acceptance.",
+    "BASE SRS-required ingestion/conformer/geometry duties must survive the future ownership migration."
+  ],
+  "suggested_report_text": "A static recheck at BASE 2c655b4 confirms the 92 namespace files, packaging mappings, 115 prior TORQ-wheel overlaps (37 differing), isolated installer/execution path and TORQ scientific adapter remain unchanged from d423c02. The separate public-source credential precondition was corrected. This byte comparison is not new runtime or migration acceptance.",
+  "repository_files_changed_by_reviewer": false
+}

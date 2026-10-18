@@ -64,6 +64,14 @@ reconstructions of the temporary files lost during the earlier disconnect.
   the then-current 68-file evidence inventory. Its report hashes identify the
   reviewed draft before the final hosted additions; it does not certify later
   report edits or hosted outcomes.
+- `hosted-31ed7a7/`: unchanged selected JSON receipts and independent review of
+  completed successful run `39159363374` on exact `31ed7a7`: 1,777 bounded
+  passes, 221 CI controls on each of three operating systems, clean-wheel
+  checks and genuine xTB/PySCF numerical verification. The hosted dashboard
+  step checked HTTP/widget readiness and repeated startup, not browser
+  interaction. Optional diagnostic tracing was deliberately skipped. The
+  independent review separately covers the exact-revision local full profile;
+  none of these results is relabelled as a later GUI revision's full profile.
 - `failed-abbreviated-revision-81f5e04.json`: the command-input refusal before
   pytest. `failed-source-audit-81f5e04.json` and its summary preserve the
   subsequent full-SHA refusal for four raw evidence files in source control.

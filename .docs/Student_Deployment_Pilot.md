@@ -58,6 +58,16 @@ the existing project's source before its final pilot. BASE's managed-runtime
 update does not rewrite the project's committed workflows or tests. Read-only
 public access is insufficient to apply that update.
 
+**Follow-up after collaborator access was granted:** the repository API reported
+that the maintainer account could push, but this environment's Git transport
+still rejected an ordinary update with HTTP 403. The Git reference API and
+Actions workflow dispatch independently returned "Resource not accessible by
+integration". The project remained unchanged and no test run was created.
+The connected integration needs the corresponding repository write and Actions
+permissions; adding the account as a collaborator alone did not provide them.
+Codespaces access also remained unavailable to this integration. These results
+record an access blocker, not a failed scientific calculation or student pilot.
+
 The available maintainer integration also received HTTP 403, "Resource not
 accessible by integration", from the BASE repository's Codespaces-list API.
 This establishes an integration-access limit, not an absent or broken Codespace.

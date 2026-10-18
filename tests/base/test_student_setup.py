@@ -118,11 +118,12 @@ def test_student_worker_uses_actual_source_access_without_credential_prerequisit
             self.send_response(403)
             self.end_headers()
 
-        def log_message(self, *_args):
-            pass
+        def log_message(self, message, *args):
+            self.server.request_logs.append(message % args)
 
     peer = ThreadingHTTPServer(("127.0.0.1", 0), DeniedSource)
     peer.requests = []
+    peer.request_logs = []
     thread = Thread(target=peer.serve_forever, daemon=True)
     thread.start()
     try:
@@ -145,6 +146,7 @@ def test_student_worker_uses_actual_source_access_without_credential_prerequisit
     if source_access == "public":
         assert result.returncode == 0, result.stdout + result.stderr
         assert not peer.requests
+        assert not peer.request_logs
         for module_id, spec in catalog.items():
             receipt = installer.verify_installation(module_id, spec, service.artifact_dir / "Modules")
             assert receipt["revision"] == spec["revision"]
@@ -155,6 +157,8 @@ def test_student_worker_uses_actual_source_access_without_credential_prerequisit
         assert result.returncode != 0
         assert len(peer.requests) == 2
         assert all("info/refs?service=git-upload-pack" in path for path in peer.requests)
+        assert len(peer.request_logs) == 2
+        assert all('"GET ' in entry and '" 403 ' in entry for entry in peer.request_logs)
         assert "no scientific operation was run" in result.stderr
         for module_id, item in report["modules"].items():
             assert item["status"] == "failed"

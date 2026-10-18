@@ -296,7 +296,10 @@ def test_failed_pickett_build_keeps_setup_usable_and_exports_no_receipt(tmp_path
     assert "Retry setup" in result["message"]
     assert json.loads((tmp_path / "pickett/setup-status.json").read_text(encoding="utf-8")) == result
     assert not (tmp_path / "pickett/install").exists()
-    assert RECEIPT_ENVIRONMENT not in runtime_environment(tmp_path)
+    # A failed build exports no receipt of its own. A receipt the caller already
+    # holds outside this profile (for example one a CI job built earlier) is kept.
+    exported = runtime_environment(tmp_path).get(RECEIPT_ENVIRONMENT)
+    assert exported is None or not Path(exported).resolve().is_relative_to(tmp_path.resolve())
 
 
 def test_runtime_exports_the_receipt_only_for_a_ready_build_inside_the_profile(tmp_path):

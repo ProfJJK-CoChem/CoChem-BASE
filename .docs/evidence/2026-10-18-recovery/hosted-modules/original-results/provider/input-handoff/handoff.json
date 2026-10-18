@@ -1,0 +1,54 @@
+{
+  "schema_version": "cochem.module-handoff/1",
+  "handoff_id": "8eafeda6d0b94f1992c69a33c8eca92d",
+  "created_at": "2026-10-18T03:14:59.755474+00:00",
+  "module_id": "topos",
+  "operation": "geometry_analysis",
+  "status": "pending_integration",
+  "capability": {
+    "module_id": "topos",
+    "name": "CoChem-TOPOS",
+    "responsibility": "Conformer and topology workflows",
+    "status": "not_installed",
+    "integration_contract": "cochem.module-handoff/1",
+    "providers": [],
+    "operations": [],
+    "execution_verified": false
+  },
+  "artifact": {
+    "kind": "geometry_xyz",
+    "filename": "artifact.xyz",
+    "source_path": "/home/runner/work/_temp/cochem-student-evidence/inputs/inputs/water.xyz",
+    "sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af",
+    "size_bytes": 164,
+    "metadata": {
+      "symbols": [
+        "O",
+        "H",
+        "H"
+      ],
+      "atom_count": 3,
+      "coordinates_unit": "angstrom",
+      "nuclides": [
+        "O",
+        "H",
+        "H"
+      ],
+      "mass_numbers": [
+        null,
+        null,
+        null
+      ],
+      "masses_u": [
+        15.99491461926,
+        1.007825031898,
+        1.007825031898
+      ],
+      "mass_source": "dynamic_mendeleev",
+      "mass_convention": "explicit_isotope_mass_else_principal_isotope_mass"
+    }
+  },
+  "options": {},
+  "scientific_execution_performed": false,
+  "validation_scope": "artifact_structure_and_integrity"
+}

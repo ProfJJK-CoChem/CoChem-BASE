@@ -1,0 +1,26 @@
+{
+  "schema_version": "cochem.module-sidecar/1",
+  "module_id": "torq",
+  "root": "/home/runner/work/_temp/cochem-student-runtime/Modules",
+  "spec": {
+    "repository": "ProfJJK-CoChem/CoChem-TORQ",
+    "revision": "4ce8eecba56e91e27c6abb32473b2ee4d44767c4",
+    "distribution": "CoChem-TORQ",
+    "adapter": "torq_provider",
+    "adapter_requirements": [
+      "mendeleev>=1.2,<2",
+      "pyscf==2.14.0",
+      "geometric==1.1.1",
+      "dftd4==3.7.0",
+      "tomli>=2,<3"
+    ],
+    "operations": [
+      "geometry_analysis",
+      "research_scan",
+      "wiberg_lowdin",
+      "nbo_analysis",
+      "wiberg_nao"
+    ]
+  },
+  "installation_receipt_sha256": "814ea19681fca7921a86aaa4f3c633e2152a64b7773939bc89448b238ad4ec03"
+}

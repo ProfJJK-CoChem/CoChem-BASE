@@ -1,0 +1,18 @@
+{
+  "repository": "ProfJJK-CoChem/CoChem-BASE",
+  "branch": "main",
+  "source_sha": "9ce098e91c948ef4f384ecef91441ea84cbec80e",
+  "worker_source_sha": "9ce098e91c948ef4f384ecef91441ea84cbec80e",
+  "worker_approval": "canonical-default-branch",
+  "project_access": {
+    "cfour": true,
+    "orca": true,
+    "source": true
+  },
+  "setup_check_url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/39092469212",
+  "workflow_id": 379262669,
+  "workflow_ready": true,
+  "actions_write_permission": "not_yet_verified",
+  "secret_inspection_required": false,
+  "student_source_commit_required": false
+}

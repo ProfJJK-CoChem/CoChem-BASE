@@ -26,6 +26,13 @@ reconstructions of the temporary files lost during the earlier disconnect.
   assertions remain failures in this receipt.
 - `failed-audit-a02998c.json`: original refused full invocation. Its source
   audit rejected the empty test HTTP logger before pytest could start.
+- `hosted-modules/`: all 16 unchanged files returned by the new hosted
+  TORQ/TOPOS installation and TOPOS structural-analysis run `39092523800`,
+  together with its verified metadata, readback and hash inventory. Its README
+  distinguishes the exported hashes, the optional credential that was present,
+  and the structural scope from electronic or student-pilot acceptance.
+  `hosted-modules-independent-review.json` records the separate readback and
+  comparison against canonical provider source and unchanged publication files.
 
 Focused selections overlap and must not be summed. Absolute paths belong to
 the original execution environments; cloning these receipts does not recreate

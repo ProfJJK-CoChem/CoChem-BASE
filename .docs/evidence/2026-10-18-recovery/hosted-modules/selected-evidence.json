@@ -1,0 +1,108 @@
+{
+  "files": {
+    "github-run.json": {
+      "sha256": "ab69f9a5046c48077949d759ae8db3a662ff625bef0d6ff6dbf1b66b0b179bb5",
+      "size_bytes": 4141,
+      "source": "production-client verification or GitHub run metadata"
+    },
+    "hosted-module-readback.json": {
+      "sha256": "24b3e1cce202ad3a1df2540c105f08a2cce28b5d37dfb862386fcb454a8368f3",
+      "size_bytes": 3926,
+      "source": "production-client verification or GitHub run metadata"
+    },
+    "original-results/inputs/inputs/water.xyz": {
+      "original_artifact_member": "inputs/inputs/water.xyz",
+      "sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af",
+      "size_bytes": 164
+    },
+    "original-results/module-installation.json": {
+      "original_artifact_member": "module-installation.json",
+      "sha256": "4ea68383191e4df6a3db05a1c58150cac22ee9a3c0bfd1835ac64f8bb580ff13",
+      "size_bytes": 1644
+    },
+    "original-results/project-visibility.json": {
+      "original_artifact_member": "project-visibility.json",
+      "sha256": "29ea0eaf710de78bcc06f70408d5deb004a0c1de5ef3b18ed0e53bdd0a0b92bc",
+      "size_bytes": 212
+    },
+    "original-results/provider/execution/execution.log": {
+      "original_artifact_member": "provider/execution/execution.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    "original-results/provider/execution/operation.json": {
+      "original_artifact_member": "provider/execution/operation.json",
+      "sha256": "48ad6fcdf18640bfeccf63989afad87b1b4a5fcb348dbcbb72a565b8861d6444",
+      "size_bytes": 2430
+    },
+    "original-results/provider/execution/result.json": {
+      "original_artifact_member": "provider/execution/result.json",
+      "sha256": "3e7805043bcfd4422a095be059c6c22930e7baa19fd4f3d97a05fdf478c95c06",
+      "size_bytes": 6381
+    },
+    "original-results/provider/execution/torq-sidecar.json": {
+      "original_artifact_member": "provider/execution/torq-sidecar.json",
+      "sha256": "0ada0ed2b0dd5ac5310697af3a9b7779879db6cee425ad2a49c21b370676669a",
+      "size_bytes": 729
+    },
+    "original-results/provider/input-handoff/artifact.xyz": {
+      "original_artifact_member": "provider/input-handoff/artifact.xyz",
+      "sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af",
+      "size_bytes": 164
+    },
+    "original-results/provider/input-handoff/handoff.json": {
+      "original_artifact_member": "provider/input-handoff/handoff.json",
+      "sha256": "b006cec39da434fb681b27ade584567d4e643ae6e7da727ede9ec60ea726c668",
+      "size_bytes": 1454
+    },
+    "original-results/publication-manifest.json": {
+      "original_artifact_member": "publication-manifest.json",
+      "sha256": "503c4a7e3ff718a757d09bbd186e80654287528645852cab8661eac1701ea6a4",
+      "size_bytes": 2258
+    },
+    "original-results/request.json": {
+      "original_artifact_member": "request.json",
+      "sha256": "78540ee2dd6240b8cac9e1c67bf21af34ae94e0f667881b29d364fada89414e3",
+      "size_bytes": 1054
+    },
+    "original-results/stage0-setup.log": {
+      "original_artifact_member": "stage0-setup.log",
+      "sha256": "ca7a3e8c022628c226a09de9cbcd804baec2b1f002d596366431165390e07b76",
+      "size_bytes": 90648
+    },
+    "original-results/student-result.json": {
+      "original_artifact_member": "student-result.json",
+      "sha256": "15c0e59dd692d1d33104d378dee1c4f805d5451dcaec946d31638a7330a46fa4",
+      "size_bytes": 5166
+    },
+    "original-results/worker-approval.json": {
+      "original_artifact_member": "worker-approval.json",
+      "sha256": "ef3ddd469d695cd3b77f1c4dd14ef3c524c60722ca8b42352bdb3803e09c5ecb",
+      "size_bytes": 333
+    },
+    "original-results/worker-module-distribution.json": {
+      "original_artifact_member": "worker-module-distribution.json",
+      "sha256": "e5cee7540a0e686a14a3a3332e6717ff7c7b878da3b7fd9adc0c48ad76079c69",
+      "size_bytes": 6125
+    },
+    "original-results/worker-source.json": {
+      "original_artifact_member": "worker-source.json",
+      "sha256": "a0c80d042730064311926430770360f56bafc867bce259278c9bb63a5e73af36",
+      "size_bytes": 157
+    },
+    "terminal-submission.json": {
+      "sha256": "faeba7ee7c7ae853aa73d93adfd4ba32ab1d955604c7549f3e816e9eeb368b1b",
+      "size_bytes": 720,
+      "source": "production-client verification or GitHub run metadata"
+    },
+    "verified-project-preflight.json": {
+      "sha256": "2bd78b939ac803a8cf85234ed92ab801472683049db8e904d3263d66017ee343",
+      "size_bytes": 609,
+      "source": "production-client verification or GitHub run metadata"
+    }
+  },
+  "run_id": 39092523800,
+  "schema_version": "cochem.selected-hosted-evidence/1",
+  "selection_scope": "All 16 exact original artifact members are retained. The original publication manifest hashes 15 payload members; the downloaded bundle contains those 15 plus the manifest itself. Additional verification receipts are listed separately. The complete downloaded artifact was verified before copying. No runtime archive, installed environment, license data, credential values or private signed download URLs included.",
+  "source_sha": "9ce098e91c948ef4f384ecef91441ea84cbec80e"
+}

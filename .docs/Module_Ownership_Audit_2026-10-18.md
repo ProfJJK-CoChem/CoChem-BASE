@@ -239,3 +239,13 @@ It includes exact source revisions, file hashes and all 115 compared paths. It
 contains no licensed executables, runtime archives or authentication values.
 The package overlap, upstream compatibility and provider ownership work remains
 open until the criteria above are demonstrated and published.
+
+## Later hosted verification of the existing isolated route
+
+The [18 October recovery report](GUI_Recovery_2026-10-18.md) records a separate
+successful Actions run at BASE `9ce098e`: fresh installation of both reviewed
+module pins, actual TOPOS structural analysis, and strict artifact retrieval.
+The executed TOPOS provider hash matches its canonical pinned source, and the
+TORQ sidecar matches the reviewed catalog. The complete returned evidence is
+retained with that report. This strengthens the execution-path evidence above;
+it does not remove the overlapping packages or migrate TORQ science out of BASE.

@@ -1,0 +1,55 @@
+{
+  "schema_version": "cochem.student-setup/1",
+  "created_at": "2026-10-18T03:13:08.081962+00:00",
+  "modules": {
+    "torq": {
+      "status": "installed",
+      "revision": "4ce8eecba56e91e27c6abb32473b2ee4d44767c4",
+      "message": "Installation and dependencies verified.",
+      "operations": [
+        "geometry_analysis",
+        "research_scan",
+        "wiberg_lowdin",
+        "nbo_analysis",
+        "wiberg_nao"
+      ]
+    },
+    "topos": {
+      "status": "installed",
+      "revision": "b157b7e210aee5bdfa09c22270d77d794f52cdde",
+      "message": "Installation and dependencies verified.",
+      "operations": [
+        "geometry_analysis",
+        "energy",
+        "gradient",
+        "optimize",
+        "search",
+        "frequency",
+        "thermochemistry",
+        "association",
+        "matrix"
+      ]
+    }
+  },
+  "free_engines": {
+    "engines": {
+      "crest": {
+        "message": "Pinned package integrity and actual executable version verified.",
+        "path": "/home/runner/work/_temp/cochem-student-runtime/free-engines/crest/crest/crest",
+        "status": "installed",
+        "version": "3.0.2"
+      },
+      "xtb": {
+        "message": "Pinned package integrity and actual executable version verified.",
+        "path": "/home/runner/work/_temp/cochem-student-runtime/free-engines/xtb/xtb-dist/bin/xtb",
+        "status": "installed",
+        "version": "6.7.1"
+      }
+    },
+    "message": "Pinned free-engine installations verified.",
+    "schema_version": "cochem.free-engine-setup/1",
+    "status": "ready"
+  },
+  "ready": true,
+  "message": "The selected modules are installed and verified."
+}

@@ -46,6 +46,18 @@ the actual producers, retained failures and checksum list.
   module pins were fetched without supplying a source credential. The platform
   proxy prevents treating that fetch alone as proof of anonymous internet
   transport; it is also not a complete canonical-module installation.
+- New hosted [run `39092523800`](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/39092523800)
+  on `9ce098e` completed the real pinned TORQ/TOPOS installation and TOPOS
+  structural analysis. Independent readback verified all 15 manifest-listed
+  payloads and the manifest, unchanged water input, the exact worker catalog,
+  both installed revisions, TORQ's sidecar receipt and TOPOS's executed provider
+  against its canonical source. The three-atom geometry was valid. An optional
+  source credential was available; this is not credential-free hosted evidence.
+  Both licensed-engine steps were skipped. No electronic-energy, all-operation
+  or student-account acceptance is implied. The
+  [complete returned evidence](evidence/2026-10-18-recovery/hosted-modules/README.md)
+  preserves the exported hashes and explicitly identifies unretained runtime
+  hashes.
 - The request-log correction passed the **five affected tests** and the
   unchanged static test-source gate.
 - Fresh Chromium/Voilà acceptance on exact `7d5cebd` passed the canonical
@@ -74,9 +86,11 @@ add the focused counts into a claimed unique-test total.
    Coordinate the canonical TORQ API and TOPOS runtime compatibility before
    removing active dependents or changing source pins. Preserve BASE's own
    SRS-required ingestion and conformer processing.
-2. **Actual student project.** Use a private independent template copy owned
-   by the student's GitHub account. A public fork is a different repository
-   type and does not satisfy the current licensed-access setup. The
+2. **Actual student project.** The chosen licensed-access route uses a private
+   independent template copy owned by the student's GitHub account. A correctly
+   created independent public copy can run the owner-started free-engine checks
+   and become private later; another copy is not needed. Public source access
+   does not grant a maintainer workflow-dispatch or Codespace permissions. The
    [student pilot](Student_Deployment_Pilot.md) records the no-terminal route,
    account identity, App consent, Codespaces permissions, actual calculation
    and result retrieval. Instructor access is separate evidence.

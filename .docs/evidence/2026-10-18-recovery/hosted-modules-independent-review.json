@@ -1,0 +1,36 @@
+{
+  "scope": "Independent review of actual hosted pinned module installation and structural TOPOS operation; no chemistry, licensed engine, anonymous-hosted, or student pilot acceptance",
+  "run_id": 39092523800,
+  "revision": "9ce098e91c948ef4f384ecef91441ea84cbec80e",
+  "github_terminal": "completed/success",
+  "approved_for_publication": true,
+  "original_artifact_files": 16,
+  "manifest_hashed_payloads": 15,
+  "published_inventory_entries": 20,
+  "published_original_artifact_files": 16,
+  "checks": [
+    "Authoritative GitHub run head/status and provider installation/execution step success checked",
+    "Both licensed installation steps skipped",
+    "Every original manifest payload hash and size checked; no extra/missing files in complete downloaded tree",
+    "Every published copy hash/size and byte equality checked against original downloaded member",
+    "Canonical worker catalog equals exact Git bytes at source revision",
+    "Unchanged input water bytes equal retained original and handoff artifact",
+    "TOPOS provider SHA256 equals clean detached canonical TOPOS checkout file at b157b7e210aee5bdfa09c22270d77d794f52cdde and expected origin",
+    "TOPOS nested operation report and digest agree; valid3-atom/1-component structural graph result",
+    "No production-code differences5d0c801 to9ce098e; latter source identity retained explicitly",
+    "README states optional source credential present and absence of complete environment/TORQ wheel hash exports",
+    "Newly included setup log examined; no network URLs or credential-value patterns; asttokens package names explain broad token matches"
+  ],
+  "installed_pins": {
+    "topos": "b157b7e210aee5bdfa09c22270d77d794f52cdde",
+    "torq": "4ce8eecba56e91e27c6abb32473b2ee4d44767c4"
+  },
+  "evidence_root": "/tmp/cochem-hosted-public-module-proposal-g92t5muf/publication",
+  "limitations": [
+    "Optional source credential available; no credential-free hosted claim",
+    "Installed operations listing does not establish execution/accuracy of every operation",
+    "No ORCA/CFOUR operation requested",
+    "Instructor BASE repository, not independent student private project",
+    "Full installation environment hashes and TORQ wheel hash were not exported"
+  ]
+}

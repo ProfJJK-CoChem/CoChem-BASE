@@ -39,6 +39,24 @@ project settings establishes that integration's limited access, not a failed
 student installation. Actual first-Codespace startup and enrollment remain
 unaccepted until observed under the student's account.
 
+**An independent public template is a different case.** A second reviewed
+example had an independent initial commit whose complete file tree matched
+canonical revision `5d0c801d01070b7b3311ef2a5b342a9e84483bc7`. Its owner can open
+**Actions → BASE bounded free-engine acceptance → Run workflow**, select
+**main** and run the existing xTB/PySCF and dashboard checks. This is a public
+free-engine test, not acceptance of a student Codespace, licensed calculations
+or the full GUI submission route. Public source-read access does not grant a
+maintainer permission to dispatch that workflow or create a Codespace. The
+authorized owner must run it unless the available integration has the required
+write permission. This independent repository can become private later through
+its owner's settings; another repository is not needed.
+
+No live instructor App registration and controller deployment has yet been
+verified for this pilot. The code and the setup guide do not establish that
+those services have been configured. Confirm the actual installation link,
+controller and successful provisioning before relying on the private-engine
+steps below. Public-source and free-engine checks can proceed independently.
+
 For the selected private personal-project route, Actions usage belongs to the
 repository owner. Codespaces has its own payer and allowance, which the student
 checks when creating it. Organization membership and Education enrollment do
@@ -147,7 +165,9 @@ The instructor should record:
 - Private mapping-variable presence for each approved reader; Actions and
   Codespaces are separately provisioned stores. Organization secrets cannot
   inherit into a personal project.
-- Active student team membership and permitted private-source/engine Read access.
+- Active student team membership and permitted private-engine Read access, plus
+  source access only for private modules. Public module downloads
+  need no source credential.
 - Personal Codespaces/Actions payer, current Education benefits and usage limits;
   organization entitlement covers controller/collection administration only.
 - Approved scientific protocol and a bounded test that fits the worker.
@@ -163,7 +183,7 @@ explicitly requesting an unavailable engine must not be reported successful.
 | Project creation | Use the approved BASE template to create a Private repository owned by the student's personal account | Real owner/private/nonfork metadata and exact compatible starter; a template copy has independent Git history. |
 | App consent and enrollment | Install the instructor App only on that project and submit BASE's data-only enrollment | Active team membership, selected installation, controller run URL and complete provisioning receipt; public/fork/foreign-owner/unapproved requests refuse. |
 | Classroom50 enrollment | Accept the course invitation and follow collection instructions | Real student identity, organization/class membership and actual private project/report submission link. |
-| Fresh Codespace | Create on the approved private project's branch after access provisioning | Actual Codespaces record, student identity, creation time, machine/payer and separately provisioned source access. No inherited organization-secret or cross-owner scoped-token assumption. |
+| Fresh Codespace | Create on the approved private project's branch after access provisioning | Actual Codespaces record, student identity, creation time, machine/payer and project submission permissions. Separately provisioned source access is required only for private modules; public TOPOS/TORQ needs none. No inherited organization-secret or cross-owner scoped-token assumption. |
 | Automatic setup | Wait for BASE to render its setup status | Required modules installed/verified without student commands; failures accurately disable their operations. |
 | Original ingestion | Upload their own monomer and complex XYZ, choose one of several starting files | Actual browser FileUpload, original bytes/hash, ordered nuclei/geometry and state handling. |
 | Full scientific intake | Upload a course-relevant MOL/SDF/PDB/QCSchema file; select a specific retained frame | All records, isotope/state/unit metadata and unchanged original source hashes; valid selections survive restart. |

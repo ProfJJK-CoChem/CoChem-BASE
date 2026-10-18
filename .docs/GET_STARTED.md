@@ -112,8 +112,9 @@ organization, you do not need to copy them into this repository.
 5. Return to CoChem and choose **Check ORCA & CFOUR**. If the check fails, open
    its run link to see whether GitHub denied access or could not verify the
    approved archive.
-6. For TOPOS/TORQ calculations, repeat the same setup with
-   `COCHEM_SOURCE_ACCESS_SECRET` and the name of your existing private-module
+6. Public TOPOS/TORQ sources need no download credential. Only if your course
+   uses private modules, repeat the setup with
+   `COCHEM_SOURCE_ACCESS_SECRET` and the name of the existing private-module
    download secret. Include the calculation project in both access lists.
 
 For the public instructor repository, an organization setting restricted to

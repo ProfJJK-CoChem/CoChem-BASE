@@ -8,7 +8,7 @@ downloading that public source does not require an instructor credential. The
 automatic public-download route needs its own installation receipt on the
 published revision; repository visibility alone is not a passed setup test.
 The instructor App described below supplies access to **private licensed engine
-archives**, approved project settings and any genuinely private modules. It must
+archives**, approved project settings and any private modules. It must
 not become a prerequisite merely to download public TOPOS/TORQ source. ORCA and
 CFOUR remain optional: missing access disables their dependent calculations.
 
@@ -84,13 +84,15 @@ to its organization.
 1. Open your lab organization on GitHub. In **Teams**, open the research-student
    team. Confirm each participating student accepted the organization invitation
    and appears as an active team member. Keep that team's access to the approved
-   private engine and module repositories at **Read**.
+   private engine repositories and any private modules at **Read**.
+   Public TOPOS/TORQ source needs no team grant or source credential to download.
 2. Keep licensed archives only in the approved private engine release
    repositories. The public BASE source contains archive metadata and expected
    checksums, never archives or credential values.
 3. In **Organization Settings → Secrets and variables → Actions**, check that
-   the existing read-only engine and module-source credentials are unexpired and
-   approved for their intended repositories. You already moved these to the
+   the existing read-only engine credentials and any reader needed for genuinely
+   private modules are unexpired and approved for their intended repositories.
+   Public TOPOS/TORQ source does not need a reader. You already moved these to the
    organization; do not recreate them in public BASE. Their actual labels remain
    private organization configuration.
 

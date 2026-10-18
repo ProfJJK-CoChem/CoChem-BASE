@@ -94,7 +94,7 @@
     "scripts/probe_student_engines.py": "a666000ba9f861e415d5530fe65e4336a4ed6cdb2aa81ea74297e7f8f0ceeb08",
     "scripts/provision_cfour.py": "5446b6db569718f714376e5cf98cb5d317313118b0c51ba8e1f2195f54568532",
     "scripts/provision_orca.py": "5c60e9e99272c77fedba9a0f3282e2c3ef26ac5db752f047a7b5e5084ed516a3",
-    "scripts/provision_student_project_access.py": "2a1816239a9a05cedf8ea72e17fa59c9b32b506b3151b02aa13c5fba7177d4b5",
+    "scripts/provision_student_project_access.py": "f7abf68a57388ca5f1069d9251deb0781cd377bb6282872ba0e36b447dcedaf9",
     "scripts/run_actions_calculation.py": "b68703a79984a26893dda527f52af15de7f250ac641885a76f8e0f1d184529c5",
     "scripts/run_module_handoff.py": "e3710135e67cf1da035a0006aae4599e6be9eb85d6b0c2fde90dff03c43b3b56",
     "scripts/run_module_installation.py": "10a3c4d9243e741736da3b72c443e6dbaedda087fe06087a8c4c1c6be22a22b0",

@@ -21,6 +21,7 @@ Supported Subcommands:
 - phase:     Execute a single setup phase directly with granular argument control.
 - clean:     Inspect registered completed work while preserving runtime and scientific files.
 - mass:      Query dynamic elemental and isotopic masses via the mendeleev library.
+- pickett:   Build, verify or report the pinned JPL Pickett programs (SPFIT, SPCAT, DPFIT, DPCAT).
 
 Usage Examples:
     python cli.py setup --all
@@ -1071,6 +1072,10 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     p_modules.add_argument("module_arguments", nargs=argparse.REMAINDER,
                            help="list, fetch, install or verify followed by module installer options")
 
+    p_pickett = subparsers.add_parser("pickett", help="Build, verify or report the pinned JPL Pickett programs (SPFIT, SPCAT, DPFIT, DPCAT)")
+    p_pickett.add_argument("pickett_arguments", nargs=argparse.REMAINDER,
+                           help="build, verify or status followed by provisioner options (--root, --manifest, --output)")
+
     # --- Subcommand: run ---
     p_run = subparsers.add_parser(
         "run",
@@ -1179,6 +1184,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     elif subcommand == "modules":
         from scripts.manage_modules import main as modules_main
         return modules_main(args.module_arguments)
+    elif subcommand == "pickett":
+        from scripts.provision_pickett import main as pickett_main
+        return pickett_main(args.pickett_arguments)
     else:
         logger.error(f"Unrecognized subcommand: {subcommand}")
         parser.print_help()

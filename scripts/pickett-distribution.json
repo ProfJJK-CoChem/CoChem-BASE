@@ -1,0 +1,279 @@
+{
+  "schema_version": 1,
+  "software": "JPL calpgm: Pickett SPFIT, SPCAT, DPFIT and DPCAT",
+  "upstream_url": "https://spec.jpl.nasa.gov/ftp/pub/calpgm/",
+  "pinned_on": "2026-10-18",
+  "pin_basis": "The JPL distribution carries no version tags; these bytes (SHA-256 and size per file) are the pin. The same 25 files are TORQ's pin (CoChem-TORQ pickett_backend.py, 2026-10-17); dpi.c and hcotst.par are added for DPFIT/DPCAT and the HCO acceptance route (CoChem-SpycFit D-SPYC-17, D-SPYC-26).",
+  "programs": [
+    "spfit",
+    "spcat",
+    "dpfit",
+    "dpcat"
+  ],
+  "build_command": [
+    "make",
+    "-j1",
+    "spfit",
+    "spcat",
+    "dpfit",
+    "dpcat"
+  ],
+  "required_tools": [
+    "gcc",
+    "make",
+    "ar",
+    "ranlib"
+  ],
+  "upstream_prebuilt_files_retrieved": false,
+  "sources": [
+    {
+      "path": "Makefile",
+      "sha256": "2192f0ae5827a2c84fa1c2224651f054bb87d75c4e6601f2e4cce6b6d4530f26",
+      "size": 2006
+    },
+    {
+      "path": "README",
+      "sha256": "278b657d8cae34745ef324393a917b80a9c6e362205e399afd6188866096ec8b",
+      "size": 1396
+    },
+    {
+      "path": "blas.h",
+      "sha256": "758e3895aca105d7c1ec77898b91fa4ee41ce3d55c62ac78f042fbe81a6933da",
+      "size": 1127
+    },
+    {
+      "path": "calcat.c",
+      "sha256": "bc1aa17b1d6814e813b74b81cf4c6c5aa8ab9d2874245d833428545d0f4009b4",
+      "size": 28232
+    },
+    {
+      "path": "calfit.c",
+      "sha256": "a8b5e7e401cf0a52dff7639a269cc2b90417b87b5e0548d7c931feff2c31a158",
+      "size": 33504
+    },
+    {
+      "path": "calpgm.h",
+      "sha256": "5282b2f9d20668a1f930bb593fab1174ed322cb0a8f4536247b5a6d3481c51f5",
+      "size": 5726
+    },
+    {
+      "path": "calpgm.pdf",
+      "sha256": "48796ff50df151916041aa4a8a68ec3a408a9982098265adc872faf79e49e8fb",
+      "size": 76497
+    },
+    {
+      "path": "catutil.c",
+      "sha256": "6bcc5566cbca79e40c18e349caebfe4958afdf7d767d4d3508adc25cdeed2e33",
+      "size": 7209
+    },
+    {
+      "path": "catutil.h",
+      "sha256": "475afcee0609901a96393db241f7c4b2feb70a1656757c84c9640b8bd6158979",
+      "size": 209
+    },
+    {
+      "path": "cblas.h",
+      "sha256": "7048f244ca6f3e4971daf3dc090dd1b9e66cb6c4a42b32638d9b2e456216a12e",
+      "size": 32444
+    },
+    {
+      "path": "cnjj.c",
+      "sha256": "7070ffb3ce8662d0b58972fdd04d4eb8cbb866fe4877a80784ac5c8baef00e2f",
+      "size": 6839
+    },
+    {
+      "path": "cnjj.h",
+      "sha256": "f32a47e2d18ada07887642cacd2250deb65e5df275ed1be3581a4977a7d2df62",
+      "size": 640
+    },
+    {
+      "path": "dblas.c",
+      "sha256": "297f05b90110619c52111c64a62941b7a12a197dedee44b4129491a93cf8367e",
+      "size": 7338
+    },
+    {
+      "path": "dpi.c",
+      "sha256": "a0e7cccff1ff981313b57efcf4ff906f130f0957b82eb6ffd89bcf76df66fdde",
+      "size": 17133
+    },
+    {
+      "path": "lsqfit.c",
+      "sha256": "d1d48b8f433560983c575a213bc547f36715767d0ae55e3095ce09bad6d7fdac",
+      "size": 14842
+    },
+    {
+      "path": "lsqfit.h",
+      "sha256": "ddaa613533091b620bfa0677dd35dacc0d880396d4630e3dfc6456b10b084b46",
+      "size": 1425
+    },
+    {
+      "path": "slib.h",
+      "sha256": "ef73c18e143ca415d324404e5e2b0cbd1e138666e4af41658b2d6ce10d846f27",
+      "size": 635
+    },
+    {
+      "path": "slibgcc.c",
+      "sha256": "f0d4a14130298f918f808be67a6cdd5cb11e2a82f79aca1a2e5631a0481c6024",
+      "size": 6522
+    },
+    {
+      "path": "sortsub.c",
+      "sha256": "4741e105de470fec77f5a46dc33d3ef61bae82f37e484c72d9b35453960f6cc9",
+      "size": 5895
+    },
+    {
+      "path": "spinit.c",
+      "sha256": "6c2f09da62ed3932324a687b54af30da11ff3a9fe7bf58076d1114681666e38f",
+      "size": 22405
+    },
+    {
+      "path": "spinit.h",
+      "sha256": "ee83b38694dadc88d668fe72015c0fc1b243efab211e48ebda27993ac25a4d79",
+      "size": 1192
+    },
+    {
+      "path": "spinv.c",
+      "sha256": "cd07e6b51f47bfa9939a4710ab0c4ae9629c7709362c15f886d9c65da3ce7e4a",
+      "size": 142846
+    },
+    {
+      "path": "spinv.pdf",
+      "sha256": "4dd04df5c2fa82e87e4ff0a6942a12e5d7d710be01b09e66f37c6952e2d488e9",
+      "size": 226739
+    },
+    {
+      "path": "subfit.c",
+      "sha256": "967c965723e985cb6ad18148efcb9694f6fca733a12f6667797ce8e0ee8ea420",
+      "size": 17279
+    },
+    {
+      "path": "ulib.c",
+      "sha256": "736f5d30291e735799aef9ebeaaa02c432fe2ca90eeac4766d87727d4344adf5",
+      "size": 27404
+    },
+    {
+      "path": "whats.new",
+      "sha256": "245713d299a7d89af08c633ef7c1a30f278b0ac935ab4ba60e7aa9006bd1fe0a",
+      "size": 5860
+    }
+  ],
+  "examples": [
+    {
+      "path": "hco.par",
+      "sha256": "db5ee4fac5849e0edf7bcdc66b9eb3a7aa7a3ce1060231d632107b745423fa5f",
+      "size": 1389
+    },
+    {
+      "path": "hco.lin",
+      "sha256": "022f7be01c3a49d45188540440c9ccd3b1a046bc6fe8ae16e18858cffbd030c4",
+      "size": 5472
+    },
+    {
+      "path": "hco.int",
+      "sha256": "ad31147011d96d0eaeda3fb42f397e902e04e153066a1d2fca3bc66f07125d0c",
+      "size": 322
+    },
+    {
+      "path": "hco.fit",
+      "sha256": "41d223d2d7874704a4f0690e62564c76e7ad5c474691b21be06da1a284b13cc3",
+      "size": 38011
+    },
+    {
+      "path": "hco.cat",
+      "sha256": "795308ba421e4063d9f9eeb4429d4c53c1d653f2bfab6ad00cb39a724eb53c84",
+      "size": 60345
+    },
+    {
+      "path": "hcotst.par",
+      "sha256": "76b4c910576009cefecf116b368177060195a067ac16554b2c5381123ecf441d",
+      "size": 1160
+    },
+    {
+      "path": "no.par",
+      "sha256": "b4fd99e2db85b6a37b0eadbfbe2a66a45efab34d4e5cbe9f7283dc52fed36aff",
+      "size": 1312
+    },
+    {
+      "path": "no.lin",
+      "sha256": "55c46c6c83968cef1d7f47fd5d9ec5ceb59873384119baa63606b141b5e6b7f4",
+      "size": 15390
+    },
+    {
+      "path": "no.int",
+      "sha256": "750f7623275755298d8a3cf1a0e67762eab94cc23613d17c83040ec5ef305053",
+      "size": 110
+    },
+    {
+      "path": "no.fit",
+      "sha256": "067eba900c0eb344470b049b759aacc95a64485bb6c5ff5220b51c4935fdc54a",
+      "size": 31565
+    },
+    {
+      "path": "no.cat",
+      "sha256": "371e773ef873eef0bd5317bb845681e0670bb893eeb91ef8adfe8a19559a77ce",
+      "size": 90480
+    }
+  ],
+  "unavailable_upstream": [
+    {
+      "path": "hco.var",
+      "http_status": 500,
+      "observed": [
+        "2026-10-17",
+        "2026-10-18"
+      ]
+    },
+    {
+      "path": "hcotst.var",
+      "http_status": 500,
+      "observed": [
+        "2026-10-17",
+        "2026-10-18"
+      ]
+    },
+    {
+      "path": "no.var",
+      "http_status": 500,
+      "observed": [
+        "2026-10-17",
+        "2026-10-18"
+      ]
+    }
+  ],
+  "acceptance": {
+    "hco": {
+      "library": "spinv",
+      "programs": [
+        "spfit",
+        "spcat"
+      ],
+      "parameter_file": "hcotst.par",
+      "line_file": "hco.lin",
+      "intensity_file": "hco.int",
+      "reference_catalog": "hco.cat",
+      "reference_fit": "hco.fit",
+      "listed_difference": "The shipped hco.var is unavailable upstream (HTTP 500); SPFIT starts from hcotst.par as hco.par and writes its own hco.var before SPCAT runs (CoChem-SpycFit D-SPYC-26, PI 2026-10-18: 'Y: yes, recorded as a listed difference')."
+    },
+    "no": {
+      "library": "dpi",
+      "programs": [
+        "dpfit",
+        "dpcat"
+      ],
+      "parameter_file": "no.par",
+      "line_file": "no.lin",
+      "intensity_file": "no.int",
+      "reference_catalog": "no.cat",
+      "reference_fit": "no.fit",
+      "listed_difference": "The shipped 1993 NO outputs are not reproduced by the current sources (CoChem-SpycFit D-SPYC-17); every difference is recorded and DPFIT/DPCAT keep the status 'built'."
+    }
+  },
+  "rights": {
+    "source_notice": "Copyright (C) 1989, California Institute of Technology. All rights reserved. U. S. Government Sponsorship under NASA Contract NAS7-918 is acknowledged. (calcat.c lines 2-4; the same notice heads calfit.c and spinv.c)",
+    "site_statement": "These programs are copyrighted, but made freely available as a service to the spectroscopic community.",
+    "site_statement_source": "https://spec.jpl.nasa.gov/ (read 2026-10-17 and 2026-10-18)",
+    "redistribution_permitted": false,
+    "bundled": false,
+    "pi_use_rights": "unrecorded"
+  }
+}

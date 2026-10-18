@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- Added the Pickett program build mechanism (CoChem-SpycFit D-SPYC-17 and
+  D-SPYC-26): `scripts/provision_pickett.py` downloads the JPL calpgm sources
+  pinned byte for byte in `scripts/pickett-distribution.json`, builds SPFIT,
+  SPCAT, DPFIT and DPCAT with the shipped Makefile outside the checkout, runs
+  the HCO and NO shipped examples on scratch copies and writes the receipt
+  `cochem.pickett-installation/1` (source inventory, build recipe, program
+  SHA-256 and status `accepted` or `built`, rights notices, every listed
+  difference). The Codespaces setup script runs it automatically; a failed
+  build disables only the SPFIT/SPCAT comparisons and can be retried from the
+  interface. `cochem-cli pickett build|verify|status` and the workflow
+  `pickett_build.yml` expose it. Programs stay off PATH; consumers read the
+  receipt named by `COCHEM_PICKETT_RECEIPT`. Nothing downloaded or built is
+  committed or redistributed.
+- Removed the in-process Watson-Hamiltonian substitute from the SPCAT runner.
+  A missing, unverified or failing SPCAT now raises
+  `PickettProgramUnavailableError`; every catalog the runner writes is SPCAT
+  output with a provenance sidecar.
+
 ## 1.0.0
 
 This release defines CoChem-BASE as the ingestion, environment setup, Voilà

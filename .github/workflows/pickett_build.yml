@@ -1,0 +1,79 @@
+name: BASE Pickett program build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/provision_pickett.py'
+      - 'scripts/pickett-distribution.json'
+      - 'tests/base/test_pickett_provisioning.py'
+      - '.github/workflows/pickett_build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/provision_pickett.py'
+      - 'scripts/pickett-distribution.json'
+      - 'tests/base/test_pickett_provisioning.py'
+      - '.github/workflows/pickett_build.yml'
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pickett-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-accept:
+    name: Build SPFIT, SPCAT, DPFIT and DPCAT from the pinned JPL sources
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      COCHEM_EXPECTED_REVISION: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Audit the checked-out BASE source before application imports
+        run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "$RUNNER_TEMP/cochem-evidence/source-audit"
+      - name: Build the four programs outside the checkout and record the receipt
+        run: |
+          mkdir -p "$RUNNER_TEMP/cochem-pickett"
+          python -B -I scripts/provision_pickett.py build \
+            --root "$RUNNER_TEMP/cochem-pickett/install" \
+            --output "$RUNNER_TEMP/cochem-evidence/pickett-build.json" \
+            --github-env "$GITHUB_ENV"
+      - name: Verify the installation against its receipt and the manifest
+        run: >-
+          python -B -I scripts/provision_pickett.py verify
+          --root "$RUNNER_TEMP/cochem-pickett/install"
+          --output "$RUNNER_TEMP/cochem-evidence/pickett-verify.json"
+      - name: Run the offline provisioning tests against the committed source
+        run: |
+          python -m pip install pytest psutil
+          python -B -m pytest -c pytest.ini tests/base/test_pickett_provisioning.py -q
+      - name: Collect the receipt and logs, never the programs or the sources
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/cochem-evidence/pickett"
+          if [ -f "$RUNNER_TEMP/cochem-pickett/install/pickett-installation.json" ]; then
+            cp "$RUNNER_TEMP/cochem-pickett/install/pickett-installation.json" "$RUNNER_TEMP/cochem-evidence/pickett/"
+          fi
+          if [ -d "$RUNNER_TEMP/cochem-pickett/install/logs" ]; then
+            cp "$RUNNER_TEMP"/cochem-pickett/install/logs/* "$RUNNER_TEMP/cochem-evidence/pickett/"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pickett-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cochem-evidence
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove the build outside the checkout
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/cochem-pickett"

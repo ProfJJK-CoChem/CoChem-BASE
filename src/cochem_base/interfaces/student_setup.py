@@ -236,9 +236,13 @@ class StudentSetupService:
                     and (self.state_dir / "history" / f"{last_update['plan_id']}.json").is_file())
         free_engines = _read(self.artifact_dir / "free-engines/setup-status.json", {"status": "unchecked", "engines": {},
             "message": "Free-engine installation is checked by BASE's native setup."})
-        return {"schema_version": SETUP_SCHEMA, "rollback_available": rollback, "ready": all(item["status"] == "installed" for item in observed.values()) and free_engines.get("status") != "failed",
+        pickett = _read(self.artifact_dir / "pickett/setup-status.json", {"status": "unchecked", "programs": {},
+            "message": "The Pickett program build (SPFIT, SPCAT, DPFIT, DPCAT) is checked by BASE's native setup."})
+        return {"schema_version": SETUP_SCHEMA, "rollback_available": rollback,
+            "ready": all(item["status"] == "installed" for item in observed.values()) and free_engines.get("status") != "failed"
+                     and pickett.get("status") != "failed",
             "base": {"status": "ready", "revision": runtime.get("revision"), "restart_required": restart},
-            "modules": observed, "initial_setup": previous, "free_engines": free_engines,
+            "modules": observed, "initial_setup": previous, "free_engines": free_engines, "pickett": pickett,
             "operation": _read(self.state_dir / "operation.json", {"status": "idle", "action": None, "message": "Ready."}),
             "update_plan": _read(self.state_dir / "update-plan.json")}
 
@@ -273,15 +277,17 @@ class StudentSetupService:
     def retry_free_engines(self) -> dict:
         """Retry actual downloads and republish all eleven authority phases."""
         with self._operation("retry_free_engines"):
-            from scripts.hosted_dashboard import prepare_free_engines, refresh_stage0_authority
+            from scripts.hosted_dashboard import prepare_free_engines, prepare_pickett_programs, refresh_stage0_authority
             runtime = self._active_runtime()
             python = Path(runtime["python_path"])
             self._progress("retry_free_engines", "Retrying pinned free-engine downloads; BASE inputs and results remain intact.")
             result = prepare_free_engines(python, self.artifact_dir)
+            self._progress("retry_free_engines", "Retrying the pinned JPL Pickett download and build; BASE inputs and results remain intact.")
+            pickett = prepare_pickett_programs(python, self.artifact_dir)
             self._progress("retry_free_engines", "Refreshing all eleven setup phases using actually available engines.")
             evidence = refresh_stage0_authority(python, self.artifact_dir)
             self._write("free-engine-retry.json", {"schema_version": "cochem.free-engine-retry/1",
-                "free_engines": result, "authority": evidence, "created_at": _now()})
+                "free_engines": result, "pickett": pickett, "authority": evidence, "created_at": _now()})
         return result
 
     def install_modules(self, module_ids=DEFAULT_MODULES) -> dict:

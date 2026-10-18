@@ -164,6 +164,22 @@ def runtime_environment(artifact_dir: Path) -> dict[str, str]:
             env.setdefault("COCHEM_QE_PSEUDO_DIR", str(paw_root))
         elif env.get("COCHEM_QE_PSEUDO_DIR") and Path(env["COCHEM_QE_PSEUDO_DIR"]).expanduser().absolute().is_relative_to(paw_root):
             env.pop("COCHEM_QE_PSEUDO_DIR")
+    # Pickett programs are reached through their receipt only, never through PATH.
+    pickett_root = artifact_dir / "pickett"
+    pickett_status_path = pickett_root / "setup-status.json"
+    if pickett_status_path.is_symlink() or (pickett_status_path.is_file() and pickett_status_path.stat().st_size > 1024 * 1024):
+        raise ValueError("Pickett setup status is redirected or exceeds its size budget")
+    pickett_status = json.loads(pickett_status_path.read_text(encoding="utf-8")) if pickett_status_path.is_file() else {}
+    inherited_receipt = env.get("COCHEM_PICKETT_RECEIPT")
+    if inherited_receipt and Path(inherited_receipt).expanduser().resolve().is_relative_to(pickett_root):
+        env.pop("COCHEM_PICKETT_RECEIPT")
+    receipt = pickett_status.get("receipt")
+    if pickett_status.get("status") == "ready" and isinstance(receipt, str):
+        receipt_path = Path(receipt)
+        if receipt_path.is_symlink() or not receipt_path.resolve().is_relative_to(pickett_root):
+            raise ValueError("Pickett receipt must remain inside its external profile")
+        if receipt_path.is_file():
+            env["COCHEM_PICKETT_RECEIPT"] = str(receipt_path)
     for variable, directory in {
         "JUPYTER_DATA_DIR": "jupyter-data",
         "JUPYTER_RUNTIME_DIR": "jupyter-runtime",
@@ -222,6 +238,62 @@ def prepare_free_engines(python: Path, artifact_dir: Path, *, environment: dict[
         "engines": engines, "message": "BASE remains available. Unavailable free-engine methods are disabled; choose Retry setup to retry downloads and refresh execution authority." if failed else
         ("Pinned free-engine installations verified." if engines else "Local free-engine binaries are not available for this host; supported remote calculation routes remain available.")}
     _atomic_json(artifact_dir / "free-engines/setup-status.json", result)
+    return result
+
+
+PICKETT_PROGRAMS = ("spfit", "spcat", "dpfit", "dpcat")
+
+
+def prepare_pickett_programs(python: Path, artifact_dir: Path, *, environment: dict[str, str] | None = None) -> dict:
+    """Build the pinned JPL Pickett programs; a failed build disables only their comparisons.
+
+    The build runs automatically at image creation (CoChem-SpycFit D-SPYC-26,
+    PI 2026-10-18: "H1: automatic in the Codespaces setup script"). Programs,
+    sources and logs stay under the external artifact directory, off PATH and
+    never redistributed; consumers read the receipt named in setup-status.json.
+    """
+    import platform
+    try:
+        from scripts.manage_modules import _atomic_json, _redact
+    except ModuleNotFoundError:
+        from manage_modules import _atomic_json, _redact
+    runtime = runtime_environment(artifact_dir)
+    env = setup_build_environment(runtime if environment is None else {**runtime, **environment})
+    pickett_dir = artifact_dir / "pickett"
+    if pickett_dir.is_symlink() or (pickett_dir.exists() and not pickett_dir.resolve().is_relative_to(artifact_dir)):
+        raise ValueError("Pickett runtime files must remain inside their external profile")
+    pickett_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    root = pickett_dir / "install"
+    script = REPO_ROOT / "scripts/provision_pickett.py"
+    schema = {"schema_version": "cochem.pickett-setup/1"}
+    if platform.system() == "Linux":
+        try:
+            check = subprocess.run([str(python), "-B", str(script), "status", "--root", str(root)], cwd=REPO_ROOT,
+                                   env=env, check=True, capture_output=True, text=True, timeout=120)
+            observed = json.loads(check.stdout)
+            if observed.get("status") != "ready":
+                built = subprocess.run([str(python), "-B", str(script), "build", "--root", str(root), "--replace"],
+                                       cwd=REPO_ROOT, env=env, check=True, capture_output=True, text=True, timeout=1800)
+                observed = json.loads(built.stdout)
+            programs = {}
+            for name in PICKETT_PROGRAMS:
+                record = observed["programs"][name]
+                programs[name] = {"status": record["status"], "sha256": record["sha256"], "path": record["path"],
+                    "message": "Built from hash-verified JPL sources; the shipped example is reproduced byte for byte."
+                    if record["status"] == "accepted" else
+                    "Built from hash-verified JPL sources; the shipped example is not reproduced and every difference is listed in the receipt."}
+            result = {**schema, "status": "ready", "receipt": observed["receipt"], "programs": programs,
+                "acceptance": observed.get("acceptance", {}),
+                "message": "Pickett programs built from the pinned JPL sources; SPFIT/SPCAT comparisons are available. The programs are not on PATH and are not redistributed."}
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+            message = _redact((getattr(error, "stderr", "") or str(error))[-2000:])
+            result = {**schema, "status": "failed", "receipt": None,
+                "programs": {name: {"status": "failed", "message": message} for name in PICKETT_PROGRAMS},
+                "message": "BASE remains available. SPFIT/SPCAT comparisons are disabled until the Pickett build succeeds; choose Retry setup to retry the JPL download and build."}
+    else:
+        result = {**schema, "status": "not_applicable", "receipt": None, "programs": {},
+            "message": "The Pickett build runs on Linux hosts only; this host records no Pickett programs."}
+    _atomic_json(pickett_dir / "setup-status.json", result)
     return result
 
 
@@ -364,6 +436,9 @@ def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) 
     free_engines = prepare_free_engines(python, artifact_dir)
     if free_engines["status"] == "failed":
         print(free_engines["message"])
+    pickett = prepare_pickett_programs(python, artifact_dir)
+    if pickett["status"] == "failed":
+        print(pickett["message"])
     manifest = artifact_dir / "dashboard" / "deployment_manifest.json"
     selected_repositories = ["CoChem-BASE"]
     requested_modules = os.environ.get("COCHEM_MODULES", "").replace(",", " ").split()

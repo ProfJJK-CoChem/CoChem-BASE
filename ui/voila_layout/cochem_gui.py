@@ -2100,6 +2100,13 @@ class CoChemGUI(InputManagementMixin):
             for name, observed in free_engines.get('engines', {}).items():
                 rows.append('<tr>' + ''.join('<td>' + html.escape(str(value)) + '</td>' for value in
                     (name.upper(), observed.get('status', 'unavailable'), observed.get('version', ''), observed.get('message', observed.get('reason', '')))) + '</tr>')
+        pickett = status.get('pickett', {})
+        if pickett:
+            rows.append('<tr>' + ''.join('<td>' + html.escape(str(value)) + '</td>' for value in
+                ('Pickett programs (SPFIT, SPCAT, DPFIT, DPCAT)', pickett.get('status', 'unavailable'), '', pickett.get('message', ''))) + '</tr>')
+            for name, observed in pickett.get('programs', {}).items():
+                rows.append('<tr>' + ''.join('<td>' + html.escape(str(value)) + '</td>' for value in
+                    (name.upper(), observed.get('status', 'unavailable'), str(observed.get('sha256', ''))[:12], observed.get('message', observed.get('reason', '')))) + '</tr>')
         base = status.get("base", {})
         operation = status.get("operation", {})
         message = str(operation.get('message') or '').strip()

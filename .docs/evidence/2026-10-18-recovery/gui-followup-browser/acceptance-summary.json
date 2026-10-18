@@ -1,0 +1,84 @@
+{
+  "schema": "cochem.gui-rendered-guidance-review/1",
+  "source_commit": "cfdd8069e3812881bdf7594da38a8f8affa87617",
+  "scope": "Actual local maintainer-rendered GUI with retained registry; auto setup and remote checks false; notebook bootstrap installation deliberately not run. Status text replays the unchanged terminal observation of actual hosted run 39092523800 (completed/success); it is not a newly executed job. Water is the unmodified actual hosted water input. No new chemistry, workflow dispatch or student Codespace acceptance.",
+  "functional_checks_status": "PASSED",
+  "rendered_states": 10,
+  "viewport_widths": [
+    1440,
+    320
+  ],
+  "page_errors": 0,
+  "console_errors": 0,
+  "http_errors": 0,
+  "request_failures": 0,
+  "console_warnings": {
+    "total": 17,
+    "jupyterlab_shared_dependency_version_mismatch": 13,
+    "headless_webgl_readpixels_stall": 4
+  },
+  "console_clean": false,
+  "horizontal_overflow_observed": false,
+  "external_requests": [
+    "https://cdn.jsdelivr.net/npm/3dmol@2.5.5/build/3Dmol-min.js",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/all.min.css",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/v4-shims.min.css",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/webfonts/fa-solid-900.woff2"
+  ],
+  "visual_inspection": {
+    "inspected_screenshots": [
+      "spin-rejection-guidance-detail-320.png",
+      "r2-reference-instructions-detail-320.png",
+      "retained-hosted-observation-replay-detail-320.png",
+      "r2-reference-instructions-detail-1440.png",
+      "start-actions-1440.png",
+      "glossary-hessian-open-320.png"
+    ],
+    "observations": [
+      "All recovery sentences including the scientific spin caution are visible in the footer without opening a disclosure.",
+      "R2 authentic ZIP, original outputs, both basis sizes, atom mapping and no-invented-evidence instructions are readable inside the optional section at both widths.",
+      "Retained status uses successful in the main line; exact success code and request identity remain in native details.",
+      "Mobile glossary definition is legible, focus is visible, navigation wraps and no horizontal overflow was measured."
+    ]
+  },
+  "advanced_disclosure_semantics": {
+    "native_element": "button",
+    "accessible_name_changes": "Show Provide R2 monomer references \u2194 Hide Provide R2 monomer references",
+    "tab_index": 0,
+    "keyboard": "Enter opens; Space closes",
+    "aria_pressed": null,
+    "aria_expanded": null,
+    "aria_controls": null,
+    "hidden_body": "display:none with no layout rectangles; shown body display:flex",
+    "scope": "Observed native button and changed accessible name provide keyboard operation and named action. No complete screen-reader or WCAG conformance conclusion is established by this narrow check."
+  },
+  "source_manifest_sha256": "b42647e59baf692e532bd7c80b3a11980df5dda419a83ecd2649d82384ceee84",
+  "source_files_verified_unchanged": 2271,
+  "runtime_import_origins_verified": 70,
+  "input_sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af",
+  "original_input_unchanged": true,
+  "retained_input_unchanged": true,
+  "original_observation_sha256": "faeba7ee7c7ae853aa73d93adfd4ba32ab1d955604c7549f3e816e9eeb368b1b",
+  "original_observation_unchanged": true,
+  "registry_unchanged": true,
+  "remaining_owned_live_processes": [],
+  "earlier_harness_attempts": [
+    {
+      "profile": "cochem-gui-guidance-browser-y45ha242",
+      "result": "incomplete",
+      "reason": "First invocation selected Python without Playwright; then bootstrap invoked controller method on create_gui() display VBox. Corrected external harness to production CoChemGUI constructor/display steps. Source unchanged; owned server/kernel cleanup passed."
+    },
+    {
+      "profile": "cochem-gui-guidance-browser-u1h8kbp6",
+      "result": "incomplete",
+      "reason": "Two upload selectors omitted ipywidgets file-count suffix/icon in accessible name. Actual DOM inspected; harness corrected to match the production upload button. Failed receipts retained separately."
+    }
+  ],
+  "limitations": [
+    "Local maintainer browser only; no student Codespace, account authorization or App enrollment pilot.",
+    "Notebook startup dependency installation and automatic remote access checks deliberately disabled.",
+    "Actual prior hosted run 39092523800 is replayed for rendering only; no new workflow or chemistry submitted.",
+    "Full UI/SRS/WCAG conformance and student comprehension are not established.",
+    "Thirteen JupyterLab version warnings and four WebGL warnings remain."
+  ]
+}

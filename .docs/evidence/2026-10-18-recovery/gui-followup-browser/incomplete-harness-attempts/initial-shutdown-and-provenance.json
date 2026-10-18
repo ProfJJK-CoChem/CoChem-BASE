@@ -1,0 +1,23 @@
+{
+  "source_commit": "cfdd8069e3812881bdf7594da38a8f8affa87617",
+  "validation_status": "failed",
+  "cleanup_status": "passed",
+  "source_files_verified": 2271,
+  "changed_source_files": [],
+  "missing_source_files": [],
+  "validation_error": "FileNotFoundError(2, 'No such file or directory')",
+  "validation_traceback": "Traceback (most recent call last):\n  File \"/tmp/finalize_guidance_gui.py\", line 15, in <module>\n    origins=json.loads((root/'runtime/actual-gui-import-origins.json').read_text());assert origins and all(Path(p).resolve().is_relative_to(source) for p in origins.values())\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py\", line 1027, in read_text\n    with self.open(mode='r', encoding=encoding, errors=errors) as f:\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py\", line 1013, in open\n    return io.open(self, mode, buffering, encoding, errors, newline)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/tmp/cochem-gui-guidance-browser-y45ha242/runtime/actual-gui-import-origins.json'\n",
+  "owned_processes": [
+    {
+      "pid": 93611,
+      "create_time": 1792357024.34,
+      "name": "python"
+    },
+    {
+      "pid": 75758,
+      "create_time": 1792352951.74,
+      "name": "python"
+    }
+  ],
+  "remaining_owned_live_processes": []
+}

@@ -42,6 +42,15 @@ executable on `PATH`. Do not copy these instance-specific paths or replace a
 missing installation with a test skip. The focused recovery receipts are linked
 from the recovery report above.
 
+The corrected frozen revision `31ed7a79dbf2fafa412db33877c228e7a67569cb`
+completed the local profile with **3,192 passes and six reviewed external
+deferrals**, with no unexpected skips, source changes, import-origin failures
+or remaining owned processes. The later `cfdd806` GUI presentation changes
+have separate focused and rendered-browser evidence; do not relabel the full
+profile as having run on that later revision. Refer to the recovery report for
+terminal hosted results and exact producer revisions. The real student pilot
+and canonical-module migration remain open.
+
 ## 2026-10-13 interface and access update
 
 Start the next review with the [plain-language quick guide](GET_STARTED.md).

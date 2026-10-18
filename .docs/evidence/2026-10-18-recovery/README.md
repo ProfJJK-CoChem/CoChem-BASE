@@ -40,10 +40,30 @@ reconstructions of the temporary files lost during the earlier disconnect.
   preceded two final lifecycle-label refinements. `gui-followup-final-labels.xml`
   records 11 passing checks on those final labels. The selections overlap and
   are distinct from frozen-source full validation and rendered-browser evidence.
+- `gui-followup-browser/`: actual Chromium/Voilà acceptance on frozen `cfdd806`,
+  including 10 rendered states at 1440/320 pixels, verified source/import/input
+  integrity, cleanup, six direct screenshots and the original selection hashes.
+  The reported functional checks passed with zero errors and 17 retained
+  warnings. Actual prior hosted status was replayed for display only; setup and
+  remote checks were deliberately disabled. Native named Show/Hide buttons
+  worked with Enter/Space but lacked expanded-state ARIA attributes; full
+  accessibility acceptance remains open. Incomplete external-harness attempts
+  are preserved separately, not relabelled as passes.
 - `failed-full-5d0c801.json` and `independent-review-5d0c801.json`: the complete
   local failed profile and independent inspection, including two unexpected
   runtime-discovery skips. Seven other skips were reviewed deferrals; these
   categories must not be combined into an accepted total.
+- `full-local-31ed7a7.json` and `full-local-31ed7a7-summary.json`: the unchanged
+  terminal receipts for the corrected frozen revision. Of 3,198 collected
+  tests, 3,192 passed and six were reviewed external deferrals; no failure,
+  unexpected skip, source-change, import-origin or cleanup error was recorded.
+  This producer precedes the follow-up GUI presentation changes and cannot be
+  relabelled as a full profile on those later revisions.
+- `report-independent-review-pre-hosted.json`: independent comparison of the
+  local full-profile receipts, follow-up GUI source/tests, six screenshots and
+  the then-current 68-file evidence inventory. Its report hashes identify the
+  reviewed draft before the final hosted additions; it does not certify later
+  report edits or hosted outcomes.
 - `failed-abbreviated-revision-81f5e04.json`: the command-input refusal before
   pytest. `failed-source-audit-81f5e04.json` and its summary preserve the
   subsequent full-SHA refusal for four raw evidence files in source control.

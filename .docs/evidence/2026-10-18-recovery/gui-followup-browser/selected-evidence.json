@@ -1,0 +1,42 @@
+{
+  "source_commit": "cfdd8069e3812881bdf7594da38a8f8affa87617",
+  "scope": "Actual local maintainer-rendered GUI with retained registry; auto setup and remote checks false; notebook bootstrap installation deliberately not run. Status text replays the unchanged terminal observation of actual hosted run 39092523800 (completed/success); it is not a newly executed job. Water is the unmodified actual hosted water input. No new chemistry, workflow dispatch or student Codespace acceptance.",
+  "files": {
+    "acceptance-summary.json": {
+      "sha256": "e82a12c7d402c9f7244cd1ce703ace57d774acc6d2ced211398ac90a23fa2c5e",
+      "bytes": 4657
+    },
+    "rendered-review.json": {
+      "sha256": "ef1da8229b8bc909d84301ce7af2fa9df3b836950e0ace4072c00ce314f91396",
+      "bytes": 12254
+    },
+    "screenshots/glossary-hessian-open-320.png": {
+      "sha256": "58b7d8f01cf87ee920caba0509ff89b50a4873a6704b28d4a03935457203e54c",
+      "bytes": 60242
+    },
+    "screenshots/r2-reference-instructions-detail-1440.png": {
+      "sha256": "46fe3be1e1f9c72fc3fc36b474b47d1a986e52ccdc3714f0d0d372ba94898b4b",
+      "bytes": 29690
+    },
+    "screenshots/r2-reference-instructions-detail-320.png": {
+      "sha256": "f4ab0a66e77e4b583cd3b1abc118c3bbc826d525f5f6b85cb0533fc85214316a",
+      "bytes": 27376
+    },
+    "screenshots/retained-hosted-observation-replay-detail-320.png": {
+      "sha256": "f5bb9486f34a214a20db714c96d0e07259ce70fa487dbc7642beb10e1d49e534",
+      "bytes": 14558
+    },
+    "screenshots/spin-rejection-guidance-detail-320.png": {
+      "sha256": "befadb72b159358b1d89104514538d697e496749145b35a140fe4473880c9132",
+      "bytes": 16321
+    },
+    "screenshots/start-actions-1440.png": {
+      "sha256": "d782c10d5e173809bc05b279fd2d49ae6d46318d7ddf01902237ce834bac93d6",
+      "bytes": 129878
+    },
+    "shutdown-and-provenance.json": {
+      "sha256": "7554ae1a3098cb971602dfcbdc27c9c2875579666c59266cae77f3fca1bcd0cb",
+      "bytes": 763
+    }
+  }
+}

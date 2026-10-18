@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "stages": {
+    "audit": {
+      "passed": true
+    },
+    "tests": {
+      "passed": true
+    }
+  },
+  "evidence_directory": "/tmp/cochem-recovery-full-31ed7a7",
+  "mode": "release",
+  "release_accepted": true
+}

@@ -19,6 +19,14 @@ temporary GUI evidence directories were absent. The corrections were restored
 from their reviewed descriptions and tested again. Fresh evidence is identified
 below; remembered results are not relabelled as new receipts.
 
+A later command-service interruption returned `exec-server transport disconnected`
+while the environment-status service still reported `running` and `connected`,
+with no cause. Command access subsequently returned without resetting the
+checkout. The existing full test process completed successfully. The local GUI
+commit and publication receipts were then backed up to a GitHub recovery branch
+before work continued. This second interruption is not evidence that repository
+visibility or student authentication caused the problem.
+
 ## Corrections published
 
 | Commit | Change and scope |
@@ -27,6 +35,7 @@ below; remembered results are not relabelled as new receipts.
 | `a02998c18639871dfca011c09777eb6e034b282e` | Public TOPOS/TORQ submission and installation no longer require a private-source credential. Optional authentication, exact source pins, source/wheel/environment verification, real installation failure and licensed-engine restrictions remain. |
 | `5d0c801d01070b7b3311ef2a5b342a9e84483bc7` | The negative-access test records and asserts actual HTTP requests, replacing an empty log-discarding helper rejected by the source audit. No production behavior changed. |
 | `81f5e043554d059f29fdda0f6c900e35d83b1cfe` | The GUI runtime test now checks the clearer spin rejection and recovery guidance. Exact xTB serialization and disabled-button checks remain, with added checks that the entered spin and geometry are preserved. No production code changed. |
+| `cfdd8069e3812881bdf7594da38a8f8affa87617` | Complete recovery instructions stay visible, explicit traceback details collapse, calculation/update progress uses plain language, and R2 reference-upload guidance is beside the control. Exact protocol states remain in expandable details. Scientific validation, submission, cancellation and result gates are unchanged. |
 
 Both canonical module repositories were observed as public. The ORCA and CFOUR
 asset repositories were observed as private. Public source availability does
@@ -70,11 +79,41 @@ the actual producers, retained failures and checksum list.
 - The corrected runtime test file passed **13 tests**, including actual xTB
   GUI optimization and owned-worker cancellation. Independent review confirmed
   that every other test function was unchanged.
+- The follow-up guidance changes passed **94 focused tests** and **58 existing
+  UI tests**, with no failures or skips. Two final lifecycle-label refinements
+  then passed **11 label checks**. Their file hashes and distinct scopes are
+  retained in the portable receipts; overlapping selections are not summed.
+  Independent AST review confirmed that only four existing GUI rendering
+  methods changed, alongside the labels and adjacent R2 explanation.
+- Fresh Chromium/Voilà checks on frozen `cfdd806` passed **10 rendered states**
+  at desktop and mobile widths. Actual water upload, complete visible spin
+  guidance, blocked invalid calculation, valid export, keyboard-operated R2
+  help and input-preserving navigation passed. All 2,271 source files, 70
+  application import origins, the original/retained input and registry were
+  verified; no owned live processes remained. There were zero browser, console,
+  HTTP or request errors, with 13 JupyterLab dependency-version warnings and
+  four headless WebGL warnings. The progress display replayed a retained actual
+  hosted observation for rendering only. Automatic setup and remote checks
+  were disabled; this does not establish student startup or new chemistry.
+  The [browser receipts and screenshots](evidence/2026-10-18-recovery/gui-followup-browser/acceptance-summary.json)
+  preserve that scope and the separate incomplete harness attempts.
 - The clean source audit for `5d0c801` passed, but its local and hosted profiles
   failed as described below. The `81f5e04` retry was refused before pytest
   because raw result files were placed in source control. Follow-up validation
-  requires the corrected evidence placement and restored real-runtime discovery
-  bindings; terminal receipts must be reviewed before a full-validation claim.
+  used the corrected evidence placement and restored real-runtime discovery
+  bindings; its terminal outcome is recorded below.
+
+The corrected frozen revision `31ed7a79dbf2fafa412db33877c228e7a67569cb`
+subsequently passed its complete local profile: **3,192 passed, zero failures,
+zero unexpected skips and six reviewed external deferrals**, from 3,198 collected
+tests. Original and quarantined source stayed unchanged, source origins were
+verified, and the owned process boundary was empty on completion. The six
+remaining checks require actual ABCluster, patched CREST, Psi4, AIMNet CPU and
+two physical Slurm observations; they are not counted as passed. The restored
+stock-CREST, CREST/ORCA union and MACE checks executed in this profile.
+This is acceptance of the profile's runnable scope, not complete SRS or physical
+accuracy certification. Later GUI presentation changes retain their separate
+focused, browser and hosted validation identities.
 
 The earlier hosted run
 [`39088443391`](https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/39088443391)
@@ -94,7 +133,7 @@ clean-wheel checks passed; those successes do not convert the overall failed
 hosted run into a pass. Its final browser step did not run after the failure.
 
 An initial local invocation for `81f5e04` used an abbreviated revision and was
-refused before pytest. The retry supplies the full immutable commit ID. This
+refused before pytest. The retry supplied the full immutable commit ID. This
 command-input error is distinct from a failed application test; its refusal is
 retained rather than relabelled as executed validation.
 
@@ -146,7 +185,7 @@ required patched CREST distribution or satisfy other external prerequisites.
    and result retrieval. Instructor access is separate evidence.
 3. **Accessibility and scientific qualification.** Native Explain controls
    expose disclosure semantics. Existing advanced Show/Hide widgets work by
-   keyboard, but explicit expanded-state ARIA relationships and broader
-   assistive-technology acceptance remain. The scientific/provider/platform
+   keyboard, but expanded-state accessibility semantics and broader
+   screen-reader acceptance remain. The scientific/provider/platform
    backlog in the [workstation handoff](WORKSTATION_COMPLETION_HANDOFF.md)
    remains applicable; this recovery does not certify complete SRS conformance.

@@ -1,0 +1,46 @@
+{
+  "scope": "Actual local maintainer-rendered GUI with retained registry; auto setup and remote checks false; notebook bootstrap installation deliberately not run. Status text replays the unchanged terminal observation of actual hosted run 39092523800 (completed/success); it is not a newly executed job. Water is the unmodified actual hosted water input. No new chemistry, workflow dispatch or student Codespace acceptance.",
+  "source_commit": "cfdd8069e3812881bdf7594da38a8f8affa87617",
+  "source_manifest_sha256": "b42647e59baf692e532bd7c80b3a11980df5dda419a83ecd2649d82384ceee84",
+  "states": [
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Start here",
+        "Where will calculations run?",
+        "Programs on your calculation computer",
+        "CoChem tools and updates"
+      ],
+      "overflow": [],
+      "name": "start-actions"
+    }
+  ],
+  "checks": [],
+  "page_errors": [],
+  "console_errors": [],
+  "console_warnings": [
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/console (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/logconsole (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/mainmenu (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/notebook (required ^4.6.2)",
+    "No satisfying version (^4.6.2) of shared module @jupyterlab/outputarea found in shared scope default.\nAvailable versions: 4.2.5 from _JUPYTERLAB.CORE_OUTPUT",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.6.2)",
+    "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/settingregistry (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/translation (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.5.10)",
+    "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.5.10)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/statedb (required ^4.5.10)",
+    "Unsatisfied version 6.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/coreutils (required ^6.5.10)"
+  ],
+  "request_failures": [],
+  "external_requests": [
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/all.min.css",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/v4-shims.min.css",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/webfonts/fa-solid-900.woff2"
+  ],
+  "http_errors": [],
+  "failure": "TimeoutError('Locator.click: Timeout 30000ms exceeded.\\nCall log:\\n  - waiting for get_by_role(\"button\", name=\"Upload .xyz\", exact=True)\\n')"
+}

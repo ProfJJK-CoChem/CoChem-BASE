@@ -1,0 +1,55 @@
+{
+  "scope": "Actual local maintainer-rendered GUI with retained registry; auto setup and remote checks false; notebook bootstrap installation deliberately not run. Status text replays the unchanged terminal observation of actual hosted run 39092523800 (completed/success); it is not a newly executed job. Water is the unmodified actual hosted water input. No new chemistry, workflow dispatch or student Codespace acceptance.",
+  "source_commit": "cfdd8069e3812881bdf7594da38a8f8affa87617",
+  "source_manifest_sha256": "b42647e59baf692e532bd7c80b3a11980df5dda419a83ecd2649d82384ceee84",
+  "states": [],
+  "checks": [],
+  "page_errors": [],
+  "console_errors": [
+    "WebSocket connection to 'ws://127.0.0.1:52653/api/kernels/ec58a87a-587c-4dad-b7fa-78ffcccbf3f3/channels?session_id=1822bd27-7ad6-4644-9f39-f665c35bbc4d' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  ],
+  "console_warnings": [
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/console (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/logconsole (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/mainmenu (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/notebook (required ^4.6.2)",
+    "No satisfying version (^4.6.2) of shared module @jupyterlab/outputarea found in shared scope default.\nAvailable versions: 4.2.5 from _JUPYTERLAB.CORE_OUTPUT",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.6.2)",
+    "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/settingregistry (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/translation (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.5.10)",
+    "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.5.10)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/statedb (required ^4.5.10)",
+    "Unsatisfied version 6.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/coreutils (required ^6.5.10)",
+    "Connection lost, reconnecting in 0 seconds."
+  ],
+  "request_failures": [
+    {
+      "url": "http://127.0.0.1:52653/api/kernels/ec58a87a-587c-4dad-b7fa-78ffcccbf3f3?1792357079375",
+      "failure": "net::ERR_CONNECTION_REFUSED"
+    },
+    {
+      "url": "http://127.0.0.1:52653/api/kernels/ec58a87a-587c-4dad-b7fa-78ffcccbf3f3?1792357108444",
+      "failure": "net::ERR_CONNECTION_REFUSED"
+    },
+    {
+      "url": "http://127.0.0.1:52653/api/kernels/ec58a87a-587c-4dad-b7fa-78ffcccbf3f3?1792357125642",
+      "failure": "net::ERR_CONNECTION_REFUSED"
+    },
+    {
+      "url": "http://127.0.0.1:52653/api/kernels/ec58a87a-587c-4dad-b7fa-78ffcccbf3f3?1792357148646",
+      "failure": "net::ERR_CONNECTION_REFUSED"
+    }
+  ],
+  "external_requests": [
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/all.min.css",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/v4-shims.min.css"
+  ],
+  "http_errors": [],
+  "failure": "TimeoutError('Locator.wait_for: Timeout 120000ms exceeded.\\nCall log:\\n  - waiting for get_by_role(\"button\", name=\"Start here\", exact=True) to be visible\\n')"
+}

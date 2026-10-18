@@ -1,0 +1,323 @@
+{
+  "scope": "Actual local maintainer-rendered GUI with retained registry; auto setup and remote checks false; notebook bootstrap installation deliberately not run. Status text replays the unchanged terminal observation of actual hosted run 39092523800 (completed/success); it is not a newly executed job. Water is the unmodified actual hosted water input. No new chemistry, workflow dispatch or student Codespace acceptance.",
+  "source_commit": "cfdd8069e3812881bdf7594da38a8f8affa87617",
+  "source_manifest_sha256": "b42647e59baf692e532bd7c80b3a11980df5dda419a83ecd2649d82384ceee84",
+  "states": [
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Start here",
+        "Where will calculations run?",
+        "Check calculation access",
+        "CoChem tools and updates"
+      ],
+      "overflow": [],
+      "name": "start-actions"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Calculation goal",
+        "Electronic state",
+        "Method and basis",
+        "Surroundings",
+        "Run calculation"
+      ],
+      "overflow": [],
+      "name": "spin-rejection-guidance"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Calculation goal",
+        "What may move during optimization?",
+        "Run calculation"
+      ],
+      "overflow": [],
+      "name": "r2-reference-instructions"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Scientific terms"
+      ],
+      "overflow": [],
+      "name": "glossary-hessian-open"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Calculation goal",
+        "Starting structure",
+        "Structure preview",
+        "Run calculation"
+      ],
+      "overflow": [],
+      "name": "retained-hosted-observation-replay"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Start here",
+        "Where will calculations run?",
+        "Check calculation access",
+        "CoChem tools and updates"
+      ],
+      "overflow": [],
+      "name": "start-actions"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Calculation goal",
+        "Electronic state",
+        "Method and basis",
+        "Surroundings",
+        "Run calculation"
+      ],
+      "overflow": [],
+      "name": "spin-rejection-guidance"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Calculation goal",
+        "What may move during optimization?",
+        "Run calculation"
+      ],
+      "overflow": [],
+      "name": "r2-reference-instructions"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Scientific terms"
+      ],
+      "overflow": [],
+      "name": "glossary-hessian-open"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "headings": [
+        "CoChem",
+        "Calculations",
+        "Calculation goal",
+        "Starting structure",
+        "Structure preview",
+        "Run calculation"
+      ],
+      "overflow": [],
+      "name": "retained-hosted-observation-replay"
+    }
+  ],
+  "checks": [
+    {
+      "width": 1440,
+      "full_recovery_message_visible_without_disclosure": true,
+      "unsupported_spin_rejected": true,
+      "run_button_disabled_for_invalid_spin": true,
+      "geometry_unchanged": true,
+      "geometry_sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af",
+      "charge_spin_and_calculation_label_retained": true,
+      "message": "This xTB route cannot verify the spin state for multiplicities above 1. Check that Total charge and Spin multiplicity describe your intended molecule. If they are correct, choose an engine and method that support its spin state; do not change the molecule's spin just to enable the calculation."
+    },
+    {
+      "width": 1440,
+      "r2_disclosure_keyboard_open_enter_close_space": true,
+      "r2_instructions_authentic_ccsdt_both_basis_sizes_visible": true,
+      "r2_scientific_reference_not_fabricated": true,
+      "original_geometry_preserved": true,
+      "r2_disclosure_closed": {
+        "tag": "BUTTON",
+        "nativeType": null,
+        "explicitRole": null,
+        "name": "Show Provide R2 monomer references",
+        "ariaPressed": null,
+        "ariaExpanded": null,
+        "ariaControls": null,
+        "tabIndex": 0,
+        "bodyDisplay": "none",
+        "bodyVisibility": "visible",
+        "bodyHasLayout": false,
+        "bodyHiddenAttribute": false,
+        "bodyAriaHidden": null,
+        "accessibility_snapshot": "- button \"Show Provide R2 monomer references\""
+      },
+      "r2_disclosure_open": {
+        "tag": "BUTTON",
+        "nativeType": null,
+        "explicitRole": null,
+        "name": "Hide Provide R2 monomer references",
+        "ariaPressed": null,
+        "ariaExpanded": null,
+        "ariaControls": null,
+        "tabIndex": 0,
+        "bodyDisplay": "flex",
+        "bodyVisibility": "visible",
+        "bodyHasLayout": true,
+        "bodyHiddenAttribute": false,
+        "bodyAriaHidden": null,
+        "accessibility_snapshot": "- button \"Hide Provide R2 monomer references\""
+      },
+      "r2_disclosure_closed_again": {
+        "tag": "BUTTON",
+        "nativeType": null,
+        "explicitRole": null,
+        "name": "Show Provide R2 monomer references",
+        "ariaPressed": null,
+        "ariaExpanded": null,
+        "ariaControls": null,
+        "tabIndex": 0,
+        "bodyDisplay": "none",
+        "bodyVisibility": "visible",
+        "bodyHasLayout": false,
+        "bodyHiddenAttribute": false,
+        "bodyAriaHidden": null,
+        "accessibility_snapshot": "- button \"Show Provide R2 monomer references\""
+      }
+    },
+    {
+      "width": 1440,
+      "retained_hosted_observation_replayed_run_id": 39092523800,
+      "plain_status": "Calculation: completed; result: successful.",
+      "recorded_status_and_result_retained_in_keyboard_disclosure": true,
+      "new_workflow_submitted": false
+    },
+    {
+      "width": 1440,
+      "glossary_keyboard_open_close": true,
+      "navigation_preserves_uploaded_geometry": true
+    },
+    {
+      "width": 320,
+      "full_recovery_message_visible_without_disclosure": true,
+      "unsupported_spin_rejected": true,
+      "run_button_disabled_for_invalid_spin": true,
+      "geometry_unchanged": true,
+      "geometry_sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af",
+      "charge_spin_and_calculation_label_retained": true,
+      "message": "This xTB route cannot verify the spin state for multiplicities above 1. Check that Total charge and Spin multiplicity describe your intended molecule. If they are correct, choose an engine and method that support its spin state; do not change the molecule's spin just to enable the calculation."
+    },
+    {
+      "width": 320,
+      "r2_disclosure_keyboard_open_enter_close_space": true,
+      "r2_instructions_authentic_ccsdt_both_basis_sizes_visible": true,
+      "r2_scientific_reference_not_fabricated": true,
+      "original_geometry_preserved": true,
+      "r2_disclosure_closed": {
+        "tag": "BUTTON",
+        "nativeType": null,
+        "explicitRole": null,
+        "name": "Show Provide R2 monomer references",
+        "ariaPressed": null,
+        "ariaExpanded": null,
+        "ariaControls": null,
+        "tabIndex": 0,
+        "bodyDisplay": "none",
+        "bodyVisibility": "visible",
+        "bodyHasLayout": false,
+        "bodyHiddenAttribute": false,
+        "bodyAriaHidden": null,
+        "accessibility_snapshot": "- button \"Show Provide R2 monomer references\""
+      },
+      "r2_disclosure_open": {
+        "tag": "BUTTON",
+        "nativeType": null,
+        "explicitRole": null,
+        "name": "Hide Provide R2 monomer references",
+        "ariaPressed": null,
+        "ariaExpanded": null,
+        "ariaControls": null,
+        "tabIndex": 0,
+        "bodyDisplay": "flex",
+        "bodyVisibility": "visible",
+        "bodyHasLayout": true,
+        "bodyHiddenAttribute": false,
+        "bodyAriaHidden": null,
+        "accessibility_snapshot": "- button \"Hide Provide R2 monomer references\""
+      },
+      "r2_disclosure_closed_again": {
+        "tag": "BUTTON",
+        "nativeType": null,
+        "explicitRole": null,
+        "name": "Show Provide R2 monomer references",
+        "ariaPressed": null,
+        "ariaExpanded": null,
+        "ariaControls": null,
+        "tabIndex": 0,
+        "bodyDisplay": "none",
+        "bodyVisibility": "visible",
+        "bodyHasLayout": false,
+        "bodyHiddenAttribute": false,
+        "bodyAriaHidden": null,
+        "accessibility_snapshot": "- button \"Show Provide R2 monomer references\""
+      }
+    },
+    {
+      "width": 320,
+      "retained_hosted_observation_replayed_run_id": 39092523800,
+      "plain_status": "Calculation: completed; result: successful.",
+      "recorded_status_and_result_retained_in_keyboard_disclosure": true,
+      "new_workflow_submitted": false
+    },
+    {
+      "width": 320,
+      "glossary_keyboard_open_close": true,
+      "navigation_preserves_uploaded_geometry": true
+    }
+  ],
+  "page_errors": [],
+  "console_errors": [],
+  "console_warnings": [
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/console (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/logconsole (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/mainmenu (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/notebook (required ^4.6.2)",
+    "No satisfying version (^4.6.2) of shared module @jupyterlab/outputarea found in shared scope default.\nAvailable versions: 4.2.5 from _JUPYTERLAB.CORE_OUTPUT",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.6.2)",
+    "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/settingregistry (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/translation (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.5.10)",
+    "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.5.10)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/statedb (required ^4.5.10)",
+    "Unsatisfied version 6.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/coreutils (required ^6.5.10)",
+    "[.WebGL-0x15cc01257200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x15cc01257200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x15cc01257200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x15cc01257200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+  ],
+  "request_failures": [],
+  "external_requests": [
+    "https://cdn.jsdelivr.net/npm/3dmol@2.5.5/build/3Dmol-min.js",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/all.min.css",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/v4-shims.min.css",
+    "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/webfonts/fa-solid-900.woff2"
+  ],
+  "http_errors": [],
+  "status": "PASSED"
+}

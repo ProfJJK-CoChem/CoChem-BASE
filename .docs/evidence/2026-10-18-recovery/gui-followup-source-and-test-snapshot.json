@@ -1,0 +1,61 @@
+{
+  "baseline_sha": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+  "review_scope": "Presentation and adjacent guidance only; not a new scientific execution claim",
+  "files": {
+    "ui/voila_layout/cochem_gui.py": "12cc9e5cc1450e13900c8712e04bf63de235550e57247530a143e716f14559e8",
+    "ui/voila_layout/learning.py": "29bb7e1cb1e6571014767bd42e643052b27a47aeeeb51cd1dbcc86c56f7d8229",
+    "ui/voila_layout/workspace_layout.py": "af86226fd31fe02f5490703c0212c71830eb420fa9b5441a20ed804ff02130be",
+    "tests/ui/test_workspace_guidance.py": "c6eae8c63f5779e231569047c486b73f4c7cb99963eabedb0c14683bdd57e204",
+    "tests/ui/test_learning_guidance.py": "64febc00e208e319af0aed9111f14e2714622808b61722c5d82e89f179ccc5dc"
+  },
+  "patch_sha256": "f98f4d3b10ebf76327b735562fcaab0716a62547844596943ae61bbea49d1317",
+  "changed_gui_methods": [
+    "_refresh_student_actions_history",
+    "_render_student_actions_status",
+    "_render_student_setup_status",
+    "_update_footer"
+  ],
+  "no_hashring_targets_changed": true,
+  "full_profile_running_separately_on_baseline": true,
+  "srs_audit": "/tmp/cochem-gui-srs-followup-31ed7a7.md",
+  "known_remaining_accessibility": "Advanced widget disclosures lack aria-expanded/aria-controls; no script injection or custom widget framework added.",
+  "last_change": "Two precise lifecycle labels: dispatching means request acknowledged and awaiting visible run; queued does not imply a particular resource cause.",
+  "validation": {
+    "cochem-gui-guidance-followup-final": {
+      "counts": {
+        "tests": 94,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "xml_path": "/tmp/cochem-gui-guidance-followup-final.xml",
+      "xml_sha256": "8a14cd06bfc6d099f2c90b89448fd710a31fde69814e14a8dd60d77c6642d85f",
+      "seconds": 93.822,
+      "source_scope": "Identical final logic before two final lifecycle-label wording changes"
+    },
+    "cochem-gui-guidance-existing-ui": {
+      "counts": {
+        "tests": 58,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "xml_path": "/tmp/cochem-gui-guidance-existing-ui.xml",
+      "xml_sha256": "f4f449652d38cb9c9a68cbba9d7943adaecd0788de849b39b4b65b1003e11650",
+      "seconds": 202.493,
+      "source_scope": "Identical final logic before two final lifecycle-label wording changes"
+    },
+    "cochem-gui-guidance-final-labels": {
+      "counts": {
+        "tests": 11,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "xml_path": "/tmp/cochem-gui-guidance-final-labels.xml",
+      "xml_sha256": "09cd9fe8fade5e34740508263795be46649af2fc83773fc4cd6dc2eec8b3a211",
+      "seconds": 0.333,
+      "source_scope": "Final label text"
+    }
+  }
+}

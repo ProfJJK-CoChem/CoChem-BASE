@@ -32,6 +32,14 @@ reconstructions of the temporary files lost during the earlier disconnect.
 - `spin-guidance-test-correction.xml` and `.json`: 13 whole-file focused passes
   for the correction committed as `81f5e04`, including real native xTB GUI work.
   These working-tree receipts do not replace complete release acceptance.
+- `gui-followup-source-and-test-snapshot.json` and `gui-followup-independent-review.json`:
+  the five-file presentation correction committed as `cfdd806`, its exact file
+  hashes and independent confirmation that scientific/state-transition methods
+  and existing tests were preserved. The accompanying `gui-followup-focused.xml`
+  and `gui-followup-existing-ui.xml` record 94 and 58 passes with no skips; these
+  preceded two final lifecycle-label refinements. `gui-followup-final-labels.xml`
+  records 11 passing checks on those final labels. The selections overlap and
+  are distinct from frozen-source full validation and rendered-browser evidence.
 - `failed-full-5d0c801.json` and `independent-review-5d0c801.json`: the complete
   local failed profile and independent inspection, including two unexpected
   runtime-discovery skips. Seven other skips were reviewed deferrals; these

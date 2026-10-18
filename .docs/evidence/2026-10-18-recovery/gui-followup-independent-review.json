@@ -1,0 +1,57 @@
+{
+  "schema_version": "cochem.independent-ui-review/1",
+  "baseline_sha": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+  "patch_sha256": "f98f4d3b10ebf76327b735562fcaab0716a62547844596943ae61bbea49d1317",
+  "approved": true,
+  "file_hashes_verified": true,
+  "validation": {
+    "cochem-gui-guidance-followup-final": {
+      "xml_sha256_matches": true,
+      "counts": {
+        "tests": 94,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "counts_match": true,
+      "source_scope": "Identical final logic before two final lifecycle-label wording changes"
+    },
+    "cochem-gui-guidance-existing-ui": {
+      "xml_sha256_matches": true,
+      "counts": {
+        "tests": 58,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "counts_match": true,
+      "source_scope": "Identical final logic before two final lifecycle-label wording changes"
+    },
+    "cochem-gui-guidance-final-labels": {
+      "xml_sha256_matches": true,
+      "counts": {
+        "tests": 11,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "counts_match": true,
+      "source_scope": "Final label text"
+    }
+  },
+  "verified_scope": [
+    "Only GUI rendering, human-readable labels, and adjacent R2 help changed.",
+    "Exact Actions protocol values, submission transitions, cancellation/retrieval gates, and scientific settings remain unchanged.",
+    "No infrastructure-ring, provisioning, engine, source-pin, method, serialization, or numerical acceptance changes.",
+    "Existing tests were retained; rendering and preservation assertions were added.",
+    "Unknown and uncertain statuses do not imply completion; request acknowledgement and queue labels preserve actual known state.",
+    "Visible recovery retains scientific cautions; diagnostic record is escaped and expandable; original geometry and spin preserved.",
+    "R2 instructions preserve authentic two-basis reference and geometry requirements."
+  ],
+  "remaining_limits": [
+    "Actual rendered browser follow-up not established by these focused receipts.",
+    "Advanced disclosure ARIA controls remain unresolved as documented.",
+    "Full31 acceptance must remain bound to31ed7a7; these later GUI edits do not inherit full-profile source identity.",
+    "No student-owned Codespace or licensed calculation access acceptance."
+  ]
+}

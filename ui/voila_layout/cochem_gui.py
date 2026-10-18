@@ -65,6 +65,7 @@ from cochem_base.theory_matrix import (
     validate_product_class_policy,
 )
 from ui.voila_layout.input_management import InputManagementMixin
+from ui.voila_layout.learning import progress_label
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -2120,9 +2121,12 @@ class CoChemGUI(InputManagementMixin):
         self.btn_setup_apply.disabled = self._student_setup_busy or not bool(plan.get("status") == "updates_available" or
             plan.get("updates") or plan.get("available") or plan.get("compatible_updates"))
         if plan:
+            update_status = str(plan.get('status', 'complete'))
             self.student_setup_status.value += (
-                f"<p role='status'>Update check: {html.escape(str(plan.get('status', 'complete')))}. "
+                f"<p role='status'>Update check: {html.escape(progress_label(update_status))}. "
                 "Apply compatible updates checks approved published revisions and preserves your research data.</p>"
+                "<details><summary>Update check details</summary><p>Recorded status: "
+                f"<code>{html.escape(update_status)}</code></p></details>"
             )
         self._student_setup_observation = status
 
@@ -3761,6 +3765,15 @@ class CoChemGUI(InputManagementMixin):
                 guidance = str(err)
         else:
             guidance = str(err)
+            # Only an explicitly marked diagnostic block can be moved out of
+            # plain errors. Ordinary multiline recovery instructions stay visible.
+            diagnostic_start = re.search(r"(?m)^(?:Traceback \(most recent call last\):|Technical diagnostics:)", guidance)
+            if diagnostic_start is not None:
+                guidance = guidance[:diagnostic_start.start()].strip()
+                guidance = (guidance + " " if guidance else "The operation could not be completed. ") + (
+                    "Open Full problem details for the diagnostic record. Keep the original input and "
+                    "calculation output before starting a separate corrected run."
+                )
 
         if hasattr(err, "to_diagnostic_telemetry"):
             try:
@@ -3769,15 +3782,15 @@ class CoChemGUI(InputManagementMixin):
                 telemetry = None
 
         safe_guidance = html.escape(str(guidance))
-        lines = str(guidance).splitlines()
-        first_line = lines[0] if lines else str(guidance)
-        # Keep complete sentences and the actionable next step; never cut a
-        # recovery instruction at an arbitrary character boundary.
-        first_sentence = first_line.split('. ', 1)[0].rstrip('.') + '.'
-        next_step = str(guidance).partition('Next step: ')[2].split('. ', 1)[0]
-        summary = first_sentence + (' Next step: ' + next_step.rstrip('.') + '.' if next_step else '')
+        # Recovery instructions and scientific cautions belong in the visible
+        # guidance. Sentence guessing can hide them even in a short message.
+        details = (
+            '<details><summary>Full problem details</summary><pre>'
+            + html.escape(str(err)) + '</pre></details>'
+            if str(guidance) != str(err) else ''
+        )
         self.footer_message.value = (f'<div role="alert" class="cochem-error">'
-            f'<p>{html.escape(summary)}</p><details><summary>Full problem details</summary><p>{safe_guidance}</p></details></div>')
+            f'<p>{safe_guidance}</p>{details}</div>')
 
         if hasattr(self, 'telemetry_accordion') and hasattr(self, 'telemetry_html'):
             if telemetry:
@@ -5523,9 +5536,13 @@ class CoChemGUI(InputManagementMixin):
         if isinstance(url, str) and url.startswith("https://github.com/"):
             link = f" <a href='{html.escape(url, quote=True)}' target='_blank' rel='noopener'>Calculation run details</a>"
         self.actions_status.value = (
-            f"<p role='status' aria-live='polite'><b>Calculation: {html.escape(str(status))}</b>"
-            + (f"; result: {html.escape(str(conclusion))}" if conclusion else "")
-            + f".<br/>Request: <code>{html.escape(str(request))}</code>." + link + "</p>"
+            f"<p role='status' aria-live='polite'><b>Calculation: {html.escape(progress_label(status))}</b>"
+            + (f"; result: {html.escape(progress_label(conclusion))}" if conclusion else "")
+            + "." + link + "</p>"
+            + "<details><summary>Calculation tracking details</summary><p>Request: "
+            + f"<code>{html.escape(str(request))}</code>. Recorded status: <code>{html.escape(str(status))}</code>"
+            + (f"; recorded result: <code>{html.escape(str(conclusion))}</code>" if conclusion else "")
+            + ".</p></details>"
         )
         if status == 'dispatch_unconfirmed':
             self.actions_status.value += "<p role='status'>GitHub acknowledgement is delayed. BASE is checking the original request; do not submit it again.</p>"
@@ -5534,7 +5551,7 @@ class CoChemGUI(InputManagementMixin):
         self.btn_cancel.disabled = complete
         self.btn_actions_retrieve.disabled = not (complete and conclusion is not None)
         self.btn_actions_retrieve.description = "Retrieve and inspect results" if conclusion == "success" else "Retrieve calculation diagnostics"
-        self.state.system_status = f"Actions {conclusion if complete and conclusion else status}"
+        self.state.system_status = f"Actions: {progress_label(conclusion if complete and conclusion else status)}"
         self._actions_last_status = observation
         self.btn_actions_open.disabled = not bool(getattr(self, "_actions_history_records", {})) or self._actions_running
         self._refresh_execution_gate()
@@ -5577,7 +5594,7 @@ class CoChemGUI(InputManagementMixin):
                     continue
         self._actions_history_records = observed
         selected = self.actions_history.value
-        self.actions_history.options = [(f"{record['repository']} · {record.get('status', 'submitted')} · {key[:8]}", key)
+        self.actions_history.options = [(f"{record['repository']} · {progress_label(record.get('status', 'submitted'))} · {key[:8]}", key)
                                         for key, record in observed.items()] or [("No retained calculations", "")]
         if selected in observed:
             self.actions_history.value = selected

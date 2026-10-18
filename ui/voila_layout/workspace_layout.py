@@ -221,7 +221,17 @@ def _molecular_settings(gui: Any) -> None:
         _text("<h3>What may move during optimization?</h3>"), _help("fragments_constraints"),
         gui.btn_detect_fragments, gui.fragments_output, gui.cb_recipe_r1, gui.cb_recipe_r2,
         gui.scientific_input_status,
-        Disclosure("Provide R2 monomer references", gui.scientific_r2_upload, gui.btn_clear_r2_attachment),
+        Disclosure("Provide R2 monomer references",
+            _text("<p>Upload the authentic reference <b>ZIP</b> prepared for these two monomers. It must contain the "
+                  "reference manifest, original monomer geometries, canonical CCSD(T) outputs for <b>both basis sizes</b>, "
+                  "and any referenced geometry-optimization evidence. Check that the monomer identities and atom order "
+                  "match your selected complex. A starting XYZ alone is not a high-level reference.</p>"
+                  "<p>Use the package from your assigned reference workflow; do not create missing evidence or change "
+                  "its contents to pass validation. The calculation checks the original outputs before using R2. "
+                  "<a href='https://github.com/ProfJJK-CoChem/CoChem-BASE/blob/main/.docs/Student_Research_No_Code.md"
+                  "#use-reference-dependent-protocols-when-assigned' target='_blank' rel='noopener noreferrer'>"
+                  "Read the reference-input guide</a>.</p>"),
+            gui.scientific_r2_upload, gui.btn_clear_r2_attachment),
         Disclosure("Choose starting curvature for optimization", _help("hessian"), gui.scientific_initial_hessian,
                    gui.scientific_read_upload, gui.btn_clear_read_attachment),
         Disclosure("Generated ORCA constraints", gui.fragment_preview),

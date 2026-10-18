@@ -114,3 +114,30 @@ def test_unknown_help_topic_fails_instead_of_silently_displaying_unrelated_guida
         help_html("not-a-supported-topic")
     with pytest.raises(KeyError):
         hint_html("not-a-supported-topic")
+
+
+@pytest.mark.parametrize(("code", "meaning"), [
+    ("prepared", "request prepared"),
+    ("submitted", "submission recorded"),
+    ("cancellation_requested", "waiting for GitHub"),
+    ("awaiting_workflow", "waiting for GitHub"),
+    ("dispatch_unconfirmed", "confirm submission"),
+    ("dispatching", "request received; waiting for the run"),
+    ("queued", "queued; waiting to run"),
+    ("in_progress", "running"),
+    ("updates_available", "updates are available"),
+    ("rolled_back", "previous version restored"),
+])
+def test_progress_labels_explain_protocol_states_without_changing_them(code, meaning):
+    from ui.voila_layout.learning import progress_label
+
+    assert meaning in progress_label(code)
+    assert "_" not in progress_label(code)
+
+
+def test_unknown_progress_is_not_presented_as_success():
+    from ui.voila_layout.learning import progress_label
+
+    label = progress_label("unrecognized_future_state")
+    assert "check details" in label
+    assert "success" not in label and "completed" not in label

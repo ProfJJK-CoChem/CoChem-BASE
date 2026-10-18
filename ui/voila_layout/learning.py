@@ -161,6 +161,43 @@ _HELP = {
 HELP_TOPICS = tuple(_HELP)
 
 
+_PROGRESS_LABELS = {
+    "prepared": "request prepared; submission not yet confirmed",
+    "submitted": "submission recorded",
+    "awaiting_workflow": "waiting for GitHub to start the job",
+    "dispatch_unconfirmed": "waiting for GitHub to confirm submission",
+    "dispatching": "request received; waiting for the run to appear",
+    "queued": "queued; waiting to run",
+    "requested": "requested",
+    "waiting": "waiting",
+    "pending": "pending",
+    "in_progress": "running",
+    "completed": "completed",
+    "rejected": "not accepted by GitHub",
+    "success": "successful",
+    "failure": "failed",
+    "neutral": "finished without a success or failure result",
+    "cancelled": "cancelled",
+    "cancellation_requested": "cancellation requested; waiting for GitHub",
+    "skipped": "not run",
+    "timed_out": "stopped at the time limit",
+    "action_required": "needs your attention on GitHub",
+    "stale": "no longer current",
+    "startup_failure": "the calculation computer could not start the job",
+    "updates_available": "compatible updates are available",
+    "current": "no compatible update is available",
+    "applied": "update installed",
+    "rolled_back": "previous version restored",
+    "restart_requested": "interface restart requested",
+    "complete": "complete",
+}
+
+
+def progress_label(code: str) -> str:
+    """Explain an observed protocol state without inferring success or changing it."""
+    return _PROGRESS_LABELS.get(str(code), "status not recognized; check details")
+
+
 def hint_html(topic: str) -> str:
     """Return the essential instruction as visible, escaped text."""
     return f'<p class="cochem-hint">{escape(_HELP[topic].hint)}</p>'

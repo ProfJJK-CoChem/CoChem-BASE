@@ -35,6 +35,7 @@ HOSTED_TESTS = (
     "tests/ui/test_optional_licensed_engines.py",
     "tests/calc/test_cfour_execution_contract.py",
     "tests/base/test_cfour_provisioning.py",
+    "tests/base/test_pickett_provisioning.py",
     "tests/base/test_context_compression_contract.py",
     "tests/base/test_scribe_missing_observations.py",
     "tests/base/test_dark_branch_measured_admission.py",

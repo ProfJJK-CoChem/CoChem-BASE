@@ -5,20 +5,21 @@ Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
 
 Validates:
 1. Eradication of linear rotor formula (2 * B * j) for asymmetric tops (kappa != +/-1).
-2. Subprocess execution / FP64 Watson Hamiltonian asymmetric top diagonalization.
+2. A missing or unverified SPCAT raises PickettProgramUnavailableError; no in-process
+   model stands in for the program (CoChem-SpycFit D-SPYC-16 D, D-SPYC-26 F1).
 3. Strict B_e vs B_0 separation, raising MethodologyViolationError on unvibrated B_e without override.
-4. Apache Parquet transition catalog generation (line_catalog.parquet) with MolSSI/IAU metadata standards.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-import pyarrow.parquet as pq
 import pytest
 
 from scripts.spcat_runner import (
     MethodologyViolationError,
+    PickettProgramUnavailableError,
     SPCATDeckConfig,
     SPCATRunner,
     compute_ray_asymmetry_parameter,
@@ -65,13 +66,9 @@ def test_be_vs_b0_separation_enforcement():
     runner.validate_rotor_parameters(cfg_b0_valid, allow_unvibrated_be=False)
 
 
-def test_parquet_catalog_generation_and_schema(tmp_path: Path):
-    """Assert transition frequencies reflect Watson Hamiltonian eigenvalues and write to Parquet [M]."""
-    runner = SPCATRunner()
-    out_parquet = tmp_path / "line_catalog.parquet"
-
+def _formic_acid_config() -> SPCATDeckConfig:
     # Trans-formic acid (HCOOH) microwave benchmark constants
-    cfg = SPCATDeckConfig(
+    return SPCATDeckConfig(
         a_mhz=20245.8,
         b_mhz=10518.2,
         c_mhz=6878.3,
@@ -87,23 +84,40 @@ def test_parquet_catalog_generation_and_schema(tmp_path: Path):
         constant_type="B0",
     )
 
-    catalog_path = runner.generate_parquet_catalog(
-        config=cfg,
-        output_parquet_path=out_parquet,
-        scratch_dir=tmp_path / "spcat_scr",
-    )
 
-    assert catalog_path.is_file()
-    assert catalog_path.exists()
+def test_missing_spcat_raises_typed_error_without_substitute(tmp_path: Path):
+    """Assert a missing receipt stops the catalog instead of an in-process stand-in [M]."""
+    runner = SPCATRunner(receipt_path=tmp_path / "pickett-installation.json")
+    out_parquet = tmp_path / "line_catalog.parquet"
 
-    # Read and inspect Parquet table
-    table = pq.read_table(str(catalog_path))
-    assert table.num_rows > 0
+    with pytest.raises(PickettProgramUnavailableError, match="receipt"):
+        runner.generate_parquet_catalog(
+            config=_formic_acid_config(),
+            output_parquet_path=out_parquet,
+            scratch_dir=tmp_path / "spcat_scr",
+        )
 
-    schema_names = table.column_names
-    for expected_col in ("frequency_mhz", "j_upper", "ka_upper", "kc_upper", "j_lower", "constant_type"):
-        assert expected_col in schema_names, f"Column '{expected_col}' missing from line catalog schema"
+    assert not out_parquet.exists()
+    assert runner.spcat_bin is None
 
-    # Check constant_type metadata column
-    col_data = table["constant_type"].to_pylist()
-    assert all(c == "B0" for c in col_data)
+
+def test_receipt_program_with_changed_bytes_is_refused(tmp_path: Path):
+    """Assert a program whose bytes differ from its receipt is never run [M]."""
+    program = tmp_path / "spcat"
+    program.write_text("Explicit text-only control; not the SPCAT program.\n", encoding="utf-8")
+    program.chmod(0o700)
+    receipt = tmp_path / "pickett-installation.json"
+    receipt.write_text(json.dumps({
+        "schema_version": "cochem.pickett-installation/1",
+        "programs": {"spcat": {"path": str(program), "sha256": "0" * 64, "status": "built"}},
+    }), encoding="utf-8")
+    runner = SPCATRunner(receipt_path=receipt)
+
+    with pytest.raises(PickettProgramUnavailableError, match="no longer matches"):
+        runner.generate_parquet_catalog(
+            config=_formic_acid_config(),
+            output_parquet_path=tmp_path / "line_catalog.parquet",
+            scratch_dir=tmp_path / "spcat_scr",
+        )
+
+    assert not (tmp_path / "line_catalog.parquet").exists()

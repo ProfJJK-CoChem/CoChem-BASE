@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import hashlib
+from html import unescape
 import os
 from pathlib import Path
 import re
@@ -83,7 +84,13 @@ def test_gui_xtb_serialization_and_invalid_spin():
     assert config["product_class"] is None and config["implicit_solvation"] is None
     gui.multiplicity_input.value = 2
     assert gui.btn_execute.disabled
-    assert "Open-shell" in gui.dispersion_warning.value
+    warning = unescape(gui.dispersion_warning.value)
+    assert "cannot verify the spin state for multiplicities above 1" in warning
+    assert "Total charge and Spin multiplicity" in warning
+    assert "choose an engine and method that support its spin state" in warning
+    assert "do not change the molecule's spin just to enable the calculation" in warning
+    assert gui.multiplicity_input.value == 2
+    assert gui.matrix_geometry.value == WATER
 
 
 def test_gui_cancellation_stops_its_actual_worker(tmp_path, audited_xtb):

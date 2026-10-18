@@ -270,14 +270,39 @@ def test_available_licensed_engine_is_independent_of_other_optional_components(p
     assert peer.submitted[0]["calculation"] == calculation
 
 
-def test_private_provider_requires_its_own_module_access_before_any_upload(project_approval_peer, tmp_path):
+@pytest.mark.parametrize("module", ["topos", "torq"])
+def test_public_provider_submits_without_private_source_credentials(project_approval_peer, tmp_path, module):
     peer = project_approval_peer
-    peer.setup_access = {"source": False, "orca": True, "cfour": True}
-    provider = {"schema_version": "cochem.student-provider/1", "module": "topos",
+    peer.setup_access = {"source": False, "orca": False, "cfour": False}
+    geometry = _request()["calculation"]["geometry"]
+    provider = {"schema_version": "cochem.student-provider/1", "module": module,
                 "operation": "geometry_analysis", "artifact": "inputs/water.xyz",
-                "artifact_sha256": "a" * 64, "options": {}}
-    with pytest.raises(StudentActionsError, match="TOPOS/TORQ module access") as refused:
-        project_approval_client(peer, tmp_path).submit(None, provider=provider)
+                "artifact_sha256": hashlib.sha256(geometry.encode()).hexdigest(), "options": {}}
+    submitted = project_approval_client(peer, tmp_path).submit(
+        None, provider=provider, xyz_files={provider["artifact"]: geometry})
+    assert submitted["status"] == "dispatching"
+    assert len(peer.submitted) == 1
+    assert peer.submitted[0]["provider"] == provider
+    assert peer.submitted[0]["worker_source_sha"] == peer.revision
+    assert peer.submitted[0]["files"][provider["artifact"]]["sha256"] == provider["artifact_sha256"]
+    assert peer.token not in json.dumps(peer.submitted)
+
+
+def test_public_provider_still_requires_its_selected_licensed_engine(project_approval_peer, tmp_path):
+    from cochem_base.interfaces.student_research import build_topos_request
+
+    peer = project_approval_peer
+    peer.setup_access = {"source": False, "orca": False, "cfour": False}
+    geometry = _request()["calculation"]["geometry"]
+    provider = {"schema_version": "cochem.student-provider/1", "module": "topos",
+                "operation": "energy", "artifact": "inputs/water.xyz",
+                "artifact_sha256": hashlib.sha256(geometry.encode()).hexdigest(),
+                "options": {"topos_request": build_topos_request(
+                    geometry, operation="energy", charge=0, multiplicity=1,
+                    engine="orca", method="HF", options={"basis": "STO-3G"})}}
+    with pytest.raises(StudentActionsError, match="ORCA access") as refused:
+        project_approval_client(peer, tmp_path).submit(
+            None, provider=provider, xyz_files={provider["artifact"]: geometry})
     assert refused.value.setup_url.endswith("/actions/runs/456")
     assert not peer.submitted
     assert not any("/git/" in path for path in peer.paths)

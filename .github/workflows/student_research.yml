@@ -213,8 +213,8 @@ jobs:
           import json, os
           from pathlib import Path
           from cochem_base.interfaces.student_setup import StudentSetupService
-          if not os.environ.get('COCHEM_SOURCE_CREDENTIAL'):
-              raise SystemExit('The instructor must authorize this assignment for the source-reader secret.')
+          # Public sources need no credential. Actual fetch, pin, origin and
+          # installation checks determine readiness, including private denial.
           report = StudentSetupService(os.environ['COCHEM_ARTIFACT_DIR'], Path.cwd()).install_modules(
               os.environ['MODULE_IDS'].split())
           target = Path(os.environ['RUNNER_TEMP']) / 'cochem-student-evidence/module-installation.json'

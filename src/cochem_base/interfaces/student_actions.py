@@ -523,11 +523,11 @@ class StudentActionsClient:
                ingestion_inputs: dict | None = None, periodic_inputs: dict | None = None,
                cores: int = 2, maxcore_mb: int = 512) -> dict:
         prepared = self.preflight()
-        # Licensed engines and private modules are independent options. Public
-        # BASE/free-engine jobs need only the job's ordinary GitHub token.
+        # Source-secret presence does not establish repository access: public
+        # modules need no reader credential, while private fetches may be denied
+        # even with one. The worker must fetch and verify the selected sources
+        # before scientific execution. Licensed engine access is independent.
         missing = []
-        if provider is not None and not prepared["project_access"]["source"]:
-            missing.append("TOPOS/TORQ module access")
         if capability_probe is None:
             if provider is not None:
                 from .student_research import required_provider_engines

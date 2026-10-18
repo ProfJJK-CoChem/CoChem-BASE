@@ -8,8 +8,9 @@ import os
 import subprocess
 import sys
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Event
+from threading import Event, Thread
 
 import pytest
 
@@ -87,6 +88,79 @@ def test_automatic_defaults_really_install_isolated_wheels_preserving_student_xy
         assert Path(receipt["built_wheel_path"]).is_file()
         assert installer.verify_installation(name, catalog[name], service.artifact_dir / "Modules", active=False) == receipt
     assert all(path.read_bytes() == value for path, value in before.items())
+
+
+@pytest.mark.parametrize("source_access", ["public", "denied"])
+def test_student_worker_uses_actual_source_access_without_credential_prerequisite(student_service, tmp_path, source_access):
+    """Execute the workflow's actual installer program with real Git/builds.
+
+    Tiny offline packages establish transport and installation, not scientific
+    accuracy. A real HTTP 403 must keep the job failed and providers disabled.
+    """
+    import yaml
+
+    service, catalog, origin = student_service
+    workflow = yaml.safe_load((installer.REPOSITORY_ROOT / ".github/workflows/student_research.yml").read_text())
+    step = next(item for item in workflow["jobs"]["research"]["steps"]
+                if item.get("name") == "Install the selected reviewed providers without exposing readers to execution")
+    assert step["env"]["COCHEM_SOURCE_CREDENTIAL"] == "${{ secrets[vars.COCHEM_SOURCE_ACCESS_SECRET] }}"
+    program = step["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    runner = tmp_path / "runner"
+    (runner / "cochem-student-evidence").mkdir(parents=True)
+    environment = offline_installer.offline_environment(origin)
+    assert not any(environment.get(name) for name in ("COCHEM_SOURCE_CREDENTIAL", "GITHUB_TOKEN", "GH_TOKEN"))
+    environment.update(COCHEM_ARTIFACT_DIR=str(service.artifact_dir),
+                       RUNNER_TEMP=str(runner), MODULE_IDS="topos torq")
+
+    class DeniedSource(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.server.requests.append(self.path)
+            self.send_response(403)
+            self.end_headers()
+
+        def log_message(self, *_args):
+            pass
+
+    peer = ThreadingHTTPServer(("127.0.0.1", 0), DeniedSource)
+    peer.requests = []
+    thread = Thread(target=peer.serve_forever, daemon=True)
+    thread.start()
+    try:
+        if source_access == "denied":
+            (origin.parent / "offline-git.conf").write_text(
+                f'[url "http://127.0.0.1:{peer.server_port}/restricted.git"]\n'
+                f'\tinsteadOf = https://github.com/{catalog["topos"]["repository"]}.git\n')
+        result = subprocess.run([sys.executable, "-B", "-c", program],
+            env=environment, cwd=service.repository_root,
+            capture_output=True, text=True, timeout=120, check=False)
+    finally:
+        peer.shutdown()
+        peer.server_close()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+    evidence = runner / "cochem-student-evidence/module-installation.json"
+    assert evidence.is_file(), result.stdout + result.stderr
+    report = json.loads(evidence.read_text())
+    assert report["ready"] is (source_access == "public")
+    if source_access == "public":
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert not peer.requests
+        for module_id, spec in catalog.items():
+            receipt = installer.verify_installation(module_id, spec, service.artifact_dir / "Modules")
+            assert receipt["revision"] == spec["revision"]
+            assert receipt["repository"] == spec["repository"]
+            assert receipt["pip_check"] == {"passed": True}
+            assert report["modules"][module_id]["status"] == "installed"
+    else:
+        assert result.returncode != 0
+        assert len(peer.requests) == 2
+        assert all("info/refs?service=git-upload-pack" in path for path in peer.requests)
+        assert "no scientific operation was run" in result.stderr
+        for module_id, item in report["modules"].items():
+            assert item["status"] == "failed"
+            assert item["operations"] == []
+            assert "403" in item["message"]
+            assert not (service.artifact_dir / "Modules" / module_id / "installation.json").exists()
 
 
 def test_real_source_only_provider_failure_keeps_base_and_other_module_available(student_service):

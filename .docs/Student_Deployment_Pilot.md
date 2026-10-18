@@ -51,6 +51,13 @@ authorized owner must run it unless the available integration has the required
 write permission. This independent repository can become private later through
 its owner's settings; another repository is not needed.
 
+That inspected `5d0c801` copy also predates the corrected warning-text assertion
+in `81f5e04`. Its old bounded workflow can therefore fail on the stale test even
+when the scientific spin rejection works. An authorized maintainer should update
+the existing project's source before its final pilot. BASE's managed-runtime
+update does not rewrite the project's committed workflows or tests. Read-only
+public access is insufficient to apply that update.
+
 No live instructor App registration and controller deployment has yet been
 verified for this pilot. The code and the setup guide do not establish that
 those services have been configured. Confirm the actual installation link,

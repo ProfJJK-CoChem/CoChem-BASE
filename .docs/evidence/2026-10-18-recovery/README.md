@@ -48,7 +48,7 @@ reconstructions of the temporary files lost during the earlier disconnect.
 - `hosted-modules/`: 12 unchanged JSON reports selected from the 16 files returned
   by hosted TORQ/TOPOS installation and TOPOS structural-analysis run
   `39092523800`, together with verified metadata, readback and hash inventory.
-  Its README records the separately packaged complete bundle awaiting upload,
+  Its README links the separately published and verified complete bundle,
   including four raw files that must remain outside source control, and
   distinguishes the exported hashes, the optional credential that was present,
   and the structural scope from electronic or student-pilot acceptance.
@@ -56,7 +56,9 @@ reconstructions of the temporary files lost during the earlier disconnect.
   comparison against canonical provider source and the original complete package.
   That content review did not catch the source-placement violation subsequently
   rejected by the air-gap gate; the complete bundle is now outside source control
-  and awaits separate publication.
+  and is published in the evidence-only prerelease. `hosted-modules/publication-readback.json`
+  records fresh downloaded-byte verification; the original local upload refusal
+  and failed hosted staging-list check remain separate from the later API publication.
 
 Focused selections overlap and must not be summed. Absolute paths belong to
 the original execution environments; cloning these receipts does not recreate

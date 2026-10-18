@@ -4,9 +4,9 @@
     "asset_name": "cochem-base-hosted-modules-39092523800-original-results.zip",
     "manifest_hashed_payload_count": 15,
     "original_artifact_member_count": 16,
-    "planned_release_asset_url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/download/evidence-2026-10-18/cochem-base-hosted-modules-39092523800-original-results.zip",
-    "publication_status": "prepared_not_yet_uploaded",
-    "release_asset_url": null,
+    "publication_readback": "publication-readback.json",
+    "publication_status": "published_and_fresh_download_verified",
+    "release_asset_url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/download/evidence-2026-10-18/cochem-base-hosted-modules-39092523800-original-results.zip",
     "sha256": "6f7c30e2b355c71a58f9040b2d7353f26dafab9ad65abf8dde6c0aa817f3fc5e",
     "size_bytes": 23356
   },

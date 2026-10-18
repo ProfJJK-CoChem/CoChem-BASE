@@ -1,0 +1,15 @@
+{
+  "schema_version": "cochem.publication-attempt/1",
+  "target_revision": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+  "tag": "evidence-2026-10-18",
+  "attempt": "local gh release create with reviewed assets",
+  "result": "failed",
+  "http_status": 401,
+  "host": "uploads.github.com",
+  "message": "Bad credentials",
+  "published_asset_verified": false,
+  "followup_release_api_status": 404,
+  "followup_release_list_contains_tag": false,
+  "original_actions_artifact_remains_available": true,
+  "scope": "Publication transport failure; no chemistry test result and no uploaded archive success is claimed."
+}

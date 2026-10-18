@@ -114,8 +114,12 @@ qualification warnings still applicable.
 The full-SHA `81f5e04` source audit rejected two `.xyz` and two `.log` evidence
 files under `.docs/evidence/`. The original content review had not caught this
 repository-placement rule. The four files were removed from the source tree;
-the complete result bundle is retained outside source control and prepared for
-separate evidence publication. Permitted JSON reports and selection hashes remain in the
+the complete result bundle is retained outside source control and published in
+the [evidence-only prerelease](https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/tag/evidence-2026-10-18).
+Fresh downloads matched all original members and the reviewed ZIP checksum.
+The publication record retains the failed transport attempts separately from
+the final verified API publication. The latest software release remains `v1.0.1`.
+Permitted JSON reports and selection hashes remain in the
 repository. The air-gap policy is unchanged; no test subprocess ran in that
 refused attempt.
 

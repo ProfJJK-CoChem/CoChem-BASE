@@ -1,0 +1,132 @@
+{
+  "schema_version": "cochem.evidence-draft-readback/1",
+  "verified_at_utc": "2026-10-18T19:42:16.374451+00:00",
+  "publication_workflow": {
+    "repository": "ProfJJK-CoChem/CoChem-BASE",
+    "run_id": 39159857520,
+    "run_attempt": 1,
+    "source_sha": "dc853e60491cdc825aa43d9fea32bf9393252e85",
+    "source_parent": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+    "branch": "codex/publish-reviewed-evidence-2026-10-18",
+    "conclusion": "failure",
+    "url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/39159857520",
+    "failure": "Draft release listing check did not find exactly one expected staged draft. Hosted list response was not retained; underlying visibility/timing cause is unproven. Publish step was skipped."
+  },
+  "release": {
+    "id": 416662423,
+    "draft": true,
+    "prerelease": true,
+    "tag_name": "evidence-2026-10-18",
+    "target_commitish": "31ed7a79dbf2fafa412db33877c228e7a67569cb",
+    "published": false,
+    "api_url": "https://api.github.com/repos/ProfJJK-CoChem/CoChem-BASE/releases/416662423",
+    "expected_public_url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/tag/evidence-2026-10-18"
+  },
+  "fresh_downloads": [
+    {
+      "asset_id": 654313607,
+      "name": "cochem-base-hosted-modules-39092523800-original-results.zip",
+      "size_bytes": 23356,
+      "sha256": "6f7c30e2b355c71a58f9040b2d7353f26dafab9ad65abf8dde6c0aa817f3fc5e",
+      "expected_public_url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/download/evidence-2026-10-18/cochem-base-hosted-modules-39092523800-original-results.zip"
+    },
+    {
+      "asset_id": 654313609,
+      "name": "cochem-base-hosted-modules-39092523800-original-results.zip.sha256",
+      "size_bytes": 126,
+      "sha256": "4a066374e3e3c5968eb5f0c2d707ae2444f4a534a2104a8a14786e8fb81d3538"
+    }
+  ],
+  "checks": {
+    "exact_reviewed_zip_bytes": true,
+    "exact_original_16_member_bytes": true,
+    "original_manifest_hash_and_15_payload_checks": true,
+    "expected_metadata_and_asset_ids": true,
+    "source_workflow_only_file_changed_above_frozen_target": true
+  },
+  "original_scientific_evidence": {
+    "run_id": 39092523800,
+    "run_attempt": 1,
+    "source_sha": "9ce098e91c948ef4f384ecef91441ea84cbec80e",
+    "worker_source_sha": "9ce098e91c948ef4f384ecef91441ea84cbec80e",
+    "scope": "Canonical TOPOS/TORQ installation and TOPOS structural analysis of committed water example; no electronic accuracy or student account acceptance claim."
+  },
+  "member_inventory": {
+    "inputs/inputs/water.xyz": {
+      "size_bytes": 164,
+      "sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af"
+    },
+    "module-installation.json": {
+      "size_bytes": 1644,
+      "sha256": "4ea68383191e4df6a3db05a1c58150cac22ee9a3c0bfd1835ac64f8bb580ff13"
+    },
+    "project-visibility.json": {
+      "size_bytes": 212,
+      "sha256": "29ea0eaf710de78bcc06f70408d5deb004a0c1de5ef3b18ed0e53bdd0a0b92bc"
+    },
+    "provider/execution/execution.log": {
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "provider/execution/operation.json": {
+      "size_bytes": 2430,
+      "sha256": "48ad6fcdf18640bfeccf63989afad87b1b4a5fcb348dbcbb72a565b8861d6444"
+    },
+    "provider/execution/result.json": {
+      "size_bytes": 6381,
+      "sha256": "3e7805043bcfd4422a095be059c6c22930e7baa19fd4f3d97a05fdf478c95c06"
+    },
+    "provider/execution/torq-sidecar.json": {
+      "size_bytes": 729,
+      "sha256": "0ada0ed2b0dd5ac5310697af3a9b7779879db6cee425ad2a49c21b370676669a"
+    },
+    "provider/input-handoff/artifact.xyz": {
+      "size_bytes": 164,
+      "sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af"
+    },
+    "provider/input-handoff/handoff.json": {
+      "size_bytes": 1454,
+      "sha256": "b006cec39da434fb681b27ade584567d4e643ae6e7da727ede9ec60ea726c668"
+    },
+    "publication-manifest.json": {
+      "size_bytes": 2258,
+      "sha256": "503c4a7e3ff718a757d09bbd186e80654287528645852cab8661eac1701ea6a4"
+    },
+    "request.json": {
+      "size_bytes": 1054,
+      "sha256": "78540ee2dd6240b8cac9e1c67bf21af34ae94e0f667881b29d364fada89414e3"
+    },
+    "stage0-setup.log": {
+      "size_bytes": 90648,
+      "sha256": "ca7a3e8c022628c226a09de9cbcd804baec2b1f002d596366431165390e07b76"
+    },
+    "student-result.json": {
+      "size_bytes": 5166,
+      "sha256": "15c0e59dd692d1d33104d378dee1c4f805d5451dcaec946d31638a7330a46fa4"
+    },
+    "worker-approval.json": {
+      "size_bytes": 333,
+      "sha256": "ef3ddd469d695cd3b77f1c4dd14ef3c524c60722ca8b42352bdb3803e09c5ecb"
+    },
+    "worker-module-distribution.json": {
+      "size_bytes": 6125,
+      "sha256": "e5cee7540a0e686a14a3a3332e6717ff7c7b878da3b7fd9adc0c48ad76079c69"
+    },
+    "worker-source.json": {
+      "size_bytes": 157,
+      "sha256": "a0c80d042730064311926430770360f56bafc867bce259278c9bb63a5e73af36"
+    }
+  },
+  "tag_observation": {
+    "state": "absent",
+    "http_status": 404,
+    "meaning": "Draft target is frozen31; no published tag exists yet."
+  },
+  "latest_software_release": {
+    "id": 406280813,
+    "tag_name": "v1.0.1",
+    "url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/tag/v1.0.1"
+  },
+  "remote_writes_by_reviewer": false,
+  "next_step": "Root may publish this exact verified draft by release ID, then verify public tag and assets. Do not rerun creation or replace the draft assets."
+}

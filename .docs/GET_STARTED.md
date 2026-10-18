@@ -4,28 +4,58 @@
 and shows their tools in the same interface. You provide your own scientific
 files, including starting structures made in Avogadro 2.
 
-## Already in the dashboard? Start with these three steps
+## Your first calculation
 
-1. **Start here → Run calculations on → GitHub Actions.** Your current GitHub
-   project should already be selected. Choose **Check ORCA & CFOUR** and wait
-   for the result beside each engine.
-2. **Your files → Upload scientific inputs.** Select your file, then its
-   structure/frame if it contains several. Choose **Use selected starting
-   geometry** and confirm the molecule's charge and multiplicity.
-3. **Calculations.** Choose the assigned operation, engine and method, review
-   the settings, then select **Run on GitHub Actions**. When it finishes, use
-   **Retrieve and inspect results** and open **Results**.
+1. **Start here.** Under **Run calculations on**, choose **GitHub Actions**.
+   Check that your project is selected, then choose **Check ORCA & CFOUR**.
+   Wait for the result beside each engine. For an engine your task requires,
+   resolve an unavailable status before continuing.
+2. **Your files.** Choose **Upload scientific inputs**, select your own file
+   and its **Structure / frame**, then choose **Use selected starting
+   geometry**. Choose **Continue to calculation settings**.
+3. **Calculations → Method and settings.** Check **Total charge** and **Spin
+   multiplicity**, then choose the assigned engine, **Theory family**, method,
+   basis and **Surroundings**. Use **Gas phase (no solvent model)** when the
+   assignment calls for an isolated molecule or complex. The **Scientific
+   goal** applies the requirements for your study; it does not certify accuracy.
+4. Choose the assigned task under **Calculate**, review the settings and
+   select **Run on GitHub Actions**. When it finishes, choose **Retrieve and
+   inspect results**, then open **Results**. For TOPOS or TORQ, open its tab
+   in **Calculations** and use that tool's named start button instead.
 
-If step 1 reports missing access, use the appropriate setup below. Repeatedly
-clicking Run will not correct missing access. Your original uploaded files stay
-available if a calculation cannot be submitted.
+An energy calculation evaluates the selected structure. An optimization changes
+its allowed coordinates. Neither a successful download nor a completed energy
+calculation establishes a stable minimum. Check the reported method, units,
+convergence and warnings before interpreting the result; save the calculation
+bundle with your report.
+
+**Need an explanation?** Open the named **Explain…** control beside a setting.
+For example, **Explain charge and spin multiplicity** describes the two values
+and gives examples. Choose **Scientific terms** in the sidebar to search for
+“basis set”, “spin” or “free energy”. Return to **Calculations** to continue;
+looking up a term does not reset your draft or run a calculation.
+
+If the first step reports missing access, use the matching setup below. Your
+original uploaded files remain available when a calculation cannot be submitted.
+
+## Find your tools
+
+| Sidebar section | Use it to |
+| --- | --- |
+| **Start here** | Choose where calculations run, check access and update CoChem tools. |
+| **Your files** | Upload, inspect, select, remove and restore scientific inputs. |
+| **Calculations** | Review **Starting structure**, choose **Method and settings**, use **TOPOS** or **TORQ**, and set **Monomer constraints** when needed. |
+| **Results** | Review returned values, compare compatible calculations and download tables, figures and reports. |
+| **Spectra and properties** | Inspect calculated properties, isotope effects and numerical data. |
+| **Periodic structures** | Prepare calculations for a repeating solid and its unit cell. |
+| **Scientific terms** | Search definitions without changing your calculation. |
 
 ## Choose the setup that matches your project
 
 | What you opened | What to do |
 | --- | --- |
 | The instructor's existing CoChem-BASE repository | Follow [Use the instructor's repository](#use-the-instructors-repository). No student invitation is needed. |
-| A private project owned by your personal GitHub account | Follow [Student personal project](#student-personal-project). Use the two links your instructor provides. |
+| A private project owned by your personal GitHub account | Follow [Student personal project](#student-personal-project). Your instructor supplies a template link and two access-setup links. |
 | You are preparing access for a class or lab | Follow [Instructor: prepare student access](#instructor-prepare-student-access). Do this once before student enrollment. |
 
 A **repository** is a project folder stored on GitHub. Its owner appears before
@@ -49,7 +79,7 @@ the Codespace to run an Actions calculation.
    Use the existing-repository access route. Do not enter student invitation
    links just because they appear in a different setup option.
 4. Follow the status beside each engine. If it is available, return to the
-   three steps at the top of this page. The calculation job installs and checks
+   first-calculation steps at the top of this page. The calculation job installs and checks
    the selected engine before running it.
 
 **If you administer this repository and an engine is unavailable:** open its
@@ -228,13 +258,13 @@ those pieces yourself.
   from list**. Its original file and past calculation records are retained.
   Choose **Undo remove**, or open **Show removed inputs**, select the file and
   choose **Restore selected input** to make it available again.
-- **Wrong reference attachment:** in **Calculations → Fragments / Frozen**,
+- **Wrong reference attachment:** in **Calculations → Monomer constraints**,
   choose **Clear R2 reference** or **Clear starting Hessian** for the attachment
   you want to stop using. The original scientific file is retained.
 - **Wrong results selected for comparison:** choose **Clear comparison
   selection** in **Results**. Saved calculations and reports remain available.
 - **Wrong file or frame selected:** choose the correct file/frame and use
-  **Use selected starting geometry** again. Recheck charge and multiplicity.
+  **Use selected starting geometry** again. Recheck **Total charge** and **Spin multiplicity**.
 - **Wrong calculation submitted:** choose **Cancel calculation** for that run
   and confirm cancellation before submitting a corrected one. Removing an
   input from the list does not cancel a running calculation.
@@ -258,26 +288,33 @@ a minute; it only checks configuration, not a chemical calculation.
 A successful download check means an engine can be obtained. The calculation
 still has to install it, validate its files and finish the chemistry successfully.
 
+## Continue with your research
+
+The [research guide](Student_Research_No_Code.md) explains supported input
+formats, conformer comparison, calculated outputs, reference files, reporting
+and updates. Molecular starting geometries are one route; BASE also accepts
+conformer pools, periodic structures, Hessians and supported numerical or native
+calculation outputs.
+
+ORCA and CFOUR are optional and strongly recommended. An unavailable engine
+leaves its dependent methods unavailable; ingestion and independent supported
+features remain usable.
+
 <details>
-<summary><strong>Where to go after setup</strong></summary>
+<summary><strong>Use a local computer or an institutional cluster</strong></summary>
 
-| CoChem section | What it is for |
-| --- | --- |
-| **Start here** | Check setup, select where calculations run, and get updates. |
-| **Your files** | Upload, inspect, select, remove and restore scientific inputs. |
-| **Calculations** | Set up energies, optimizations and enabled TOPOS/TORQ research operations. |
-| **Spectra and properties** | Inspect supplied outputs and perform supported isotope/property analyses. |
-| **Periodic structures** | Prepare cell-based calculations when assigned. |
-| **Results** | Inspect returned calculations, tables, figures and downloads. |
+Choose the route your instructor has prepared under **Start here → Run
+calculations on**. **Local** means the computer running BASE; if you opened
+BASE in a Codespace, that is the Codespace, not your laptop. Windows calculations
+use the configured WSL route; Linux and macOS use their prepared native setup.
+Choose **Find installed engines** to discover installed ORCA/CFOUR, or use the
+instructor-provided executable paths and **Use these executable paths**.
 
-See the [research guide](Student_Research_No_Code.md) for full supported input
-formats, conformer comparison, measured outputs, reference files, reporting and
-updates. You can use XYZ, MOL/SDF, MOL2, PDB, QCSchema, conformer pools, periodic
-structures, Hessians and supported numerical/native-output files. A monomer or
-complex XYZ is just one starting point.
-
-ORCA and CFOUR are optional and strongly recommended. Their absence must not
-block ingestion or independent free calculations. Scientific methods remain
-available only when their required engine, module and input checks succeed.
+For **HPC**, use the institution's prepared connection and scheduler settings.
+Jobs may wait in a queue before running. Open **Where this interface runs** if
+you need to review where the dashboard is hosted. Changing that display setting
+does not move an engine installation or grant access to a remote computer.
+Follow the same file selection, scientific settings and result-review steps;
+use the submit button for the selected calculation environment.
 
 </details>

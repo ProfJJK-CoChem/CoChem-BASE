@@ -340,101 +340,165 @@ class CoChemError(Exception):
         return cls.from_dict(data)
 
     def to_pedagogical_guidance(self) -> str:
-        """Translates low-level quantum chemical failure signatures into clear, didactic chemical intuition.
+        """Explain recovery without inferring a scientific diagnosis from a broad keyword.
 
-        Provides actionable remediation advice tailored for undergraduate students and novice researchers.
+        Typed failures take precedence over incidental engine-log terminology.
+        This view never changes the exception payload or calculation settings.
         """
         msg_upper = self.message.upper()
-        code_str = str(self.error_code).upper() if self.error_code is not None else ""
-        cls_name = self.__class__.__name__
-        cls_upper = cls_name.upper()
-
-        # 1. SCF Convergence Failure
-        if "CONVERGENCE" in cls_upper or "SCF" in msg_upper or "CONVERG" in msg_upper:
-            return (
-                "Self-Consistent Field (SCF) electronic iteration did not reach numerical convergence. "
-                "In molecular orbital theory, this indicates electronic oscillation or near-degenerate frontier "
-                "orbitals (HOMO-LUMO gap closure). Recommended remediation: (1) enable orbital damping or level shifting "
-                "(e.g. SOSCF / DIIS), (2) switch initial orbital guess to PModel or HCore, or (3) collapse the numerical "
-                "quadrature grid (e.g. defgrid3 -> defgrid2) to smooth the electronic energy landscape."
-            )
-
-        # 2. Severe Atomic Clash / Nuclear Overlap
-        if "CLASH" in msg_upper or "OVERLAP" in msg_upper or "PATHOLOGY" in code_str or "PATHOLOGY" in cls_upper:
-            return (
-                "Severe atomic clash / unphysical nuclear overlap detected. According to the Pauli exclusion principle, "
-                "interpenetrating electron clouds experience steep repulsive Coulombic and exchange forces, causing the "
-                "potential energy surface to diverge. Recommended remediation: (1) inspect the 3D molecular geometry for "
-                "overlapping atoms (d < 0.65 * sum of vdW radii), (2) pre-relax coordinates using a force-field (GFN-FF or "
-                "MMFF94) prior to ab-initio calculation, or (3) verify bond topology."
-            )
-
-        # 3. Basis Set Linear Dependency / Singularity
-        if "SINGULAR" in msg_upper or "LINEAR DEPENDENCY" in msg_upper or "SINGULARITY" in cls_upper:
-            return (
-                "Near-singular basis set overlap matrix detected (basis set linear dependency). Diffuse basis functions "
-                "on adjacent centers overlap excessively, causing overlap matrix eigenvalues to approach zero and matrix "
-                "diagonalization to become ill-conditioned. Recommended remediation: (1) adjust the linear dependency "
-                "threshold (e.g., THRESH 1e-6), or (2) replace overly diffuse basis sets (e.g. aug-cc-pVTZ) with a contracted "
-                "or truncated set (e.g., def2-TZVP or jun-cc-pVTZ)."
-            )
-
-        # 4. Negative / Imaginary Vibrational Frequencies
-        if "NEGATIVE" in msg_upper or "IMAGINARY" in msg_upper or "HESSIAN" in cls_upper or "LAM" in cls_upper:
-            return (
-                "Unexpected imaginary (negative) vibrational frequency encountered. A true ground-state local minimum "
-                "must possess 3N-6 strictly positive real normal mode frequencies. A transition state must possess exactly one "
-                "imaginary frequency along the reaction coordinate. Recommended remediation: (1) distort the atomic coordinates "
-                "slightly along the normal mode vector of the imaginary frequency and re-optimize, or (2) switch to an analytical Hessian."
-            )
-
-        # 5. Out of Memory (OOM)
-        if "MEMORY" in msg_upper or "OOM" in msg_upper or "ALLOCAT" in msg_upper or "OUTOFMEMORY" in cls_upper:
-            return (
-                "Memory allocation threshold exceeded (%maxcore threshold). High-order electron correlation methods "
-                "(MP2, CCSD(T)) and four-center two-electron integral storage scale steeply with basis functions (O(N^4) to O(N^7)). "
-                "Recommended remediation: (1) transition integral evaluation to direct SCF (disk-based or on-the-fly), "
-                "(2) reduce the number of parallel MPI processes to allocate more RAM per core, or (3) use Resolution-of-Identity (RI/DF)."
-            )
-
-        # 6. Ontological Collision & Domain Boundary Violations (L3.2.1)
-        if "ONTOLOGICAL" in cls_upper or "COLLISION" in msg_upper:
-            return (
-                "Ontological collision detected between distinct physical calculation domains. CoChem enforces strict "
-                "separation between Product B (gas-phase microwave rotational spectroscopy, semi-experimental anchors) and "
-                "Product M (solid-state materials, periodic boundary conditions, plane waves). Recommended remediation: "
-                "segregate molecular microwave decks from periodic crystal calculations and remove mismatched parameters."
-            )
-
-        if "RECIPROCAL" in cls_upper or "DENSITY" in msg_upper or "KMESH" in msg_upper:
-            return (
-                "Periodic k-point mesh density below Method Matrix standard (rho_k >= 0.04 A^-1) or unphysical Gamma-point sampling "
-                "detected on a sub-2000 A^3 unit cell. In solid-state band theory, under-sampling the first Brillouin zone causes "
-                "spurious discretization errors in electronic density and Fermi surface integration. Recommended remediation: "
-                "increase Monkhorst-Pack grid dimensions or expand supercell volume beyond 2000 A^3."
-            )
-
-        if "ROTATIONAL" in cls_upper or "ANCHOR" in msg_upper:
-            return (
-                "Rotational constant ordering (A > B > C > 0) or Ray's asymmetry parameter topology violated. "
-                "In rigid-rotor quantum mechanics, the principal moments of inertia satisfy I_a <= I_b <= I_c, which "
-                "mandates A >= B >= C. Prolate rotors (kappa -> -1) and oblate rotors (kappa -> +1) cannot invert topology "
-                "between trial and parent templates. Recommended remediation: inspect nuclear inertia tensor and principal axis alignment."
-            )
-
-        if "PERIODIC" in cls_upper or "CELL" in msg_upper:
-            return (
-                "Degenerate or non-positive unit cell volume detected in periodic lattice definition. "
-                "Lattice vectors must form a non-coplanar right-handed basis with scalar triple product V_cell > 1e-6 A^3. "
-                "Recommended remediation: verify that lattice vectors a_1, a_2, a_3 are linearly independent and non-zero."
-            )
-
-        # Generic didactic fallback
-        details_summary = f" (Context: {self.details})" if self.details else ""
-        return (
-            f"Computational failure in {cls_name}: {self.message}{details_summary}. "
-            "Please check calculation parameters, hardware resources, and input geometry plausibility."
+        code = self.error_code.value if isinstance(self.error_code, ProvenanceErrorCode) else self.error_code
+        engine_message = type(self) in (CoChemError, ConvergenceError) or isinstance(
+            self, (QuantumExecutionError, ElectronicStructureEngineError)
         )
+
+        if isinstance(self, OutOfMemoryGateError) or code == ProvenanceErrorCode.OUT_OF_MEMORY or (
+            engine_message and any(
+                term in msg_upper for term in ("OUT OF MEMORY", "MEMORY ALLOCATION", "INSUFFICIENT MEMORY", "OOM-KILL")
+            )
+        ):
+            guidance = (
+                "The selected calculation may need more memory than this computer can provide. "
+                "Next step: check the requested memory and number of processes against the available total. "
+                "For ORCA, MaxCore is a budget per process; leave additional memory for the operating system "
+                "and other program allocations. Use fewer processes or a computer with more memory. "
+                "Ask your instructor before changing the method or basis set, because that changes the calculation."
+            )
+        elif isinstance(self, GeometryConvergenceError) or (
+            engine_message
+            and any(term in msg_upper for term in ("GEOMETRY OPTIMIZATION", "GEOMETRY OPTIMISATION"))
+            and any(term in msg_upper for term in ("NOT CONVERG", "FAIL", "DID NOT", "LIMIT", "EXCEED"))
+            and "SCF" not in msg_upper
+        ):
+            guidance = (
+                "The geometry optimization has not met all required limits on energy changes, atomic forces "
+                "and atomic movements. This does not establish a stable structure. "
+                "Next step: inspect the last geometry, constraints and convergence history with your instructor. "
+                "Check for atomic clashes and electronic convergence before restarting from a suitable saved step. "
+                "Keep the required convergence limits and, for final ORCA DFT work, DEFGRID3."
+            )
+        elif isinstance(self, GridSpecificationError):
+            guidance = (
+                "The integration grid, which supplies points for evaluating the DFT energy, is too coarse "
+                "for this calculation stage. Next step: use DEFGRID3 for final ORCA DFT production, frequencies "
+                "and anharmonic analysis. Coarser grids are reserved for permitted earlier stages; "
+                "they do not replace the final calculation."
+            )
+        elif isinstance(self, (HessianSpecificationError, InvalidHessianStrategyError)):
+            guidance = (
+                "The chosen Hessian setup is not supported for this task. A Hessian describes how the energy "
+                "curves as atoms move; an optimization can begin with an approximate starting Hessian. "
+                "Next step: select a supported model (XTB2 or Lindh) or a compatible saved Hessian for the "
+                "starting optimization step. Do not enable Calc_Hess true at that step. A starting model "
+                "does not replace the calculated Hessian needed for a final frequency analysis."
+            )
+        elif isinstance(self, SpinContaminationError) or code in {
+            ProvenanceErrorCode.SPIN_CONTAMINATION_EXCEEDED, ProvenanceErrorCode.ERR_SPIN_CONTAMINATION,
+        }:
+            guidance = (
+                "The calculated electronic state failed the spin check: its mixture of spin states exceeds "
+                "the allowed limit. Next step: verify the charge and spin multiplicity with your instructor "
+                "and inspect the reported spin value. Use the required multireference route (T9) after its "
+                "electrons and orbitals have been reviewed. Do not accept the failed single-reference result "
+                "or loosen the spin threshold."
+            )
+        elif isinstance(self, BasisSetLinearDependencyError) or (engine_message and (
+            "LINEAR DEPENDEN" in msg_upper or (
+                "OVERLAP MATRIX" in msg_upper
+                and any(term in msg_upper for term in ("SINGULAR", "NEAR-ZERO", "SMALL EIGENVALUE"))
+            )
+        )):
+            guidance = (
+                "Some basis set functions, the mathematical shapes used to describe electrons, are almost "
+                "redundant. This is called linear dependency; diffuse functions can contribute to it. "
+                "Next step: check the geometry and the reported overlap eigenvalues with your instructor. "
+                "For ORCA, review SThresh and DiffSThresh and record any removed combinations. "
+                "Changing or removing diffuse functions can change binding energies, so a different basis "
+                "requires a separate validation calculation."
+            )
+        elif isinstance(self, NegativeHessianFrequencyError) or (
+            engine_message
+            and ("IMAGINARY" in msg_upper or "NEGATIVE" in msg_upper)
+            and any(term in msg_upper for term in ("FREQUENC", "VIBRATIONAL", "NORMAL MODE"))
+        ):
+            guidance = (
+                "An imaginary vibrational frequency indicates downward energy curvature along a molecular "
+                "motion, or possible numerical error. An unconstrained nonlinear molecule has 3N-6 vibrational "
+                "modes; a linear molecule has 3N-5, where N is the atom count. An isolated atom has none. "
+                "Next step: inspect the mode and verify geometry convergence. Keep DEFGRID3 for ORCA DFT "
+                "frequencies and the required electronic convergence settings; investigate soft modes before "
+                "accepting a minimum. A minimum must have no genuine imaginary vibrational modes. "
+                "A first-order transition state needs one imaginary mode and a checked "
+                "reaction path that connects the intended structures."
+            )
+        elif isinstance(self, LAMTriggerError):
+            guidance = (
+                "A large-amplitude motion may be too flexible for the small-displacement harmonic model. "
+                "Next step: inspect the motion and the calculated energy profile with your instructor before "
+                "using harmonic thermochemistry or perturbative anharmonic corrections. A suitable scan or "
+                "hindered-rotor treatment needs its own convergence checks."
+            )
+        elif isinstance(self, SCFConvergenceError) or (
+            engine_message and "SCF" in msg_upper
+            and any(term in msg_upper for term in ("NOT CONVERG", "FAIL", "DID NOT", "LIMIT", "EXCEED"))
+        ):
+            guidance = (
+                "The Self-Consistent Field (SCF) procedure, which solves for the electron distribution, "
+                "did not converge. Possible causes include the starting geometry, charge, spin multiplicity "
+                "or initial orbitals; this message alone does not identify the cause. "
+                "Next step: check those inputs and ask your instructor to review the electronic convergence "
+                "history. An engine-supported convergence aid or a larger iteration limit may help. Keep "
+                "the required accuracy settings, including DEFGRID3 for final ORCA DFT work and frequencies. "
+                "Do not accept a near-converged result."
+            )
+        elif isinstance(self, TriagePathologyError) or code == ProvenanceErrorCode.PATHOLOGY_CLASH or (
+            engine_message and any(term in msg_upper for term in ("ATOMIC CLASH", "OVERLAPPING ATOMS", "NUCLEAR OVERLAP"))
+        ):
+            guidance = (
+                "The geometry check found a possible steric clash: atoms may be unrealistically close. "
+                "Next step: inspect the flagged atom pair, distance units and chemical bonds in the structure "
+                "viewer. Correct a copy of the starting geometry if necessary. Check with your instructor "
+                "before using a force-field relaxation, because it may change a weak complex's arrangement "
+                "and does not establish a final quantum-chemical structure."
+            )
+        elif isinstance(self, OntologicalCollisionError):
+            guidance = (
+                "This calculation combines settings for an isolated molecule with settings for a repeating "
+                "crystal. In the current BASE specification, Product B covers materials and Product C covers "
+                "spectroscopic calibration. Next step: choose the intended scientific task and keep molecular "
+                "and periodic settings in separate calculations. A crystal requires its physical unit cell "
+                "and an appropriate periodic calculation method."
+            )
+        elif isinstance(self, ReciprocalDensityViolation):
+            guidance = (
+                "The k-point mesh, a set of sampling points used for a repeating crystal, does not meet this "
+                "workflow's sampling requirement. Next step: increase sampling while retaining the same physical "
+                "cell, then check convergence of the property you need as sampling increases. Ask your instructor "
+                "to review any use of a single sampling point."
+            )
+        elif isinstance(self, InvalidRotationalAnchorError):
+            guidance = (
+                "The supplied rotational constants do not meet this workflow's reference-data checks. "
+                "For a nonlinear rotor the conventional ordering is A >= B >= C > 0; equal constants are "
+                "possible for symmetric rotors. A linear rotor needs its own representation. "
+                "Next step: verify the units, isotope labels, axis convention and whether the values are "
+                "equilibrium or vibrationally averaged constants. Ask your instructor to review the rotor "
+                "type and reference selection before changing a value to satisfy a check."
+            )
+        elif isinstance(self, InvalidPeriodicCellError):
+            guidance = (
+                "The periodic cell does not meet the required geometry checks. The unit cell volume must "
+                "be positive, and its three lattice vectors must span three dimensions. "
+                "Next step: check vector lengths, angles, units and coordinate convention against the original "
+                "structure file. Correct the cell definition together with its atomic coordinates if needed."
+            )
+        else:
+            guidance = (
+                "The requested operation could not be completed. Next step: open Technical diagnostics to see "
+                "the specific error and recorded settings, then review them with your instructor. "
+                "The error alone does not establish a chemical cause or a valid result."
+            )
+
+        return guidance + " Keep the original input and calculation output before starting a separate corrected run."
 
     def to_diagnostic_telemetry(self) -> Dict[str, Any]:
         """Formats full system telemetry into a structured dictionary for PIs, auditors, and bug reports."""
@@ -1170,17 +1234,6 @@ class SCFConvergenceError(ConvergenceError):
         ProvenanceErrorCode.CONVERGENCE_FAILURE
     )
 
-    def to_pedagogical_guidance(self) -> str:
-        """Translates low-level SCF convergence failure into clear didactic orbital intuition."""
-        return (
-            "Self-Consistent Field (SCF) electronic iteration did not reach numerical convergence. "
-            "In molecular orbital theory, this indicates electronic oscillation or near-degenerate frontier "
-            "orbitals (HOMO-LUMO gap closure). Recommended remediation: (1) Option 1: enable orbital damping or level shifting "
-            "(e.g. SOSCF / DIIS), (2) Option 2: switch initial orbital guess to PModel or HCore, or (3) Option 3: collapse "
-            "the numerical quadrature grid (e.g. defgrid3 -> defgrid2) to smooth the electronic energy landscape."
-        )
-
-
 class NegativeHessianFrequencyError(MethodMatrixViolationError):
     """Raised when unexpected imaginary (negative) vibrational frequencies appear in a ground state geometry."""
 
@@ -1188,34 +1241,12 @@ class NegativeHessianFrequencyError(MethodMatrixViolationError):
         ProvenanceErrorCode.INVALID_HESSIAN_STRATEGY
     )
 
-    def to_pedagogical_guidance(self) -> str:
-        """Translates imaginary frequencies into didactic PES and normal mode distortion advice."""
-        return (
-            "Unexpected imaginary (negative) vibrational frequency encountered. A true ground-state local minimum "
-            "must possess 3N-6 strictly positive real normal mode frequencies. A transition state must possess exactly one "
-            "imaginary frequency along the reaction coordinate. Recommended remediation: (1) Option 1: distort atomic "
-            "coordinates slightly along the normal mode vector of the imaginary frequency and re-optimize, or (2) Option 2: "
-            "switch to an analytical Hessian or increase geometry convergence tightness."
-        )
-
-
 class BasisSetLinearDependencyError(SingularityError):
     """Raised when basis set overlap matrix exhibits near-zero eigenvalues due to linear dependency."""
 
     default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
         ProvenanceErrorCode.SINGULARITY_DETECTED
     )
-
-    def to_pedagogical_guidance(self) -> str:
-        """Translates basis set linear dependency into didactic diffuse function overlap advice."""
-        return (
-            "Near-singular basis set overlap matrix detected (basis set linear dependency). Diffuse basis functions "
-            "on adjacent centers overlap excessively, causing overlap matrix eigenvalues to approach zero and matrix "
-            "diagonalization to become ill-conditioned. Recommended remediation: (1) Option 1: adjust the linear dependency "
-            "threshold (e.g., THRESH 1e-6), or (2) Option 2: replace overly diffuse basis sets (e.g. aug-cc-pVTZ) with a contracted "
-            "or truncated basis set (e.g., def2-TZVP or jun-cc-pVTZ)."
-        )
-
 
 class OutOfMemoryGateError(CoChemError, MemoryError):
     """Raised when pre-flight memory gating predicts insufficient RAM/VRAM for a calculation."""

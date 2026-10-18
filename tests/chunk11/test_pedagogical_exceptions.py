@@ -33,7 +33,9 @@ def test_scf_convergence_error_pedagogical_guidance():
     assert isinstance(guidance, str)
     assert "Self-Consistent Field (SCF)" in guidance
     assert "orbital" in guidance.lower() or "convergence" in guidance.lower()
-    assert "remediation" in guidance.lower() or "Option" in guidance
+    assert "Next step:" in guidance
+    assert "DEFGRID3" in guidance
+    assert "DEFGRID2" not in guidance.upper()
 
     # 2. PI / Diagnostic Telemetry View
     telemetry = err.to_diagnostic_telemetry()

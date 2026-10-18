@@ -164,15 +164,23 @@ def test_gui_interactive_wiring():
 
     # Verify initial Product Class A selection
     assert gui.product_class_selector.value == ProductClass.PRODUCT_A.value
+    gui.state.active_view = 'matrix'
+    gui.config_tabs.selected_index = 1
 
     # Change to Product B
     gui.product_class_selector.value = ProductClass.PRODUCT_B.value
     assert "Product B" in gui.product_class_card.value
+    assert gui.state.active_view == 'matrix'
+    assert gui.config_tabs.selected_index == 1
+    gui.btn_goal_periodic.click()
+    assert gui.state.active_view == 'periodic'
+    gui.btn_matrix.click()
 
     # Change to Product C
     gui.product_class_selector.value = ProductClass.PRODUCT_C.value
     assert "Product C" in gui.product_class_card.value
-    assert gui.state.active_view == "inspector"
+    assert gui.state.active_view == 'matrix'
+    assert gui.config_tabs.selected_index == 1
 
     # Test Tier change updates methods
     gui.matrix_tier.value = "Tier 2: Wave-Function Composite"

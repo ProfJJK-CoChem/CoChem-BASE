@@ -1070,7 +1070,7 @@ class CoChemGUI(InputManagementMixin):
                     viewer_xyz = str(len(identity.elements)) + "\nBASE display geometry; nuclear labels retained in input\n" + "\n".join(
                         element + " " + " ".join(format(value, ".17g") for value in row)
                         for element, row in zip(identity.elements, identity.coordinates_angstrom, strict=True)) + "\n"
-                    view = py3Dmol.view(width=400, height=300)
+                    view = py3Dmol.view(width='100%', height=300)
                     view.addModel(viewer_xyz, 'xyz')
                     view.setStyle({'stick': {}, 'sphere': {'radius': 0.4}})
                     view.zoomTo()
@@ -1415,6 +1415,7 @@ class CoChemGUI(InputManagementMixin):
                 padding='10px',
                 border='1px solid #ccc',
                 min_height='60px',
+                display='none',
             )
         )
 
@@ -1433,6 +1434,9 @@ class CoChemGUI(InputManagementMixin):
             pane_widths=['250px', 1, 0],
             pane_heights=['80px', 1, '80px']
         )
+
+        from ui.voila_layout.workspace_layout import apply_workspace_layout
+        apply_workspace_layout(self)
 
         # Icon font pseudo-elements enter some browsers' accessible names.
         # Every control already has a text label, so keep the spoken name exact.
@@ -1529,6 +1533,7 @@ class CoChemGUI(InputManagementMixin):
         self.input_pool_producer.layout.display = self.input_pool_energy_unit.layout.display = 'none'
         self.input_kind.observe(lambda change: self._show_pool_import_controls(change['new']), names='value')
         self.input_library_status = widgets.HTML("<p role='status'>Upload your molecular structures, native outputs, conformer ensembles or physical data. BASE validates the complete file before adding it; original bytes and hashes are retained outside the application.</p>")
+        self.input_library_rejections = widgets.HTML()
         self.input_library_table = widgets.HTML()
         self.input_library_choice = widgets.Dropdown(options=[("Upload a scientific input", "")],
             description="Retained input:", style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
@@ -1568,7 +1573,7 @@ class CoChemGUI(InputManagementMixin):
         self.view_inputs = widgets.VBox([
             widgets.HTML("<h3>Scientific input library</h3><p>Import XYZ, MOL V2000/V3000, multi-record SDF, MOL2, PDB and QCSchema structures; periodic CIF; geometry-bound Hessians; native spectroscopy outputs; and HDF5/NPZ data. Atom order, isotope identities, source units and encoded electronic states are retained by the canonical readers.</p>"),
             self.input_kind, self.input_pool_producer, self.input_pool_energy_unit,
-            self.input_upload, self.input_library_status, self.btn_input_refresh,
+            self.input_upload, self.input_library_status, self.input_library_rejections, self.btn_input_refresh,
             self.input_library_choice, self.input_record_choice, self.btn_use_input_geometry,
             self.input_library_table,
             widgets.HTML("<p>For an existing file in VS Code, drag it into the course inbox shown in the workspace. Import or watch that inbox here; no terminal command is needed.</p>"),
@@ -1604,7 +1609,7 @@ class CoChemGUI(InputManagementMixin):
         isotope_panel.children = (self.hessian_input_upload, *isotope_panel.children)
         physical_panel = self.inspector_tabs.children[2]
         physical_panel.children = (self.physical_data_input_upload, self._input_selectors['physical_data'], *physical_panel.children)
-        self.inspector_rot_table.value = "<i>Upload or select a native calculation output, then choose Parse Observables.</i>"
+        self.inspector_rot_table.value = "<p>Upload or select a calculation output, then choose Read calculated properties.</p>"
         self.data_inspector_widget.children = (self.data_inspector_widget.children[0], self.data_inspector_widget.children[1],
             self.telemetry_input_upload, self._input_selectors['telemetry'], self.btn_parse_inspector, self.inspector_tabs)
         advanced = self.view_modules.children[-1].body.children[0]
@@ -1739,9 +1744,13 @@ class CoChemGUI(InputManagementMixin):
             for item in self._input_library.values())
         self.input_library_table.value = '<table><caption>Verified retained scientific inputs</caption><thead><tr><th>File</th><th>Type</th><th>Structures</th><th>Original SHA-256</th></tr></thead><tbody>' + rows + '</tbody></table>'
         self._input_library_rejections = snapshot.get('rejections', [])
+        self.input_library_rejections.value = ''
         if self._input_library_rejections:
-            self.input_library_table.value += '<p role="alert">Rejected retained inputs; original files remain preserved: ' + '<br/>'.join(
-                html.escape(item['input_id'] + ': ' + item['reason']) for item in self._input_library_rejections) + '</p>'
+            self.input_library_rejections.value = (
+                '<div role="alert"><p><b>Rejected retained inputs.</b> These files could not be verified and are unavailable for calculations. '
+                'Original files remain preserved. Upload an intact source file to continue.</p><ul>'
+                + ''.join('<li>' + html.escape(item['input_id'] + ': ' + item['reason']) + '</li>'
+                          for item in self._input_library_rejections) + '</ul></div>')
         self._refresh_paw_species()
         self._sync_input_management(snapshot)
 
@@ -1796,8 +1805,10 @@ class CoChemGUI(InputManagementMixin):
             self.student_geometry_choice.options = [(item['label'], key) for key, item in self._student_uploads.items()]
             self.student_geometry_choice.value = key
             self._refresh_student_monomer_choices()
-            self.input_library_status.value = f"<p role='status'>Starting geometry selected from frame {frame_index + 1}. Original source SHA-256 <code>{receipt['sha256']}</code> retained. Confirm the charge and multiplicity when the source does not encode them.</p>"
-            self.state.active_view = 'matrix'
+            self.input_library_status.value = (
+                f"<p role='status'>Starting geometry selected from frame {frame_index + 1}. "
+                "Your original file is retained. Choose <b>Continue to calculation settings</b> to check the charge, "
+                "spin multiplicity and method before calculating.</p>")
         except (ValueError, RuntimeError, OSError, KeyError, TypeError, IndexError) as exc:
             self.input_library_status.value = f"<p role='alert'>Structure was not selected: {html.escape(str(exc))}</p>"
 
@@ -3405,10 +3416,10 @@ class CoChemGUI(InputManagementMixin):
             self.artifact_output_path.layout.display = 'none'
         if hasattr(self, 'output_destination_guidance'):
             self.output_destination_guidance.value = (
-                "<h4>Research request</h4><p>BASE submits your uploaded geometry and calculation request directly. "
-                "Save configuration provides an optional reproducibility copy.</p>"
-                if remote else "<h4>Artifact Output Configuration</h4><p>Saved configurations use &lt;Output Dir&gt;/&lt;Project Name&gt;/. "
-                "Each calculation writes logs and results below &lt;Output Dir&gt;/GUI/run_…/.</p>"
+                "<p class='cochem-hint'>BASE submits the selected structure and settings. After completion, "
+                "retrieve the results here. You can also save a configuration copy below.</p>"
+                if remote else "<p class='cochem-hint'>BASE saves each calculation in a separate research folder. "
+                "Its result shows the location of the inputs, logs and calculated data.</p>"
             )
         if hasattr(self, 'execution_description'):
             self.execution_description.value = (
@@ -3459,6 +3470,7 @@ class CoChemGUI(InputManagementMixin):
                              ("inspector", self.btn_inspector), ("modules", self.btn_modules), ("periodic", self.btn_periodic),
                              ("inputs", self.btn_inputs)):
             button.button_style = "primary" if name == new_view else ""
+            button.tooltip = "Current page" if name == new_view else "Open " + button.description
         if new_view == 'install':
             self.main_content.children = [self.view_install]
         elif new_view == 'matrix':
@@ -3471,6 +3483,12 @@ class CoChemGUI(InputManagementMixin):
             self.main_content.children = [self.view_periodic]
         elif new_view == 'inputs':
             self.main_content.children = [self.view_inputs]
+        elif new_view == 'guide' and hasattr(self, 'view_guide'):
+            self.main_content.children = [self.view_guide]
+        if hasattr(self, 'btn_terms'):
+            self.btn_terms.button_style = 'primary' if new_view == 'guide' else ''
+        if hasattr(self, 'footer') and self.footer not in self.main_content.children:
+            self.main_content.children = (self.footer, *self.main_content.children)
 
     def _inspect_periodic_input(self, b: Any = None) -> None:
         try:
@@ -3717,13 +3735,16 @@ class CoChemGUI(InputManagementMixin):
 
     def _on_status_change(self, change: Any) -> None:
         safe_val = html.escape(str(change['new']))
-        self.header_status.value = f"<b role='status' aria-live='polite'>[System: {safe_val}]</b>"
+        self.header_status.value = f"<span role='status' aria-live='polite'>Workspace status: <strong>{safe_val}</strong></span>"
 
     def _on_environment_change(self, change: Any) -> None:
         safe_val = html.escape(str(change['new']))
-        self.header_env.value = f"<i>Environment: {safe_val}</i>"
+        host = html.escape(str(change['new']).split(' [', 1)[0])
+        self.header_env.value = (f"<details><summary>Interface: {host}</summary>"
+                                 f"<p>{safe_val}</p><p>Choose where calculations run in Start here.</p></details>")
 
     def _update_footer(self, err: Any) -> None:
+        self.footer.layout.display = '' if err else 'none'
         if not err:
             self.footer_message.value = ""
             if hasattr(self, 'telemetry_accordion'):
@@ -3747,9 +3768,15 @@ class CoChemGUI(InputManagementMixin):
                 telemetry = None
 
         safe_guidance = html.escape(str(guidance))
-        short_guidance = html.escape(str(guidance).splitlines()[0][:180])
-        self.footer_message.value = (f'<div role="alert" style="color: #721c24; background-color: #f8d7da; padding: 10px; border: 1px solid #f5c6cb; border-radius: 5px; width: 100%;">'
-            f'<b>{short_guidance}</b><details><summary>Full problem details</summary><p>{safe_guidance}</p></details></div>')
+        lines = str(guidance).splitlines()
+        first_line = lines[0] if lines else str(guidance)
+        # Keep complete sentences and the actionable next step; never cut a
+        # recovery instruction at an arbitrary character boundary.
+        first_sentence = first_line.split('. ', 1)[0].rstrip('.') + '.'
+        next_step = str(guidance).partition('Next step: ')[2].split('. ', 1)[0]
+        summary = first_sentence + (' Next step: ' + next_step.rstrip('.') + '.' if next_step else '')
+        self.footer_message.value = (f'<div role="alert" class="cochem-error">'
+            f'<p>{html.escape(summary)}</p><details><summary>Full problem details</summary><p>{safe_guidance}</p></details></div>')
 
         if hasattr(self, 'telemetry_accordion') and hasattr(self, 'telemetry_html'):
             if telemetry:
@@ -3872,7 +3899,7 @@ class CoChemGUI(InputManagementMixin):
             return (
                 f"<b>{pc.value}</b><br/>"
                 f"<b>Description:</b> {spec['description']}<br/>"
-                f"<b>Target Accuracy:</b> <code>{spec['target_accuracy']}</code><br/>"
+                f"<b>Scientific target (requires validation):</b> <code>{spec['target_accuracy']}</code><br/>"
                 f"<b>Spend Priority (§3.3):</b> {spec['spend_priority_focus']}"
             )
         except Exception:
@@ -3883,13 +3910,8 @@ class CoChemGUI(InputManagementMixin):
         self.product_class_card.value = self._format_product_class_card(pc_val)
         if "Product A" in pc_val and "T4" in self.matrix_tier.options:
             self.matrix_tier.value = "T4"
-        elif "Product B" in pc_val:
-            if hasattr(self, 'config_tabs') and len(self.config_tabs.children) > 3:
-                self.config_tabs.selected_index = 3
-        elif "Product C" in pc_val:
-            self.state.active_view = "inspector"
-            if hasattr(self, 'inspector_tabs'):
-                self.inspector_tabs.selected_index = 1
+        # Choosing a scientific goal must not silently navigate to another
+        # tool. The presentation offers an explicit periodic-tool action.
         self._check_dispersion_gate()
 
     def _on_engine_changed(self, change: Any) -> None:
@@ -4000,7 +4022,10 @@ class CoChemGUI(InputManagementMixin):
             import html
             if hasattr(self, 'btn_execute'):
                 self.btn_execute.disabled = True
-            self.dispersion_warning.value = f"<b>Calculation requires attention:</b> {html.escape(str(exc))}"
+            message = getattr(exc, 'message', str(exc))
+            self.dispersion_warning.value = (
+                f"<p role='status'><b>Before running:</b> {html.escape(str(message))}</p>"
+                f"<details><summary>Calculation validation details</summary><p>{html.escape(str(exc))}</p></details>")
         else:
             self.dispersion_warning.value = ""
         if hasattr(self, "btn_execute"):
@@ -5970,38 +5995,9 @@ class CoChemGUI(InputManagementMixin):
     def display(self) -> widgets.VBox:
         self.app.add_class("cochem-mainlayout")
         self.sidebar.add_class("cochem-navigation")
-        styles = widgets.HTML("""<style>
-        .cochem-accessible, .cochem-accessible .widget-box {min-width: 0; max-width: 100%;}
-        .cochem-accessible .widget-hbox {flex-wrap: wrap; gap: 4px;}
-        .cochem-accessible .widget-inline-hbox {max-width: 100%;}
-        .cochem-accessible .widget-label {white-space: normal; height: auto;}
-        .cochem-accessible .widget-html-content {overflow-wrap: anywhere;}
-        .cochem-accessible details {margin: 8px 0;}
-        .cochem-accessible summary {cursor: pointer; color: #005a9c; padding: 4px 0;}
-        .cochem-accessible .p-TabBar-content, .cochem-accessible .lm-TabBar-content {flex-wrap: wrap;}
-        @media (max-width: 900px) {
-          .cochem-accessible .cochem-mainlayout {display: flex !important; flex-direction: column; gap: 8px;}
-          .cochem-accessible .cochem-navigation {width: 100% !important; flex-flow: row wrap; padding: 4px !important;}
-          .cochem-accessible .cochem-navigation .jupyter-button {flex: 1 1 150px;}
-          .cochem-accessible .widget-inline-hbox {flex-wrap: wrap; height: auto;}
-          .cochem-accessible .widget-inline-hbox .widget-label {width: auto !important; flex: 0 0 100%; text-align: left;}
-        }
-        .cochem-accessible .jupyter-button {color: #17212b; background: #eef1f4;
-          width: auto; min-height: 30px; height: auto; white-space: normal; overflow-wrap: anywhere; padding: 6px 12px;}
-        .cochem-accessible .jupyter-button.mod-primary,
-        .cochem-accessible .jupyter-button.mod-info {color: #fff; background: #005a9c;}
-        .cochem-accessible .jupyter-button.mod-success {color: #fff; background: #216334;}
-        .cochem-accessible .jupyter-button.mod-warning {color: #302400; background: #ffdb75;}
-        .cochem-accessible .jupyter-button.mod-danger {color: #fff; background: #9b1c31;}
-        .cochem-accessible button:focus-visible,
-        .cochem-accessible input:focus-visible,
-        .cochem-accessible select:focus-visible,
-        .cochem-accessible textarea:focus-visible {outline: 3px solid #005a9c; outline-offset: 2px;}
-        .cochem-accessible table {border-collapse: collapse;}
-        .cochem-accessible th, .cochem-accessible td {padding: 6px; border: 1px solid #68737d;}
-        .cochem-accessible pre {white-space: pre-wrap; overflow-wrap: anywhere;}
-        </style>""")
-        return widgets.VBox([styles, self.app, _collapsed_section("Optional assistant status", self.ai_container)]).add_class("cochem-accessible")
+        from ui.voila_layout.workspace_style import WORKSPACE_CSS
+        styles = widgets.HTML(WORKSPACE_CSS).add_class('cochem-style-host')
+        return widgets.VBox([styles, self.app]).add_class("cochem-accessible")
 
 def create_gui() -> widgets.VBox:
     """Entry point to instantiate and display the GUI."""

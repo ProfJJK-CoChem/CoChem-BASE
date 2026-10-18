@@ -84,7 +84,7 @@ def test_gui_prepares_actual_input_without_submitting_future_job(geometry, tmp_p
     from ui.voila_layout.cochem_gui import CoChemGUI
     gui = CoChemGUI()
     gui.state.active_view = "modules"
-    assert gui.main_content.children == (gui.view_modules,)
+    assert gui.main_content.children == (gui.footer, gui.view_modules)
     gui.module_recipient.value = "torq"
     gui.module_artifact.value = str(geometry)
     gui.module_output.value = str(tmp_path / "packages")
@@ -125,7 +125,7 @@ def test_periodic_gui_and_handoff_preserve_real_lattice_input(filename, tmp_path
     assert load_module_handoff(folder / "handoff.json") == record
     gui = CoChemGUI()
     gui.state.active_view = "periodic"
-    assert gui.main_content.children == (gui.view_periodic,)
+    assert gui.main_content.children == (gui.footer, gui.view_periodic)
     gui.periodic_input_path.value = str(source)
     gui.btn_periodic_inspect.click()
     assert gui._periodic_structure == structure

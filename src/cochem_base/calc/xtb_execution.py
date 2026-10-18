@@ -34,7 +34,12 @@ def validate_xtb_config(config: Any, elements: Sequence[str]) -> list[str]:
     # These methods expose unpaired-electron input but not the S² evidence
     # required by the project's open-shell acceptance gate.
     if config.multiplicity != 1:
-        raise ValueError("Open-shell xTB acceptance requires spin evidence unavailable in this adapter")
+        raise ValueError(
+            "This xTB route cannot verify the spin state for multiplicities above 1. "
+            "Check that Total charge and Spin multiplicity describe your intended molecule. "
+            "If they are correct, choose an engine and method that support its spin state; "
+            "do not change the molecule's spin just to enable the calculation."
+        )
     electrons = sum(get_element_mass_and_abundance(symbol)[2] for symbol in elements) - config.charge
     if electrons < 0 or electrons % 2:
         raise ValueError("Spin multiplicity is incompatible with the electron count and charge")

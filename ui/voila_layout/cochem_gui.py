@@ -908,6 +908,7 @@ class CoChemGUI(InputManagementMixin):
         # Live Input Preview
         self.live_preview = widgets.Textarea(
             description='Run configuration:',
+            style={'description_width': 'initial'},
             layout=widgets.Layout(width='100%', height='150px'),
             disabled=True
         )

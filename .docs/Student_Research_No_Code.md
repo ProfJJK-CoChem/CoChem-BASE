@@ -44,8 +44,8 @@ same settings and continue.
    keeps the original separately from any working geometry. If you uploaded
    the wrong file, choose **Remove from list**; use **Undo remove** or
    **Show removed inputs → Restore selected input** to bring it back.
-4. In **Calculations → Starting structure**, set **Total charge** and
-   **Spin multiplicity** for the molecule. XYZ does not reliably store these
+4. In **Calculations → Starting structure**, set **Structure charge** and
+   **Structure multiplicity** for the molecule. XYZ does not reliably store these
    values. For a complex, supply fragment definitions
    and the charges/multiplicities of its components whenever the selected
    research operation requests them. Do not guess a default for an ion,

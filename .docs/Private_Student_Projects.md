@@ -22,38 +22,26 @@ private access controller, active student-team membership, selected-project App
 consent and reviewed source/engine access. It encrypts approved read-only readers
 into the enrolled private project; students never receive the instructor App key.
 
-1. Accept your course organization/team invitation. Open the instructor's approved
-   BASE template and choose **Use this template → Create a new repository**.
-   Select **your personal GitHub account**, choose a project name and **Private**.
-   This is an independent template copy, not a public fork.
-2. In your project choose **Code → Codespaces → Create codespace**. Wait for
-   automatic BASE setup, then open the private **8866 CoChem Voilà dashboard**
-   from VS Code's **Ports** panel. The initial Codespace is for enrollment.
-3. In **Lab access**, enter the instructor's nonsecret access-repository name
-   and exact App slug. Choose **Authorize lab app** and authorize **Only select
-   repositories → this private project**.
-4. Choose **Request project access** and submit the prefilled data-only issue.
-   Wait for the controller's success comment. Give an issue/run link to your
-   instructor if enrollment fails; do not create or paste a token.
-5. After approval, stop the initial Codespace before beginning research uploads.
-   Create a **fresh Codespace** for this private project. The App supplies the
-   separately provisioned Codespaces source credential; BASE installs its
-   approved components automatically. Reopen the private dashboard and confirm
-   **CoChem setup and updates** has completed.
-6. Refresh engine access in **Lab access**. Upload your own scientific files,
-   declare the required state and metadata, select **GitHub Actions** and your
-   enrolled private project, and submit through BASE. Use its status, cancellation,
-   verified retrieval, scientific reports and compatible update controls.
-7. Save your report through VS Code's Source Control interface. Follow the
-   instructor's Classroom50 collection instructions separately and confirm the
-   instructor can read your private submission. Stop the Codespace when finished.
+**Students: follow the [step-by-step start guide](GET_STARTED.md#student-personal-project).**
+It is the single maintained course pathway, using the current button labels.
+Create a private project under your own account named
+**`CoChem-[target molecule name]`**, such as `CoChem-benzene-water`.
 
-The [complete student guide](Student_Research_No_Code.md) explains every control
-and the full scientific input library. Avogadro 2 monomer/complex XYZ files are
+That guide walks through the initial Codespace, **Start here → Connect using an
+instructor invitation**, the two full invitation links, **Save invitation**,
+**Authorize lab app**, **Request project access**, and the new Codespace required
+after successful enrollment. It also covers uploads, calculations, downloads,
+Classroom50 submission and stopping the workspace. Students do not enter a raw
+App slug, credentials or computer commands.
+
+The [scientific research guide](Student_Research_No_Code.md) explains the full
+input library and analysis controls. Avogadro 2 monomer/complex XYZ files are
 common course inputs; they are not the only supported ingestion route.
-[Classroom50 deployment](Classroom50_Assignment_Deployment.md) covers the roster,
-collection and feedback service, with organization-owned calculations clearly
-labeled as an alternate charged to the organization.
+Keep original files and download calculation bundles to course-approved storage:
+repository synchronization does not back up the separate research-data folders.
+[Classroom50 deployment](Classroom50_Assignment_Deployment.md) covers roster,
+collection and feedback, with organization-owned calculations clearly labeled
+as an alternate charged to the organization.
 
 The App's public binding-variable names are `COCHEM_ORCA_ACCESS_SECRET`,
 `COCHEM_CFOUR_ACCESS_SECRET` and `COCHEM_SOURCE_ACCESS_SECRET`. Their private values

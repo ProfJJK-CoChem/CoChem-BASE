@@ -1,64 +1,113 @@
 # CoChem-BASE
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 
-CoChem-BASE is the place to upload your scientific files, choose a calculation
-and inspect its results. It prepares the other CoChem components, including
-TOPOS and TORQ, for you.
+CoChem helps you study molecular shapes, energies and interactions using
+computer calculations. **CoChem-BASE is the one project you start with.** Its
+browser interface prepares the CoChem tools, including TOPOS and TORQ, and
+brings your files, calculations and results together.
 
-**[Start here: open CoChem and run your first calculation](.docs/GET_STARTED.md)**
+## Students: start your project here
 
-Already viewing the CoChem dashboard in your browser?
+**[Open the step-by-step student guide](.docs/GET_STARTED.md#student-personal-project)**
 
-1. Open **Start here**, select **GitHub Actions** under **Run calculations on**,
-   and choose **Check ORCA & CFOUR**.
-2. Open **Your files** and upload your own structures or other scientific inputs.
-   For a molecular calculation, select the intended frame, choose **Use selected
-   starting geometry**, then **Continue to calculation settings**.
-3. In **Calculations → Method and settings**, check charge and spin, then choose
-   the assigned engine, method, basis and surroundings. Choose the task under
-   **Calculate** and select **Run on GitHub Actions**.
+You use buttons and menus in your web browser. You do not need to install Python,
+type computer commands or obtain separate TOPOS/TORQ repositories. You supply
+your own scientific files; your instructor supplies course access and the
+calculation settings for your study.
 
-Open **Explain…** beside a setting for examples and scientific guidance. Use
-**Scientific terms** in the sidebar to search definitions; your calculation draft
-stays in place. The TOPOS and TORQ tabs have their own named start buttons.
+### Before you click anything
 
-If an engine is unavailable, follow the explanation beside it in **Start here**.
-ORCA and CFOUR are **optional and strongly recommended**. Missing access to one
-leaves only its dependent choices unavailable. You can still upload files and
-use the installed free methods.
+Have these ready:
 
-## Open the interface
+- Your own [GitHub account](https://github.com/signup). GitHub is the website
+  that stores your project. Use the same account throughout the course.
+- Your instructor's BASE template link, **setup link** and **App installation
+  link**. The last two let the lab prepare access for your project. Ask your
+  instructor if a link is missing; you do not create these links yourself.
+- Your target molecule's name. Your project must be named
+  **`CoChem-[target molecule name]`**. Replace the bracketed words with the name,
+  for example **`CoChem-benzene`** or **`CoChem-benzene-water`**. Use hyphens
+  instead of spaces and leave out the brackets.
 
-In your project on GitHub, choose **Code → Codespaces → Create codespace**.
-A Codespace is your browser-based VS Code workspace. Approve the project
-permissions GitHub requests, then wait for automatic setup.
-Open **8866 — CoChem Voilà dashboard** from VS Code's **Ports** panel; keep
-that port **Private**.
+### 1. Make your private project folder
 
-The Codespace displays the interface. **GitHub Actions** runs a calculation on a
-separate computer and returns its results. No student terminal commands, Python
-editing, access-token entry or separate TOPOS/TORQ checkout are required.
+A **repository** is GitHub's name for an online project folder. A **template**
+is the prepared starting copy of CoChem that you use to create that folder.
 
-**Using the instructor's existing repository?** Start with its configured
-access; you do not need a student App invitation. **Creating your own private
-project?** Follow the [student setup steps](.docs/GET_STARTED.md#student-personal-project).
-Your instructor must prepare that access before you can use private engines.
+1. Sign in to GitHub and open the BASE template your instructor supplied.
+   The standard template is [CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE).
+2. Near the top of that page, choose **Use this template**, then
+   **Create a new repository**. Use this button rather than **Fork**.
+3. Under **Owner**, choose **your own GitHub username**.
+4. Under **Repository name**, enter your `CoChem-` molecule name, such as
+   `CoChem-benzene-water`.
+5. Choose **Private**, then **Create repository**.
+6. Check the new page: it should show **your username / CoChem-your-molecule**
+   and a **Private** label. Bookmark this page; it is your project.
 
-## Find what you need
+### 2. Open CoChem in your browser
 
-| I want to… | Open… |
+1. On **your new project's page**, choose the green **Code** button.
+2. Choose the **Codespaces** tab, then **Create codespace on main**.
+   A Codespace is a computer workspace that opens in your browser. It displays
+   **VS Code**, where CoChem starts automatically; you need not install VS Code.
+3. Follow [the guide's permission and first-start steps](.docs/GET_STARTED.md#3-open-your-first-codespace).
+   Wait for setup. If the CoChem page does not open, use VS Code's **Ports**
+   panel to open **8866 — CoChem Voilà dashboard**. Keep the port **Private**.
+
+**The first Codespace is for connecting your project to the lab.** Complete
+[Connect your project to the lab](.docs/GET_STARTED.md#4-connect-your-project-to-the-lab),
+then create the new Codespace described there before uploading research work.
+You only do this enrollment sequence when first setting up access or when your
+instructor tells you permissions have changed.
+
+### 3. Work through the CoChem dashboard
+
+The **dashboard** is the CoChem page with buttons for your research.
+**GitHub Actions** is the separate computer service that runs your calculation.
+Selecting Actions does not run chemistry on your laptop.
+
+| In CoChem, open… | What you do |
 | --- | --- |
-| Get started, enable an engine, or understand a setup message | [Quick start and troubleshooting](.docs/GET_STARTED.md) |
-| Upload XYZ, MOL/SDF, MOL2, PDB, QCSchema, conformer pools or measured data | [Scientific input and research guide](.docs/Student_Research_No_Code.md#use-the-scientific-input-library) |
-| Set up student-owned projects as an instructor | [Instructor access setup](.docs/GET_STARTED.md#instructor-prepare-student-access) |
-| Collect student work through Classroom50 | [Classroom50 assignment guide](.docs/Classroom50_Assignment_Deployment.md) |
-| Read the software's tested scope and remaining work | [Implementation status](.docs/SRS_Implementation_Status.md) |
+| **Start here** | Choose **GitHub Actions** under **Run calculations on**. Complete the access check for the engines your study needs. |
+| **Your files** | Upload your own scientific inputs and select the starting structure. Avogadro 2 XYZ files are one supported route. |
+| **Calculations** | Inspect **Starting structure**, enter your study's settings and submit the task. Use the controls below the tabs to retrieve results and download the calculation bundle. |
+| **Results** | Inspect the available values, structures, tables and figures from your retrieved calculation. |
 
-Students supply their own starting structures and scientific files. XYZ is one
-supported format, not the only input route. BASE keeps uploaded originals and
-calculation records so results can be checked later.
+**[Continue with the full instructions: upload, calculate, save and submit](.docs/GET_STARTED.md#6-upload-your-own-scientific-files)**
+
+Open **Explain…** beside a setting, or **Scientific terms** in the sidebar,
+whenever a word is unfamiliar. You can read the help without losing your draft.
+ORCA and CFOUR are **optional and strongly recommended** calculation programs.
+If one is unavailable, its dependent choices stay unavailable; other available
+features remain usable. Your instructor fixes lab access—students do not enter
+tokens or download licensed engine archives.
+
+**Save your work:** keep your original input files on your own computer and
+use **Download calculation bundle** after retrieving a result. Uploaded research
+files and results are stored separately from the code; saving or synchronizing
+the repository does not back them all up. Follow the guide's
+[save and submit steps](.docs/GET_STARTED.md#9-save-and-submit-your-work), then
+[stop your Codespace](.docs/GET_STARTED.md#10-stop-and-reopen-your-workspace)
+when finished.
+
+## Find the right guide
+
+| You need… | Open… |
+| --- | --- |
+| Every student step, from a new account to your first saved result | [Student start guide](.docs/GET_STARTED.md#student-personal-project) |
+| Help with a missing button, unavailable engine or setup message | [Troubleshooting](.docs/GET_STARTED.md#understand-a-setup-message) |
+| Supported inputs, monomers/complexes, TOPOS/TORQ analyses and interpreting results | [Scientific research guide](.docs/Student_Research_No_Code.md) |
+| Instructor preparation for personal student projects | [Instructor access setup](.docs/GET_STARTED.md#instructor-prepare-student-access) |
+| Classroom50 assignment submission and collection | [Classroom50 guide](.docs/Classroom50_Assignment_Deployment.md) |
+
+Classroom50 provides your course instructions and submission route. Your private
+`CoChem-` project is where you work. Follow your instructor's instructions to
+share the finished report; a private project is not automatically visible to
+an instructor. Student-owned projects use that account's Actions allowance;
+Codespaces has a separate allowance. Check the payer and usage shown by GitHub
+before agreeing to paid use.
 
 <details>
 <summary><strong>Other calculation environments: local computer or HPC</strong></summary>

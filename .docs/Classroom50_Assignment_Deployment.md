@@ -20,20 +20,25 @@ The detailed organization-owned assignment procedure below is an **alternate
 arrangement**. Its chemistry jobs use organization minutes; do not follow it to
 claim personal Actions billing. Use the App guide for the selected personal route.
 
-Use **one persistent private BASE workspace per student or research group**.
-Students create their own monomer or complex starting XYZ files in Avogadro 2,
-upload them through BASE and interact with the ecosystem through BASE. They
-receive no separate TOPOS/TORQ repository and run no terminal installation code.
+Use **one persistent private BASE project per student or research group**,
+named **`CoChem-[target molecule name]`**, for example `CoChem-benzene-water`.
+Replace the bracketed words with the target name; use hyphens instead of spaces.
+Students supply their own scientific inputs, upload them through BASE and
+interact with the ecosystem through BASE. Avogadro 2 monomer or complex XYZ
+files are a common starting route; the input library also accepts other
+supported scientific formats. Students receive no separate TOPOS/TORQ repository
+and run no terminal installation code.
 Codespaces supplies VS Code and the interface; Actions runs the calculations.
 Classroom50 creates assignment repositories and collects submitted course work.
 
 This guide is for an instructor who is new to GitHub. The student-only
-instructions are in [Student research without coding](Student_Research_No_Code.md).
+instructions are in the [step-by-step student start guide](GET_STARTED.md#student-personal-project).
+[Student research without coding](Student_Research_No_Code.md) explains scientific inputs and analyses.
 The detailed access explanation is in [BASE-managed module setup](Ecosystem_Modules_Setup.md).
 Before class-wide rollout complete the [student deployment pilot](Student_Deployment_Pilot.md).
 
-The instructions require the BASE source containing **CoChem setup and
-updates**, the complete scientific **Input library**, working XYZ uploads and **Run on GitHub Actions**. The earlier
+The instructions require the BASE source containing **Start here → CoChem tools
+and updates**, the scientific **Your files** panel, working XYZ uploads and **Run on GitHub Actions**. The earlier
 `v1.0.1` release used an export/manual-dispatch route; its acceptance evidence
 does not by itself validate this newer no-code route. Use the reviewed release
 or course revision that actually contains the controls described here.
@@ -62,6 +67,7 @@ A course layout can use these names:
 | Assignment | `CoChem vdW Research Workspace` |
 | Assignment slug | `vdw-research` |
 | Private template | `ProfJJK-CoChem/CoChem-vdW-Research-Template` |
+| Personal private research project | `student-username/CoChem-benzene-water` |
 | Default branch | `main` |
 
 Use individual repositories when each student has independent data. Use a
@@ -283,7 +289,7 @@ policy table and credential boundaries.
    confirm the personal payer.
 4. Wait for automatic setup. Open **Ports → 8866 — CoChem Voilà dashboard →
    Open in Browser**, visibility **Private**.
-5. Require the rendered **CoChem setup and updates** status to show the
+5. Require the rendered **Start here → CoChem tools and updates** status to show the
    required analysis components ready. BASE installs them automatically.
    A component failure disables its dependent operations and explains the
    prerequisite. Geometry ingestion and independent functions remain usable.
@@ -361,7 +367,7 @@ active space. Retain the native scientific evidence and any explicit limits.
    must not silently change an already recorded calculation.
 3. Announce the affected behavior and required update. Pilot it in one course
    workspace first.
-4. Students use **CoChem setup and updates → Check for updates → Apply
+4. Students use **Start here → CoChem tools and updates → Check for updates → Apply
    compatible updates → Restart interface**, then reopen the dashboard.
    BASE installs into managed external storage and retains version records,
    previous valid installations, original uploads and completed results.

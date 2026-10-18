@@ -2,8 +2,9 @@
 
 ## Start your workspace
 
-**New to CoChem? [Start with the quick guide](GET_STARTED.md).** It explains
-opening the dashboard, ORCA/CFOUR access and the first calculation.
+**New to CoChem? [Follow the step-by-step student guide](GET_STARTED.md#student-personal-project).**
+It starts with your GitHub account and private **`CoChem-[target molecule name]`**
+project, then explains opening CoChem, lab access and your first saved calculation.
 
 This page is a reference: open only the section you need. You supply your own
 starting structures and scientific files. CoChem-BASE prepares its analysis
@@ -40,9 +41,11 @@ same settings and continue.
    or several files. You can supply a monomer, a complete complex or several
    starting arrangements. You do not need an instructor-provided structure.
 3. Select the file and its **Structure / frame**, then choose **Use selected
-   starting geometry**. Check the displayed molecule and **Input type**. BASE
-   keeps the original separately from any working geometry. If you uploaded
-   the wrong file, choose **Remove from list**; use **Undo remove** or
+   starting geometry**, then **Continue to calculation settings**. Open
+   **Calculations → Starting structure** to check the displayed molecule and
+   **Input type**. BASE keeps the original separately from any working geometry.
+   If you uploaded the wrong file, return to **Your files** and choose
+   **Remove from list**; use **Undo remove** or
    **Show removed inputs → Restore selected input** to bring it back.
 4. In **Calculations → Starting structure**, set **Structure charge** and
    **Structure multiplicity** for the molecule. XYZ does not reliably store these
@@ -358,8 +361,11 @@ convergence and correction conventions are appropriate for that comparison.
   occupancies, bond indices or diagrams.
 
 Save the original starting files, final structures, calculation bundle and
-report. BASE's managed runtime/results directories are separate from your
-personal project checkout. To save a downloaded report through the repository,
+report to your own computer or course-approved storage. BASE's managed
+runtime/results directories and the Student input inbox are separate from your
+personal project checkout. **Commit** or **Sync Changes** does not back them up;
+keep your original uploads and use **Download calculation bundle**. To save a
+downloaded report through the repository,
 drag its course-approved files into your project's **Explorer** folder in
 VS Code, or use GitHub **Add file → Upload files**. Use VS Code **Source Control**
 to commit the course files you intend to submit: select the files, enter a
@@ -394,7 +400,8 @@ large files rather than committing an entire runtime or binary archive.
    controls as directed. Do not install from another repository manually.
 
 New permissions require a **new Codespace**, after your instructor corrects
-access and you have synchronized the course files you wish to keep. Approve the
+access and you have downloaded your original inputs and calculation bundles,
+and saved your course report. Approve the
 project permissions GitHub shows when creating it. Rebuilding an existing
 Codespace does not refresh those permissions. An ordinary module bug fix that
 uses existing permissions does not require this step.

@@ -92,7 +92,8 @@ modules, edit workflow code or enter credentials.
    and the Classroom50 assignment link.
 2. **Create the research project.** On the reviewed BASE template, choose
    **Use this template → Create a new repository**. Select the student's personal
-   account, a project name and **Private**. Record its URL, owner and reviewed
+   account, the name **`CoChem-[target molecule name]`** (for example,
+   `CoChem-benzene-water`) and **Private**. Record its URL, owner and reviewed
    BASE revision. A personal template copy keeps calculation usage on that
    account; an organization-owned assignment has a different payer.
 3. **Open BASE to request access.** In the new private project, use

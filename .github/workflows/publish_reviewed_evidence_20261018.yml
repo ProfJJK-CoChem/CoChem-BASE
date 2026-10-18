@@ -1,0 +1,234 @@
+name: Publish reviewed evidence from 18 October 2026
+
+# One-off publication branch only. This workflow is not part of main or student templates.
+on:
+  push:
+    branches: [codex/publish-reviewed-evidence-2026-10-18]
+
+permissions: {}
+concurrency:
+  group: publish-reviewed-evidence-2026-10-18
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'ProfJJK-CoChem/CoChem-BASE' && github.ref == 'refs/heads/codex/publish-reviewed-evidence-2026-10-18' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ProfJJK-CoChem/CoChem-BASE
+      EVIDENCE_TAG: evidence-2026-10-18
+      EVIDENCE_TARGET: 31ed7a79dbf2fafa412db33877c228e7a67569cb
+      EVIDENCE_ASSET: cochem-base-hosted-modules-39092523800-original-results.zip
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Retrieve fixed evidence without extracting or running it
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/commits/$GITHUB_SHA" > "$RUNNER_TEMP/publication-commit.json"
+          gh api "repos/$GH_REPO/actions/runs/39092523800" > "$RUNNER_TEMP/evidence-run.json"
+          gh api "repos/$GH_REPO/actions/artifacts/12123661325" > "$RUNNER_TEMP/evidence-artifact.json"
+          gh api "repos/$GH_REPO/actions/artifacts/12123661325/zip" > "$RUNNER_TEMP/original-artifact.zip"
+      - name: Verify provenance, original member bytes and exact reviewed ZIP
+        run: |
+          set -euo pipefail
+          python3 -I - "$RUNNER_TEMP" "$GITHUB_SHA" <<'PYTHON'
+          """Verify fixed, reviewed GitHub evidence; never extract or execute its contents."""
+          from __future__ import annotations
+
+          import hashlib
+          import io
+          import json
+          from pathlib import Path, PurePosixPath
+          import stat
+          import sys
+          import zipfile
+
+          REPOSITORY = "ProfJJK-CoChem/CoChem-BASE"
+          TARGET = "31ed7a79dbf2fafa412db33877c228e7a67569cb"
+          SOURCE = "9ce098e91c948ef4f384ecef91441ea84cbec80e"
+          BRANCH = "codex/publish-reviewed-evidence-2026-10-18"
+          WORKFLOW = ".github/workflows/publish_reviewed_evidence_20261018.yml"
+          RUN_ID = 39092523800
+          ARTIFACT_ID = 12123661325
+          ARTIFACT_NAME = "cochem-student-07efd5f8-7cc3-4c85-b715-37b8e9aca4c7-39092523800-1"
+          ORIGINAL_SHA = "2a39e30579cc69e92aff6de7ea768f529b2525e49bdd57c52f17f086a3fcf607"
+          MANIFEST_SHA = "503c4a7e3ff718a757d09bbd186e80654287528645852cab8661eac1701ea6a4"
+          PUBLISHED_SHA = "6f7c30e2b355c71a58f9040b2d7353f26dafab9ad65abf8dde6c0aa817f3fc5e"
+          ASSET = "cochem-base-hosted-modules-39092523800-original-results.zip"
+
+
+          def require(condition: bool, message: str) -> None:
+              if not condition:
+                  raise ValueError(message)
+
+
+          def check_provenance(commit: dict, revision: str, run: dict, artifact: dict) -> None:
+              require(commit["sha"] == revision, "Publication workflow revision differs")
+              require([p["sha"] for p in commit["parents"]] == [TARGET], "Workflow is not the single reviewed commit above the frozen source")
+              require([(f["filename"], f["status"]) for f in commit["files"]] == [(WORKFLOW, "added")], "Publication branch changes exceed its single workflow")
+              require(run["id"] == RUN_ID and run["run_attempt"] == 1, "Evidence run identity differs")
+              require(run["repository"]["full_name"] == REPOSITORY, "Evidence repository differs")
+              require(run["head_sha"] == SOURCE and run["head_branch"] == "main", "Evidence source differs")
+              require(run["path"] == ".github/workflows/student_research.yml" and run["event"] == "workflow_dispatch", "Evidence producer differs")
+              require(run["status"] == "completed" and run["conclusion"] == "success", "Evidence producer did not succeed")
+              require(artifact["id"] == ARTIFACT_ID and artifact["name"] == ARTIFACT_NAME, "Artifact identity differs")
+              require(artifact["size_in_bytes"] == 23712 and artifact["expired"] is False, "Artifact size or availability differs")
+              require(artifact["digest"] == "sha256:" + ORIGINAL_SHA, "Artifact service digest differs")
+              require(artifact["workflow_run"]["id"] == RUN_ID and artifact["workflow_run"]["head_sha"] == SOURCE, "Artifact producer differs")
+
+
+          def verify_members(blob: bytes) -> dict[str, bytes]:
+              with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+                  infos = archive.infolist()
+                  names = [info.filename for info in infos]
+                  require(len(names) == 16 and len(set(names)) == 16, "Expected exactly 16 unique result files")
+                  require(sum(info.file_size for info in infos) == 118919, "Uncompressed evidence size differs")
+                  for info in infos:
+                      path = PurePosixPath(info.filename)
+                      require(not path.is_absolute() and ".." not in path.parts and "\\" not in info.filename, "Unsafe evidence member name")
+                      require(not info.is_dir() and not stat.S_ISLNK(info.external_attr >> 16), "Evidence member is a directory or link")
+                      require(not info.flag_bits & 1, "Encrypted evidence is not allowed")
+                  payloads = {name: archive.read(name) for name in names}
+              manifest_bytes = payloads["publication-manifest.json"]
+              require(hashlib.sha256(manifest_bytes).hexdigest() == MANIFEST_SHA, "Original publication manifest differs")
+              manifest = json.loads(manifest_bytes)
+              require(manifest["repository"] == REPOSITORY and manifest["run_id"] == RUN_ID and manifest["run_attempt"] == 1, "Manifest producer differs")
+              require(manifest["source_sha"] == SOURCE and manifest["worker_source_sha"] == SOURCE, "Manifest source differs")
+              require(set(manifest["files"]) | {"publication-manifest.json"} == set(payloads), "Manifest does not cover the exact bundle")
+              for name, expected in manifest["files"].items():
+                  data = payloads[name]
+                  require(len(data) == expected["size_bytes"], "Member size differs: " + name)
+                  require(hashlib.sha256(data).hexdigest() == expected["sha256"], "Member checksum differs: " + name)
+              return payloads
+
+
+          def repack(blob: bytes) -> bytes:
+              require(len(blob) == 23712 and hashlib.sha256(blob).hexdigest() == ORIGINAL_SHA, "Downloaded artifact differs from the approved original")
+              payloads = verify_members(blob)
+              output = io.BytesIO()
+              with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+                  for name in sorted(payloads):
+                      info = zipfile.ZipInfo(name, (2026, 10, 18, 3, 16, 0))
+                      info.create_system = 3
+                      info.external_attr = 0o100600 << 16
+                      archive.writestr(info, payloads[name], compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+              result = output.getvalue()
+              require(len(result) == 23356 and hashlib.sha256(result).hexdigest() == PUBLISHED_SHA, "Repacked ZIP differs from the reviewed bytes; do not publish")
+              return result
+
+
+          def main() -> None:
+              root = Path(sys.argv[1])
+              revision = sys.argv[2]
+              read = lambda name: json.loads((root / name).read_text(encoding="utf-8"))
+              check_provenance(read("publication-commit.json"), revision, read("evidence-run.json"), read("evidence-artifact.json"))
+              result = repack((root / "original-artifact.zip").read_bytes())
+              (root / ASSET).write_bytes(result)
+              (root / (ASSET + ".sha256")).write_text(PUBLISHED_SHA + "  " + ASSET + "\n", encoding="utf-8")
+              print(json.dumps({"verified_member_count": 16, "size_bytes": len(result), "sha256": PUBLISHED_SHA, "run_id": RUN_ID, "source_sha": SOURCE, "publication_target": TARGET}))
+
+
+          if __name__ == "__main__":
+              main()
+          PYTHON
+      - name: Stage evidence-only prerelease and verify downloaded assets
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          This evidence publication preserves the complete result bundle from Actions run 39092523800 at BASE 9ce098e91c948ef4f384ecef91441ea84cbec80e. The run installed the reviewed canonical TOPOS and TORQ revisions and executed TOPOS structural analysis on the committed three-atom water example. All 16 original result files are unchanged; their original publication manifest hashes 15 payloads and excludes itself. The ZIP is newly packaged, with its own checksum.
+
+          The repository retains the permitted JSON reports and an explicit source selection. Raw geometry and runtime logs are retained here to preserve the existing rule separating source code from generated results. No licensed executable, runtime archive, credential or student-provided research file is included.
+
+          An optional source credential was available in the run. This evidence covers installation, structural analysis and verified result retrieval. Electronic accuracy, full SRS conformance, all module operations and the student account pilot remain outside that acceptance. This evidence publication does not change the published software version.
+
+          Run: https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/39092523800
+          Report: https://github.com/ProfJJK-CoChem/CoChem-BASE/blob/main/.docs/GUI_Recovery_2026-10-18.md
+          NOTES
+          # Creation refuses an existing release; no asset overwrite or clobber is allowed.
+          gh release create "$EVIDENCE_TAG" \
+            "$RUNNER_TEMP/$EVIDENCE_ASSET" "$RUNNER_TEMP/$EVIDENCE_ASSET.sha256" \
+            --target "$EVIDENCE_TARGET" --title "Validation evidence — 18 October 2026" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" --prerelease --latest=false --draft
+          # Drafts are identified through the authenticated list and immutable release ID.
+          # A draft tag need not exist until publication, so resolve only the frozen commit now.
+          gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" > "$RUNNER_TEMP/release-pages.json"
+          python3 -I - "$RUNNER_TEMP" <<'PYTHON'
+          import json
+          import sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          pages = json.loads((root / "release-pages.json").read_text())
+          matches = [item for page in pages for item in page if item["tag_name"] == "evidence-2026-10-18"]
+          if len(matches) != 1 or not matches[0]["draft"]:
+              raise ValueError("Expected exactly one staged draft for the evidence tag")
+          release = matches[0]
+          if release["target_commitish"] != "31ed7a79dbf2fafa412db33877c228e7a67569cb" or not release["prerelease"]:
+              raise ValueError("Staged draft target or classification differs")
+          assets = {item["name"]: item for item in release["assets"]}
+          name = "cochem-base-hosted-modules-39092523800-original-results.zip"
+          if len(release["assets"]) != 2 or set(assets) != {name, name + ".sha256"}:
+              raise ValueError("Staged draft asset set differs")
+          for filename, value in [("release-id", release["id"]), ("archive-id", assets[name]["id"]), ("checksum-id", assets[name + ".sha256"]["id"])]:
+              if type(value) is not int or value <= 0:
+                  raise ValueError("Invalid release or asset ID")
+              (root / filename).write_text(str(value))
+          PYTHON
+          gh api "repos/$GH_REPO/releases/$(cat "$RUNNER_TEMP/release-id")" > "$RUNNER_TEMP/staged-release.json"
+          gh api "repos/$GH_REPO/commits/$EVIDENCE_TARGET" > "$RUNNER_TEMP/release-target.json"
+          mkdir "$RUNNER_TEMP/release-readback"
+          gh api -H "Accept: application/octet-stream" "repos/$GH_REPO/releases/assets/$(cat "$RUNNER_TEMP/archive-id")" > "$RUNNER_TEMP/release-readback/$EVIDENCE_ASSET"
+          gh api -H "Accept: application/octet-stream" "repos/$GH_REPO/releases/assets/$(cat "$RUNNER_TEMP/checksum-id")" > "$RUNNER_TEMP/release-readback/$EVIDENCE_ASSET.sha256"
+          python3 -I - "$RUNNER_TEMP" <<'PYTHON'
+          import hashlib
+          import json
+          from pathlib import Path
+          import sys
+          root = Path(sys.argv[1])
+          name = "cochem-base-hosted-modules-39092523800-original-results.zip"
+          digest = "6f7c30e2b355c71a58f9040b2d7353f26dafab9ad65abf8dde6c0aa817f3fc5e"
+          target = "31ed7a79dbf2fafa412db33877c228e7a67569cb"
+          release = json.loads((root / "staged-release.json").read_text())
+          commit = json.loads((root / "release-target.json").read_text())
+          if not (release["draft"] and release["prerelease"] and release["tag_name"] == "evidence-2026-10-18" and release["target_commitish"] == target and commit["sha"] == target):
+              raise ValueError("Draft release target or classification differs")
+          if {item["name"]: item["size"] for item in release["assets"]} != {name: 23356, name + ".sha256": 126} or len(release["assets"]) != 2:
+              raise ValueError("Draft asset set differs")
+          archive = (root / "release-readback" / name).read_bytes()
+          checksum = (root / "release-readback" / (name + ".sha256")).read_text()
+          if len(archive) != 23356 or hashlib.sha256(archive).hexdigest() != digest or checksum != digest + "  " + name + "\n":
+              raise ValueError("Downloaded release assets differ from reviewed bytes")
+          print("Draft target and both downloaded assets verified; publication may proceed.")
+          PYTHON
+      - name: Publish verified evidence without changing the latest software release
+        run: |
+          set -euo pipefail
+          gh api --method PATCH "repos/$GH_REPO/releases/$(cat "$RUNNER_TEMP/release-id")" \
+            -F draft=false -F prerelease=true -f make_latest=false > "$RUNNER_TEMP/published-release.json"
+          gh api "repos/$GH_REPO/commits/$EVIDENCE_TAG" > "$RUNNER_TEMP/published-tag-target.json"
+          python3 -I - "$RUNNER_TEMP" <<'PYTHON'
+          import json
+          import sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          release = json.loads((root / "published-release.json").read_text())
+          commit = json.loads((root / "published-tag-target.json").read_text())
+          target = "31ed7a79dbf2fafa412db33877c228e7a67569cb"
+          if release["id"] != int((root / "release-id").read_text()) or release["draft"] or not release["prerelease"] or release["tag_name"] != "evidence-2026-10-18" or release["target_commitish"] != target or commit["sha"] != target:
+              raise ValueError("Published release metadata or tag target differs")
+          name = "cochem-base-hosted-modules-39092523800-original-results.zip"
+          if {item["name"]: item["size"] for item in release["assets"]} != {name: 23356, name + ".sha256": 126} or len(release["assets"]) != 2:
+              raise ValueError("Published asset set differs")
+          print(release["html_url"])
+          PYTHON
+          echo "Published the exact reviewed 16-member evidence bundle. This is not a software release or full SRS acceptance." >> "$GITHUB_STEP_SUMMARY"
+      - name: Report incomplete publication
+        if: failure()
+        run: |
+          echo "Evidence publication did not complete. A draft may remain; inspect it before retrying. Existing assets were not overwritten." >> "$GITHUB_STEP_SUMMARY"

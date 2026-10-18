@@ -1,0 +1,426 @@
+{
+  "passed": false,
+  "executed": true,
+  "release_accepted": false,
+  "source_binding": {
+    "passed": true,
+    "mode": "release",
+    "release_accepted": true,
+    "revision": "5d0c801d01070b7b3311ef2a5b342a9e84483bc7",
+    "expected_revision": "5d0c801d01070b7b3311ef2a5b342a9e84483bc7",
+    "authority": "explicit-reviewed-revision",
+    "tracked_file_count": 2219,
+    "tracked_source_sha256": "65137e501eafd8da429ab31176bf53eb6ef8a3b1e87f10fde6d87a90aa1cbef1",
+    "initial_changed_paths": [],
+    "initial_dirty": false,
+    "excluded_untracked_paths": [],
+    "excluded_untrusted_source_paths": [],
+    "infrastructure_ring": {
+      "path": ".core_infrastructure_hashring.json",
+      "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+      "file_count": 224,
+      "passed": true,
+      "authority": "reviewed-committed-git-bytes"
+    }
+  },
+  "selected_test_files": [],
+  "cleanup_observation": {
+    "launcher_pid": 6509,
+    "launcher_returncode": 1,
+    "owned_work_stopped": true,
+    "ownership_scope": "posix-group",
+    "collection_observation": "owned-boundary-empty",
+    "launcher_create_time": 1792292033.13,
+    "admitted_before_exec": true,
+    "external_reaping_pending": []
+  },
+  "passed_tests": 3188,
+  "failed_tests": [
+    "tests/ui/test_voila_runtime_acceptance.py::test_gui_xtb_serialization_and_invalid_spin"
+  ],
+  "pending_external_acceptance": [
+    {
+      "nodeid": "tests/base/test_abcluster_authority.py::test_actual_rigidmol_metadata_audit",
+      "expected_skip_reason": "Actual optional ABCluster installation not provided",
+      "prerequisites": [
+        "Actual ABCluster 3.4 rigidmol executable"
+      ],
+      "category": "optional_native_distribution",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "tests/base/test_crest_source_authority.py::test_genuine_reviewed_crest_source_distribution_binds_immutable_components",
+      "expected_skip_reason": "Reviewed patched CREST installation not provided",
+      "prerequisites": [
+        "Actual reviewed TOPOS generic-paths CREST build, source patch and shared-library receipts"
+      ],
+      "category": "optional_native_distribution",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "tests/base/test_psi4_native_authority.py::test_genuine_psi4_native_audit_and_component_change_rejection",
+      "expected_skip_reason": "Optional genuine Psi4 installation not supplied",
+      "prerequisites": [
+        "Actual Psi4 1.10.2 compiled runtime with native core and successful helium Hartree-Fock probe"
+      ],
+      "category": "optional_native_distribution",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "tests/base/test_aimnet_cpu_lock.py::test_actual_isolated_aimnet_cpu_installation_and_phase4_audit",
+      "expected_skip_reason": "Set COCHEM_TEST_AIMNET_SILO to test an actually provisioned native AIMNet CPU installation",
+      "prerequisites": [
+        "Actual isolated AIMNet CPU installation matching the separately reviewed dependency lock"
+      ],
+      "category": "optional_native_distribution",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "tests/srs/test_topos_physical_runner.py::test_physical_crest_goat_union",
+      "expected_skip_reason": "Real licensed ORCA and CREST engines are required for union acceptance",
+      "prerequisites": [
+        "Licensed ORCA GOAT installation",
+        "CREST installation"
+      ],
+      "category": "licensed_engine",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "test_suite/test_cochem_core_hdf5_manager.py::test_is_master_node_detection_slurm",
+      "expected_skip_reason": "Requires physical SLURM node",
+      "prerequisites": [
+        "Execution on a physical Slurm allocation"
+      ],
+      "category": "host",
+      "status": "pending_external_acceptance"
+    },
+    {
+      "nodeid": "test_suite/test_cochem_core_registry_manager.py::test_is_master_node_detection_slurm",
+      "expected_skip_reason": "Requires physical SLURM node",
+      "prerequisites": [
+        "Execution on a physical Slurm allocation"
+      ],
+      "category": "host",
+      "status": "pending_external_acceptance"
+    }
+  ],
+  "unexpected_skips": [
+    {
+      "nodeid": "tests/base/test_crest_source_authority.py::test_actual_stock_crest_installer_metadata_remains_supported",
+      "reasons": [
+        "Actual stock CREST3.0.2 installation not provided"
+      ]
+    },
+    {
+      "nodeid": "tests/base/test_mace_cpu_lock.py::test_actual_cpu_silo_passes_the_phase4_provisioner_boundary",
+      "reasons": [
+        "Actual reviewed MACE CPU installation not provided"
+      ]
+    }
+  ],
+  "coverage_errors": [],
+  "collected": 3198,
+  "scope": "Local runnable acceptance; pending external checks do not count as passed",
+  "command_exit_code": 1,
+  "timed_out": false,
+  "quarantine_source_changed": [],
+  "quarantine_workspace_changed": false,
+  "descendant_evidence_directory": "/tmp/cochem-recovery-full-5d0c801/descendant-origins-a4b39b4f4cae4796bba278bcf5cbbbc4",
+  "descendant_source_records": 814,
+  "descendant_source_failures": [],
+  "descendant_source_authority_errors": [],
+  "descendant_startup_only": [
+    {
+      "pid": 12732,
+      "instance": "a76fe8b8e2dd46c09a3958c29550eb0d",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 14712,
+      "instance": "ed44a5cd2c1641cbabe3de2d67a96b54",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 14715,
+      "instance": "b3087a819c144528b5a0a22db2f86a13",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 14718,
+      "instance": "25bc279c2e524ca6930f98fdeb1343d5",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 14719,
+      "instance": "77708949c64940ea892aefa4e875e0e2",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 14722,
+      "instance": "611ab42ff066473284f82fed4bf0f7d7",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 16214,
+      "instance": "5febcf564e164bbeba372ff7170ccd69",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 16449,
+      "instance": "095e2df65fe24823af6b213a22531c12",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 16458,
+      "instance": "7e63989d5dfb4cfd842d887571c740cd",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 16470,
+      "instance": "231c85799c15439585dc8f1ae35de2e9",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 16482,
+      "instance": "aa727f577b064e49b441f004ea422a3f",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 16504,
+      "instance": "5736b3a7a3d841e1870cbfb4cc215524",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 17223,
+      "instance": "f74c1bc2c96e48c283ec224084411d79",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 17227,
+      "instance": "4b62d4885e55434893fb2e1eafe05cc0",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 17228,
+      "instance": "76027c0d5c5c4aaba09327b6de87cebf",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 17577,
+      "instance": "890679d9351141bd8fbde0fdde80a058",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 17583,
+      "instance": "c246c209594e40ceb84fd76b6af01080",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 17589,
+      "instance": "47eca2243ca64b6abd17127abda50fd1",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 17595,
+      "instance": "058effcea0a74a308e050bd953d71f44",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 18129,
+      "instance": "f233a3ced5444fcbaeab8e55fe84b179",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 18229,
+      "instance": "260d8a41c69842e7a01c572c496f486e",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 19394,
+      "instance": "b2c9fb280e2449e584d704a52ddae6e7",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 19395,
+      "instance": "46f33e37f5ac40519008c0f974ed5744",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 19405,
+      "instance": "375ec268449c4131adbc9a1e1882187f",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 19407,
+      "instance": "b1c8bc024e6e4ca38449fc89381bf652",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 19408,
+      "instance": "2f6b78a7f2cb4a479308d0bb9ffd6303",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 19409,
+      "instance": "1b09d3597f5449b1937743d82149a298",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 19417,
+      "instance": "be46c129da24426a829f2c737753b9e7",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 19418,
+      "instance": "114fc929a13d401582cc4365f7bd2b9f",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6532,
+      "instance": "adb7ce3cb37c4563822e592316212c61",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6535,
+      "instance": "fbc0d17147724ad4bb3cb3d3ea890139",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6540,
+      "instance": "4fd847d919af47bbabd8fbe7e4de067f",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6543,
+      "instance": "475581635a764085b284bddaef06b8e0",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6548,
+      "instance": "84ab1e32fcc64f9480c0c2a35461af87",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6551,
+      "instance": "f1f8bd0cf2194c629124e5c8fc882306",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6556,
+      "instance": "bebb8312301e42498567dfbecfdeabad",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6559,
+      "instance": "7ceffef5f6de4448939432137adbc906",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6562,
+      "instance": "0fd7e2f53a4d4997a7999737221021d7",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6565,
+      "instance": "f0eea18e38064fef9f351703c20a53aa",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6570,
+      "instance": "0ae824fda5994dde8fc4866232166f88",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6578,
+      "instance": "04194e3c27324062bde152f9d349b04e",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6581,
+      "instance": "916a0cc6c1124a3cbf0e6bf47d3abe17",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6584,
+      "instance": "35fa6b77c4aa4d0b8ec4e21efd01088b",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6587,
+      "instance": "ff7f863946d341dba9c319d4498686f3",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6591,
+      "instance": "9ade642c1b414168bbfbc426fb8029aa",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 6594,
+      "instance": "d85aaf6413b24a84b0487f3f52fdde6e",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7302,
+      "instance": "0b515d515c53417382fc99e0c094173e",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7307,
+      "instance": "622c58931f804f168cccb9fd3b1634d0",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7308,
+      "instance": "dab5cd0c984143dcaacb06222c75bb01",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7313,
+      "instance": "7b290bfe41334248a2525aa13984e85e",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7318,
+      "instance": "172c7fd8829a433eacbaf2e749c1e652",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7326,
+      "instance": "8bbaa982ce4640b88107d2d6514411ef",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7333,
+      "instance": "015054a0af2048a3bf2755bc9f844043",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7336,
+      "instance": "5e6ebbb96b51445c9b5e7e36d5f1e330",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7338,
+      "instance": "9fb519ca0cc84d7faf912a11acbf14e8",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7342,
+      "instance": "fd3e148b23c64f0aae074b02875e2585",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7355,
+      "instance": "771641e085524e35bffb1464a8c4dfbb",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 7368,
+      "instance": "05597433fc3843d990d81e7be7118906",
+      "scope": "startup-only-no-finalizer-observation"
+    }
+  ],
+  "source_origins_verified": true,
+  "source_changed": []
+}

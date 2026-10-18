@@ -1,0 +1,21 @@
+{
+  "source_head_at_test_start": "a0f1d4b49a1626a9f83ffa0d832477ae95180d94",
+  "test_file": "tests/ui/test_voila_runtime_acceptance.py",
+  "test_file_sha256": "4c8a06ae8173b225878a96c5b25783ce5a3b7c643d6f741e36332b553e13075d",
+  "command": "source /workspace/cochem-runtime/activate.sh; source /workspace/cochem-runtime/student-srs-3ce9206-activate.sh; /workspace/cochem-env/bin/python -m pytest tests/ui/test_voila_runtime_acceptance.py --junitxml=/tmp/cochem-runtime-guidance-test-correction-2026-10-18/focused.xml -q",
+  "exit_code": 0,
+  "counts": {
+    "tests": 13,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "native_test_cases": [
+    "test_gui_cancellation_stops_its_actual_worker",
+    "test_gui_executes_real_xtb_optimization"
+  ],
+  "artifacts": {
+    "focused.xml": "836063c7a8136896a4df129110d8a0a5d3fdc661e4a5453d532fc8b7c26f595f",
+    "focused.log": "0a2f9d80967fe2f021092ddb62e527a8be0af71c2ca286dbd671bbd8c16d489f"
+  }
+}

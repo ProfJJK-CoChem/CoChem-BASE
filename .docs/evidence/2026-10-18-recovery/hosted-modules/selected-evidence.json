@@ -1,4 +1,15 @@
 {
+  "external_complete_bundle": {
+    "archive_representation": "New ZIP packaging of the exact original 16 result files; not the original GitHub download ZIP.",
+    "asset_name": "cochem-base-hosted-modules-39092523800-original-results.zip",
+    "manifest_hashed_payload_count": 15,
+    "original_artifact_member_count": 16,
+    "planned_release_asset_url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/releases/download/evidence-2026-10-18/cochem-base-hosted-modules-39092523800-original-results.zip",
+    "publication_status": "prepared_not_yet_uploaded",
+    "release_asset_url": null,
+    "sha256": "6f7c30e2b355c71a58f9040b2d7353f26dafab9ad65abf8dde6c0aa817f3fc5e",
+    "size_bytes": 23356
+  },
   "files": {
     "github-run.json": {
       "sha256": "ab69f9a5046c48077949d759ae8db3a662ff625bef0d6ff6dbf1b66b0b179bb5",
@@ -10,11 +21,6 @@
       "size_bytes": 3926,
       "source": "production-client verification or GitHub run metadata"
     },
-    "original-results/inputs/inputs/water.xyz": {
-      "original_artifact_member": "inputs/inputs/water.xyz",
-      "sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af",
-      "size_bytes": 164
-    },
     "original-results/module-installation.json": {
       "original_artifact_member": "module-installation.json",
       "sha256": "4ea68383191e4df6a3db05a1c58150cac22ee9a3c0bfd1835ac64f8bb580ff13",
@@ -24,11 +30,6 @@
       "original_artifact_member": "project-visibility.json",
       "sha256": "29ea0eaf710de78bcc06f70408d5deb004a0c1de5ef3b18ed0e53bdd0a0b92bc",
       "size_bytes": 212
-    },
-    "original-results/provider/execution/execution.log": {
-      "original_artifact_member": "provider/execution/execution.log",
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "size_bytes": 0
     },
     "original-results/provider/execution/operation.json": {
       "original_artifact_member": "provider/execution/operation.json",
@@ -45,11 +46,6 @@
       "sha256": "0ada0ed2b0dd5ac5310697af3a9b7779879db6cee425ad2a49c21b370676669a",
       "size_bytes": 729
     },
-    "original-results/provider/input-handoff/artifact.xyz": {
-      "original_artifact_member": "provider/input-handoff/artifact.xyz",
-      "sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af",
-      "size_bytes": 164
-    },
     "original-results/provider/input-handoff/handoff.json": {
       "original_artifact_member": "provider/input-handoff/handoff.json",
       "sha256": "b006cec39da434fb681b27ade584567d4e643ae6e7da727ede9ec60ea726c668",
@@ -64,11 +60,6 @@
       "original_artifact_member": "request.json",
       "sha256": "78540ee2dd6240b8cac9e1c67bf21af34ae94e0f667881b29d364fada89414e3",
       "size_bytes": 1054
-    },
-    "original-results/stage0-setup.log": {
-      "original_artifact_member": "stage0-setup.log",
-      "sha256": "ca7a3e8c022628c226a09de9cbcd804baec2b1f002d596366431165390e07b76",
-      "size_bytes": 90648
     },
     "original-results/student-result.json": {
       "original_artifact_member": "student-result.json",
@@ -101,8 +92,14 @@
       "source": "production-client verification or GitHub run metadata"
     }
   },
+  "omitted_from_source": [
+    "original-results/inputs/inputs/water.xyz",
+    "original-results/provider/input-handoff/artifact.xyz",
+    "original-results/provider/execution/execution.log",
+    "original-results/stage0-setup.log"
+  ],
   "run_id": 39092523800,
   "schema_version": "cochem.selected-hosted-evidence/1",
-  "selection_scope": "All 16 exact original artifact members are retained. The original publication manifest hashes 15 payload members; the downloaded bundle contains those 15 plus the manifest itself. Additional verification receipts are listed separately. The complete downloaded artifact was verified before copying. No runtime archive, installed environment, license data, credential values or private signed download URLs included.",
+  "selection_scope": "Source package contains 12 unchanged original JSON reports and 4 verification/provenance JSON receipts. Four raw geometry/log members are intentionally omitted from the source repository under its artifact-separation policy. The complete original 16-member result bundle is retained as a separate external release ZIP; its original publication manifest hashes 15 payloads and excludes itself. Source JSON alone is an incomplete result bundle and must not be passed off as complete retained-result verification.",
   "source_sha": "9ce098e91c948ef4f384ecef91441ea84cbec80e"
 }

@@ -25,6 +25,23 @@ Run complete source-bound profiles with installed site packages enabled:
 The standard-library-only source audit can use `-S`. Preserve the original
 refused/failed results when correcting an invocation or implementation.
 
+For the **recovered cloud workspace only**, source its existing runtime
+activation and these tested discovery supplements before the complete profile:
+
+```bash
+. /workspace/cochem-runtime/student-srs-3ce9206-activate.sh
+. /workspace/cochem-runtime/crest-recovery-activate.sh
+. /workspace/cochem-runtime/recovery-mace-2026-10-18/activate-test-silo.sh
+```
+
+The supplements locate already audited programs; they do not install programs
+or change scientific settings. On another machine, verify the actual runtime
+locations and set `COCHEM_TEST_MACE_SILO` and
+`COCHEM_TEST_STOCK_CREST_EXECUTABLE` accordingly, with the genuine CREST
+executable on `PATH`. Do not copy these instance-specific paths or replace a
+missing installation with a test skip. The focused recovery receipts are linked
+from the recovery report above.
+
 ## 2026-10-13 interface and access update
 
 Start the next review with the [plain-language quick guide](GET_STARTED.md).

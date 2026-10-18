@@ -1,0 +1,32 @@
+{
+  "scope": "Focused native stock CREST identity plus actual CREST/ORCA GOAT water union; not a complete release profile",
+  "source_revision": "5d0c801d01070b7b3311ef2a5b342a9e84483bc7",
+  "command": [
+    "/workspace/cochem-env/bin/python",
+    "-B",
+    "-I",
+    "-m",
+    "pytest",
+    "-c",
+    "/tmp/cochem-recovery-source-5d0c801/pytest.ini",
+    "-q",
+    "-ra",
+    "tests/base/test_crest_source_authority.py::test_actual_stock_crest_installer_metadata_remains_supported",
+    "tests/srs/test_topos_physical_runner.py::test_physical_crest_goat_union",
+    "--basetemp",
+    "/workspace/cochem-runtime/evidence/crest-runtime-recovery-2026-10-18/pytest-runtime",
+    "--junitxml",
+    "/workspace/cochem-runtime/evidence/crest-runtime-recovery-2026-10-18/pytest.xml"
+  ],
+  "returncode": 0,
+  "elapsed_seconds": 113.375715657,
+  "source_file_count": 2219,
+  "source_unchanged": true,
+  "runtime_files_unchanged": true,
+  "runtime_sha256": {
+    "/workspace/cochem-runtime/student-srs-final-stage0-3ce9206/Registry/cochem_system_config.json": "971dc0d07fd2911b9cc6ef1a8f6f2d5774dd8770689ee93b36cc2f3b65b5197e",
+    "/workspace/cochem-silos/crest/crest/crest": "201db7940796c4af3652245ba7c8e1a4234767f4e19223772fbd83098d5f2142",
+    "/workspace/cochem-runtime/orca-local-install/orca_6_1_1_linux_x86-64_shared_openmpi418/orca": "335aef8bacd939620522d757016dcdb3107a9f0f4e71faad9e7764aa95bdc4ea"
+  },
+  "recorded_at": "2026-10-18T03:33:18.400446+00:00"
+}

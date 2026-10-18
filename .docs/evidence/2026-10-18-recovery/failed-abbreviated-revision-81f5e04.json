@@ -1,0 +1,12 @@
+{
+  "passed": false,
+  "stages": {
+    "error": {
+      "passed": false,
+      "error": "[HARD_ABORT: INFRASTRUCTURE TAMPERING] Expected revision is not immutable"
+    }
+  },
+  "evidence_directory": "/tmp/cochem-recovery-full-81f5e04",
+  "mode": "release",
+  "release_accepted": false
+}

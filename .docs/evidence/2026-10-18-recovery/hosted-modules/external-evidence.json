@@ -1,0 +1,22 @@
+{
+  "archive_representation": "New ZIP packaging of the exact original 16 result files; not the original GitHub download ZIP.",
+  "asset_name": "cochem-base-hosted-modules-39092523800-original-results.zip",
+  "complete_environment_hashes_retained": false,
+  "data_scope": "Maintainer-created committed water example and machine-generated installation/structural-geometry reports. No student-provided files, licensed runtimes or archives, installed environments, credentials or private signed download URLs.",
+  "manifest_hashed_payload_count": 15,
+  "member_bytes_unchanged": true,
+  "original_artifact_member_count": 16,
+  "original_publication_manifest_sha256": "503c4a7e3ff718a757d09bbd186e80654287528645852cab8661eac1701ea6a4",
+  "production_archive_verifier_accepted": true,
+  "run_attempt": 1,
+  "run_id": 39092523800,
+  "run_url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/39092523800",
+  "schema_version": "cochem.external-hosted-evidence/1",
+  "scientific_scope": "Exact reviewed TOPOS/TORQ installation and TOPOS three-atom structural geometry analysis. No electronic-accuracy, student-owned account, or credential-free hosted access claim.",
+  "sha256": "6f7c30e2b355c71a58f9040b2d7353f26dafab9ad65abf8dde6c0aa817f3fc5e",
+  "size_bytes": 23356,
+  "source_credential_available": true,
+  "source_sha": "9ce098e91c948ef4f384ecef91441ea84cbec80e",
+  "torq_wheel_sha256_retained": false,
+  "worker_source_sha": "9ce098e91c948ef4f384ecef91441ea84cbec80e"
+}

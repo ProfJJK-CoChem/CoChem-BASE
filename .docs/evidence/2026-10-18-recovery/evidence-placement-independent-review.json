@@ -1,0 +1,8 @@
+{
+  "scope": "Independent read-only placement check on pending worktree; production source binding and full test acceptance not rerun",
+  "tracked_files_scanned": 1961,
+  "validated_hashed_fixtures": 42,
+  "raw_airgap_findings": 21,
+  "effective_remaining_findings": [],
+  "passed": true
+}

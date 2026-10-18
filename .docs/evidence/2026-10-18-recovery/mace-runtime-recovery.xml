@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="6.556" timestamp="2026-10-18T03:31:00.106283+00:00" hostname="6046c9c1959a"><testcase classname="tests.base.test_mace_cpu_lock" name="test_actual_cpu_silo_passes_the_phase4_provisioner_boundary" time="3.357" /></testsuite></testsuites>

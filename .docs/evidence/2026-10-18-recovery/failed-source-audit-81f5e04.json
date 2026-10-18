@@ -1,0 +1,4151 @@
+{
+  "scope": "BASE alpha source plus canonical local acceptance profile",
+  "source_binding": {
+    "passed": true,
+    "mode": "release",
+    "release_accepted": true,
+    "revision": "81f5e043554d059f29fdda0f6c900e35d83b1cfe",
+    "expected_revision": "81f5e043554d059f29fdda0f6c900e35d83b1cfe",
+    "authority": "explicit-reviewed-revision",
+    "tracked_file_count": 2261,
+    "tracked_source_sha256": "92c2cdbb2a70766388a3e2b5cab3b0db3db52febffee4264e141f4262ced072b",
+    "initial_changed_paths": [],
+    "initial_dirty": false,
+    "excluded_untracked_paths": [],
+    "excluded_untrusted_source_paths": [],
+    "infrastructure_ring": {
+      "path": ".core_infrastructure_hashring.json",
+      "sha256": "265aa18a288d1aca3187fbba23b9f8762bd284ffcaa6140c37b66e87d8cd14e3",
+      "file_count": 224,
+      "passed": true,
+      "authority": "reviewed-committed-git-bytes"
+    }
+  },
+  "release_accepted": false,
+  "passed": false,
+  "production_and_ci": {},
+  "selected_test_source": {
+    "test_suite/test_cochem_core_hdf5_manager.py": [
+      {
+        "file": "test_suite/test_cochem_core_hdf5_manager.py",
+        "line": 445,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "test_suite/test_cochem_core_hdf5_manager.py",
+        "line": 445,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "test_suite/test_cochem_core_registry_manager.py": [
+      {
+        "file": "test_suite/test_cochem_core_registry_manager.py",
+        "line": 895,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "test_suite/test_cochem_core_registry_manager.py",
+        "line": 895,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_abcluster_authority.py": [
+      {
+        "file": "tests/base/test_abcluster_authority.py",
+        "line": 26,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_abcluster_authority.py",
+        "line": 26,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_aimnet_cpu_lock.py": [
+      {
+        "file": "tests/base/test_aimnet_cpu_lock.py",
+        "line": 59,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_aimnet_cpu_lock.py",
+        "line": 59,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_crest_source_authority.py": [
+      {
+        "file": "tests/base/test_crest_source_authority.py",
+        "line": 13,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_crest_source_authority.py",
+        "line": 13,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/base/test_crest_source_authority.py",
+        "line": 29,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_crest_source_authority.py",
+        "line": 29,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_free_engine_setup_recovery.py": [
+      {
+        "file": "tests/base/test_free_engine_setup_recovery.py",
+        "line": 18,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_free_engine_setup_recovery.py",
+        "line": 18,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_hosted_dashboard_runtime.py": [
+      {
+        "file": "tests/base/test_hosted_dashboard_runtime.py",
+        "line": 56,
+        "col": 12,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_hosted_dashboard_runtime.py",
+        "line": 56,
+        "col": 12,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/base/test_hosted_dashboard_runtime.py",
+        "line": 113,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_hosted_dashboard_runtime.py",
+        "line": 113,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_mace_cpu_lock.py": [
+      {
+        "file": "tests/base/test_mace_cpu_lock.py",
+        "line": 66,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_mace_cpu_lock.py",
+        "line": 66,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_native_crash_provenance.py": [
+      {
+        "file": "tests/base/test_native_crash_provenance.py",
+        "line": 176,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_native_crash_provenance.py",
+        "line": 176,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/base/test_native_crash_provenance.py",
+        "line": 206,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_native_crash_provenance.py",
+        "line": 206,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_psi4_native_authority.py": [
+      {
+        "file": "tests/base/test_psi4_native_authority.py",
+        "line": 44,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_psi4_native_authority.py",
+        "line": 44,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_srs_mlff_fallback.py": [
+      {
+        "file": "tests/base/test_srs_mlff_fallback.py",
+        "line": 40,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_srs_mlff_fallback.py",
+        "line": 40,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/base/test_srs_mlff_fallback.py",
+        "line": 56,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_srs_mlff_fallback.py",
+        "line": 56,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/base/test_srs_mlff_fallback.py",
+        "line": 80,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_srs_mlff_fallback.py",
+        "line": 80,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_srs_runtime_foundations.py": [
+      {
+        "file": "tests/base/test_srs_runtime_foundations.py",
+        "line": 271,
+        "col": 12,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_srs_runtime_foundations.py",
+        "line": 271,
+        "col": 12,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_srs_scheduler_benchmark_integrity.py": [
+      {
+        "file": "tests/base/test_srs_scheduler_benchmark_integrity.py",
+        "line": 193,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_srs_scheduler_benchmark_integrity.py",
+        "line": 193,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/base/test_srs_scheduler_benchmark_integrity.py",
+        "line": 242,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_srs_scheduler_benchmark_integrity.py",
+        "line": 242,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/base/test_stage0_authority_completion.py": [
+      {
+        "file": "tests/base/test_stage0_authority_completion.py",
+        "line": 92,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/base/test_stage0_authority_completion.py",
+        "line": 92,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/calc/test_calculation_service_integrity.py": [
+      {
+        "file": "tests/calc/test_calculation_service_integrity.py",
+        "line": 61,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/calc/test_calculation_service_integrity.py",
+        "line": 61,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/calc/test_live_spin_gate.py": [
+      {
+        "file": "tests/calc/test_live_spin_gate.py",
+        "line": 49,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/calc/test_live_spin_gate.py",
+        "line": 49,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/calc/test_live_spin_gate.py",
+        "line": 85,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/calc/test_live_spin_gate.py",
+        "line": 85,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/calc/test_recipe_r2_execution.py": [
+      {
+        "file": "tests/calc/test_recipe_r2_execution.py",
+        "line": 170,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/calc/test_recipe_r2_execution.py",
+        "line": 170,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/calc/test_t9_fallback.py": [
+      {
+        "file": "tests/calc/test_t9_fallback.py",
+        "line": 30,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/calc/test_t9_fallback.py",
+        "line": 30,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/calc/test_t9_fallback.py",
+        "line": 164,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/calc/test_t9_fallback.py",
+        "line": 164,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/calc/test_t9_fallback.py",
+        "line": 168,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/calc/test_t9_fallback.py",
+        "line": 168,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/calc/test_xtb_cli_execution.py": [
+      {
+        "file": "tests/calc/test_xtb_cli_execution.py",
+        "line": 46,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/calc/test_xtb_cli_execution.py",
+        "line": 46,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/srs/test_cli_orca_contract.py": [
+      {
+        "file": "tests/srs/test_cli_orca_contract.py",
+        "line": 122,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/srs/test_cli_orca_contract.py",
+        "line": 122,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/srs/test_topos_physical_runner.py": [
+      {
+        "file": "tests/srs/test_topos_physical_runner.py",
+        "line": 141,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/srs/test_topos_physical_runner.py",
+        "line": 141,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/srs/test_topos_physical_runner.py",
+        "line": 177,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/srs/test_topos_physical_runner.py",
+        "line": 177,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/test_cochem_bench_cv.py": [
+      {
+        "file": "tests/test_cochem_bench_cv.py",
+        "line": 259,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/test_cochem_bench_cv.py",
+        "line": 259,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/test_cochem_bench_cv.py",
+        "line": 312,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/test_cochem_bench_cv.py",
+        "line": 312,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/test_cochem_bench_cv.py",
+        "line": 326,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/test_cochem_bench_cv.py",
+        "line": 326,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      },
+      {
+        "file": "tests/test_cochem_bench_cv.py",
+        "line": 370,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/test_cochem_bench_cv.py",
+        "line": 370,
+        "col": 1,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.mark.skipif",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/ui/test_topos_gui_runtime.py": [
+      {
+        "file": "tests/ui/test_topos_gui_runtime.py",
+        "line": 22,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/ui/test_topos_gui_runtime.py",
+        "line": 22,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ],
+    "tests/ui/test_voila_runtime_acceptance.py": [
+      {
+        "file": "tests/ui/test_voila_runtime_acceptance.py",
+        "line": 32,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression"
+      },
+      {
+        "file": "tests/ui/test_voila_runtime_acceptance.py",
+        "line": 32,
+        "col": 8,
+        "category": "PYTEST_SKIP",
+        "symbol": "pytest.skip",
+        "message": "Prohibited test suppression decorator or reference"
+      }
+    ]
+  },
+  "selected_test_blocker_count": 0,
+  "mass_policy": [],
+  "airgap": {
+    "repo_root": "/tmp/cochem-recovery-source-81f5e04",
+    "is_clean": false,
+    "violation_count": 4,
+    "scanned_files_count": 1952,
+    "scanned_directories_count": 200,
+    "scan_method": "git_ls_files",
+    "execution_time_seconds": 1.1097,
+    "max_entropy_observed": 7.98,
+    "high_entropy_files_count": 0,
+    "violations": [
+      {
+        "file_path": "/tmp/cochem-recovery-source-81f5e04/.docs/evidence/2026-10-18-recovery/hosted-modules/original-results/inputs/inputs/water.xyz",
+        "relative_path": ".docs/evidence/2026-10-18-recovery/hosted-modules/original-results/inputs/inputs/water.xyz",
+        "violation_type": "FORBIDDEN_EXTENSION",
+        "detail": "File matches forbidden runtime extension '.xyz'",
+        "severity": "ERROR",
+        "entropy": null,
+        "matched_pattern": ".xyz"
+      },
+      {
+        "file_path": "/tmp/cochem-recovery-source-81f5e04/.docs/evidence/2026-10-18-recovery/hosted-modules/original-results/provider/execution/execution.log",
+        "relative_path": ".docs/evidence/2026-10-18-recovery/hosted-modules/original-results/provider/execution/execution.log",
+        "violation_type": "FORBIDDEN_EXTENSION",
+        "detail": "File matches forbidden runtime extension '.log'",
+        "severity": "ERROR",
+        "entropy": null,
+        "matched_pattern": ".log"
+      },
+      {
+        "file_path": "/tmp/cochem-recovery-source-81f5e04/.docs/evidence/2026-10-18-recovery/hosted-modules/original-results/provider/input-handoff/artifact.xyz",
+        "relative_path": ".docs/evidence/2026-10-18-recovery/hosted-modules/original-results/provider/input-handoff/artifact.xyz",
+        "violation_type": "FORBIDDEN_EXTENSION",
+        "detail": "File matches forbidden runtime extension '.xyz'",
+        "severity": "ERROR",
+        "entropy": null,
+        "matched_pattern": ".xyz"
+      },
+      {
+        "file_path": "/tmp/cochem-recovery-source-81f5e04/.docs/evidence/2026-10-18-recovery/hosted-modules/original-results/stage0-setup.log",
+        "relative_path": ".docs/evidence/2026-10-18-recovery/hosted-modules/original-results/stage0-setup.log",
+        "violation_type": "FORBIDDEN_EXTENSION",
+        "detail": "File matches forbidden runtime extension '.log'",
+        "severity": "ERROR",
+        "entropy": null,
+        "matched_pattern": ".log"
+      }
+    ]
+  },
+  "source_fixtures": [
+    {
+      "path": "tests/data/h2co_eq.xyz",
+      "sha256": "fa55aace2bb062798e6a3302aab9c79f3bfcf370221205322f7e47d6988c3a10",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_known_emt_origin",
+      "provenance": "Historical generator ec5c2f8:tests/data/generate_test_files.py performs ASE EMT/BFGS optimization. Species labels corrected to generator Atoms(CH2O) order C,H,H,O. Used only as structural coordinates, not as an ab initio geometry or accuracy reference."
+    },
+    {
+      "path": "tests/data/water.xyz",
+      "sha256": "f8c7756854cb292c025882866920605ae0f62151cfa24deafe5456879c53cc53",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_unverified_origin",
+      "provenance": "Introduced in repository commit 8f9c69c. Coordinate-only parser input; generating method and physical reference provenance are unverified."
+    },
+    {
+      "path": "tests/data/water_dimer.xyz",
+      "sha256": "023ae36bae7e831a2916420768e609381ffa6804fe65b7dc1221f0f45d04e8d6",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_known_emt_origin",
+      "provenance": "Historical generator ec5c2f8:tests/data/generate_test_files.py performs ASE EMT/BFGS optimization. Used only as structural coordinates; not an ab initio geometry or accuracy reference."
+    },
+    {
+      "path": "tests/data/water_eq.xyz",
+      "sha256": "bcb2c64dc3baebf893d9a1a66c8144d710b3b9e2800c303b47403005933ee644",
+      "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",
+      "provenance_status": "mathematical_test_input_known_emt_origin",
+      "provenance": "Historical generator ec5c2f8:tests/data/generate_test_files.py performs ASE EMT/BFGS optimization. Used only as structural coordinates; not an ab initio geometry or accuracy reference."
+    },
+    {
+      "path": "tests/fixtures/trajectories/xtb-6.7.1-water-optimization.xyz",
+      "sha256": "9338f7e83af9c64b32baecab821c42080ea9c88f231a4dbcdb2c1e74c90607de",
+      "purpose": "Recorded trajectory parsing and transport; replay is not live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Native xTB 6.7.1 water optimization; see tests/fixtures/trajectories/README.md and original /workspace/cochem-runtime/chain-pass2-jt1upcd8/campaign/xtbopt.log"
+    },
+    {
+      "path": "examples/product_b/gaas_ordered.cif",
+      "sha256": "49e92a70862833154db267b70f6ff95c3e61b9203a0a4ec61d673a374e94d6c2",
+      "purpose": "Ordered primitive-cell CIF ingestion example; no calculated electronic properties",
+      "provenance_status": "constructed_geometry_input",
+      "provenance": "Explicit GaAs 5.65 angstrom cubic cell represented in primitive vectors; see examples/product_b/README.md. Example coordinates are not a computed reference."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVTZ.inp",
+      "sha256": "dae00852527030114dbd39277bfc672f03da0106cf31746a17be2a05b294f0a5",
+      "purpose": "Authentic canonical CCSD(T) reference output parsing regression; replay is not a fresh calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Genuine ORCA 6.1.1 one-core canonical CCSD(T) H2 reference calculation at 0.741802 angstrom, generated on 2026-10-07 by scripts/verify_r2.py; see tests/fixtures/orca_6_1_1/README.md and provenance.json."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVTZ.out",
+      "sha256": "5a49c7c5f5edfeb202abb3cb6503f2cb5f287da9ab97b5ad5ad526a9dc6a5305",
+      "purpose": "Authentic canonical CCSD(T) reference output parsing regression; replay is not a fresh calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Genuine ORCA 6.1.1 one-core canonical CCSD(T) H2 reference calculation at 0.741802 angstrom, generated on 2026-10-07 by scripts/verify_r2.py; see tests/fixtures/orca_6_1_1/README.md and provenance.json."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVQZ.inp",
+      "sha256": "e9f746a57a63218feddfcaedd05054cb9e0700f98301e450758bccc721557332",
+      "purpose": "Authentic canonical CCSD(T) reference output parsing regression; replay is not a fresh calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Genuine ORCA 6.1.1 one-core canonical CCSD(T) H2 reference calculation at 0.741802 angstrom, generated on 2026-10-07 by scripts/verify_r2.py; see tests/fixtures/orca_6_1_1/README.md and provenance.json."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/h2-canonical-ccsdt-cc-pVQZ.out",
+      "sha256": "be87e83c5137fc4d7492d4ad34cb570c64b26b40b1a816d5df836b9378d9b41f",
+      "purpose": "Authentic canonical CCSD(T) reference output parsing regression; replay is not a fresh calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Genuine ORCA 6.1.1 one-core canonical CCSD(T) H2 reference calculation at 0.741802 angstrom, generated on 2026-10-07 by scripts/verify_r2.py; see tests/fixtures/orca_6_1_1/README.md and provenance.json."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/provenance.json",
+      "sha256": "b3f927fce8ab74d4183f0b20e9b69b5e63777152e8db73a9d1d5a328b4eefebe",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "native_execution_provenance",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/water.engrad",
+      "sha256": "1caccb3dfcaaf6d21488731e5bf3732e4707f07afe315189dec349d87a79e860",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/water.hess",
+      "sha256": "9e17edda4c10cb8edffcf08e854dea501d25f7e40af77ec40addc01a58145eeb",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/water.inp",
+      "sha256": "b01e385c4092d3c4a5425a92508ac3e84966ddc587ed673c4f7e29d46c491470",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/water.out.txt",
+      "sha256": "4056716d0fafa3cdf4e3c591f6d23712f2738a89a9c11c7bd9228ab08d1895da",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_water_hf_sto3g/water.xyz",
+      "sha256": "0c9cd1dd134b2918fc169fa8a84125a30548718c44179b6d08bbf707d0a1373f",
+      "purpose": "Native ORCA Cartesian derivative and spectrum acceptance regression; replay is not a new calculation or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core HF/STO-3G water Opt+Freq files; see tests/data/orca_6_1_1_water_hf_sto3g/provenance.json and /workspace/cochem-runtime/evidence/orca-frequency-acceptance/publication-integrity.json. The native job used 512 MiB per core and passed BASE execution, derivative, publication and HDF5 validation."
+    },
+    {
+      "path": "tests/fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.out",
+      "sha256": "12483ef0d8c8b94d7b1a8fa3dcf6eb09eb41d9593f7a067c4acc5f0fe65c8519",
+      "purpose": "Exact selected native output lines for stationary-restart parser regression; not complete physical acceptance evidence",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Verbatim ORCA 6.1.1 HF/STO-3G restart output excerpt. Full-output digest, selected line ranges and excerpt digest are recorded in tests/fixtures/orca_6_1_1/water-hf-stationary-restart-excerpt.json."
+    },
+    {
+      "path": "examples/jobs/water.xyz",
+      "sha256": "739c6ea4388365edda2c92d2fd2ecba3a06309698df2cc879e59629521ca13af",
+      "purpose": "Student module geometry ingestion and rigid-geometry interface example; not an accuracy reference",
+      "provenance_status": "constructed_geometry_input",
+      "provenance": "Explicit O/H coordinates chosen for an asymmetric water-shaped geometry. No geometry optimization, energy or experimental accuracy is asserted; used for actual TOPOS connectivity and TORQ geometry API acceptance."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfn2/gradient",
+      "sha256": "2d9e399482ea8acfeca5545ca70a5ea6f263789cdb85432f36c9bd5a7d529e90",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN2-xTB water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfn2."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfn2/input.xyz",
+      "sha256": "43ec3a3de3c77940c77c04fbc003d1ddc12a1b06c1d8638217837edec34319b2",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN2-xTB water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfn2."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json",
+      "sha256": "6193959d8adbb6b5ee1b2dd3450e65d1bddec7986aea10b9470c536258df0158",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_provenance",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN2-xTB water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfn2."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfn2/stderr.txt",
+      "sha256": "db41edc1c74dad5a3527d5c6e4a48bfce3c2cabc0f0ad20acb5e420ad2a68ea9",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN2-xTB water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfn2."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfn2/stdout.txt",
+      "sha256": "f3d2bb3321e5d755f106feb431f666df318a53773d8be28196f9a8e937922096",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN2-xTB water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfn2/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfn2."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfnff/gradient",
+      "sha256": "f1c99fd85230db1ea4a51aed1005bfee8bb8fc20d7ac57b863be9ba5e4c5d008",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN-FF water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfnff."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfnff/input.xyz",
+      "sha256": "43ec3a3de3c77940c77c04fbc003d1ddc12a1b06c1d8638217837edec34319b2",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN-FF water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfnff."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json",
+      "sha256": "9ea3c3a55acfaeddd5f98c75c32c3cdc1066dc558c39ed4575d2cb714a0f176a",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_provenance",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN-FF water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfnff."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfnff/stderr.txt",
+      "sha256": "db41edc1c74dad5a3527d5c6e4a48bfce3c2cabc0f0ad20acb5e420ad2a68ea9",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN-FF water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfnff."
+    },
+    {
+      "path": "tests/data/xtb_6_7_1_native_gradients/gfnff/stdout.txt",
+      "sha256": "5692811f56e3b40afb0201f757e4dc60dfc84f86346a51d1253b0c51fed3334b",
+      "purpose": "Authentic native geometry-bound Cartesian-gradient parser and transport regression; replay is not fresh engine acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified xTB 6.7.1 one-core GFN-FF water --grad input/output captured 2026-10-07. Ordered geometry, complete native Cartesian gradient and process stdout/stderr are hashed in tests/data/xtb_6_7_1_native_gradients/gfnff/provenance.json; source /workspace/cochem-runtime/srs-gradient-probe/gfnff."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_stationary_trah_dft/provenance.json",
+      "sha256": "8b0b2130a315d81d22a42d6a9051486849a654df23d181bffda74ecc59881b59",
+      "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_stationary_trah_dft/stationary.engrad",
+      "sha256": "4df8281024bd6185398ca71e0be606050e505bc17325e58ec2ba401d7c8e7041",
+      "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_stationary_trah_dft/stationary.inp",
+      "sha256": "5cfc6eb83330a5d817f78770b22c833ab87b171a85b6735f9396600fb2649d09",
+      "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_stationary_trah_dft/stationary.out.txt",
+      "sha256": "8207b6f2fb87127ca5afa66a4cff7c998deb3ed411ad97f3773b1614351abb54",
+      "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_stationary_trah_dft/stationary.xyz",
+      "sha256": "9d8a3cc77c476d65bbdeb4ff3939925dd4ead9c7d5bea43d8387ef90c79bfbc4",
+      "purpose": "Recorded native ORCA 6.1.1 stationary TRAH restart parser regression; replay does not claim live calculation acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified one-core PBE-D4/STO-3G DEFGRID2 optimization diagnostic. The last native SCF stopped at its initial TRAH orbitals and printed its total energy as Last Energy change. Initial/final SCF energies and all residuals independently establish the actual change. See tests/data/orca_6_1_1_stationary_trah_dft/provenance.json. No executable or GBW checkpoint is included."
+    },
+    {
+      "path": "tests/data/cfour_2_1_water_hf_sto3g/water.out.txt",
+      "sha256": "c01956fd438912b4c946eb4f6492eececd7d49fa2de127c6da6833b62f862e43",
+      "purpose": "Authentic CFOUR native-axis/units and harmonic artifact parser regression; replay is not fresh execution or experimental accuracy acceptance",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified approved CFOUR 2.1 HF/STO-3G water output from ProfJJK-CoChem/CoChem-BASE Actions run37692395742 attempt1, commit f01c25a0bda238ac0db62573bbecc69fab9e8bfc, student-job/calculation/cfour/evaluation-0007/output.dat. Native result SHA256 52543ba9b68445c98bc2378b13c9d6a2c4f6c64cf93368e281139cf0f0ef9a8c; see adjacent provenance.json. Original and retained stdout bytes were compared."
+    },
+    {
+      "path": "tests/data/cfour_2_1_water_hf_sto3g/provenance.json",
+      "sha256": "ab36ba826c960bd6cba0b6e2d47614cb1499510a0cd9fa51033b0fda7596b586",
+      "purpose": "Authentic CFOUR native-axis/units and harmonic artifact parser regression; replay is not fresh execution or experimental accuracy acceptance",
+      "provenance_status": "native_execution_provenance",
+      "provenance": "Unmodified approved CFOUR 2.1 HF/STO-3G water output from ProfJJK-CoChem/CoChem-BASE Actions run37692395742 attempt1, commit f01c25a0bda238ac0db62573bbecc69fab9e8bfc, student-job/calculation/cfour/evaluation-0007/output.dat. Native result SHA256 52543ba9b68445c98bc2378b13c9d6a2c4f6c64cf93368e281139cf0f0ef9a8c; see adjacent provenance.json. Original and retained stdout bytes were compared."
+    },
+    {
+      "path": "tests/data/conformer_pool_native_topos_xtb.json",
+      "sha256": "1d0808975c86b7f13a55da072a00fc29bd9528448f695a3dfbedf15c98800cd9",
+      "purpose": "Full-lineage conformer union and geometric invariance regression on real retained TOPOS/xTB observations; replay and rigid transforms are not new quantum calculations",
+      "provenance_status": "recorded_native_conformer_observations",
+      "provenance": "Copies exact native candidates (molecule, energy_hartree, comparison_protocol, status) from BASE-managed TOPOS f63249fa32c5350bd53d285758994c9ebc7154eb, xTB6.7.1, student-topos-final-pair-baseline/student-monomers-complex-search/executed/execution/result.json SHA256 0294ecdba8b0a584d3e063cb0985e9fde26af7aa172c5d08828c48c1c085de4e. Candidate equality and source digest were independently verified; provenance metadata retains physical quantities and artifact manifest references."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/dimer.inp",
+      "sha256": "38c782051d9da50050f54dd2cc2a84e92626d082f745b8af9fd84d66dea28ebf",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_input",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/dimer.out.txt",
+      "sha256": "44f576adbe8ffafc002e033742436abd86cc7f7dc302d07b04408f5aeb1e08a4",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/dimer.engrad",
+      "sha256": "7ab9ccc153be6cecc04d6b7384f3efcbe4a2c217f9be4df7812831d88f0d66bf",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/dimer.xyz",
+      "sha256": "9334c44f6f309240d92e3dfe7cf8eb5a9bf4bfe9d7aef5b3fc9e8420b04b5fff",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/dimer_trj.xyz",
+      "sha256": "4160eea91c9cfa7205b3546619fb4054d34777e3b98789d3ed62264a38e66a47",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_output",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/data/orca_6_1_1_frozen_r1_grid/provenance.json",
+      "sha256": "6004f2ee1678fb5b05dc70db266dee7fe90065971d4870909a742c920e2215da",
+      "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
+      "provenance_status": "recorded_engine_provenance",
+      "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    }
+  ],
+  "whole_repository_inventory": {
+    "is_acceptance_pass": false,
+    "note": "Unselected legacy tests are inventoried, not executed or certified. Findings require contextual review; adversarial fixtures are not proof of runtime fabrication.",
+    "findings_count": 371,
+    "findings": {
+      "tests/test_torq_gradient_checkpointing.py": [
+        {
+          "file": "tests/test_torq_gradient_checkpointing.py",
+          "line": 181,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/test_torq_gradient_checkpointing.py",
+          "line": 181,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/test_topology_crusher.py": [
+        {
+          "file": "tests/test_topology_crusher.py",
+          "line": 703,
+          "col": 12,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/test_topology_crusher.py",
+          "line": 703,
+          "col": 12,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/test_tests_init.py": [
+        {
+          "file": "tests/test_tests_init.py",
+          "line": 164,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_tests_init.py",
+          "line": 168,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/test_subprocess_reaper.py": [
+        {
+          "file": "tests/test_subprocess_reaper.py",
+          "line": 142,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_subprocess_reaper.py",
+          "line": 169,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_subprocess_reaper.py",
+          "line": 583,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_subprocess_reaper.py",
+          "line": 1254,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/test_oet_maceoff.py": [
+        {
+          "file": "tests/test_oet_maceoff.py",
+          "line": 356,
+          "col": 9,
+          "category": "NOT_IMPLEMENTED_ERROR",
+          "symbol": "raises",
+          "message": "Test asserts an unimplemented callable"
+        }
+      ],
+      "tests/test_gc_sweep_unit.py": [
+        {
+          "file": "tests/test_gc_sweep_unit.py",
+          "line": 151,
+          "col": 12,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/test_gc_sweep_unit.py",
+          "line": 151,
+          "col": 12,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/test_dataset.py": [
+        {
+          "file": "tests/test_dataset.py",
+          "line": 204,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_dataset.py",
+          "line": 211,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/test_config_loader_comprehensive.py": [
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 67,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 75,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 78,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 86,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 87,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 137,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 155,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 163,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 166,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 179,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 190,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 199,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 201,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 210,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 211,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 213,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 223,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 224,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 225,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 235,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 236,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 237,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 279,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 285,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 293,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 300,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 310,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 318,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 319,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 325,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 379,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 396,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 418,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 436,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 453,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 459,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 473,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 474,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 482,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 486,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 501,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 520,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 521,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 531,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 534,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 558,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 566,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_config_loader_comprehensive.py",
+          "line": 567,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/test_cochem_topos_cleanup.py": [
+        {
+          "file": "tests/test_cochem_topos_cleanup.py",
+          "line": 328,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_topos_cleanup.py",
+          "line": 416,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/test_cochem_mint.py": [
+        {
+          "file": "tests/test_cochem_mint.py",
+          "line": 546,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_mint.py",
+          "line": 547,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_mint.py",
+          "line": 553,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_mint.py",
+          "line": 554,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_mint.py",
+          "line": 562,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_mint.py",
+          "line": 605,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/test_cochem_grid_convergence.py": [
+        {
+          "file": "tests/test_cochem_grid_convergence.py",
+          "line": 293,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setattr",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/test_cochem_core_registry_schema.py": [
+        {
+          "file": "tests/test_cochem_core_registry_schema.py",
+          "line": 344,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_schema.py",
+          "line": 431,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/test_cochem_core_registry_manager.py": [
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 70,
+          "col": 4,
+          "category": "DEFAULT_CONVERGENCE",
+          "symbol": "converged",
+          "message": "A result model must not assume unreported convergence"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 246,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 247,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 248,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 702,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 703,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 706,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 708,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 711,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 714,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 716,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 721,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 722,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 719,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/test_cochem_core_registry_manager.py",
+          "line": 719,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/test_cochem_bench_cv.py": [
+        {
+          "file": "tests/test_cochem_bench_cv.py",
+          "line": 259,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/test_cochem_bench_cv.py",
+          "line": 259,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/test_cochem_bench_cv.py",
+          "line": 312,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/test_cochem_bench_cv.py",
+          "line": 312,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/test_cochem_bench_cv.py",
+          "line": 326,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/test_cochem_bench_cv.py",
+          "line": 326,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/test_cochem_bench_cv.py",
+          "line": 370,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/test_cochem_bench_cv.py",
+          "line": 370,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/test_chunk20_verification_suite.py": [
+        {
+          "file": "tests/test_chunk20_verification_suite.py",
+          "line": 316,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/test_airgap_trap.py": [
+        {
+          "file": "tests/test_airgap_trap.py",
+          "line": 230,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/test_airgap_trap.py",
+          "line": 230,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/ui/test_voila_runtime_acceptance.py": [
+        {
+          "file": "tests/ui/test_voila_runtime_acceptance.py",
+          "line": 32,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/ui/test_voila_runtime_acceptance.py",
+          "line": 32,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/ui/test_topos_gui_runtime.py": [
+        {
+          "file": "tests/ui/test_topos_gui_runtime.py",
+          "line": 22,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/ui/test_topos_gui_runtime.py",
+          "line": 22,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/torq/test_goat_multi_seed_concurrency.py": [
+        {
+          "file": "tests/torq/test_goat_multi_seed_concurrency.py",
+          "line": 99,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/torq/test_goat_multi_seed_concurrency.py",
+          "line": 100,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/torq/test_goat_multi_seed_concurrency.py",
+          "line": 101,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/topos/test_topos_alignment.py": [
+        {
+          "file": "tests/topos/test_topos_alignment.py",
+          "line": 278,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/topos/test_topos_alignment.py",
+          "line": 319,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/topos/test_topos_alignment.py",
+          "line": 321,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/topos/test_topos_alignment.py",
+          "line": 323,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/topos/test_topos_alignment.py",
+          "line": 325,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/topos/test_topos_alignment.py",
+          "line": 327,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/topos/test_topos_alignment.py",
+          "line": 329,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/topos/test_topos_alignment.py",
+          "line": 357,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/topos/test_cascade_promotion_integrity_gates.py": [
+        {
+          "file": "tests/topos/test_cascade_promotion_integrity_gates.py",
+          "line": 147,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/test_models/test_egnn.py": [
+        {
+          "file": "tests/test_models/test_egnn.py",
+          "line": 138,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "setattr",
+          "message": "Foreign object modification in test"
+        }
+      ],
+      "tests/srs/test_topos_physical_runner.py": [
+        {
+          "file": "tests/srs/test_topos_physical_runner.py",
+          "line": 141,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/srs/test_topos_physical_runner.py",
+          "line": 141,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/srs/test_topos_physical_runner.py",
+          "line": 177,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/srs/test_topos_physical_runner.py",
+          "line": 177,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/srs/test_cli_orca_contract.py": [
+        {
+          "file": "tests/srs/test_cli_orca_contract.py",
+          "line": 122,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/srs/test_cli_orca_contract.py",
+          "line": 122,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/orchestration/test_sqlite_queue.py": [
+        {
+          "file": "tests/orchestration/test_sqlite_queue.py",
+          "line": 63,
+          "col": 55,
+          "category": "SYNTHETIC_DATA",
+          "symbol": "energy",
+          "message": "Generated or literal values promoted directly to physical result evidence"
+        }
+      ],
+      "tests/integration/test_gc_sweep.py": [
+        {
+          "file": "tests/integration/test_gc_sweep.py",
+          "line": 672,
+          "col": 12,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/integration/test_gc_sweep.py",
+          "line": 672,
+          "col": 12,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/integration/test_airgap.py": [
+        {
+          "file": "tests/integration/test_airgap.py",
+          "line": 239,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/integration/test_airgap.py",
+          "line": 240,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/integration/test_airgap.py",
+          "line": 241,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/integration/test_airgap.py",
+          "line": 306,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/integration/test_airgap.py",
+          "line": 307,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/integration/test_airgap.py",
+          "line": 308,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/integration/test_airgap.py",
+          "line": 375,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/integration/test_airgap.py",
+          "line": 376,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/hpc/test_mps_worker_lifecycle.py": [
+        {
+          "file": "tests/hpc/test_mps_worker_lifecycle.py",
+          "line": 41,
+          "col": 4,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/hpc/test_mps_worker_lifecycle.py",
+          "line": 41,
+          "col": 4,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/core/test_srs_chunk02_ecosystem.py": [
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 37,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 37,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 58,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 58,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 77,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 77,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 102,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 102,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 128,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 128,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 192,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 192,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 220,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 220,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 247,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk02_ecosystem.py",
+          "line": 247,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/core/test_srs_chunk01_ecosystem.py": [
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 128,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 128,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 246,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 247,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 248,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 259,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 259,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 287,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 287,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 320,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 320,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 419,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 420,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 421,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 422,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 432,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 432,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 501,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/core/test_srs_chunk01_ecosystem.py",
+          "line": 501,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/core/test_physics_integrity_part6.py": [
+        {
+          "file": "tests/core/test_physics_integrity_part6.py",
+          "line": 144,
+          "col": 26,
+          "category": "SYNTHETIC_DATA",
+          "symbol": "energy_hartree",
+          "message": "Generated or literal values promoted directly to physical result evidence"
+        }
+      ],
+      "tests/concurrency/test_concurrency_chunk3.py": [
+        {
+          "file": "tests/concurrency/test_concurrency_chunk3.py",
+          "line": 140,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/concurrency/test_concurrency_chunk3.py",
+          "line": 140,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/chunk08/test_dispatch_local_security.py": [
+        {
+          "file": "tests/chunk08/test_dispatch_local_security.py",
+          "line": 28,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/chunk08/test_dispatch_local_security.py",
+          "line": 57,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/calc/test_xtb_cli_execution.py": [
+        {
+          "file": "tests/calc/test_xtb_cli_execution.py",
+          "line": 46,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/calc/test_xtb_cli_execution.py",
+          "line": 46,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/calc/test_t9_fallback.py": [
+        {
+          "file": "tests/calc/test_t9_fallback.py",
+          "line": 30,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/calc/test_t9_fallback.py",
+          "line": 30,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/calc/test_t9_fallback.py",
+          "line": 164,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/calc/test_t9_fallback.py",
+          "line": 164,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/calc/test_t9_fallback.py",
+          "line": 168,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/calc/test_t9_fallback.py",
+          "line": 168,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/calc/test_recipe_r2_execution.py": [
+        {
+          "file": "tests/calc/test_recipe_r2_execution.py",
+          "line": 170,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/calc/test_recipe_r2_execution.py",
+          "line": 170,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/calc/test_live_spin_gate.py": [
+        {
+          "file": "tests/calc/test_live_spin_gate.py",
+          "line": 49,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/calc/test_live_spin_gate.py",
+          "line": 49,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/calc/test_live_spin_gate.py",
+          "line": 85,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/calc/test_live_spin_gate.py",
+          "line": 85,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/calc/test_calculation_service_integrity.py": [
+        {
+          "file": "tests/calc/test_calculation_service_integrity.py",
+          "line": 61,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/calc/test_calculation_service_integrity.py",
+          "line": 61,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_thread_safe_hdf5_sharding_and_swmr.py": [
+        {
+          "file": "tests/base/test_thread_safe_hdf5_sharding_and_swmr.py",
+          "line": 95,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/base/test_thread_safe_hdf5_sharding_and_swmr.py",
+          "line": 96,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/base/test_thread_safe_hdf5_sharding_and_swmr.py",
+          "line": 97,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/base/test_thread_safe_hdf5_sharding_and_swmr.py",
+          "line": 99,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/base/test_thread_safe_hdf5_sharding_and_swmr.py",
+          "line": 104,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/base/test_thread_safe_hdf5_sharding_and_swmr.py",
+          "line": 105,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "tests/base/test_thread_safe_hdf5_sharding_and_swmr.py",
+          "line": 110,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "tests/base/test_stage0_authority_completion.py": [
+        {
+          "file": "tests/base/test_stage0_authority_completion.py",
+          "line": 92,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_stage0_authority_completion.py",
+          "line": 92,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_srs_scheduler_benchmark_integrity.py": [
+        {
+          "file": "tests/base/test_srs_scheduler_benchmark_integrity.py",
+          "line": 193,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_srs_scheduler_benchmark_integrity.py",
+          "line": 193,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/base/test_srs_scheduler_benchmark_integrity.py",
+          "line": 242,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_srs_scheduler_benchmark_integrity.py",
+          "line": 242,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_srs_runtime_foundations.py": [
+        {
+          "file": "tests/base/test_srs_runtime_foundations.py",
+          "line": 271,
+          "col": 12,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_srs_runtime_foundations.py",
+          "line": 271,
+          "col": 12,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_srs_mlff_fallback.py": [
+        {
+          "file": "tests/base/test_srs_mlff_fallback.py",
+          "line": 40,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_srs_mlff_fallback.py",
+          "line": 40,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/base/test_srs_mlff_fallback.py",
+          "line": 56,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_srs_mlff_fallback.py",
+          "line": 56,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/base/test_srs_mlff_fallback.py",
+          "line": 80,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_srs_mlff_fallback.py",
+          "line": 80,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_psi4_native_authority.py": [
+        {
+          "file": "tests/base/test_psi4_native_authority.py",
+          "line": 44,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_psi4_native_authority.py",
+          "line": 44,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_native_crash_provenance.py": [
+        {
+          "file": "tests/base/test_native_crash_provenance.py",
+          "line": 176,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_native_crash_provenance.py",
+          "line": 176,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/base/test_native_crash_provenance.py",
+          "line": 206,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_native_crash_provenance.py",
+          "line": 206,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_mace_cpu_lock.py": [
+        {
+          "file": "tests/base/test_mace_cpu_lock.py",
+          "line": 66,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_mace_cpu_lock.py",
+          "line": 66,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_hosted_dashboard_runtime.py": [
+        {
+          "file": "tests/base/test_hosted_dashboard_runtime.py",
+          "line": 56,
+          "col": 12,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_hosted_dashboard_runtime.py",
+          "line": 56,
+          "col": 12,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/base/test_hosted_dashboard_runtime.py",
+          "line": 113,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_hosted_dashboard_runtime.py",
+          "line": 113,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_free_engine_setup_recovery.py": [
+        {
+          "file": "tests/base/test_free_engine_setup_recovery.py",
+          "line": 18,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_free_engine_setup_recovery.py",
+          "line": 18,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_crest_source_authority.py": [
+        {
+          "file": "tests/base/test_crest_source_authority.py",
+          "line": 13,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_crest_source_authority.py",
+          "line": 13,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "tests/base/test_crest_source_authority.py",
+          "line": 29,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_crest_source_authority.py",
+          "line": 29,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_aimnet_cpu_lock.py": [
+        {
+          "file": "tests/base/test_aimnet_cpu_lock.py",
+          "line": 59,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_aimnet_cpu_lock.py",
+          "line": 59,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "tests/base/test_abcluster_authority.py": [
+        {
+          "file": "tests/base/test_abcluster_authority.py",
+          "line": 26,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "tests/base/test_abcluster_authority.py",
+          "line": 26,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "test_suite/test_tests_init.py": [
+        {
+          "file": "test_suite/test_tests_init.py",
+          "line": 164,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_tests_init.py",
+          "line": 168,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_template_engine.py": [
+        {
+          "file": "test_suite/test_template_engine.py",
+          "line": 373,
+          "col": 20,
+          "category": "OBFUSCATION",
+          "symbol": "unittest.mock",
+          "message": "Obfuscated mock module/symbol"
+        },
+        {
+          "file": "test_suite/test_template_engine.py",
+          "line": 476,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_resource_guard.py": [
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 346,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 347,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 348,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 349,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 362,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 479,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 486,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 493,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 502,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 505,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 506,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 509,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_resource_guard.py",
+          "line": 510,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_plugins_loader.py": [
+        {
+          "file": "test_suite/test_plugins_loader.py",
+          "line": 182,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_plugins_loader.py",
+          "line": 190,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_plugins_loader.py",
+          "line": 334,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_orca.py": [
+        {
+          "file": "test_suite/test_orca.py",
+          "line": 186,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_mpi.py": [
+        {
+          "file": "test_suite/test_mpi.py",
+          "line": 203,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_inference_engine.py": [
+        {
+          "file": "test_suite/test_inference_engine.py",
+          "line": 287,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_inference_engine.py",
+          "line": 288,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_inference_engine.py",
+          "line": 307,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_dockerfile.py": [
+        {
+          "file": "test_suite/test_dockerfile.py",
+          "line": 154,
+          "col": 8,
+          "category": "OBFUSCATION",
+          "symbol": "unittest.mock",
+          "message": "Obfuscated mock module/symbol"
+        },
+        {
+          "file": "test_suite/test_dockerfile.py",
+          "line": 155,
+          "col": 8,
+          "category": "OBFUSCATION",
+          "symbol": "MagicMock",
+          "message": "Obfuscated mock module/symbol"
+        }
+      ],
+      "test_suite/test_dependency_manager.py": [
+        {
+          "file": "test_suite/test_dependency_manager.py",
+          "line": 179,
+          "col": 4,
+          "category": "EMPTY_PASS_STUB",
+          "symbol": "NonSerializableObject",
+          "message": "Empty root class implementation"
+        }
+      ],
+      "test_suite/test_core_engine.py": [
+        {
+          "file": "test_suite/test_core_engine.py",
+          "line": 122,
+          "col": 73,
+          "category": "SYNTHETIC_DATA",
+          "symbol": "energy",
+          "message": "Generated or literal values promoted directly to physical result evidence"
+        }
+      ],
+      "test_suite/test_context_compression.py": [
+        {
+          "file": "test_suite/test_context_compression.py",
+          "line": 161,
+          "col": 16,
+          "category": "SYNTHETIC_DATA",
+          "symbol": "hessian",
+          "message": "Generated or literal values promoted directly to physical result evidence"
+        },
+        {
+          "file": "test_suite/test_context_compression.py",
+          "line": 168,
+          "col": 34,
+          "category": "SYNTHETIC_DATA",
+          "symbol": "forces",
+          "message": "Generated or literal values promoted directly to physical result evidence"
+        },
+        {
+          "file": "test_suite/test_context_compression.py",
+          "line": 169,
+          "col": 34,
+          "category": "SYNTHETIC_DATA",
+          "symbol": "forces",
+          "message": "Generated or literal values promoted directly to physical result evidence"
+        },
+        {
+          "file": "test_suite/test_context_compression.py",
+          "line": 244,
+          "col": 26,
+          "category": "SYNTHETIC_DATA",
+          "symbol": "energy_hartree",
+          "message": "Generated or literal values promoted directly to physical result evidence"
+        },
+        {
+          "file": "test_suite/test_context_compression.py",
+          "line": 595,
+          "col": 23,
+          "category": "SYNTHETIC_DATA",
+          "symbol": "frequencies",
+          "message": "Generated or literal values promoted directly to physical result evidence"
+        }
+      ],
+      "test_suite/test_cochem_torq_phases_1_to_5.py": [
+        {
+          "file": "test_suite/test_cochem_torq_phases_1_to_5.py",
+          "line": 113,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_torq_phases_1_to_5.py",
+          "line": 114,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_torq_phases_1_to_5.py",
+          "line": 115,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_torq_phases_1_to_5.py",
+          "line": 116,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_torq_phases_1_to_5.py",
+          "line": 117,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_torq_phases_1_to_5.py",
+          "line": 118,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_torq_phases_1_to_5.py",
+          "line": 135,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_torq_phases_1_to_5.py",
+          "line": 136,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_cochem_torq_export_telemetry.py": [
+        {
+          "file": "test_suite/test_cochem_torq_export_telemetry.py",
+          "line": 427,
+          "col": 8,
+          "category": "EMPTY_PASS_STUB",
+          "symbol": "log_message",
+          "message": "Empty pass/ellipsis function implementation"
+        }
+      ],
+      "test_suite/test_cochem_topos_quench.py": [
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 127,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 127,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 145,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 145,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 208,
+          "col": 26,
+          "category": "SYNTHETIC_DATA",
+          "symbol": "wall_time_seconds",
+          "message": "Generated or literal values promoted directly to physical result evidence"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 240,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 240,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 345,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 345,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 368,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 368,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 406,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 406,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 444,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 444,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 475,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_topos_quench.py",
+          "line": 475,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "test_suite/test_cochem_system_config.py": [
+        {
+          "file": "test_suite/test_cochem_system_config.py",
+          "line": 239,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_system_config.py",
+          "line": 430,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_cochem_setup_phase_5.py": [
+        {
+          "file": "test_suite/test_cochem_setup_phase_5.py",
+          "line": 323,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_5.py",
+          "line": 331,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_5.py",
+          "line": 334,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_5.py",
+          "line": 356,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_5.py",
+          "line": 751,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_5.py",
+          "line": 752,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_5.py",
+          "line": 1100,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_cochem_setup_phase_3.py": [
+        {
+          "file": "test_suite/test_cochem_setup_phase_3.py",
+          "line": 233,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_3.py",
+          "line": 499,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_cochem_setup_phase_11.py": [
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 86,
+          "col": 8,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 444,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 445,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 453,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 454,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 455,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 463,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 471,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 472,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 481,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 482,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 491,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 499,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 500,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 509,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_11.py",
+          "line": 1015,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_cochem_setup_phase_1.py": [
+        {
+          "file": "test_suite/test_cochem_setup_phase_1.py",
+          "line": 512,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_1.py",
+          "line": 548,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_1.py",
+          "line": 573,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_1.py",
+          "line": 573,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_1.py",
+          "line": 589,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_1.py",
+          "line": 589,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_1.py",
+          "line": 602,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_1.py",
+          "line": 602,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_1.py",
+          "line": 643,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_setup_phase_1.py",
+          "line": 770,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_cochem_mlff_router.py": [
+        {
+          "file": "test_suite/test_cochem_mlff_router.py",
+          "line": 98,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_mlff_router.py",
+          "line": 98,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_mlff_router.py",
+          "line": 241,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_mlff_router.py",
+          "line": 241,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_mlff_router.py",
+          "line": 263,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_mlff_router.py",
+          "line": 263,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_mlff_router.py",
+          "line": 279,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_mlff_router.py",
+          "line": 279,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "test_suite/test_cochem_jax_builder.py": [
+        {
+          "file": "test_suite/test_cochem_jax_builder.py",
+          "line": 476,
+          "col": 12,
+          "category": "OBFUSCATION",
+          "symbol": "unittest.mock",
+          "message": "Obfuscated mock module/symbol"
+        },
+        {
+          "file": "test_suite/test_cochem_jax_builder.py",
+          "line": 477,
+          "col": 12,
+          "category": "OBFUSCATION",
+          "symbol": "MagicMock",
+          "message": "Obfuscated mock module/symbol"
+        }
+      ],
+      "test_suite/test_cochem_core_telemetry_logger.py": [
+        {
+          "file": "test_suite/test_cochem_core_telemetry_logger.py",
+          "line": 802,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_cochem_core_subprocess_broker.py": [
+        {
+          "file": "test_suite/test_cochem_core_subprocess_broker.py",
+          "line": 320,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_core_subprocess_broker.py",
+          "line": 320,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_core_subprocess_broker.py",
+          "line": 340,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_core_subprocess_broker.py",
+          "line": 340,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_core_subprocess_broker.py",
+          "line": 427,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_core_subprocess_broker.py",
+          "line": 427,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_cochem_core_subprocess_broker.py",
+          "line": 700,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_core_subprocess_broker.py",
+          "line": 700,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "test_suite/test_cochem_core_registry_schema.py": [
+        {
+          "file": "test_suite/test_cochem_core_registry_schema.py",
+          "line": 344,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_core_registry_schema.py",
+          "line": 431,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_cochem_core_registry_manager.py": [
+        {
+          "file": "test_suite/test_cochem_core_registry_manager.py",
+          "line": 895,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_core_registry_manager.py",
+          "line": 895,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "test_suite/test_cochem_core_hdf5_manager.py": [
+        {
+          "file": "test_suite/test_cochem_core_hdf5_manager.py",
+          "line": 445,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_cochem_core_hdf5_manager.py",
+          "line": 445,
+          "col": 1,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.mark.skipif",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "test_suite/test_cochem_catalog_compiler.py": [
+        {
+          "file": "test_suite/test_cochem_catalog_compiler.py",
+          "line": 430,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.setenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        },
+        {
+          "file": "test_suite/test_cochem_catalog_compiler.py",
+          "line": 433,
+          "col": 4,
+          "category": "MONKEYPATCH_INTERCEPT",
+          "symbol": "monkeypatch.delenv",
+          "message": "Prohibited replacement of an executing interface/environment"
+        }
+      ],
+      "test_suite/test_auto_version_bump.py": [
+        {
+          "file": "test_suite/test_auto_version_bump.py",
+          "line": 337,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_auto_version_bump.py",
+          "line": 337,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_auto_version_bump.py",
+          "line": 397,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_auto_version_bump.py",
+          "line": 397,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_auto_version_bump.py",
+          "line": 602,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_auto_version_bump.py",
+          "line": 602,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_auto_version_bump.py",
+          "line": 660,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_auto_version_bump.py",
+          "line": 660,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        },
+        {
+          "file": "test_suite/test_auto_version_bump.py",
+          "line": 704,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_auto_version_bump.py",
+          "line": 704,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ],
+      "test_suite/test_airgap_trap.py": [
+        {
+          "file": "test_suite/test_airgap_trap.py",
+          "line": 230,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression"
+        },
+        {
+          "file": "test_suite/test_airgap_trap.py",
+          "line": 230,
+          "col": 8,
+          "category": "PYTEST_SKIP",
+          "symbol": "pytest.skip",
+          "message": "Prohibited test suppression decorator or reference"
+        }
+      ]
+    }
+  }
+}

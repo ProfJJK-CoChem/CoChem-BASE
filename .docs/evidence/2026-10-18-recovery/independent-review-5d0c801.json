@@ -1,0 +1,261 @@
+{
+  "revision": "5d0c801d01070b7b3311ef2a5b342a9e84483bc7",
+  "hosted_run": 39091746906,
+  "completed_jobs": {
+    "ci-controls-macos-latest": {
+      "passed": true,
+      "release_accepted": true,
+      "collected": 221,
+      "passed_tests": 221,
+      "failed_tests": [],
+      "pending_external_acceptance": [],
+      "unexpected_skips": [],
+      "coverage_errors": [],
+      "command_exit_code": 0,
+      "timed_out": false,
+      "quarantine_source_changed": [],
+      "quarantine_workspace_changed": false,
+      "descendant_source_records": 107,
+      "descendant_source_failures": [],
+      "descendant_source_authority_errors": [],
+      "source_origins_verified": true,
+      "source_changed": [],
+      "cleanup_observation": {
+        "launcher_pid": 2214,
+        "launcher_returncode": 0,
+        "owned_work_stopped": true,
+        "ownership_scope": "posix-group",
+        "collection_observation": "owned-boundary-empty",
+        "launcher_create_time": 1792292149.391172,
+        "admitted_before_exec": true,
+        "external_reaping_pending": []
+      }
+    },
+    "ci-controls-ubuntu-24.04": {
+      "passed": true,
+      "release_accepted": true,
+      "collected": 221,
+      "passed_tests": 221,
+      "failed_tests": [],
+      "pending_external_acceptance": [],
+      "unexpected_skips": [],
+      "coverage_errors": [],
+      "command_exit_code": 0,
+      "timed_out": false,
+      "quarantine_source_changed": [],
+      "quarantine_workspace_changed": false,
+      "descendant_source_records": 107,
+      "descendant_source_failures": [],
+      "descendant_source_authority_errors": [],
+      "source_origins_verified": true,
+      "source_changed": [],
+      "cleanup_observation": {
+        "launcher_pid": 2411,
+        "launcher_returncode": 0,
+        "owned_work_stopped": true,
+        "ownership_scope": "posix-group",
+        "collection_observation": "owned-boundary-empty",
+        "launcher_create_time": 1792292143.59,
+        "admitted_before_exec": true,
+        "external_reaping_pending": []
+      }
+    },
+    "ci-controls-windows-latest": {
+      "passed": true,
+      "release_accepted": true,
+      "collected": 221,
+      "passed_tests": 221,
+      "failed_tests": [],
+      "pending_external_acceptance": [],
+      "unexpected_skips": [],
+      "coverage_errors": [],
+      "command_exit_code": 0,
+      "timed_out": false,
+      "quarantine_source_changed": [],
+      "quarantine_workspace_changed": false,
+      "descendant_source_records": 101,
+      "descendant_source_failures": [],
+      "descendant_source_authority_errors": [],
+      "source_origins_verified": true,
+      "source_changed": [],
+      "cleanup_observation": {
+        "launcher_pid": 728,
+        "launcher_returncode": 0,
+        "owned_work_stopped": true,
+        "ownership_scope": "windows-job",
+        "collection_observation": "owned-boundary-empty",
+        "launcher_create_time": 1792292158.0425453,
+        "admitted_before_exec": true,
+        "external_reaping_pending": []
+      }
+    },
+    "installed-wheel-macos-latest": {
+      "passed": true,
+      "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
+      "source_revision": "5d0c801d01070b7b3311ef2a5b342a9e84483bc7",
+      "version": "1.1.0",
+      "wheel_sha256": "4d9c026d573239b92c7e833f39d2c8a19e06c5ed2100f3b17bd2bee8ec44e336"
+    },
+    "installed-wheel-ubuntu-24.04": {
+      "passed": true,
+      "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
+      "source_revision": "5d0c801d01070b7b3311ef2a5b342a9e84483bc7",
+      "version": "1.1.0",
+      "wheel_sha256": "30505ce70f1f1bd43056829aae2b6084cc651ac64bb394ca69b020ddfb3aa19b"
+    },
+    "installed-wheel-windows-latest": {
+      "passed": true,
+      "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution",
+      "source_revision": "5d0c801d01070b7b3311ef2a5b342a9e84483bc7",
+      "version": "1.1.0",
+      "wheel_sha256": "b3281014aa17badfe0316e63467b1a86d428b48329f7ba1e1fea5192069eb67c"
+    }
+  },
+  "full_local": {
+    "status": "failed",
+    "receipt": "/tmp/cochem-recovery-full-5d0c801/test-acceptance.json",
+    "revision": "5d0c801d01070b7b3311ef2a5b342a9e84483bc7",
+    "summary": {
+      "collected": 3198,
+      "passed_tests": 3188,
+      "failed_tests": [
+        "tests/ui/test_voila_runtime_acceptance.py::test_gui_xtb_serialization_and_invalid_spin"
+      ],
+      "pending_external_acceptance": [
+        {
+          "nodeid": "tests/base/test_abcluster_authority.py::test_actual_rigidmol_metadata_audit",
+          "expected_skip_reason": "Actual optional ABCluster installation not provided",
+          "prerequisites": [
+            "Actual ABCluster 3.4 rigidmol executable"
+          ],
+          "category": "optional_native_distribution",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "tests/base/test_crest_source_authority.py::test_genuine_reviewed_crest_source_distribution_binds_immutable_components",
+          "expected_skip_reason": "Reviewed patched CREST installation not provided",
+          "prerequisites": [
+            "Actual reviewed TOPOS generic-paths CREST build, source patch and shared-library receipts"
+          ],
+          "category": "optional_native_distribution",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "tests/base/test_psi4_native_authority.py::test_genuine_psi4_native_audit_and_component_change_rejection",
+          "expected_skip_reason": "Optional genuine Psi4 installation not supplied",
+          "prerequisites": [
+            "Actual Psi4 1.10.2 compiled runtime with native core and successful helium Hartree-Fock probe"
+          ],
+          "category": "optional_native_distribution",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "tests/base/test_aimnet_cpu_lock.py::test_actual_isolated_aimnet_cpu_installation_and_phase4_audit",
+          "expected_skip_reason": "Set COCHEM_TEST_AIMNET_SILO to test an actually provisioned native AIMNet CPU installation",
+          "prerequisites": [
+            "Actual isolated AIMNet CPU installation matching the separately reviewed dependency lock"
+          ],
+          "category": "optional_native_distribution",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "tests/srs/test_topos_physical_runner.py::test_physical_crest_goat_union",
+          "expected_skip_reason": "Real licensed ORCA and CREST engines are required for union acceptance",
+          "prerequisites": [
+            "Licensed ORCA GOAT installation",
+            "CREST installation"
+          ],
+          "category": "licensed_engine",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "test_suite/test_cochem_core_hdf5_manager.py::test_is_master_node_detection_slurm",
+          "expected_skip_reason": "Requires physical SLURM node",
+          "prerequisites": [
+            "Execution on a physical Slurm allocation"
+          ],
+          "category": "host",
+          "status": "pending_external_acceptance"
+        },
+        {
+          "nodeid": "test_suite/test_cochem_core_registry_manager.py::test_is_master_node_detection_slurm",
+          "expected_skip_reason": "Requires physical SLURM node",
+          "prerequisites": [
+            "Execution on a physical Slurm allocation"
+          ],
+          "category": "host",
+          "status": "pending_external_acceptance"
+        }
+      ],
+      "unexpected_skips": [
+        {
+          "nodeid": "tests/base/test_crest_source_authority.py::test_actual_stock_crest_installer_metadata_remains_supported",
+          "reasons": [
+            "Actual stock CREST3.0.2 installation not provided"
+          ]
+        },
+        {
+          "nodeid": "tests/base/test_mace_cpu_lock.py::test_actual_cpu_silo_passes_the_phase4_provisioner_boundary",
+          "reasons": [
+            "Actual reviewed MACE CPU installation not provided"
+          ]
+        }
+      ],
+      "coverage_errors": [],
+      "command_exit_code": 1,
+      "timed_out": false,
+      "source_changed": [],
+      "quarantine_source_changed": [],
+      "source_origins_verified": true,
+      "descendant_source_records": 814,
+      "cleanup_observation": {
+        "launcher_pid": 6509,
+        "launcher_returncode": 1,
+        "owned_work_stopped": true,
+        "ownership_scope": "posix-group",
+        "collection_observation": "owned-boundary-empty",
+        "launcher_create_time": 1792292033.13,
+        "admitted_before_exec": true,
+        "external_reaping_pending": []
+      }
+    }
+  },
+  "full_hosted": {
+    "status": "failed",
+    "scope": "Bounded hosted regression profile; not full canonical local suite",
+    "receipt": "/tmp/cochem-recovery-independent-hosted-5d0c801/cochem-evidence/bounded-regressions/test-acceptance.json",
+    "revision": "5d0c801d01070b7b3311ef2a5b342a9e84483bc7",
+    "summary": {
+      "passed": false,
+      "collected": 1777,
+      "passed_tests": 1776,
+      "failed_tests": [
+        "tests/ui/test_voila_runtime_acceptance.py::test_gui_xtb_serialization_and_invalid_spin"
+      ],
+      "pending_external_acceptance": [],
+      "unexpected_skips": [],
+      "coverage_errors": [],
+      "command_exit_code": 1,
+      "timed_out": false,
+      "source_changed": [],
+      "quarantine_source_changed": [],
+      "quarantine_workspace_changed": false,
+      "source_origins_verified": true,
+      "descendant_source_records": 424,
+      "descendant_source_failures": [],
+      "descendant_source_authority_errors": [],
+      "cleanup_observation": {
+        "launcher_pid": 3513,
+        "launcher_returncode": 1,
+        "owned_work_stopped": true,
+        "ownership_scope": "posix-group",
+        "collection_observation": "owned-boundary-empty",
+        "launcher_create_time": 1792292584.4,
+        "admitted_before_exec": true,
+        "external_reaping_pending": []
+      }
+    },
+    "diagnosis": "Single obsolete Open-shell wording assertion at tests/ui/test_voila_runtime_acceptance.py:86; invalid spin remains rejected and execute-disabled assertion passed. Production xTB validation condition unchanged."
+  },
+  "separate_native_trace_job": "skipped"
+}

@@ -26,13 +26,37 @@ reconstructions of the temporary files lost during the earlier disconnect.
   assertions remain failures in this receipt.
 - `failed-audit-a02998c.json`: original refused full invocation. Its source
   audit rejected the empty test HTTP logger before pytest could start.
-- `hosted-modules/`: all 16 unchanged files returned by the new hosted
-  TORQ/TOPOS installation and TOPOS structural-analysis run `39092523800`,
-  together with its verified metadata, readback and hash inventory. Its README
+- `failed-bounded-5d0c801.json`: original hosted profile with 1,776 passes and
+  one stale warning-text assertion failure. Source/import/process checks passed;
+  the overall test result remains failed.
+- `spin-guidance-test-correction.xml` and `.json`: 13 whole-file focused passes
+  for the correction committed as `81f5e04`, including real native xTB GUI work.
+  These working-tree receipts do not replace complete release acceptance.
+- `failed-full-5d0c801.json` and `independent-review-5d0c801.json`: the complete
+  local failed profile and independent inspection, including two unexpected
+  runtime-discovery skips. Seven other skips were reviewed deferrals; these
+  categories must not be combined into an accepted total.
+- `failed-abbreviated-revision-81f5e04.json`: the command-input refusal before
+  pytest. `failed-source-audit-81f5e04.json` and its summary preserve the
+  subsequent full-SHA refusal for four raw evidence files in source control.
+- `mace-runtime-recovery.json` and `.xml`: the unchanged actual MACE boundary
+  check passed after restoring discovery of its retained installed silo.
+- `crest-runtime-recovery.json` and `.xml`: the unchanged stock-CREST identity
+  and real CREST/ORCA union checks both passed after restoring their runtime
+  variable and executable search path. These focused checks have zero skips;
+  they do not replace the full profile or provide the separate patched CREST.
+- `hosted-modules/`: 12 unchanged JSON reports selected from the 16 files returned
+  by hosted TORQ/TOPOS installation and TOPOS structural-analysis run
+  `39092523800`, together with verified metadata, readback and hash inventory.
+  Its README records the separately packaged complete bundle awaiting upload,
+  including four raw files that must remain outside source control, and
   distinguishes the exported hashes, the optional credential that was present,
   and the structural scope from electronic or student-pilot acceptance.
   `hosted-modules-independent-review.json` records the separate readback and
-  comparison against canonical provider source and unchanged publication files.
+  comparison against canonical provider source and the original complete package.
+  That content review did not catch the source-placement violation subsequently
+  rejected by the air-gap gate; the complete bundle is now outside source control
+  and awaits separate publication.
 
 Focused selections overlap and must not be summed. Absolute paths belong to
 the original execution environments; cloning these receipts does not recreate

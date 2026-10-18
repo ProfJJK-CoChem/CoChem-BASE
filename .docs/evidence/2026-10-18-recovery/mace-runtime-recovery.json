@@ -1,0 +1,67 @@
+{
+  "schema_version": "cochem.environment-recovery/1",
+  "scope": "Retained MACE silo discovery and unchanged Phase4 provisioning boundary regression; no new chemistry or package installation",
+  "source_revision": "5d0c801d01070b7b3311ef2a5b342a9e84483bc7",
+  "source_clean_after_test": true,
+  "test": "tests.base.test_mace_cpu_lock::test_actual_cpu_silo_passes_the_phase4_provisioner_boundary",
+  "pytest": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "1",
+    "time": "6.556",
+    "timestamp": "2026-10-18T03:31:00.106283+00:00",
+    "hostname": "6046c9c1959a"
+  },
+  "silo": "/workspace/cochem-silos/ml",
+  "runtime": {
+    "cuda_available": false,
+    "cuda_runtime": null,
+    "device_count": 0,
+    "executable": "/workspace/cochem-silos/ml/bin/python",
+    "module_files": {
+      "e3nn": "/workspace/cochem-silos/ml/lib/python3.12/site-packages/e3nn/__init__.py",
+      "mace": "/workspace/cochem-silos/ml/lib/python3.12/site-packages/mace/__init__.py",
+      "torch": "/workspace/cochem-silos/ml/lib/python3.12/site-packages/torch/__init__.py"
+    },
+    "prefix": "/workspace/cochem-silos/ml",
+    "python_version": "3.12.14",
+    "versions": {
+      "e3nn": "0.4.4",
+      "jax": "0.7.2",
+      "mace-torch": "0.3.17",
+      "torch": "2.8.0+cpu",
+      "torchani": "2.7.9"
+    }
+  },
+  "activation_base": "/workspace/cochem-runtime/student-srs-3ce9206-activate.sh",
+  "activation_supplement": "/workspace/cochem-runtime/recovery-mace-2026-10-18/activate-test-silo.sh",
+  "restored_environment": {
+    "COCHEM_TEST_MACE_SILO": "/workspace/cochem-silos/ml"
+  },
+  "profile_selection": "COCHEM_ML_TORCH_PROFILE was absent; existing source default legacy applied unchanged. Test replaces initial CPU lock with DEFAULT_PINS[mace] and asserts legacy, with CPU Torch.",
+  "package_changes_performed": false,
+  "native_cuda_claimed": false,
+  "test_side_effects": "Unchanged provision_micro_silo refreshes existing silo activation metadata/hooks after successful verification; no package repair or upgrade.",
+  "files": {
+    "pytest-full-activation.xml": {
+      "sha256": "bb227521827c98f8f6d068a4d689fac24bdac58d2b6e308358ac13851930bfa4"
+    },
+    "pytest-full-activation.log": {
+      "sha256": "2f8ffca39aa0fb73466d7e5acb126ab087d3b2760d75f93c55be409305d035b8"
+    },
+    "runtime-observation.json": {
+      "sha256": "465554c8a1c6cfff75257321a3d44d174c779d2c59989ea4d9d30cf2622a7c54"
+    },
+    "activate-test-silo.sh": {
+      "sha256": "32d0d3e6c357a1cda46934c14d5eeab14e5d6949d5066c3e3d9e47404e4036d5"
+    }
+  },
+  "source_hashes": {
+    "tests/base/test_mace_cpu_lock.py": "246ed2aac1dc0f6c32381bbd8b2bc0551549546819cb7f479ffce73e16190b52",
+    "src/cochem_base/orchestrator/ml_silo_manager.py": "43a4bc2d94721c5ca7382f84468fa70bea6fe50d086797c79e1f96828c5bf790",
+    "src/cochem_base/orchestrator/silo_dependency_pins.py": "bc321bdd9f9e317b59e657f283983f425b2d2264035d7cd14c3ce45152384137",
+    "src/cochem_base/orchestrator/cochem_setup_phase_4.py": "082f5c3043379f2f27876bfd7bd9390ae67b0e474582d0f53a9a1accb22d9138"
+  }
+}

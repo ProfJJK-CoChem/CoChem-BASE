@@ -4,6 +4,11 @@ Prepared 2026-10-09. This is the working brief for the agent running on the
 instructor's local workstation. **Complete the implementation and genuine
 acceptance below; this document does not declare the unfinished work complete.**
 
+**Replacement agents: start with the [current takeover brief](AGENT_TAKEOVER.md).**
+It updates deployment access and evidence locations while retaining the full
+implementation backlog below. The agent performs tests and troubleshooting;
+the instructor is needed only for account-only approvals or unavailable settings.
+
 ## 2026-10-18 recovery and module ownership update
 
 Start with the [recovery/validation record](GUI_Recovery_2026-10-18.md) and
@@ -267,7 +272,7 @@ Use the step-by-step [App guide](Personal_Project_App_Deployment.md). Register
 the instructor App and configure a private organization controller with Issues
 enabled, student-team Read access and instructor-only administration. Install the
 App on the organization and only the consenting student's selected private
-project. Use the documented Contents read, Secrets/Variables/Codespaces secrets
+project. Use the documented Contents read and write, Secrets/Variables/Codespaces secrets
 write and organization Members read permissions. Keep the signing PEM private
 and controller-only; read-only source/engine readers stay in private settings.
 Check the controller's Actions policy/billing and its approved exact worker SHA.

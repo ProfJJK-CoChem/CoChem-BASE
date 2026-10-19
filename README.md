@@ -212,7 +212,8 @@ reduce the requirements of larger calculations.
 <details>
 <summary><strong>Architecture, development checks and completion handoff</strong></summary>
 
-Maintainers should read the [workstation completion handoff](.docs/WORKSTATION_COMPLETION_HANDOFF.md).
+Replacement agents should start with the [current takeover brief](.docs/AGENT_TAKEOVER.md),
+then read the [complete implementation backlog](.docs/WORKSTATION_COMPLETION_HANDOFF.md).
 The governing requirements are [SRS Chunk 17](.docs/SRS_Chunk_17_CoChem_BASE_Architecture.md)
 plus [proposal additions](.docs/SRS_Chunk_Proposal_CoChem_BASE_Architectural_Review.md).
 The [ingestion specification](.docs/task1_subsystems_architectural_specification.md)

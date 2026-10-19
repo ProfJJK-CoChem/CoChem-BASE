@@ -1,5 +1,29 @@
 # Accept the actual no-code student research deployment
 
+## Current takeover update — 18 October 2026
+
+The [agent takeover brief](AGENT_TAKEOVER.md) supersedes the access diagnosis
+in the historical observations below. The selected independent test project
+is now private; ordinary source pushes and Actions dispatch are working from
+the maintainer connection. The registered lab App and private controller have
+also been verified to exist. Their source and the test project's source were
+updated to the reviewed BASE revision before the takeover.
+
+A real project setup-check workflow completed, reporting no approved BASE
+revision and no configured ORCA/CFOUR availability. The controller had no runs
+at the latest inspection. These observations establish that the diagnostic
+works; they do not establish completed enrollment, engine access or a successful
+student calculation. Original private receipts are retained in the private
+controller's deployment handoff. Its App installations/settings and the actual
+student Codespace route still require validation.
+
+The testing agent performs the pilot and troubleshooting. The instructor/test
+account owner supplies only sign-in, account consent or administrator actions
+that the agent cannot perform. The browser steps below describe the user
+journey to exercise; they are not an instruction to make the instructor run
+every test manually. A normal student's GitHub identity and actual workspace
+must still be established; access to the student's repository is not that proof.
+
 ## Pilot status — 18 October 2026
 
 **A real student-account pilot is still required.** BASE, TOPOS and TORQ are
@@ -75,9 +99,10 @@ Repository write access can permit project updates and Actions work; it does
 not impersonate the student's Codespaces authorization. Observe the actual
 student sign-in and fresh startup separately.
 
-No live instructor App registration and controller deployment has yet been
-verified for this pilot. The code and the setup guide do not establish that
-those services have been configured. Confirm the actual installation link,
+At that earlier inspection, no live instructor App registration and controller
+deployment had been verified for this pilot. Their existence is now verified
+as described above; successful installation/configuration is still separate.
+Confirm the actual installation link,
 controller and successful provisioning before relying on the private-engine
 steps below. Public-source and free-engine checks can proceed independently.
 

@@ -13,6 +13,7 @@ import secrets
 import subprocess
 import sys
 import threading
+import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -35,6 +36,8 @@ from cochem_base.interfaces.course_access import (
     enrollment_links,
     parse_enrollment,
     provision_project,
+    deprovision_project,
+    reconcile_project,
     verify_calculation_project,
 )
 from scripts import provision_student_project_access as controller_script
@@ -88,6 +91,19 @@ class ProtocolServer(ThreadingHTTPServer):
         self.source_truncated = configuration.source_truncated
         self.excess_permissions = configuration.excess_permissions
         self.fail_variable = False
+        self.fail_variable_name = ""
+        self.fail_secret_put = False
+        self.fail_delete = False
+        self.installation_removed = False
+        self.membership_missing = False
+        self.reader_tokens = {}
+        self.reader_requests = []
+        self.reader_denied = False
+        self.reader_delay = 0
+        self.reader_wrong_tag = False
+        self.reader_wrong_asset = False
+        self.reader_wrong_digest = False
+        self.reader_wrong_revision = False
         self.project_owner_type = configuration.project_owner_type
         self.project_owner_login = configuration.project_owner_login
         self.project_fork = configuration.project_fork
@@ -98,6 +114,8 @@ class ProtocolServer(ThreadingHTTPServer):
         self.secret_values = {}
         self.codespaces_values = {}
         self.variables = {}
+        self.controller_variables = {}
+        self.ledger_denied = False
         self.devcontainer = (Path(__file__).resolve().parents[2] / ".devcontainer/devcontainer.json").read_bytes()
         self.project_devcontainer = self.devcontainer
         self.project_revision = hashlib.sha1(b"original project commit").hexdigest()
@@ -140,12 +158,18 @@ class ProtocolHandler(BaseHTTPRequestHandler):
     def do_PATCH(self):
         self.operation("PATCH")
 
+    def do_DELETE(self):
+        self.operation("DELETE")
+
     def answer(self, value, status=200):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         if value is not None:
-            self.wfile.write(json.dumps(value).encode())
+            try:
+                self.wfile.write(json.dumps(value).encode())
+            except (BrokenPipeError, ConnectionResetError):
+                return None
 
     def operation(self, method):
         state = self.server
@@ -164,6 +188,31 @@ class ProtocolHandler(BaseHTTPRequestHandler):
         if path == "/refused":
             self.answer({"message": state.error_secret}, 403)
             return
+        for kind in ("orca", "cfour", "source"):
+            repository = "Lab/Module" if kind == "source" else "Lab/" + kind.upper()
+            prefix = "/repos/" + repository
+            if path != prefix and not path.startswith(prefix + "/"):
+                continue
+            state.reader_requests.append((kind, path))
+            if state.reader_delay:
+                time.sleep(state.reader_delay)
+            if state.reader_denied or state.reader_tokens.get(auth) != kind:
+                self.answer({}, 403)
+                return
+            if path == prefix:
+                self.answer({"full_name": repository, "private": True})
+            elif kind == "source" and "/git/commits/" in path:
+                self.answer({"sha": "0" * 40 if state.reader_wrong_revision else "f" * 40})
+            elif kind == "source" and "/git/trees/" in path:
+                self.answer({"tree": state.critical, "truncated": False})
+            elif kind != "source" and path == prefix + "/releases/tags/reviewed-1":
+                self.answer({"tag_name": "changed" if state.reader_wrong_tag else "reviewed-1", "draft": False,
+                    "assets": [{"id": 61, "size": 4096, "state": "uploaded",
+                        "name": "other.tar.xz" if state.reader_wrong_asset else "reviewed.tar.xz",
+                        "digest": "sha256:" + ("0" * 64 if state.reader_wrong_digest else hashlib.sha256(b"protocol archive identity").hexdigest())}]})
+            else:
+                self.answer({}, 404)
+            return
         if path in {"/orgs/Lab/installation", "/repos/student/project/installation"}:
             try:
                 header, body, signature = auth.split(".")
@@ -175,6 +224,9 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                 self.answer({"message": "invalid RSA assertion"}, 401)
                 return
             org = path.startswith("/orgs/")
+            if not org and state.installation_removed:
+                self.answer({}, 404)
+                return
             self.answer({"id": 11 if org else 22, "app_id": 123,
                          "repository_selection": "selected", "account": {
                          "login": "Lab" if org else ("student" if state.correct_installation else "other"),
@@ -203,8 +255,26 @@ class ProtocolHandler(BaseHTTPRequestHandler):
         if path == "/repos/Lab/Controller/collaborators/instructor/permission":
             self.answer({"permission": "admin"})
             return
+        if path.startswith("/repos/Lab/Controller/actions/variables"):
+            if (state.ledger_denied or permissions != {"actions_variables": "write"}
+                    or state.tokens.get(auth, {}).get("repositories") != ["Controller"]):
+                self.answer({}, 403)
+                return
+            if method == "GET":
+                name = path.rsplit("/", 1)[1]
+                self.answer({"name": name, "value": state.controller_variables[name]}
+                            if name in state.controller_variables else {},
+                            200 if name in state.controller_variables else 404)
+            else:
+                state.writes.append((method, path))
+                state.controller_variables[payload["name"]] = payload["value"]
+                self.answer(None, 201 if method == "POST" else 204)
+            return
         if path == "/orgs/Lab/teams/research/memberships/student":
             assert permissions == {"members": "read"}
+            if state.membership_missing:
+                self.answer({}, 404)
+                return
             self.answer({"state": "active" if state.active else "pending"})
             return
         if path == "/repos/student/project":
@@ -301,6 +371,9 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                 self.answer({"key_id": "public-key-id", "key": base64.b64encode(bytes(key.public_key)).decode()})
                 return
             if method == "PUT" and "/secrets/" in path:
+                if state.fail_secret_put:
+                    self.answer({}, 403)
+                    return
                 assert set(payload) == {"encrypted_value", "key_id"}
                 state.writes.append((method, path))
                 key = state.codespaces_key if "/codespaces/" in path else state.actions_key
@@ -309,13 +382,30 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                 target[path.rsplit("/", 1)[1]] = value
                 self.answer(None, 201)
                 return
+            if "/secrets/" in path and method in {"GET", "DELETE"}:
+                name = path.rsplit("/", 1)[1]
+                target = state.codespaces_values if "/codespaces/" in path else state.secret_values
+                if method == "DELETE":
+                    state.writes.append((method, path))
+                    if state.fail_delete:
+                        self.answer({}, 403)
+                        return
+                    target.pop(name, None)
+                    self.answer(None, 204)
+                else:
+                    self.answer({"name": name}, 200) if name in target else self.answer({}, 404)
+                return
             if "/actions/variables" in path:
-                if state.fail_variable:
+                if state.fail_variable or (method != "GET" and state.fail_variable_name == path.rsplit("/", 1)[1]):
                     self.answer({"message": state.error_secret}, 403)
                     return
                 if method == "GET":
                     name = path.rsplit("/", 1)[1]
                     self.answer({"name": name, "value": state.variables[name]} if name in state.variables else {}, 200 if name in state.variables else 404)
+                elif method == "DELETE":
+                    state.writes.append((method, path))
+                    state.variables.pop(path.rsplit("/", 1)[1], None)
+                    self.answer(None, 204)
                 else:
                     state.writes.append((method, path))
                     state.variables[payload["name"]] = payload["value"]
@@ -343,8 +433,15 @@ def config_for(peer, **changes):
     pem = peer.signing_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
     config = ControllerConfig(repository="Lab/Controller", organization="Lab", team_slug="research", app_id="123",
         app_slug="cochem-research-access", approved_base_repository="Lab/BASE", approved_base_sha="a" * 40,
-        private_key=pem, credentials={kind: secrets.token_urlsafe(32) for kind in ("orca", "cfour", "source")})
-    return replace(config, **changes)
+        private_key=pem, credentials={kind: secrets.token_urlsafe(32) for kind in ("orca", "cfour", "source")},
+        credential_targets={
+            **{kind: {"repository": "Lab/" + kind.upper(), "release_tag": "reviewed-1",
+                      "archive_name": "reviewed.tar.xz", "sha256": hashlib.sha256(b"protocol archive identity").hexdigest()}
+               for kind in ("orca", "cfour")},
+            "source": {"repository": "Lab/Module", "revision": "f" * 40}})
+    config = replace(config, **changes)
+    peer.reader_tokens.update({token: kind for kind, token in config.credentials.items()})
+    return config
 
 
 def provision(peer, config=None, enrollment=None, author="student"):
@@ -353,6 +450,10 @@ def provision(peer, config=None, enrollment=None, author="student"):
         controller_api=GitHubAPI(peer.controller_token, api_url=peer.url, allow_loopback=True),
         app_api=GitHubAPI(app_jwt(config.app_id, config.private_key), api_url=peer.url, allow_loopback=True),
         authority_api=GitHubAPI(api_url=peer.url, allow_loopback=True))
+
+
+def ownership_record(peer):
+    return peer.controller_variables["COCHEM_ACCESS_PROJECT_42"]
 
 
 def test_actual_http_provisions_encrypted_actions_and_codespaces_separately(peer):
@@ -464,7 +565,7 @@ def test_enrollment_message_keeps_public_modules_available_without_certifying_in
     assert receipt["engine_execution_performed"] is False
     assert receipt["codespaces_source"] == ("available" if private_source else "unavailable")
     assert ("private module downloads" in comment) is private_source
-    assert peer.codespaces_values["COCHEM_SOURCE_CREDENTIAL"] == credentials.get("source", "")
+    assert peer.codespaces_values.get("COCHEM_SOURCE_CREDENTIAL", "") == credentials.get("source", "")
     assert all(value not in comment for value in credentials.values())
 
 
@@ -483,6 +584,7 @@ def test_rotation_uses_new_private_labels_and_updates_existing_vars(peer):
     assert len(new_labels) == 3
     assert all(peer.variables[f"COCHEM_{kind.upper()}_ACCESS_SECRET"] in new_labels for kind in config.credentials)
     assert any(method == "PATCH" for method, path in peer.writes)
+    assert not old_labels.intersection(peer.secret_values)
 
 
 @pytest.mark.parametrize("peer", [ProtocolConfiguration(private=False), ProtocolConfiguration(controller_private=False),
@@ -719,3 +821,401 @@ def test_instructor_maintenance_dispatch_still_identifies_the_student_owner(peer
     enrollment, author, number = controller_script.validate_event(event, env, config, api)
     assert enrollment == controller_script.EnrollmentRequest("student/project", ("orca",))
     assert author == "student" and number is None
+
+
+def lifecycle(peer, operation, config=None, enrollment=None):
+    config = config or config_for(peer)
+    api = GitHubAPI(peer.controller_token, api_url=peer.url, allow_loopback=True)
+    app_api = GitHubAPI(app_jwt(config.app_id, config.private_key), api_url=peer.url, allow_loopback=True)
+    if operation == "deprovision":
+        return deprovision_project(config, "student/project", controller_api=api, app_api=app_api)
+    return reconcile_project(config, enrollment or EnrollmentRequest("student/project"),
+        controller_api=api, app_api=app_api, authority_api=GitHubAPI(api_url=peer.url, allow_loopback=True))
+
+
+def test_selected_engine_withdrawal_deletes_only_authenticated_owned_secrets(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    old_orca = peer.variables["COCHEM_ORCA_ACCESS_SECRET"]
+    peer.secret_values["STUDENT_OTHER_SECRET"] = secrets.token_urlsafe(32)
+    peer.secret_values["COCHEM_ACCESS_" + "F" * 32] = secrets.token_urlsafe(32)
+    peer.codespaces_values["STUDENT_OTHER_SECRET"] = secrets.token_urlsafe(32)
+    unrelated = {name: value for name, value in peer.secret_values.items()
+                 if name in {"STUDENT_OTHER_SECRET", "COCHEM_ACCESS_" + "F" * 32}}
+    receipt = provision(peer, config, EnrollmentRequest("student/project", ("cfour",)))
+    assert peer.variables["COCHEM_ORCA_ACCESS_SECRET"] == ""
+    assert old_orca not in peer.secret_values
+    assert all(peer.secret_values[name] == value for name, value in unrelated.items())
+    assert "STUDENT_OTHER_SECRET" in peer.codespaces_values
+    assert receipt["available"] == ["cfour", "source"]
+    assert receipt["cleanup_pending"] == 0
+    assert receipt["credential_values_revoked"] is False
+    assert receipt["current_job_authorization_enforced"] is False
+
+
+def test_replacement_failure_preserves_previous_bindings_and_owned_retry_record(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    previous = {name: value for name, value in peer.variables.items() if name != "COCHEM_ACCESS_OWNERSHIP"}
+    old_secrets = dict(peer.secret_values)
+    peer.fail_secret_put = True
+    with pytest.raises(CourseAccessError):
+        provision(peer, config)
+    assert all(peer.variables[name] == value for name, value in previous.items())
+    assert peer.secret_values == old_secrets
+    assert json.loads(ownership_record(peer))["payload"]["state"] == "staging"
+    peer.fail_secret_put = False
+    assert provision(peer, config)["status"] == "provisioned"
+    assert len(peer.secret_values) == 3
+    assert not old_secrets.keys() & peer.secret_values.keys()
+
+
+def test_binding_failure_restores_previous_settings_before_retiring_any_reader(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    previous = {name: value for name, value in peer.variables.items() if name != "COCHEM_ACCESS_OWNERSHIP"}
+    old_secrets = dict(peer.secret_values)
+    peer.fail_variable_name = "COCHEM_CFOUR_ACCESS_SECRET"
+    with pytest.raises(CourseAccessError, match="incomplete"):
+        provision(peer, config)
+    assert all(peer.variables[name] == value for name, value in previous.items())
+    assert all(peer.secret_values[name] == value for name, value in old_secrets.items())
+    peer.fail_variable_name = ""
+    assert provision(peer, config)["status"] == "provisioned"
+    assert len(peer.secret_values) == 3
+
+
+def test_failed_old_label_cleanup_is_recorded_and_retried(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    old = set(peer.secret_values)
+    peer.fail_delete = True
+    receipt = provision(peer, config)
+    assert receipt["status"] == "cleanup_pending" and receipt["cleanup_pending"] == 3
+    assert old <= peer.secret_values.keys()
+    owned = json.loads(ownership_record(peer))["payload"]
+    assert old <= set(owned["actions"])
+    peer.fail_delete = False
+    assert lifecycle(peer, "reconcile", config)["status"] == "provisioned"
+    assert not old.intersection(peer.secret_values)
+    assert len(peer.secret_values) == 3
+
+
+def test_source_withdrawal_removes_its_owned_codespaces_secret(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    receipt = provision(peer, replace(config, credentials={"orca": config.credentials["orca"]}),
+                        EnrollmentRequest("student/project", ("orca",)))
+    assert "COCHEM_SOURCE_CREDENTIAL" not in peer.codespaces_values
+    assert peer.variables["COCHEM_SOURCE_ACCESS_SECRET"] == ""
+    assert receipt["codespaces_source"] == "unavailable"
+    assert len(peer.secret_values) == 1
+
+
+@pytest.mark.parametrize("change", ["labels", "project_id", "signature", "duplicate"])
+def test_corrupted_trusted_ownership_never_authorizes_deletion(peer, change):
+    config = config_for(peer)
+    provision(peer, config)
+    document = json.loads(ownership_record(peer))
+    if change == "labels":
+        document["payload"]["actions"].append("COCHEM_ACCESS_" + "F" * 32)
+    elif change == "project_id":
+        document["payload"]["repository_id"] = 99
+    elif change == "signature":
+        document["signature"] = base64.b64encode(secrets.token_bytes(256)).decode()
+    peer.controller_variables["COCHEM_ACCESS_PROJECT_42"] = json.dumps(document)
+    if change == "duplicate":
+        peer.controller_variables["COCHEM_ACCESS_PROJECT_42"] = '{"payload":{},' + ownership_record(peer)[1:]
+    previous = dict(peer.secret_values)
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError, match="authenticated"):
+        lifecycle(peer, "deprovision", config)
+    assert peer.writes == []
+    assert peer.secret_values == previous
+
+
+def test_unsigned_existing_access_settings_are_preserved_for_instructor_migration(peer):
+    peer.variables["COCHEM_ORCA_ACCESS_SECRET"] = "STUDENT_EXISTING_SECRET"
+    peer.secret_values["STUDENT_EXISTING_SECRET"] = secrets.token_urlsafe(32)
+    previous = dict(peer.secret_values)
+    with pytest.raises(CourseAccessError, match="ownership"):
+        provision(peer)
+    assert peer.secret_values == previous
+    assert peer.variables == {"COCHEM_ORCA_ACCESS_SECRET": "STUDENT_EXISTING_SECRET"}
+    assert peer.writes == []
+
+
+def test_unsigned_existing_codespaces_setting_is_never_overwritten(peer):
+    peer.codespaces_values["COCHEM_SOURCE_CREDENTIAL"] = secrets.token_urlsafe(32)
+    previous = dict(peer.codespaces_values)
+    with pytest.raises(CourseAccessError, match="ownership"):
+        provision(peer)
+    assert peer.codespaces_values == previous
+    assert peer.writes == []
+
+
+def test_deprovision_after_membership_and_visibility_change_preserves_project_files(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    peer.active = False
+    peer.private = False
+    peer.source_changed = True
+    peer.secret_values["STUDENT_SECRET"] = secrets.token_urlsafe(32)
+    peer.codespaces_values["STUDENT_SECRET"] = secrets.token_urlsafe(32)
+    peer.variables["STUDENT_SETTING"] = "preserve"
+    original = (peer.project_revision, peer.project_devcontainer)
+    receipt = lifecycle(peer, "reconcile", config)
+    assert receipt["status"] == "deprovisioned"
+    assert peer.secret_values.keys() == {"STUDENT_SECRET"}
+    assert peer.codespaces_values.keys() == {"STUDENT_SECRET"}
+    assert peer.variables["STUDENT_SETTING"] == "preserve"
+    assert all(peer.variables[name] == "" for name in (
+        "COCHEM_ORCA_ACCESS_SECRET", "COCHEM_CFOUR_ACCESS_SECRET", "COCHEM_SOURCE_ACCESS_SECRET",
+        "COCHEM_APPROVED_BASE_SHA", "COCHEM_COURSE_CHANNEL"))
+    assert (peer.project_revision, peer.project_devcontainer) == original
+    assert receipt["credential_values_revoked"] is False
+    assert lifecycle(peer, "deprovision", config)["status"] == "deprovisioned"
+
+
+def test_missing_team_membership_reconciles_to_withdrawal_and_allows_reenrollment(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    peer.membership_missing = True
+    assert lifecycle(peer, "reconcile", config)["status"] == "deprovisioned"
+    assert peer.secret_values == {} and peer.codespaces_values == {}
+    peer.membership_missing = False
+    assert lifecycle(peer, "reconcile", config)["status"] == "provisioned"
+    assert len(peer.secret_values) == 3
+
+
+def test_app_uninstall_is_an_explicit_cleanup_blocker_never_success(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    previous = (dict(peer.secret_values), dict(peer.codespaces_values), dict(peer.variables))
+    peer.installation_removed = True
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError, match="HTTP 404"):
+        lifecycle(peer, "deprovision", config)
+    assert (peer.secret_values, peer.codespaces_values, peer.variables) == previous
+    assert peer.writes == []
+
+
+def test_partial_deprovision_retains_owned_cleanup_record_and_reenrollment(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    peer.fail_delete = True
+    receipt = lifecycle(peer, "deprovision", config)
+    assert receipt["status"] == "cleanup_pending" and receipt["cleanup_pending"] == 6
+    assert peer.variables["COCHEM_ORCA_ACCESS_SECRET"] == ""
+    peer.fail_delete = False
+    assert lifecycle(peer, "deprovision", config)["status"] == "deprovisioned"
+    assert peer.secret_values == {} and peer.codespaces_values == {}
+    assert provision(peer, config)["status"] == "provisioned"
+    assert len(peer.secret_values) == 3
+
+
+@pytest.mark.parametrize("operation", ["provision", "reconcile", "deprovision"])
+def test_instructor_lifecycle_dispatch_uses_existing_authority_checks(peer, operation):
+    config = config_for(peer)
+    event = {"repository": {"private": True, "full_name": "Lab/Controller", "default_branch": "main", "owner": {"type": "Organization"}},
+             "inputs": {"project_repository": "student/project", "engines": "orca", "operation": operation}}
+    env = {"GITHUB_REPOSITORY": "Lab/Controller", "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": "b" * 40,
+           "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_ACTOR": "instructor"}
+    api = GitHubAPI(peer.controller_token, api_url=peer.url, allow_loopback=True)
+    enrollment, author, issue = controller_script.validate_event(event, env, config, api)
+    assert enrollment.repository == "student/project" and author == "student" and issue is None
+    assert peer.writes == []
+
+
+@pytest.mark.parametrize("operation", ["shell", [], None])
+def test_instructor_lifecycle_dispatch_rejects_unsupported_operations(peer, operation):
+    config = config_for(peer)
+    event = {"repository": {"private": True, "full_name": "Lab/Controller", "default_branch": "main", "owner": {"type": "Organization"}},
+             "inputs": {"project_repository": "student/project", "operation": operation}}
+    env = {"GITHUB_REPOSITORY": "Lab/Controller", "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": "b" * 40,
+           "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_ACTOR": "instructor"}
+    api = GitHubAPI(peer.controller_token, api_url=peer.url, allow_loopback=True)
+    with pytest.raises(controller_script.CourseAccessError, match="lifecycle"):
+        controller_script.validate_event(event, env, config, api)
+    assert peer.writes == []
+
+
+@pytest.mark.parametrize("failure", ["denied", "wrong_tag", "wrong_asset", "wrong_digest", "wrong_revision"])
+def test_replacement_reader_failure_preserves_working_credentials_and_every_setting(peer, failure):
+    config = config_for(peer)
+    provision(peer, config)
+    previous = (dict(peer.secret_values), dict(peer.codespaces_values), dict(peer.variables),
+                peer.project_revision, peer.project_devcontainer)
+    if failure == "denied":
+        peer.reader_denied = True
+    elif failure == "wrong_tag":
+        peer.reader_wrong_tag = True
+    elif failure == "wrong_asset":
+        peer.reader_wrong_asset = True
+    elif failure == "wrong_digest":
+        peer.reader_wrong_digest = True
+    elif failure == "wrong_revision":
+        peer.reader_wrong_revision = True
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError):
+        provision(peer, config)
+    assert (peer.secret_values, peer.codespaces_values, peer.variables,
+            peer.project_revision, peer.project_devcontainer) == previous
+    assert peer.writes == []
+
+
+def test_actual_reader_transport_timeout_preserves_working_credentials(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    previous = (dict(peer.secret_values), dict(peer.codespaces_values), dict(peer.variables))
+    peer.reader_delay = 0.5
+    peer.reader_requests.clear()
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError, match="connectivity"):
+        provision_project(config, EnrollmentRequest("student/project"), author="student",
+            controller_api=GitHubAPI(peer.controller_token, api_url=peer.url, allow_loopback=True),
+            app_api=GitHubAPI(app_jwt(config.app_id, config.private_key), api_url=peer.url,
+                              allow_loopback=True, timeout_seconds=0.2),
+            authority_api=GitHubAPI(api_url=peer.url, allow_loopback=True))
+    assert (peer.secret_values, peer.codespaces_values, peer.variables) == previous
+    assert peer.writes == []
+    assert peer.reader_requests and peer.reader_requests[0][0] == "orca"
+
+
+def test_missing_reviewed_source_target_preserves_working_access(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    previous = (dict(peer.secret_values), dict(peer.codespaces_values), dict(peer.variables))
+    targets = {name: value for name, value in config.credential_targets.items() if name != "source"}
+    with pytest.raises(CourseAccessError, match="reviewed immutable"):
+        provision(peer, replace(config, credential_targets=targets))
+    assert (peer.secret_values, peer.codespaces_values, peer.variables) == previous
+    assert lifecycle(peer, "deprovision", replace(config, credential_targets={}))['status'] == 'deprovisioned'
+
+
+def test_actual_metadata_probe_never_claims_download_or_engine_execution(peer):
+    receipt = provision(peer)
+    assert receipt["reader_metadata_verified"] == ["cfour", "orca", "source"]
+    assert receipt["asset_download_verified"] is False
+    assert receipt["engine_access_verified"] is False
+    assert receipt["engine_execution_performed"] is False
+
+
+def test_controller_reader_targets_come_from_its_reviewed_manifests_not_enrollment():
+    credentials = {kind: secrets.token_urlsafe(32) for kind in ("orca", "cfour", "source")}
+    targets = controller_script.credential_targets({}, credentials)
+    root = Path(__file__).resolve().parents[2]
+    for engine in ("orca", "cfour"):
+        manifest = json.loads((root / "scripts" / (engine + "-distribution.json")).read_text())
+        assert targets[engine] == {name: manifest[name] for name in (
+            "repository", "release_tag", "archive_name", "sha256")}
+    assert "source" not in targets
+    configured = controller_script.credential_targets({"COCHEM_ACCESS_SOURCE_REPOSITORY": "Lab/Module",
+        "COCHEM_ACCESS_SOURCE_REVISION": "f" * 40}, credentials)
+    assert configured["source"] == {"repository": "Lab/Module", "revision": "f" * 40}
+
+
+@pytest.mark.parametrize("student_record", ["legacy", "same_name", "deleted"])
+def test_student_ownership_replay_or_deletion_cannot_hide_current_generation(peer, student_record):
+    config = config_for(peer)
+    provision(peer, config)
+    historical = ownership_record(peer)
+    first = set(peer.secret_values)
+    provision(peer, config)
+    current = set(peer.secret_values)
+    assert len(current) == 3 and not first.intersection(current)
+    if student_record == "legacy":
+        peer.variables["COCHEM_ACCESS_OWNERSHIP"] = historical
+    elif student_record == "same_name":
+        peer.variables["COCHEM_ACCESS_PROJECT_42"] = historical
+    else:
+        peer.variables["COCHEM_ACCESS_OWNERSHIP"] = historical
+        del peer.variables["COCHEM_ACCESS_OWNERSHIP"]
+    peer.secret_values["STUDENT_SECRET"] = secrets.token_urlsafe(32)
+    receipt = lifecycle(peer, "deprovision", config)
+    assert receipt["status"] == "deprovisioned" and receipt["cleanup_pending"] == 0
+    assert not current.intersection(peer.secret_values)
+    assert set(peer.secret_values) == {"STUDENT_SECRET"}
+    assert peer.codespaces_values == {}
+    latest = json.loads(ownership_record(peer))["payload"]
+    assert latest["actions"] == [] and latest["bindings"] == {} and latest["state"] == "revoked"
+
+
+@pytest.mark.parametrize("clear_student_selector", [False, True])
+def test_requested_but_missing_replacement_reader_preserves_all_existing_access(peer, clear_student_selector):
+    config = config_for(peer)
+    provision(peer, config)
+    if clear_student_selector:
+        peer.variables["COCHEM_ORCA_ACCESS_SECRET"] = ""
+    previous = (dict(peer.secret_values), dict(peer.codespaces_values), dict(peer.variables),
+                dict(peer.controller_variables), peer.project_revision)
+    unavailable = replace(config, credentials={kind: value for kind, value in config.credentials.items()
+                                               if kind != "orca"})
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError, match="still-requested"):
+        provision(peer, unavailable)
+    assert (peer.secret_values, peer.codespaces_values, peer.variables,
+            peer.controller_variables, peer.project_revision) == previous
+    assert peer.writes == []
+    # Actual deselection is a withdrawal, even while the controller reader is absent.
+    receipt = provision(peer, unavailable, EnrollmentRequest("student/project", ("cfour",)))
+    assert receipt["status"] == "provisioned"
+    assert peer.variables["COCHEM_ORCA_ACCESS_SECRET"] == ""
+    assert len(peer.secret_values) == 2
+
+
+def test_private_ledger_access_denial_preserves_existing_access(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    previous = (dict(peer.secret_values), dict(peer.codespaces_values), dict(peer.variables),
+                dict(peer.controller_variables))
+    peer.ledger_denied = True
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError, match="HTTP 403"):
+        lifecycle(peer, "deprovision", config)
+    assert (peer.secret_values, peer.codespaces_values, peer.variables, peer.controller_variables) == previous
+    assert peer.writes == []
+
+
+def test_project_scoped_writer_cannot_modify_authoritative_controller_ledger(peer):
+    config = config_for(peer)
+    provision(peer, config)
+    trusted = dict(peer.controller_variables)
+    project_token = next(token for token, grant in peer.tokens.items()
+        if grant["permissions"] == {"secrets": "write", "actions_variables": "write", "codespaces_secrets": "write"})
+    api = GitHubAPI(project_token, api_url=peer.url, allow_loopback=True)
+    with pytest.raises(CourseAccessError, match="HTTP 403"):
+        api.call("PATCH", "/repos/Lab/Controller/actions/variables/COCHEM_ACCESS_PROJECT_42",
+                 {"name": "COCHEM_ACCESS_PROJECT_42", "value": "historical or attacker data"})
+    assert peer.controller_variables == trusted
+
+
+def test_all_enrollment_and_maintenance_runs_share_one_serialized_controller_group():
+    workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/course_project_access.yml").read_text()
+    # GitHub variables provide no compare-and-swap. The complete workflow,
+    # including distinct issue events and manual maintenance, must share this
+    # repository-wide group. No issue/run/project input may narrow that boundary.
+    start = workflow.index("\nconcurrency:\n")
+    concurrency = workflow[start:workflow.index("\njobs:", start)]
+    assert "group: cochem-project-access-${{ github.repository }}" in concurrency
+    assert "cancel-in-progress: false" in concurrency
+    assert "github.event.issue" not in concurrency and "github.run_id" not in concurrency
+    assert "inputs." not in concurrency
+
+
+def test_missing_requested_reader_preserves_interrupted_initial_generation(peer):
+    config = config_for(peer)
+    peer.fail_secret_put = True
+    with pytest.raises(CourseAccessError):
+        provision(peer, config)
+    initial = json.loads(ownership_record(peer))["payload"]
+    assert initial["state"] == "staging" and initial["bindings"]["orca"] in initial["actions"]
+    before = (dict(peer.variables), dict(peer.controller_variables), dict(peer.secret_values))
+    peer.fail_secret_put = False
+    absent = replace(config, credentials={kind: value for kind, value in config.credentials.items() if kind != "orca"})
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError, match="still-requested"):
+        provision(peer, absent)
+    assert (peer.variables, peer.controller_variables, peer.secret_values) == before
+    assert peer.writes == []
+    assert lifecycle(peer, "deprovision", absent)["status"] == "deprovisioned"

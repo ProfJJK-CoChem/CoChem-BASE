@@ -24,6 +24,8 @@ EnrollmentRequest = _module.EnrollmentRequest
 GitHubAPI = _module.GitHubAPI
 parse_enrollment = _module.parse_enrollment
 provision_project = _module.provision_project
+deprovision_project = _module.deprovision_project
+reconcile_project = _module.reconcile_project
 repository_name = _module.repository_name
 
 
@@ -67,8 +69,14 @@ def validate_event(event: dict, environment: dict[str, str], config: ControllerC
         inputs = event.get("inputs", {})
         if not isinstance(inputs, dict):
             raise CourseAccessError("The maintenance request is invalid.")
+        operation = inputs.get("operation", "provision")
+        if not isinstance(operation, str) or operation not in {"provision", "reconcile", "deprovision"}:
+            raise CourseAccessError("Select a supported instructor access lifecycle operation.")
         target = repository_name(inputs.get("project_repository", ""))
-        engines = inputs.get("engines", "orca cfour").split()
+        engine_selection = inputs.get("engines", "orca cfour")
+        if not isinstance(engine_selection, str):
+            raise CourseAccessError("The selected engine list is invalid.")
+        engines = engine_selection.split()
         enrollment = EnrollmentRequest(target, tuple(engines))
         return enrollment, target.split("/")[0], None
     raise CourseAccessError("Pull requests, student code and unsupported events cannot provision access.")
@@ -92,6 +100,25 @@ def enrollment_comment(receipt: dict) -> str:
     )
 
 
+def credential_targets(environment: dict[str, str], credentials: dict[str, str]) -> dict:
+    """Read only the immutable controller's reviewed manifests/configuration."""
+    targets = {}
+    for engine in {"orca", "cfour"} & credentials.keys():
+        path = Path(__file__).resolve().with_name(engine + "-distribution.json")
+        if not path.is_file() or path.stat().st_size > 65536:
+            raise CourseAccessError("The reviewed engine-reader target manifest is unavailable.")
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or value.get("schema_version") != 1:
+            raise CourseAccessError("The reviewed engine-reader target manifest is invalid.")
+        targets[engine] = {name: value.get(name) for name in (
+            "repository", "release_tag", "archive_name", "sha256")}
+    if ("source" in credentials and environment.get("COCHEM_ACCESS_SOURCE_REPOSITORY")
+            and environment.get("COCHEM_ACCESS_SOURCE_REVISION")):
+        targets["source"] = {"repository": environment.get("COCHEM_ACCESS_SOURCE_REPOSITORY", ""),
+                             "revision": environment.get("COCHEM_ACCESS_SOURCE_REVISION", "")}
+    return targets
+
+
 def main() -> int:
     try:
         environment = os.environ
@@ -110,6 +137,7 @@ def main() -> int:
             allowed_starter_shas=tuple(environment.get("COCHEM_ACCESS_ALLOWED_STARTER_SHAS", "").split()),
             private_key=environment.get("COCHEM_ACCESS_APP_PRIVATE_KEY", ""),
             credentials=credentials,
+            credential_targets=credential_targets(environment, credentials),
         )
         event_path = Path(environment.get("GITHUB_EVENT_PATH", ""))
         if not event_path.is_file() or event_path.stat().st_size > 2 * 1024 * 1024:
@@ -119,10 +147,20 @@ def main() -> int:
             raise CourseAccessError("The trusted GitHub event is invalid.")
         controller_api = GitHubAPI(environment.get("GITHUB_TOKEN", ""))
         enrollment, author, issue_number = validate_event(event, environment, config, controller_api)
-        receipt = provision_project(config, enrollment, author=author, controller_api=controller_api)
+        operation = (event.get("inputs", {}).get("operation", "provision")
+                     if environment.get("GITHUB_EVENT_NAME") == "workflow_dispatch" else "provision")
+        if operation == "deprovision":
+            receipt = deprovision_project(config, enrollment.repository, controller_api=controller_api)
+        elif operation == "reconcile":
+            receipt = reconcile_project(config, enrollment, controller_api=controller_api)
+        else:
+            receipt = provision_project(config, enrollment, author=author, controller_api=controller_api)
         # Only nonsecret evidence is printed. No key, credential value, encrypted
         # credential body or target's opaque secret label enters workflow logs.
         print(json.dumps(receipt, sort_keys=True))
+        if receipt["status"] == "cleanup_pending":
+            print("CoChem project access: owned credential cleanup remains pending; retry instructor reconciliation.", file=sys.stderr)
+            return 1
         if issue_number is not None:
             controller_api.call("POST", f"/repos/{config.repository}/issues/{issue_number}/comments", {
                 "body": enrollment_comment(receipt)})

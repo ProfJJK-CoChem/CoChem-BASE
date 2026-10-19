@@ -550,7 +550,10 @@ publish replacement project workflow files.
 3. Choose **Run workflow**, select the controller's default branch, and enter
    the actual student project as `owner/project` in **project_repository**.
 4. In **engines**, enter `orca cfour` for both, `orca` or `cfour` for one, or
-   clear the field for neither. Choose **Run workflow** to submit.
+   clear the field for neither. Select **provision** to grant or rotate access,
+   **reconcile** to recheck membership and repair pending cleanup, or
+   **deprovision** to withdraw this controller's stored access. Choose
+   **Run workflow** to submit.
 5. Inspect the run's outcome. The manual route requires instructor
    Write/Maintain/Admin access and still checks student membership, ownership,
    private visibility, selected App installation and approved starter. It does
@@ -561,6 +564,25 @@ They refresh encrypted access and the reviewed project Codespaces settings,
 not scientific input files. A changed permission or private-source credential
 requires a **new Codespace** before relying on it; preserve local uploads and
 completed bundles first.
+
+The controller stores its authenticated ownership ledger in its own private
+Actions variables, keyed by the project's immutable repository ID. The
+organization App installation must include the controller with **Actions
+Variables: write**. Student-editable variables cannot authorize credential
+cleanup. Keep all lifecycle writes in the existing serialized controller
+workflow; a second unsynchronized writer can lose ownership updates.
+
+A missing replacement for a still-requested engine preserves its current
+binding and refuses rotation. Explicitly clearing that engine withdraws only
+controller-owned labels. Failed cleanup remains pending and must be reconciled;
+unrelated secrets, scientific inputs, results and downloaded files are retained.
+Withdrawal does not invalidate copied shared-reader values or erase downloads.
+Current authorization at every new job, issuer-side reader revocation and
+existing/fresh Codespace behavior require separate live acceptance.
+
+Local protocol/cryptography and access-widget checks cover these guards. They
+do not establish App installation, working organization billing, actual student
+enrollment, engine execution or a completed student pilot.
 
 </details>
 

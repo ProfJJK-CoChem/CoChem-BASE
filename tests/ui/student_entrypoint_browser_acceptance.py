@@ -223,8 +223,13 @@ def accept_full_intake(page, manifest_path: Path, report: dict, artifacts: Path)
     expect(page.get_by_text("Validated periodic structure: 2 atoms", exact=False)).to_be_visible(timeout=30000)
     for symbol in ("Ga", "As"):
         control = page.get_by_label(symbol + " PAW file:", exact=True)
-        expect(control.locator("option")).to_have_count(1)
-        control.select_option(index=0)
+        # The selector retains its explicit empty placeholder. Select the
+        # genuine uploaded species file, never the placeholder's position.
+        filenames = [entry["filename"] for entry in manifest["files"]
+                     if entry["kind"] == "pseudopotential" and entry["filename"].startswith(symbol + ".")]
+        assert len(filenames) == 1, "The actual fixture must name one PAW source per species"
+        select_prefix(control, filenames[0])
+        assert control.input_value(), "A genuine retained PAW input must be selected"
     page.get_by_label("Wavefunction cutoff (Ry):", exact=True).fill("45")
     page.get_by_label("Density cutoff (Ry):", exact=True).fill("360")
     page.get_by_role("button", name="Save periodic calculation request", exact=True).click()

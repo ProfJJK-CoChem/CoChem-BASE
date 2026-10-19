@@ -28,6 +28,11 @@ class StudentVoila(Voila):
     """Keep upstream routes, replacing only the supported rendered handler."""
 
     def init_handlers(self):
+        from cochem_base.interfaces.molecule_viewer import static_asset_root
+
+        assets = str(static_asset_root())
+        if assets not in self.static_paths:
+            self.static_paths = [*self.static_paths, assets]
         handlers = super().init_handlers()
         replacements = 0
         result = []

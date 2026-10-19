@@ -1064,24 +1064,10 @@ class CoChemGUI(InputManagementMixin):
                 return
             with self.viewer_output:
                 try:
-                    import py3Dmol
                     from IPython.display import display
+                    from cochem_base.interfaces.molecule_viewer import molecule_viewer_html
 
-                    from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
-                    identity = parse_geometry_identity(xyz_data)
-                    viewer_xyz = str(len(identity.elements)) + "\nBASE display geometry; nuclear labels retained in input\n" + "\n".join(
-                        element + " " + " ".join(format(value, ".17g") for value in row)
-                        for element, row in zip(identity.elements, identity.coordinates_angstrom, strict=True)) + "\n"
-                    view = py3Dmol.view(width='100%', height=300)
-                    view.addModel(viewer_xyz, 'xyz')
-                    view.setStyle({'stick': {}, 'sphere': {'radius': 0.4}})
-                    view.zoomTo()
-                    rendered = view.write_html()
-                    # Uploading a new geometry can remove an earlier viewer
-                    # while its library promise is pending. Never instantiate
-                    # WebGL against a detached/missing DOM element.
-                    guard = f'if (!document.getElementById("3dmolviewer_{view.uniqueid}")) {{ return; }}\n'
-                    rendered = rendered.replace('$3Dmolpromise.then(function() {', '$3Dmolpromise.then(function() {\n' + guard, 1)
+                    rendered = molecule_viewer_html(xyz_data)
                     display({'application/3dmoljs_load.v0': rendered, 'text/html': rendered}, raw=True)
                 except ImportError:
                     print("The 3D viewer is unavailable. Open CoChem setup and choose Retry setup.")

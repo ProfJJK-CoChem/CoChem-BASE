@@ -33,6 +33,8 @@ HOSTED_TESTS = (
     "tests/base/test_chain_integrity.py",
     "tests/calc/test_nuclide_ingress_handoff.py",
     "tests/ui/test_optional_licensed_engines.py",
+    "tests/ui/test_molecule_viewer.py",
+    "tests/gui/test_touch_3d_viewer.py",
     "tests/ui/test_research_panel_clarity.py",
     "tests/ui/test_disclosure.py",
     "tests/ui/test_learning_guidance.py",

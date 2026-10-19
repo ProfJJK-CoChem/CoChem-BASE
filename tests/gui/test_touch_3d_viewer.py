@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 import tempfile
+from html.parser import HTMLParser
 from pathlib import Path
 
 import ipywidgets
@@ -22,9 +23,6 @@ import pytest
 from mendeleev import element as _mendeleev_element
 
 
-from cochem.core.cochem_elements import (
-    get_vdw_radius,
-)
 from cochem.core.mendeleev_invariants import mendeleev_resolver
 from cochem.gui.schemas import (
     CameraState,
@@ -246,7 +244,7 @@ class TestMendeleevDynamicResolution:
         expected_pm = elem.vdw_radius or elem.vdw_radius_alvarez or elem.vdw_radius_bondi or 170.0
         expected_angstrom = float(expected_pm) / 100.0
 
-        resolved_angstrom = get_vdw_radius(sym)
+        resolved_angstrom = mendeleev_resolver.get_vdw_radius_angstrom(sym)
         assert math.isclose(resolved_angstrom, expected_angstrom, rel_tol=1e-5)
 
         # Check mendeleev_resolver method consistency
@@ -267,8 +265,8 @@ class TestGeometryAndCentroid:
         expected_c = np.mean(WATER_COORDS, axis=0)
         assert np.allclose(centroid, expected_c)
 
-        r_vdw_o = get_vdw_radius("O")
-        r_vdw_h = get_vdw_radius("H")
+        r_vdw_o = mendeleev_resolver.get_vdw_radius_angstrom("O")
+        r_vdw_h = mendeleev_resolver.get_vdw_radius_angstrom("H")
 
         # Distances from centroid
         d_o = np.linalg.norm(WATER_COORDS[0] - centroid) + r_vdw_o
@@ -292,7 +290,7 @@ class TestGeometryAndCentroid:
         assert np.allclose(centroid, np.zeros(3), atol=1e-4)
 
         R = calculate_bounding_radius(BENZENE_SYMBOLS, BENZENE_COORDS)
-        r_vdw_h = get_vdw_radius("H")
+        r_vdw_h = mendeleev_resolver.get_vdw_radius_angstrom("H")
         expected_R = 2.4790 + r_vdw_h
         assert math.isclose(R, expected_R, rel_tol=1e-3)
 
@@ -612,6 +610,10 @@ class TestAirgapStaticAssetsAndSRI:
         assert "js/3dmol/touch_controller.js" in res
         assert "js/3dmol/3Dmol-min.js" in res
         assert "css/cochem_mobile.css" in res
+        # This is the reviewed upstream pin, not a digest of arbitrary current bytes.
+        assert res["js/3dmol/3Dmol-min.js"]["sri_hash"] == (
+            "sha256-98x4khrnLnYj6JzdERQ09Ywu/d0v/aHNISZEtAb7gBY="
+        )
 
         for name, meta in res.items():
             assert Path(meta["path"]).is_file()
@@ -620,7 +622,7 @@ class TestAirgapStaticAssetsAndSRI:
             assert len(meta["sri_hash"]) > 20
 
     def test_html_bundle_is_air_gapped(self) -> None:
-        """Verify generated HTML bundle contains embedded assets and 0 remote CDN URLs."""
+        """Verify dependencies are embedded; vendor endpoint strings are not requests."""
         viewer = Touch3DViewer(WATER_SYMBOLS, WATER_COORDS)
         html = viewer.to_html_bundle(inline_assets=True)
 
@@ -630,11 +632,18 @@ class TestAirgapStaticAssetsAndSRI:
         assert "$3Dmol" in html
         assert "Content-Security-Policy" in html
         assert "default-src 'none'" in html
-        # Zero external CDN links
-        assert "cdn.jsdelivr.net" not in html
-        assert "cdnjs.cloudflare.com" not in html
-        assert "http://" not in html
-        assert "https://" not in html
+        class Dependencies(HTMLParser):
+            remote = []
+
+            def handle_starttag(self, tag, attrs):
+                for name, value in attrs:
+                    if name in {"src", "href"} and value.startswith(("http:", "https:", "//")):
+                        self.remote.append((tag, name, value))
+
+        dependencies = Dependencies()
+        dependencies.feed(html)
+        assert dependencies.remote == []
+        # Real offline browser/pixel/camera acceptance is a separate evidence lane.
 
 
 # =============================================================================

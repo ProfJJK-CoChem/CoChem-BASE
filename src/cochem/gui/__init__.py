@@ -2,11 +2,6 @@
 CoChem Interactive Graphical User Interface and Visualization Package.
 """
 
-from cochem.gui.cochem_gui import (
-    CoChemMasterQCController,
-    GUIStateModel,
-    MolecularChargeMultiplicityInput,
-)
 from cochem.gui.debounce import (
     TrailingDebounce,
     debounce,
@@ -33,3 +28,12 @@ __all__ = [
     "load_css",
     "resolve_execution_device",
 ]
+
+
+def __getattr__(name):
+    """Do not make independent viewers import an unavailable legacy controller."""
+    if name in {"CoChemMasterQCController", "GUIStateModel", "MolecularChargeMultiplicityInput"}:
+        from importlib import import_module
+
+        return getattr(import_module("cochem.gui.cochem_gui"), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

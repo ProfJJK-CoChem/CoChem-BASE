@@ -22,9 +22,6 @@ import filelock
 import ipywidgets
 import numpy as np
 
-from cochem.core.cochem_elements import (
-    get_vdw_radius,
-)
 from cochem.core.mendeleev_invariants import mendeleev_resolver
 from cochem.gui.schemas import (
     CameraState,
@@ -328,7 +325,7 @@ def calculate_bounding_radius(symbols: Sequence[str], coordinates: np.ndarray) -
 
     for sym, coord in zip(symbols, coords):
         # Mendeleev Mandate: Dynamic Bondi-Mantina vdW radius in Angstroms
-        vdw_angstrom = get_vdw_radius(sym)
+        vdw_angstrom = mendeleev_resolver.get_vdw_radius_angstrom(sym)
         dist = float(np.linalg.norm(coord - centroid) + vdw_angstrom)
         if dist > max_radius:
             max_radius = dist
@@ -582,6 +579,10 @@ def get_static_asset_path(filename: str) -> Path:
     static_path = gui_dir / "static" / filename
     if not static_path.is_file():
         raise FileNotFoundError(f"Static asset file not found at: '{static_path}'")
+    if filename == "js/3dmol/3Dmol-min.js":
+        from cochem_base.interfaces.molecule_viewer import verify_renderer_asset
+
+        verify_renderer_asset(static_path)
     return static_path
 
 
@@ -1024,10 +1025,26 @@ class Touch3DViewer:
       viewer.zoomTo();
       viewer.render();
 
+      // Adapt the retained scalar-last camera state through genuine 3Dmol APIs.
+      const cameraAdapter = {{
+        render: function() {{ viewer.render(); }},
+        setCameraState: function(state) {{
+          viewer.setCameraParameters({{fov: state.fov_degrees}});
+          const view = viewer.getView();
+          view.splice(0, 3, -state.target[0], -state.target[1], -state.target[2]);
+          view.splice(4, 4, ...state.quaternion);
+          viewer.setView(view);
+          viewer.setPerceivedDistance(state.focal_distance);
+          viewer.setSlab(state.near_clipping - state.focal_distance,
+                         state.far_clipping - state.focal_distance);
+          viewer.resize();
+          viewer.render();
+        }}
+      }};
       const controller = new TouchController(container, {{
         boundingRadius: boundingRadius,
         fovDegrees: initialCamera.fov_degrees,
-        viewer: viewer,
+        viewer: cameraAdapter,
         onAtomPick: function(e) {{
           console.log('Atom picked at screen:', e.screenX, e.screenY);
         }}

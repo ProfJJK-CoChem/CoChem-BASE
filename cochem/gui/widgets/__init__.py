@@ -2,14 +2,6 @@
 CoChem Specialized QC GUI Visualization Widgets.
 """
 
-from .airgap_status_widget import AirGapStatusWidget
-from .irc_path_viewer import IRCPathViewerWidget
-from .isotope_labeler import IsotopeLabelerWidget
-from .qtaim_graph_viewer import QTAIMGraphViewerWidget
-from .table_editor import ACSTableEditorWidget
-from .orbital_viewer import OrbitalViewerWidget
-from .html_si_preview import HTMLSIPreviewWidget
-from .zenodo_dialog import ZenodoPublishDialog
 from .touch_3d_viewer import Touch3DViewer
 
 __all__ = [
@@ -25,3 +17,23 @@ __all__ = [
 ]
 
 
+_LEGACY_WIDGET_MODULES = {
+    "AirGapStatusWidget": "airgap_status_widget",
+    "IRCPathViewerWidget": "irc_path_viewer",
+    "IsotopeLabelerWidget": "isotope_labeler",
+    "QTAIMGraphViewerWidget": "qtaim_graph_viewer",
+    "ACSTableEditorWidget": "table_editor",
+    "OrbitalViewerWidget": "orbital_viewer",
+    "HTMLSIPreviewWidget": "html_si_preview",
+    "ZenodoPublishDialog": "zenodo_dialog",
+}
+
+
+def __getattr__(name):
+    """Resolve optional legacy widgets only when they are explicitly requested."""
+    module = _LEGACY_WIDGET_MODULES.get(name)
+    if module is not None:
+        from importlib import import_module
+
+        return getattr(import_module(f"{__name__}.{module}"), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -1,0 +1,368 @@
+{
+  "MainThread": [
+    {
+      "file": "<frozen runpy>",
+      "line": 198,
+      "function": "_run_module_as_main"
+    },
+    {
+      "file": "<frozen runpy>",
+      "line": 88,
+      "function": "_run_code"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel_launcher.py",
+      "line": 18,
+      "function": "<module>"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/traitlets/config/application.py",
+      "line": 1080,
+      "function": "launch_instance"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/kernelapp.py",
+      "line": 768,
+      "function": "start"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/tornado/platform/asyncio.py",
+      "line": 211,
+      "function": "start"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py",
+      "line": 645,
+      "function": "run_forever"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py",
+      "line": 1999,
+      "function": "_run_once"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/events.py",
+      "line": 88,
+      "function": "_run"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/kernelbase.py",
+      "line": 678,
+      "function": "shell_main"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/kernelbase.py",
+      "line": 508,
+      "function": "dispatch_shell"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/ipkernel.py",
+      "line": 372,
+      "function": "execute_request"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/kernelbase.py",
+      "line": 891,
+      "function": "execute_request"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/ipkernel.py",
+      "line": 460,
+      "function": "do_execute"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/zmqshell.py",
+      "line": 686,
+      "function": "run_cell"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/IPython/core/interactiveshell.py",
+      "line": 3248,
+      "function": "run_cell"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/IPython/core/interactiveshell.py",
+      "line": 3305,
+      "function": "_run_cell"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/IPython/core/async_helpers.py",
+      "line": 140,
+      "function": "_pseudo_sync_runner"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/IPython/core/interactiveshell.py",
+      "line": 3518,
+      "function": "run_cell_async"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/IPython/core/interactiveshell.py",
+      "line": 3762,
+      "function": "run_ast_nodes"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/IPython/core/interactiveshell.py",
+      "line": 3823,
+      "function": "run_code"
+    },
+    {
+      "file": "/workspace/.completion/restart-live/artifacts/dashboard/scratch/ipykernel_111327/2997895391.py",
+      "line": 2,
+      "function": "<module>"
+    }
+  ],
+  "IOPub": [
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1032,
+      "function": "_bootstrap"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1075,
+      "function": "_bootstrap_inner"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1012,
+      "function": "run"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/iostream.py",
+      "line": 168,
+      "function": "_thread_main"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/tornado/platform/asyncio.py",
+      "line": 211,
+      "function": "start"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py",
+      "line": 645,
+      "function": "run_forever"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py",
+      "line": 1961,
+      "function": "_run_once"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/selectors.py",
+      "line": 468,
+      "function": "select"
+    }
+  ],
+  "Heartbeat": [
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1032,
+      "function": "_bootstrap"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1075,
+      "function": "_bootstrap_inner"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/heartbeat.py",
+      "line": 124,
+      "function": "run"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/zmq/sugar/__init__.py",
+      "line": 21,
+      "function": "device"
+    }
+  ],
+  "Thread-2 (_watch_pipe_fd)": [
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1032,
+      "function": "_bootstrap"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1075,
+      "function": "_bootstrap_inner"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1012,
+      "function": "run"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/iostream.py",
+      "line": 478,
+      "function": "_watch_pipe_fd"
+    }
+  ],
+  "Thread-3 (_watch_pipe_fd)": [
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1032,
+      "function": "_bootstrap"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1075,
+      "function": "_bootstrap_inner"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1012,
+      "function": "run"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/iostream.py",
+      "line": 478,
+      "function": "_watch_pipe_fd"
+    }
+  ],
+  "Control": [
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1032,
+      "function": "_bootstrap"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1075,
+      "function": "_bootstrap_inner"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/thread.py",
+      "line": 48,
+      "function": "run"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/tornado/platform/asyncio.py",
+      "line": 211,
+      "function": "start"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py",
+      "line": 645,
+      "function": "run_forever"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py",
+      "line": 1961,
+      "function": "_run_once"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/selectors.py",
+      "line": 468,
+      "function": "select"
+    }
+  ],
+  "Shell channel": [
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1032,
+      "function": "_bootstrap"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1075,
+      "function": "_bootstrap_inner"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/shellchannel.py",
+      "line": 56,
+      "function": "run"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/thread.py",
+      "line": 48,
+      "function": "run"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/tornado/platform/asyncio.py",
+      "line": 211,
+      "function": "start"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py",
+      "line": 645,
+      "function": "run_forever"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py",
+      "line": 1961,
+      "function": "_run_once"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/selectors.py",
+      "line": 468,
+      "function": "select"
+    }
+  ],
+  "IPythonHistorySavingThread": [
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1032,
+      "function": "_bootstrap"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1075,
+      "function": "_bootstrap_inner"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/IPython/core/history.py",
+      "line": 163,
+      "function": "wrapper"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/IPython/core/history.py",
+      "line": 1272,
+      "function": "run"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 655,
+      "function": "wait"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 355,
+      "function": "wait"
+    }
+  ],
+  "Thread-1": [
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1032,
+      "function": "_bootstrap"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1075,
+      "function": "_bootstrap_inner"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/ipykernel/parentpoller.py",
+      "line": 62,
+      "function": "run"
+    }
+  ],
+  "Thread-16": [
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1032,
+      "function": "_bootstrap"
+    },
+    {
+      "file": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/threading.py",
+      "line": 1075,
+      "function": "_bootstrap_inner"
+    },
+    {
+      "file": "/workspace/.completion/dashboard/ui-env/lib/python3.12/site-packages/zmq/utils/garbage.py",
+      "line": 56,
+      "function": "run"
+    }
+  ]
+}
+

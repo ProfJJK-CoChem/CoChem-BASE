@@ -1,0 +1,86 @@
+{
+  "scope": "Local real process and installed packaging controls; no student or scientific acceptance",
+  "source_files": {
+    "src/cochem_base/interfaces/student_setup.py": "a417e69d3b9e63c96c764191baf5a3816b533b7125aeecaf2f20e9b82aef67e8",
+    "scripts/hosted_dashboard.py": "f875db3a40d1bf314d6028293e3c7103f64a6d6f5336ca29ebb33ddc041e2488",
+    "tests/base/test_student_setup.py": "11dc5760db568fcedf597c209e53d73e5cdb258501d0fa7fed1f27d17b1c5002",
+    "tests/base/test_hosted_dashboard_runtime.py": "42f9a30414fe710f900862d0540ae59f966d6dbc07e55c2250b7af9900d79c8d"
+  },
+  "reports": {
+    "ui-runtime-full.xml": {
+      "sha256": "623fea8e6c5ef0a4ab826276c8c1d7ccbc2c0ec06f3af7453f6de7717293f6ad",
+      "tests": "49",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "83.993"
+    },
+    "shared-verifier-red.xml": {
+      "sha256": "58308956ca16e97e0aa54bb37bd6528cf6c2f6793d0420b2255f58187918db68",
+      "tests": "2",
+      "failures": "2",
+      "errors": "0",
+      "skipped": "0",
+      "time": "8.624"
+    },
+    "shared-verifier-green.xml": {
+      "sha256": "7468bf92c2e8a1ed79521ae4d0bc7a9ec44a10188d62d50ee43dd62d92c65956",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "8.417"
+    },
+    "alias-red.xml": {
+      "sha256": "f35a63702ff608c4fcb2a8ba333591cdfa4d8a1603f0448df2c3e37c0861f532",
+      "tests": "1",
+      "failures": "1",
+      "errors": "0",
+      "skipped": "0",
+      "time": "6.115"
+    },
+    "final-with-alias.xml": {
+      "sha256": "640661fda9ddc4841f9c8d16fec28741971959ae477f2f3d68a2afb2593d1f69",
+      "tests": "55",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "91.416"
+    },
+    "preflight-red.xml": {
+      "sha256": "ba3e7ee1d8e0109805a30cc1a760940d24ac9463bca67a4dcf0b86e87d0301c1",
+      "tests": "1",
+      "failures": "1",
+      "errors": "0",
+      "skipped": "0",
+      "time": "2.285"
+    },
+    "final-preflight-controls.xml": {
+      "sha256": "03711eef3796571a15178a5d3ddb22390e43bea6f900c43ddafc3fa965d95093",
+      "tests": "56",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "114.582"
+    }
+  },
+  "review": {
+    "agent": "/root/restart_completion/restart_review",
+    "result": "Independent child review covered port/shared-verifier changes. Root then reviewed final four-file diff with no new blocker and independently parsed final56-pass0-skip JUnit03711eef3796571a15178a5d3ddb22390e43bea6f900c43ddafc3fa965d95093.",
+    "limitations": [
+      "Verifier code imports from current launcher source/import environment; no independently sealed original verifier source claim.",
+      "A failure after successful preflight and old-server shutdown is not covered by automatic restoration in this patch.",
+      "Real GUI update/restart-button, Windows/macOS/HPC and student Codespace remain unrun.",
+      "Final-source same-browser recovery failed bounded table visibility although backend input validation completed and retained bytes are intact."
+    ]
+  },
+  "browser": {
+    "earlier_positive": "earlier-browser-restart-receipt.json",
+    "final_failed_reload": "browser-final.log",
+    "failed_target_red": "preflight-red.json",
+    "failed_target_green": "preflight-green.json",
+    "kernel_diagnostic": "kernel-widget-state.json",
+    "fresh_session_recovery": "fresh-browser-recovery.json",
+    "final_service": "final-service-observation.json"
+  }
+}

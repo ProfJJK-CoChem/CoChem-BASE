@@ -676,6 +676,15 @@ class StudentSetupService:
         with self._operation("restart"):
             runtime = self._active_runtime()
             validate_runtime_record(runtime, self.artifact_dir, self.repository_root)
+            server = _read(self.artifact_dir / "dashboard" / "server.json", {"port": 8866})
+            port = server.get("port") if isinstance(server, dict) else None
+            if type(port) is not int or not 1 <= port <= 65535:
+                raise StudentSetupError("The recorded dashboard port is invalid; the running interface has been retained.")
+            runtime_python = Path(runtime["python_path"]).expanduser().absolute()
+            venv = runtime_python.parent.parent
+            launcher_python = installer._python_path(venv)
+            if not launcher_python.is_file() or not launcher_python.samefile(runtime_python):
+                raise StudentSetupError("The selected runtime interpreter has no matching dashboard environment; the running interface has been retained.")
             launcher = self.repository_root / "scripts" / "hosted_dashboard.py"
             # Retain the user's own Codespaces identity and the instructor's
             # scoped source reader for personal-project updates after restart.
@@ -686,10 +695,11 @@ class StudentSetupService:
             env.update(COCHEM_ARTIFACT_DIR=str(self.artifact_dir), COCHEM_STUDENT_AUTO_SETUP="true")
             log_path = self.state_dir / "restart.log"
             with log_path.open("ab") as log:
-                child = subprocess.Popen([sys.executable, "-B", str(launcher), "restart", "--artifacts", str(self.artifact_dir), "--restart-delay", "2"],
+                child = subprocess.Popen([sys.executable, "-B", str(launcher), "restart", "--artifacts", str(self.artifact_dir),
+                    "--venv", str(venv), "--port", str(port), "--restart-delay", "2"],
                     cwd=self.repository_root, env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                     start_new_session=os.name != "nt")
-            self._write("restart-request.json", {"requested_at": _now(), "pid": child.pid, "runtime": runtime})
+            self._write("restart-request.json", {"requested_at": _now(), "pid": child.pid, "port": port, "runtime": runtime})
         return {"status": "restart_requested", "message": "The interface is restarting. Refresh this browser tab in about ten seconds; startup may take longer."}
 
 

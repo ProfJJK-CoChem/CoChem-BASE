@@ -264,6 +264,74 @@ StudentSetupService(sys.argv[1], sys.argv[2]).restart_dashboard()
     assert not record.read_text().count("fixture-private-access")
 
 
+@pytest.mark.parametrize("recorded_port", [None, 8874, 1, 65535])
+def test_restart_routes_actual_child_to_selected_environment_and_dashboard_port(student_service, tmp_path, recorded_port):
+    """A real launcher child routes another Python process; no engine is replaced."""
+    service, _catalog, _origin = student_service
+    selected_env = tmp_path / "selected runtime with spaces"
+    subprocess.run([sys.executable, "-m", "venv", "--without-pip", str(selected_env)], check=True, timeout=30)
+    selected_python = installer._python_path(selected_env)
+    assignment_path = service.state_dir / "assignment-runtime.json"
+    assignment = json.loads(assignment_path.read_text())
+    assignment["python_path"] = str(selected_python)
+    assignment_path.write_text(json.dumps(assignment))
+    if recorded_port is not None:
+        dashboard = service.artifact_dir / "dashboard"
+        dashboard.mkdir(exist_ok=True)
+        (dashboard / "server.json").write_text(json.dumps({"port": recorded_port}))
+    launcher = service.repository_root / "scripts/hosted_dashboard.py"
+    launcher.write_text('''import argparse, json, os, subprocess, sys
+from pathlib import Path
+parser = argparse.ArgumentParser()
+parser.add_argument('command', choices=['restart'])
+parser.add_argument('--artifacts', type=Path, required=True)
+parser.add_argument('--venv', type=Path)
+parser.add_argument('--port', type=int, default=8866)
+parser.add_argument('--restart-delay', type=float)
+args = parser.parse_args()
+venv = args.venv if args.venv else args.artifacts / 'ui-env'
+python = venv / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+probe = subprocess.run([str(python), '-c', 'import json,sys; print(json.dumps({"executable":sys.executable,"prefix":sys.prefix}))'],
+    capture_output=True, text=True, check=True)
+record = dict(json.loads(probe.stdout), port=args.port, bootstrap=sys.executable)
+(args.artifacts / 'restart-routing.json').write_text(json.dumps(record))
+''')
+    original = service.repository_root / "student-original.xyz"
+    original.write_bytes(b"1\nUnchanged student original\nHe 0 0 0\n")
+    result = service.artifact_dir / "Results" / "retained-result.json"
+    result.parent.mkdir(exist_ok=True)
+    result.write_bytes(b'{"notes":"unchanged retained result"}\n')
+    before = {path: path.read_bytes() for path in (original, result)}
+    # The source-bound service itself creates the real launcher child. Calling
+    # the generic offline helper here would import an older installed BASE wheel
+    # outside the canonical quarantine runner, hiding the reviewed source change.
+    response = service.restart_dashboard()
+    assert response["status"] == "restart_requested"
+    receipt = service.artifact_dir / "restart-routing.json"
+    deadline = time.monotonic() + 10
+    while not receipt.is_file() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert receipt.is_file(), (service.state_dir / "restart.log").read_text()
+    routed = json.loads(receipt.read_text())
+    assert routed["port"] == (8866 if recorded_port is None else recorded_port)
+    assert Path(routed["executable"]) == selected_python
+    assert Path(routed["prefix"]) == selected_env
+    assert Path(routed["bootstrap"]) == Path(sys.executable)
+    assert all(path.read_bytes() == value for path, value in before.items())
+
+
+@pytest.mark.parametrize("port", [True, False, "8874", 8874.0, None, 0, -1, 65536, [], {}])
+def test_restart_rejects_invalid_recorded_port_before_launch(student_service, port):
+    service, _catalog, _origin = student_service
+    dashboard = service.artifact_dir / "dashboard"
+    dashboard.mkdir(exist_ok=True)
+    (dashboard / "server.json").write_text(json.dumps({"port": port}))
+    with pytest.raises(StudentSetupError, match="port"):
+        service.restart_dashboard()
+    assert not (service.state_dir / "restart-request.json").exists()
+    assert not (service.state_dir / "restart.log").exists()
+
+
 def test_template_selects_stable_release_without_student_commands(student_service):
     service, _catalog, _origin = student_service
     config = service.repository_root / ".cochem/course-runtime.json"
@@ -306,6 +374,57 @@ def test_runtime_selection_rejects_python_outside_immutable_revision(tmp_path):
         "base_spec": {"repository": "ProfJJK-CoChem/CoChem-BASE", "revision": "a" * 40}}
     with pytest.raises(RuntimeError, match="managed revision"):
         _validate_runtime_metadata(record, tmp_path)
+
+
+@pytest.mark.parametrize("case", ["shared", "legacy-default", "tampered", "candidate-verifier", "aliased-candidate-verifier", "invalid-origin-kind"])
+def test_selected_release_uses_original_shared_verifier_and_checks_candidate(student_service, case):
+    """Use real installed bytes; never execute a candidate to validate itself."""
+    from scripts.hosted_dashboard import selected_runtime
+
+    service, catalog, origin = student_service
+    spec = dict(catalog["topos"], repository="ProfJJK-CoChem/CoChem-BASE")
+    (origin.parent / "offline-git.conf").write_text(
+        f'[url "{origin.as_uri()}"]\n\tinsteadOf = https://github.com/{spec["repository"]}.git\n')
+    receipt = offline_installer.install_fixture("base", spec, service.artifact_dir / "BaseRuntime", origin)
+    location = Path(receipt["source_path"]).parent
+    record = {"schema_version": RUNTIME_SCHEMA, "kind": "reviewed-release", "revision": spec["revision"],
+        "source_path": receipt["source_path"], "python_path": receipt["python_path"],
+        "authority_path": str(location / "authority"), "base_spec": spec}
+    active = service.state_dir / "active-runtime.json"
+    active.write_text(json.dumps(record))
+    original = service.state_dir / "assignment-runtime.json"
+    if case == "legacy-default":
+        original.unlink()
+        subprocess.run([sys.executable, "-m", "venv", "--system-site-packages", "--without-pip",
+                        str(service.artifact_dir / "ui-env")], check=True, timeout=30)
+    elif case in {"candidate-verifier", "aliased-candidate-verifier", "invalid-origin-kind"}:
+        assignment = json.loads(original.read_bytes())
+        if case == "candidate-verifier":
+            assignment["python_path"] = receipt["python_path"]
+        elif case == "aliased-candidate-verifier":
+            alias = service.artifact_dir / "candidate-environment-alias"
+            try:
+                alias.symlink_to(location / "env", target_is_directory=True)
+            except OSError as error:
+                if os.name == "nt" and getattr(error, "winerror", None) == 1314:
+                    pytest.skip("This Windows account does not have symbolic-link privileges")
+                raise
+            assignment["python_path"] = str(installer._python_path(alias))
+        else:
+            assignment["kind"] = "reviewed-release"
+        original.write_text(json.dumps(assignment))
+    before = {path: path.read_bytes() for path in (active, original) if path.is_file()}
+    assert (service.artifact_dir / "ui-env").exists() is (case == "legacy-default")
+    if case == "tampered":
+        (Path(receipt["source_path"]) / "backend.py").write_text("raise RuntimeError('candidate must not execute')\n")
+        with pytest.raises(RuntimeError, match="integrity verification"):
+            selected_runtime(service.artifact_dir)
+    elif case in {"candidate-verifier", "aliased-candidate-verifier", "invalid-origin-kind"}:
+        with pytest.raises(RuntimeError, match="original BASE verifier"):
+            selected_runtime(service.artifact_dir)
+    else:
+        assert selected_runtime(service.artifact_dir) == record
+    assert all(path.read_bytes() == value for path, value in before.items())
 
 
 def test_setup_state_cannot_pollute_student_repository(tmp_path):

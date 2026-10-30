@@ -1,0 +1,66 @@
+{
+  "scope": "Maintainer local Linux source-bound runtime. Actual service/launcher restart and Chromium upload/recovery. GUI update/restart-button, Codespace, student identity and scientific calculation remain unrun.",
+  "status": "LOCAL_SERVICE_RESTART_BROWSER_RECOVERY_VERIFIED",
+  "sources": {
+    "scripts/hosted_dashboard.py": "6aedc78e36d7b52366d65b8eb892559230ca281967c9684881d5c58d0d02736b",
+    "src/cochem_base/interfaces/student_setup.py": "a417e69d3b9e63c96c764191baf5a3816b533b7125aeecaf2f20e9b82aef67e8",
+    "ui/voila_layout/cochem_gui.py": "aeef2dbd1f390db72641ca77e0ccffceb83e2ca112ccc0c5fbe8139678f81091",
+    "Start_Here.ipynb": "054a85e0bdd7455ce651f4c1988a135dbb992a998c7137f383bc84af08dbcf8f"
+  },
+  "before_server": {
+    "pid": 93148,
+    "port": 8874,
+    "create_time": 1793387377.89,
+    "command": [
+      "/workspace/.completion/dashboard/ui-env/bin/python",
+      "-B",
+      "/workspace/CoChem-BASE/scripts/student_voila.py",
+      "/workspace/CoChem-BASE/Start_Here.ipynb",
+      "--no-browser",
+      "--port=8874",
+      "--Voila.ip=0.0.0.0",
+      "--Voila.port_retries=0"
+    ]
+  },
+  "after_server": {
+    "pid": 98910,
+    "port": 8874,
+    "create_time": 1793387665.64,
+    "command": [
+      "/workspace/.completion/dashboard/ui-env/bin/python",
+      "-B",
+      "/workspace/CoChem-BASE/scripts/student_voila.py",
+      "/workspace/CoChem-BASE/Start_Here.ipynb",
+      "--no-browser",
+      "--port=8874",
+      "--Voila.ip=0.0.0.0",
+      "--Voila.port_retries=0"
+    ]
+  },
+  "response": {
+    "status": "restart_requested",
+    "message": "The interface is restarting. Refresh this browser tab in about ten seconds; startup may take longer."
+  },
+  "shared_venv_python": "/workspace/.completion/dashboard/ui-env/bin/python",
+  "browser_harness_python": "/workspace/.completion/envs/review/bin/python",
+  "source_sha256": "5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3",
+  "retained_files_before": {
+    "Results/retained-restart-note.txt": "9209a9b6eae634e868439480edcc1f9146b7ee4ebc8f960b91053fe7f2cd97ae",
+    "InputLibrary/aeaa51bca3e64381bdc24631550ce279/original.xyz": "5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3",
+    "InputLibrary/aeaa51bca3e64381bdc24631550ce279/receipt.json": "1eb71199bce792c4924c6f094ab88a54dd7eb67e4db6ef7bbabdc26c36cf0eb6",
+    "StudentInputs/c8880230064649b7a81dd8e840e53931/input-manifest.json": "6eaea552ee6d2add5fa43613476549752ecb46c7620e4b0715ad81156ad92279",
+    "StudentInputs/c8880230064649b7a81dd8e840e53931/restart-water.xyz": "5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3"
+  },
+  "retained_files_after": {
+    "Results/retained-restart-note.txt": "9209a9b6eae634e868439480edcc1f9146b7ee4ebc8f960b91053fe7f2cd97ae",
+    "InputLibrary/aeaa51bca3e64381bdc24631550ce279/original.xyz": "5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3",
+    "InputLibrary/aeaa51bca3e64381bdc24631550ce279/receipt.json": "1eb71199bce792c4924c6f094ab88a54dd7eb67e4db6ef7bbabdc26c36cf0eb6",
+    "StudentInputs/c8880230064649b7a81dd8e840e53931/input-manifest.json": "6eaea552ee6d2add5fa43613476549752ecb46c7620e4b0715ad81156ad92279",
+    "StudentInputs/c8880230064649b7a81dd8e840e53931/restart-water.xyz": "5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3"
+  },
+  "page_errors": [],
+  "screenshots": {
+    "before-restart.png": "bd3364985f68c7e010127e12303eeb5bd5af6bda978d0088ac3747905678ca1c",
+    "after-restart.png": "9b082a40cb1c7cdcc5ad948089d4b4cf949c4807e48294443d4ae3f2ff3e0a96"
+  }
+}

@@ -110,6 +110,47 @@ def test_identity_requires_exact_command_and_reports_creation_time():
         process.wait(timeout=5)
 
 
+def test_failed_restart_preflight_preserves_server_receipt_and_unrelated_listener(tmp_path):
+    """An invalid target must fail before even stale service state is changed."""
+    from urllib.request import ProxyHandler, build_opener
+
+    import psutil
+
+    from scripts.hosted_dashboard import server_command
+
+    runtime_environment(tmp_path)
+    code = """from http.server import BaseHTTPRequestHandler,HTTPServer
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.end_headers(); self.wfile.write(b'preserved listener')
+    def log_message(self,*args):
+        pass
+server=HTTPServer(('127.0.0.1',0),Handler)
+print(server.server_port,flush=True)
+server.serve_forever()
+"""
+    listener = subprocess.Popen([sys.executable, "-u", "-c", code], stdout=subprocess.PIPE, text=True)
+    try:
+        port = int(listener.stdout.readline())
+        receipt = tmp_path / "dashboard/server.json"
+        receipt.write_text(json.dumps({"pid": listener.pid, "port": port,
+            "create_time": psutil.Process(listener.pid).create_time(),
+            "command": server_command(Path(sys.executable), port)}))
+        before = receipt.read_bytes()
+        result = subprocess.run([sys.executable, str(REPO_ROOT / "scripts/hosted_dashboard.py"),
+            "restart", "--artifacts", str(tmp_path), "--venv", str(Path(sys.executable).parent.parent),
+            "--port", str(port)], capture_output=True, text=True, timeout=30)
+        assert result.returncode != 0
+        assert receipt.is_file(), "Failed target preflight removed the previous server receipt"
+        assert receipt.read_bytes() == before
+        assert listener.poll() is None
+        with build_opener(ProxyHandler({})).open(f"http://127.0.0.1:{port}/", timeout=5) as response:
+            assert response.read() == b"preserved listener"
+    finally:
+        listener.terminate()
+        listener.wait(timeout=5)
+
+
 @pytest.mark.skipif(os.name == "nt", reason="Checks the Linux Codespaces session boundary")
 @pytest.mark.parametrize("parent_exits", [False, True])
 def test_failed_server_cleanup_stops_its_group_and_preserves_unrelated_process(tmp_path, parent_exits):

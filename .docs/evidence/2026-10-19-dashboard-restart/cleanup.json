@@ -1,0 +1,14 @@
+{
+  "owned_group": 110414,
+  "owned_pids": [
+    110414
+  ],
+  "remaining_live_owned_processes": [],
+  "remaining_dead_zombies": [
+    110414
+  ],
+  "server_receipt_removed": true,
+  "input_and_fixture_hashes_preserved": true,
+  "used_existing_owned_stop_launcher": true,
+  "remaining_kernels_for_owned_artifact_directory": []
+}

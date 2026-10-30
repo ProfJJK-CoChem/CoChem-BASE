@@ -601,6 +601,20 @@ def selected_runtime(artifact_dir: Path) -> dict | None:
         # The devcontainer's bootstrap interpreter has no scientific/UI packages.
         # Verify with the original BASE environment before executing the target.
         verifier = python_path(artifact_dir / "ui-env")
+        origin_path = artifact_dir / "StudentSetup" / "assignment-runtime.json"
+        if origin_path.is_file():
+            origin = json.loads(origin_path.read_text(encoding="utf-8"))
+            if not isinstance(origin, dict) or origin.get("kind") != "assignment":
+                raise RuntimeError("The original BASE verifier has no assignment runtime receipt")
+            _validate_runtime_metadata(origin, artifact_dir)
+            verifier = Path(origin["python_path"]).expanduser().absolute()
+        # An unverified candidate must never supply its own verifier, including
+        # through a redirected original-environment receipt.
+        candidate_root = (artifact_dir / "BaseRuntime").absolute()
+        if (verifier.is_relative_to(candidate_root)
+                or verifier.resolve().is_relative_to(candidate_root.resolve())
+                or verifier.parent.resolve().is_relative_to(candidate_root.resolve())):
+            raise RuntimeError("The original BASE verifier cannot be a candidate runtime")
         if not verifier.is_file():
             raise RuntimeError("The original BASE verifier environment is unavailable")
         probe = """import json,sys
@@ -714,9 +728,12 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("The minimum workload storage must be positive")
         setup_dashboard(python, artifacts, args.min_disk_space_gb)
     elif args.command in {"restart", "stop"}:
+        if args.command == "restart":
+            # Reject an unusable target while the current interface and its
+            # exact process/receipt identity are still intact.
+            validate_setup(python, artifacts)
         stop_dashboard(python, artifacts)
         if args.command == "restart":
-            validate_setup(python, artifacts)
             start_dashboard(python, artifacts, args.port, args.timeout)
     elif args.command == "start":
         if not python.is_file():

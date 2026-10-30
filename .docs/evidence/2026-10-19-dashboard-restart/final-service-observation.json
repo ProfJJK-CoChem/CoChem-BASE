@@ -1,0 +1,41 @@
+{
+  "scope": "Final-source local service restart observed; fresh browser recovers both retained inputs. Earlier same-browser widget synchronization failure remains unaccepted.",
+  "server": {
+    "pid": 110414,
+    "port": 8874,
+    "create_time": 1793387899.83,
+    "command": [
+      "/workspace/.completion/dashboard/ui-env/bin/python",
+      "-B",
+      "/workspace/CoChem-BASE/scripts/student_voila.py",
+      "/workspace/CoChem-BASE/Start_Here.ipynb",
+      "--no-browser",
+      "--port=8874",
+      "--Voila.ip=0.0.0.0",
+      "--Voila.port_retries=0"
+    ]
+  },
+  "restart_request": {
+    "pid": 109469,
+    "port": 8874,
+    "requested_at": "2026-10-30T19:18:09.797588+00:00",
+    "runtime": {
+      "kind": "assignment",
+      "manifest_path": "/workspace/CoChem-BASE/scripts/module-distribution.json",
+      "python_path": "/workspace/.completion/dashboard/ui-env/bin/python",
+      "revision": "807d4f993a0176a29343fcd5560aac6e73f2720e",
+      "schema_version": "cochem.student-runtime/1",
+      "source_path": "/workspace/CoChem-BASE"
+    }
+  },
+  "earlier_retained_files_unchanged": {
+    "Results/retained-restart-note.txt": "9209a9b6eae634e868439480edcc1f9146b7ee4ebc8f960b91053fe7f2cd97ae",
+    "InputLibrary/aeaa51bca3e64381bdc24631550ce279/original.xyz": "5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3",
+    "InputLibrary/aeaa51bca3e64381bdc24631550ce279/receipt.json": "1eb71199bce792c4924c6f094ab88a54dd7eb67e4db6ef7bbabdc26c36cf0eb6",
+    "StudentInputs/c8880230064649b7a81dd8e840e53931/input-manifest.json": "6eaea552ee6d2add5fa43613476549752ecb46c7620e4b0715ad81156ad92279",
+    "StudentInputs/c8880230064649b7a81dd8e840e53931/restart-water.xyz": "5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3"
+  },
+  "launcher_sha256": "f875db3a40d1bf314d6028293e3c7103f64a6d6f5336ca29ebb33ddc041e2488",
+  "fresh_browser": "fresh-browser-recovery.json",
+  "same_browser_failure": "browser-final.log"
+}

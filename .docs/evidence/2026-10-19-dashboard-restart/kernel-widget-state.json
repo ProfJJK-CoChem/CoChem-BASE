@@ -1,0 +1,11 @@
+[
+  {
+    "worker_alive": false,
+    "refresh_disabled": false,
+    "serial": 1,
+    "table_html": "<table><caption>Verified retained scientific inputs</caption><thead><tr><th>File</th><th>Type</th><th>Structures</th><th>Original SHA-256</th></tr></thead><tbody><tr><td>restart-water.xyz</td><td>molecular</td><td>1</td><td>5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3</td></tr><tr><td>restart-water.xyz</td><td>molecular</td><td>1</td><td>5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3</td></tr></tbody></table>",
+    "input_count": 2,
+    "widget_model_id": "715d05e92a2841b58305ebc7dba6ce77"
+  }
+]
+

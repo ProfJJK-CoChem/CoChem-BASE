@@ -1,0 +1,26 @@
+{
+  "scope": "Actual owned local Voil\u00e0 service with deliberately invalid restart-target Stage0 registry; no full managed-release update or student claim",
+  "mode": "red",
+  "launcher_sha256": "6aedc78e36d7b52366d65b8eb892559230ca281967c9684881d5c58d0d02736b",
+  "exit_code": 1,
+  "before_server": {
+    "pid": 98910,
+    "port": 8874,
+    "create_time": 1793387665.64,
+    "command": [
+      "/workspace/.completion/dashboard/ui-env/bin/python",
+      "-B",
+      "/workspace/CoChem-BASE/scripts/student_voila.py",
+      "/workspace/CoChem-BASE/Start_Here.ipynb",
+      "--no-browser",
+      "--port=8874",
+      "--Voila.ip=0.0.0.0",
+      "--Voila.port_retries=0"
+    ]
+  },
+  "same_pid_create_time_alive": false,
+  "server_receipt_unchanged": false,
+  "existing_browser_functional_during_invalid_target": false,
+  "original_registry_sha256": "413ed42df03ed79727a7706c48a1d1ed7b02428a018eb9ac459d137804600532",
+  "original_registry_restored_exactly": true
+}

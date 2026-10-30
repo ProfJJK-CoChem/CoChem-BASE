@@ -1,0 +1,5 @@
+{
+  "scope": "Fresh local browser after successful final-source service restart; earlier same-session reload failed bounded widget synchronization. No student or complete GUI-update acceptance.",
+  "status": "FRESH_BROWSER_RECOVERY_VERIFIED",
+  "table": "Verified retained scientific inputs\nFile\tType\tStructures\tOriginal SHA-256\nrestart-water.xyz\tmolecular\t1\t5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3\nrestart-water.xyz\tmolecular\t1\t5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3"
+}

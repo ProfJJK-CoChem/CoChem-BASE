@@ -326,6 +326,8 @@ def licensed_engine_availability(registry_path: str | Path | None = None) -> dic
 
 class CoChemGUI(InputManagementMixin):
     def __init__(self) -> None:
+        from ui.voila_layout.initial_widget_state import ensure_widget_runtime
+        ensure_widget_runtime()
         self.state = CoChemGUIState()
         self._pipeline_running = False
         self._pipeline_cancellation = threading.Event()
@@ -1447,6 +1449,18 @@ class CoChemGUI(InputManagementMixin):
         self._refresh_student_actions_history()
         self._restore_student_inputs()
         self._restore_student_scientific_inputs()
+        from ui.voila_layout.initial_widget_state import arm_initial_widget_state
+        # These 15 fixed models receive the initial asynchronous library scan.
+        # Their own frontend acknowledgement replays only labels/display state;
+        # selection indices and scientific drafts are never replayed.
+        self._initial_library_state_models = (
+            self.input_library_table, self.input_library_rejections, self.input_library_status,
+            self.btn_input_refresh, self.btn_use_input_geometry, self.btn_remove_input,
+            self.input_library_choice, self.input_record_choice, self.input_pool_choices,
+            *self._input_selectors.values(),
+        )
+        for model in self._initial_library_state_models:
+            arm_initial_widget_state(model)
         self._refresh_input_library()
         self._start_course_project_discovery()
         atexit.register(self._inbox_stop.set)
@@ -6098,5 +6112,10 @@ class CoChemGUI(InputManagementMixin):
 
 def create_gui() -> widgets.VBox:
     """Entry point to instantiate and display the GUI."""
-    gui = CoChemGUI()
+    from ui.voila_layout.initial_widget_state import UnsupportedWidgetRuntime
+    try:
+        gui = CoChemGUI()
+    except UnsupportedWidgetRuntime as exc:
+        return widgets.VBox([widgets.HTML("<p role='alert'>Interface setup requires attention: "
+            + html.escape(str(exc)) + "</p>")])
     return gui.display()

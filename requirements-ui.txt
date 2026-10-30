@@ -3,7 +3,8 @@ ase
 filelock
 h5py
 ipykernel
-ipywidgets
+ipywidgets>=8.1,<9
+packaging
 jinja2
 jax[cpu]==0.8.1
 mendeleev>=1.2.0

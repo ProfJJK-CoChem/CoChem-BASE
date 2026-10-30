@@ -40,6 +40,7 @@ HOSTED_TESTS = (
     "tests/ui/test_disclosure.py",
     "tests/ui/test_learning_guidance.py",
     "tests/ui/test_learning_search.py",
+    "tests/ui/test_initial_widget_state.py",
     "tests/ui/test_scientific_error_guidance.py",
     "tests/ui/test_workspace_guidance.py",
     "tests/ui/test_beginner_workspace_layout.py",

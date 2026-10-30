@@ -1,0 +1,98 @@
+{
+  "producer": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "scope": "All five selected affected engineering gates terminal; not full-SRS, hosted scheduler, student deployment or cross-platform acceptance",
+  "status": "selected_profiles_passed",
+  "profiles": [
+    {
+      "profile": "strict-controls",
+      "tests": 221,
+      "seconds": 32.975,
+      "failures": 0,
+      "skips": 0,
+      "release_accepted": true,
+      "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+      "startup_only_records": 7,
+      "startup_only_not_finalizer_proof": true,
+      "acceptance_path": "/workspace/.completion/startup-final-strict-controls/test-acceptance.json",
+      "acceptance_sha256": "b339ee1343d8643ce23f9283a1a45ac9635147d1c1c7047ce65d219165130ae8",
+      "junit_sha256": "19cca5f5e958e17456b1b035fcd67bd2397204c22b7b26f3de5cd0335fe36436",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true
+    },
+    {
+      "profile": "frontend-gate",
+      "tests": 4,
+      "seconds": 15.954,
+      "failures": 0,
+      "skips": 0,
+      "release_accepted": true,
+      "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+      "startup_only_records": 3,
+      "startup_only_not_finalizer_proof": true,
+      "acceptance_path": "/workspace/.completion/startup-final-frontend-gate/test-acceptance.json",
+      "acceptance_sha256": "90bf4ae78b30d5a13651a639294744b61230f41729b6ce8b89bb9e9bdfd8676c",
+      "junit_sha256": "5ef3876ffcfd47cb4714ab0de55916ab9d628aaec250d92d4081a8488b0ce3b0",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true
+    },
+    {
+      "profile": "intake-gate",
+      "tests": 23,
+      "seconds": 237.206,
+      "failures": 0,
+      "skips": 0,
+      "release_accepted": true,
+      "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+      "startup_only_records": 0,
+      "startup_only_not_finalizer_proof": true,
+      "acceptance_path": "/workspace/.completion/startup-final-intake-gate/test-acceptance.json",
+      "acceptance_sha256": "0e8e8d155a418e5e6b20aa1afb894dd14421ebeed129607ff70b20c1e06f0f3a",
+      "junit_sha256": "2c28a2fdf46dbbcb407d1c5858e47eb545316c72b149d9a319e73a03990abf82",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true
+    },
+    {
+      "profile": "queue-gate",
+      "tests": 254,
+      "seconds": 63.071,
+      "failures": 0,
+      "skips": 0,
+      "release_accepted": true,
+      "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+      "startup_only_records": 0,
+      "startup_only_not_finalizer_proof": true,
+      "acceptance_path": "/workspace/.completion/startup-final-queue-gate/test-acceptance.json",
+      "acceptance_sha256": "ff36313265099aaf7029f8ce7844670ae5eac8f9f24b50431764b30daf2daa05",
+      "junit_sha256": "8ab5fac911f0add72b6420c1947801952cd3ec33c0cab746fe6d7e17e4d1decf",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true
+    },
+    {
+      "profile": "interface-gate",
+      "tests": 155,
+      "seconds": 452.729,
+      "failures": 0,
+      "skips": 0,
+      "release_accepted": true,
+      "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+      "startup_only_records": 0,
+      "startup_only_not_finalizer_proof": true,
+      "acceptance_path": "/workspace/.completion/startup-final-interface-gate/test-acceptance.json",
+      "acceptance_sha256": "ec352408b56a9f1013a8761c6568604c95c3425255776317f3e540a07dffb01e",
+      "junit_sha256": "80980a9a9579d85274ba949af469e5519ea6032ade8d2232ed4bafbe33843546",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true
+    }
+  ],
+  "total_passed_in_selected_profiles": 657,
+  "broader_acceptance_remaining": [
+    "actual canonical novice/full16format/native browser lane",
+    "actual student identity/Codespace/ORCA/CFOUR Actions pilot",
+    "final scientific module publication and managed installation",
+    "full scientific/SRS backlog"
+  ],
+  "prior_failed_profiles_retained": [
+    "base-beginner-source-gate (368pass2missingPAWfail)",
+    "initial-widget-state/focused (25pass2missingPAWfail)"
+  ]
+}

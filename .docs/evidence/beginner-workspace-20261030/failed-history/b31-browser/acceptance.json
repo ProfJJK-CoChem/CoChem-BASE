@@ -1,0 +1,688 @@
+{
+  "candidate_revision": "b31a79fdf89785e57d5ee6270a02fe2d63346c59",
+  "beginner_ui_acceptance": "needs_changes",
+  "functional_native_scope": "passed_bounded_local_maintainer_checks",
+  "accepted_functional_attempt": "attempt7-canonical",
+  "human_student_comprehension": "not_tested",
+  "student_codespaces_or_hosted_execution": "not_tested",
+  "scientific_accuracy_established": false,
+  "wcag_conformance": "not_established_by_this_smoke_review",
+  "product_findings": [
+    {
+      "id": "UX1",
+      "severity": "high",
+      "finding": "Excessive header and duplicate navigation put the upload task far below the initial viewport.",
+      "observed": {
+        "320px": {
+          "header_height": 1168.203125,
+          "upload_y": 2633.890625
+        },
+        "768px": {
+          "header_height": 694.15625,
+          "upload_y": 1798.296875
+        },
+        "1440px": {
+          "header_height": 651.75,
+          "upload_y": 1474.890625
+        }
+      },
+      "limit": "Inner-page mouse-wheel scrolling reaches the task; it is not permanently clipped. Open contextual help contributes to upload Y; the persistent header heights are separately measured.",
+      "evidence": "attempt7-canonical/04-inputs-viewport-320.png"
+    },
+    {
+      "id": "UX2",
+      "severity": "medium",
+      "finding": "A raw pynvml FutureWarning, source path and import statement appear in a red output block above CoChem before student instructions.",
+      "module": "src/cochem_base/core_engine/cochem_core_telemetry_logger.py:62",
+      "warning_category": "FutureWarning",
+      "evidence": "attempt7-canonical/01-setup-desktop.png"
+    },
+    {
+      "id": "UX3",
+      "severity": "high",
+      "finding": "Uploading a new file leaves Use selected starting geometry usable before new selection/validation finishes; a fast click can use the prior selected file.",
+      "evidence": "attempt5/browser-report.json",
+      "observed": "The recorded old source input manifest changed from +1/doublet to neutral/singlet after the harness saved details before the new filename was bound. Attempt7 waits actual selected filename plus visible validation status and preserves the old draft.",
+      "limit": "Exact transient frontend status/selector at the failed click was not captured; the saved-record before/after, old source identity and native configuration are retained. Source inspection corroborates the unguarded ingestion interval."
+    }
+  ],
+  "source_origin": {
+    "gui_file": "/workspace/.completion/beginner-browser-review/source/ui/voila_layout/cochem_gui.py",
+    "source_files": {
+      "ui/voila_layout/cochem_gui.py": "218d99a746c0e74d3c4b05c3ab4a67643170bb43975458cb2a5e5c0a3a071138",
+      "ui/voila_layout/cochem_gui_serializer.py": "5bafa4d6ad09fd997e49eb643661daae07cc48bfcc09ac3385da10db9985aa93",
+      "ui/voila_layout/disclosure.py": "1f43eb6548f7035561a34e0a4738559f5eab2e5596c229cf660db3eaaca5cbfb",
+      "ui/voila_layout/help_content.py": "c6882fcaad56a6d83571fba5b0f407f2777f00bfb1e6b8bde36bcfd98bbfa17d",
+      "ui/voila_layout/input_management.py": "5765dc06bdd88fa4301aa1c1f91ac7f144afa3d2b45b3e7ae6bf19d0317f28a9",
+      "ui/voila_layout/learning.py": "e85e4e95cf7bb1da7983651fed4fef516932cae05fd828fb2c4fb1e02cddb5e8",
+      "ui/voila_layout/research_panels.py": "446c32944ad701c3390eb0a722cbac37db3925e9330156c6555250c3ce07919e",
+      "ui/voila_layout/scribe_gui_dashboard.py": "3ed32e6c7ffc1a38ba2b4d1697d90f0ac7d94d2e4487e082f25585aa0e71e8df",
+      "ui/voila_layout/workspace_layout.py": "546e3e79d66609fc3daf04e211597f7b80c32aa46384eb528374cfd03ebcd330",
+      "ui/voila_layout/workspace_style.py": "ae7c04c592e5d0394f71a1e035acf4155ae062ffc6fef01c6ffd76208ac4de94"
+    }
+  },
+  "copy_and_original_ui_before_after_equal": true,
+  "native_case": {
+    "result": "/workspace/.completion/beginner-browser-review/artifacts/GUI/run_1c797b7a37eb4f8ebe34fe35100ce694/Results/result.json",
+    "result_sha256": "bf9e900a76eb5b9b7c14ca36c9da36f2337345aa8518500d134a88eb0da7dccd",
+    "energy_hartree": -5.070544447821,
+    "operation": "GFN2-xTB water optimization",
+    "scientific_accuracy_established": false,
+    "native_sidecars_verified": {
+      "execution.json": "849fc8a18baac7c7654bc35a52ec7f7ce9c58a01cbd6f1ba5af7d62c3ed15539",
+      "input.xyz": "602cf425199263a01ead9950d130b93a091feef41830c82d0466ef1b757cfc12",
+      "input.engrad": "f4241078aa1e42441cd143a9d1d5981d21870292a995608ab25c56d2dd947411",
+      "execution_authority.json": "a75468f8b62ce70bb550baa8cf6325af5c0abb679a6b4a571936ab410fd697b2",
+      "ingress_alignment.json": "34fccea6b313cc2ce81ab6abdc72c5a5cac4fec8e2db8a3980ef29a828e21c90",
+      "xtbopt.xyz": "98e5d66e7724221c60390907a9ac420bf7e482fe769a113bb174175ac76be184",
+      "result.json": "bf9e900a76eb5b9b7c14ca36c9da36f2337345aa8518500d134a88eb0da7dccd",
+      "xtbopt.log": "bac895c08ab4dd40289c8ce2f86dc732bfa4497383d7f33dffb09ad033751c9b",
+      "matrix_config.validated.json": "3748a4bd16cdaa4b1656573762201b34cbbec0196b794cdb12e6017e7d2b9ae6",
+      "optimization_evidence.json": "1bedb48667a41eb33bc13ea40076726aac75c3d578b05f13e25e7072beb2b793",
+      "stderr.log": "037435cfefaf87aea2062fd3fbcc038852353fabbbe67f4e8057e43fd1ffe88d",
+      "gradient": "57cdcf1921861f1d9d8df9b7b25558762cf91da8e4f8830b3d33f8ec2d91a261",
+      "xtb.out": "a078ac387008196d76099caa59c19bb59fa6f37a5ff7068d01a3b1e05d79f203",
+      "optimization_evaluations.json": "36cc6815a4c30703931ed95e8a68e2450e56cba1077fcbbcd86f871b174014f6"
+    },
+    "execution_authority": {
+      "engine": "xtb",
+      "executable": "/workspace/.completion/dashboard/free-engines/xtb/xtb-dist/bin/xtb",
+      "cores": 1,
+      "maxcore_mb": 6144,
+      "total_memory_mb": 6144,
+      "registry_path": "/workspace/.completion/dashboard/Registry/cochem_system_config.json",
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "cpu_affinity": [
+        0
+      ],
+      "cpu_budget_unit": "physical_core",
+      "runtime_seal_sha256": null
+    },
+    "originals": {
+      "/workspace/.completion/beginner-browser-review/artifacts/InputLibrary/9f10bec9f31d4d88874ed2f27f88ad30/original.xyz": "176647f391d36125906b8b0f2ee695e1ecdd9288e9a79a83a38b446fed4cb444",
+      "/workspace/.completion/beginner-browser-review/artifacts/InputLibrary/4e36a46f207442c1a2c8152ff82db07c/original.xyz": "176647f391d36125906b8b0f2ee695e1ecdd9288e9a79a83a38b446fed4cb444",
+      "/workspace/.completion/beginner-browser-review/artifacts/InputLibrary/b71b82cd9feb4174afdc7ad4f0dbf584/original.xyz": "176647f391d36125906b8b0f2ee695e1ecdd9288e9a79a83a38b446fed4cb444",
+      "/workspace/.completion/beginner-browser-review/artifacts/InputLibrary/350229d4e4774890bb8ab10ceab20146/original.xyz": "176647f391d36125906b8b0f2ee695e1ecdd9288e9a79a83a38b446fed4cb444"
+    },
+    "summary_sha256": "c74d14592e685849517fee237ebfde387bd4b9675919a8d81c01fb32cd15ba67",
+    "summary_scope": "displayed text only, no native backup",
+    "actual_display_text": "xTB screening result (no product accuracy certification)\nMethod: GFN2-xTB\nEnergy: -5.070544447821 Hartree\nOptimization converged: True\nArtifact: /workspace/.completion/beginner-browser-review/artifacts/GUI/run_1c797b7a37eb4f8ebe34fe35100ce694/Results/result.json"
+  },
+  "page_exceptions": [],
+  "failed_requests": [],
+  "console_messages": {
+    "count": 17,
+    "jupyter_compatibility_messages": 13,
+    "headless_webgl_performance_messages": 4,
+    "zero_console_claim": false
+  },
+  "runtime_inventory": {
+    "scope": "Actual constructed widget graph across all seven navigation views plus persistent header/sidebar; attached includes collapsed/conditional contents and is not a current visibility count. Unattached under the current Linux environment does not mean permanently unreachable: hosted/WSL controls are conditionally attached by existing environment controllers.",
+    "direct_interactive_attributes": 204,
+    "direct_attached": 182,
+    "actual_recursive_interactive_widgets": 251,
+    "unnamed_dynamic_widgets": [
+      {
+        "path": "navigation_root[0].children[2].children[0]",
+        "class": "Button",
+        "description": "Help \u00b7 Where does my calculation run?"
+      },
+      {
+        "path": "navigation_root[0].children[3].children[3].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Where this interface runs"
+      },
+      {
+        "path": "navigation_root[0].children[4].children[0].children[1].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: find or select installed program files"
+      },
+      {
+        "path": "navigation_root[0].children[5].children[1].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: optional programs and existing scientific data"
+      },
+      {
+        "path": "navigation_root[0].children[5].children[1].children[1].children[1].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced local setup"
+      },
+      {
+        "path": "navigation_root[0].children[5].children[1].children[1].children[1].children[1].children[2]",
+        "class": "Dropdown",
+        "description": "Scientific bundle:"
+      },
+      {
+        "path": "navigation_root[0].children[5].children[1].children[1].children[2].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Installation log"
+      },
+      {
+        "path": "navigation_root[0].children[7].children[3].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Recover from an update"
+      },
+      {
+        "path": "navigation_root[1].children[2].children[0]",
+        "class": "Button",
+        "description": "Help \u00b7 How do I check my molecule?"
+      },
+      {
+        "path": "navigation_root[1].children[5].children[3].children[2].children[0]",
+        "class": "ToggleButton",
+        "description": "Show removed inputs"
+      },
+      {
+        "path": "navigation_root[1].children[6].children[0]",
+        "class": "ToggleButton",
+        "description": "Show File details and provenance"
+      },
+      {
+        "path": "navigation_root[1].children[7].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Import from the VS Code inbox"
+      },
+      {
+        "path": "navigation_root[1].children[8].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Combine conformer ensembles and remove duplicates"
+      },
+      {
+        "path": "navigation_root[2].children[2].children[0]",
+        "class": "Button",
+        "description": "Help \u00b7 Walk me through my first calculation"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[1].children[0].children[2].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Calculation resources and frequency guidance"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[1].children[1].children[2].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Time limit and frequency guidance"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[0].children[0].children[7].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Assign atoms to monomers"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[0].children[0].children[10].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: assign this structure a role"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[0].children[0].children[11].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Build a starting complex from your monomers"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[0].children[0].children[12].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Build from a name or SMILES"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[0].children[0].children[13].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Edit XYZ coordinates directly"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[1].children[1].children[6].children[0]",
+        "class": "Button",
+        "description": "Help \u00b7 What are a method and basis set?"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[1].children[1].children[7].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: choose another method family"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[1].children[5].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: complete-basis extrapolation"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[1].children[6].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: multireference spin recovery (T9)"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[2].children[0].children[2].children[0]",
+        "class": "Button",
+        "description": "Help \u00b7 Which calculation answers my question?"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[2].children[0].children[4].children[2].children[2].children[0]",
+        "class": "ToggleButton",
+        "description": "Show About predefined methods"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[2].children[0].children[7].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Available calculations and setup help"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[2].children[1].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced native conformer search"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[3].children[2].children[0]",
+        "class": "Button",
+        "description": "Help \u00b7 What can a scan tell me?"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[4].children[7].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Provide R2 monomer references"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[4].children[8].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Choose starting curvature for optimization"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[2].children[4].children[9].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Generated ORCA constraints"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[3].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: output location and reproducibility export"
+      },
+      {
+        "path": "navigation_root[2].children[4].children[3].children[1].children[2].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Optional reproducibility export"
+      },
+      {
+        "path": "navigation_root[2].children[5].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: scientific goal and requirements"
+      },
+      {
+        "path": "navigation_root[2].children[5].children[1].children[0].children[4].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Scientific requirements for this goal"
+      },
+      {
+        "path": "navigation_root[2].children[6].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: other calculation tools"
+      },
+      {
+        "path": "navigation_root[2].children[6].children[1].children[1].children[0]",
+        "class": "Button",
+        "description": "Other structures and energies"
+      },
+      {
+        "path": "navigation_root[2].children[6].children[1].children[1].children[1]",
+        "class": "Button",
+        "description": "Distance scans and bonding"
+      },
+      {
+        "path": "navigation_root[2].children[6].children[1].children[1].children[2]",
+        "class": "Button",
+        "description": "Monomer constraints"
+      },
+      {
+        "path": "navigation_root[2].children[8].children[6].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Live calculation output"
+      },
+      {
+        "path": "navigation_root[2].children[9].children[0]",
+        "class": "Button",
+        "description": "Continue to read and save results"
+      },
+      {
+        "path": "navigation_root[3].children[2].children[0]",
+        "class": "Button",
+        "description": "Help \u00b7 How do I know what this result means?"
+      },
+      {
+        "path": "navigation_root[3].children[4].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Where did this result come from?"
+      },
+      {
+        "path": "navigation_root[3].children[4].children[1].children[1].children[0]",
+        "class": "Button",
+        "description": "Help \u00b7 Keep the calculation record"
+      },
+      {
+        "path": "navigation_root[3].children[5].children[0]",
+        "class": "Button",
+        "description": "Inspect spectra and calculated properties"
+      },
+      {
+        "path": "navigation_root[3].children[8].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: compare structures and population models"
+      },
+      {
+        "path": "navigation_root[3].children[11].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Advanced: module installation and data transfer"
+      },
+      {
+        "path": "navigation_root[3].children[11].children[1].children[0].children[8]",
+        "class": "Dropdown",
+        "description": "Validated module input:"
+      },
+      {
+        "path": "navigation_root[4].children[1].children[2]",
+        "class": "Dropdown",
+        "description": "Native output:"
+      },
+      {
+        "path": "navigation_root[4].children[2].children[1].children[4]",
+        "class": "Dropdown",
+        "description": "Retained Hessian:"
+      },
+      {
+        "path": "navigation_root[4].children[2].children[1].children[8].children[0]",
+        "class": "Dropdown",
+        "description": "Atom 1 (O):"
+      },
+      {
+        "path": "navigation_root[4].children[2].children[1].children[8].children[1]",
+        "class": "Dropdown",
+        "description": "Atom 2 (H):"
+      },
+      {
+        "path": "navigation_root[4].children[2].children[1].children[8].children[2]",
+        "class": "Dropdown",
+        "description": "Atom 3 (H):"
+      },
+      {
+        "path": "navigation_root[4].children[2].children[2].children[1]",
+        "class": "Dropdown",
+        "description": "Physical data:"
+      },
+      {
+        "path": "navigation_root[5].children[3]",
+        "class": "Dropdown",
+        "description": "Periodic structure:"
+      },
+      {
+        "path": "navigation_root[5].children[11].children[0]",
+        "class": "BoundedIntText",
+        "description": "k-grid a:"
+      },
+      {
+        "path": "navigation_root[5].children[11].children[1]",
+        "class": "BoundedIntText",
+        "description": "k-grid b:"
+      },
+      {
+        "path": "navigation_root[5].children[11].children[2]",
+        "class": "BoundedIntText",
+        "description": "k-grid c:"
+      },
+      {
+        "path": "navigation_root[6].children[1].children[0]",
+        "class": "Text",
+        "description": "Search terms:"
+      },
+      {
+        "path": "navigation_root[7].children[5].children[0]",
+        "class": "ToggleButton",
+        "description": "Show More scientific tools"
+      },
+      {
+        "path": "navigation_root[8].children[1].children[1].children[0]",
+        "class": "Button",
+        "description": "1 \u00b7 Setup"
+      },
+      {
+        "path": "navigation_root[8].children[1].children[1].children[1]",
+        "class": "Button",
+        "description": "2 \u00b7 Add your molecule"
+      },
+      {
+        "path": "navigation_root[8].children[1].children[1].children[2]",
+        "class": "Button",
+        "description": "3 \u00b7 Run assigned calculation"
+      },
+      {
+        "path": "navigation_root[8].children[1].children[1].children[3]",
+        "class": "Button",
+        "description": "4 \u00b7 Read and save results"
+      },
+      {
+        "path": "navigation_root[8].children[2].children[2].children[1].children[0]",
+        "class": "Button",
+        "description": "Help \u00b7 Check charge and spin"
+      },
+      {
+        "path": "navigation_root[8].children[2].children[3].children[0]",
+        "class": "ToggleButton",
+        "description": "Show Current method and scientific goal requirements"
+      },
+      {
+        "path": "navigation_root[8].children[3].children[0].children[0]",
+        "class": "Text",
+        "description": "Help search:"
+      },
+      {
+        "path": "navigation_root[8].children[3].children[0].children[1]",
+        "class": "Button",
+        "description": "Clear help"
+      }
+    ],
+    "not_attached_current_environment": [
+      {
+        "attribute": "gh_repo_input",
+        "description": "GitHub project:",
+        "topics": [
+          "workspace"
+        ],
+        "authored_visibility": "conditional_or_current; verify actual rendered tree"
+      },
+      {
+        "attribute": "gh_branch_input",
+        "description": "Project branch:",
+        "topics": [
+          "workspace"
+        ],
+        "authored_visibility": "conditional_or_current; verify actual rendered tree"
+      },
+      {
+        "attribute": "btn_remote_engine_check",
+        "description": "Check ORCA & CFOUR",
+        "topics": [
+          "engine_setup"
+        ],
+        "authored_visibility": "conditional_or_current; verify actual rendered tree"
+      },
+      {
+        "attribute": "btn_remote_engine_cancel",
+        "description": "Cancel check",
+        "topics": [
+          "cancellation_retry"
+        ],
+        "authored_visibility": "conditional_or_current; verify actual rendered tree"
+      },
+      {
+        "attribute": "install_data_path",
+        "description": "Scientific data:",
+        "topics": [
+          "hessian"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "btn_refresh_wsl",
+        "description": "Check WSL Status",
+        "topics": [
+          "engine_setup"
+        ],
+        "authored_visibility": "conditional_or_current; verify actual rendered tree"
+      },
+      {
+        "attribute": "unphysical_override",
+        "description": "Dispersion safeguards are required",
+        "topics": [
+          "method_basis"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "topos_dedup",
+        "description": "Dedup Tol:",
+        "topics": [
+          "conformer_search"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "torq_dihedrals",
+        "description": "Active Dihedrals:",
+        "topics": [
+          "scans"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "torq_resolution",
+        "description": "Scan Res:",
+        "topics": [
+          "scans"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "torq_qrrho",
+        "description": "Enable qRRHO",
+        "topics": [
+          "compare_results"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "r2_reference_manifest",
+        "description": "R2 reference manifest:",
+        "topics": [
+          "fragments_constraints"
+        ],
+        "authored_visibility": "conditional_or_current; verify actual rendered tree"
+      },
+      {
+        "attribute": "t9_config_path",
+        "description": "T9 active-space JSON:",
+        "topics": [
+          "active_space"
+        ],
+        "authored_visibility": "conditional_or_current; verify actual rendered tree"
+      },
+      {
+        "attribute": "inspector_file_input",
+        "description": "Log / H5 File:",
+        "topics": [
+          "spectroscopy"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "isotope_hessian_path",
+        "description": "Hessian bundle:",
+        "topics": [
+          "hessian"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "module_artifact",
+        "description": "Input artifact:",
+        "topics": [
+          "software_modules"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "module_operation",
+        "description": "Requested task:",
+        "topics": [
+          "software_modules"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "module_output",
+        "description": "Package directory:",
+        "topics": [
+          "software_modules"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "module_root",
+        "description": "Module storage:",
+        "topics": [
+          "software_modules"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "periodic_input_path",
+        "description": "Periodic input:",
+        "topics": [
+          "periodic"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "periodic_settings_path",
+        "description": "PAW settings JSON:",
+        "topics": [
+          "periodic"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      },
+      {
+        "attribute": "periodic_output_path",
+        "description": "Periodic output:",
+        "topics": [
+          "periodic"
+        ],
+        "authored_visibility": "source_retained_not_displayed"
+      }
+    ],
+    "alias_only_unmapped_ids": [
+      {
+        "attribute": "slurm_submit_btn",
+        "description": "Submit Job"
+      }
+    ],
+    "alias_resolution": {
+      "slurm_submit_btn": "Same widget as canonically mapped btn_slurm_submit; not a missing unique button explanation."
+    }
+  },
+  "cleanup": {
+    "observed_utc": "2026-10-30T20:26:14.749869+00:00",
+    "initial_service_state": "none",
+    "final_service_state": "none",
+    "owned_processes": [],
+    "port8882_listeners": [],
+    "source_receipt_counts": {
+      "initial_pass": 18,
+      "initial_refused": 1,
+      "final_pass": 10,
+      "final_fail": 0
+    },
+    "cleanup_scope": "Only owned port8882 launchers and their kernels; root/other-worker processes untouched."
+  },
+  "attempt_classification": {
+    "attempt1": "Old installed review driver env refused by source startup before browser execution; failed initial receipt preserved.",
+    "offline_install_initial": "Selected empty uv cache missed packages; final exact packages installed offline from existing onboarding cache.",
+    "attempt2": "Actual source rendered; external anchored FileUpload accessible-name matcher timed out before upload.",
+    "attempt3": "Functional/help/responsive checks ran; external selector read raced asynchronous Setup navigation before native.",
+    "attempt4": "External Method locator ambiguous across hidden panels; no native execution.",
+    "attempt5": "Actual native run and download occurred, but fresh-file separation was not accepted because old saved draft changed during an asynchronous upload/selection race.",
+    "attempt6": "Functional/native separation passed, but upstream vanilla Voil\u00e0 omitted source local renderer asset route: six403 requests. This is a harness launch defect, not accepted clean-browser proof.",
+    "attempt7-canonical": "Correct frozen canonical StudentVoila launcher, actual renderer and filename-bound input; all bounded scripted checks passed, while overall beginner UI acceptance needs the three stated product changes."
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "status": "passed",
+  "registry": "/workspace/.completion/dashboard/Registry/cochem_system_config.json",
+  "xtb_binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+  "xtb_executable": "/workspace/.completion/dashboard/free-engines/xtb/xtb-dist/bin/xtb",
+  "source": "Actual validate_setup result; reporting receipt only"
+}

@@ -1,0 +1,338 @@
+{
+  "candidate_revision": "3bc93ba73cdacf09ccfcf9d35a8a366d23189b9e",
+  "overall_service_recovery_acceptance": "needs_changes",
+  "bounded_novice_ui_acceptance": "passed_desktop_and_narrow_scroll_scope",
+  "actual_start_here_same_tab_restart_recovery": "failed_reproduced_with_matching_kernel_and_widget_ids",
+  "actual_start_here_fresh_context_data_recovery": "passed",
+  "human_student_comprehension": "not_tested",
+  "wcag_conformance": "not_established",
+  "codespaces_hosted_licensed_or_cohort_acceptance": "not_tested",
+  "full16_actual_browser": "aborted_before_interaction_on_root_hold; fixture16hash_preflight_only",
+  "novice_app_producer": {
+    "notebook": "instrumented external review.ipynb; actual GUI/source and renderer",
+    "report": "attempt1/browser-report.json",
+    "status": "passed",
+    "copy_and_original_ui_hashes_equal": true,
+    "default_first_action_positions": [
+      {
+        "width": 320,
+        "header_height": 816.109375,
+        "upload_viewport_y": 1050.203125
+      },
+      {
+        "width": 768,
+        "header_height": 462.375,
+        "upload_viewport_y": 654.671875
+      },
+      {
+        "width": 1024,
+        "header_height": 341.578125,
+        "upload_viewport_y": 533.875
+      },
+      {
+        "width": 1440,
+        "header_height": 320.78125,
+        "upload_viewport_y": 513.078125
+      }
+    ],
+    "desktop_1024x768": "desktop-viewport/viewport-report.json",
+    "busy_guard": {
+      "selected_before_new_validation": "review-water.xyz (molecular)",
+      "use_selected_disabled": true,
+      "kernel_state": {
+        "matrix_geometry": "3\nCanonical frame from review-water.xyz\nO 0 0 0\nH 0 -0.75700000000000001 0.58699999999999997\nH 0 0.75700000000000001 0.58699999999999997\n",
+        "student_geometry_choice": "d1096af41d874a9084d113ccb3adb470",
+        "charge_input": 1,
+        "multiplicity_input": 2,
+        "geometry_charge": 1,
+        "geometry_multiplicity": 2,
+        "matrix_engine": null,
+        "matrix_method": "B3LYP-D4",
+        "matrix_basis": "def2-TZVP",
+        "matrix_solvation": "CPCM(Water)",
+        "product_class_selector": "Product A (Lead Screening)",
+        "matrix_tier": "T4",
+        "matrix_cbs_pair": null,
+        "actions_operation": "single_point",
+        "native_operation": "optimization",
+        "t9_enable": false,
+        "cb_recipe_r1": true,
+        "cb_recipe_r2": false,
+        "project_name": "review-water",
+        "native_timeout": 1800,
+        "actions_timeout": 300,
+        "actions_cores": 2,
+        "actions_memory": 512,
+        "scientific_initial_hessian": "XTB2",
+        "student_fragment_atoms": "",
+        "active_view": "inputs",
+        "system_status": "Idle",
+        "cancel_disabled": true,
+        "displayed_result_html": "<i>No accepted calculation result yet.</i>",
+        "selected_file": "8e7103d1938d4d0c9850acad5277f6fc",
+        "ingestion_busy": true,
+        "use_geometry_disabled": true,
+        "input_status_html": "<p role='status'>Validating complete uploaded scientific inputs\u2026</p>"
+      }
+    },
+    "retained_dependency_notices": [
+      {
+        "path": "/workspace/.completion/beginner-browser-review/candidate-3bc93/artifacts/scratch/CoChem_Artifacts/Logs/cochem_execution.log",
+        "sha256": "7f6c3ff9731eea865895e8e4866d1d76207891cf97ac8585817edc393798659e",
+        "matching_lines": [
+          "2026-10-30 20:50:37 [WARNING] [CoChem-DependencyNotice:265217:MainThread] DEPENDENCY_NOTICE FutureWarning at /workspace/.completion/beginner-browser-review/candidate-3bc93/source/src/cochem_base/core_engine/cochem_core_telemetry_logger.py:403: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you."
+        ]
+      }
+    ],
+    "page_errors": [],
+    "request_failures": [],
+    "console_messages_count": 17,
+    "native_case": {
+      "result": "/workspace/.completion/beginner-browser-review/candidate-3bc93/artifacts/GUI/run_a101f0cc55874f1e8f26ac49f9d619ec/Results/result.json",
+      "result_sha256": "5f787db898acc07de8cba99cb86a22061d99ec37092231b71212f5fa9616e2d6",
+      "energy_hartree": -5.070544447821,
+      "operation": "GFN2-xTB water optimization",
+      "scientific_accuracy_established": false,
+      "native_sidecars_verified": {
+        "execution.json": "39b74fd98dc9c54ed104a0bd86a80fa2b32335b9be583dc9869b420769f7b312",
+        "input.xyz": "602cf425199263a01ead9950d130b93a091feef41830c82d0466ef1b757cfc12",
+        "input.engrad": "f4241078aa1e42441cd143a9d1d5981d21870292a995608ab25c56d2dd947411",
+        "execution_authority.json": "a75468f8b62ce70bb550baa8cf6325af5c0abb679a6b4a571936ab410fd697b2",
+        "ingress_alignment.json": "34fccea6b313cc2ce81ab6abdc72c5a5cac4fec8e2db8a3980ef29a828e21c90",
+        "xtbopt.xyz": "98e5d66e7724221c60390907a9ac420bf7e482fe769a113bb174175ac76be184",
+        "result.json": "5f787db898acc07de8cba99cb86a22061d99ec37092231b71212f5fa9616e2d6",
+        "xtbopt.log": "bac895c08ab4dd40289c8ce2f86dc732bfa4497383d7f33dffb09ad033751c9b",
+        "matrix_config.validated.json": "3748a4bd16cdaa4b1656573762201b34cbbec0196b794cdb12e6017e7d2b9ae6",
+        "optimization_evidence.json": "1bedb48667a41eb33bc13ea40076726aac75c3d578b05f13e25e7072beb2b793",
+        "stderr.log": "037435cfefaf87aea2062fd3fbcc038852353fabbbe67f4e8057e43fd1ffe88d",
+        "gradient": "57cdcf1921861f1d9d8df9b7b25558762cf91da8e4f8830b3d33f8ec2d91a261",
+        "xtb.out": "a27b7da1a51150137fad660fe6242d821a1b89d435f61d0cb05be83c059e7a62",
+        "optimization_evaluations.json": "8b8326dbffe99f8d4f594a6e0bc0a2c20f8d6b70ba4306bb7d8caf3a112ac4fe"
+      },
+      "execution_authority": {
+        "engine": "xtb",
+        "executable": "/workspace/.completion/dashboard/free-engines/xtb/xtb-dist/bin/xtb",
+        "cores": 1,
+        "maxcore_mb": 6144,
+        "total_memory_mb": 6144,
+        "registry_path": "/workspace/.completion/dashboard/Registry/cochem_system_config.json",
+        "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+        "cpu_affinity": [
+          0
+        ],
+        "cpu_budget_unit": "physical_core",
+        "runtime_seal_sha256": null
+      },
+      "originals": {
+        "/workspace/.completion/beginner-browser-review/candidate-3bc93/artifacts/InputLibrary/ef2d29a1cd864883a28c81ef7fab89d0/original.xyz": "176647f391d36125906b8b0f2ee695e1ecdd9288e9a79a83a38b446fed4cb444"
+      },
+      "summary_sha256": "de7cafec5e3db0e659ba3a2ec6281d9ee36881c84d026aa96688032c4d87606d",
+      "summary_scope": "displayed text only, no native backup",
+      "actual_display_text": "xTB screening result (no product accuracy certification)\nMethod: GFN2-xTB\nEnergy: -5.070544447821 Hartree\nOptimization converged: True\nArtifact: /workspace/.completion/beginner-browser-review/candidate-3bc93/artifacts/GUI/run_a101f0cc55874f1e8f26ac49f9d619ec/Results/result.json"
+    }
+  },
+  "canonical_test_script_ui_only": {
+    "status": "STUDENT_ENTRYPOINT_UI_VERIFIED",
+    "launch_notebook": "external review.ipynb, not actual Start_Here",
+    "all_66_assertions_and_140_prior_expectations_preserved_in_script_update": true,
+    "source_unchanged": true,
+    "kernel_cleanup": [
+      {
+        "previous_kernel_id": "ec0045ad-12e5-491e-96ff-59bb57ff5ce6",
+        "current_kernel_id": "96e9a7f3-41ca-4498-8dce-656ce2e94834",
+        "xsrf_cookie_present": true,
+        "authenticated_shutdown_beacon": true,
+        "previous_kernel_retired": true
+      }
+    ],
+    "page_errors": [],
+    "request_failures": [],
+    "unrun_branches": "full intake, licensed Hessian, hosted and actual student route"
+  },
+  "actual_start_here_restart": {
+    "status": "same_tab_automatic_recovery_failed",
+    "before_server": {
+      "pid": 273235,
+      "port": 8875,
+      "create_time": 1793394477.37,
+      "command": [
+        "/workspace/.completion/dashboard/ui-env/bin/python",
+        "-B",
+        "/workspace/.completion/beginner-browser-review/candidate-3bc93/source/scripts/student_voila.py",
+        "/workspace/.completion/beginner-browser-review/candidate-3bc93/source/Start_Here.ipynb",
+        "--no-browser",
+        "--port=8875",
+        "--Voila.ip=0.0.0.0",
+        "--Voila.port_retries=0"
+      ]
+    },
+    "after_server": {
+      "pid": 273637,
+      "port": 8875,
+      "create_time": 1793394504.51,
+      "command": [
+        "/workspace/.completion/dashboard/ui-env/bin/python",
+        "-B",
+        "/workspace/.completion/beginner-browser-review/candidate-3bc93/source/scripts/student_voila.py",
+        "/workspace/.completion/beginner-browser-review/candidate-3bc93/source/Start_Here.ipynb",
+        "--no-browser",
+        "--port=8875",
+        "--Voila.ip=0.0.0.0",
+        "--Voila.port_retries=0"
+      ]
+    },
+    "reload_document_response": {
+      "url": "http://127.0.0.1:8875/",
+      "status": 200,
+      "method": "GET"
+    },
+    "document_responses": [
+      {
+        "phase": "before",
+        "type": "Document",
+        "url": "http://127.0.0.1:8875/",
+        "status": 200,
+        "from_disk_cache": false,
+        "from_service_worker": false
+      },
+      {
+        "phase": "same_tab_reload",
+        "type": "Document",
+        "url": "http://127.0.0.1:8875/",
+        "status": 200,
+        "from_disk_cache": false,
+        "from_service_worker": false
+      }
+    ],
+    "same_tab_automatic": false,
+    "same_tab_manual_refresh": false,
+    "same_tab_frontend_models": {
+      "available": true,
+      "kernel_id": "061845dd-dce2-4dd4-9413-36d00567db46",
+      "restored": true,
+      "models": [
+        {
+          "id": "fd839fbab56541d58cfef3db83e74db6",
+          "model_id": "fd839fbab56541d58cfef3db83e74db6",
+          "value": "",
+          "disabled": false,
+          "options_labels": null,
+          "index": null
+        },
+        {
+          "id": "489a16011d6f4e7cb949be850a02a445",
+          "model_id": "489a16011d6f4e7cb949be850a02a445",
+          "value": null,
+          "disabled": true,
+          "options_labels": null,
+          "index": null
+        },
+        {
+          "id": "bee6e7755b0c4611b63386e6c4994314",
+          "model_id": "bee6e7755b0c4611b63386e6c4994314",
+          "value": null,
+          "disabled": false,
+          "options_labels": [
+            "Upload a scientific input"
+          ],
+          "index": 0
+        }
+      ]
+    },
+    "same_tab_kernel": {
+      "pid": 273761,
+      "gui_module": "/workspace/.completion/beginner-browser-review/candidate-3bc93/source/ui/voila_layout/cochem_gui.py",
+      "gui_sha256": "fb8e67803802cc39b8a11f57736ba75cc2eeae9e03e5e7da4c902c8bc078a59e",
+      "controllers": [
+        {
+          "input_count": 4,
+          "table_html": "<table><caption>Verified retained scientific inputs</caption><thead><tr><th>File</th><th>Type</th><th>Structures</th><th>Original SHA-256</th></tr></thead><tbody><tr><td>same-tab-restart-water.xyz</td><td>molecular</td><td>1</td><td>1db7004e9ee3f6b63bed45b9c45bbd43cda79b50c636734eb6a0425802f363be</td></tr><tr><td>restart-water.xyz</td><td>molecular</td><td>1</td><td>5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3</td></tr><tr><td>same-tab-restart-water.xyz</td><td>molecular</td><td>1</td><td>1db7004e9ee3f6b63bed45b9c45bbd43cda79b50c636734eb6a0425802f363be</td></tr><tr><td>restart-water.xyz</td><td>molecular</td><td>1</td><td>5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3</td></tr></tbody></table>",
+          "table_model_id": "fd839fbab56541d58cfef3db83e74db6",
+          "refresh_disabled": false,
+          "refresh_model_id": "489a16011d6f4e7cb949be850a02a445",
+          "file_selector_model_id": "bee6e7755b0c4611b63386e6c4994314",
+          "refresh_serial": 1,
+          "worker_alive": false,
+          "selected_file": "",
+          "selected_frame": null,
+          "charge": 0,
+          "multiplicity": 1,
+          "active_view": "inputs",
+          "system_status": "Idle"
+        }
+      ],
+      "kernel_id": "061845dd-dce2-4dd4-9413-36d00567db46",
+      "page_target_id": "6D51E4FEB2B9DE17C8C0705131456032"
+    },
+    "fresh_context_frontend_models": {
+      "available": true,
+      "kernel_id": "615369e5-3275-41be-b1a0-e66e8d22cdc7",
+      "restored": true,
+      "models": [
+        {
+          "id": "432d292d043b4c48a0f1283ae2a3ceb6",
+          "model_id": "432d292d043b4c48a0f1283ae2a3ceb6",
+          "value": "<table><caption>Verified retained scientific inputs</caption><thead><tr><th>File</th><th>Type</th><th>Structures</th><th>Original SHA-256</th></tr></thead><tbody><tr><td>same-tab-restart-water.xyz</td><td>molecular</td><td>1</td><td>1db7004e9ee3f6b63bed45b9c45bbd43cda79b50c636734eb6a0425802f363be</td></tr><tr><td>restart-water.xyz</td><td>molecular</td><td>1</td><td>5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3</td></tr><tr><td>same-tab-restart-water.xyz</td><td>molecular</td><td>1</td><td>1db7004e9ee3f6b63bed45b9c45bbd43cda79b50c636734eb6a0425802f363be</td></tr><tr><td>restart-water.xyz</td><td>molecular</td><td>1</td><td>5b185f2cf34d4c6fc243d53a17c898fe822c44040511f9dd64489727460a5dc3</td></tr></tbody></table>",
+          "disabled": false,
+          "options_labels": null,
+          "index": null
+        },
+        {
+          "id": "e3328f3a5da6496bae7b979bfbd4c222",
+          "model_id": "e3328f3a5da6496bae7b979bfbd4c222",
+          "value": null,
+          "disabled": false,
+          "options_labels": null,
+          "index": null
+        },
+        {
+          "id": "8bb2bda6cb95425c85f44d847126e81a",
+          "model_id": "8bb2bda6cb95425c85f44d847126e81a",
+          "value": null,
+          "disabled": false,
+          "options_labels": [
+            "Choose an uploaded input",
+            "same-tab-restart-water.xyz (molecular)",
+            "restart-water.xyz (molecular)",
+            "same-tab-restart-water.xyz (molecular)",
+            "restart-water.xyz (molecular)"
+          ],
+          "index": 0
+        }
+      ]
+    },
+    "all_retained_hashes_preserved": true,
+    "separate_native_hashes_preserved": true,
+    "wire_observer_gap": "Binary v1 frames were ignored by this producer; empty websocket_messages is not evidence of absent communication.",
+    "root_cause": "not established; frontend manager model values differ from the corresponding actual backend models.",
+    "cleanup": {
+      "stop_error": null,
+      "original_assignment_bytes_and_mode_restored": true,
+      "owned_processes_remaining": [],
+      "all_preexisting_input_result_hashes_preserved": true,
+      "authority_registry_manifest_unchanged": true,
+      "prior_failure_evidence_unchanged": true,
+      "server_record_absent": true
+    }
+  },
+  "cleanup": {
+    "observed_utc": "2026-10-30T21:12:58.716624+00:00",
+    "reserved_port_listeners": [],
+    "original_assignment_sha256": "3b39d91575b8b3cd8fef54cfb35fad2002ef95168bbdd7f3527e520ba167d2c6",
+    "expected_original_sha256": "3b39d91575b8b3cd8fef54cfb35fad2002ef95168bbdd7f3527e520ba167d2c6",
+    "original_assignment_mode": 384,
+    "expected_original_mode": 384,
+    "restart_lane_cleanup": {
+      "stop_error": null,
+      "original_assignment_bytes_and_mode_restored": true,
+      "owned_processes_remaining": [],
+      "all_preexisting_input_result_hashes_preserved": true,
+      "authority_registry_manifest_unchanged": true,
+      "prior_failure_evidence_unchanged": true,
+      "server_record_absent": true
+    },
+    "full16_aborted_before_browser_interaction": true
+  },
+  "new_blocking_finding": "Actual same-tab service restart restores backend inputs but leaves matching frontend table/selector/Refresh models stale; fresh context succeeds.",
+  "historical_failures": "b31 review immutable; restart-lane attempt1 retains navigation race plus later stale frontend evidence and mutable-lock false positive; no prior failure promoted to pass."
+}

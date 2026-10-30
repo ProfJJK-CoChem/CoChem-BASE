@@ -4,6 +4,14 @@ Prepared 18 October 2026. This is the current entry point for a replacement
 agent/environment. It supplements the [completion backlog](WORKSTATION_COMPLETION_HANDOFF.md),
 not a declaration that BASE or the entire ecosystem is finished.
 
+30 October update: read the [first-semester workspace progress and bounded
+evidence](BEGINNER_WORKSPACE_PROGRESS_2026-10-30.md),
+[module ownership progress](MODULE_OWNERSHIP_PROGRESS_2026-10-30.md), and
+[optional-engine recovery](OPTIONAL_ENGINE_RECOVERY_2026-10-30.md) before relying
+on historical implementation status below. The full specification and actual
+student-deployment obligations still apply; selected local passes are not
+student readiness or complete SRS conformance.
+
 ## Assignment and authority
 
 The instructor has authorized the agent to implement, test, troubleshoot,

@@ -1,0 +1,50 @@
+[
+  {
+    "log": "build.log",
+    "pid": 286641,
+    "process_group": 286641,
+    "returncode": 0,
+    "timed_out": false,
+    "terminal_observation": "owned process group empty"
+  },
+  {
+    "log": "venv-create.log",
+    "pid": 286663,
+    "process_group": 286663,
+    "returncode": 0,
+    "timed_out": false,
+    "terminal_observation": "owned process group empty"
+  },
+  {
+    "log": "help-dependency-install.log",
+    "pid": 286717,
+    "process_group": 286717,
+    "returncode": 0,
+    "timed_out": false,
+    "terminal_observation": "owned process group empty"
+  },
+  {
+    "log": "widget-dependencies-check.log",
+    "pid": 286736,
+    "process_group": 286736,
+    "returncode": 0,
+    "timed_out": false,
+    "terminal_observation": "owned process group empty"
+  },
+  {
+    "log": "base-wheel-install.log",
+    "pid": 286737,
+    "process_group": 286737,
+    "returncode": 0,
+    "timed_out": false,
+    "terminal_observation": "owned process group empty"
+  },
+  {
+    "log": "installed-help.log",
+    "pid": 286765,
+    "process_group": 286765,
+    "returncode": 0,
+    "timed_out": false,
+    "terminal_observation": "owned process group empty"
+  }
+]

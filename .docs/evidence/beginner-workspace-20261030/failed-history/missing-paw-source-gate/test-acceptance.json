@@ -1,0 +1,121 @@
+{
+  "passed": false,
+  "executed": true,
+  "release_accepted": false,
+  "source_binding": {
+    "passed": true,
+    "mode": "release",
+    "release_accepted": true,
+    "revision": "b31a79fdf89785e57d5ee6270a02fe2d63346c59",
+    "expected_revision": "b31a79fdf89785e57d5ee6270a02fe2d63346c59",
+    "authority": "explicit-reviewed-revision",
+    "tracked_file_count": 2393,
+    "tracked_source_sha256": "2daa9a6203f6a13f333f2bfbca8b87f0238d943bc3825b84d2f6a52c6b23be2b",
+    "initial_changed_paths": [],
+    "initial_dirty": false,
+    "excluded_untracked_paths": [
+      ".pytest_cache/.gitignore",
+      ".pytest_cache/CACHEDIR.TAG",
+      ".pytest_cache/README.md",
+      ".pytest_cache/v/cache/lastfailed",
+      ".pytest_cache/v/cache/nodeids",
+      ".ruff_cache/.gitignore",
+      ".ruff_cache/0.17.1/11469445450995090679",
+      ".ruff_cache/0.17.1/13839657720809486684",
+      ".ruff_cache/0.17.1/15543768160300486882",
+      ".ruff_cache/0.17.1/17134486515768049695",
+      ".ruff_cache/0.17.1/3113629222391738066",
+      ".ruff_cache/0.17.1/5672446048065758228",
+      ".ruff_cache/0.17.1/6042321519633755232",
+      ".ruff_cache/0.17.1/7739363004845068741",
+      ".ruff_cache/0.17.1/8282090050519103144",
+      ".ruff_cache/CACHEDIR.TAG"
+    ],
+    "excluded_untrusted_source_paths": [],
+    "infrastructure_ring": {
+      "path": ".core_infrastructure_hashring.json",
+      "sha256": "f9c17f02709bfd5f0e958ae7a04615f6114bb629ad1c526ddd116bd41b19c6c8",
+      "file_count": 224,
+      "passed": true,
+      "authority": "reviewed-committed-git-bytes"
+    }
+  },
+  "selected_test_files": [
+    "tests/base/test_course_access_inbox.py",
+    "tests/base/test_course_project_access.py",
+    "tests/base/test_student_setup.py",
+    "tests/base/test_hosted_dashboard_runtime.py",
+    "tests/ui/test_optional_licensed_engines.py",
+    "tests/ui/test_beginner_workspace_layout.py",
+    "tests/ui/test_learning_search.py",
+    "tests/ui/test_learning_guidance.py",
+    "tests/ui/test_workspace_guidance.py",
+    "tests/ui/test_research_panel_clarity.py",
+    "tests/ui/test_disclosure.py",
+    "tests/ui/test_scientific_error_guidance.py",
+    "tests/ui/test_student_entrypoint.py",
+    "tests/ui/test_scientific_input_library.py"
+  ],
+  "cleanup_observation": {
+    "launcher_pid": 231522,
+    "launcher_returncode": 1,
+    "owned_work_stopped": true,
+    "ownership_scope": "posix-group",
+    "collection_observation": "owned-boundary-empty",
+    "launcher_create_time": 1793391249.88,
+    "admitted_before_exec": true,
+    "external_reaping_pending": []
+  },
+  "passed_tests": 368,
+  "failed_tests": [
+    "tests/ui/test_scientific_input_library.py::test_actual_scientific_input_library[uploaded_periodic_structure_and_real_paw_deck]",
+    "tests/ui/test_scientific_input_library.py::test_actual_scientific_input_library[hpc_selection_denies_interface_host_scientific_execution]"
+  ],
+  "pending_external_acceptance": [],
+  "unexpected_skips": [],
+  "coverage_errors": [],
+  "collected": 370,
+  "scope": "Local runnable acceptance; pending external checks do not count as passed",
+  "command_exit_code": 1,
+  "timed_out": false,
+  "quarantine_source_changed": [],
+  "quarantine_workspace_changed": false,
+  "descendant_evidence_directory": "/workspace/.completion/base-beginner-source-gate/descendant-origins-b75da116841d4dbfaf19e0bf9d36fabc",
+  "descendant_source_records": 248,
+  "descendant_source_failures": [],
+  "descendant_source_authority_errors": [],
+  "descendant_startup_only": [
+    {
+      "pid": 248316,
+      "instance": "9845094e66e048a2b61edf28fbff1292",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 248319,
+      "instance": "4c57366534d24ef59edd55305ea9ea0e",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 248323,
+      "instance": "a7a2756a640e4de2af67353d95c49b7d",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 248339,
+      "instance": "f0b1087efc8c4838bdcef241efc231a9",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 248340,
+      "instance": "dcf3296604e64ebbb6bee66330fa46c0",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 248344,
+      "instance": "20237f81eded4091812e30d92a34a628",
+      "scope": "startup-only-no-finalizer-observation"
+    }
+  ],
+  "source_origins_verified": true,
+  "source_changed": []
+}

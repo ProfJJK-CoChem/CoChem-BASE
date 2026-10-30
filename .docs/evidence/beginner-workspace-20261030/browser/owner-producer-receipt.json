@@ -1,0 +1,26 @@
+{
+  "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "scope": "Final metadata manifest; actual terminal reports stay immutable. Full16 wrapper exit remains unknown. No new launcher/chemistry/browser execution in this sealing step.",
+  "producers": {
+    "producer-files/browser_restart.py": "fec168e1eaac4bdc44a6597d58b6ee1f72ca3074b33d95c244ed27c5825b768a",
+    "producer-files/environment.sh": "f7d4151ca097eb00c10c6573023e62c011567be2c721498f86d9a4bef8f67245",
+    "producer-files/harness.py": "6bc1997ad474b5e18d8aa31194c6299510550439454a0d9da0efffaa669a5e70",
+    "producer-files/inventory_probe.py": "5149b2799c5fe0b6bf16cd33b47f1e750fdc85b7d8ff3a932f54ef2b81396dd2",
+    "producer-files/kernel_probe.py": "986158340a4a72cda1b2b5b277b0304b8ccca720fa3ab1d180c1e91bcbab0cd9",
+    "producer-files/launch_canonical.py": "f2c80183e034680da038c578b86dead644b95e0fafcc3870a92917279b72cca1",
+    "producer-files/run_full_intake.py": "4151a1b567139913105db26990b2ed7c2f620ac738b1671f850ca1ed24b041db",
+    "producer-files/runtime_control.py": "8bf451f30e997a36227c482d82090427d168827941c4793fc7574fad620dd216",
+    "producer-files/stop_owned_main.py": "c6e77dd2b51ec6e5420725e6c17d510ed083b1232a32fde3606ff82d40677bf1",
+    "producer-files/wire_observer.py": "0c0d28d2953774822f7cab0f376bb117c79ffd30312fc4a5252ab640245dbb3f"
+  },
+  "terminal_reports": {
+    "acceptance.json": "abb94aaa921b6e669a343dce5e541bdb36d89a849a1d7c1d7a40e93273df6211",
+    "main-attempt3/actual-canonical-retry/browser-report.json": "3eb6253555ae45fbc21012d156cab771c29645fd17d8a20fc79fc8a8c98470ed",
+    "restart-lane/restart-report.json": "940c8acd749686c0a804ce047e28fdc0f802f879803ca2f12ff921540ea3016e",
+    "full-intake/acceptance/browser-summary.json": "9880cf7fe92483ec782b3ccb0ffd300df3a849583796a0cc9dc41ec4d91c7d93",
+    "posthoc-boundary-preservation-audit.json": "6f748b5e264d398f5db1705ec0368c4fd9680712759973f5365bc3c6ed121e24",
+    "terminal-cleanup.json": "e465b4a0061e9eaf999248c18a531c8a85a8f8485640df5d0bee9948a2422c00",
+    "full-intake/posthoc-cleanup.json": "d0fdf133883d00ea5f00801decc36ec0c6eb6a439255b5ee209c28a84b8dab17",
+    "authority-validation-after.json": "4527499a3b326611e5430a79d03255b30c8adc9a13518469e2b2ca3a5b82ec28"
+  }
+}

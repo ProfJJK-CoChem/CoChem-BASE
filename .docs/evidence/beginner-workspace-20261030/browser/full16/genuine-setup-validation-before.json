@@ -1,0 +1,21 @@
+{
+  "status": "DEGRADED_OPERATIONAL",
+  "registry_path": "/workspace/.completion/dashboard/Registry/cochem_system_config.json",
+  "xtb_path": "/workspace/.completion/dashboard/free-engines/xtb/xtb-dist/bin/xtb",
+  "xtb_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+  "engines": {
+    "xtb": {
+      "path": "/workspace/.completion/dashboard/free-engines/xtb/xtb-dist/bin/xtb",
+      "sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a"
+    },
+    "crest": {
+      "path": "/workspace/.completion/dashboard/free-engines/crest/crest/crest",
+      "sha256": "201db7940796c4af3652245ba7c8e1a4234767f4e19223772fbd83098d5f2142"
+    },
+    "pyscf": {
+      "path": "/workspace/.completion/dashboard/Silos/cochem_calc_silo/bin/python",
+      "sha256": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7"
+    }
+  },
+  "phases": 11
+}

@@ -1,0 +1,604 @@
+{
+  "schema": "cochem.curated-evidence-proposal/1",
+  "producer_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "status": "reviewed_curation_applied_locally_publication_unconfirmed",
+  "eventual_source_destination": ".docs/evidence/beginner-workspace-20261030",
+  "receipts": [
+    {
+      "path": "gates/strict-controls/test-acceptance.json",
+      "original_path": "/workspace/.completion/startup-final-strict-controls/test-acceptance.json",
+      "sha256": "b339ee1343d8643ce23f9283a1a45ac9635147d1c1c7047ce65d219165130ae8",
+      "bytes": 3708,
+      "classification": "committed_source_gate",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "gates/strict-controls/pytest.xml",
+      "original_path": "/workspace/.completion/startup-final-strict-controls/pytest.xml",
+      "sha256": "19cca5f5e958e17456b1b035fcd67bd2397204c22b7b26f3de5cd0335fe36436",
+      "bytes": 32392,
+      "classification": "committed_source_junit",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "gates/frontend-gate/test-acceptance.json",
+      "original_path": "/workspace/.completion/startup-final-frontend-gate/test-acceptance.json",
+      "sha256": "90bf4ae78b30d5a13651a639294744b61230f41729b6ce8b89bb9e9bdfd8676c",
+      "bytes": 3175,
+      "classification": "committed_source_gate",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "gates/frontend-gate/pytest.xml",
+      "original_path": "/workspace/.completion/startup-final-frontend-gate/pytest.xml",
+      "sha256": "5ef3876ffcfd47cb4714ab0de55916ab9d628aaec250d92d4081a8488b0ce3b0",
+      "bytes": 810,
+      "classification": "committed_source_junit",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "gates/intake-gate/test-acceptance.json",
+      "original_path": "/workspace/.completion/startup-final-intake-gate/test-acceptance.json",
+      "sha256": "0e8e8d155a418e5e6b20aa1afb894dd14421ebeed129607ff70b20c1e06f0f3a",
+      "bytes": 2749,
+      "classification": "committed_source_gate",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "gates/intake-gate/pytest.xml",
+      "original_path": "/workspace/.completion/startup-final-intake-gate/pytest.xml",
+      "sha256": "2c28a2fdf46dbbcb407d1c5858e47eb545316c72b149d9a319e73a03990abf82",
+      "bytes": 4246,
+      "classification": "committed_source_junit",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "gates/queue-gate/test-acceptance.json",
+      "original_path": "/workspace/.completion/startup-final-queue-gate/test-acceptance.json",
+      "sha256": "ff36313265099aaf7029f8ce7844670ae5eac8f9f24b50431764b30daf2daa05",
+      "bytes": 2803,
+      "classification": "committed_source_gate",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "gates/queue-gate/pytest.xml",
+      "original_path": "/workspace/.completion/startup-final-queue-gate/pytest.xml",
+      "sha256": "8ab5fac911f0add72b6420c1947801952cd3ec33c0cab746fe6d7e17e4d1decf",
+      "bytes": 42743,
+      "classification": "committed_source_junit",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "gates/interface-gate/test-acceptance.json",
+      "original_path": "/workspace/.completion/startup-final-interface-gate/test-acceptance.json",
+      "sha256": "ec352408b56a9f1013a8761c6568604c95c3425255776317f3e540a07dffb01e",
+      "bytes": 3106,
+      "classification": "committed_source_gate",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "gates/interface-gate/pytest.xml",
+      "original_path": "/workspace/.completion/startup-final-interface-gate/pytest.xml",
+      "sha256": "80980a9a9579d85274ba949af469e5519ea6032ade8d2232ed4bafbe33843546",
+      "bytes": 25065,
+      "classification": "committed_source_junit",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "gates/root-selected-profile-verification.json",
+      "original_path": "/workspace/.completion/startup-candidate-verification.json",
+      "sha256": "350346e90443033075876d7c4a86af2c14a7604669bf6fbaee1d0aa850477312",
+      "bytes": 4112,
+      "classification": "root_gate_review",
+      "receipt_bytes_unmodified": true,
+      "note": "broader_acceptance_remaining is the original at-authoring list; later browser receipts are separate"
+    },
+    {
+      "path": "installed-wheel/acceptance.json",
+      "original_path": "/workspace/.completion/startup-ack-installed-wheel/acceptance.json",
+      "sha256": "141400ee138ce65e7a33b070ad31d825026d8e700feb09e8e441d42a03c7f63b",
+      "bytes": 12943,
+      "classification": "bounded_installed_wheel",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "installed-wheel/installed-help-result.json",
+      "original_path": "/workspace/.completion/startup-ack-installed-wheel/installed-help-result.json",
+      "sha256": "3c4ed9e32511b8af1df9790e06560a70769b21f30b332622906b7b3299442148",
+      "bytes": 7102,
+      "classification": "bounded_installed_wheel",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "installed-wheel/wheel-membership.json",
+      "original_path": "/workspace/.completion/startup-ack-installed-wheel/wheel-membership.json",
+      "sha256": "559a6506ab762528f087594d49466f914c5cba77636d2079a17eaf16c8ad5972",
+      "bytes": 1884,
+      "classification": "bounded_installed_wheel",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "installed-wheel/terminal-source-boundary.json",
+      "original_path": "/workspace/.completion/startup-ack-installed-wheel/terminal-source-boundary.json",
+      "sha256": "508c976e2b908aa8413d7a10704dd34a9d9f44933e4c829a427d2b0738bf2cb7",
+      "bytes": 2589,
+      "classification": "bounded_installed_wheel",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "installed-wheel/owned-process-boundary.json",
+      "original_path": "/workspace/.completion/startup-ack-installed-wheel/owned-process-boundary.json",
+      "sha256": "34d0c894161d84d1fa9bcfd9a6131bfa6f5c113f3fa6ce88fe8e07e5e248d230",
+      "bytes": 1161,
+      "classification": "bounded_installed_wheel",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/canonical-main/browser-report.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/actual-canonical-retry/browser-report.json",
+      "sha256": "3eb6253555ae45fbc21012d156cab771c29645fd17d8a20fc79fc8a8c98470ed",
+      "bytes": 5305168,
+      "classification": "actual_browser_main",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/canonical-main/cleanup.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/cleanup.json",
+      "sha256": "6febe9f3c682560cd7c457aa6cca72f3fff0481321c2af20cd3902e5d5ee36f7",
+      "bytes": 610,
+      "classification": "owned_cleanup",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/restart/restart-report.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/restart-lane/restart-report.json",
+      "sha256": "940c8acd749686c0a804ce047e28fdc0f802f879803ca2f12ff921540ea3016e",
+      "bytes": 5597867,
+      "classification": "actual_browser_restart",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/restart/acknowledgement-current-fields.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/restart-lane/acknowledgement-current-fields.json",
+      "sha256": "63b1d9ac9ab12b3f38acf58ef9bcab402b3aea068c464e2e35e7b78e48660c06",
+      "bytes": 9471,
+      "classification": "actual_browser_own_ack",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/restart/cleanup-and-restoration.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/restart-lane/cleanup-and-restoration.json",
+      "sha256": "2670c39c1be034e447d174f7f21ba749ef435b46fef9fa9bfb5792a39177c67c",
+      "bytes": 296,
+      "classification": "owned_cleanup",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/full16/browser-summary.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/full-intake/acceptance/browser-summary.json",
+      "sha256": "9880cf7fe92483ec782b3ccb0ffd300df3a849583796a0cc9dc41ec4d91c7d93",
+      "bytes": 85470,
+      "classification": "actual_browser_full16",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/full16/posthoc-cleanup.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/full-intake/posthoc-cleanup.json",
+      "sha256": "d0fdf133883d00ea5f00801decc36ec0c6eb6a439255b5ee209c28a84b8dab17",
+      "bytes": 77,
+      "classification": "posthoc_boundary_only",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/posthoc-boundary-preservation-audit.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/posthoc-boundary-preservation-audit.json",
+      "sha256": "6f748b5e264d398f5db1705ec0368c4fd9680712759973f5365bc3c6ed121e24",
+      "bytes": 9101,
+      "classification": "posthoc_preservation_audit",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/science-explanation-review.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/science-explanation-review.json",
+      "sha256": "dda2b848a214876ea3dceaa297fced2fdfd432ae3f609a8e85ba8bb410a297e3",
+      "bytes": 12452,
+      "classification": "authored_content_review",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/runtime-control-coverage-review.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/runtime-control-coverage-review.json",
+      "sha256": "8dd54a4a3d7244410dff6076a394111c2446f73ca8d67dabcfaf29ae36339ca8",
+      "bytes": 19386,
+      "classification": "actual_widget_inventory_review",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/root-canonical-native-proof-review.json",
+      "original_path": "/workspace/.completion/root-canonical-native-proof-review.json",
+      "sha256": "5d7feb808187dbe5ee9ca04253055fff36d56ffdef2552cc8af5da7d9b6a1afb",
+      "bytes": 7469,
+      "classification": "root_native_hash_review",
+      "receipt_bytes_unmodified": true,
+      "note": "full16_browser_lane pending is preserved original historical wording; consult later posthoc audit"
+    },
+    {
+      "path": "screenshots/desktop-1024.png",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/actual-canonical-retry/00-default-first-action-1024.png",
+      "sha256": "fddf3f2ebe9221efa002bb6f6f5cc78eac76f8071c0f8f5f864b001058ccd3fc",
+      "bytes": 85120,
+      "classification": "actual_browser_screenshot",
+      "receipt_bytes_unmodified": true,
+      "note": "Actual 1024\u00d7768 initial upload view"
+    },
+    {
+      "path": "screenshots/mobile-320.png",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/actual-canonical-retry/00-default-first-action-320.png",
+      "sha256": "c322ecbea5fc157c98addcb863b0c5d2d10760eabe91b1428e3b3e4a24e48c89",
+      "bytes": 62402,
+      "classification": "actual_browser_screenshot",
+      "receipt_bytes_unmodified": true,
+      "note": "Actual 320px view; additional vertical scrolling is required"
+    },
+    {
+      "path": "screenshots/offline-chiralty-help.png",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/actual-canonical-retry/02-help-chiralty.png",
+      "sha256": "9d8ab36842d2ab74ca796575a0cf4b7f21f4a0425adba85d6ae8badcac3cc7ac",
+      "bytes": 147615,
+      "classification": "actual_browser_screenshot",
+      "receipt_bytes_unmodified": true,
+      "note": "Actual typo query and Teach me more disclosure"
+    },
+    {
+      "path": "screenshots/native-result-summary.png",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/actual-canonical-retry/06-completed-native-and-summary.png",
+      "sha256": "0acc65aa4fff6241f48ca51bda279587024ec9f76e481bfe4090b913a33311a7",
+      "bytes": 105578,
+      "classification": "actual_browser_screenshot",
+      "receipt_bytes_unmodified": true,
+      "note": "Actual bounded screening result and text-only download; not minimum/accuracy qualification"
+    },
+    {
+      "path": "screenshots/same-tab-restart.png",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/restart-lane/same-tab.png",
+      "sha256": "6201756da72611031c18faf414e40bbdb074bd120ed90e3ca290ba57f5c42e1e",
+      "bytes": 92413,
+      "classification": "actual_browser_screenshot",
+      "receipt_bytes_unmodified": true,
+      "note": "Actual retained input table after service restart; see full model receipt"
+    },
+    {
+      "path": "screenshots/full16-retained-inputs.png",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/full-intake/acceptance/full-retained-scientific-inputs.png",
+      "sha256": "c8db9f8242987d24ef67e7bcdbb9a6236d9d50be0a5d368f459b7f3345a4625c",
+      "bytes": 107328,
+      "classification": "actual_browser_screenshot",
+      "receipt_bytes_unmodified": true,
+      "note": "Actual retained input table; summary records all16 original inputs"
+    },
+    {
+      "path": "failed-history/missing-paw-source-gate/test-acceptance.json",
+      "original_path": "/workspace/.completion/base-beginner-source-gate/test-acceptance.json",
+      "sha256": "63fe66372ddd41be89555aa16a77ab62085ef63bfb9305405aa516b6b3440b88",
+      "bytes": 4418,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/missing-paw-source-gate/pytest.xml",
+      "original_path": "/workspace/.completion/base-beginner-source-gate/pytest.xml",
+      "sha256": "24979deacab992c5168010d52a360fdec027e931d37a45761bf53d07700831ac",
+      "bytes": 2953769,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/missing-paw-development/focused.xml",
+      "original_path": "/workspace/.completion/initial-widget-state/focused.xml",
+      "sha256": "4b12f3be6c0f49abbd9abf4508c6b6e293003528bf97e8303908ca45255eb7c9",
+      "bytes": 2896748,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/missing-paw-development/qualification.json",
+      "original_path": "/workspace/.completion/initial-widget-state/qualification.json",
+      "sha256": "5bdad0b562688df0c9da00e464a8c082d74530ab174c89a55e0c8f18274130ba",
+      "bytes": 4331,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/b31-browser/acceptance.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/acceptance.json",
+      "sha256": "7f788bba7224e1b845ad407923418018cdbdcfe65d331c685cfc36d25719ab21",
+      "bytes": 28381,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/3bc-browser/acceptance.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-3bc93/acceptance.json",
+      "sha256": "d491bfe4c50a05e2318ba42cfab7ff48ed5b19df85157601449be1d8b0c012ce",
+      "bytes": 15940,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/b31-browser/attempt2.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/attempt2/browser-report.json",
+      "sha256": "a89e51efe6c8aeb6a11909c5c2e21db8f43f6853eeda2f53caa4d5768e09a6a6",
+      "bytes": 9019,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/b31-browser/attempt3.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/attempt3/browser-report.json",
+      "sha256": "5c01c724364e7bc863c3afb9839b5b60568dcc2ecd928cc82f419e458cd07ba2",
+      "bytes": 32990,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/b31-browser/attempt4.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/attempt4/browser-report.json",
+      "sha256": "e9b767b4c57ca4ac18edd38d5b19ceddcd55394257e867681284e9cb6b959c76",
+      "bytes": 50633,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/b31-browser/attempt5.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/attempt5/browser-report.json",
+      "sha256": "0e876cc36c6560de8f1e2c535230574d8c093352d73c3abb81edc992a2fbf127",
+      "bytes": 63688,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/71-browser/main-actual-canonical.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main/actual-canonical/browser-report.json",
+      "sha256": "a31602dcb31891195b180494d45d1a9042c2c086c9787c45d1511621b8d9cb9c",
+      "bytes": 3326161,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/71-browser/main-attempt2-actual-canonical.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt2/actual-canonical/browser-report.json",
+      "sha256": "516d84b9c8664366e92f8eaa583f5456b7ac2319274cfb0fc14278544994aa01",
+      "bytes": 3413867,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "failed-history/71-browser/main-attempt3-actual-canonical.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/actual-canonical/browser-report.json",
+      "sha256": "6ad3cc0eb0b7e5ee72bf85ef4939a06a2340ce61b13c171e51aa9ace511d3f9d",
+      "bytes": 6285,
+      "classification": "historical_failed_or_needs_changes",
+      "receipt_bytes_unmodified": true,
+      "note": "Original outcome and producer context retained; not counted in657 passes"
+    },
+    {
+      "path": "browser/owner-acceptance.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/acceptance.json",
+      "sha256": "abb94aaa921b6e669a343dce5e541bdb36d89a849a1d7c1d7a40e93273df6211",
+      "bytes": 4089,
+      "classification": "browser_owner_acceptance",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/main-acknowledgements.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main-acknowledgements.json",
+      "sha256": "cbfd4342381351e0515a4b34161ae1cce9ca6f2989a9a237d3bcc902f27243a0",
+      "bytes": 15253,
+      "classification": "actual_browser_own_ack",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/terminal-cleanup.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/terminal-cleanup.json",
+      "sha256": "e465b4a0061e9eaf999248c18a531c8a85a8f8485640df5d0bee9948a2422c00",
+      "bytes": 435,
+      "classification": "posthoc_boundary_only",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/authority-validation-after.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/authority-validation-after.json",
+      "sha256": "4527499a3b326611e5430a79d03255b30c8adc9a13518469e2b2ca3a5b82ec28",
+      "bytes": 893,
+      "classification": "actual_local_authority_validation_metadata",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/full16/authority-validation-before.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/full-intake/authority-validation.json",
+      "sha256": "d60cb76ee5e7ca82ecfd92d0b782682ffbb812165c41c4be2f9724515861e7e5",
+      "bytes": 358,
+      "classification": "actual_local_authority_validation_metadata",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/full16/genuine-setup-validation-before.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/full-intake/genuine-setup-validation.json",
+      "sha256": "4527499a3b326611e5430a79d03255b30c8adc9a13518469e2b2ca3a5b82ec28",
+      "bytes": 893,
+      "classification": "actual_local_authority_validation_metadata",
+      "receipt_bytes_unmodified": true,
+      "note": ""
+    },
+    {
+      "path": "browser/owner-producer-receipt.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/producer-receipt.json",
+      "sha256": "9be97867e4aaefdb8cdbe5e8b62f7937ec0208cfe9ef8cd4fb683433bfa61a4c",
+      "bytes": 2250,
+      "classification": "browser_owner_sealing_metadata",
+      "receipt_bytes_unmodified": true,
+      "note": "Sealed original owner record; full owner manifest references external raw files not included in this selected source-plane subset"
+    },
+    {
+      "path": "browser/owner-delivery.json",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/delivery.json",
+      "sha256": "77a3c424ccf64a3d20173bc3f99aba75b3352853a41971fb0aefeebf7964a977",
+      "bytes": 1541,
+      "classification": "browser_owner_sealing_metadata",
+      "receipt_bytes_unmodified": true,
+      "note": "Sealed original owner record; full owner manifest references external raw files not included in this selected source-plane subset"
+    },
+    {
+      "path": "browser/owner-REVIEW.md",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/REVIEW.md",
+      "sha256": "ace14a6002a532fafe96105f28aaeeb16d3141b6de46e73b99f0d0ae2ed0054d",
+      "bytes": 8772,
+      "classification": "browser_owner_review_prose",
+      "receipt_bytes_unmodified": true,
+      "note": "Sealed original owner record; full owner manifest references external raw files not included in this selected source-plane subset"
+    },
+    {
+      "path": "browser/owner-SHA256SUMS",
+      "original_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/SHA256SUMS",
+      "sha256": "82f7c6fa61a3cf5f8bb8adc21a2db090bc99a8b1de9873dd658e10bb5b4cee47",
+      "bytes": 82375,
+      "classification": "browser_owner_full_external_evidence_hash_manifest",
+      "receipt_bytes_unmodified": true,
+      "note": "Sealed original owner record; full owner manifest references external raw files not included in this selected source-plane subset"
+    }
+  ],
+  "gate_totals_verified": [
+    {
+      "profile": "strict-controls",
+      "passed": 221,
+      "failed": 0,
+      "skipped": 0,
+      "startup_only_child_records": 7
+    },
+    {
+      "profile": "frontend-gate",
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "startup_only_child_records": 3
+    },
+    {
+      "profile": "intake-gate",
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0,
+      "startup_only_child_records": 0
+    },
+    {
+      "profile": "queue-gate",
+      "passed": 254,
+      "failed": 0,
+      "skipped": 0,
+      "startup_only_child_records": 0
+    },
+    {
+      "profile": "interface-gate",
+      "passed": 155,
+      "failed": 0,
+      "skipped": 0,
+      "startup_only_child_records": 0
+    }
+  ],
+  "total_selected_profile_passes": 657,
+  "full16_browser_summary": "terminal browser pass with original wrapper exit unknown; posthoc empty boundary is separate",
+  "native_archive_in_source_plane": false,
+  "historical_originals_inventory_sha256": "c06cb17ffcc5cb76abead5accc333597c74398b68d02b8b8f3b9795e8a9658a2",
+  "curation_controls": {
+    "all_selected_copies_byte_exact": true,
+    "all_observed_originals_unchanged": true,
+    "source_before": {
+      "head": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+      "status": ""
+    },
+    "source_after": {
+      "head": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+      "status": ""
+    },
+    "screening": "All selected text is UTF-8/no-NUL and passes bounded high-confidence secret patterns; six screenshots manually inspected. Not a blanket privacy certification."
+  },
+  "limits": [
+    "657 selected engineering passes are not the entire SRS profile",
+    "No student-account/Codespace or hosted ORCA/CFOUR scheduling/engine pilot",
+    "Installed wheel proof is bounded helper/help/runtime only; no full science install or installed-browser comm acceptance",
+    "Local water optimization does not establish a minimum, global lowest energy or scientific accuracy",
+    "Actual own-ack15 and direct same-tab service restart are separate from managed update/rollback acceptance",
+    "Full16 outer wrapper exit and its original final producer receipt remain unknown",
+    "Prior failures remain authoritative historical records; no skipped/deferred work counted as pass",
+    "Public source destination and native archival destination have not been published"
+  ],
+  "generated_curation_documents": [
+    {
+      "path": "README.md",
+      "classification": "curation_authored_explanation_not_acceptance_receipt",
+      "sha256": "7453fba49c300cb9320feef6dea5290d7d02d5174fa9e5088366fb3544e0e3df"
+    },
+    {
+      "path": "raw-native-reference.json",
+      "classification": "curation_authored_external_archive_reference_not_native_receipt",
+      "sha256": "c40ab27a1310d9139dc45de71795f16753cfd8cf4f714e793524f05bf412edbf"
+    }
+  ],
+  "browser_owner_evidence_seal": {
+    "files_in_full_external_manifest": 651,
+    "manifest_sha256": "82f7c6fa61a3cf5f8bb8adc21a2db090bc99a8b1de9873dd658e10bb5b4cee47",
+    "all651_original_owner_files_verified": true,
+    "public_source_plane_is_selected_subset": true
+  },
+  "application": {
+    "original_reviewed_proposal_manifest_sha256": "976180745019ac476cf60a31501d5e0d60a1b96293f6902e64156afd19614546",
+    "source_receipts_unmodified": 56,
+    "generated_documents_updated": [
+      "README.md",
+      "manifest.json",
+      "SHA256SUMS"
+    ],
+    "review": "Astra independent exact-copy/screenshot review plus root independent hashes and bounded credential-pattern review; not full security/scientific qualification"
+  }
+}

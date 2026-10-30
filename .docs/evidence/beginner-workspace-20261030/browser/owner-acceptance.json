@@ -1,0 +1,79 @@
+{
+  "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "beginner_ui_acceptance": "passed_with_recorded_scope_and_limitations",
+  "actual_entrypoint": "Unmodified Start_Here.ipynb via scripts/student_voila.py, no pre-display instrumentation.",
+  "main_functional_native_status": "passed",
+  "main_report_sha256": "3eb6253555ae45fbc21012d156cab771c29645fd17d8a20fc79fc8a8c98470ed",
+  "own_model_acknowledgements_verified": 15,
+  "native_sidecars_verified": 14,
+  "native_energy_hartree": -5.070544447821,
+  "scientific_accuracy_established": false,
+  "native_summary_download_bytes": 452,
+  "full16_browser_status": "STUDENT_ENTRYPOINT_UI_VERIFIED",
+  "full16_browser_summary_sha256": "9880cf7fe92483ec782b3ccb0ffd300df3a849583796a0cc9dc41ec4d91c7d93",
+  "full16_outer_wrapper_exit_code": null,
+  "same_tab_restart_status": "same_tab_automatic_recovery_verified",
+  "restart_report_sha256": "940c8acd749686c0a804ce047e28fdc0f802f879803ca2f12ff921540ea3016e",
+  "genuine_authority_before_after_validation_identical": true,
+  "visual_metrics": [
+    {
+      "width": 320,
+      "height": 1000,
+      "header_height": 816.109375,
+      "upload_viewport_y": 1201.546875,
+      "upload_height": 39
+    },
+    {
+      "width": 768,
+      "height": 1000,
+      "header_height": 462.375,
+      "upload_viewport_y": 716.453125,
+      "upload_height": 39
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "header_height": 341.578125,
+      "upload_viewport_y": 595.65625,
+      "upload_height": 39
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "header_height": 320.78125,
+      "upload_viewport_y": 574.859375,
+      "upload_height": 39
+    }
+  ],
+  "main_page_errors": 0,
+  "main_request_failures": 0,
+  "main_console_warnings_errors": 17,
+  "full16_page_errors": 0,
+  "full16_request_failures": 0,
+  "product_findings": [],
+  "limitations": [
+    "320px requires scrolling before the upload task; no universal first-fold claim.",
+    "No student comprehension/cohort trial or WCAG conformance audit.",
+    "Local maintainer only: no actual Codespaces, hosted submission, student account, licensed-engine execution or scientific accuracy acceptance.",
+    "Full16 outer-wrapper exit status and original cleanup receipt are unknown; actual terminal browser summary and explicit posthoc empty-boundary/original-preservation audit are retained.",
+    "Initial attempt3 connection refusal cause remains unknown; later intentional signal15 cleanup happened after accepted retry.",
+    "17 main-console warnings retained (Jupyter shared-version warnings and WebGL ReadPixels performance notices); main page/request failures0.",
+    "Restart includes one old-kernel unload DELETE ERR_CONNECTION_REFUSED during intentional server downtime; actual same-tab automatic recovery verified."
+  ],
+  "terminal_cleanup_sha256": "e465b4a0061e9eaf999248c18a531c8a85a8f8485640df5d0bee9948a2422c00",
+  "posthoc_preservation_audit_sha256": "6f748b5e264d398f5db1705ec0368c4fd9680712759973f5365bc3c6ed121e24",
+  "raw_failed_attempts_preserved": [
+    "main/actual-canonical: asynchronous disclosure helper skipped click before Results navigation settled",
+    "main-attempt2/actual-canonical: invalid observer assertion that all15 historical views remain simultaneously positive",
+    "main-attempt3/actual-canonical: initial page connection refused before UI actions; cause unknown; accepted separate retry"
+  ],
+  "retained_diagnostic_notices": [
+    {
+      "path": "diagnostics/cochem_execution.log",
+      "sha256": "c0de45ca4bd7479e96e6da4dc6372d2f79d6594b35bcbf92469806e91aa97d07",
+      "matching_lines": [
+        "2026-10-30 21:39:51 [WARNING] [CoChem-DependencyNotice:292522:MainThread] DEPENDENCY_NOTICE FutureWarning at /workspace/.completion/beginner-browser-review/candidate-71f4/source/src/cochem_base/core_engine/cochem_core_telemetry_logger.py:403: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you."
+      ]
+    }
+  ]
+}

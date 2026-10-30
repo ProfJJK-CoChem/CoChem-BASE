@@ -1,0 +1,218 @@
+{
+  "status": "passed_bounded_installed_helper_and_help",
+  "scope": "Fresh wheel helper/producer bytes, UI dependency metadata, supported installed runtime and offline help backend; no comm/browser/science/startup acceptance.",
+  "source_producer": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "source_archive_sha256": "0306a4314a8cb1efa2935790c5924a5afd548b1105fcde0addb3fbd7936f9e3c",
+  "source_clean_before_after": true,
+  "wheel_sha256": "ee300d5fb6df20eced387a30149958c858eb1ffe1a3df2b9c32edb4d451786c9",
+  "wheel_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/dist/cochem_base-1.1.0-py3-none-any.whl",
+  "record_hashed_members_verified": 559,
+  "record_rows": 560,
+  "fresh_environment": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env",
+  "fresh_environment_inherits_system_site_packages": false,
+  "actual_installed_ipywidgets": "8.1.9",
+  "ui_extra_widget_requirement": "ipywidgets<9,>=8.1; extra == \"ui\"",
+  "ui_extra_packaging_requirement": "packaging; extra == \"ui\"",
+  "helper_sha256": "0f371f00ce919572c3383485e4768fb2e05079eca6d125e93cb8a3ecee39a4ed",
+  "all_ui_python_producer_sha256": {
+    "ui/voila_layout/cochem_gui.py": "5f0cf93a932f0da8afbf174581903b0b4ff670389257c17c86d92a178241368a",
+    "ui/voila_layout/cochem_gui_serializer.py": "5bafa4d6ad09fd997e49eb643661daae07cc48bfcc09ac3385da10db9985aa93",
+    "ui/voila_layout/disclosure.py": "1f43eb6548f7035561a34e0a4738559f5eab2e5596c229cf660db3eaaca5cbfb",
+    "ui/voila_layout/help_content.py": "3df493b0dd6d67daa6fd19b1d0fd2931190dceddd1c86298e035ed3bcccd677d",
+    "ui/voila_layout/initial_widget_state.py": "0f371f00ce919572c3383485e4768fb2e05079eca6d125e93cb8a3ecee39a4ed",
+    "ui/voila_layout/input_management.py": "5765dc06bdd88fa4301aa1c1f91ac7f144afa3d2b45b3e7ae6bf19d0317f28a9",
+    "ui/voila_layout/learning.py": "ec3823c1b48d002aa149dc1d6d152ad30ce4d579c690c80284ca9e5333219137",
+    "ui/voila_layout/research_panels.py": "446c32944ad701c3390eb0a722cbac37db3925e9330156c6555250c3ce07919e",
+    "ui/voila_layout/scribe_gui_dashboard.py": "3ed32e6c7ffc1a38ba2b4d1697d90f0ac7d94d2e4487e082f25585aa0e71e8df",
+    "ui/voila_layout/workspace_layout.py": "b9ae3d9aa89552145bad3ba301e0a51257d484bd634f80dac2948163ac606cd1",
+    "ui/voila_layout/workspace_style.py": "2a57d9ca629454db7cf82a34a9a07b53099d168a33a47a4b95dc0dce85c37466"
+  },
+  "installed_help": {
+    "status": "passed",
+    "scope": "Fresh installed wheel: helper byte identity, UI dependency metadata, supported backend runtime and offline help operations only.",
+    "observed_at_utc": "2026-10-30T21:32:47.679667+00:00",
+    "producer": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+    "wheel_sha256": "ee300d5fb6df20eced387a30149958c858eb1ffe1a3df2b9c32edb4d451786c9",
+    "interpreter": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/bin/python",
+    "isolated_python_flag": true,
+    "dont_write_bytecode": true,
+    "working_directory": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/runtime",
+    "installed_environment": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env",
+    "source_roots_excluded": [
+      "/workspace/CoChem-BASE",
+      "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/source"
+    ],
+    "import_origins": {
+      "ui.voila_layout.help_content": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/help_content.py",
+      "ui.voila_layout.initial_widget_state": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/initial_widget_state.py",
+      "ui.voila_layout.learning": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/learning.py",
+      "ipywidgets": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ipywidgets/__init__.py",
+      "traitlets": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/traitlets/__init__.py",
+      "IPython": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/IPython/__init__.py",
+      "packaging": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/packaging/__init__.py"
+    },
+    "all_ui_installed_bytes_equal_to_producer": {
+      "ui/voila_layout/cochem_gui.py": {
+        "sha256": "5f0cf93a932f0da8afbf174581903b0b4ff670389257c17c86d92a178241368a",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/cochem_gui.py"
+      },
+      "ui/voila_layout/cochem_gui_serializer.py": {
+        "sha256": "5bafa4d6ad09fd997e49eb643661daae07cc48bfcc09ac3385da10db9985aa93",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/cochem_gui_serializer.py"
+      },
+      "ui/voila_layout/disclosure.py": {
+        "sha256": "1f43eb6548f7035561a34e0a4738559f5eab2e5596c229cf660db3eaaca5cbfb",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/disclosure.py"
+      },
+      "ui/voila_layout/help_content.py": {
+        "sha256": "3df493b0dd6d67daa6fd19b1d0fd2931190dceddd1c86298e035ed3bcccd677d",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/help_content.py"
+      },
+      "ui/voila_layout/initial_widget_state.py": {
+        "sha256": "0f371f00ce919572c3383485e4768fb2e05079eca6d125e93cb8a3ecee39a4ed",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/initial_widget_state.py"
+      },
+      "ui/voila_layout/input_management.py": {
+        "sha256": "5765dc06bdd88fa4301aa1c1f91ac7f144afa3d2b45b3e7ae6bf19d0317f28a9",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/input_management.py"
+      },
+      "ui/voila_layout/learning.py": {
+        "sha256": "ec3823c1b48d002aa149dc1d6d152ad30ce4d579c690c80284ca9e5333219137",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/learning.py"
+      },
+      "ui/voila_layout/research_panels.py": {
+        "sha256": "446c32944ad701c3390eb0a722cbac37db3925e9330156c6555250c3ce07919e",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/research_panels.py"
+      },
+      "ui/voila_layout/scribe_gui_dashboard.py": {
+        "sha256": "3ed32e6c7ffc1a38ba2b4d1697d90f0ac7d94d2e4487e082f25585aa0e71e8df",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/scribe_gui_dashboard.py"
+      },
+      "ui/voila_layout/workspace_layout.py": {
+        "sha256": "b9ae3d9aa89552145bad3ba301e0a51257d484bd634f80dac2948163ac606cd1",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/workspace_layout.py"
+      },
+      "ui/voila_layout/workspace_style.py": {
+        "sha256": "2a57d9ca629454db7cf82a34a9a07b53099d168a33a47a4b95dc0dce85c37466",
+        "installed_path": "/workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/help-env/lib/python3.12/site-packages/ui/voila_layout/workspace_style.py"
+      }
+    },
+    "initial_widget_state": {
+      "producer_and_wheel_and_installed_sha256": "0f371f00ce919572c3383485e4768fb2e05079eca6d125e93cb8a3ecee39a4ed",
+      "supported_runtime_check_passed": true,
+      "backend_armed_view_count": 0,
+      "display_acknowledgement_exercised": false,
+      "installed_comm_or_browser_acceptance_claimed": false
+    },
+    "widget_metadata_requirement": "ipywidgets<9,>=8.1; extra == \"ui\"",
+    "actual_ipywidgets_version": "8.1.9",
+    "packaging_metadata_requirement": "packaging; extra == \"ui\"",
+    "actual_packaging_version": "26.3",
+    "topic_count": 42,
+    "metadata_guidance_count": 287,
+    "aliases_checked": [
+      "chiralty",
+      "R/S",
+      "did my calculation succeed"
+    ],
+    "actual_backend_operations": [
+      "runtime feature check",
+      "arm a fresh HTML widget with view_count0",
+      "create help panel",
+      "change search text",
+      "open isomers",
+      "open units",
+      "clear help"
+    ],
+    "network_guard": {
+      "mechanism": "CPython audit hook rejects socket operations before OS calls",
+      "self_test_rejected_events": [
+        "socket.connect"
+      ],
+      "operation_network_attempts": []
+    },
+    "distribution_direct_url": {
+      "archive_info": {
+        "hash": "sha256=ee300d5fb6df20eced387a30149958c858eb1ffe1a3df2b9c32edb4d451786c9",
+        "hashes": {
+          "sha256": "ee300d5fb6df20eced387a30149958c858eb1ffe1a3df2b9c32edb4d451786c9"
+        }
+      },
+      "url": "file:///workspace/.completion/startup-ack-installed-wheel/run-71f4c88ff0d3/dist/cochem_base-1.1.0-py3-none-any.whl"
+    },
+    "dependency_scope": "21 hash-locked offline runtime wheels; BASE installed --no-deps. Full science dependency closure/application/comm/browser startup not claimed."
+  },
+  "dependency_lock_scope": "21 offline hash-locked widget/helper runtime wheels; BASE --no-deps. Full scientific dependency closure or full application installation not qualified.",
+  "evidence_sha256": {
+    "build-source.json": "4e09e64cb4e627ce9a9e04fcb9e11a763baba02d45921d92dff4958986a1a0cf",
+    "wheel-membership.json": "559a6506ab762528f087594d49466f914c5cba77636d2079a17eaf16c8ad5972",
+    "offline-dependency-wheels.json": "2277f380776cdd36eaed75c443a91eabd3f51c455733b2ac88b445f5a1cad503",
+    "help-dependency-lock.txt": "e5acfa18141dec326b7641359f86557f6b222cafa646f7e631ad0441d896cbd4",
+    "build.log": "2bdfc377c48bc90f54109484d5717e68d50a3261449095c101204db103a07025",
+    "venv-create.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "help-dependency-install.log": "da01acae432bc17a7f8a3536bd8d6681f3b2644a432a8a684344fb0ec0367871",
+    "widget-dependencies-check.log": "9261363b733079a641c2e4cc9bc46ffa1d8336945a87f807b6cf68847dbc9b09",
+    "base-wheel-install.log": "560d5d830ea54e9a73b95e8e7516ae56d451656f2d21518a1455fba4a50273d7",
+    "installed-help.log": "3cb3f3acc0c7bd546255339feffac272f3bafd584d09c878d8498bd343de5f88",
+    "installed-help-result.json": "3c4ed9e32511b8af1df9790e06560a70769b21f30b332622906b7b3299442148",
+    "owned-process-boundary.json": "34d0c894161d84d1fa9bcfd9a6131bfa6f5c113f3fa6ce88fe8e07e5e248d230",
+    "check_installed_help.py": "005913030a90531360f2c22f6a3345af9ca84d51a695d5ab66821f7de72f2bcd",
+    "build_and_check.py": "66d2f57c076e99f6aa7e11059f1c79b9ac7234b64c09c153d62d5fe76b6ec13b"
+  },
+  "owned_process_boundary": [
+    {
+      "log": "build.log",
+      "pid": 286641,
+      "process_group": 286641,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    },
+    {
+      "log": "venv-create.log",
+      "pid": 286663,
+      "process_group": 286663,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    },
+    {
+      "log": "help-dependency-install.log",
+      "pid": 286717,
+      "process_group": 286717,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    },
+    {
+      "log": "widget-dependencies-check.log",
+      "pid": 286736,
+      "process_group": 286736,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    },
+    {
+      "log": "base-wheel-install.log",
+      "pid": 286737,
+      "process_group": 286737,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    },
+    {
+      "log": "installed-help.log",
+      "pid": 286765,
+      "process_group": 286765,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    }
+  ],
+  "tracked_edits_or_commits_by_worker": false,
+  "remaining_limits": [
+    "No real frontend display acknowledgement or installed comm/browser acceptance.",
+    "No full scientific/application dependency closure, native engine or managed student runtime acceptance.",
+    "No GitHub/student/Codespaces/service or hosted-scheduler proof."
+  ]
+}

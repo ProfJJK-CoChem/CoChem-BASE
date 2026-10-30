@@ -1,0 +1,9 @@
+{
+  "observed_at": "2026-10-30T22:00:12.401580+00:00",
+  "owned_processes": [],
+  "listeners_8874_8875_8882": [],
+  "restart_original_assignment_exact_bytes_restored": true,
+  "restart_original_assignment_mode_restored": true,
+  "full16_missing_original_cleanup_receipt": "Not reconstructed; posthoc-cleanup.json records empty boundary.",
+  "posthoc_cleanup_sha256": "d0fdf133883d00ea5f00801decc36ec0c6eb6a439255b5ee209c28a84b8dab17"
+}

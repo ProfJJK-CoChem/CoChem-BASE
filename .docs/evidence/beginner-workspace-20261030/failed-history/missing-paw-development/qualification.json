@@ -1,0 +1,94 @@
+{
+  "scope": "Per-model initial InputLibrary backend-owned state publication; pending canonical browser proof",
+  "git_context": {
+    "head": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+    "scope": "Working owned source hashes only; root repository has concurrent changes, not a full committed-source freeze"
+  },
+  "source_sha256": {
+    "ui/voila_layout/initial_widget_state.py": "0f371f00ce919572c3383485e4768fb2e05079eca6d125e93cb8a3ecee39a4ed",
+    "ui/voila_layout/cochem_gui.py": "5f0cf93a932f0da8afbf174581903b0b4ff670389257c17c86d92a178241368a",
+    "tests/ui/test_initial_widget_state.py": "f70451667b8eb35faa18aca4d593f097000f7319082228fcd9d1c4836008ec94"
+  },
+  "target_count": 15,
+  "targets": {
+    "HTML_value": [
+      "input_library_table",
+      "input_library_rejections",
+      "input_library_status"
+    ],
+    "button_disabled": [
+      "btn_input_refresh",
+      "btn_use_input_geometry",
+      "btn_remove_input"
+    ],
+    "selector_options_labels_only": [
+      "input_library_choice",
+      "input_record_choice",
+      "input_pool_choices",
+      "_input_selectors.install",
+      "_input_selectors.hessian",
+      "_input_selectors.telemetry",
+      "_input_selectors.physical_data",
+      "_input_selectors.periodic",
+      "_input_selectors.module"
+    ]
+  },
+  "excluded": [
+    "selection index/value",
+    "student_geometry_choice and monomer/draft selectors",
+    "geometry/charge/spin/method/goal",
+    "attachments/history",
+    "dynamic PAW children",
+    "global/root state replay"
+  ],
+  "lifecycle": "Opt in experimental _view_count=0 before first scan/display; on this model first positive actual view acknowledgement unobserve before normal send_state of current allowlisted fields; later displays do not replay.",
+  "runtime": "Metadata-compatible >=8.1,<9 plus major8 and synced nullable Int/defaultNone feature checks; actual qualification8.1.9 only. Unsupported runtime is a typed actionable startup error; no fallback success.",
+  "selection_scope": "Initial library placeholder index0, empty frame indexNone and empty pool index(). Index/value never replayed. Not general reconciliation or arbitrary stale-index repair.",
+  "new_real_comm_cases": [
+    {
+      "name": "test_actual_gui_target_scope_and_real_widget_comm_replay_once",
+      "passed": true
+    },
+    {
+      "name": "test_queued_and_combined_user_selections_are_not_replayed",
+      "passed": true
+    },
+    {
+      "name": "test_label_growth_and_reordering_never_replay_or_change_indices",
+      "passed": true
+    },
+    {
+      "name": "test_runtime_features_and_editable_controls_fail_explicitly",
+      "passed": true
+    }
+  ],
+  "focused_initial": {
+    "tests": "27",
+    "failures": "2",
+    "errors": "0",
+    "skipped": "0",
+    "time": "102.416"
+  },
+  "initial_failures": "Two existing periodic/HPC cases failed at tests/ui/test_scientific_input_library.py:220 because default official PAW directory was absent. Raw failure log/XML preserved.",
+  "corrected_cases": {
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "12.180"
+  },
+  "prerequisite_correction": {
+    "variable": "COCHEM_QE_PSEUDO_DIR",
+    "path": "/workspace/.completion/dashboard/free-engines/qe-paw",
+    "Ga_sha256": "9047f9f8a661f4e271fbfd1bb6b0adabbdaa6ac51218ede1db080de951584465",
+    "As_sha256": "b98e3faf0777acc7a579e08ad4a77885c3e742fc4aa7455b56ff1f0abd4994f1",
+    "authority": "Existing actual bytes match pinned scripts/install_qe_paw_inputs.py; no asset/source/assertion changes"
+  },
+  "independent_review": "/workspace/.completion/startup-state-review/independent-comm-receipt.json; independent4newcases pass0skip with identical owned hashes before/after",
+  "limits": [
+    "Real ipykernel comm engineering tests do not prove actual browser-generated display acknowledgements.",
+    "Canonical Start_Here warmed same-tab restart, actual binary transport, intended file/frame selection and nondefault draft preservation remain root/browser-worker acceptance.",
+    "No new native chemistry or scientific accuracy, cohort/student-account or release-readiness claim."
+  ],
+  "ownership": "This worker changed only the three listed files; root owns dependency metadata, test selectors, integrity ring and commit. No timers/joins/rescans/send-state test repair in production."
+}

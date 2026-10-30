@@ -1,0 +1,62 @@
+{
+  "scope": "Actual local maintainer Chromium and source-bound Voil\u00e0, plus genuine GFN2-xTB screening optimization; no student trial, Codespaces, hosted job or scientific accuracy claim",
+  "source_before": {
+    "ui/voila_layout/cochem_gui_serializer.py": "5bafa4d6ad09fd997e49eb643661daae07cc48bfcc09ac3385da10db9985aa93",
+    "ui/voila_layout/initial_widget_state.py": "0f371f00ce919572c3383485e4768fb2e05079eca6d125e93cb8a3ecee39a4ed",
+    "ui/voila_layout/workspace_style.py": "2a57d9ca629454db7cf82a34a9a07b53099d168a33a47a4b95dc0dce85c37466",
+    "ui/voila_layout/scribe_gui_dashboard.py": "3ed32e6c7ffc1a38ba2b4d1697d90f0ac7d94d2e4487e082f25585aa0e71e8df",
+    "ui/voila_layout/input_management.py": "5765dc06bdd88fa4301aa1c1f91ac7f144afa3d2b45b3e7ae6bf19d0317f28a9",
+    "ui/voila_layout/learning.py": "ec3823c1b48d002aa149dc1d6d152ad30ce4d579c690c80284ca9e5333219137",
+    "ui/voila_layout/workspace_layout.py": "b9ae3d9aa89552145bad3ba301e0a51257d484bd634f80dac2948163ac606cd1",
+    "ui/voila_layout/research_panels.py": "446c32944ad701c3390eb0a722cbac37db3925e9330156c6555250c3ce07919e",
+    "ui/voila_layout/disclosure.py": "1f43eb6548f7035561a34e0a4738559f5eab2e5596c229cf660db3eaaca5cbfb",
+    "ui/voila_layout/help_content.py": "3df493b0dd6d67daa6fd19b1d0fd2931190dceddd1c86298e035ed3bcccd677d",
+    "ui/voila_layout/cochem_gui.py": "5f0cf93a932f0da8afbf174581903b0b4ff670389257c17c86d92a178241368a"
+  },
+  "checks": [],
+  "findings": [],
+  "page_errors": [],
+  "console_errors": [],
+  "request_failures": [
+    {
+      "url": "http://127.0.0.1:8882/",
+      "failure": "net::ERR_CONNECTION_REFUSED"
+    }
+  ],
+  "original_source_before": {
+    "ui/voila_layout/cochem_gui_serializer.py": "5bafa4d6ad09fd997e49eb643661daae07cc48bfcc09ac3385da10db9985aa93",
+    "ui/voila_layout/initial_widget_state.py": "0f371f00ce919572c3383485e4768fb2e05079eca6d125e93cb8a3ecee39a4ed",
+    "ui/voila_layout/workspace_style.py": "2a57d9ca629454db7cf82a34a9a07b53099d168a33a47a4b95dc0dce85c37466",
+    "ui/voila_layout/scribe_gui_dashboard.py": "3ed32e6c7ffc1a38ba2b4d1697d90f0ac7d94d2e4487e082f25585aa0e71e8df",
+    "ui/voila_layout/input_management.py": "5765dc06bdd88fa4301aa1c1f91ac7f144afa3d2b45b3e7ae6bf19d0317f28a9",
+    "ui/voila_layout/learning.py": "ec3823c1b48d002aa149dc1d6d152ad30ce4d579c690c80284ca9e5333219137",
+    "ui/voila_layout/workspace_layout.py": "b9ae3d9aa89552145bad3ba301e0a51257d484bd634f80dac2948163ac606cd1",
+    "ui/voila_layout/research_panels.py": "446c32944ad701c3390eb0a722cbac37db3925e9330156c6555250c3ce07919e",
+    "ui/voila_layout/disclosure.py": "1f43eb6548f7035561a34e0a4738559f5eab2e5596c229cf660db3eaaca5cbfb",
+    "ui/voila_layout/help_content.py": "3df493b0dd6d67daa6fd19b1d0fd2931190dceddd1c86298e035ed3bcccd677d",
+    "ui/voila_layout/cochem_gui.py": "5f0cf93a932f0da8afbf174581903b0b4ff670389257c17c86d92a178241368a"
+  },
+  "wire": {
+    "scope": "Passive read-only text/legacy/v1 frame decoding; no state requests or handler replacement.",
+    "handshakes": [],
+    "document_responses": [],
+    "messages": [],
+    "decode_errors": []
+  },
+  "status": "failed",
+  "error": "Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:8882/\nCall log:\n  - navigating to \"http://127.0.0.1:8882/\", waiting until \"domcontentloaded\"\n",
+  "traceback": "Traceback (most recent call last):\n  File \"/workspace/.completion/beginner-browser-review/canonical_novice.py\", line 99, in <module>\n    page.goto('http://127.0.0.1:8882',wait_until='domcontentloaded',timeout=120000)\n  File \"/workspace/.completion/beginner-browser-review/browser-env/lib/python3.12/site-packages/playwright/sync_api/_generated.py\", line 18528, in goto\n    self._sync(\n  File \"/workspace/.completion/beginner-browser-review/browser-env/lib/python3.12/site-packages/playwright/_impl/_sync_base.py\", line 111, in _sync\n    return task.result()\n           ^^^^^^^^^^^^^\n  File \"/workspace/.completion/beginner-browser-review/browser-env/lib/python3.12/site-packages/playwright/_impl/_page.py\", line 564, in goto\n    return await self._main_frame.goto(**locals_to_params(locals()))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/workspace/.completion/beginner-browser-review/browser-env/lib/python3.12/site-packages/playwright/_impl/_frame.py\", line 157, in goto\n    await self._channel.send(\n  File \"/workspace/.completion/beginner-browser-review/browser-env/lib/python3.12/site-packages/playwright/_impl/_connection.py\", line 78, in send\n    return await self._connection.wrap_api_call(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/workspace/.completion/beginner-browser-review/browser-env/lib/python3.12/site-packages/playwright/_impl/_connection.py\", line 636, in wrap_api_call\n    raise rewrite_error(error, f\"{parsed_st['apiName']}: {error}\") from None\nplaywright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:8882/\nCall log:\n  - navigating to \"http://127.0.0.1:8882/\", waiting until \"domcontentloaded\"\n\n",
+  "source_after": {
+    "ui/voila_layout/cochem_gui_serializer.py": "5bafa4d6ad09fd997e49eb643661daae07cc48bfcc09ac3385da10db9985aa93",
+    "ui/voila_layout/initial_widget_state.py": "0f371f00ce919572c3383485e4768fb2e05079eca6d125e93cb8a3ecee39a4ed",
+    "ui/voila_layout/workspace_style.py": "2a57d9ca629454db7cf82a34a9a07b53099d168a33a47a4b95dc0dce85c37466",
+    "ui/voila_layout/scribe_gui_dashboard.py": "3ed32e6c7ffc1a38ba2b4d1697d90f0ac7d94d2e4487e082f25585aa0e71e8df",
+    "ui/voila_layout/input_management.py": "5765dc06bdd88fa4301aa1c1f91ac7f144afa3d2b45b3e7ae6bf19d0317f28a9",
+    "ui/voila_layout/learning.py": "ec3823c1b48d002aa149dc1d6d152ad30ce4d579c690c80284ca9e5333219137",
+    "ui/voila_layout/workspace_layout.py": "b9ae3d9aa89552145bad3ba301e0a51257d484bd634f80dac2948163ac606cd1",
+    "ui/voila_layout/research_panels.py": "446c32944ad701c3390eb0a722cbac37db3925e9330156c6555250c3ce07919e",
+    "ui/voila_layout/disclosure.py": "1f43eb6548f7035561a34e0a4738559f5eab2e5596c229cf660db3eaaca5cbfb",
+    "ui/voila_layout/help_content.py": "3df493b0dd6d67daa6fd19b1d0fd2931190dceddd1c86298e035ed3bcccd677d",
+    "ui/voila_layout/cochem_gui.py": "5f0cf93a932f0da8afbf174581903b0b4ff670389257c17c86d92a178241368a"
+  }
+}

@@ -1,0 +1,464 @@
+{
+  "scope": "Actual local maintainer Chromium and source-bound Voil\u00e0, plus genuine GFN2-xTB screening optimization; no student trial, Codespaces, hosted job or scientific accuracy claim",
+  "source_before": {
+    "ui/voila_layout/cochem_gui_serializer.py": "5bafa4d6ad09fd997e49eb643661daae07cc48bfcc09ac3385da10db9985aa93",
+    "ui/voila_layout/workspace_style.py": "ae7c04c592e5d0394f71a1e035acf4155ae062ffc6fef01c6ffd76208ac4de94",
+    "ui/voila_layout/scribe_gui_dashboard.py": "3ed32e6c7ffc1a38ba2b4d1697d90f0ac7d94d2e4487e082f25585aa0e71e8df",
+    "ui/voila_layout/input_management.py": "5765dc06bdd88fa4301aa1c1f91ac7f144afa3d2b45b3e7ae6bf19d0317f28a9",
+    "ui/voila_layout/learning.py": "e85e4e95cf7bb1da7983651fed4fef516932cae05fd828fb2c4fb1e02cddb5e8",
+    "ui/voila_layout/workspace_layout.py": "546e3e79d66609fc3daf04e211597f7b80c32aa46384eb528374cfd03ebcd330",
+    "ui/voila_layout/research_panels.py": "446c32944ad701c3390eb0a722cbac37db3925e9330156c6555250c3ce07919e",
+    "ui/voila_layout/disclosure.py": "1f43eb6548f7035561a34e0a4738559f5eab2e5596c229cf660db3eaaca5cbfb",
+    "ui/voila_layout/help_content.py": "c6882fcaad56a6d83571fba5b0f407f2777f00bfb1e6b8bde36bcfd98bbfa17d",
+    "ui/voila_layout/cochem_gui.py": "218d99a746c0e74d3c4b05c3ab4a67643170bb43975458cb2a5e5c0a3a071138"
+  },
+  "checks": [
+    {
+      "name": "Four-step navigation rendered; loaded GUI file and every layout source hash match frozen copy"
+    },
+    {
+      "name": "Real browser scientific-file upload, geometry selection, original retention, saved nondefault charge +1 and multiplicity 2"
+    },
+    {
+      "name": "Real malformed file rejected with visible actionable feedback and valid calculation draft preserved"
+    },
+    {
+      "name": "Navigation preserves geometry, selected record, charge, spin, method and all recorded scientific fields; input and cancel always visible"
+    },
+    {
+      "name": "Persistent help search, chiralty alias, no-result recovery and keyboard Enter clear preserve scientific state"
+    },
+    {
+      "name": "Actual individual charge-control explanation includes authored instruction and location"
+    },
+    {
+      "name": "Four actual context-help actions work by keyboard Enter without changing scientific fields"
+    },
+    {
+      "name": "Help/search/context interactions requested no external provider or account service"
+    },
+    {
+      "name": "Actual offered engine choices and warnings retained; no provider check or remote authorization probe performed"
+    },
+    {
+      "name": "Advanced method family toggles by keyboard; three advanced scientific tools remain reachable with preserved values"
+    },
+    {
+      "name": "Actual Tab traversal, focus outlines and Escape smoke check captured; no modal expected"
+    }
+  ],
+  "findings": [],
+  "page_errors": [],
+  "console_errors": [
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/console (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/logconsole (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/mainmenu (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/notebook (required ^4.6.2)",
+    "No satisfying version (^4.6.2) of shared module @jupyterlab/outputarea found in shared scope default.\nAvailable versions: 4.2.5 from _JUPYTERLAB.CORE_OUTPUT",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.6.2)",
+    "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/settingregistry (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/translation (required ^4.6.2)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.5.10)",
+    "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.5.10)",
+    "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/statedb (required ^4.5.10)",
+    "Unsatisfied version 6.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/coreutils (required ^6.5.10)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+  ],
+  "request_failures": [
+    {
+      "url": "http://127.0.0.1:8882/voila/static/cochem-base/molecule-viewer/3Dmol-2.5.5-min.js",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:8882/voila/static/cochem-base/molecule-viewer/3Dmol-2.5.5-min.js",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:8882/voila/static/cochem-base/molecule-viewer/3Dmol-2.5.5-min.js",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:8882/voila/static/cochem-base/molecule-viewer/3Dmol-2.5.5-min.js",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:8882/voila/static/cochem-base/molecule-viewer/3Dmol-2.5.5-min.js",
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "original_source_before": {
+    "ui/voila_layout/cochem_gui_serializer.py": "5bafa4d6ad09fd997e49eb643661daae07cc48bfcc09ac3385da10db9985aa93",
+    "ui/voila_layout/workspace_style.py": "ae7c04c592e5d0394f71a1e035acf4155ae062ffc6fef01c6ffd76208ac4de94",
+    "ui/voila_layout/scribe_gui_dashboard.py": "3ed32e6c7ffc1a38ba2b4d1697d90f0ac7d94d2e4487e082f25585aa0e71e8df",
+    "ui/voila_layout/input_management.py": "5765dc06bdd88fa4301aa1c1f91ac7f144afa3d2b45b3e7ae6bf19d0317f28a9",
+    "ui/voila_layout/learning.py": "e85e4e95cf7bb1da7983651fed4fef516932cae05fd828fb2c4fb1e02cddb5e8",
+    "ui/voila_layout/workspace_layout.py": "546e3e79d66609fc3daf04e211597f7b80c32aa46384eb528374cfd03ebcd330",
+    "ui/voila_layout/research_panels.py": "446c32944ad701c3390eb0a722cbac37db3925e9330156c6555250c3ce07919e",
+    "ui/voila_layout/disclosure.py": "1f43eb6548f7035561a34e0a4738559f5eab2e5596c229cf660db3eaaca5cbfb",
+    "ui/voila_layout/help_content.py": "c6882fcaad56a6d83571fba5b0f407f2777f00bfb1e6b8bde36bcfd98bbfa17d",
+    "ui/voila_layout/cochem_gui.py": "218d99a746c0e74d3c4b05c3ab4a67643170bb43975458cb2a5e5c0a3a071138"
+  },
+  "kernel_origin": {
+    "gui_file": "/workspace/.completion/beginner-browser-review/source/ui/voila_layout/cochem_gui.py",
+    "source_files": {
+      "ui/voila_layout/cochem_gui.py": "218d99a746c0e74d3c4b05c3ab4a67643170bb43975458cb2a5e5c0a3a071138",
+      "ui/voila_layout/cochem_gui_serializer.py": "5bafa4d6ad09fd997e49eb643661daae07cc48bfcc09ac3385da10db9985aa93",
+      "ui/voila_layout/disclosure.py": "1f43eb6548f7035561a34e0a4738559f5eab2e5596c229cf660db3eaaca5cbfb",
+      "ui/voila_layout/help_content.py": "c6882fcaad56a6d83571fba5b0f407f2777f00bfb1e6b8bde36bcfd98bbfa17d",
+      "ui/voila_layout/input_management.py": "5765dc06bdd88fa4301aa1c1f91ac7f144afa3d2b45b3e7ae6bf19d0317f28a9",
+      "ui/voila_layout/learning.py": "e85e4e95cf7bb1da7983651fed4fef516932cae05fd828fb2c4fb1e02cddb5e8",
+      "ui/voila_layout/research_panels.py": "446c32944ad701c3390eb0a722cbac37db3925e9330156c6555250c3ce07919e",
+      "ui/voila_layout/scribe_gui_dashboard.py": "3ed32e6c7ffc1a38ba2b4d1697d90f0ac7d94d2e4487e082f25585aa0e71e8df",
+      "ui/voila_layout/workspace_layout.py": "546e3e79d66609fc3daf04e211597f7b80c32aa46384eb528374cfd03ebcd330",
+      "ui/voila_layout/workspace_style.py": "ae7c04c592e5d0394f71a1e035acf4155ae062ffc6fef01c6ffd76208ac4de94"
+    }
+  },
+  "original_files": {
+    "/workspace/.completion/beginner-browser-review/artifacts/InputLibrary/e69275eeb8ee462d825b18501dc44e36/original.xyz": "a6704bfffdb4423eea4405bde281700f14d676bb073c06442657f54f0434d136"
+  },
+  "nondefault_saved_record": {
+    "path": "/workspace/.completion/beginner-browser-review/artifacts/StudentInputs/c11d67dbcfc44beaa210e14bc1557e1a/input-manifest.json",
+    "sha256": "6b332dc9879adb8d1400669ab99cdcaa1943b4c6e4001c6180142d250773cdfd",
+    "record": {
+      "schema_version": "cochem.student-input/1",
+      "id": "c11d67dbcfc44beaa210e14bc1557e1a",
+      "filename": "canonical-frame.xyz",
+      "path": "/workspace/.completion/beginner-browser-review/artifacts/StudentInputs/c11d67dbcfc44beaa210e14bc1557e1a/canonical-frame.xyz",
+      "sha256": "c20c309671602121903ecd50626881ed7a91a62ead87813c1cfd7b08e637297e",
+      "byte_count": 137,
+      "atom_count": 3,
+      "elements": [
+        "O",
+        "H",
+        "H"
+      ],
+      "nuclides": [
+        "O",
+        "H",
+        "H"
+      ],
+      "coordinates_angstrom": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          -0.757,
+          0.587
+        ],
+        [
+          0.0,
+          0.757,
+          0.587
+        ]
+      ],
+      "role": "complex",
+      "label": "review-water",
+      "charge": 1,
+      "multiplicity": 2,
+      "fragments": null,
+      "coordinate_unit": "angstrom",
+      "origin": "canonical_ingestion",
+      "source_input_id": "e69275eeb8ee462d825b18501dc44e36",
+      "source_sha256": "a6704bfffdb4423eea4405bde281700f14d676bb073c06442657f54f0434d136",
+      "source_frame": 0
+    }
+  },
+  "chirality_answer": "Chirality and R/S labels\n\nWhat it means. A chiral structure cannot be superimposed on its mirror image by rotating and moving it. Such a mirror-image pair is called a pair of enantiomers.\n\nTeach me more: why, when, where and how\n\nWhy it matters. A drawing's appearance depends on your viewing direction. Confusing a rotated view with a different configuration can lead to a wrong molecular assignment.\n\nWhen to use it. Check stereochemistry when your assignment concerns chiral molecules or when importing or building stereochemical structures.\n\nWhere to find it. Inspect the selected structure in Calculations \u2192 Starting structure. Use your chemical drawing and instructor's stereochemical assignment alongside the 3D view.\n\nHow to proceed\n\nVerify the connections and substituents, then check the specified stereochemistry in the source structure.\nR/S labels follow the Cahn\u2013Ingold\u2013Prelog priority rules for the relevant stereogenic feature; they are not labels for the direction you rotate the image.\nThe signs (+)/(\u2212) describe measured optical rotation under stated conditions. R does not generally mean (+), and S does not generally mean (\u2212).\n\nScientific limits\n\nThe viewer is not an automatic stereochemical assignment or optical-rotation measurement tool.\n\nEnantiomers have the same ordinary rotational constants and many other properties in an achiral environment; those values alone cannot distinguish them.",
+  "charge_control_answer": "Total charge:. Use the assigned total charge of the entire selected structure; neutral does not determine its spin.\n\nWhere: Calculations \u2192 electronic state",
+  "help_requests": [
+    "http://127.0.0.1:8882/voila/static/cochem-base/molecule-viewer/3Dmol-2.5.5-min.js",
+    "http://127.0.0.1:8882/voila/static/cochem-base/molecule-viewer/3Dmol-2.5.5-min.js"
+  ],
+  "tab_accessibility": [
+    {
+      "name": "Starting structure",
+      "tabindex": "0",
+      "selected": "false"
+    },
+    {
+      "name": "Method and settings",
+      "tabindex": "-1",
+      "selected": "true"
+    }
+  ],
+  "engine_options": [
+    "Choose\u00a0an\u00a0available\u00a0calculation\u00a0engine",
+    "xTB",
+    "PySCF\u00a0(RHF\u00a0single\u00a0point)"
+  ],
+  "engine_warning_text": "/workspace/.completion/beginner-browser-review/source/src/cochem_base/core_engine/cochem_core_telemetry_logger.py:62: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.\n  import pynvml\n\nCoChem\n\nComputational chemistry workspace\n\nWorkspace status: Idle\nInterface: Local-Linux\n\nYOUR FOUR STEPS\n\n1 \u00b7 Setup\n2 \u00b7 Add your molecule\n3 \u00b7 Run assigned calculation\n4 \u00b7 Read and save results\n\nCurrent page: 3 \u00b7 Run assigned calculation\n\nCalculation input\nreview-water \u00b7 3 atoms \u00b7 charge 1 \u00b7 multiplicity 2\n\nSelected scientific goal: Product A (Lead Screening)\nScreen molecules in a solvent. This goal requires a solvent model and exploration of different molecular arrangements. The calculation\u2019s scientific requirements still apply; selecting a goal does not show they have been met.\n\nStop current calculation\nHelp \u00b7 Check charge and spin\nShow Current method and scientific goal requirements\nHelp search:\nClear help\n\nOffline help is ready. Search a chemistry word or ask a question, such as \u201cwhat is chirality?\u201d. No account or calculation engine is needed.\n\nRESEARCH WORKSPACE\n\nStart here\nYour files\nCalculations\nResults\nShow More scientific tools\n\nHELP\n\nScientific terms\nCalculations\n\nFollow the settings in your assignment. Ask your instructor before guessing a method, charge or spin state.\n\nStep 3 \u00b7 Choose and run your assigned calculation\n\nCheck your starting molecule in Starting structure. In Method and settings, choose the assigned calculation program, method and basis set. Then read the status beside the Run button. A disabled button means something still needs attention.\n\nHide help \u00b7 Walk me through my first calculation\nRun your first assigned calculation\n\nWhat it means. A calculation applies a scientific model to the particular structure and settings you supply. Start with the task and settings your instructor assigned.\n\nTeach me more: why, when, where and how\nHelp for individual controls\n\nCalculation input\nreview-water \u00b7 3 atoms \u00b7 charge 1 \u00b7 multiplicity 2\n\nCalculation target: the configured local execution host.\n\nStarting structure\nMethod and settings\nElectronic state\nTotal charge:\nSpin multiplicity:\n\nCharge 0 means neutral; +1 means a positive ion and \u22121 a negative ion. Spin describes the electrons\u2019 spin state. Use the state in your assignment; being neutral does not by itself determine spin.\n\nEnter the total charge and spin state of the whole selected structure; verify each fragment separately when required.\n\nExplain charge and spin multiplicity\nMethod and basis\nEngine:\nChoose\u00a0an\u00a0available\u00a0calculation\u00a0engine\nxTB\nPySCF\u00a0(RHF\u00a0single\u00a0point)\nChoose an available engine; licensed engines are optional.\n\nThe engine is the program that performs the calculation. Choose the program, method and basis written in your assignment. These choices affect the answer.\n\nMethod:\nB3LYP-D4\nwB97X-D4\nPBE0-D3BJ\nBasis Set:\ndef2-TZVP\ndef2-TZVPP\nHelp \u00b7 What are a method and basis set?\nShow Advanced: choose another method family\nSurroundings\nSurroundings:\nGas\u00a0phase\u00a0(no\u00a0solvent\u00a0model)\nWater\u00a0(CPCM)\nAcetone\u00a0(CPCM)\nEthanol\u00a0(CPCM)\n\nChoose gas phase or the intended solvent consistently for all structures in a comparison.\n\nExplain gas phase and solvent models\n\nBefore running: Select an available engine. ORCA and CFOUR are optional; free-engine setup and data inspection remain available.\n\nCalculation validation details\nShow Advanced: complete-basis extrapolation\nShow Advanced: multireference spin recovery (T9)\nShow Advanced: output location and reproducibility export\nShow Advanced: scientific goal and requirements\nShow Advanced: other calculation tools\nRun calculation\nExplain whether a calculation has reached a meaningful structure\n\nRun ORCA, supported closed-shell CFOUR calculations, xTB optimization, or a PySCF RHF single point on the configured host. Screening carries no product accuracy certification. TOPOS and TORQ use their separate runners.\n\nSelect a calculation engine\nCancel calculation\nNo accepted calculation result yet.\nShow Live calculation output\nContinue to read and save results",
+  "advanced_tool_text": {
+    "Other structures and energies": "Calculations\n\nFollow the settings in your assignment. Ask your instructor before guessing a method, charge or spin state.\n\nStep 3 \u00b7 Choose and run your assigned calculation\n\nCheck your starting molecule in Starting structure. In Method and settings, choose the assigned calculation program, method and basis set. Then read the status beside the Run button. A disabled button means something still needs attention.\n\nHide help \u00b7 Walk me through my first calculation\nRun your first assigned calculation\n\nWhat it means. A calculation applies a scientific model to the particular structure and settings you supply. Start with the task and settings your instructor assigned.\n\nTeach me more: why, when, where and how\nHelp for individual controls\n\nCalculation input\nreview-water \u00b7 3 atoms \u00b7 charge 1 \u00b7 multiplicity 2\n\nCalculation target: the configured local execution host.\n\nStarting structure\nMethod and settings\nElectronic state\nTotal charge:\nSpin multiplicity:\n\nCharge 0 means neutral; +1 means a positive ion and \u22121 a negative ion. Spin describes the electrons\u2019 spin state. Use the state in your assignment; being neutral does not by itself determine spin.\n\nEnter the total charge and spin state of the whole selected structure; verify each fragment separately when required.\n\nExplain charge and spin multiplicity\nMethod and basis\nEngine:\nChoose\u00a0an\u00a0available\u00a0calculation\u00a0engine\nxTB\nPySCF\u00a0(RHF\u00a0single\u00a0point)\nChoose an available engine; licensed engines are optional.\n\nThe engine is the program that performs the calculation. Choose the program, method and basis written in your assignment. These choices affect the answer.\n\nMethod:\nB3LYP-D4\nwB97X-D4\nPBE0-D3BJ\nBasis Set:\ndef2-TZVP\ndef2-TZVPP\nHelp \u00b7 What are a method and basis set?\nHide Advanced: choose another method family\nTheory family:\nTier\u00a00:\u00a0Machine\u00a0Learning\u00a0Force\u00a0Fields\u00a0(MLFF)\nTier\u00a01:\u00a0Modern\u00a0Dispersion\u00a0DFT\nTier\u00a02:\u00a0Wave-Function\u00a0Composite\nTier\u00a03:\u00a0Semiempirical\u00a0Screening\nBenchmark\u00a0Dispersion\u00a0Tier\nLegacy\u00a0/\u00a0Custom\nT0\nT1\nT2\nT3\nT4\nT5\nT6\nT7\nT8\nT9\nExplain the T0\u2013T9 method tiers\nSurroundings\nSurroundings:\nGas\u00a0phase\u00a0(no\u00a0solvent\u00a0model)\nWater\u00a0(CPCM)\nAcetone\u00a0(CPCM)\nEthanol\u00a0(CPCM)\n\nChoose gas phase or the intended solvent consistently for all structures in a comparison.\n\nExplain gas phase and solvent models\n\nBefore running: Select an available engine. ORCA and CFOUR are optional; free-engine setup and data inspection remain available.\n\nCalculation validation details\nShow Advanced: complete-basis extrapolation\nShow Advanced: multireference spin recovery (T9)\nShow Advanced: output location and reproducibility export\nShow Advanced: scientific goal and requirements\nHide Advanced: other calculation tools\n\nOpen these tools only when your assignment calls for them. Your current settings are kept. Check the selected method and starting structure before running a different task.\n\nOther structures and energies\nDistance scans and bonding\nMonomer constraints\nRun calculation\nExplain whether a calculation has reached a meaningful structure\n\nRun ORCA, supported closed-shell CFOUR calculations, xTB optimization, or a PySCF RHF single point on the configured host. Screening carries no product accuracy certification. TOPOS and TORQ use their separate runners.\n\nSelect a calculation engine\nCancel calculation\nNo accepted calculation result yet.\nShow Live calculation output\nContinue to read and save results",
+    "Distance scans and bonding": "Calculations\n\nFollow the settings in your assignment. Ask your instructor before guessing a method, charge or spin state.\n\nStep 3 \u00b7 Choose and run your assigned calculation\n\nCheck your starting molecule in Starting structure. In Method and settings, choose the assigned calculation program, method and basis set. Then read the status beside the Run button. A disabled button means something still needs attention.\n\nHide help \u00b7 Walk me through my first calculation\nRun your first assigned calculation\n\nWhat it means. A calculation applies a scientific model to the particular structure and settings you supply. Start with the task and settings your instructor assigned.\n\nTeach me more: why, when, where and how\nHelp for individual controls\n\nCalculation input\nreview-water \u00b7 3 atoms \u00b7 charge 1 \u00b7 multiplicity 2\n\nCalculation target: the configured local execution host.\n\nStarting structure\nMethod and settings\nTOPOS\nStructures and energies \u00b7 TOPOS\n\nUse your selected starting structure to calculate an energy, refine its geometry or explore other arrangements.\n\nUse this additional tool when your assignment asks for a structure search or one of the calculations below. Start with the molecule and charge/spin state shown at the top of the page.\n\nHelp \u00b7 Which calculation answers my question?\n1. Choose what to calculate\nCalculation:\nFinish\u00a0TOPOS\u00a0setup\u00a0first\n\nFinish setup to see available calculations. Then select a starting geometry and choose a calculation here.\n\nExplain energy, optimization, frequency and scan calculations\n2. Set the calculation conditions\nMethod:\nxTB\u00a0GFN2\u00a0screening\n\nUse the method specified for your study. Compare structures calculated with the same method.\n\nExplain methods, basis sets and dispersion\n3. Run and review\nStart TOPOS calculation\n\nReview the calculation status below. Completed energy tables and available diagrams appear in Results.\n\nUpload your own monomer or complex starting geometries in Molecule Builder.\n\nShow Available calculations and setup help\nShow Advanced native conformer search\nShow Advanced: output location and reproducibility export\nShow Advanced: scientific goal and requirements\nHide Advanced: other calculation tools\n\nOpen these tools only when your assignment calls for them. Your current settings are kept. Check the selected method and starting structure before running a different task.\n\nOther structures and energies\nDistance scans and bonding\nMonomer constraints\nCurrent calculation\nExplain whether a calculation has reached a meaningful structure\nCancel calculation\nNo accepted calculation result yet.\nShow Live calculation output\nContinue to read and save results",
+    "Monomer constraints": "Calculations\n\nFollow the settings in your assignment. Ask your instructor before guessing a method, charge or spin state.\n\nStep 3 \u00b7 Choose and run your assigned calculation\n\nCheck your starting molecule in Starting structure. In Method and settings, choose the assigned calculation program, method and basis set. Then read the status beside the Run button. A disabled button means something still needs attention.\n\nHide help \u00b7 Walk me through my first calculation\nRun your first assigned calculation\n\nWhat it means. A calculation applies a scientific model to the particular structure and settings you supply. Start with the task and settings your instructor assigned.\n\nTeach me more: why, when, where and how\nHelp for individual controls\n\nCalculation input\nreview-water \u00b7 3 atoms \u00b7 charge 1 \u00b7 multiplicity 2\n\nCalculation target: the configured local execution host.\n\nStarting structure\nMethod and settings\nTORQ\nEnergy scans and bonding \u00b7 TORQ\n\nExplore a separation between two monomers, or analyze bonding in your selected structure.\n\nThese are additional tools. A distance scan and a bonding analysis answer different questions; follow the tool specified in your assignment.\n\nHelp \u00b7 What can a scan tell me?\n1. Choose the electronic-structure settings\nMethod:\nHF\u00a0(installation\u00a0example)\nPBE-D4\nB3LYP-D4\nMP2\nBasis set:\nsto-3g\ndef2-svp\ndef2-tzvp\ncc-pvdz\naug-cc-pvdz\n\nThese settings apply to the selected tool below. Charge and multiplicity come from your calculation settings.\n\nExplain methods, basis sets and dispersion\nDistance scan\nBond analysis\n2. Set the distance range\n\nSelect a complex containing two monomers. Distances are measured between their centers of mass in \u00e5ngstr\u00f6ms (\u00c5). Each monomer keeps its internal geometry and orientation.\n\nStart distance (\u00c5):\nEnd distance (\u00c5):\nNumber of points:\n\n5 energy calculations, spaced 0.75 \u00c5 apart, including both end points. More points increase calculation time.\n\nHow should I choose the range and number of points?\nWhat does this scan measure?\n3. Calculate the curve\nStart distance scan\n\nThe energy table and distance\u2013energy curve will appear in Results after the calculation is collected.\n\nUpload your own monomer or complex starting geometries in Molecule Builder.\n\nWhy is a calculation button unavailable?\nShow Advanced: output location and reproducibility export\nShow Advanced: scientific goal and requirements\nHide Advanced: other calculation tools\n\nOpen these tools only when your assignment calls for them. Your current settings are kept. Check the selected method and starting structure before running a different task.\n\nOther structures and energies\nDistance scans and bonding\nMonomer constraints\nCurrent calculation\nExplain whether a calculation has reached a meaningful structure\nCancel calculation\nNo accepted calculation result yet.\nShow Live calculation output\nContinue to read and save results"
+  },
+  "headings": [
+    {
+      "level": "H1",
+      "text": "CoChem"
+    },
+    {
+      "level": "H2",
+      "text": "Calculations"
+    },
+    {
+      "level": "H3",
+      "text": "Energy scans and bonding \u00b7 TORQ"
+    },
+    {
+      "level": "H4",
+      "text": "1. Choose the electronic-structure settings"
+    },
+    {
+      "level": "H4",
+      "text": "2. Set the distance range"
+    },
+    {
+      "level": "H4",
+      "text": "3. Calculate the curve"
+    },
+    {
+      "level": "H3",
+      "text": "Current calculation"
+    }
+  ],
+  "tab_stops": [
+    {
+      "tag": "BUTTON",
+      "text": "2 \u00b7 Add your molecule",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "3 \u00b7 Run assigned calculation",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "4 \u00b7 Read and save results",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Help \u00b7 Check charge and spin",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Show Current method and scientific goal requirements",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "aria": null,
+      "outline": "none"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear help",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Start here",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your files",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Calculations",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Results",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Show More scientific tools",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Scientific terms",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Hide help \u00b7 Walk me through my first calculation",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Run your first assigned calculation",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Teach me more: why, when, where and how",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Help for individual controls",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "LI",
+      "text": "Starting structure",
+      "aria": null,
+      "outline": "auto"
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Explain fragments and frozen-monomer recipes R1 and R2",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Auto-Detect Monomers",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Show Provide R2 monomer references",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Show Choose starting curvature for optimization",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Show Generated ORCA constraints",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Show Advanced: output location and reproducibility export",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Show Advanced: scientific goal and requirements",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Hide Advanced: other calculation tools",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Other structures and energies",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Distance scans and bonding",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Monomer constraints",
+      "aria": null,
+      "outline": "solid"
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Explain whether a calculation has reached a meaningful structure",
+      "aria": null,
+      "outline": "solid"
+    }
+  ],
+  "responsive": [
+    {
+      "viewport": 320,
+      "document": 320,
+      "body": 320,
+      "header_height": 1168.203125,
+      "navigation_height": 261,
+      "first_task_document_y": 1640.203125
+    },
+    {
+      "viewport": 768,
+      "document": 768,
+      "body": 768,
+      "header_height": 694.15625,
+      "navigation_height": 255,
+      "first_task_document_y": 1084.15625
+    },
+    {
+      "viewport": 1024,
+      "document": 1024,
+      "body": 1024,
+      "header_height": 667.75,
+      "navigation_height": 1664.796875,
+      "first_task_document_y": 793.75
+    },
+    {
+      "viewport": 1440,
+      "document": 1440,
+      "body": 1440,
+      "header_height": 651.75,
+      "navigation_height": 1664.796875,
+      "first_task_document_y": 760.75
+    }
+  ],
+  "status": "failed",
+  "error": "('Linux', [])",
+  "traceback": "Traceback (most recent call last):\n  File \"/workspace/.completion/beginner-browser-review/browser_review.py\", line 237, in <module>\n    select_prefix(page.get_by_label('Run calculations on:',exact=True),'Linux')\n  File \"/workspace/.completion/beginner-browser-review/browser_review.py\", line 43, in select_prefix\n    assert len(matches)==1,(prefix,options)\n           ^^^^^^^^^^^^^^^\nAssertionError: ('Linux', [])\n",
+  "source_after": {
+    "ui/voila_layout/cochem_gui_serializer.py": "5bafa4d6ad09fd997e49eb643661daae07cc48bfcc09ac3385da10db9985aa93",
+    "ui/voila_layout/workspace_style.py": "ae7c04c592e5d0394f71a1e035acf4155ae062ffc6fef01c6ffd76208ac4de94",
+    "ui/voila_layout/scribe_gui_dashboard.py": "3ed32e6c7ffc1a38ba2b4d1697d90f0ac7d94d2e4487e082f25585aa0e71e8df",
+    "ui/voila_layout/input_management.py": "5765dc06bdd88fa4301aa1c1f91ac7f144afa3d2b45b3e7ae6bf19d0317f28a9",
+    "ui/voila_layout/learning.py": "e85e4e95cf7bb1da7983651fed4fef516932cae05fd828fb2c4fb1e02cddb5e8",
+    "ui/voila_layout/workspace_layout.py": "546e3e79d66609fc3daf04e211597f7b80c32aa46384eb528374cfd03ebcd330",
+    "ui/voila_layout/research_panels.py": "446c32944ad701c3390eb0a722cbac37db3925e9330156c6555250c3ce07919e",
+    "ui/voila_layout/disclosure.py": "1f43eb6548f7035561a34e0a4738559f5eab2e5596c229cf660db3eaaca5cbfb",
+    "ui/voila_layout/help_content.py": "c6882fcaad56a6d83571fba5b0f407f2777f00bfb1e6b8bde36bcfd98bbfa17d",
+    "ui/voila_layout/cochem_gui.py": "218d99a746c0e74d3c4b05c3ab4a67643170bb43975458cb2a5e5c0a3a071138"
+  }
+}

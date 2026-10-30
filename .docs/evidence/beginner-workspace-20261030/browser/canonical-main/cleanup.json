@@ -1,0 +1,23 @@
+{
+  "owned_servers": [
+    {
+      "pid": 291973,
+      "create_time": 1793396324.56,
+      "command": [
+        "/workspace/.completion/dashboard/ui-env/bin/python",
+        "-B",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/source/scripts/student_voila.py",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/source/Start_Here.ipynb",
+        "--no-browser",
+        "--port=8882",
+        "--Voila.ip=127.0.0.1",
+        "--Voila.port_retries=0"
+      ],
+      "children": [
+        292522
+      ]
+    }
+  ],
+  "remaining_owned_servers": [],
+  "listeners": []
+}

@@ -1,0 +1,19 @@
+{
+  "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "status": "bounded_local_browser_review_complete_with_recorded_limitations",
+  "files": 651,
+  "manifest_sha256": "82f7c6fa61a3cf5f8bb8adc21a2db090bc99a8b1de9873dd658e10bb5b4cee47",
+  "scope": "External evidence metadata/screenshots/producer copies plus explicitly copied native and retained scientific proof. Frozen source copy and live runtime artifact/scratch trees excluded. No raw connection credentials in this manifest.",
+  "terminal_cleanup_sha256": "e465b4a0061e9eaf999248c18a531c8a85a8f8485640df5d0bee9948a2422c00",
+  "full16_outer_wrapper_exit_status": "unknown",
+  "reports": {
+    "acceptance.json": "abb94aaa921b6e669a343dce5e541bdb36d89a849a1d7c1d7a40e93273df6211",
+    "main-attempt3/actual-canonical-retry/browser-report.json": "3eb6253555ae45fbc21012d156cab771c29645fd17d8a20fc79fc8a8c98470ed",
+    "restart-lane/restart-report.json": "940c8acd749686c0a804ce047e28fdc0f802f879803ca2f12ff921540ea3016e",
+    "full-intake/acceptance/browser-summary.json": "9880cf7fe92483ec782b3ccb0ffd300df3a849583796a0cc9dc41ec4d91c7d93",
+    "posthoc-boundary-preservation-audit.json": "6f748b5e264d398f5db1705ec0368c4fd9680712759973f5365bc3c6ed121e24",
+    "terminal-cleanup.json": "e465b4a0061e9eaf999248c18a531c8a85a8f8485640df5d0bee9948a2422c00",
+    "full-intake/posthoc-cleanup.json": "d0fdf133883d00ea5f00801decc36ec0c6eb6a439255b5ee209c28a84b8dab17",
+    "authority-validation-after.json": "4527499a3b326611e5430a79d03255b30c8adc9a13518469e2b2ca3a5b82ec28"
+  }
+}

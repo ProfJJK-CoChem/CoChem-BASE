@@ -1,0 +1,91 @@
+{
+  "passed": true,
+  "executed": true,
+  "release_accepted": true,
+  "source_binding": {
+    "passed": true,
+    "mode": "release",
+    "release_accepted": true,
+    "revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+    "expected_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+    "authority": "explicit-reviewed-revision",
+    "tracked_file_count": 2396,
+    "tracked_source_sha256": "8d932f37e5cfe3ccf3d042b7923cf87b8cdbb70592d9f631e0fb2e82e7b5267b",
+    "initial_changed_paths": [],
+    "initial_dirty": false,
+    "excluded_untracked_paths": [
+      ".pytest_cache/.gitignore",
+      ".pytest_cache/CACHEDIR.TAG",
+      ".pytest_cache/README.md",
+      ".pytest_cache/v/cache/lastfailed",
+      ".pytest_cache/v/cache/nodeids",
+      ".ruff_cache/.gitignore",
+      ".ruff_cache/0.17.1/11469445450995090679",
+      ".ruff_cache/0.17.1/13839657720809486684",
+      ".ruff_cache/0.17.1/15543768160300486882",
+      ".ruff_cache/0.17.1/17134486515768049695",
+      ".ruff_cache/0.17.1/3113629222391738066",
+      ".ruff_cache/0.17.1/5672446048065758228",
+      ".ruff_cache/0.17.1/6042321519633755232",
+      ".ruff_cache/0.17.1/7739363004845068741",
+      ".ruff_cache/0.17.1/8282090050519103144",
+      ".ruff_cache/CACHEDIR.TAG",
+      "tests/data/orca_6_1_1_water_hf_sto3g/water.hess.lock"
+    ],
+    "excluded_untrusted_source_paths": [],
+    "infrastructure_ring": {
+      "path": ".core_infrastructure_hashring.json",
+      "sha256": "412f25dd0a1fa8fe97dd2c9f2e48cd4c666cf6bc6bff0aff53613c61287e3ec4",
+      "file_count": 224,
+      "passed": true,
+      "authority": "reviewed-committed-git-bytes"
+    }
+  },
+  "selected_test_files": [
+    "tests/ui/test_initial_widget_state.py"
+  ],
+  "cleanup_observation": {
+    "launcher_pid": 284212,
+    "launcher_returncode": 0,
+    "owned_work_stopped": true,
+    "ownership_scope": "posix-group",
+    "collection_observation": "owned-boundary-empty",
+    "launcher_create_time": 1793395858.65,
+    "admitted_before_exec": true,
+    "external_reaping_pending": []
+  },
+  "passed_tests": 4,
+  "failed_tests": [],
+  "pending_external_acceptance": [],
+  "unexpected_skips": [],
+  "coverage_errors": [],
+  "collected": 4,
+  "scope": "Local runnable acceptance; pending external checks do not count as passed",
+  "command_exit_code": 0,
+  "timed_out": false,
+  "quarantine_source_changed": [],
+  "quarantine_workspace_changed": false,
+  "descendant_evidence_directory": "/workspace/.completion/startup-final-frontend-gate/descendant-origins-b5dfe93474784c2e94dc6d15b108e2bf",
+  "descendant_source_records": 5,
+  "descendant_source_failures": [],
+  "descendant_source_authority_errors": [],
+  "descendant_startup_only": [
+    {
+      "pid": 284247,
+      "instance": "4123fa5acdc1494ea8f6a90757a6a0aa",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 284962,
+      "instance": "9808c233a7424606b1aeef6e87cf8e20",
+      "scope": "startup-only-no-finalizer-observation"
+    },
+    {
+      "pid": 284991,
+      "instance": "be83768f879e49cf996b236bd8775fb3",
+      "scope": "startup-only-no-finalizer-observation"
+    }
+  ],
+  "source_origins_verified": true,
+  "source_changed": []
+}

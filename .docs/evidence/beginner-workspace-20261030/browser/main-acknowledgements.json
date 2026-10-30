@@ -1,0 +1,413 @@
+{
+  "raw_report_sha256": "3eb6253555ae45fbc21012d156cab771c29645fd17d8a20fc79fc8a8c98470ed",
+  "scope": "All15 actual positive own-model wire acknowledgements after their own pages were opened; counts may return0 on removal. Current fields compared by actual kernel/model IDs in terminal accepted harness, no replay of index/value drafts.",
+  "selected_kernel_id": "2bdbfe85-8854-4d82-8149-4814911adcd7",
+  "models": [
+    {
+      "model_id": "24df5c352a964947aac724b5f70adddf",
+      "positive_sent_ack_count": 14,
+      "first_positive_ack_time": 179729.558679566,
+      "ack_bound_response_keys": [
+        [
+          "value"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": "<table><caption>Verified retained scientific inputs</caption><thead><tr><th>File</th><th>Type</th><th>Structures</th><th>Original SHA-256</th></tr></thead><tbody><tr><td>review-water.xyz</td><td>molecular</td><td>1</td><td>a6704bfffdb4423eea4405bde281700f14d676bb073c06442657f54f0434d136</td></tr><tr><td>bounded-128-frame-upload.xyz</td><td>molecular</td><td>128</td><td>2d80e61801e4aaa027033466bf651e8e921969da7b307452ab2a84e21af7d79b</td></tr></tbody></table>",
+        "disabled": false,
+        "_options_labels": null,
+        "index": null
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "9bde09ba276940c6856c50d0083aaa8e",
+      "positive_sent_ack_count": 14,
+      "first_positive_ack_time": 179729.557969956,
+      "ack_bound_response_keys": [
+        [
+          "value"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": "",
+        "disabled": false,
+        "_options_labels": null,
+        "index": null
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "4bd86058761b45a8aae90c4f8e150e03",
+      "positive_sent_ack_count": 14,
+      "first_positive_ack_time": 179729.558085301,
+      "ack_bound_response_keys": [
+        [
+          "value"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": "<p role='status'>Validated and retained 1 input(s).</p>",
+        "disabled": false,
+        "_options_labels": null,
+        "index": null
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "1cc50a6f879143b389d57310d42562b8",
+      "positive_sent_ack_count": 14,
+      "first_positive_ack_time": 179729.55879334,
+      "ack_bound_response_keys": [
+        [
+          "disabled"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": null,
+        "index": null
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "4c3462f726094afa94e97a69fef054eb",
+      "positive_sent_ack_count": 14,
+      "first_positive_ack_time": 179729.55856157,
+      "ack_bound_response_keys": [
+        [
+          "disabled"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": null,
+        "index": null
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "916381e0fb2f41a8817a9d4ce6d1bc17",
+      "positive_sent_ack_count": 14,
+      "first_positive_ack_time": 179729.559004151,
+      "ack_bound_response_keys": [
+        [
+          "disabled"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": null,
+        "index": null
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "6b48876b10b54a2f8bb18f19ec72f5a3",
+      "positive_sent_ack_count": 14,
+      "first_positive_ack_time": 179729.558201567,
+      "ack_bound_response_keys": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": [
+          "Choose an uploaded input",
+          "review-water.xyz (molecular)",
+          "bounded-128-frame-upload.xyz (molecular)"
+        ],
+        "index": 2
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "f4791551b53743f2b6501fb9cb4d7c23",
+      "positive_sent_ack_count": 14,
+      "first_positive_ack_time": 179729.558312443,
+      "ack_bound_response_keys": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": [
+          "bounded-128-frame-upload.xyz \u2014 frame 1",
+          "bounded-128-frame-upload.xyz \u2014 frame 2",
+          "bounded-128-frame-upload.xyz \u2014 frame 3",
+          "bounded-128-frame-upload.xyz \u2014 frame 4",
+          "bounded-128-frame-upload.xyz \u2014 frame 5",
+          "bounded-128-frame-upload.xyz \u2014 frame 6",
+          "bounded-128-frame-upload.xyz \u2014 frame 7",
+          "bounded-128-frame-upload.xyz \u2014 frame 8",
+          "bounded-128-frame-upload.xyz \u2014 frame 9",
+          "bounded-128-frame-upload.xyz \u2014 frame 10",
+          "bounded-128-frame-upload.xyz \u2014 frame 11",
+          "bounded-128-frame-upload.xyz \u2014 frame 12",
+          "bounded-128-frame-upload.xyz \u2014 frame 13",
+          "bounded-128-frame-upload.xyz \u2014 frame 14",
+          "bounded-128-frame-upload.xyz \u2014 frame 15",
+          "bounded-128-frame-upload.xyz \u2014 frame 16",
+          "bounded-128-frame-upload.xyz \u2014 frame 17",
+          "bounded-128-frame-upload.xyz \u2014 frame 18",
+          "bounded-128-frame-upload.xyz \u2014 frame 19",
+          "bounded-128-frame-upload.xyz \u2014 frame 20",
+          "bounded-128-frame-upload.xyz \u2014 frame 21",
+          "bounded-128-frame-upload.xyz \u2014 frame 22",
+          "bounded-128-frame-upload.xyz \u2014 frame 23",
+          "bounded-128-frame-upload.xyz \u2014 frame 24",
+          "bounded-128-frame-upload.xyz \u2014 frame 25",
+          "bounded-128-frame-upload.xyz \u2014 frame 26",
+          "bounded-128-frame-upload.xyz \u2014 frame 27",
+          "bounded-128-frame-upload.xyz \u2014 frame 28",
+          "bounded-128-frame-upload.xyz \u2014 frame 29",
+          "bounded-128-frame-upload.xyz \u2014 frame 30",
+          "bounded-128-frame-upload.xyz \u2014 frame 31",
+          "bounded-128-frame-upload.xyz \u2014 frame 32",
+          "bounded-128-frame-upload.xyz \u2014 frame 33",
+          "bounded-128-frame-upload.xyz \u2014 frame 34",
+          "bounded-128-frame-upload.xyz \u2014 frame 35",
+          "bounded-128-frame-upload.xyz \u2014 frame 36",
+          "bounded-128-frame-upload.xyz \u2014 frame 37",
+          "bounded-128-frame-upload.xyz \u2014 frame 38",
+          "bounded-128-frame-upload.xyz \u2014 frame 39",
+          "bounded-128-frame-upload.xyz \u2014 frame 40",
+          "bounded-128-frame-upload.xyz \u2014 frame 41",
+          "bounded-128-frame-upload.xyz \u2014 frame 42",
+          "bounded-128-frame-upload.xyz \u2014 frame 43",
+          "bounded-128-frame-upload.xyz \u2014 frame 44",
+          "bounded-128-frame-upload.xyz \u2014 frame 45",
+          "bounded-128-frame-upload.xyz \u2014 frame 46",
+          "bounded-128-frame-upload.xyz \u2014 frame 47",
+          "bounded-128-frame-upload.xyz \u2014 frame 48",
+          "bounded-128-frame-upload.xyz \u2014 frame 49",
+          "bounded-128-frame-upload.xyz \u2014 frame 50",
+          "bounded-128-frame-upload.xyz \u2014 frame 51",
+          "bounded-128-frame-upload.xyz \u2014 frame 52",
+          "bounded-128-frame-upload.xyz \u2014 frame 53",
+          "bounded-128-frame-upload.xyz \u2014 frame 54",
+          "bounded-128-frame-upload.xyz \u2014 frame 55",
+          "bounded-128-frame-upload.xyz \u2014 frame 56",
+          "bounded-128-frame-upload.xyz \u2014 frame 57",
+          "bounded-128-frame-upload.xyz \u2014 frame 58",
+          "bounded-128-frame-upload.xyz \u2014 frame 59",
+          "bounded-128-frame-upload.xyz \u2014 frame 60",
+          "bounded-128-frame-upload.xyz \u2014 frame 61",
+          "bounded-128-frame-upload.xyz \u2014 frame 62",
+          "bounded-128-frame-upload.xyz \u2014 frame 63",
+          "bounded-128-frame-upload.xyz \u2014 frame 64",
+          "bounded-128-frame-upload.xyz \u2014 frame 65",
+          "bounded-128-frame-upload.xyz \u2014 frame 66",
+          "bounded-128-frame-upload.xyz \u2014 frame 67",
+          "bounded-128-frame-upload.xyz \u2014 frame 68",
+          "bounded-128-frame-upload.xyz \u2014 frame 69",
+          "bounded-128-frame-upload.xyz \u2014 frame 70",
+          "bounded-128-frame-upload.xyz \u2014 frame 71",
+          "bounded-128-frame-upload.xyz \u2014 frame 72",
+          "bounded-128-frame-upload.xyz \u2014 frame 73",
+          "bounded-128-frame-upload.xyz \u2014 frame 74",
+          "bounded-128-frame-upload.xyz \u2014 frame 75",
+          "bounded-128-frame-upload.xyz \u2014 frame 76",
+          "bounded-128-frame-upload.xyz \u2014 frame 77",
+          "bounded-128-frame-upload.xyz \u2014 frame 78",
+          "bounded-128-frame-upload.xyz \u2014 frame 79",
+          "bounded-128-frame-upload.xyz \u2014 frame 80",
+          "bounded-128-frame-upload.xyz \u2014 frame 81",
+          "bounded-128-frame-upload.xyz \u2014 frame 82",
+          "bounded-128-frame-upload.xyz \u2014 frame 83",
+          "bounded-128-frame-upload.xyz \u2014 frame 84",
+          "bounded-128-frame-upload.xyz \u2014 frame 85",
+          "bounded-128-frame-upload.xyz \u2014 frame 86",
+          "bounded-128-frame-upload.xyz \u2014 frame 87",
+          "bounded-128-frame-upload.xyz \u2014 frame 88",
+          "bounded-128-frame-upload.xyz \u2014 frame 89",
+          "bounded-128-frame-upload.xyz \u2014 frame 90",
+          "bounded-128-frame-upload.xyz \u2014 frame 91",
+          "bounded-128-frame-upload.xyz \u2014 frame 92",
+          "bounded-128-frame-upload.xyz \u2014 frame 93",
+          "bounded-128-frame-upload.xyz \u2014 frame 94",
+          "bounded-128-frame-upload.xyz \u2014 frame 95",
+          "bounded-128-frame-upload.xyz \u2014 frame 96",
+          "bounded-128-frame-upload.xyz \u2014 frame 97",
+          "bounded-128-frame-upload.xyz \u2014 frame 98",
+          "bounded-128-frame-upload.xyz \u2014 frame 99",
+          "bounded-128-frame-upload.xyz \u2014 frame 100",
+          "bounded-128-frame-upload.xyz \u2014 frame 101",
+          "bounded-128-frame-upload.xyz \u2014 frame 102",
+          "bounded-128-frame-upload.xyz \u2014 frame 103",
+          "bounded-128-frame-upload.xyz \u2014 frame 104",
+          "bounded-128-frame-upload.xyz \u2014 frame 105",
+          "bounded-128-frame-upload.xyz \u2014 frame 106",
+          "bounded-128-frame-upload.xyz \u2014 frame 107",
+          "bounded-128-frame-upload.xyz \u2014 frame 108",
+          "bounded-128-frame-upload.xyz \u2014 frame 109",
+          "bounded-128-frame-upload.xyz \u2014 frame 110",
+          "bounded-128-frame-upload.xyz \u2014 frame 111",
+          "bounded-128-frame-upload.xyz \u2014 frame 112",
+          "bounded-128-frame-upload.xyz \u2014 frame 113",
+          "bounded-128-frame-upload.xyz \u2014 frame 114",
+          "bounded-128-frame-upload.xyz \u2014 frame 115",
+          "bounded-128-frame-upload.xyz \u2014 frame 116",
+          "bounded-128-frame-upload.xyz \u2014 frame 117",
+          "bounded-128-frame-upload.xyz \u2014 frame 118",
+          "bounded-128-frame-upload.xyz \u2014 frame 119",
+          "bounded-128-frame-upload.xyz \u2014 frame 120",
+          "bounded-128-frame-upload.xyz \u2014 frame 121",
+          "bounded-128-frame-upload.xyz \u2014 frame 122",
+          "bounded-128-frame-upload.xyz \u2014 frame 123",
+          "bounded-128-frame-upload.xyz \u2014 frame 124",
+          "bounded-128-frame-upload.xyz \u2014 frame 125",
+          "bounded-128-frame-upload.xyz \u2014 frame 126",
+          "bounded-128-frame-upload.xyz \u2014 frame 127",
+          "bounded-128-frame-upload.xyz \u2014 frame 128"
+        ],
+        "index": 0
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "dc7fa7c4daf24ee3bb004747f57b698e",
+      "positive_sent_ack_count": 14,
+      "first_positive_ack_time": 179729.558901692,
+      "ack_bound_response_keys": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": [
+          "review-water.xyz",
+          "bounded-128-frame-upload.xyz"
+        ],
+        "index": []
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "9446669172b546f7b258b49b6efaf5ea",
+      "positive_sent_ack_count": 9,
+      "first_positive_ack_time": 179728.274461092,
+      "ack_bound_response_keys": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": [
+          "Choose an uploaded input"
+        ],
+        "index": 0
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "b25681944f814df686025a425ef03e40",
+      "positive_sent_ack_count": 2,
+      "first_positive_ack_time": 179760.241119096,
+      "ack_bound_response_keys": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": [
+          "Choose an uploaded input"
+        ],
+        "index": 0
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "29faf17a4dd6479daa9c314106db3431",
+      "positive_sent_ack_count": 2,
+      "first_positive_ack_time": 179760.241012523,
+      "ack_bound_response_keys": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": [
+          "Choose an uploaded input"
+        ],
+        "index": 0
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "2ddce999fe2f4c17a16640af4457b0c5",
+      "positive_sent_ack_count": 2,
+      "first_positive_ack_time": 179760.241399751,
+      "ack_bound_response_keys": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": [
+          "Choose an uploaded input"
+        ],
+        "index": 0
+      },
+      "current_view_count": 0
+    },
+    {
+      "model_id": "bb601bd555064c439e1cc79101d083aa",
+      "positive_sent_ack_count": 2,
+      "first_positive_ack_time": 179760.471356654,
+      "ack_bound_response_keys": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": [
+          "Choose an uploaded input"
+        ],
+        "index": 0
+      },
+      "current_view_count": 1
+    },
+    {
+      "model_id": "676de5138eef42f8aec9ce33352793c9",
+      "positive_sent_ack_count": 10,
+      "first_positive_ack_time": 179741.491360692,
+      "ack_bound_response_keys": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "frontend_current_fields": {
+        "value": null,
+        "disabled": false,
+        "_options_labels": [
+          "Choose an uploaded input",
+          "review-water.xyz"
+        ],
+        "index": 1
+      },
+      "current_view_count": 0
+    }
+  ],
+  "decoded_messages": 4157,
+  "decode_errors": []
+}

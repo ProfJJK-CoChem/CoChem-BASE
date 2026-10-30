@@ -1,0 +1,397 @@
+{
+  "scope": "Actual canonical Start_Here read-only own-model acknowledgement and current-field join. Nine library models displayed; six specialized selectors truthfully deferred until their own views.",
+  "rows": [
+    {
+      "phase": "before",
+      "id": "6df375a688f44039bece77514317a36e",
+      "type": "HTML",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "value"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "value": true
+      }
+    },
+    {
+      "phase": "before",
+      "id": "63f975d5b3894d7598036aedb56464f4",
+      "type": "HTML",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "value"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "value": true
+      }
+    },
+    {
+      "phase": "before",
+      "id": "77203e4dad9a4c25b0e108358649f522",
+      "type": "HTML",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "value"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "value": true
+      }
+    },
+    {
+      "phase": "before",
+      "id": "afee0b7ffb1347839ebca92a21dceeac",
+      "type": "Button",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "disabled"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "disabled": true
+      }
+    },
+    {
+      "phase": "before",
+      "id": "57caff7139784bdc951ae4eca3ce6ace",
+      "type": "Button",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "disabled"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "disabled": true
+      }
+    },
+    {
+      "phase": "before",
+      "id": "8d5a61bf702443f18c661e2c8bd0659b",
+      "type": "Button",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "disabled"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "disabled": true
+      }
+    },
+    {
+      "phase": "before",
+      "id": "0862e4de3289402ba6f20403ecc58e54",
+      "type": "Dropdown",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "_options_labels": true,
+        "index": true
+      }
+    },
+    {
+      "phase": "before",
+      "id": "8d8a6798717d44988f46f0a273c00a3c",
+      "type": "Dropdown",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "_options_labels": true,
+        "index": true
+      }
+    },
+    {
+      "phase": "before",
+      "id": "acc80b298c6f438fbe65d7c498253d57",
+      "type": "SelectMultiple",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "_options_labels": true,
+        "index": true
+      }
+    },
+    {
+      "phase": "before",
+      "id": "1d1fcedd6269429196f492deaa70785f",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 1,
+      "ack_bound_replays": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "before",
+      "id": "e0addb78b6c548eb8f02f883918a46e9",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 0,
+      "ack_bound_replays": [],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "before",
+      "id": "aa8d260db87741489238cb848660e27a",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 0,
+      "ack_bound_replays": [],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "before",
+      "id": "7910b5d0b7bd472689de42e7c58a5e27",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 0,
+      "ack_bound_replays": [],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "before",
+      "id": "d935fa3ce2f440d5af386be4b067e54d",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 0,
+      "ack_bound_replays": [],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "before",
+      "id": "862a4aa8fcab460d99baf20477ae57a6",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 0,
+      "ack_bound_replays": [],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "8dc1ecaeaa764639b9c238ec1dec2c3e",
+      "type": "HTML",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "value"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "value": true
+      }
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "118af2459c9c4d71aac6c1b73dc120d3",
+      "type": "HTML",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "value"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "value": true
+      }
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "f9694379e37140e0afbe85485fa6496c",
+      "type": "HTML",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "value"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "value": true
+      }
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "629f0ce5b2ca451b830a521849c03737",
+      "type": "Button",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "disabled"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "disabled": true
+      }
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "208156e1e8c84095ba8e57a24987099d",
+      "type": "Button",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "disabled"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "disabled": true
+      }
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "7a5457f5777145b6a72cbfe77d5f5cd9",
+      "type": "Button",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "disabled"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "disabled": true
+      }
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "3b52dae1377846c692e6b28937fdbc3c",
+      "type": "Dropdown",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "_options_labels": true,
+        "index": true
+      }
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "3b15b97f09c3467aa02c2333591aa016",
+      "type": "Dropdown",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "_options_labels": true,
+        "index": true
+      }
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "ca0d2aa6b06a46469869a706ecb48b11",
+      "type": "SelectMultiple",
+      "actual_view_count": 1,
+      "sent_positive_acks": 2,
+      "ack_bound_replays": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "backend_frontend_fields_match": {
+        "_options_labels": true,
+        "index": true
+      }
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "bb815218bc774995a6702eb1627909bb",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 1,
+      "ack_bound_replays": [
+        [
+          "_options_labels"
+        ]
+      ],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "d21c26d096d34ff3a6ac5c6432ac4584",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 0,
+      "ack_bound_replays": [],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "65d5a3fadd6c4df4bbe150ce3d1c1c9d",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 0,
+      "ack_bound_replays": [],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "c79e902d1de541099f5ca6518e48acf1",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 0,
+      "ack_bound_replays": [],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "cff3f7a867ca43058c7cac566539d2fa",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 0,
+      "ack_bound_replays": [],
+      "backend_frontend_fields_match": null
+    },
+    {
+      "phase": "same_tab_reload",
+      "id": "e78ad288349b4d4eb3e6a6dd1f88943a",
+      "type": "Dropdown",
+      "actual_view_count": 0,
+      "sent_positive_acks": 0,
+      "ack_bound_replays": [],
+      "backend_frontend_fields_match": null
+    }
+  ]
+}

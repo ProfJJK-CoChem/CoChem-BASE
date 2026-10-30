@@ -1,0 +1,223 @@
+{
+  "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "observed_at": "2026-10-30T21:58:35.366912+00:00",
+  "git_head": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "git_status": "",
+  "source_archive_comparison": {
+    "regular_files_checked": 2396,
+    "mismatches": []
+  },
+  "prior_preserved_evidence": {
+    "/workspace/.completion/beginner-browser-review": {
+      "manifest_sha256": "f8c0239e4ca726b2cd83a7bdc839b7f4bcd85bcc71c972d3b38315751a6c4be0",
+      "files_checked": 205,
+      "mismatches": []
+    },
+    "/workspace/.completion/beginner-browser-review/candidate-3bc93": {
+      "manifest_sha256": "a1f262d9d8717eef21a531c85137eaf2c840cadde9c85c4c4a5bb98fb1c41f4d",
+      "files_checked": 423,
+      "mismatches": []
+    }
+  },
+  "main_native_and_draft": {
+    "status": "passed",
+    "report_sha256": "3eb6253555ae45fbc21012d156cab771c29645fd17d8a20fc79fc8a8c98470ed",
+    "nondefault_manifest_unchanged": true,
+    "native_sidecar_targets_unchanged": true,
+    "native_originals_unchanged": true,
+    "download_sha256_unchanged": true
+  },
+  "full16_originals": [
+    {
+      "filename": "As.pbe-n-kjpaw_psl.0.2.upf",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "Ga.pbe-dn-kjpaw_psl.0.2.upf",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water-hessian.h5",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water-hessian.npz",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water-qcschema-v1.json",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water-qcschema-v2.json",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water-two-model.pdb",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water-two-record.sdf",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water-v2000.mol",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water-v3000.mol",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water.hess",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water.mol2",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water.out.txt",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "actual-water.xyz",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "gaas_fractional.json",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    },
+    {
+      "filename": "gaas_ordered.cif",
+      "fixture_unchanged": true,
+      "retained_matches": 1,
+      "all_retained_bytes_equal_original": true
+    }
+  ],
+  "full16_terminal_browser": {
+    "status": "STUDENT_ENTRYPOINT_UI_VERIFIED",
+    "summary_sha256": "9880cf7fe92483ec782b3ccb0ffd300df3a849583796a0cc9dc41ec4d91c7d93",
+    "source_unchanged": true,
+    "all16_recovered_after_reload": true,
+    "page_errors": [],
+    "request_failures": [],
+    "outer_wrapper_exit_code": null,
+    "outer_wrapper_exit_status": "unknown; no terminal producer receipt or execution session remains",
+    "outer_cleanup_receipt": "absent; explicit posthoc-cleanup.json separately records current empty boundary"
+  },
+  "assignment_receipts": [
+    {
+      "path": "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/StudentSetup/assignment-runtime.json",
+      "sha256": "0fb1ebb3d61f532d5a3ce0fabe45382e33393ccc7d030416cbd5f20881cfce82",
+      "value": {
+        "kind": "assignment",
+        "manifest_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/source/scripts/module-distribution.json",
+        "python_path": "/workspace/.completion/dashboard/ui-env/bin/python",
+        "revision": null,
+        "schema_version": "cochem.student-runtime/1",
+        "source_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/source"
+      }
+    },
+    {
+      "path": "/workspace/.completion/beginner-browser-review/candidate-71f4/full-intake/artifacts/StudentSetup/assignment-runtime.json",
+      "sha256": "0fb1ebb3d61f532d5a3ce0fabe45382e33393ccc7d030416cbd5f20881cfce82",
+      "value": {
+        "kind": "assignment",
+        "manifest_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/source/scripts/module-distribution.json",
+        "python_path": "/workspace/.completion/dashboard/ui-env/bin/python",
+        "revision": null,
+        "schema_version": "cochem.student-runtime/1",
+        "source_path": "/workspace/.completion/beginner-browser-review/candidate-71f4/source"
+      }
+    },
+    {
+      "path": "/workspace/.completion/restart-live/artifacts/StudentSetup/assignment-runtime.json",
+      "sha256": "3b39d91575b8b3cd8fef54cfb35fad2002ef95168bbdd7f3527e520ba167d2c6",
+      "value": {
+        "kind": "assignment",
+        "manifest_path": "/workspace/CoChem-BASE/scripts/module-distribution.json",
+        "python_path": "/workspace/.completion/dashboard/ui-env/bin/python",
+        "revision": "807d4f993a0176a29343fcd5560aac6e73f2720e",
+        "schema_version": "cochem.student-runtime/1",
+        "source_path": "/workspace/CoChem-BASE"
+      }
+    }
+  ],
+  "main_full16_authority_current_hashes": {
+    "/workspace/.completion/dashboard/Registry/cochem_system_config.json": "d07ad678e191ad7b9fa41fdb14791c8e2003d0fd637bfcdffbff1bceb89ca6d8",
+    "/workspace/.completion/dashboard/dashboard/deployment_manifest.json": "a99593e07d81643548d42d3de6d617157b2a423d3e3ac01ab7bbf5e7f32dfa18"
+  },
+  "main_full16_authority_hash_scope": "Current hashes retained; no independent pre-lane whole-file hash baseline was authored by this observer. Genuine eleven-phase/checksum/binary authorization validated at each actual launch; final validation is recorded separately. Restart lane has independent exact before/after authority comparisons.",
+  "source_quarantine": {
+    "initial_receipts": 190,
+    "final_receipts": 185,
+    "failed_initials": [],
+    "failed_finals": [],
+    "all_recorded_revisions_match": true,
+    "missing_terminal_receipts_possible_for_killed_processes": true
+  },
+  "main_attempt3_chronology": {
+    "file_observations": [
+      {
+        "path": "main-browser-attempt3.log",
+        "mtime_utc": "2026-10-30T21:38:46.455138+00:00",
+        "sha256": "b98e8ce2ce2d18154412fe74b3eb8e0351e6d4cf1460e605ff835bf049dfc062"
+      },
+      {
+        "path": "main-server-attempt3.log",
+        "mtime_utc": "2026-10-30T21:41:17.683014+00:00",
+        "sha256": "8ab7f2daa12dc872061153e77b10417d67d1193e059c16e25aa9231c60687934"
+      },
+      {
+        "path": "main-attempt3/actual-canonical/browser-report.json",
+        "mtime_utc": "2026-10-30T21:38:46.377467+00:00",
+        "sha256": "6ad3cc0eb0b7e5ee72bf85ef4939a06a2340ce61b13c171e51aa9ace511d3f9d"
+      },
+      {
+        "path": "main-attempt3/actual-canonical-retry/browser-report.json",
+        "mtime_utc": "2026-10-30T21:40:42.751086+00:00",
+        "sha256": "3eb6253555ae45fbc21012d156cab771c29645fd17d8a20fc79fc8a8c98470ed"
+      },
+      {
+        "path": "main-attempt3/cleanup.json",
+        "mtime_utc": "2026-10-30T21:41:19.100054+00:00",
+        "sha256": "6febe9f3c682560cd7c457aa6cca72f3fff0481321c2af20cd3902e5d5ee36f7"
+      }
+    ],
+    "server_pid": 291973,
+    "server_create_time": 1793396324.56,
+    "owned_stop_producer": "/workspace/.completion/beginner-browser-review/stop_owned_main.py invoked after successful actual-canonical-retry and before separate full16 launch; main-attempt3/cleanup.json records same PID/create_time and child292522. Its server signal15 is the intentional post-proof cleanup.",
+    "initial_refusal_scope": "INITIAL Page.goto before UI actions, browser report written21:38:46.377Z. Accepted retry report written21:40:42.751Z. Owned stop receipt written21:41:19.100Z. Thus later intentional signal15 does not explain earlier initial refusal. Exact earlier refusal cause remains unknown; no contemporaneous listening-state timestamp proves overlap."
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "scope": "Root independent read-only hash verification of completed canonical local browser/native/summary proof; not student/hosted/accuracy acceptance",
+  "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "report_sha256": "3eb6253555ae45fbc21012d156cab771c29645fd17d8a20fc79fc8a8c98470ed",
+  "native_files": {
+    "execution.json": {
+      "sha256": "22b212b3260891d0be29fefe4e2a14277a131f7360a4a152f2009418e87325d9",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/execution.json"
+      ]
+    },
+    "input.xyz": {
+      "sha256": "602cf425199263a01ead9950d130b93a091feef41830c82d0466ef1b757cfc12",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/input.xyz",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0000/input.xyz"
+      ]
+    },
+    "input.engrad": {
+      "sha256": "f4241078aa1e42441cd143a9d1d5981d21870292a995608ab25c56d2dd947411",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/input.engrad",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0007/input.engrad",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0006/input.engrad"
+      ]
+    },
+    "execution_authority.json": {
+      "sha256": "a75468f8b62ce70bb550baa8cf6325af5c0abb679a6b4a571936ab410fd697b2",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/execution_authority.json"
+      ]
+    },
+    "ingress_alignment.json": {
+      "sha256": "34fccea6b313cc2ce81ab6abdc72c5a5cac4fec8e2db8a3980ef29a828e21c90",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/ingress_alignment.json"
+      ]
+    },
+    "xtbopt.xyz": {
+      "sha256": "98e5d66e7724221c60390907a9ac420bf7e482fe769a113bb174175ac76be184",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/xtbopt.xyz"
+      ]
+    },
+    "result.json": {
+      "sha256": "e13c05e2a17618950295ab578302d7d33474c5c0b2ce91b370e83b305f5adcfc",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/result.json"
+      ]
+    },
+    "xtbopt.log": {
+      "sha256": "bac895c08ab4dd40289c8ce2f86dc732bfa4497383d7f33dffb09ad033751c9b",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/xtbopt.log"
+      ]
+    },
+    "matrix_config.validated.json": {
+      "sha256": "3748a4bd16cdaa4b1656573762201b34cbbec0196b794cdb12e6017e7d2b9ae6",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/matrix_config.validated.json"
+      ]
+    },
+    "optimization_evidence.json": {
+      "sha256": "1bedb48667a41eb33bc13ea40076726aac75c3d578b05f13e25e7072beb2b793",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/optimization_evidence.json"
+      ]
+    },
+    "stderr.log": {
+      "sha256": "037435cfefaf87aea2062fd3fbcc038852353fabbbe67f4e8057e43fd1ffe88d",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/stderr.log",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0003/stderr.log",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0005/stderr.log",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0001/stderr.log",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0004/stderr.log",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0007/stderr.log",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0006/stderr.log",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0000/stderr.log",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0002/stderr.log"
+      ]
+    },
+    "gradient": {
+      "sha256": "57cdcf1921861f1d9d8df9b7b25558762cf91da8e4f8830b3d33f8ec2d91a261",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/gradient",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0007/gradient",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0006/gradient"
+      ]
+    },
+    "xtb.out": {
+      "sha256": "1a8171f6100bc1983f14cdf41cf8356f9474b6604f43583a913629ea07768cfe",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/xtb.out",
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/evaluation-0007/xtb.out"
+      ]
+    },
+    "optimization_evaluations.json": {
+      "sha256": "7a127848ba88c7a7b18043f8be33a382d675ce3053979b118c24268018ae0390",
+      "paths": [
+        "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/artifacts/GUI/run_9411cc8e9a4348e985e1f7d4be1a5a14/Results/optimization_evaluations.json"
+      ]
+    }
+  },
+  "actual_summary_paths": [
+    "/workspace/.completion/beginner-browser-review/candidate-71f4/main-attempt3/actual-canonical-retry/cochem-displayed-result-summary.txt"
+  ],
+  "summary_sha256": "f5cbe20ff58300ef84e9d6c5e0d246ff73ec7af80038b8e07fa7183cc46f508e",
+  "originals_and_saved_nonneutral_draft_unchanged": true,
+  "positive_model_acknowledgements": 15,
+  "page_errors": 0,
+  "request_failures": 0,
+  "console_records": 17,
+  "full16_browser_lane": "pending"
+}

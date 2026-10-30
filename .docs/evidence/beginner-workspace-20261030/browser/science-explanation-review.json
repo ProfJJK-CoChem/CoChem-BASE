@@ -1,0 +1,213 @@
+{
+  "source_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "help_content_sha256": "3df493b0dd6d67daa6fd19b1d0fd2931190dceddd1c86298e035ed3bcccd677d",
+  "scope": "Source-bound maintainer science-explanation review, supplemented by actual browser disclosure/search checks. No student comprehension trial or validation of scientific prediction accuracy.",
+  "reviewed_distinctions": [
+    "Isomers share formula; constitutional versus spatial differences, conformers involve nuclear motions; resonance drawings are electronic bookkeeping for one nuclear arrangement.",
+    "R/S follows CIP configuration, not rotation of the view or a general mapping to measured (+)/(\u2212) optical rotation.",
+    "Calculated harmonic modes do not establish experimental peak assignments; equilibrium and ground-state rotational constants are distinguished.",
+    "Optimization convergence, search or imported structures do not prove a minimum, global completeness or physical equilibrium populations."
+  ],
+  "product_findings": [],
+  "topics": {
+    "isomers": {
+      "title": "Isomers, conformers and resonance drawings",
+      "aliases": [
+        "same formula",
+        "isomer",
+        "diastereomer",
+        "E Z",
+        "cis trans",
+        "conformer",
+        "resonance",
+        "different structures",
+        "bond rotation",
+        "two molecules"
+      ],
+      "what": "Isomers have the same molecular formula but different arrangements of atoms. Constitutional isomers have different connections; stereoisomers differ in spatial arrangement. Enantiomers are mirror-image stereoisomers; diastereomers are stereoisomers that are not mirror images, such as E/Z alkene pairs.",
+      "why": "These differences can affect energy, reactivity and spectra. You need to know which structures you are comparing before interpreting an energy difference.",
+      "when": "Use this when importing several structures, doing a conformer search or comparing calculated isomers.",
+      "where": "Upload separate candidate structures through Your files. Calculations \u2192 Advanced: other calculation tools \u2192 Other structures and energies contains conformer-search tools; Results compares compatible calculated structures.",
+      "how": [
+        "First compare which atoms are connected. If connections differ, you have different constitutional structures.",
+        "For the same connections, consider spatial arrangement. Conformers differ through motions such as bond rotation or ring puckering; their ease of interconversion depends on the barrier and conditions.",
+        "Resonance drawings show alternative electron bookkeeping for the same nuclear arrangement. Do not treat them as separate molecules or conformers to rank.",
+        "Only compare energies from scientifically compatible calculations, and keep unknown energies unknown."
+      ],
+      "limitations": [
+        "A few candidate geometries do not establish every possible isomer or the global minimum.",
+        "A duplicate-removal test does not prove that retained candidates are stable minima or equilibrium populations."
+      ],
+      "controls": []
+    },
+    "chirality": {
+      "title": "Chirality and R/S labels",
+      "aliases": [
+        "chiral",
+        "chiralty",
+        "chirality",
+        "enantiomer",
+        "mirror image",
+        "R S",
+        "optical rotation",
+        "stereochemistry"
+      ],
+      "what": "A chiral structure cannot be superimposed on its mirror image by rotating and moving it. Such a mirror-image pair is called a pair of enantiomers.",
+      "why": "A drawing's appearance depends on your viewing direction. Confusing a rotated view with a different configuration can lead to a wrong molecular assignment.",
+      "when": "Check stereochemistry when your assignment concerns chiral molecules or when importing or building stereochemical structures.",
+      "where": "Inspect the selected structure in Calculations \u2192 Starting structure. Use your chemical drawing and instructor's stereochemical assignment alongside the 3D view.",
+      "how": [
+        "Verify the connections and substituents, then check the specified stereochemistry in the source structure.",
+        "R/S labels follow the Cahn\u2013Ingold\u2013Prelog priority rules for the relevant stereogenic feature; they are not labels for the direction you rotate the image.",
+        "The signs (+)/(\u2212) describe measured optical rotation under stated conditions. R does not generally mean (+), and S does not generally mean (\u2212)."
+      ],
+      "limitations": [
+        "The viewer is not an automatic stereochemical assignment or optical-rotation measurement tool.",
+        "Enantiomers have the same ordinary rotational constants and many other properties in an achiral environment; those values alone cannot distinguish them."
+      ],
+      "controls": []
+    },
+    "spectroscopy": {
+      "title": "Calculated properties and experimental spectra",
+      "aliases": [
+        "spectroscopy",
+        "spectrum",
+        "spectra",
+        "IR",
+        "infrared",
+        "NMR",
+        "peak",
+        "vibration",
+        "rotation"
+      ],
+      "what": "Spectroscopy studies how matter interacts with radiation. Different experiments, such as rotational, infrared and NMR spectroscopy, probe different properties.",
+      "why": "A calculated frequency or rotational constant is a model prediction. It is not automatically an observed experimental peak or a complete measured spectrum.",
+      "when": "Use this before interpreting the supported calculated observables or comparing them with an assigned experiment.",
+      "where": "Under More scientific tools, Spectra and properties reads supported native outputs and provides rotational-property, Hessian/isotope and numerical-data inspection tools.",
+      "how": [
+        "Identify what the displayed quantity actually is: a rotational constant, harmonic vibrational mode or supplied numerical observation.",
+        "Check units and whether a constant describes equilibrium geometry (Ae, Be, Ce) or includes nuclear-motion effects (A0, B0, C0).",
+        "Compare a model prediction with the same type of experimental observable, using the method's stated limitations.",
+        "Keep assignments, raw outputs and any experimental source separate in your report."
+      ],
+      "limitations": [
+        "A harmonic mode is not proof of an experimental IR peak assignment; intensities, selection rules, conditions and anharmonic effects matter.",
+        "This help does not enable NMR prediction, an experimental IR analysis pipeline or automatic spectral identification."
+      ],
+      "controls": [
+        "inspector_file_input",
+        "btn_parse_inspector",
+        "btn_read_hdf5",
+        "inspector_banner",
+        "inspector_rot_table",
+        "hdf5_results_table"
+      ]
+    },
+    "conformer_search": {
+      "title": "Search for alternative conformations",
+      "aliases": [
+        "TOPOS",
+        "conformer search",
+        "CREST",
+        "GOAT",
+        "search protocol",
+        "deduplication",
+        "ensemble"
+      ],
+      "what": "A conformer search explores alternative nuclear arrangements of the intended molecule or complex and retains candidate structures.",
+      "why": "One optimized starting geometry can miss other arrangements. A search helps identify candidates for later qualified calculations.",
+      "when": "Use it when your assignment explicitly requires conformational exploration and the needed search engine is available.",
+      "where": "Calculations \u2192 Advanced: other calculation tools \u2192 Other structures and energies. Use its available Calculation / Method choices and Start TOPOS calculation.",
+      "how": [
+        "Check the intended structure and electronic state, then select the assigned supported search protocol and bounds.",
+        "Read the search status and any partial or unavailable outcome.",
+        "Inspect retained structures and use qualified follow-up calculations before ranking physical minima or populations."
+      ],
+      "limitations": [
+        "Searches do not prove completeness or that every candidate is a minimum.",
+        "Do not loosen duplicate thresholds to discard inconvenient candidates. Unknown or incompatible energies must not be ranked as measured values."
+      ],
+      "controls": [
+        "topos_heuristic",
+        "topos_dedup",
+        "topos_walltime",
+        "btn_topos_refresh",
+        "btn_topos_submit",
+        "btn_topos_cancel",
+        "btn_topos_promote",
+        "research_topos_operation",
+        "research_topos_engine",
+        "research_matrix_recipe",
+        "research_candidates",
+        "btn_research_topos",
+        "btn_research_refresh",
+        "topos_status",
+        "topos_capabilities",
+        "topos_results",
+        "research_capabilities",
+        "research_matrix_guidance",
+        "research_status"
+      ]
+    },
+    "calculation_types": {
+      "title": "What task should the program perform?",
+      "aliases": [
+        "single point",
+        "optimization",
+        "optimisation",
+        "frequency",
+        "calculation operation",
+        "energy only"
+      ],
+      "what": "A single point evaluates energy at the supplied geometry. Optimization changes allowed nuclear coordinates. Frequencies examine local energy curvature.",
+      "why": "These tasks answer different questions. An energy at one geometry does not improve that geometry or establish a minimum.",
+      "when": "Choose the operation named in your assignment before pressing the run button.",
+      "where": "3 \u00b7 Run assigned calculation / Calculations \u2192 Run calculation. The operation controls depend on the selected calculation computer and engine.",
+      "how": [
+        "For energy at a specified geometry, use the assigned single-point operation.",
+        "For a nearby stationary structure, use the assigned optimization operation and inspect convergence.",
+        "When the protocol calls for minimum classification, inspect appropriate frequencies at the optimized geometry as well.",
+        "Read the current run-button label: it changes with the selected engine and task."
+      ],
+      "limitations": [
+        "Optimization does not prove a global minimum, or even a local minimum without suitable classification.",
+        "Only operations with a verified available provider can run; selecting a task cannot supply a missing scientific capability."
+      ],
+      "controls": [
+        "actions_operation",
+        "native_operation",
+        "cfour_operation",
+        "btn_execute"
+      ]
+    },
+    "convergence_frequencies": {
+      "title": "Did optimization find a meaningful structure?",
+      "aliases": [
+        "convergence",
+        "minimum",
+        "imaginary frequency",
+        "negative frequency",
+        "forces",
+        "SCF",
+        "optimization finished"
+      ],
+      "what": "Convergence means specified numerical stopping criteria were met. It is different from demonstrating chemical accuracy or finding a minimum.",
+      "why": "A normal exit or nearly unchanged energy can coexist with unconverged forces, an incorrect electronic state or a saddle point.",
+      "when": "Read these checks before using a calculated geometry, energy or spectrum in a report.",
+      "where": "Retrieve the calculation in Calculations, then inspect its result and warnings under 4 \u00b7 Read and save results / Results. Frequency and Hessian tools are in Spectra and properties.",
+      "how": [
+        "Check electronic SCF convergence separately from geometry energy, gradient and displacement convergence.",
+        "For a claimed unconstrained minimum, examine vibrational curvature after overall translation and rotation are removed.",
+        "An imaginary mode indicates negative curvature; inspect its motion and numerical conditions. A small imaginary value can also reflect numerical problems or a shallow surface.",
+        "Keep constrained results labelled: they minimize only the coordinates allowed to move."
+      ],
+      "limitations": [
+        "Optimization completion is not proof of the lowest-energy isomer or experimental accuracy.",
+        "Do not delete modes, relax thresholds or ignore a warning simply to label a structure a minimum."
+      ],
+      "controls": []
+    }
+  },
+  "authored_topic_count": 42,
+  "control_guidance_entries": 287
+}

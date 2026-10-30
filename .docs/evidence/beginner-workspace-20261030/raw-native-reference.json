@@ -1,0 +1,9 @@
+{
+  "scope": "Reference only; no raw native file or archive is included in this source-plane proposal",
+  "archive_sha256": "e84fb453cf1187a68078683d6cf54b9fa57d01eb6457d01682e76abc7fef32bb",
+  "manifest_sha256": "22da757b95e47f020815dc155fdfcb565fc0aa8b7c004e3197a4e02281f2e7e9",
+  "external_original_archive_path": "/workspace/.completion/public-evidence-native-71f4c88/canonical-local-water-native-proof.tar.gz",
+  "external_original_manifest_path": "/workspace/.completion/public-evidence-native-71f4c88/native-original-path-sha256-manifest.json",
+  "members": 57,
+  "publication_status": "external archival destination pending; no public link claimed"
+}

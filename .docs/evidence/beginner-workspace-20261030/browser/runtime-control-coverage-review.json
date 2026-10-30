@@ -1,0 +1,561 @@
+{
+  "scope": "Actual constructed navigation graph includes collapsed and conditional controls; this is not a DOM visibility or student comprehension count.",
+  "direct_interactive_attribute_references": 204,
+  "unique_interactive_navigation_descendants": 246,
+  "unmapped_attribute_refs": [],
+  "unmapped_named_descendants": [],
+  "dynamic_no_direct_attr": [
+    {
+      "model_id": "8e8c8c56958649f5a5eec3d787714672",
+      "path": "view_install.children[2].children[0]",
+      "class": "Button",
+      "description": "Hide help \u00b7 Where does my calculation run?",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "5f9bbeddd3b9413fa9dd59eccf68671c",
+      "path": "view_install.children[3].children[3].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Where this interface runs",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "cfbfe11086d34e3ab8c3bff45567ab46",
+      "path": "view_install.children[4].children[0].children[1].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Advanced: find or select installed program files",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "32c87fd4c9814af9be0eff0175133bd6",
+      "path": "view_install.children[5].children[1].children[0]",
+      "class": "ToggleButton",
+      "description": "Hide Advanced: optional programs and existing scientific data",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "6d04d74c449f447d9b1b3707e347a4fc",
+      "path": "view_install.children[5].children[1].children[1].children[1].children[0]",
+      "class": "ToggleButton",
+      "description": "Hide Advanced local setup",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "9446669172b546f7b258b49b6efaf5ea",
+      "path": "view_install.children[5].children[1].children[1].children[1].children[1].children[2]",
+      "class": "Dropdown",
+      "description": "Scientific bundle:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "2f8dfc8f9d294912bc4fd666c66b929d",
+      "path": "view_install.children[5].children[1].children[1].children[2].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Installation log",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "e1652dc13ed54a40a879333736eaaa43",
+      "path": "view_install.children[7].children[3].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Recover from an update",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "4d863bdbf5654674ab9dc8377aa9c0a2",
+      "path": "view_inputs.children[1].children[5].children[0]",
+      "class": "Button",
+      "description": "Hide help \u00b7 How do I check my molecule?",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "4ed2285f87894875ab13a53cc6493ff7",
+      "path": "view_inputs.children[3].children[3].children[2].children[0]",
+      "class": "ToggleButton",
+      "description": "Show removed inputs",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "b9a867e80dcc4d19991604e6eb5967fc",
+      "path": "view_inputs.children[4].children[0]",
+      "class": "ToggleButton",
+      "description": "Show File details and provenance",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "bb63aa6e8cd34a1c82f3b8acd157e407",
+      "path": "view_inputs.children[5].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Import from the VS Code inbox",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "b33ce8b50e3b48aab913515ccac0a555",
+      "path": "view_inputs.children[6].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Combine conformer ensembles and remove duplicates",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "cc380da41c4a437d8694d81c3430879c",
+      "path": "view_matrix.children[2].children[0]",
+      "class": "Button",
+      "description": "Hide help \u00b7 Walk me through my first calculation",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "d7693799dd6744089a7b5e7b617fe458",
+      "path": "view_matrix.children[4].children[1].children[0].children[2].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Calculation resources and frequency guidance",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "9e6a081e17c6418ca5a8ff0c97fba021",
+      "path": "view_matrix.children[4].children[1].children[1].children[2].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Time limit and frequency guidance",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "1fbadd88af7a4b9e9d5025cdba634eac",
+      "path": "view_matrix.children[4].children[2].children[0].children[0].children[7].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Assign atoms to monomers",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "c6826fc5bfe847d481a65b3f9dfc6aff",
+      "path": "view_matrix.children[4].children[2].children[0].children[0].children[10].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Advanced: assign this structure a role",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "6993fa489de64551b74e9f1862adf061",
+      "path": "view_matrix.children[4].children[2].children[0].children[0].children[11].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Build a starting complex from your monomers",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "e35223ea0c4b401b90223172c14272f7",
+      "path": "view_matrix.children[4].children[2].children[0].children[0].children[12].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Build from a name or SMILES",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "aab26cd1ef15473d99223a036e9c9ee1",
+      "path": "view_matrix.children[4].children[2].children[0].children[0].children[13].children[0]",
+      "class": "ToggleButton",
+      "description": "Hide Edit XYZ coordinates directly",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "53af25c79737443e8056d8905e1291af",
+      "path": "view_matrix.children[4].children[2].children[1].children[1].children[6].children[0]",
+      "class": "Button",
+      "description": "Help \u00b7 What are a method and basis set?",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "50a361c0a6b3470fa032543d32872d71",
+      "path": "view_matrix.children[4].children[2].children[1].children[1].children[7].children[0]",
+      "class": "ToggleButton",
+      "description": "Hide Advanced: choose another method family",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "9c3b96a9f18d47bba9bf6ea719f2497e",
+      "path": "view_matrix.children[4].children[2].children[1].children[5].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Advanced: complete-basis extrapolation",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "79289e9a3aff47e1a9e1cc8dfb1e6c1b",
+      "path": "view_matrix.children[4].children[2].children[1].children[6].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Advanced: multireference spin recovery (T9)",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "c1492389d38a411594c779b52aee2b96",
+      "path": "view_matrix.children[4].children[2].children[2].children[0].children[2].children[0]",
+      "class": "Button",
+      "description": "Help \u00b7 Which calculation answers my question?",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "c26f5ca02e904107b521b062e3c572b4",
+      "path": "view_matrix.children[4].children[2].children[2].children[0].children[4].children[2].children[2].children[0]",
+      "class": "ToggleButton",
+      "description": "Show About predefined methods",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "3ae1cfde85b14f51a5c7f30472465e95",
+      "path": "view_matrix.children[4].children[2].children[2].children[0].children[7].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Available calculations and setup help",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "80640e63c8aa4fe9bb03db1863f643c9",
+      "path": "view_matrix.children[4].children[2].children[2].children[1].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Advanced native conformer search",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "e3a995020964405daa3b92863f72aa1f",
+      "path": "view_matrix.children[4].children[2].children[3].children[2].children[0]",
+      "class": "Button",
+      "description": "Help \u00b7 What can a scan tell me?",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "9e3e9139cb5e45e48037e553d216a603",
+      "path": "view_matrix.children[4].children[2].children[4].children[7].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Provide R2 monomer references",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "429497ff9d61464fb0f9c11ad31a22b1",
+      "path": "view_matrix.children[4].children[2].children[4].children[8].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Choose starting curvature for optimization",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "81dec91831b847fcaf3c90934d3bd6ae",
+      "path": "view_matrix.children[4].children[2].children[4].children[9].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Generated ORCA constraints",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "9afa738233a1472a875099e099bd9b55",
+      "path": "view_matrix.children[4].children[3].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Advanced: output location and reproducibility export",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "99c9827d9b2d439bb8370a88c3a6fa76",
+      "path": "view_matrix.children[4].children[3].children[1].children[2].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Optional reproducibility export",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "e3f65b36b75e48359acc9e35a24e9774",
+      "path": "view_matrix.children[5].children[0]",
+      "class": "ToggleButton",
+      "description": "Hide Advanced: scientific goal and requirements",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "9c02faa76bfd47e1872bbc085a61d295",
+      "path": "view_matrix.children[5].children[1].children[0].children[4].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Scientific requirements for this goal",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "acf082297c0a48158d9720a84879fc97",
+      "path": "view_matrix.children[6].children[0]",
+      "class": "ToggleButton",
+      "description": "Hide Advanced: other calculation tools",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "f75363b1f2b2468794c78af896257a71",
+      "path": "view_matrix.children[6].children[1].children[1].children[0]",
+      "class": "Button",
+      "description": "Other structures and energies",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "01337499342046e497ce60eb4129e33a",
+      "path": "view_matrix.children[6].children[1].children[1].children[1]",
+      "class": "Button",
+      "description": "Distance scans and bonding",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "78316c2ec1854312a8d292ed69b34401",
+      "path": "view_matrix.children[6].children[1].children[1].children[2]",
+      "class": "Button",
+      "description": "Monomer constraints",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "fffa47d708074dbdb8a9a21e0b99278c",
+      "path": "view_matrix.children[8].children[6].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Live calculation output",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "57d5441204474c3b865dc6b155662da9",
+      "path": "view_matrix.children[9].children[0]",
+      "class": "Button",
+      "description": "Continue to read and save results",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "e90872eccef24986a2a5ed4b1cbddadc",
+      "path": "view_modules.children[2].children[0]",
+      "class": "Button",
+      "description": "Hide help \u00b7 How do I know what this result means?",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "1032a23d33e74e9581fadb24ba29934c",
+      "path": "view_modules.children[4].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Where did this result come from?",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "7bcfe0f74b67418cb0fa3aef16c48812",
+      "path": "view_modules.children[4].children[1].children[1].children[0]",
+      "class": "Button",
+      "description": "Help \u00b7 Keep the calculation record",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "b6c5f0ce7d4346748748a1e3549c3a98",
+      "path": "view_modules.children[5].children[0]",
+      "class": "Button",
+      "description": "Inspect spectra and calculated properties",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "2b13c4575a9e4906930808026c5502c3",
+      "path": "view_modules.children[8].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Advanced: compare structures and population models",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "bc09658088d6499593b61a91ff5b4bd4",
+      "path": "view_modules.children[11].children[0]",
+      "class": "ToggleButton",
+      "description": "Hide Advanced: module installation and data transfer",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "676de5138eef42f8aec9ce33352793c9",
+      "path": "view_modules.children[11].children[1].children[0].children[8]",
+      "class": "Dropdown",
+      "description": "Validated module input:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "29faf17a4dd6479daa9c314106db3431",
+      "path": "view_inspector.children[1].children[2]",
+      "class": "Dropdown",
+      "description": "Native output:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "b25681944f814df686025a425ef03e40",
+      "path": "view_inspector.children[2].children[1].children[4]",
+      "class": "Dropdown",
+      "description": "Retained Hessian:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "054585299a724fc892124a64cb9f581f",
+      "path": "view_inspector.children[2].children[1].children[8].children[0]",
+      "class": "Dropdown",
+      "description": "Atom 1 (O):",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "72ec3b7132264c009b432819576bc972",
+      "path": "view_inspector.children[2].children[1].children[8].children[1]",
+      "class": "Dropdown",
+      "description": "Atom 2 (H):",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "4d5aee0a97604eb3902f052449f9c682",
+      "path": "view_inspector.children[2].children[1].children[8].children[2]",
+      "class": "Dropdown",
+      "description": "Atom 3 (H):",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "2ddce999fe2f4c17a16640af4457b0c5",
+      "path": "view_inspector.children[2].children[2].children[1]",
+      "class": "Dropdown",
+      "description": "Physical data:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "bb601bd555064c439e1cc79101d083aa",
+      "path": "view_periodic.children[3]",
+      "class": "Dropdown",
+      "description": "Periodic structure:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "6f17d58848194b74bf5df14a65a6414b",
+      "path": "view_periodic.children[11].children[0]",
+      "class": "BoundedIntText",
+      "description": "k-grid a:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "aa918897d63d49cf8517ce588608f08d",
+      "path": "view_periodic.children[11].children[1]",
+      "class": "BoundedIntText",
+      "description": "k-grid b:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "0310add935c5463eb75fe03501bdbd7a",
+      "path": "view_periodic.children[11].children[2]",
+      "class": "BoundedIntText",
+      "description": "k-grid c:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "9c9babad3d5d46a39a4b80e286954455",
+      "path": "view_guide.children[1].children[0]",
+      "class": "Text",
+      "description": "Search terms:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "cc60045ee19b4f378f38212ff9bfbbde",
+      "path": "header.children[0].children[4].children[0]",
+      "class": "ToggleButton",
+      "description": "Hide More scientific tools",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "d90bc105bb5848f38a99f1a9e3b31da9",
+      "path": "header.children[1].children[0].children[0]",
+      "class": "Button",
+      "description": "1 \u00b7 Setup",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "596f7fbab7cc46f78e933483515bf686",
+      "path": "header.children[1].children[0].children[1]",
+      "class": "Button",
+      "description": "2 \u00b7 Add your molecule",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "142b285d1e084c0a8b3f60bcae6f9ef8",
+      "path": "header.children[1].children[0].children[2]",
+      "class": "Button",
+      "description": "3 \u00b7 Run assigned calculation",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "a67e439cfac545b38e70bda202c7386f",
+      "path": "header.children[1].children[0].children[3]",
+      "class": "Button",
+      "description": "4 \u00b7 Read and save results",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "5d519c8d49124e849f4d4ac789025652",
+      "path": "header.children[2].children[1].children[1].children[0]",
+      "class": "ToggleButton",
+      "description": "Show Goal requirements and current method",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "ecb572052696414393e5a00758de8658",
+      "path": "header.children[3].children[0].children[0]",
+      "class": "Text",
+      "description": "Help search:",
+      "attributes": [],
+      "help_topics": []
+    },
+    {
+      "model_id": "80ead6b937f149af874a38f57447bffb",
+      "path": "header.children[3].children[0].children[1]",
+      "class": "Button",
+      "description": "Clear help",
+      "attributes": [],
+      "help_topics": []
+    }
+  ]
+}

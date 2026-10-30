@@ -1,0 +1,83 @@
+{
+  "status": "passed",
+  "producer_head_before": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "producer_status_before": [],
+  "producer_head_after": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+  "producer_status_after": [],
+  "driver_terminal_exit_code_observed": 0,
+  "all_six_owned_command_groups_terminal_and_empty": true,
+  "owned_commands": [
+    {
+      "log": "build.log",
+      "pid": 286641,
+      "process_group": 286641,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    },
+    {
+      "log": "venv-create.log",
+      "pid": 286663,
+      "process_group": 286663,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    },
+    {
+      "log": "help-dependency-install.log",
+      "pid": 286717,
+      "process_group": 286717,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    },
+    {
+      "log": "widget-dependencies-check.log",
+      "pid": 286736,
+      "process_group": 286736,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    },
+    {
+      "log": "base-wheel-install.log",
+      "pid": 286737,
+      "process_group": 286737,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    },
+    {
+      "log": "installed-help.log",
+      "pid": 286765,
+      "process_group": 286765,
+      "returncode": 0,
+      "timed_out": false,
+      "terminal_observation": "owned process group empty"
+    }
+  ],
+  "read_only_build_tool_versions": {
+    "build": "1.6.1",
+    "setuptools": "84.0.0",
+    "wheel": "0.48.0",
+    "packaging": "26.3"
+  },
+  "prior_proof_evidence_hashes_unchanged": {
+    "build-source.json": true,
+    "wheel-membership.json": true,
+    "offline-dependency-wheels.json": true,
+    "help-dependency-lock.txt": true,
+    "build.log": true,
+    "help-dependency-install.log": true,
+    "widget-dependencies-check.log": true,
+    "base-wheel-install.log": true,
+    "installed-help.log": true,
+    "installed-help-result.json": true,
+    "launch-failure.json": true,
+    "check_installed_help.py": true
+  },
+  "prior_wheel_hash_unchanged": true,
+  "mutations_scope": "Only newly owned startup-ack-installed-wheel directory/environment; no repository edits, commits or installations into previous/frozen environments.",
+  "acceptance_sha256": "141400ee138ce65e7a33b070ad31d825026d8e700feb09e8e441d42a03c7f63b",
+  "no_installed_comm_or_browser_acceptance_claim": true
+}

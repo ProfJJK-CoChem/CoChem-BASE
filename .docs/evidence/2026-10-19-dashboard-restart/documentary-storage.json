@@ -1,0 +1,11 @@
+{
+  "scope": "Original failed browser-reload diagnostic, retained byte-for-byte as documentary text. Historical receipts retain the original filename.",
+  "files": [
+    {
+      "original": "browser-final.log",
+      "stored_as": "browser-final.log.txt",
+      "sha256": "220f71c73b581aeb073948e1873c492681c4a239b52798deb5ddc9281f4bae87",
+      "bytes": 4241
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "README.md": "d72b32345d8b702695b6206b006c9c65eaeda04f1f153c976e12ad55bdfef0df",
+  "browser-final.log": "220f71c73b581aeb073948e1873c492681c4a239b52798deb5ddc9281f4bae87",
+  "cleanup.json": "0bdc6262baa205f595467de0a111b633eb3e88d4d0092274fa7db3b02e2f22ea",
+  "earlier-after-restart.png": "9b082a40cb1c7cdcc5ad948089d4b4cf949c4807e48294443d4ae3f2ff3e0a96",
+  "earlier-before-restart.png": "bd3364985f68c7e010127e12303eeb5bd5af6bda978d0088ac3747905678ca1c",
+  "earlier-browser-restart-receipt.json": "f21a57100e070c9c8c4f781c4c9caa396a5ba9b2287d29d16e927fa73846b2c5",
+  "failed-preflight-preserved-page.png": "9b082a40cb1c7cdcc5ad948089d4b4cf949c4807e48294443d4ae3f2ff3e0a96",
+  "final-preflight-controls.xml": "03711eef3796571a15178a5d3ddb22390e43bea6f900c43ddafc3fa965d95093",
+  "final-service-observation.json": "f710b246477325dc3e7a87fa88a17067e1ad0e170bdb2c1243f0a9900482639e",
+  "final-with-alias.xml": "640661fda9ddc4841f9c8d16fec28741971959ae477f2f3d68a2afb2593d1f69",
+  "fresh-browser-recovery.json": "f477b914760676d3c2eca21cb7eda98a4927f593d684e0d4ee5f7e2d27756de4",
+  "fresh-browser-recovery.png": "2b6874db3391b78f051427b751067433bec8d02740dec6f487c024e3a03e844a",
+  "kernel-recovery-stacks.json": "ef6497c7da5f343c94db45bd57775ac13f1419bf4f2f3aa16c9208fa3c493113",
+  "kernel-widget-state.json": "c561e3f06e8e8110b3c8680ec6f3962e7794b317a7b61df820aa60ce30da30d7",
+  "preflight-green.json": "b482e96b22e88542e4051df14675fde5522e98d4bef83b227843588faa42988a",
+  "preflight-red.json": "82ef556b804f6e3ac7e23c8b610f60dda0d16fccad9bd9234e0238d26deab91a",
+  "ui-runtime-full.xml": "623fea8e6c5ef0a4ab826276c8c1d7ccbc2c0ec06f3af7453f6de7717293f6ad",
+  "validation-summary-2026-10-30.json": "1cede3619a7980948dbeecdd889a9317adce650a220ba64beee8f386ef4831d7"
+}

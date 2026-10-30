@@ -1,0 +1,18 @@
+{
+  "scope": "Original upload remains retained externally and in the prior Git blob; its redundant raw source-plane copy is removed without modifying bytes or wrapping it to evade the source-airgap gate.",
+  "original_name": "retained-water.xyz",
+  "sha256": "0594f1b62a79f97b5b12e27f66b852cc24afeab392fc21ee75057d019268f37d",
+  "bytes": 70,
+  "retained_external_paths": [
+    "/workspace/.completion/optional-engine-ux/retained-water.xyz",
+    "/workspace/.completion/evidence-preservation/optional-engine-original/retained-water.xyz"
+  ],
+  "historical_git_revision": "9624dc3ff8f46932e2afc9b10d3b72af57a2cae7",
+  "historical_git_path": ".docs/evidence/optional-engine-recovery-20261030/retained-water.xyz",
+  "publication_status": "This historical revision is locally committed; remote publication is not currently verified.",
+  "native_bundle": "native-water-xtb.tar.gz",
+  "native_bundle_sha256": "9f5fb12c45aca908bf56ea488e91ee81240cd05b65a16de973fad1c5f1cc9f17",
+  "native_bundle_contains_exact_original_upload": false,
+  "historical_manifest": "SHA256SUMS.before-documentary-storage.json",
+  "historical_receipts_unchanged": true
+}

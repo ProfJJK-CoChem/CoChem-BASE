@@ -1,7 +1,9 @@
 {
-  "README.md": "d72b32345d8b702695b6206b006c9c65eaeda04f1f153c976e12ad55bdfef0df",
-  "browser-final.log": "220f71c73b581aeb073948e1873c492681c4a239b52798deb5ddc9281f4bae87",
+  "README.md": "1fe89e9b25253c0418c39ce044f65962a22e0ebe6091dcd4d74e50d418195039",
+  "SHA256SUMS.before-documentary-storage.json": "71115055e6eccb3cbd79c3e851f625a8e4cf3dde629a92939b55beaaa72c90ef",
+  "browser-final.log.txt": "220f71c73b581aeb073948e1873c492681c4a239b52798deb5ddc9281f4bae87",
   "cleanup.json": "0bdc6262baa205f595467de0a111b633eb3e88d4d0092274fa7db3b02e2f22ea",
+  "documentary-storage.json": "4f0cbc9c87d1b4057bc6903ddfbc46111ac34c72b16192d79d71678db1d411e5",
   "earlier-after-restart.png": "9b082a40cb1c7cdcc5ad948089d4b4cf949c4807e48294443d4ae3f2ff3e0a96",
   "earlier-before-restart.png": "bd3364985f68c7e010127e12303eeb5bd5af6bda978d0088ac3747905678ca1c",
   "earlier-browser-restart-receipt.json": "f21a57100e070c9c8c4f781c4c9caa396a5ba9b2287d29d16e927fa73846b2c5",

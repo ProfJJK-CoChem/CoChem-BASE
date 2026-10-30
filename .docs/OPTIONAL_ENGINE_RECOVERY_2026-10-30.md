@@ -37,3 +37,5 @@ The independent review and screenshots are retained with hashes. This increment
 does not close the separate same-browser widget recovery observation after a
 service restart, the actual student Codespace pilot, current GitHub authorization,
 private controller billing, or the full SRS backlog.
+
+The exact original upload is retained outside the application source and in its historical Git blob, as recorded in [original-upload-storage.json](evidence/optional-engine-recovery-20261030/original-upload-storage.json). Its redundant raw XYZ copy was removed from the current source plane to meet the unchanged airgap policy. The 289-member native result bundle is unchanged and does not contain those exact original upload bytes. Historical receipts and their original file hashes remain intact.

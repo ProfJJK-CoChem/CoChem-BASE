@@ -3,12 +3,16 @@ name: CoChem private project access controller
 on:
   issues:
     types: [opened, reopened, edited]
+  schedule:
+    # Issue data survives canceled pending runs. This is a recovery wake-up,
+    # subject to GitHub scheduler availability and controller Actions billing.
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
     inputs:
       project_repository:
         description: Student-owned private project as owner/project
         type: string
-        required: true
+        required: false
       engines:
         description: Optional licensed engines (orca cfour, or empty)
         type: string
@@ -21,7 +25,8 @@ on:
           - provision
           - reconcile
           - deprovision
-        default: provision
+          - sweep
+        default: sweep
         required: true
 
 # Enrollment data never becomes shell source or a checkout ref. A controller
@@ -34,6 +39,8 @@ concurrency:
   # All issues and instructor maintenance share this repository-wide group.
   # Private ownership variables have no CAS: never narrow this to an issue/run
   # or allow a second lifecycle workflow to mutate the same project in parallel.
+  # GitHub retains only one pending run. All issue runs sweep the durable inbox;
+  # recurring/manual sweeps recover requests whose event wake-up was discarded.
   group: cochem-project-access-${{ github.repository }}
   cancel-in-progress: false
 

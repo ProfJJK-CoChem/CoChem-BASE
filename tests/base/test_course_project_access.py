@@ -67,6 +67,8 @@ class ProtocolConfiguration:
     project_owner_login: str = "student"
     project_fork: bool = False
     project_archived: bool = False
+    project_repository: str = "student/project"
+    project_id: int = 42
 
 
 class ProtocolServer(ThreadingHTTPServer):
@@ -106,6 +108,8 @@ class ProtocolServer(ThreadingHTTPServer):
         self.reader_wrong_revision = False
         self.project_owner_type = configuration.project_owner_type
         self.project_owner_login = configuration.project_owner_login
+        self.project_repository = configuration.project_repository
+        self.project_id = configuration.project_id
         self.project_fork = configuration.project_fork
         self.project_archived = configuration.project_archived
         self.redirect = False
@@ -173,6 +177,14 @@ class ProtocolHandler(BaseHTTPRequestHandler):
 
     def operation(self, method):
         state = self.server
+        # A cohort peer can share controller/token authority while preserving
+        # separate project secret stores and immutable repository identities.
+        for project in getattr(state, "projects", {}).values():
+            if (self.path == "/repos/" + project.project_repository
+                    or self.path.startswith("/repos/" + project.project_repository + "/")
+                    or self.path == "/orgs/Lab/teams/research/memberships/" + project.project_owner_login):
+                state = project
+                break
         payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"null")
         auth = self.headers.get("Authorization", "").removeprefix("Bearer ")
         path = self.path
@@ -213,7 +225,7 @@ class ProtocolHandler(BaseHTTPRequestHandler):
             else:
                 self.answer({}, 404)
             return
-        if path in {"/orgs/Lab/installation", "/repos/student/project/installation"}:
+        if path in {"/orgs/Lab/installation", "/repos/" + state.project_repository + "/installation"}:
             try:
                 header, body, signature = auth.split(".")
                 state.signing_key.public_key().verify(_decode(signature), (header + "." + body).encode(), padding.PKCS1v15(), hashes.SHA256())
@@ -229,7 +241,7 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                 return
             self.answer({"id": 11 if org else 22, "app_id": 123,
                          "repository_selection": "selected", "account": {
-                         "login": "Lab" if org else ("student" if state.correct_installation else "other"),
+                         "login": "Lab" if org else (state.project_owner_login if state.correct_installation else "other"),
                          "type": "Organization" if org else "User"}})
             return
         if path.startswith("/app/installations/") and path.endswith("/access_tokens"):
@@ -270,18 +282,18 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                 state.controller_variables[payload["name"]] = payload["value"]
                 self.answer(None, 201 if method == "POST" else 204)
             return
-        if path == "/orgs/Lab/teams/research/memberships/student":
+        if path == "/orgs/Lab/teams/research/memberships/" + state.project_owner_login:
             assert permissions == {"members": "read"}
             if state.membership_missing:
                 self.answer({}, 404)
                 return
             self.answer({"state": "active" if state.active else "pending"})
             return
-        if path == "/repos/student/project":
+        if path == "/repos/" + state.project_repository:
             if auth != state.controller_token:
                 assert permissions == {"contents": "read"}
-                assert state.tokens[auth]["repositories"] == ["project"]
-            self.answer({"id": 42, "full_name": "student/project", "default_branch": "main", "private": state.private,
+                assert state.tokens[auth]["repositories"] == [state.project_repository.split("/")[1]]
+            self.answer({"id": state.project_id, "full_name": state.project_repository, "default_branch": "main", "private": state.private,
                          "archived": state.project_archived, "fork": state.project_fork,
                          "owner": {"login": state.project_owner_login, "type": state.project_owner_type}})
             return
@@ -293,7 +305,7 @@ class ProtocolHandler(BaseHTTPRequestHandler):
             tree = [dict(item) for item in state.critical]
             if state.starter_previous and path.startswith("/repos/Lab/BASE/git/trees/" + "a" * 40):
                 tree[0]["sha"] = hashlib.sha1(b"new-approved-worker").hexdigest()
-            if path.startswith("/repos/student/"):
+            if path.startswith("/repos/" + state.project_repository + "/"):
                 assert permissions == {"contents": "read"}
                 if state.source_changed:
                     tree[0]["sha"] = "0" * 40
@@ -312,18 +324,18 @@ class ProtocolHandler(BaseHTTPRequestHandler):
             self.answer({"sha": _blob_sha(state.devcontainer), "encoding": "base64",
                          "size": len(state.devcontainer), "content": base64.b64encode(state.devcontainer).decode()})
             return
-        if path == "/repos/student/project/git/ref/heads/main":
+        if path == "/repos/" + state.project_repository + "/git/ref/heads/main":
             assert permissions == {"contents": "read"}
             self.answer({"object": {"type": "commit", "sha": state.project_revision}})
             return
-        if path.startswith("/repos/student/project/git/commits/") and method == "GET":
+        if path.startswith("/repos/" + state.project_repository + "/git/commits/") and method == "GET":
             assert permissions == {"contents": "read"}
             assert path.rsplit("/", 1)[1] == state.project_revision
             self.answer({"sha": state.project_revision, "tree": {"sha": state.project_tree}})
             return
-        prefix = "/repos/student/project/"
+        prefix = "/repos/" + state.project_repository + "/"
         if path.startswith(prefix):
-            assert state.tokens[auth]["repository_ids"] == [42]
+            assert state.tokens[auth]["repository_ids"] == [state.project_id]
             if "/git/" in path:
                 assert permissions == {"contents": "write"}
                 state.writes.append((method, path))

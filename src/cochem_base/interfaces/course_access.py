@@ -690,6 +690,120 @@ def _controller_ledger_api(app_api: GitHubAPI, config: ControllerConfig) -> GitH
                              repository=config.repository)
 
 
+class ControllerInboxStore:
+    """Signed request receipts in the controller, never in a student project.
+
+    Like ownership records, these require the one controller-wide lifecycle
+    writer. Receipts prove processing, not continuing authorization. Store only
+    bounded nonsecret data; the App key and readers never enter this ledger.
+    """
+
+    def __init__(self, config: ControllerConfig, *, app_api: GitHubAPI | None = None):
+        self.config = config
+        app_api = app_api or GitHubAPI(app_jwt(config.app_id, config.private_key))
+        self.app_api = app_api
+        self.api = _controller_ledger_api(app_api, config)
+
+    def _identity(self, key: str) -> dict:
+        if not re.fullmatch(r"COCHEM_ACCESS_INBOX_(?:ISSUE_[1-9][0-9]{0,19}|HOLD_[1-9][0-9]{0,19}|CURSOR)", key):
+            raise CourseAccessError("Invalid controller inbox record identity.")
+        return {"schema": "cochem.controller-inbox.v1", "controller": self.config.repository,
+                "app_id": self.config.app_id, "key": key}
+
+    def read(self, key: str) -> dict | None:
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+
+        identity = self._identity(key)
+        value = _variable(self.api, self.config.repository, key)
+        if value is None:
+            return None
+        def unique_object(pairs):
+            result = {}
+            for name, item in pairs:
+                if name in result:
+                    raise ValueError("duplicate inbox field")
+                result[name] = item
+            return result
+        try:
+            envelope = json.loads(value, object_pairs_hook=unique_object)
+            if not isinstance(envelope, dict) or set(envelope) != {"payload", "signature"}:
+                raise ValueError("invalid inbox envelope")
+            payload = envelope["payload"]
+            if (not isinstance(payload, dict) or set(payload) != {*identity, "data"}
+                    or any(payload[name] != expected for name, expected in identity.items())
+                    or not isinstance(payload["data"], dict)):
+                raise ValueError("record identity differs")
+            body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+            _ownership_key(self.config).public_key().verify(
+                base64.b64decode(envelope["signature"], validate=True), body,
+                padding.PKCS1v15(), hashes.SHA256())
+            return payload["data"]
+        except (InvalidSignature, ValueError, TypeError, KeyError):
+            raise CourseAccessError("Controller inbox metadata could not be authenticated; no request was replayed.") from None
+
+    def write(self, key: str, data: dict) -> None:
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+
+        payload = {**self._identity(key), "data": data}
+        body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        signature = _ownership_key(self.config).sign(body, padding.PKCS1v15(), hashes.SHA256())
+        value = json.dumps({"payload": payload, "signature": base64.b64encode(signature).decode()},
+                           sort_keys=True, separators=(",", ":"))
+        if len(value) > 16384:
+            raise CourseAccessError("Controller inbox record exceeds its data-only bound.")
+        _write_variable(self.api, self.config.repository, key, value)
+
+    def hold_key(self, repository: str) -> str:
+        """Resolve immutable identity through selected App read access.
+
+        A repository rename must not evade an instructor's withdrawal. The name
+        routes this read; only the verified immutable ID names the hold record.
+        Withdrawal also supports archived/public projects, as the lifecycle does.
+        """
+        repository_name(repository)
+        installation = _installation(self.app_api, f"/repos/{repository}/installation", self.config.app_id)
+        reader = _installation_api(self.app_api, installation, {"contents": "read"}, repository=repository)
+        project = reader.call("GET", f"/repos/{repository}")
+        owner = project.get("owner", {}) if isinstance(project, dict) else {}
+        if (not isinstance(project, dict) or not isinstance(owner, dict)
+                or type(project.get("id")) is not int or not 0 < project["id"] < 10**20
+                or str(project.get("full_name", "")).lower() != repository.lower()
+                or owner.get("type") != "User"
+                or str(owner.get("login", "")).lower() != repository.split("/")[0].lower()):
+            raise CourseAccessError("The inbox project immutable identity could not be verified.")
+        return "COCHEM_ACCESS_INBOX_HOLD_" + str(project["id"])
+
+    def held_project(self, repository: str) -> tuple[int, bool]:
+        """Return the same verified immutable ID used for the hold decision."""
+        key = self.hold_key(repository)
+        repository_id = int(key.rsplit("_", 1)[1])
+        value = self.read(key)
+        if value is None:
+            return repository_id, False
+        if (set(value) != {"repository_id", "held"} or type(value["held"]) is not bool
+                or type(value["repository_id"]) is not int
+                or value["repository_id"] != repository_id):
+            raise CourseAccessError("Controller inbox project hold is invalid.")
+        return repository_id, value["held"]
+
+    def held(self, repository: str) -> bool:
+        return self.held_project(repository)[1]
+
+    def hold_repository_id(self, repository_id: int, held: bool) -> None:
+        """Write a hold for an already verified target, without resolving a name."""
+        if type(repository_id) is not int or not 0 < repository_id < 10**20 or type(held) is not bool:
+            raise CourseAccessError("The controller inbox hold identity is invalid.")
+        key = "COCHEM_ACCESS_INBOX_HOLD_" + str(repository_id)
+        self.write(key, {"repository_id": repository_id, "held": held})
+
+    def hold(self, repository: str, held: bool) -> None:
+        key = self.hold_key(repository)
+        self.hold_repository_id(int(key.rsplit("_", 1)[1]), held)
+
+
 def _public_key(api: GitHubAPI, repository: str, store: str) -> dict:
     value = api.call("GET", f"/repos/{repository}/{store}/secrets/public-key")
     if (not isinstance(value, dict) or not isinstance(value.get("key_id"), str)
@@ -752,7 +866,8 @@ def _verify_reader_metadata(api: GitHubAPI, config: ControllerConfig,
 def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *,
                       author: str, controller_api: GitHubAPI,
                       app_api: GitHubAPI | None = None,
-                      authority_api: GitHubAPI | None = None) -> dict[str, Any]:
+                      authority_api: GitHubAPI | None = None,
+                      expected_repository_id: int | None = None) -> dict[str, Any]:
     """Stage replacements, confirm bindings, then retire signed owned labels.
 
     GitHub cannot return encrypted secret values. Readback confirms metadata,
@@ -761,6 +876,9 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
     """
     app_api, installation, read_api, project = _project_context(config, enrollment,
         author=author, controller_api=controller_api, app_api=app_api)
+    if expected_repository_id is not None and (type(expected_repository_id) is not int
+            or expected_repository_id <= 0 or project["id"] != expected_repository_id):
+        raise CourseAccessError("The project immutable identity changed after the inbox hold check; no project access was written.")
     authority_api = authority_api or controller_api
     source_binding = verify_project_source(read_api, authority_api, config, project)
     writer_api = _project_writer(app_api, installation, project)
@@ -842,6 +960,7 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
     cleanup = _cleanup_owned(writer_api, ledger_api, config, owned, actions=set(binding.values()),
                               codespaces=set(codespaces_values), state="active")
     return {"schema": RECEIPT_SCHEMA, "repository": project["full_name"], "author": author,
+            "repository_id": project["id"],
             "approved_base_sha": config.approved_base_sha, **source_binding, **codespaces_configuration,
             "available": sorted(selected), "unavailable": sorted(set(enrollment.engines) - selected.keys()),
             "codespaces_source": "available" if "source" in selected else "unavailable",
@@ -854,7 +973,8 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
 
 
 def deprovision_project(config: ControllerConfig, repository: str, *,
-                        controller_api: GitHubAPI, app_api: GitHubAPI | None = None) -> dict[str, Any]:
+                        controller_api: GitHubAPI, app_api: GitHubAPI | None = None,
+                        expected_repository_id: int | None = None) -> dict[str, Any]:
     """Withdraw controller-owned stores without touching source or student data.
 
     Removal from the team does not prevent cleanup. An uninstalled App cannot
@@ -864,6 +984,9 @@ def deprovision_project(config: ControllerConfig, repository: str, *,
     app_api, installation, _, project = _project_context(config, enrollment,
         author=repository.split("/")[0], controller_api=controller_api,
         app_api=app_api, require_membership=False, require_active_project=False)
+    if expected_repository_id is not None and (type(expected_repository_id) is not int
+            or expected_repository_id <= 0 or project["id"] != expected_repository_id):
+        raise CourseAccessError("The project immutable identity changed after the inbox hold check; no project access was written.")
     api = _project_writer(app_api, installation, project)
     ledger_api = _controller_ledger_api(app_api, config)
     owned = _ownership(ledger_api, config, project)
@@ -887,11 +1010,14 @@ def deprovision_project(config: ControllerConfig, repository: str, *,
 
 def reconcile_project(config: ControllerConfig, enrollment: EnrollmentRequest, *,
                       controller_api: GitHubAPI, app_api: GitHubAPI | None = None,
-                      authority_api: GitHubAPI | None = None) -> dict[str, Any]:
+                      authority_api: GitHubAPI | None = None,
+                      expected_repository_id: int | None = None) -> dict[str, Any]:
     """Recheck live membership; removed members can only have access withdrawn."""
     author = enrollment.repository.split("/")[0]
     app_api = app_api or GitHubAPI(app_jwt(config.app_id, config.private_key))
     if not _active_member(app_api, config, author):
-        return deprovision_project(config, enrollment.repository, controller_api=controller_api, app_api=app_api)
+        return deprovision_project(config, enrollment.repository, controller_api=controller_api, app_api=app_api,
+                                   expected_repository_id=expected_repository_id)
     return provision_project(config, enrollment, author=author, controller_api=controller_api,
-                             app_api=app_api, authority_api=authority_api)
+                             app_api=app_api, authority_api=authority_api,
+                             expected_repository_id=expected_repository_id)

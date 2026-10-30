@@ -1,0 +1,2989 @@
+{
+  "schema_version": "cochem.cancellation-junit-identities/1",
+  "record_kind": "curated documentary derivative, not a replacement execution receipt",
+  "identity_definition": [
+    "classname",
+    "name"
+  ],
+  "total": 496,
+  "distinct": 496,
+  "duplicates": 0,
+  "identities": [
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_atomic_source_receipts",
+      "name": "test_complete_source_receipt_is_private_and_parser_valid",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_atomic_source_receipts",
+      "name": "test_existing_source_receipt_is_never_replaced[regular]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_atomic_source_receipts",
+      "name": "test_existing_source_receipt_is_never_replaced[directory]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_atomic_source_receipts",
+      "name": "test_existing_link_cannot_redirect_source_receipt",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_atomic_source_receipts",
+      "name": "test_strict_reader_rejects_genuinely_truncated_final_bytes",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_atomic_source_receipts",
+      "name": "test_failed_initial_publication_never_exposes_partial_or_runs_body[serialization]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_atomic_source_receipts",
+      "name": "test_failed_initial_publication_never_exposes_partial_or_runs_body[native-write]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_atomic_source_receipts",
+      "name": "test_failed_initial_publication_never_exposes_partial_or_runs_body[native-interruption]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_termination_check_rejects_a_genuinely_live_process",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_runner_uses_utf8_in_a_cp1252_parent",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_arguments_are_literal_and_environment_is_not_mutated",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_invalid_utf8_and_exit_codes_fail_closed[1]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_invalid_utf8_and_exit_codes_fail_closed[2]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_sync_capture_preserves_universal_newlines_and_explicit_error_policy",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_invalid_timeouts_are_rejected[0]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_invalid_timeouts_are_rejected[-1]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_invalid_timeouts_are_rejected[inf]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_invalid_timeouts_are_rejected[nan]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_sync_timeout_reaps_child",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_async_execution_errors_and_timeout",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_async_cancellation_reaps_child",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_linter_cli_is_strict_without_a_flag",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_application_imports_are_rejected_even_with_amnesty[import src.cochem_base]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_application_imports_are_rejected_even_with_amnesty[from cochem_base.physics import isotopes]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_application_imports_are_rejected_even_with_amnesty[import importlib; importlib.import_module('cochem_base.physics')]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_application_imports_are_rejected_even_with_amnesty[from importlib import import_module as load; load('cochem_base.physics')]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_application_imports_are_rejected_even_with_amnesty[import importlib as loaders; loaders.import_module('cochem_' + 'base.physics')]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_linter_cannot_be_bypassed_by_renaming[anti_spoof_linter.py]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_linter_cannot_be_bypassed_by_renaming[api_mocks/worker.py]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_missing_audit_target_fails",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_relative_repository_root_preserves_ci_boundary",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_all_ci_tools_are_application_independent",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_runner_imports_with_only_the_standard_library",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_quarantine_uses_platform_temp_and_utf8",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_quarantine_preserves_explicit_import_path",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_airgap",
+      "name": "test_quarantine_does_not_claim_library_tracker_or_other_callers_children",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_base_ci",
+      "name": "test_actual_passing_child_produces_acceptance",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_base_ci",
+      "name": "test_real_failed_skipped_xfailed_and_empty_child_runs_fail_acceptance[def test_failure():\\n    assert 2 + 2 == 5\\n]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_base_ci",
+      "name": "test_real_failed_skipped_xfailed_and_empty_child_runs_fail_acceptance[import pytest\\ndef test_skipped():\\n    pytest.skip('unapproved missing dependency')\\n]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_base_ci",
+      "name": "test_real_failed_skipped_xfailed_and_empty_child_runs_fail_acceptance[import pytest\\npytest.skip('skipped whole module', allow_module_level=True)\\n]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_base_ci",
+      "name": "test_real_failed_skipped_xfailed_and_empty_child_runs_fail_acceptance[# A zero-test run must never pass acceptance.\\n]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_base_ci",
+      "name": "test_real_failed_skipped_xfailed_and_empty_child_runs_fail_acceptance[import pytest\\n@pytest.mark.xfail(reason='unapproved expected failure')\\ndef test_failure():\\n    assert False\\n]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_base_ci",
+      "name": "test_exact_external_deferral_is_pending_not_passed",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_base_ci",
+      "name": "test_source_fixture_requires_exact_bytes_and_cannot_authorize_other_paths",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_base_ci",
+      "name": "test_forged_collected_count_or_missing_phase_cannot_pass",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_load_periodic_table_symbols",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_lru_cache_on_load_periodic_table_symbols",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_scan_file_clean_nuclide_resolver",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_detect_static_mass_dictionary_violation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_detect_dict_constructor_violation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_distinguish_covalent_radii",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_distinguish_vdw_radii",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_distinguish_valence_constants",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_distinguish_symmetry_point_groups",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_distinguish_atomic_number_integers",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_assert_atomic_weight_import_missing",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_assert_atomic_weight_import_present_mendeleev",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_assert_atomic_weight_import_present_nuclide_resolver",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_assert_atomic_weight_import_present_alias_mendeleev",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_assert_atomic_weight_import_present_alias_nuclide_resolver",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_assert_atomic_weight_import_present_asname",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_benign_dictionary_no_false_positive",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_inline_suppression_comment",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_amnesty_file_bypass",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_builtin_legacy_amnesty_paths_content",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_builtin_legacy_amnesty_bypasses_files",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_physical_amnestied_files_scan_clean",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_cli_main_clean_pass",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_detect_subscript_assignment_violation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_detect_attribute_assignment_violation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_detect_walrus_assignment_violation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_detect_dictcomp_violation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_cli_main_violation_returns_nonzero",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_scientific_mass_tables_cannot_hide_in_constructors_or_suppressions[MASSES = {\"12C\": 12, \"13C\": 13.00335}]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_scientific_mass_tables_cannot_hide_in_constructors_or_suppressions[MASS = dict([(\"H\", 1.008), (\"C\", 12.011)])]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_scientific_mass_tables_cannot_hide_in_constructors_or_suppressions[ATOMIC_MASSES = [1.008, 12.011]]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_scientific_mass_tables_cannot_hide_in_constructors_or_suppressions[NUCLEAR_MASSES = np.array([1.008, 12.011])]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_scientific_mass_tables_cannot_hide_in_constructors_or_suppressions[molecule(masses=np.asarray([1.008, 15.999]))]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_scientific_mass_tables_cannot_hide_in_constructors_or_suppressions[COVALENT_RADII = {\"C\": 12.011, \"O\": 15.999}]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_scientific_mass_tables_cannot_hide_in_constructors_or_suppressions[MASS = {\"C1\": 1, \"Cs\": 1, \"H\": 1.008, \"C\": 12.011}]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_scientific_mass_tables_cannot_hide_in_constructors_or_suppressions[MASSES = {\"H\": 1.008}  # noqa: mendeleev-ast]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_lookalike_provider_imports_do_not_establish_mass_provenance[import fake_mendeleev\\nvalue = element.atomic_weight]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_lookalike_provider_imports_do_not_establish_mass_provenance[from unknown import get_mendeleev_element\\nvalue = get_mendeleev_element(\"H\").atomic_weight]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_lookalike_provider_imports_do_not_establish_mass_provenance[from unknown import helper as disambiguate_mass\\nvalue = disambiguate_mass(\"H\")]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_lookalike_provider_imports_do_not_establish_mass_provenance[import mendeleev\\nimport unknown as resolver\\nvalue = resolver.disambiguate_mass(\"H\")]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_lookalike_provider_imports_do_not_establish_mass_provenance[import mendeleev\\nimport unknown\\nel = unknown.element(\"H\")\\nvalue = el.atomic_weight]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_lookalike_provider_imports_do_not_establish_mass_provenance[import mendeleev\\nimport unknown\\nmendeleev = unknown\\nvalue = mendeleev.element(\"H\").atomic_weight]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_legitimate_provider_imports_and_other_physical_quantities_remain_valid[from mendeleev import element as query\\nvalue = query(\"C\").atomic_weight]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_legitimate_provider_imports_and_other_physical_quantities_remain_valid[from cochem_base.physics.nuclide_resolver import disambiguate_mass as mass\\nvalue = mass(\"13C\")]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_legitimate_provider_imports_and_other_physical_quantities_remain_valid[STANDARD_NUCLEAR_QUADRUPOLE_MOMENTS_MBARN = {\"2H\": 2.860, \"14N\": 20.44}]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_legitimate_provider_imports_and_other_physical_quantities_remain_valid[calculate(weights=[0.25, 0.75])]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_legitimate_provider_imports_and_other_physical_quantities_remain_valid[RADIUS_PM = {\"C\": 76.0, \"O\": 66.0}]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_legitimate_provider_imports_and_other_physical_quantities_remain_valid[ATOMIC_NUMBERS = {\"C\": 6, \"O\": 8}]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_legitimate_provider_imports_and_other_physical_quantities_remain_valid[text = \"# mendeleev-linter: disable\"]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_missing_unreadable_and_invalid_python_sources_fail_closed",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_data_and_hidden_source_directories_cannot_hide_mass_tables",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_mendeleev_ast_linter",
+      "name": "test_cli_does_not_accept_an_amnesty_switch",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_clean_reviewed_commit_and_explicit_wrong_authority",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_build_and_runtime_configuration_inputs_are_in_the_reviewed_ring",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_initial_comment_tampering_refused_before_test_with_unchanged_seals",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_committed_wrong_ring_rejects_and_reader_never_refreshes",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_committed_incomplete_ring_is_not_accepted",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_untracked_ring_cannot_issue_its_own_authority",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_development_mode_is_explicit_nonrelease",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_student_data_is_excluded_but_untracked_importable_source_is_refused",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_gitignored_importable_source_is_still_refused",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_root_test_configuration_must_be_tracked_reviewed_source",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_registered_fixture_cannot_use_untracked_data",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_git_inspection_disables_fsmonitor_and_refuses_external_conversion",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_git_replace_cannot_rebind_the_expected_publisher_commit",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_pre_execution_integrity",
+      "name": "test_publisher_environment_cannot_be_downgraded_to_development",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_directory_lifecycle",
+      "name": "test_actual_directory_handle_release_allows_owned_retirement",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_directory_lifecycle",
+      "name": "test_persistent_directory_handle_keeps_native_failure_visible",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_directory_lifecycle",
+      "name": "test_changed_owned_root_refuses_without_touching_foreign_input[regular-file]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_directory_lifecycle",
+      "name": "test_changed_owned_root_refuses_without_touching_foreign_input[directory-link]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_directory_lifecycle",
+      "name": "test_owned_cleanup_unlinks_foreign_directory_alias_without_following_it",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_launch_admission_precedes_fast_commands_and_preserves_native_status",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_unadmitted_launchers_cannot_execute_requested_commands",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_exited_launcher_cleans_workers_and_preserves_unrelated_owners[False-0]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_exited_launcher_cleans_workers_and_preserves_unrelated_owners[False-7]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_exited_launcher_cleans_workers_and_preserves_unrelated_owners[True-0]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_exited_launcher_cleans_workers_and_preserves_unrelated_owners[True-7]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_interruption_preserves_original_exception_and_stops_owned_tree[KeyboardInterrupt]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_interruption_preserves_original_exception_and_stops_owned_tree[SystemExit]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_registration_interruption_and_foreign_tracking_lock_are_bounded",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_import_preserves_application_signal_handlers",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_mismatched_real_process_generation_is_refused_without_signalling",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_finished_handle_retained_when_unregister_lock_is_unavailable",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_receipt_publication_refuses_a_non_directory",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_stopped_context_removes_its_real_readonly_files_and_preserves_external_files",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_cli_copies_only_reviewed_source_and_retains_external_inputs",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_cli_source_refusal_precedes_execution_and_development_is_nonrelease[wrong-revision]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_cli_source_refusal_precedes_execution_and_development_is_nonrelease[changed-release]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_owned_processes",
+      "name": "test_cli_source_refusal_precedes_execution_and_development_is_nonrelease[changed-development]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_selected_profile_executes_copied_bytes_and_preserves_external_runtime",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_unsafe_control_receipt_destination_refuses_before_test_execution",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_strict_audit_refuses_before_selected_test_execution",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_executed_copy_mutation_fails_and_leaves_original_source_unchanged",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_actual_foreign_base_editable_namespace_cannot_escape_second_checkout",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_ordinary_startup_refusal_is_not_swallowed_by_python",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_actual_child_receipt_authority_corruption_is_refused[source_root]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_actual_child_receipt_authority_corruption_is_refused[source_revision]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_actual_child_receipt_authority_corruption_is_refused[startup_source_sha256]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_actual_child_receipt_authority_corruption_is_refused[origins]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_isolated_child_refuses_untracked_script_before_execution",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.ci_tools.test_quarantine_source_profile",
+      "name": "test_source_observations_reresolve_actual_moving_module_symlink",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_platform_launchers",
+      "name": "test_actual_host_launcher_reaches_real_bootstrap_from_external_directory",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_platform_launchers",
+      "name": "test_actual_host_launcher_help_and_secondary_entry_point",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_platform_launchers",
+      "name": "test_actual_host_launcher_rejects_invalid_arguments[arguments0]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.base.test_platform_launchers",
+      "name": "test_actual_host_launcher_rejects_invalid_arguments[arguments1]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_excluded_dirs",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_runtime_concurrency_imports_are_not_engine_substitution",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_detect_mock_modules",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_detect_pass_stub",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_detect_not_implemented_error",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_detect_hardcoded_successful_physical_result",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_clean_script_passes",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_run_linter_directory",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_amnesty_bypass",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_detect_pytest_alias_skip",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_detect_pytest_skipif_and_xfail",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_detect_unittest_skips",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_detect_monkeypatch_and_setattr_bypass",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_charge_and_spin_inputs_do_not_claim_observed_results",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_detect_dynamic_obfuscation_exec_eval",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_generated_physical_evidence_cannot_hide_behind_import_or_assignment_aliases",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_work_arrays_require_real_data_before_becoming_result_values",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_template_redaction_state_paths_and_inherited_behavior_are_not_stubs",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_hardcoded_audit_verdict_is_rejected_but_state_serialization_is_allowed",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_missing_convergence_never_defaults_to_success",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_mock_aliases_and_environment_intercepts_remain_prohibited",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_empty_audits_and_amnesty_generation_cannot_report_success",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_rng_object_result_is_evidence_not_a_numerical_workspace",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_models_and_function_parameters_require_explicit_convergence",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_circular_interface_reexports_are_rejected_for_absolute_and_relative_imports",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_real_compatibility_reexport_and_package_child_import_are_allowed",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_explicit_missing_interface_stays_a_strict_conformance_failure",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_runtime_self_inspection_is_not_an_empty_reexport",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_computed_matrix_accumulation_does_not_masquerade_as_generated_result",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_anti_spoof_linter",
+      "name": "test_literal_matrix_writes_do_not_launder_generated_evidence",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_cochem_bench_ci",
+      "name": "test_canonical_workflow_and_reusable_physical_acceptance",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_cochem_bench_ci",
+      "name": "test_canonical_magic_scanner_rejects_disguised_headers[\\x89HDF\\r\\n\\x1a\\n-HDF5]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_cochem_bench_ci",
+      "name": "test_canonical_magic_scanner_rejects_disguised_headers[SQLite format 3\\x00-SQLite]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_cochem_bench_ci",
+      "name": "test_canonical_magic_scanner_rejects_disguised_headers[\\x93NUMPY-NumPy]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_cochem_bench_ci",
+      "name": "test_canonical_magic_scanner_rejects_disguised_headers[PAR1-Parquet]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_cochem_bench_ci",
+      "name": "test_canonical_magic_scanner_rejects_disguised_headers[\\x7fELF-ELF]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_cochem_bench_ci",
+      "name": "test_canonical_magic_scanner_rejects_disguised_headers[MZ\\x90\\x00-PE]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_cochem_bench_ci",
+      "name": "test_entropy_and_coordinate_detection_uses_canonical_implementation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_cochem_bench_ci",
+      "name": "test_canonical_config_pollution_detection",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "tests.test_cochem_bench_ci",
+      "name": "test_old_amnesty_cannot_waive_an_executable_mock",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_script_exists_and_lf_endings",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_shannon_entropy_calculation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_restricted_extensions_detection",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_magic_number_detection",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_qm_log_signatures_detection",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_xyz_coordinate_payload_detection",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_config_pollution_detection",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_clean_workspace_scan",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_disguised_binary_detection_in_sweep",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_high_entropy_detection_in_sweep",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_cli_execution_clean",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_cli_execution_violation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_cli_json_output",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_default_entropy_threshold_constant",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_format_airgap_report",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_restricted_directory_detection",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_ci_airgap_sweep",
+      "name": "test_invalid_repo_paths",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_visitor_bare_except",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_visitor_broad_exception_with_pass",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_visitor_broad_base_exception_with_ellipsis",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_visitor_broad_exception_with_docstring_only",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_visitor_qualified_exception_builtins",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_visitor_tuple_with_broad_exception",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_visitor_specific_exception_allowed",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_visitor_constant_condition_if_statements",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_visitor_legitimate_conditions_allowed",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_audit_file",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_audit_repository_target_dirs_prefix_isolation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_audit_repository_excluded_directories",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_audit_repository_target_dirs_pruning_deep",
+      "outcome": "passed"
+    },
+    {
+      "profile": "controls",
+      "classname": "test_suite.test_verify_anti_patching",
+      "name": "test_audit_repository_root_files_skipped_when_target_dirs_specified",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[fanout]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[topos_unknown]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[individual]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[pending_http]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[failed_http]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[stale_http]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[wrong_http]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[terminal_http]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[retry_http]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[probe_http]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[busy_guards]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[geometry_precancel]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[hpc_timeout]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[hpc_history]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[caption_preservation]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[hpc_unknown]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[hpc_unknown_corrupt]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[hpc_unknown_history]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "cancellation",
+      "classname": "tests.ui.test_active_work_cancellation",
+      "name": "test_active_work_in_fresh_process[hpc_stale_history]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_batch_script_is_valid_bash_and_only_dispatches_hash_bound_reviewed_worker[slurm]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_batch_script_is_valid_bash_and_only_dispatches_hash_bound_reviewed_worker[pbs]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_scheduler_injection_and_unbounded_allocations_rejected[queue-teaching; touch /tmp/injected]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_scheduler_injection_and_unbounded_allocations_rejected[job_name-student\\n#SBATCH --nodes=2]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_scheduler_injection_and_unbounded_allocations_rejected[account-$(whoami)]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_scheduler_injection_and_unbounded_allocations_rejected[email-me@example.org\\ncode]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_scheduler_injection_and_unbounded_allocations_rejected[cores-True]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_scheduler_injection_and_unbounded_allocations_rejected[cores-0]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_scheduler_injection_and_unbounded_allocations_rejected[memory_mb--1]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_scheduler_injection_and_unbounded_allocations_rejected[nodes-2]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_scheduler_injection_and_unbounded_allocations_rejected[walltime-00:00:00]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_multicore_hpc_admission_is_not_limited_to_actions_student_profile",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_t9_recovery_cannot_select_server_paths_overallocate_or_change_electronic_state[python_executable-/home/prof/python]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_t9_recovery_cannot_select_server_paths_overallocate_or_change_electronic_state[threads-17]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_t9_recovery_cannot_select_server_paths_overallocate_or_change_electronic_state[memory_mb-32768]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_t9_recovery_cannot_select_server_paths_overallocate_or_change_electronic_state[timeout_seconds-15000]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_t9_recovery_cannot_select_server_paths_overallocate_or_change_electronic_state[active_orbitals-value4]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_t9_recovery_cannot_select_server_paths_overallocate_or_change_electronic_state[active_electrons-1]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_t9_recovery_cannot_select_server_paths_overallocate_or_change_electronic_state[active_space_rationale-]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_login_host_scientific_paths_cannot_enter_portable_requests[hessian_file]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_login_host_scientific_paths_cannot_enter_portable_requests[r2_reference_manifest]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_login_host_scientific_paths_cannot_enter_portable_requests[t9_fallback]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_read_checkpoint_requires_its_matching_bundle_and_is_rebound_to_exact_original_bytes",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_reference_recipe_cannot_be_admitted_without_its_scientific_manifest",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_fresh_genuine_missing_registry_is_reported_as_unavailable",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_actual_absent_allocation_cannot_run_chemistry[slurm-SLURM_JOB_ID]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_actual_absent_allocation_cannot_run_chemistry[pbs-PBS_JOBID]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_environment_job_id_alone_cannot_replace_actual_controller_authority[slurm-SLURM_JOB_ID-scontrol]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_environment_job_id_alone_cannot_replace_actual_controller_authority[pbs-PBS_JOBID-qstat]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_worker_without_scheduler_allocation_retains_failure_and_performs_no_science",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_queued_originals_and_controller_spooled_request_digest_cannot_change",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_queued_source_fingerprint_rejects_a_different_implementation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_hpc_history_retains_owned_identity_when_gui_adds_status_observations",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_controller_memory_units_are_interpreted_before_scientific_allocation[32G-32768]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_controller_memory_units_are_interpreted_before_scientific_allocation[32768M-32768]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_controller_memory_units_are_interpreted_before_scientific_allocation[32768mb-32768]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_controller_memory_units_are_interpreted_before_scientific_allocation[1048576kb-1024]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_unknown_controller_memory_cannot_authorize_scientific_processes",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_actual_scratch_mount_is_measured_not_inferred_from_directory_name",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_actual_unclassified_mount_and_redirect_cannot_be_scratch",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_allocation_placement_binds_real_host_identity_and_creates_private_unique_roots",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_explicit_unclassified_allocation_scratch_refuses_before_directory_creation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_shared_job_records_use_atomic_staging_without_prohibited_external_lock",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_local_native_fixture_bytes_and_failed_metadata_publish_exactly",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_local_publication_refuses_links_and_retains_existing_result_bytes",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_queued_registry_is_validated_from_exact_local_bytes_without_shared_source_lock",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_local_registry_snapshot_keeps_canonical_structural_validation",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_worker_temp_cache_and_scratch_aliases_are_local_and_restored_after_exception",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_unknown_dispatch_survives_a_real_side_effect_timeout_and_blocks_duplicate",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_invalid_dispatch_ack_retains_unknown_without_inventing_job_id[slurm-]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_invalid_dispatch_ack_retains_unknown_without_inventing_job_id[slurm-not-a-job]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_invalid_dispatch_ack_retains_unknown_without_inventing_job_id[slurm-123\\n456]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_invalid_dispatch_ack_retains_unknown_without_inventing_job_id[pbs-pending]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_invalid_dispatch_ack_retains_unknown_without_inventing_job_id[pbs-0.server]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_matching_saved_receipt_resolves_only_its_original_dispatch_protocol[slurm-123;cluster\\n-123]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_matching_saved_receipt_resolves_only_its_original_dispatch_protocol[pbs-456.server\\n-456.server]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[attempt_missing]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[attempt_json]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[attempt_schema]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[attempt_jobid]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[request_changed]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[script_changed]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[attempt_link]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[receipt_json]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[receipt_schema]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[receipt_wrong_hash]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold[receipt_link]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_dispatch_attempt_cannot_be_overwritten_or_resolved_by_another_request",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_actual_dispatch_command_boundary_classifies_unknown_without_cluster[timeout_after_side_effect]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_actual_dispatch_command_boundary_classifies_unknown_without_cluster[invalid_ack]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_real_two_process_admission_blocks_a_second_dispatch_intent[while_admitted]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_real_two_process_admission_blocks_a_second_dispatch_intent[after_unconfirmed]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_admission_release_never_removes_an_actual_replacement_directory",
+      "outcome": "passed"
+    },
+    {
+      "profile": "hpc",
+      "classname": "tests.base.test_student_hpc_contract",
+      "name": "test_abandoned_admission_is_never_removed_using_a_pid_or_stale_guess",
+      "outcome": "passed"
+    },
+    {
+      "profile": "frontend",
+      "classname": "tests.ui.test_initial_widget_state",
+      "name": "test_actual_gui_target_scope_and_real_widget_comm_replay_once",
+      "outcome": "passed"
+    },
+    {
+      "profile": "frontend",
+      "classname": "tests.ui.test_initial_widget_state",
+      "name": "test_queued_and_combined_user_selections_are_not_replayed",
+      "outcome": "passed"
+    },
+    {
+      "profile": "frontend",
+      "classname": "tests.ui.test_initial_widget_state",
+      "name": "test_label_growth_and_reordering_never_replay_or_change_indices",
+      "outcome": "passed"
+    },
+    {
+      "profile": "frontend",
+      "classname": "tests.ui.test_initial_widget_state",
+      "name": "test_runtime_features_and_editable_controls_fail_explicitly",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_optional_licensed_engines",
+      "name": "test_optional_engine_controls_in_isolated_process[missing]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_optional_licensed_engines",
+      "name": "test_optional_engine_controls_in_isolated_process[free]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_optional_licensed_engines",
+      "name": "test_optional_engine_controls_in_isolated_process[remote]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_optional_licensed_engines",
+      "name": "test_optional_engine_controls_in_isolated_process[cfour-contract]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_optional_licensed_engines",
+      "name": "test_optional_engine_controls_in_isolated_process[remote-cfour]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_optional_licensed_engines",
+      "name": "test_optional_engine_controls_in_isolated_process[catalog-transitions]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_optional_licensed_engines",
+      "name": "test_optional_engine_controls_in_isolated_process[remote-auth-failure]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_optional_licensed_engines",
+      "name": "test_optional_engine_controls_in_isolated_process[withdrawal-state-controls]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_beginner_workspace_layout",
+      "name": "test_beginner_workspace_in_source_child[guided_navigation]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_beginner_workspace_layout",
+      "name": "test_beginner_workspace_in_source_child[help_preserves_draft]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_beginner_workspace_layout",
+      "name": "test_beginner_workspace_in_source_child[advanced_preserves_draft]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_beginner_workspace_layout",
+      "name": "test_beginner_workspace_in_source_child[persistent_state_and_results]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_beginner_workspace_layout",
+      "name": "test_beginner_workspace_in_source_child[goal_remains_visible]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_beginner_workspace_layout",
+      "name": "test_beginner_workspace_in_source_child[displayed_summary_download_bytes]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_ordinary_questions_find_the_relevant_authored_explanation[chiralty-chirality]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_ordinary_questions_find_the_relevant_authored_explanation[Why are mirror images different?-chirality]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_ordinary_questions_find_the_relevant_authored_explanation[What does R/S mean?-chirality]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_ordinary_questions_find_the_relevant_authored_explanation[What is the difference between isomers and resonance?-isomers]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_ordinary_questions_find_the_relevant_authored_explanation[What does a negative frequency mean?-convergence_frequencies]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_ordinary_questions_find_the_relevant_authored_explanation[What total charge should I enter?-charge_spin]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_ordinary_questions_find_the_relevant_authored_explanation[How do I start my first calculation?-first_calculation]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_ordinary_questions_find_the_relevant_authored_explanation[Did my calculation succeed?-read_results]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_deliberate_alias_and_case_variants_rank_chirality_first",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_search_is_bounded_and_shorter_query_can_recover",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_unbounded_or_invalid_result_limit_is_rejected[0]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_unbounded_or_invalid_result_limit_is_rejected[-1]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_unbounded_or_invalid_result_limit_is_rejected[13]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_unbounded_or_invalid_result_limit_is_rejected[True]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_unbounded_or_invalid_result_limit_is_rejected[2.5]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_unbounded_or_invalid_result_limit_is_rejected[6]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_help_is_compact_and_uses_labelled_native_input_and_button",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_live_widget_search_clear_and_context_open_use_the_same_content",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_repeated_search_does_not_allocate_an_output_model_per_keystroke",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_empty_and_unknown_topic_states_are_explicit_escaped_and_recoverable",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_authored_text_is_rendered_as_text_in_every_answer_field",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_inline_and_search_answers_share_the_same_authored_content",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_coverage_inventory_reports_unmapped_controls_without_claiming_all_coverage",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_individual_control_instructions_are_searchable_and_visible[charge_input]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_individual_control_instructions_are_searchable_and_visible[matrix_method]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_individual_control_instructions_are_searchable_and_visible[btn_actions_retrieve]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_search",
+      "name": "test_real_help_runs_without_credentials_network_or_provider_processes",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[workspace]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[scientific_inputs]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[charge_spin]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[method_basis]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[theory_tiers]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[solvent]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[calculation_types]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[convergence_frequencies]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[fragments_constraints]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[hessian]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[active_space]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[isotopes]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[periodic]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[compare_results]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[provenance]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_guidance_distinguishes_scientific_results_from_inputs_and_estimates",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_input_guidance_covers_ensembles_native_outputs_and_periodic_data",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_glossary_filters_real_terms_case_insensitively_and_can_be_cleared",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_glossary_can_find_chemistry_abbreviations_and_explanations",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_glossary_escapes_search_text_and_explains_empty_results",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_unknown_help_topic_fails_instead_of_silently_displaying_unrelated_guidance",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_progress_labels_explain_protocol_states_without_changing_them[prepared-request prepared]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_progress_labels_explain_protocol_states_without_changing_them[submitted-submission recorded]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_progress_labels_explain_protocol_states_without_changing_them[cancellation_requested-waiting for GitHub]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_progress_labels_explain_protocol_states_without_changing_them[awaiting_workflow-waiting for GitHub]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_progress_labels_explain_protocol_states_without_changing_them[dispatch_unconfirmed-confirm submission]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_progress_labels_explain_protocol_states_without_changing_them[dispatching-request received; waiting for the run]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_progress_labels_explain_protocol_states_without_changing_them[queued-queued; waiting to run]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_progress_labels_explain_protocol_states_without_changing_them[in_progress-running]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_progress_labels_explain_protocol_states_without_changing_them[updates_available-updates are available]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_progress_labels_explain_protocol_states_without_changing_them[rolled_back-previous version restored]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_learning_guidance",
+      "name": "test_unknown_progress_is_not_presented_as_success",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_workspace_guidance",
+      "name": "test_workspace_guidance_in_fresh_process[goal_navigation]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_workspace_guidance",
+      "name": "test_workspace_guidance_in_fresh_process[help_preserves_draft]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_workspace_guidance",
+      "name": "test_workspace_guidance_in_fresh_process[input_disclosure]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_workspace_guidance",
+      "name": "test_workspace_guidance_in_fresh_process[choice_labels]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_workspace_guidance",
+      "name": "test_workspace_guidance_in_fresh_process[visible_recovery]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_workspace_guidance",
+      "name": "test_workspace_guidance_in_fresh_process[reference_instructions]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_workspace_guidance",
+      "name": "test_workspace_guidance_in_fresh_process[progress_rendering]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_research_panel_clarity",
+      "name": "test_actual_research_widgets_in_fresh_process[operation_fields]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_research_panel_clarity",
+      "name": "test_actual_research_widgets_in_fresh_process[shared_status]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_research_panel_clarity",
+      "name": "test_actual_research_widgets_in_fresh_process[clear_selection]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_research_panel_clarity",
+      "name": "test_actual_research_widgets_in_fresh_process[scan_sampling]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_research_panel_clarity",
+      "name": "test_actual_research_widgets_in_fresh_process[comparison_guidance]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_research_panel_clarity",
+      "name": "test_actual_research_widgets_in_fresh_process[contextual_help]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_disclosure",
+      "name": "test_toggle_events_preserve_child_values_and_synchronize_open_state",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_disclosure",
+      "name": "test_renaming_keeps_current_state_and_invalid_sections_are_rejected",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_scf_guidance_keeps_final_grid_and_does_not_invent_orbital_diagnosis[SCFConvergenceError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_scf_guidance_keeps_final_grid_and_does_not_invent_orbital_diagnosis[ConvergenceError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_scf_guidance_keeps_final_grid_and_does_not_invent_orbital_diagnosis[ORCAExecutionError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_scf_guidance_keeps_final_grid_and_does_not_invent_orbital_diagnosis[CFOURExecutionError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_geometry_convergence_is_not_misreported_as_electronic_failure[error0]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_geometry_convergence_is_not_misreported_as_electronic_failure[error1]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_overlap_matrix_failure_is_not_misreported_as_overlapping_atoms[BasisSetLinearDependencyError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_overlap_matrix_failure_is_not_misreported_as_overlapping_atoms[ORCAExecutionError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_overlap_matrix_failure_is_not_misreported_as_overlapping_atoms[CFOURExecutionError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_hessian_configuration_is_not_evidence_of_an_imaginary_frequency[HessianSpecificationError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_hessian_configuration_is_not_evidence_of_an_imaginary_frequency[InvalidHessianStrategyError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_frequency_guidance_distinguishes_linear_molecules_and_numerical_noise[NegativeHessianFrequencyError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_frequency_guidance_distinguishes_linear_molecules_and_numerical_noise[ORCAExecutionError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_frequency_guidance_distinguishes_linear_molecules_and_numerical_noise[CFOURExecutionError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_large_amplitude_motion_is_not_invented_as_an_imaginary_mode",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_other_matrix_singularities_are_not_invented_as_diffuse_basis_failure",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_unrelated_keywords_do_not_create_a_scientific_diagnosis[Negative allocation size]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_unrelated_keywords_do_not_create_a_scientific_diagnosis[SCF converged normally; property unavailable]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_unrelated_keywords_do_not_create_a_scientific_diagnosis[Cell service unavailable]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_typed_failure_takes_precedence_over_incidental_scf_text",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_memory_error_with_scf_context_does_not_suggest_scf_recovery[OutOfMemoryGateError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_memory_error_with_scf_context_does_not_suggest_scf_recovery[ORCAExecutionError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_memory_error_with_scf_context_does_not_suggest_scf_recovery[CFOURExecutionError]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_domain_guidance_uses_current_chunk17_product_definitions",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_kpoint_guidance_does_not_enlarge_the_physical_cell_to_evade_the_gate",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_rotational_guidance_allows_real_symmetric_and_linear_rotors",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error0]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error1]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error2]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error3]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error4]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error5]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error6]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error7]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error8]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error9]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error10]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error11]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error12]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error13]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_scientific_error_guidance",
+      "name": "test_student_guidance_preserves_original_diagnostic_payload_and_requests_evidence_retention[error14]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[actual_ipywidgets8_upload_retains_original_and_geometry]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[student_upload_preserves_explicit_isotope_labels]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[student_states_and_complete_fragment_membership_persist]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[complex_seed_uses_only_student_monomers_and_keeps_originals]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[invalid_actions_repository_cannot_execute_local_chemistry]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[optional_export_remains_available_without_submitting]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[setup_update_and_restart_controls_need_no_student_terminal]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[uninstalled_research_capabilities_cannot_start_science]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[gui_restart_recovers_student_inputs_and_details]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[corrupt_retained_input_metadata_is_rejected_on_restart]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[unverified_remote_licenses_are_omitted_and_free_request_is_portable]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[portable_t9_form_validates_electrons_orbitals_and_rationale]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[unused_t9_does_not_verify_optional_pyscf]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[missing_t9_authority_is_background_denial]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[native_primary_requires_fresh_t9_authority]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[malformed-0]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[malformed-1]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[malformed-2]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[malformed-3]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[malformed-4]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[malformed-5]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[malformed-6]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[unsafe-name-0]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[unsafe-name-1]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[unsafe-name-2]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "interface",
+      "classname": "tests.ui.test_student_entrypoint",
+      "name": "test_actual_student_entrypoint_contract[unsafe-name-3]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[all_specified_molecular_uploads_and_record_selection]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[invalid_multi_record_input_never_partially_admitted]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[uploaded_native_hessian_and_physical_bundle]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[actual_isotope_button_runs_native_tensor_analysis_in_background]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[native_output_upload_uses_real_spectroscopy_reader]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[no_primary_input_path_or_json_controls]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[uploaded_periodic_structure_and_real_paw_deck]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[canonical_molecule_builder_retains_generated_provenance]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[pool_sieve_retains_unranked_records_and_uses_explicit_protocol]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[real_inbox_watcher_and_corrupt_receipt_isolation]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[native_result_hessian_selection_and_tamper_rejection]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[retained_archive_preview_binds_exact_source_over_old_library_selection]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[actions_geometry_control_denies_missing_identity_without_local_fallback]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[hpc_selection_denies_interface_host_scientific_execution]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[remove_input_and_geometry_choices_is_recoverable_after_restart]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[remove_selected_hessian_clears_loaded_force_field]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[remove_input_during_actual_upload_waits_for_worker]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[clear_starting_hessian_attachment_stays_clear_after_restart]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[corrupt_saved_dependency_does_not_hide_unrelated_geometry]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[actual_upload_busy_use_guard_success]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[actual_upload_busy_use_guard_rejection]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[actual_inbox_busy_use_guard_success]",
+      "outcome": "passed"
+    },
+    {
+      "profile": "intake",
+      "classname": "tests.ui.test_scientific_input_library",
+      "name": "test_actual_scientific_input_library[actual_inbox_busy_use_guard_rejection]",
+      "outcome": "passed"
+    }
+  ]
+}

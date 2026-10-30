@@ -1,0 +1,192 @@
+{
+  "schema_version": "cochem.cancellation-selected-profiles/1",
+  "record_kind": "curated documentary derivative, not a replacement execution receipt",
+  "producer": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+  "scope": "Six selected affected local engineering profiles, not full SRS/student/hosted/physical-scheduler qualification",
+  "total_distinct_identities": 496,
+  "profiles": [
+    {
+      "profile": "controls",
+      "tests_passed": 221,
+      "seconds": 27.023,
+      "failures": 0,
+      "skips": 0,
+      "startup_only_records": 7,
+      "source_revision": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true,
+      "profile_harness_release_mode_acceptance": true,
+      "startup_only_not_finalizer_proof": true,
+      "original_acceptance": {
+        "original_relative_path": "cancellation-candidate-a305880/controls/test-acceptance.json",
+        "sha256": "85f775a416aecd1594faf06a4f0662c291c2f7ddc4cdfb1ae54787f35971dbed",
+        "size_bytes": 3718
+      }
+    },
+    {
+      "profile": "cancellation",
+      "tests_passed": 19,
+      "seconds": 190.983,
+      "failures": 0,
+      "skips": 0,
+      "startup_only_records": 4,
+      "source_revision": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true,
+      "profile_harness_release_mode_acceptance": true,
+      "startup_only_not_finalizer_proof": true,
+      "original_acceptance": {
+        "original_relative_path": "cancellation-candidate-a305880/cancellation/test-acceptance.json",
+        "sha256": "0eaeaceebab43ba7fab2f351c772ea85bf58f55b600762c86594405aeebe7454",
+        "size_bytes": 3341
+      }
+    },
+    {
+      "profile": "hpc",
+      "tests_passed": 74,
+      "seconds": 55.977,
+      "failures": 0,
+      "skips": 0,
+      "startup_only_records": 3,
+      "source_revision": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true,
+      "profile_harness_release_mode_acceptance": true,
+      "startup_only_not_finalizer_proof": true,
+      "original_acceptance": {
+        "original_relative_path": "cancellation-candidate-a305880/hpc/test-acceptance.json",
+        "sha256": "ee80733f65cf682816fe22231a232663b2cc650a8d918a4d7b69f7727e86e881",
+        "size_bytes": 3186
+      }
+    },
+    {
+      "profile": "frontend",
+      "tests_passed": 4,
+      "seconds": 11.078,
+      "failures": 0,
+      "skips": 0,
+      "startup_only_records": 3,
+      "source_revision": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true,
+      "profile_harness_release_mode_acceptance": true,
+      "startup_only_not_finalizer_proof": true,
+      "original_acceptance": {
+        "original_relative_path": "cancellation-candidate-a305880/frontend/test-acceptance.json",
+        "sha256": "46b718df069c796fb5165fc596bdb9a38795e757741fcc710dba81c2d6b091ca",
+        "size_bytes": 3187
+      }
+    },
+    {
+      "profile": "interface",
+      "tests_passed": 155,
+      "seconds": 441.814,
+      "failures": 0,
+      "skips": 0,
+      "startup_only_records": 0,
+      "source_revision": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true,
+      "profile_harness_release_mode_acceptance": true,
+      "startup_only_not_finalizer_proof": true,
+      "original_acceptance": {
+        "original_relative_path": "cancellation-candidate-a305880/interface/test-acceptance.json",
+        "sha256": "0a8cda492cc50ad813e61c7db39ea81af8e59781d6256050d858d76b16dd62de",
+        "size_bytes": 3117
+      }
+    },
+    {
+      "profile": "intake",
+      "tests_passed": 23,
+      "seconds": 180.611,
+      "failures": 0,
+      "skips": 0,
+      "startup_only_records": 0,
+      "source_revision": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+      "source_and_copy_unchanged": true,
+      "owned_boundary_empty": true,
+      "profile_harness_release_mode_acceptance": true,
+      "startup_only_not_finalizer_proof": true,
+      "original_acceptance": {
+        "original_relative_path": "cancellation-candidate-a305880/intake/test-acceptance.json",
+        "sha256": "dde8009267a503cd236a68ec72db8346d9ea62f4a89a22a45e0f49a733d2ca77",
+        "size_bytes": 2761
+      }
+    }
+  ],
+  "startup_only_records_are_not_finalizer_proof": true,
+  "full_product_release_accepted": false,
+  "source": {
+    "original_relative_path": "cancellation-candidate-verification.json",
+    "sha256": "4cc4a13aa758e48f0a30172c763bfd413a50b425843e9ca011892729fd5b0245",
+    "size_bytes": 4627
+  },
+  "derived_junit": [
+    {
+      "documentary_path": "junit/controls.xml",
+      "source": {
+        "original_relative_path": "cancellation-candidate-a305880/controls/pytest.xml",
+        "sha256": "45c1f924828e796a7904dc94302cec1e2ebd8cc032c212db08db4149c19c8d97",
+        "size_bytes": 32392
+      },
+      "sha256": "f522167c73e91f547577ebcc16eb5857f102440e4f3cf1cfc462648069ea0e1f",
+      "transform": "Only transient hostname attributes removed, then XML reserialized; testcase identities/outcomes/times/timestamps unchanged.",
+      "removed_hostname_attributes": 1
+    },
+    {
+      "documentary_path": "junit/cancellation.xml",
+      "source": {
+        "original_relative_path": "cancellation-candidate-a305880/cancellation/pytest.xml",
+        "sha256": "1419df6954a2232914cf82f821f6c314b07845565266343bacc26048758c70bb",
+        "size_bytes": 2760
+      },
+      "sha256": "2aee18939e99ab01c327ee3289a4fd01c7a14f9baf961f9dda4df86239625c87",
+      "transform": "Only transient hostname attributes removed, then XML reserialized; testcase identities/outcomes/times/timestamps unchanged.",
+      "removed_hostname_attributes": 1
+    },
+    {
+      "documentary_path": "junit/hpc.xml",
+      "source": {
+        "original_relative_path": "cancellation-candidate-a305880/hpc/pytest.xml",
+        "sha256": "189046436b1ea78439af02107964a46e97578b4309bb80a93c51822b87270209",
+        "size_bytes": 12438
+      },
+      "sha256": "61d1e7605af99bdaae2a7a898d492c344e7ea91eef98a36f00f6fdf2b327a7d3",
+      "transform": "Only transient hostname attributes removed, then XML reserialized; testcase identities/outcomes/times/timestamps unchanged.",
+      "removed_hostname_attributes": 1
+    },
+    {
+      "documentary_path": "junit/frontend.xml",
+      "source": {
+        "original_relative_path": "cancellation-candidate-a305880/frontend/pytest.xml",
+        "sha256": "d3bf629eeebfabbe612706341953a987a92619aab91713fbef207f400dceeb78",
+        "size_bytes": 809
+      },
+      "sha256": "06374155677e751a28fde99635d513e2292a4f1b2653987c39a822b1e55308e9",
+      "transform": "Only transient hostname attributes removed, then XML reserialized; testcase identities/outcomes/times/timestamps unchanged.",
+      "removed_hostname_attributes": 1
+    },
+    {
+      "documentary_path": "junit/interface.xml",
+      "source": {
+        "original_relative_path": "cancellation-candidate-a305880/interface/pytest.xml",
+        "sha256": "ecc333e554e51664170e7dbd91880f0d6d8a77639f8c7b58fee580b501e7d1fd",
+        "size_bytes": 25065
+      },
+      "sha256": "484069b4f533608a748843f640c22c01c185dfb79ab630b5d009b0bfdbdd1dfa",
+      "transform": "Only transient hostname attributes removed, then XML reserialized; testcase identities/outcomes/times/timestamps unchanged.",
+      "removed_hostname_attributes": 1
+    },
+    {
+      "documentary_path": "junit/intake.xml",
+      "source": {
+        "original_relative_path": "cancellation-candidate-a305880/intake/pytest.xml",
+        "sha256": "bb6e0f6af163a6e94f52be1f35c1ec300534c83b4e65ff58d977ba3d49b7b520",
+        "size_bytes": 4236
+      },
+      "sha256": "2c566999bde9c55bd623c41d051b9b5383aa8ad0ab7659a6905edb11f949386d",
+      "transform": "Only transient hostname attributes removed, then XML reserialized; testcase identities/outcomes/times/timestamps unchanged.",
+      "removed_hostname_attributes": 1
+    }
+  ]
+}

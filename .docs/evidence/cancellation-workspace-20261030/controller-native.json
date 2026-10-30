@@ -1,0 +1,63 @@
+{
+  "schema_version": "cochem.cancellation-controller-native/1",
+  "record_kind": "curated documentary derivative, not a replacement execution receipt",
+  "producer": "54d85cfd04e03ba66cf8b2ca538717117f303f47",
+  "provider_revision": "19fded21c1a579d9226077d072dd876cac7be484",
+  "scope": "Actual instantiated-widget/controller header clicks; not browser DOM or a new native run.",
+  "source": {
+    "original_relative_path": "cancellation-implementation/native-final-54d85cf/terminal-summary.json",
+    "sha256": "01f003d7e95ab2c9eaedfe3dd5443add3b2ab4ef47fa8aaee0069bda186ddca6",
+    "size_bytes": 6158
+  },
+  "scope_addendum": {
+    "original_relative_path": "cancellation-implementation/native-final-54d85cf/native-scope-addendum.json",
+    "sha256": "b14fdb3f95571a912c195590741cf2978fa92f87e2866378a2671bb499c5abb3",
+    "size_bytes": 872
+  },
+  "original_addendum_copied_byte_exact": true,
+  "cases": [
+    {
+      "kind": "crest",
+      "actual_outcome": "cancelled",
+      "actual_witness": {
+        "pid": 326014,
+        "create_time": 1793401931.2,
+        "observed_monotonic": 185266.221518809
+      },
+      "stop_clicked_monotonic": 185266.221842181,
+      "witness_execution_stopped": true,
+      "draft_and_original_preserved": true,
+      "claim": "Actual CREST engine executable PID/create_time observed before real header widget Stop; owned execution termination confirmed. No scientific accuracy/minimum claim."
+    },
+    {
+      "kind": "xtb",
+      "actual_outcome": "natural-completion-race",
+      "actual_witness": null,
+      "stop_clicked_monotonic": null,
+      "witness_execution_stopped": null,
+      "draft_and_original_preserved": true,
+      "claim": "No eligible engine PID witness and no Stop click recorded. Actual optimization naturally completed before capture; accepted result preserved. No midflight cancellation proof."
+    },
+    {
+      "kind": "torq_geometry",
+      "actual_outcome": "cancelled",
+      "actual_witness": {
+        "pid": 326118,
+        "create_time": 1793401943.71,
+        "observed_monotonic": 185278.741561491
+      },
+      "stop_clicked_monotonic": 185278.74176934,
+      "witness_execution_stopped": true,
+      "draft_and_original_preserved": true,
+      "claim": "Actual managed module_adapter_torq.py --handoff PID/create_time observed before Stop, not a --capabilities probe; owned launched TORQ job termination confirmed. This does not independently establish that the inner scientific geometry routine had begun before Stop."
+    }
+  ],
+  "all_midflight_science_cancellation_proved": false,
+  "TORQ_inner_scientific_routine_began": "unproven; witness is actual managed module_adapter_torq.py --handoff job, not capabilities probe",
+  "xTB_engine_pid_witness": null,
+  "xTB_Stop_click": null,
+  "xTB_natural_completed_result_preserved": true,
+  "owned_boundary_empty": true,
+  "source_and_copy_unchanged": true,
+  "no_scientific_accuracy_minimum_remote_scheduler_or_full_release_claim": true
+}

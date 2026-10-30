@@ -1,0 +1,230 @@
+{
+  "schema_version": "cochem.cancellation-browser-readback/1",
+  "record_kind": "curated documentary derivative, not a replacement execution receipt",
+  "producer": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+  "source": {
+    "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/browser/browser-report.json",
+    "sha256": "797601fbfa199ebc95de8e2378883dc6fa28cdc4f6e46b88d34a15258df85ec1",
+    "size_bytes": 26023
+  },
+  "root_original_review": {
+    "original_relative_path": "cancellation-browser-root-review.json",
+    "sha256": "082d1c8c7611c4ddf93e1e692da09fc679612709c212912156f4f98bea5fcbf1",
+    "size_bytes": 1208
+  },
+  "precise_count_definition": "20 retained_search_artifacts plus 14 actual_result_sidecars mapped relative to the completed Results directory; 1 original uploaded fixture checked separately.",
+  "verified_entries": [
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/worker.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/telemetry.json.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/config.json",
+      "sha256": "b525b681b224594ec4f5f79ebb24c523720f47a5faab99994b7b9506a46254c0",
+      "size_bytes": 587
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/worker.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/ingress.json",
+      "sha256": "4e01e311d2b15122cf3d4a28fd7e5137c40eb5104df49c0731da5f192d5f9b71",
+      "size_bytes": 846
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/input.original.xyz",
+      "sha256": "c766688cea7b8d74fefddf6868372a6e1bdc1f73c343367138b617724758bbaf",
+      "size_bytes": 139
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/ingress.json.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/input.xyz",
+      "sha256": "525938a6fc622549c4db42332cfe16d120091cc20bbc8a525e71bdbd1612f47b",
+      "size_bytes": 177
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/config.json.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/telemetry.json",
+      "sha256": "76df06dd9835a7d2b12eaff9b02ab87d89034dcfb0eeb9655b7540eb2cdd74a0",
+      "size_bytes": 447
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/CREST/stdout.log",
+      "sha256": "aa6cafecd43a6c46fb376347cf6abf6f404de696a4cedd7fb1ede7ab7d35bd01",
+      "size_bytes": 5094
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/CREST/coord",
+      "sha256": "a68258c89a372c28d551a105b2ca2bbc9c448b85cbcaa65c20bfd648ea1aea90",
+      "size_bytes": 252
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/CREST/wall.coord",
+      "sha256": "801cc983611fa8917815e79073db8b0c405bf3867e8e0c2284a34991fe3f01a3",
+      "size_bytes": 8252
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/CREST/crestopt.log",
+      "sha256": "1694688e554a58d225db105b22813b536be180f0b8b686b3e155b375aa1b5502",
+      "size_bytes": 687
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/CREST/.CHRG",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "size_bytes": 2
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/CREST/crest_input_copy.xyz",
+      "sha256": "328546794042b249072decff84b766a3874a617d089be8ccb98cd4a68b1c22ef",
+      "size_bytes": 200
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/CREST/.UHF",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "size_bytes": 2
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/CREST/input.xyz",
+      "sha256": "525938a6fc622549c4db42332cfe16d120091cc20bbc8a525e71bdbd1612f47b",
+      "size_bytes": 177
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/CREST/crest_0.mdrestart",
+      "sha256": "edf49e5eb161969c5b3c3c85d081b46c641b138b7743e06fa9b3ebbebeb68497",
+      "size_bytes": 426
+    },
+    {
+      "category": "retained_search_artifacts",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/TOPOS/submission_42c95463e9bb4dddaea9a15f1834ce39/Scratch/topos_job_0ce791a32a2d484f880777be08fe3664/CREST/stderr.log",
+      "sha256": "0bb4ede0051cd5e751e7abedc120c6bf886a7eff25886c68f228a9b3207882a1",
+      "size_bytes": 48
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/execution.json",
+      "sha256": "ed0065d526f81758aac1802985f6bf77865436bed054371edee3d78bfcd486ff",
+      "size_bytes": 708
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/input.xyz",
+      "sha256": "602cf425199263a01ead9950d130b93a091feef41830c82d0466ef1b757cfc12",
+      "size_bytes": 166
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/input.engrad",
+      "sha256": "f4241078aa1e42441cd143a9d1d5981d21870292a995608ab25c56d2dd947411",
+      "size_bytes": 519
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/execution_authority.json",
+      "sha256": "a75468f8b62ce70bb550baa8cf6325af5c0abb679a6b4a571936ab410fd697b2",
+      "size_bytes": 447
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/ingress_alignment.json",
+      "sha256": "34fccea6b313cc2ce81ab6abdc72c5a5cac4fec8e2db8a3980ef29a828e21c90",
+      "size_bytes": 1124
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/xtbopt.xyz",
+      "sha256": "98e5d66e7724221c60390907a9ac420bf7e482fe769a113bb174175ac76be184",
+      "size_bytes": 233
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/result.json",
+      "sha256": "4784a5eb4b7af469cdd090ee1bcef6f6c259356bccacc3eed7addb070b1fea44",
+      "size_bytes": 4280
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/xtbopt.log",
+      "sha256": "bac895c08ab4dd40289c8ce2f86dc732bfa4497383d7f33dffb09ad033751c9b",
+      "size_bytes": 2076
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/matrix_config.validated.json",
+      "sha256": "e758134d4e64f45e51d29efb5f89c3a686986866bcc87390146e9ca070a40d99",
+      "size_bytes": 770
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/optimization_evidence.json",
+      "sha256": "1bedb48667a41eb33bc13ea40076726aac75c3d578b05f13e25e7072beb2b793",
+      "size_bytes": 636
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/stderr.log",
+      "sha256": "037435cfefaf87aea2062fd3fbcc038852353fabbbe67f4e8057e43fd1ffe88d",
+      "size_bytes": 267
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/gradient",
+      "sha256": "57cdcf1921861f1d9d8df9b7b25558762cf91da8e4f8830b3d33f8ec2d91a261",
+      "size_bytes": 506
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/xtb.out",
+      "sha256": "016744adba6aec907aa1a8cd108477d8c917044aaca9a61252346eccb217a4dc",
+      "size_bytes": 13548
+    },
+    {
+      "category": "actual_result_sidecars",
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/GUI/run_80768d5abc9748fd9a971d856c27fdbc/Results/optimization_evaluations.json",
+      "sha256": "e2c2a234ebc39768494e37f06055fc71ed9cb3f03a8f926dc26765139a090fe8",
+      "size_bytes": 20124
+    }
+  ],
+  "verified_original_uploads": [
+    {
+      "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/artifacts/InputLibrary/39bf99015e9e4109aec0522079d2e829/original.xyz",
+      "sha256": "6d4344cb6c5823d7e44efe06f746df255e58908e944221bda5d16cfead2013e4",
+      "size_bytes": 119
+    }
+  ],
+  "rehashed_during_curation": true
+}

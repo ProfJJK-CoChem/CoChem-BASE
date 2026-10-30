@@ -1,0 +1,84 @@
+{
+  "schema_version": "cochem.cancellation-browser-console/1",
+  "record_kind": "curated documentary derivative, not a replacement execution receipt",
+  "producer": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+  "source": {
+    "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/browser/browser-report.json",
+    "sha256": "797601fbfa199ebc95de8e2378883dc6fa28cdc4f6e46b88d34a15258df85ec1",
+    "size_bytes": 26023
+  },
+  "json_pointer": "/console_messages",
+  "count": 17,
+  "messages": [
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/console (required ^4.6.2)"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/logconsole (required ^4.6.2)"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/mainmenu (required ^4.6.2)"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/notebook (required ^4.6.2)"
+    },
+    {
+      "type": "warning",
+      "text": "No satisfying version (^4.6.2) of shared module @jupyterlab/outputarea found in shared scope default.\nAvailable versions: 4.2.5 from _JUPYTERLAB.CORE_OUTPUT"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.6.2)"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.6.2)"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/settingregistry (required ^4.6.2)"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/translation (required ^4.6.2)"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/rendermime (required ^4.5.10)"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 7.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/services (required ^7.5.10)"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 4.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/statedb (required ^4.5.10)"
+    },
+    {
+      "type": "warning",
+      "text": "Unsatisfied version 6.2.5 from _JUPYTERLAB.CORE_OUTPUT of shared singleton module @jupyterlab/coreutils (required ^6.5.10)"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x13a400f7aa00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x13a400f7aa00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x13a400f7aa00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x13a400f7aa00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    }
+  ],
+  "values_order_and_duplicates_preserved": true,
+  "note": "Actual shared-module version and WebGL notices retained; zero page/request errors does not mean warning-free. This count is independent of startup-only origin records."
+}

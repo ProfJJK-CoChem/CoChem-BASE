@@ -1,0 +1,106 @@
+{
+  "schema_version": "cochem.cancellation-browser-dom/1",
+  "record_kind": "curated documentary derivative, not a replacement execution receipt",
+  "producer": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+  "actual_canonical_start_here": true,
+  "source": {
+    "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/terminal-summary.json",
+    "sha256": "0c71801b787bbd71e0c444fa2c724d6a09e38546bc46949e32b9dbbddf438ddd",
+    "size_bytes": 4334
+  },
+  "original_report": {
+    "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/browser/browser-report.json",
+    "sha256": "797601fbfa199ebc95de8e2378883dc6fa28cdc4f6e46b88d34a15258df85ec1",
+    "size_bytes": 26023
+  },
+  "source_hashes": {
+    "ui/voila_layout/cochem_gui.py": "6c68d02fc5053dc4619e7ff75683522eaf8adc308a75c1b747605bdb4ee77b65",
+    "ui/voila_layout/workspace_layout.py": "f7a4148a5e942e86a5cf3c4c2e1ed830cbdfee94ab7416c4fa583e70aff463b1",
+    "ui/voila_layout/help_content.py": "d951929c9ee52fbaaadc66125adca17e19f591e722e2911e401062b395d269b3",
+    "src/cochem_base/interfaces/student_hpc.py": "d0abca34c59d9a665d4bdf14839f53ece963600d54d93e670540a0d480a152bf",
+    "tests/base/test_student_hpc_contract.py": "f791216551a34c49e3a9fc330a458beda618dac847836acdb9009066f1156b53",
+    "tests/ui/test_active_work_cancellation.py": "929b25602750db2cb7ccafb89129045854bf270e25e76c741c7e33fa7681545a",
+    "Start_Here.ipynb": "60b8f19009edb8176545dad4cc16aed6326508044a733b6a549f61d5af100fbd"
+  },
+  "source_unchanged": true,
+  "copied_source_unchanged": true,
+  "protected_authority_and_binaries_unchanged": true,
+  "crest": {
+    "actual_engine_pid": 333372,
+    "create_time": 1793402627.75,
+    "witness_observed_monotonic": 185962.786006687,
+    "stop_click_monotonic": 185962.789296422,
+    "dom_dispatch_returned": true,
+    "midflight_engine_cancellation_proved": true,
+    "terminal": "CANCELLED",
+    "partial_search_entries_preserved": 20
+  },
+  "xtb": {
+    "result_sha256": "4784a5eb4b7af469cdd090ee1bcef6f6c259356bccacc3eed7addb070b1fea44",
+    "genuine_local_gfn2_screening_completed": true,
+    "actual_header_enabled_during_run": true,
+    "final_header_disabled": true,
+    "xTB_cancellation_claim": false,
+    "minimum_or_scientific_accuracy_claim": false,
+    "separate_empty_report_caption": "<p role='status'>No tables or diagrams have been collected here yet.</p>"
+  },
+  "original_fixture_copies": 1,
+  "retained_entries": 34,
+  "origin_records": 32,
+  "origin_failures": [],
+  "origin_authority_errors": [],
+  "startup_only": [],
+  "page_errors": [],
+  "request_failures": [],
+  "actual_console_notices": 17,
+  "owned_boundary_empty": true,
+  "actual_listeners_after_cleanup": [],
+  "exact_pid_create_time_cleanup": [
+    {
+      "kind": "crest",
+      "pid": 333372,
+      "expected_create_time": 1793402627.75,
+      "state": "absent",
+      "executing": false
+    },
+    {
+      "kind": "voila",
+      "pid": 332907,
+      "expected_create_time": 1793402602.65,
+      "state": "absent",
+      "executing": false
+    },
+    {
+      "kind": "kernel",
+      "pid": 333082,
+      "expected_create_time": 1793402607.86,
+      "state": "absent",
+      "executing": false
+    }
+  ],
+  "screenshots": [
+    {
+      "documentary_path": "screenshots/02-search-terminal-retained.png",
+      "source": {
+        "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/browser/02-search-terminal-retained.png",
+        "sha256": "07d413d59ccd5890a28addb0769be1d9bfe282beef7ae02566c1a6a1e863e28f",
+        "size_bytes": 119527
+      },
+      "sha256": "07d413d59ccd5890a28addb0769be1d9bfe282beef7ae02566c1a6a1e863e28f",
+      "visual_scope": "Actual canonical DOM after CREST cancellation; disabled header Stop. Not a new execution.",
+      "image_editing": false
+    },
+    {
+      "documentary_path": "screenshots/03-real-result-and-corrected-caption.png",
+      "source": {
+        "original_relative_path": "cancellation-browser-review/candidate-a305/lane2/browser/03-real-result-and-corrected-caption.png",
+        "sha256": "cbd7b139f04a4b2a4d50820b4756b67a8b2f9022628ff8cf297c7bbff0812ca7",
+        "size_bytes": 136996
+      },
+      "sha256": "cbd7b139f04a4b2a4d50820b4756b67a8b2f9022628ff8cf297c7bbff0812ca7",
+      "visual_scope": "Actual same-GUI completed xTB card and disabled Stop. Empty-report caption was asserted in DOM/backend but lies below this screenshot viewport; do not claim this image displays it.",
+      "image_editing": false
+    }
+  ],
+  "scope": "Actual unmodified Start_Here in Chromium: genuine owned CREST/header DOM Stop and same-GUI genuine GFN2-xTB screening completion; no full16/restart/hosted/HPC/student/accuracy or minimum qualification."
+}

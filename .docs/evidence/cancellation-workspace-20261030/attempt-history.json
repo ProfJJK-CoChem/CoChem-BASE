@@ -1,0 +1,133 @@
+{
+  "schema_version": "cochem.cancellation-attempt-history/1",
+  "record_kind": "curated documentary derivative, not a replacement execution receipt",
+  "attempts": [
+    {
+      "kind": "pre_pytest_source_audit_refusal",
+      "producer": "54d85cfd04e03ba66cf8b2ca538717117f303f47",
+      "profile": "controls",
+      "pytest_executed": false,
+      "tests_executed": 0,
+      "selected_test_blocker_count": 1,
+      "actual_selected_blocker": [
+        {
+          "file": "tests/ui/test_active_work_cancellation.py",
+          "line": 254,
+          "col": 8,
+          "category": "EMPTY_PASS_STUB",
+          "symbol": "log_message",
+          "message": "Empty pass/ellipsis function implementation"
+        }
+      ],
+      "source": {
+        "original_relative_path": "cancellation-candidate-54d85cf/controls/test-acceptance.json",
+        "sha256": "0ac57acf2104efbd0e8c62ac1cc9a3fd5c3ffa080d37c22de9afaa2e35444ea4",
+        "size_bytes": 1732
+      },
+      "audit": {
+        "original_relative_path": "cancellation-candidate-54d85cf/controls/source-audit.json",
+        "sha256": "70b8a44e368e49b72d0198d50e1dabaa315857b4d4d64c9611023262e9d08834",
+        "size_bytes": 160684
+      }
+    },
+    {
+      "kind": "pre_pytest_source_audit_refusal",
+      "producer": "54d85cfd04e03ba66cf8b2ca538717117f303f47",
+      "profile": "frontend",
+      "pytest_executed": false,
+      "tests_executed": 0,
+      "selected_test_blocker_count": 1,
+      "actual_selected_blocker": [
+        {
+          "file": "tests/ui/test_active_work_cancellation.py",
+          "line": 254,
+          "col": 8,
+          "category": "EMPTY_PASS_STUB",
+          "symbol": "log_message",
+          "message": "Empty pass/ellipsis function implementation"
+        }
+      ],
+      "source": {
+        "original_relative_path": "cancellation-candidate-54d85cf/frontend/test-acceptance.json",
+        "sha256": "0ac57acf2104efbd0e8c62ac1cc9a3fd5c3ffa080d37c22de9afaa2e35444ea4",
+        "size_bytes": 1732
+      },
+      "audit": {
+        "original_relative_path": "cancellation-candidate-54d85cf/frontend/source-audit.json",
+        "sha256": "85efab4dd9be8576109c9aa9cacee178b02e789eec691203355fd1df03c9c89d",
+        "size_bytes": 160684
+      }
+    },
+    {
+      "kind": "distinct_earlier_development_http_control",
+      "base_revision": "71f4c88ff0d3958043dccb1d4239f03361ede873",
+      "uncommitted_test_sha256": "6853e3fe3134cf546643edf51852b94ae96cb9b3375dcac57a57d99e375990db",
+      "passed": 7,
+      "failures": 0,
+      "skipped": 0,
+      "release_accepted": false,
+      "source": {
+        "original_relative_path": "cancellation-implementation/http-access-log-focused/test-acceptance.json",
+        "sha256": "158f8660bb2a503390fe3d60d19be56e660ef698704176319d4adeba725666e6",
+        "size_bytes": 2798
+      },
+      "not_relabelled_as_a305": true,
+      "not_added_to_distinct496": true,
+      "xml": {
+        "documentary_path": "junit/http-development-seven.xml",
+        "source": {
+          "original_relative_path": "cancellation-implementation/http-access-log-focused/pytest.xml",
+          "sha256": "1d27c5bdaf690d3390629f17b522e46baa1593d8f16bbdb70bcec70ae105b372",
+          "size_bytes": 1158
+        },
+        "sha256": "783448c9cfe97f34b546c17a0201b61269c7e36f5f3f1363c510d18a45634cb9",
+        "transform": "Only transient hostname attributes removed, then XML reserialized; testcase identities/outcomes/times/timestamps unchanged.",
+        "removed_hostname_attributes": 1
+      }
+    },
+    {
+      "kind": "exact_final_committed_http_control",
+      "producer": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+      "test_sha256": "929b25602750db2cb7ccafb89129045854bf270e25e76c741c7e33fa7681545a",
+      "change": "Actual HTTP handler access-log verification retained, using Counter equality for concurrent request-order independence; actual requests/status counts and no credential logging remain asserted.",
+      "only_changed_path_from54d": "tests/ui/test_active_work_cancellation.py",
+      "product_and_infrastructure_bytes_unchanged": true,
+      "source": {
+        "original_relative_path": "cancellation-test-correction-integration.json",
+        "sha256": "7465a75e6efdb9f10bc79870753a22aa98d3b29d219f978634e5998f077d8121",
+        "size_bytes": 551
+      },
+      "proof": "The seven HTTP identities are included in the final 496 distinct selected a305 JUnit identities; earlier seven-pass development receipt remains separate."
+    },
+    {
+      "kind": "browser_lane1_observer_failure",
+      "producer": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+      "status": "failed",
+      "error_type": "TimeoutError",
+      "actual_reason": "Observer attempted select_option on an already-correct disabled Method field; Playwright timed out before cancellation observations. Original failure body/trace/report retained.",
+      "application_source_not_changed_for_retry": true,
+      "source": {
+        "original_relative_path": "cancellation-browser-review/candidate-a305/lane1/browser/browser-report.json",
+        "sha256": "e4aa53ecbadf99a9a28a418f975426fdba80b1b4adb4ec44bbd60f585be244b1",
+        "size_bytes": 11292
+      },
+      "later_lane2_separate": true
+    },
+    {
+      "kind": "root_readback_observer_corrections",
+      "producer": "a3058801113e84298a5a740e3e3fa10efb6beeae",
+      "corrections": [
+        "Initial readback script assumed uppercase PASS, actual receipt uses passed",
+        "Second readback treated result-relative filenames as absolute, actual receipt binds these to final Results directory"
+      ],
+      "source": {
+        "original_relative_path": "cancellation-browser-root-review.json",
+        "sha256": "082d1c8c7611c4ddf93e1e692da09fc679612709c212912156f4f98bea5fcbf1",
+        "size_bytes": 1208
+      },
+      "original_report_unchanged": true
+    }
+  ],
+  "source_refusals_not_scientific_failures": true,
+  "no_prior_evidence_relabelled": true
+}

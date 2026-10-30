@@ -1,0 +1,112 @@
+{
+  "schema_version": "cochem.cancellation-documentary-manifest/1",
+  "record_kind": "curated documentary derivative, not a replacement execution receipt",
+  "producer_histories": [
+    "a3058801113e84298a5a740e3e3fa10efb6beeae",
+    "54d85cfd04e03ba66cf8b2ca538717117f303f47"
+  ],
+  "self_hash_supplied_externally": true,
+  "files": [
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/README.md",
+      "sha256": "d2a385645432d26ce92424167b0f0bb12f1cc4982d806d1571267584f554f271",
+      "size_bytes": 6076
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/attempt-history.json",
+      "sha256": "63c77147a5613c3bd0a6e97f3b1012d185a740977ae46a0e60f813fe96a3ac05",
+      "size_bytes": 5933
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/browser-dom.json",
+      "sha256": "b2cf39991d4bc1ce2927d422c2c1496af4e847d7a2ce759206df3222b5610096",
+      "size_bytes": 4724
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/browser-retained-file-readback.json",
+      "sha256": "2fa38ddd9c71434d071c3e7912e14c11da2763dbfb8b2de6014486533085d89d",
+      "size_bytes": 13347
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/console-notices.json",
+      "sha256": "249ac8f71f9a55b5449da6f58d491566d037987679829ee5a8665fe620c7af65",
+      "size_bytes": 3797
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/controller-native.json",
+      "sha256": "6eab2f3bf5bc7f0e6bf92705b949f4247aa4723e0b67f3f6ead9477aeafb70ac",
+      "size_bytes": 2972
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/junit/cancellation.xml",
+      "sha256": "2aee18939e99ab01c327ee3289a4fd01c7a14f9baf961f9dda4df86239625c87",
+      "size_bytes": 2738
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/junit/controls.xml",
+      "sha256": "f522167c73e91f547577ebcc16eb5857f102440e4f3cf1cfc462648069ea0e1f",
+      "size_bytes": 32370
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/junit/frontend.xml",
+      "sha256": "06374155677e751a28fde99635d513e2292a4f1b2653987c39a822b1e55308e9",
+      "size_bytes": 787
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/junit/hpc.xml",
+      "sha256": "61d1e7605af99bdaae2a7a898d492c344e7ea91eef98a36f00f6fdf2b327a7d3",
+      "size_bytes": 12416
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/junit/http-development-seven.xml",
+      "sha256": "783448c9cfe97f34b546c17a0201b61269c7e36f5f3f1363c510d18a45634cb9",
+      "size_bytes": 1136
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/junit/intake.xml",
+      "sha256": "2c566999bde9c55bd623c41d051b9b5383aa8ad0ab7659a6905edb11f949386d",
+      "size_bytes": 4214
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/junit/interface.xml",
+      "sha256": "484069b4f533608a748843f640c22c01c185dfb79ab630b5d009b0bfdbdd1dfa",
+      "size_bytes": 25043
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/junit-identities.json",
+      "sha256": "e884e92bac94474b99b5480ad0f7c835e2fc737eefd093fd56adb36d0f14d691",
+      "size_bytes": 107371
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/native-archive.json",
+      "sha256": "c17a24cc406b8858b34ab935c309ce5c995680af627ce1fa9f97b8dbc223d8f7",
+      "size_bytes": 148302
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/native-scope-addendum.json",
+      "sha256": "b14fdb3f95571a912c195590741cf2978fa92f87e2866378a2671bb499c5abb3",
+      "size_bytes": 872
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/screenshots/02-search-terminal-retained.png",
+      "sha256": "07d413d59ccd5890a28addb0769be1d9bfe282beef7ae02566c1a6a1e863e28f",
+      "size_bytes": 119527
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/screenshots/03-real-result-and-corrected-caption.png",
+      "sha256": "cbd7b139f04a4b2a4d50820b4756b67a8b2f9022628ff8cf297c7bbff0812ca7",
+      "size_bytes": 136996
+    },
+    {
+      "path": ".docs/evidence/cancellation-workspace-20261030/selected-profiles.json",
+      "sha256": "2701a01b81cd94fa8683c575c647094d7768dca76784621a873b6ad043c45e24",
+      "size_bytes": 8044
+    }
+  ],
+  "source_plane_content": [
+    "documentary JSON/MD",
+    "derived JUnit XML",
+    "original PNG screenshots"
+  ],
+  "raw_native_archive_in_source_plane": false
+}

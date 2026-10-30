@@ -522,10 +522,7 @@ def build_topic_answer(topic_id: str) -> widgets.HTML:
 class LearningHelp:
     """Independent widget controller with no calculation or account bindings."""
 
-    _READY = (
-        'Offline help is ready. Search a chemistry word or ask a question, '
-        'such as “what is chirality?”. No account or calculation engine is needed.'
-    )
+    _READY = 'Offline help — no sign-in or calculation engine needed.'
 
     def __init__(self) -> None:
         self.search = widgets.Text(

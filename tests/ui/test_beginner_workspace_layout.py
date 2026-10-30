@@ -82,6 +82,12 @@ def _exercise(case):
             assert button.description in gui.guided_step_status.value
             assert gui.learning_help.widget in gui.app.header.children
             assert _draft(gui) == before
+        assert gui.app.left_sidebar is None and not gui.sidebar.children
+        assert gui.guided_cancel in gui.header.children
+        assert gui.more_scientific_tools in gui.header.children
+        assert gui.more_scientific_tools.selected_index is None
+        assert gui.input_upload in gui.input_upload_section.children
+        assert gui.input_kind in gui.input_upload_section.children
     elif case == "help_preserves_draft":
         gui.learning_help.search.value = "charge"
         search_before = gui.learning_help.results.children
@@ -104,7 +110,7 @@ def _exercise(case):
         gui.learning_help.clear.click()
         assert gui.learning_help.search.value == "" and _draft(gui) == before
     elif case == "advanced_preserves_draft":
-        for section in (gui.advanced_goal, gui.advanced_tools, gui.t9_disclosure):
+        for section in (gui.advanced_goal, gui.advanced_tools, gui.t9_disclosure, gui.more_scientific_tools):
             assert section.selected_index is None
             section.toggle.value = True
             section.toggle.value = False
@@ -117,10 +123,11 @@ def _exercise(case):
             assert gui.config_tabs.selected_index in (2, 3, 4)
             assert _draft(gui) == before
     elif case == "persistent_state_and_results":
-        assert "charge 1" in gui.guided_input_summary.value and "multiplicity 2" in gui.guided_input_summary.value
+        assert "<b>Charge:</b> 1" in gui.guided_input_summary.value
+        assert "<b>Spin multiplicity:</b> 2" in gui.guided_input_summary.value
         assert not isinstance(gui.guided_current, Disclosure)
         assert gui.guided_cancel.disabled == gui.btn_cancel.disabled
-        assert gui.guided_cancel in tuple(_walk(gui.guided_current))
+        assert gui.guided_cancel in gui.header.children
         assert "XTB" in gui.guided_draft_status.value and "GFN2-xTB" in gui.guided_draft_status.value
         gui.guided_step_buttons["modules"].click()
         current_results = tuple(_walk(gui.view_modules))
@@ -129,8 +136,14 @@ def _exercise(case):
         assert gui.btn_actions_retrieve.disabled and gui.guided_cancel.disabled
         assert gui.footer in gui.main_content.children
         assert _draft(gui) == before
+        gui.matrix_geometry.value = "Incomplete geometry edit"
+        assert "needs attention" in gui.guided_input_summary.value
+        assert "my-molecule" in gui.guided_input_summary.value
+        assert original.read_bytes() == raw
     elif case == "goal_remains_visible":
-        assert gui.guided_goal_status in gui.guided_current.children
+        goal_column = gui.guided_current.children[1]
+        assert not isinstance(goal_column, Disclosure) and gui.guided_goal_status in goal_column.children
+        assert gui.guided_goal_requirements in goal_column.children
         for selected in ("Product A (Lead Screening)", "Product B (Materials and Extended Solids)",
                          "Product C (Absolute Spectroscopic Calibration)", "Screening (no product accuracy claim)"):
             gui.product_class_selector.value = selected
@@ -138,7 +151,7 @@ def _exercise(case):
             for button in gui.guided_step_buttons.values():
                 button.click()
                 assert selected in gui.guided_goal_status.value
-                assert "requirements still apply" in gui.guided_goal_status.value
+                assert "Goal selection is not validation" in gui.guided_goal_status.value
                 assert _draft(gui) == expected
             gui.advanced_goal.toggle.value = True
             gui.advanced_goal.toggle.value = False

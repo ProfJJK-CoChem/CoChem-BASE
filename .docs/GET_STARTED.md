@@ -123,8 +123,10 @@ the page where you use chemistry buttons. You need not install VS Code locally.
    set to **Private**. If there is no 8866 entry after setup finishes, save the
    setup error and ask your instructor; do not create repeated workspaces.
 
-**Check before continuing:** you see the CoChem page with **Start here**,
-**Your files**, **Calculations** and **Results** on the left.
+**Check before continuing:** you see four buttons at the top: **1 · Setup**,
+**2 · Add your molecule**, **3 · Run assigned calculation** and
+**4 · Read and save results**. These open the **Start here**, **Your files**,
+**Calculations** and **Results** pages respectively.
 This first Codespace is for enrollment. Wait until step 5 before uploading
 research files, because a new Codespace does not copy this one's local data.
 
@@ -200,11 +202,11 @@ then use **File → Save As…** and choose the **XYZ** format. Keep that origin
 file on your computer. Use distinct names for different starting arrangements.
 Your instructor can help you check the intended atoms, hydrogens and structure.
 
-1. In CoChem, choose **Your files** on the left.
+1. In CoChem, choose **2 · Add your molecule** to open **Your files**.
 2. For an ordinary structure, leave **File contents → Detect from file**.
    Choose **Upload scientific inputs**. In the file-selection window, find
    the file you saved, select it and choose **Open**.
-3. Read the validation message. Select **Your uploaded file** and the intended
+3. Wait for validation to finish and read its message. Select **Your uploaded file** and the intended
    **Structure / frame**. A frame is one structure within a file that contains
    several structures.
 4. Choose **Use selected starting geometry**, then
@@ -235,8 +237,10 @@ does not combine them into a complex.
    file normally does not supply these values. Use values established for your
    target; ask your instructor if you do not know them. Do not assume the
    displayed defaults are correct for an ion or radical.
-3. Follow your study instructions for **Scientific goal**, engine,
-   **Theory family**, method, basis and **Surroundings**. Use
+3. Follow your study instructions for engine, method, basis and **Surroundings**.
+   The current scientific goal is shown at the top. If the assignment requires
+   a different goal, open **Advanced: scientific goal and requirements**.
+   **Theory family** is inside **Advanced: choose another method family**. Use
    **Gas phase (no solvent model)** only when the study calls for an isolated
    molecule or complex. Open **Explain…** beside a setting when needed.
 4. Under **Calculate**, choose the task your study requires. Review the
@@ -292,7 +296,7 @@ research method for a van der Waals complex.
    saves a ZIP file,
    usually in **Downloads** unless you chose another location. A ZIP is one
    package containing the calculation's files and records.
-6. Choose **Results** on the left to inspect the available values, structures,
+6. Choose **4 · Read and save results** to inspect the available values, structures,
    tables and figures.
 
 **Check before continuing:** you have retrieved the result and can find the
@@ -380,7 +384,7 @@ TOPOS/TORQ operations and interpreting results.
   from list**. Its original file and past calculation records are retained.
   Choose **Undo remove**, or open **Show removed inputs**, select the file and
   choose **Restore selected input** to make it available again.
-- **Wrong reference attachment:** in **Calculations → Monomer constraints**,
+- **Wrong reference attachment:** in **Calculations → Advanced: other calculation tools → Monomer constraints**,
   choose **Clear R2 reference** or **Clear starting Hessian** for the attachment
   you want to stop using. The original scientific file is retained.
 - **Wrong results selected for comparison:** choose **Clear comparison

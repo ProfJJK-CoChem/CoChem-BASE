@@ -1636,6 +1636,7 @@ class CoChemGUI(InputManagementMixin):
         pool_options = {'producer': self.input_pool_producer.value, 'energy_unit': self.input_pool_energy_unit.value} if kind == 'conformer_pool' else {}
         self._ingestion_busy = True
         control.disabled = True
+        self._sync_library_geometry_use()
         self.input_library_status.value = "<p role='status'>Validating complete uploaded scientific inputs…</p>"
         def ingest() -> None:
             from cochem_base.config_loader import get_artifact_dir
@@ -1657,26 +1658,29 @@ class CoChemGUI(InputManagementMixin):
                 snapshot = {'inputs': accepted, 'rejections': []}
                 errors.append('Retained library refresh: ' + str(exc))
             def finish() -> None:
-                self._ingestion_busy = False
-                control.disabled = False
-                self._input_library_refresh_serial += 1
-                self._apply_input_library(snapshot)
-                self.input_library_status.value = (f"<p role='status'>Validated and retained {len(accepted)} input(s).</p>" +
-                    ("<p role='alert'>Rejected inputs: " + '<br/>'.join(html.escape(item) for item in errors) + '</p>' if errors else ''))
-                for receipt in accepted:
-                    input_id = receipt.get('input_id', receipt.get('id'))
-                    if input_id in self._input_library:
-                        self.input_library_choice.value = input_id
-                        for key, selector in self._input_selectors.items():
-                            if input_id in [value for _, value in selector.options]:
-                                selector.value = input_id
-                if hasattr(self, '_paw_pseudopotential_choices'):
-                    self._refresh_paw_species()
+                try:
+                    self._input_library_refresh_serial += 1
+                    self._apply_input_library(snapshot)
+                    self.input_library_status.value = (f"<p role='status'>Validated and retained {len(accepted)} input(s).</p>" +
+                        ("<p role='alert'>Rejected inputs: " + '<br/>'.join(html.escape(item) for item in errors) + '</p>' if errors else ''))
                     for receipt in accepted:
-                        if receipt.get('kind') == 'pseudopotential':
-                            chooser = self._paw_pseudopotential_choices.get(receipt.get('metadata', {}).get('element'))
-                            if chooser is not None and receipt['input_id'] in [value for _, value in chooser.options]:
-                                chooser.value = receipt['input_id']
+                        input_id = receipt.get('input_id', receipt.get('id'))
+                        if input_id in self._input_library:
+                            self.input_library_choice.value = input_id
+                            for key, selector in self._input_selectors.items():
+                                if input_id in [value for _, value in selector.options]:
+                                    selector.value = input_id
+                    if hasattr(self, '_paw_pseudopotential_choices'):
+                        self._refresh_paw_species()
+                        for receipt in accepted:
+                            if receipt.get('kind') == 'pseudopotential':
+                                chooser = self._paw_pseudopotential_choices.get(receipt.get('metadata', {}).get('element'))
+                                if chooser is not None and receipt['input_id'] in [value for _, value in chooser.options]:
+                                    chooser.value = receipt['input_id']
+                finally:
+                    self._ingestion_busy = False
+                    control.disabled = False
+                    self._sync_library_geometry_use()
             self._ui_call(finish)
         self._ingestion_worker = threading.Thread(target=ingest, daemon=True)
         self._ingestion_worker.start()
@@ -1711,8 +1715,12 @@ class CoChemGUI(InputManagementMixin):
         choices = [(str(item['filename']) + ' (' + item['kind'].replace('_', ' ') + ')', key)
                    for key, item in self._input_library.items()]
         selected = self.input_library_choice.value
+        selected_frame = self.input_record_choice.value
         self.input_library_choice.options = [("Choose an uploaded input", "")] + choices
         self.input_library_choice.value = selected if selected in self._input_library else ""
+        if (self.input_library_choice.value == selected and type(selected_frame) is int
+                and 0 <= selected_frame < len(self._input_library.get(selected, {}).get('records', []))):
+            self.input_record_choice.value = selected_frame
         for kind, selector in self._input_selectors.items():
             selected = selector.value
             allowed = {'install': {'hessian'}, 'hessian': {'hessian'}, 'telemetry': {'spectroscopy'},
@@ -1741,6 +1749,15 @@ class CoChemGUI(InputManagementMixin):
                           for item in self._input_library_rejections) + '</ul></div>')
         self._refresh_paw_species()
         self._sync_input_management(snapshot)
+        self._sync_library_geometry_use()
+
+    def _sync_library_geometry_use(self) -> None:
+        """Enable promotion only for the current validated selection while idle."""
+        receipt = self._input_library.get(self.input_library_choice.value, {})
+        frame_index = self.input_record_choice.value
+        self.btn_use_input_geometry.disabled = (
+            self._ingestion_busy or type(frame_index) is not int
+            or not 0 <= frame_index < len(receipt.get('records', [])))
 
     def _select_library_input(self, change: Any) -> None:
         receipt = self._input_library.get(change['new'], {})
@@ -1749,10 +1766,16 @@ class CoChemGUI(InputManagementMixin):
             for index in range(len(records))]
         if records:
             self.input_record_choice.value = 0
-        self.btn_use_input_geometry.disabled = not records
+        self._sync_library_geometry_use()
 
     def _use_library_geometry(self, b: Any = None) -> None:
         """Use a canonical parsed frame without modifying its uploaded source."""
+        if self._ingestion_busy:
+            self._sync_library_geometry_use()
+            self.input_library_status.value = (
+                '<p role="status">Wait for the current scientific input operation to finish '
+                'before selecting a starting geometry.</p>')
+            return
         from cochem_base.config_loader import get_artifact_dir
         from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
         try:
@@ -1811,6 +1834,7 @@ class CoChemGUI(InputManagementMixin):
             return
         self._ingestion_busy = True
         self.btn_inbox_scan.disabled = True
+        self._sync_library_geometry_use()
         def scan() -> None:
             errors, count = [], 0
             try:
@@ -1843,12 +1867,15 @@ class CoChemGUI(InputManagementMixin):
                 snapshot = {'inputs': list(self._input_library.values()), 'rejections': []}
                 errors.append(str(exc))
             def finish() -> None:
-                self._ingestion_busy = False
-                self.btn_inbox_scan.disabled = False
-                self._input_library_refresh_serial += 1
-                self._apply_input_library(snapshot)
-                self.input_library_status.value = f'<p role="status">Imported {count} new validated inbox input(s).</p>' + (
-                    '<p role="alert">' + '<br/>'.join(html.escape(item) for item in errors) + '</p>' if errors else '')
+                try:
+                    self._input_library_refresh_serial += 1
+                    self._apply_input_library(snapshot)
+                    self.input_library_status.value = f'<p role="status">Imported {count} new validated inbox input(s).</p>' + (
+                        '<p role="alert">' + '<br/>'.join(html.escape(item) for item in errors) + '</p>' if errors else '')
+                finally:
+                    self._ingestion_busy = False
+                    self.btn_inbox_scan.disabled = False
+                    self._sync_library_geometry_use()
             self._ui_call(finish)
         self._ingestion_worker = threading.Thread(target=scan, daemon=True)
         self._ingestion_worker.start()
@@ -1928,6 +1955,7 @@ class CoChemGUI(InputManagementMixin):
                 def finish() -> None:
                     self._ingestion_busy = False
                     self.btn_sieve_inputs.disabled = False
+                    self._sync_library_geometry_use()
                 self._ui_call(finish)
         self._ingestion_worker = threading.Thread(target=sieve, daemon=True)
         self._ingestion_worker.start()
@@ -2012,7 +2040,13 @@ class CoChemGUI(InputManagementMixin):
             return
         self._ingestion_busy = True
         self.btn_build_smiles.disabled = True
+        self._sync_library_geometry_use()
         self.student_upload_status.value = '<p role="status">Resolving your molecule and constructing a force-field starting geometry…</p>'
+        def finish() -> None:
+            self._ingestion_busy = False
+            self.btn_build_smiles.disabled = False
+            self._sync_library_geometry_use()
+
         def build() -> None:
             try:
                 from cochem_base.config_loader import get_artifact_dir
@@ -2027,31 +2061,48 @@ class CoChemGUI(InputManagementMixin):
                     raise ValueError('Generated coordinates disagree with their canonical provenance')
                 receipt = ingest_uploaded_file('generated-starting-geometry.xyz', raw, artifact_dir=get_artifact_dir(), kind='molecular')
                 snapshot = self._read_input_library()
+            except (ImportError, ValueError, RuntimeError, OSError, KeyError) as exc:
+                message = str(exc)
+                def failed() -> None:
+                    try:
+                        self.student_upload_status.value = (
+                            '<p role="alert">Starting geometry was not generated: ' + html.escape(message) + '</p>')
+                    finally:
+                        finish()
+                self._ui_call(failed)
+                return
+            except BaseException:
+                self._ui_call(finish)
+                raise
+            else:
                 def success() -> None:
-                    self._input_library_refresh_serial += 1
-                    self._apply_input_library(snapshot)
-                    self.input_library_choice.value = receipt['input_id']
-                    self.charge_input.value = provenance['charge']
-                    self._use_library_geometry()
-                    record = self._student_uploads.get(self.student_geometry_choice.value)
-                    if record:
+                    try:
+                        self._input_library_refresh_serial += 1
+                        self._apply_input_library(snapshot)
+                        self.input_library_choice.value = receipt['input_id']
+                        self.charge_input.value = provenance['charge']
+                        # Intake and exact receipt selection are complete. Keep
+                        # release, promotion and cleanup in one UI callback so
+                        # no later builder cleanup can clear a new upload's busy state.
+                        self._ingestion_busy = False
+                        self._sync_library_geometry_use()
+                        self._use_library_geometry()
+                        record = self._student_uploads.get(self.student_geometry_choice.value)
+                        if not record or record.get('source_input_id') != receipt['input_id']:
+                            raise ValueError('The generated starting geometry was not selected; its original is retained')
                         record['generation_provenance'] = {'path': str(sidecar), 'sha256': hashlib.sha256(sidecar.read_bytes()).hexdigest(),
                             'query': query, 'resolution_source': provenance['resolution_source'], 'quantum_optimized': False}
                         Path(record['path']).parent.joinpath('input-manifest.json').write_text(json.dumps(record, indent=2) + '\n', encoding='utf-8')
-                    self.student_upload_status.value += ('<p role="status">Generated starting geometry only. ' +
-                        html.escape(str(provenance['forcefield'])) + '; molecular identity source: ' +
-                        html.escape(str(provenance['resolution_source'])) +
-                        '. Confirm spin multiplicity before calculation; atom radical flags do not define coupled molecular spin. No quantum minimum or energy is claimed.</p>')
+                        self.student_upload_status.value += ('<p role="status">Generated starting geometry only. ' +
+                            html.escape(str(provenance['forcefield'])) + '; molecular identity source: ' +
+                            html.escape(str(provenance['resolution_source'])) +
+                            '. Confirm spin multiplicity before calculation; atom radical flags do not define coupled molecular spin. No quantum minimum or energy is claimed.</p>')
+                    except (ImportError, ValueError, RuntimeError, OSError, KeyError) as exc:
+                        self.student_upload_status.value = (
+                            '<p role="alert">Starting geometry was not selected: ' + html.escape(str(exc)) + '</p>')
+                    finally:
+                        finish()
                 self._ui_call(success)
-            except (ImportError, ValueError, RuntimeError, OSError, KeyError) as exc:
-                message = str(exc)
-                self._ui_call(lambda: setattr(self.student_upload_status, 'value',
-                    '<p role="alert">Starting geometry was not generated: ' + html.escape(message) + '</p>'))
-            finally:
-                def finish() -> None:
-                    self._ingestion_busy = False
-                    self.btn_build_smiles.disabled = False
-                self._ui_call(finish)
         self._ingestion_worker = threading.Thread(target=build, daemon=True)
         self._ingestion_worker.start()
 
@@ -4378,6 +4429,7 @@ class CoChemGUI(InputManagementMixin):
                     def finish() -> None:
                         self._ingestion_busy = False
                         self.btn_load_hessian.disabled = False
+                        self._sync_library_geometry_use()
                     self._ui_call(finish)
         if b is None:
             load()
@@ -4413,6 +4465,7 @@ class CoChemGUI(InputManagementMixin):
                 if b is not None:
                     self._ingestion_busy = False
                     self.btn_run_isotope_reanalysis.disabled = False
+                    self._sync_library_geometry_use()
             self._ui_call(publish)
 
         # Retain the synchronous programmatic API; actual Button.click passes the widget.
@@ -4571,6 +4624,7 @@ class CoChemGUI(InputManagementMixin):
                 def finish() -> None:
                     self._ingestion_busy = False
                     self.btn_read_hdf5.disabled = False
+                    self._sync_library_geometry_use()
                 self._ui_call(finish)
         self._physical_data_worker = threading.Thread(target=inspect, daemon=True)
         self._physical_data_worker.start()

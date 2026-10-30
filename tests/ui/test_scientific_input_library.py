@@ -9,10 +9,12 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 
 import numpy as np
 import pytest
 
+from ci_tools.source_quarantine import source_paths
 from ui.voila_layout.cochem_gui import CoChemGUI
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -608,6 +610,136 @@ def case_corrupt_saved_dependency_does_not_hide_unrelated_geometry(gui):
     reopened._inbox_stop.set()
 
 
+def _busy_intake_preserves_draft(gui, *, operation, malformed):
+    """Pause actual intake file I/O; never replace a parser or claim native work."""
+    from cochem_base.config_loader import get_artifact_dir
+
+    _, old_raw, _ = molecular_formats()[3]
+    upload(gui, old_raw, 'retained-two-frames.sdf')
+    old_id = gui.input_library_choice.value
+    old_receipt = gui._input_library[old_id]
+    gui.input_record_choice.value = 1
+    gui.btn_use_input_geometry.click()
+    gui.charge_input.value = 1
+    gui.multiplicity_input.value = 2
+    original = Path(old_receipt['path'])
+    original_state = (original.read_bytes(), original.parent.joinpath('receipt.json').read_bytes())
+
+    def draft():
+        return (gui.matrix_geometry.value, gui.charge_input.value, gui.multiplicity_input.value,
+            gui.matrix_method.value, gui.matrix_basis.value, gui.student_geometry_choice.value,
+            json.dumps(gui._student_uploads, sort_keys=True))
+
+    before = draft()
+    assert old_receipt['records'][1]['charge'] == 0
+    assert old_receipt['records'][1]['multiplicity'] == 1
+    assert not gui.btn_use_input_geometry.disabled
+    new_name, new_raw, _ = molecular_formats()[-1]
+    if malformed:
+        new_name = 'rejected-incoming.sdf'
+        new_raw = old_raw.rsplit(b'$$$$', 2)[0] + b'$$$$\nMalformed molecule\n$$$$\n'
+    else:
+        new_name = 'new-validated-' + new_name
+
+    library = get_artifact_dir() / 'InputLibrary'
+    paused, release, armed = threading.Event(), threading.Event(), threading.Event()
+
+    def pause_owned_incoming_open(event, arguments):
+        # This irreversible audit hook is confined to this disposable child.
+        # Only a real incoming-original open by the current ingestion worker is
+        # paused. Canonical parsing, hashing and atomic storage remain intact.
+        if (event != 'open' or not armed.is_set() or paused.is_set()
+                or threading.current_thread() is not gui._ingestion_worker):
+            return
+        try:
+            path = Path(os.fsdecode(arguments[0]))
+        except (TypeError, ValueError):
+            return
+        if (path.parent.parent == library and path.parent.name.startswith('.incoming-')
+                and path.name.startswith('original.')):
+            paused.set()
+            if not release.wait(timeout=15):
+                raise RuntimeError('The actual intake I/O pause was not released')
+
+    sys.addaudithook(pause_owned_incoming_open)
+    try:
+        armed.set()
+        if operation == 'upload':
+            gui.input_upload.value = ({'name': new_name, 'type': 'application/octet-stream',
+                'size': len(new_raw), 'content': memoryview(new_raw),
+                'last_modified': datetime.now(timezone.utc)},)
+        else:
+            inbox = get_artifact_dir() / 'Input_Files' / 'Inbox'
+            inbox.mkdir(parents=True, exist_ok=True)
+            (inbox / new_name).write_bytes(new_raw)
+            gui.btn_inbox_scan.click()
+        assert paused.wait(timeout=10), 'The genuine ingestion worker never reached its owned incoming file'
+        assert gui._ingestion_busy and gui._ingestion_worker.is_alive()
+        assert gui.btn_use_input_geometry.disabled
+        # Actual selection observers must not reopen the stale Use route.
+        gui.input_library_choice.value = ''
+        gui.input_library_choice.value = old_id
+        gui.input_record_choice.value = 1
+        assert gui.btn_use_input_geometry.disabled
+        # Button.click delivers a backend callback even when the browser button
+        # is disabled, reproducing an already-sent frontend event.
+        gui.btn_use_input_geometry.click()
+        gui._use_library_geometry()
+        assert 'Wait for the current' in gui.input_library_status.value
+        assert draft() == before
+        assert original_state == (original.read_bytes(), original.parent.joinpath('receipt.json').read_bytes())
+    finally:
+        release.set()
+        armed.clear()
+        gui._ingestion_worker.join(timeout=30)
+    assert not gui._ingestion_worker.is_alive() and not gui._ingestion_busy
+    assert not gui.input_upload.disabled and not gui.btn_inbox_scan.disabled
+    assert draft() == before
+    assert original_state == (original.read_bytes(), original.parent.joinpath('receipt.json').read_bytes())
+    if malformed:
+        assert not any(item['filename'] == new_name for item in gui._input_library.values())
+        assert gui.input_library_choice.value == old_id
+        assert gui.input_record_choice.value == 1
+        assert new_name in gui.input_library_status.value
+        assert ("role='alert'" in gui.input_library_status.value
+                or 'role="alert"' in gui.input_library_status.value)
+    else:
+        new_id = next(key for key, item in gui._input_library.items() if item['filename'] == new_name)
+        receipt = gui._input_library[new_id]
+        assert Path(receipt['path']).read_bytes() == new_raw
+        assert receipt['sha256'] == hashlib.sha256(new_raw).hexdigest()
+        assert receipt['scientific_execution_performed'] is False
+        if operation == 'upload':
+            assert gui.input_library_choice.value == new_id and gui.input_record_choice.value == 0
+        else:
+            assert gui.input_library_choice.value == old_id and gui.input_record_choice.value == 1
+            gui.input_library_choice.value = new_id
+        gui.btn_use_input_geometry.click()
+        promoted = gui._student_uploads[gui.student_geometry_choice.value]
+        assert promoted['source_input_id'] == new_id and promoted['source_sha256'] == receipt['sha256']
+        assert promoted['source_frame'] == 0
+        assert gui.charge_input.value == 0 and gui.multiplicity_input.value == 1
+    assert not gui.btn_use_input_geometry.disabled
+    gui.input_library_choice.value = ''
+    assert gui.btn_use_input_geometry.disabled
+
+
+def case_actual_upload_busy_use_guard_success(gui):
+    _busy_intake_preserves_draft(gui, operation='upload', malformed=False)
+
+
+def case_actual_upload_busy_use_guard_rejection(gui):
+    _busy_intake_preserves_draft(gui, operation='upload', malformed=True)
+
+
+def case_actual_inbox_busy_use_guard_success(gui):
+    _busy_intake_preserves_draft(gui, operation='inbox', malformed=False)
+
+
+def case_actual_inbox_busy_use_guard_rejection(gui):
+    _busy_intake_preserves_draft(gui, operation='inbox', malformed=True)
+
+
 CASES = [name.removeprefix('case_') for name in globals() if name.startswith('case_')]
 
 
@@ -615,19 +747,26 @@ CASES = [name.removeprefix('case_') for name in globals() if name.startswith('ca
 def test_actual_scientific_input_library(case, tmp_path):
     environment = dict(os.environ, COCHEM_ARTIFACTS=str(tmp_path / 'artifacts'),
         COCHEM_ARTIFACT_DIR=str(tmp_path / 'artifacts'), COCHEM_STUDENT_AUTO_SETUP='false',
-        COCHEM_STUDENT_REMOTE_CHECKS='false', CODESPACES='false')
+        COCHEM_STUDENT_REMOTE_CHECKS='false', CODESPACES='false', PYTHONDONTWRITEBYTECODE='1',
+        PYTHONPATH=os.pathsep.join(source_paths(ROOT)))
     if case in {'hpc_selection_denies_interface_host_scientific_execution',
                 'actions_geometry_control_denies_missing_identity_without_local_fallback'}:
         environment['PATH'] = str(Path(sys.executable).parent)
     if case == 'actions_geometry_control_denies_missing_identity_without_local_fallback':
         environment.pop('GH_TOKEN', None)
         environment.pop('GITHUB_TOKEN', None)
-    completed = subprocess.run([sys.executable, str(Path(__file__).resolve()), case], env=environment,
+    completed = subprocess.run([sys.executable, '-B', str(Path(__file__).resolve()), case], env=environment,
         stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=90, check=False)
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 if __name__ == '__main__':
+    if os.environ.get('COCHEM_SOURCE_QUARANTINE_ROOT'):
+        startup = sys.modules.get('sitecustomize')
+        assert startup is not None
+        assert Path(startup.__file__).resolve() == ROOT / 'ci_tools/quarantine_startup/sitecustomize.py'
+        state = getattr(sys.modules.get('ci_tools.source_quarantine'), '_active', None)
+        assert state is not None and state['copied'] == ROOT
     gui = CoChemGUI()
     gui._input_library_worker.join(timeout=30)
     try:

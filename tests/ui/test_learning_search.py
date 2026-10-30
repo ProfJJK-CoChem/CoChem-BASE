@@ -92,7 +92,7 @@ def test_help_is_compact_and_uses_labelled_native_input_and_button(help_panel):
     status = Markup(help_panel.status.value)
     assert any(attrs.get("role") == "status" and attrs.get("aria-live") == "polite"
                for _, attrs in status.elements)
-    assert "No account or calculation engine is needed" in " ".join(status.text)
+    assert "Offline help — no sign-in or calculation engine needed." in " ".join(status.text)
 
 
 def test_live_widget_search_clear_and_context_open_use_the_same_content(help_panel):

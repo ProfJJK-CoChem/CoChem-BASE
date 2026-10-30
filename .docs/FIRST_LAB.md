@@ -11,10 +11,11 @@ to a result you can explain.
 
 ## Find your way around
 
-The four numbered steps at the top show the usual order. The left-hand buttons
-open the same parts of your workspace.
+Use the four numbered buttons at the top in the usual order. Each opens a page
+with the title shown below. You can return to an earlier step without losing
+your selected settings.
 
-| Step | Left-hand button | What you do |
+| Button at the top | Page title | What you do |
 | --- | --- | --- |
 | **1 · Setup** | **Start here** | Check where the calculation will run and which engines are available. |
 | **2 · Add your molecule** | **Your files** | Upload and select your starting structure, then inspect it in Calculations. |
@@ -48,7 +49,8 @@ method to make the error disappear.
 
 ## 2. Add and check your molecule
 
-Open **Your files**, upload your file and select the structure you intend to
+Choose **2 · Add your molecule** to open **Your files**. Upload your file and
+wait for validation to finish before selecting the structure you intend to
 use. A file can contain more than one structure. Choose **Use selected starting
 geometry**, then open **Calculations** to inspect the molecule's picture.
 Selecting a starting geometry does not start a calculation.

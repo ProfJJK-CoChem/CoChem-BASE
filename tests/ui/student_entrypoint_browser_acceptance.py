@@ -75,6 +75,25 @@ def show_section(page, title: str) -> None:
     expect(expanded).to_be_visible()
 
 
+def open_scientific_tool(page, title: str) -> None:
+    """Reach a specialized page through the real optional-tools disclosure."""
+    show_section(page, "More scientific tools")
+    page.get_by_role("button", name=title, exact=True).click()
+
+
+def open_monomer_constraints(page) -> None:
+    """Select the retained advanced tab through its keyboard-operable route."""
+    show_section(page, "Advanced: other calculation tools")
+    page.get_by_role("button", name="Monomer constraints", exact=True).click()
+    expect(page.get_by_role("tab", name="Monomer constraints", exact=True)).to_be_visible()
+
+
+def select_screening_goal(page) -> None:
+    """Choose the existing screening value through its actual visible label."""
+    show_section(page, "Advanced: scientific goal and requirements")
+    page.get_by_role("radio", name="Screening (no product accuracy claim)", exact=True).check()
+
+
 def geometry_editor(page):
     page.get_by_role("tab", name="Starting structure", exact=True).click()
     show_section(page, "Edit XYZ coordinates directly")
@@ -159,7 +178,7 @@ def accept_full_intake(page, manifest_path: Path, report: dict, artifacts: Path)
     for entry in manifest["files"]:
         raw = Path(entry["path"]).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == entry["sha256"], "Actual fixture changed before upload"
-        page.get_by_role("button", name="Your files", exact=True).click()
+        page.get_by_role("button", name="2 · Add your molecule", exact=True).click()
         page.get_by_label("File contents:", exact=True).select_option(label=kind_labels[entry["kind"]])
         button = page.get_by_role("button", name=re.compile(r"Upload scientific inputs(?:\s*\(\d+\))?$"))
         expect(button).to_be_enabled(timeout=120000)
@@ -182,14 +201,14 @@ def accept_full_intake(page, manifest_path: Path, report: dict, artifacts: Path)
             assert len(geometry.splitlines()) == 5
             if "qcschema" in entry["filename"]:
                 assert [line.split()[0] for line in geometry.splitlines()[2:]] == ["18O", "2H", "2H"]
-                page.get_by_text("Method and settings", exact=True).click()
+                page.get_by_role("tab", name="Method and settings", exact=True).click()
                 expect(page.get_by_label("Total charge:", exact=True)).to_have_value("0")
                 expect(page.get_by_label("Spin multiplicity:", exact=True)).to_have_value("1")
-            page.get_by_role("button", name="Your files", exact=True).click()
+            page.get_by_role("button", name="2 · Add your molecule", exact=True).click()
             select_prefix(page.get_by_label("Your uploaded file:", exact=True), entry["filename"])
         admitted.append({"filename": entry["filename"], "kind": entry["kind"], "original_sha256": entry["sha256"],
                          "all_frames_selected": entry["record_count"], "actual_file_upload": True})
-    page.get_by_role("button", name="Spectra and properties", exact=True).click()
+    open_scientific_tool(page, "Spectra and properties")
     select_prefix(page.get_by_label("Native output:", exact=True), "actual-water.out.txt")
     page.get_by_role("button", name="Read calculated properties", exact=True).click()
     expect(page.get_by_text("436210", exact=False)).to_be_visible(timeout=30000)
@@ -217,7 +236,7 @@ def accept_full_intake(page, manifest_path: Path, report: dict, artifacts: Path)
         page.get_by_role("button", name="Inspect HDF5 / NPZ data", exact=True).click()
         expect(page.get_by_text("hessian_hartree_bohr2", exact=False).first).to_be_visible(timeout=30000)
         expect(page.get_by_role("button", name="Inspect HDF5 / NPZ data", exact=True)).to_be_enabled(timeout=30000)
-    page.get_by_role("button", name="Periodic structures", exact=True).click()
+    open_scientific_tool(page, "Periodic structures")
     select_prefix(page.get_by_label("Periodic structure:", exact=True), "gaas_ordered.cif")
     page.get_by_role("button", name="Validate periodic structure", exact=True).click()
     expect(page.get_by_text("Validated periodic structure: 2 atoms", exact=False)).to_be_visible(timeout=30000)
@@ -235,7 +254,7 @@ def accept_full_intake(page, manifest_path: Path, report: dict, artifacts: Path)
     page.get_by_role("button", name="Save periodic calculation request", exact=True).click()
     expect(page.get_by_text("Saved periodic calculation request", exact=False)).to_be_visible(timeout=30000)
     page.screenshot(path=str(artifacts / "typed-periodic-request.png"), full_page=True)
-    page.get_by_role("button", name="Calculations", exact=True).click()
+    page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
     page.get_by_role("tab", name="Starting structure", exact=True).click()
     show_section(page, "Build from a name or SMILES")
     page.get_by_label("Name or SMILES:", exact=True).fill("O")
@@ -245,7 +264,7 @@ def accept_full_intake(page, manifest_path: Path, report: dict, artifacts: Path)
     generated = geometry_editor(page).input_value()
     assert generated.splitlines()[0] == "3"
     reload_with_kernel_cleanup(page, report)
-    page.get_by_role("button", name="Your files", exact=True).click()
+    page.get_by_role("button", name="2 · Add your molecule", exact=True).click()
     table = scientific_input_table(page)
     for entry in admitted:
         expect(table).to_contain_text(entry["original_sha256"])
@@ -256,7 +275,7 @@ def accept_full_intake(page, manifest_path: Path, report: dict, artifacts: Path)
         "smiles_builder_starting_guess_only": True, "native_engine_execution_performed": False,
         "isotope_tensor_reanalysis_performed": True,
         "physical_or_equilibrium_accuracy_claimed": False}
-    page.get_by_role("button", name="Calculations", exact=True).click()
+    page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
     page.get_by_role("tab", name="Starting structure", exact=True).click()
     page.get_by_label("Starting geometry:", exact=True).select_option(label="student-water")
 
@@ -288,18 +307,19 @@ def accept_admission_guards(page, report: dict, artifacts: Path) -> None:
     """Exercise real incomplete-active-space and absent-scheduler admission."""
     if shutil.which("sbatch") or shutil.which("qsub"):
         raise AssertionError("Absent-scheduler acceptance requires genuinely missing scheduler commands")
-    page.get_by_role("button", name="Calculations", exact=True).click()
+    page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
     page.get_by_role("tab", name="Starting structure", exact=True).click()
     geometry = artifacts / "student-open-shell.xyz"
     geometry.write_bytes(OPEN_SHELL_START)
     upload_files(page, [geometry])
-    page.get_by_text("Monomer constraints", exact=True).click()
+    open_monomer_constraints(page)
     page.get_by_label("Freeze all monomer internals (bonds/angles/dihedrals)", exact=True).uncheck()
-    page.get_by_text("Method and settings", exact=True).click()
+    page.get_by_role("tab", name="Method and settings", exact=True).click()
     page.get_by_label("Spin multiplicity:", exact=True).fill("2")
     page.get_by_label("Spin multiplicity:", exact=True).press("Tab")
     select_prefix(page.get_by_label("Engine:", exact=True), "ORCA")
-    page.get_by_label("Exploratory calculation — no accuracy certification", exact=True).check()
+    select_screening_goal(page)
+    show_section(page, "Advanced: choose another method family")
     select_prefix(page.get_by_label("Theory family:", exact=True), "T2")
     select_prefix(page.get_by_role("combobox", name="Method:", exact=True), "HF/STO-3G")
     select_prefix(page.get_by_label("Basis Set:", exact=True), "STO-3G")
@@ -330,13 +350,13 @@ def accept_admission_guards(page, report: dict, artifacts: Path) -> None:
     recovery.uncheck()
     page.get_by_role("tab", name="Starting structure", exact=True).click()
     page.get_by_label("Starting geometry:", exact=True).select_option(label="student-water")
-    page.get_by_text("Method and settings", exact=True).click()
+    page.get_by_role("tab", name="Method and settings", exact=True).click()
     page.get_by_label("Spin multiplicity:", exact=True).fill("1")
     page.get_by_label("Spin multiplicity:", exact=True).press("Tab")
-    page.get_by_role("button", name="Start here", exact=True).click()
+    page.get_by_role("button", name="1 · Setup", exact=True).click()
     select_prefix(page.get_by_label("Run calculations on:", exact=True), "HPC Cluster")
-    page.get_by_role("button", name="Calculations", exact=True).click()
-    page.get_by_text("Method and settings", exact=True).click()
+    page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
+    page.get_by_role("tab", name="Method and settings", exact=True).click()
     select_prefix(page.get_by_label("Engine:", exact=True), "xTB")
     submit = page.get_by_role("button", name="Submit HPC calculation", exact=True)
     expect(submit).to_be_disabled(timeout=30000)
@@ -355,19 +375,20 @@ def accept_admission_guards(page, report: dict, artifacts: Path) -> None:
         "actual_scheduler_commands_absent": True, "actual_hpc_connection_retry": True,
         "hpc_submission_disabled_by_actual_preflight": True, "hpc_submission_refused_without_local_fallback": True,
         "scientific_execution_performed": False}
-    page.get_by_role("button", name="Start here", exact=True).click()
+    page.get_by_role("button", name="1 · Setup", exact=True).click()
     select_prefix(page.get_by_label("Run calculations on:", exact=True), "Linux")
 
 
 def accept_native_hessian_calculation(page, report: dict, artifacts: Path, timeout: int) -> None:
     """Run genuine native chemistry through widgets, then reweight its Hessian."""
-    page.get_by_role("button", name="Calculations", exact=True).click()
+    page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
     page.get_by_role("tab", name="Starting structure", exact=True).click()
     page.get_by_label("Starting geometry:", exact=True).select_option(label="student-water")
     expect(geometry_editor(page)).to_have_value(WATER.decode())
-    page.get_by_text("Method and settings", exact=True).click()
+    page.get_by_role("tab", name="Method and settings", exact=True).click()
     select_prefix(page.get_by_label("Engine:", exact=True), "ORCA")
-    page.get_by_label("Exploratory calculation — no accuracy certification", exact=True).check()
+    select_screening_goal(page)
+    show_section(page, "Advanced: choose another method family")
     select_prefix(page.get_by_label("Theory family:", exact=True), "T2")
     select_prefix(page.get_by_role("combobox", name="Method:", exact=True), "HF/STO-3G")
     select_prefix(page.get_by_label("Basis Set:", exact=True), "STO-3G")
@@ -376,6 +397,7 @@ def accept_native_hessian_calculation(page, report: dict, artifacts: Path, timeo
     show_section(page, "Time limit and frequency guidance")
     page.get_by_label("Native timeout (s):", exact=True).fill(str(timeout))
     page.get_by_label("Native timeout (s):", exact=True).press("Tab")
+    show_section(page, "Advanced: output location and reproducibility export")
     page.get_by_label("Calculation label:", exact=True).fill("browser-native-hessian-" + uuid.uuid4().hex[:12])
     run = page.get_by_role("button", name="Run ORCA optimize + frequencies", exact=True)
     expect(run).to_be_enabled(timeout=30000)
@@ -388,7 +410,7 @@ def accept_native_hessian_calculation(page, report: dict, artifacts: Path, timeo
     result_root = Path(directories[0].strip())
     assert result_root.is_dir() and not result_root.is_symlink()
     result_root = result_root.resolve(strict=True)
-    page.get_by_role("button", name="Spectra and properties", exact=True).click()
+    open_scientific_tool(page, "Spectra and properties")
     page.get_by_text("Isotope effects", exact=True).click()
     selector = page.get_by_label("Calculation Hessian:", exact=True)
     candidates = selector.locator("option").filter(has_text=re.compile(r"\.hess$"))
@@ -587,7 +609,7 @@ def main() -> None:
                 expect(page.get_by_role("button", name=name, exact=True)).to_be_visible()
             assert page.locator('input[type="password"]').count() == 0
             page.screenshot(path=str(artifact / "automatic-setup.png"), full_page=True)
-            page.get_by_role("button", name="Calculations", exact=True).click()
+            page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
             upload_files(page, [artifact / "student-water.xyz", artifact / "student-water-b.xyz", artifact / "student-complex.xyz"])
             selection = page.get_by_label("Starting geometry:", exact=True)
             expect(geometry_options(selection)).to_have_count(3, timeout=30000)
@@ -646,6 +668,7 @@ def main() -> None:
             expect(selection).to_have_value("student-complex")
             expect(selected_status).to_have_attribute("data-cochem-input-id", selected_identity)
             selection.select_option(label="student-water")
+            show_section(page, "Advanced: assign this structure a role")
             page.get_by_label("Input type:", exact=True).select_option(label="Monomer A")
             page.get_by_role("button", name="Save geometry details", exact=True).click()
             expect(page.get_by_text("Saved monomer_a details:", exact=False)).to_be_visible(timeout=15000)
@@ -662,6 +685,7 @@ def main() -> None:
             expect(page.get_by_label("Input type:", exact=True)).to_have_value("Monomer A")
             expect(page.get_by_text(report["input_sha256"]["student-water.xyz"], exact=True)).to_be_visible()
             selection.select_option(label="student-water-b")
+            show_section(page, "Advanced: assign this structure a role")
             page.get_by_label("Input type:", exact=True).select_option(label="Monomer B")
             page.get_by_role("button", name="Save geometry details", exact=True).click()
             expect(page.get_by_text("Saved monomer_b details:", exact=False)).to_be_visible(timeout=15000)
@@ -697,7 +721,7 @@ def main() -> None:
             # must reopen from its retained manifests without another upload.
             for _ in range(args.reload_count):
                 reload_with_kernel_cleanup(page, report)
-            page.get_by_role("button", name="Calculations", exact=True).click()
+            page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
             selection = page.get_by_label("Starting geometry:", exact=True)
             expect(geometry_options(selection)).to_have_count(4, timeout=30000)
             for label, original, role, groups in (
@@ -728,9 +752,9 @@ def main() -> None:
                 upload_files(page, [args.scientific_geometry])
                 expect(geometry_options(selection)).to_have_count(5, timeout=30000)
                 expect(geometry_editor(page)).to_have_value(original_geometry.decode("utf-8-sig"))
-                page.get_by_text("Method and settings", exact=True).click()
+                page.get_by_role("tab", name="Method and settings", exact=True).click()
                 select_prefix(page.get_by_label("Engine:", exact=True), "ORCA")
-                page.get_by_text("Monomer constraints", exact=True).click()
+                open_monomer_constraints(page)
                 show_section(page, "Provide R2 monomer references" if args.scientific_kind == "r2_reference"
                              else "Choose starting curvature for optimization")
                 label = "Upload R2 references" if args.scientific_kind == "r2_reference" else "Upload READ Hessian"
@@ -741,31 +765,32 @@ def main() -> None:
                 expect(page.get_by_text(args.scientific_kind + " retained.", exact=True)).to_be_visible(timeout=120000)
                 page.screenshot(path=str(artifact / "retained-scientific-input.png"), full_page=True)
                 reload_with_kernel_cleanup(page, report)
-                page.get_by_role("button", name="Calculations", exact=True).click()
+                page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
                 selection = page.get_by_label("Starting geometry:", exact=True)
                 expect(geometry_options(selection)).to_have_count(5, timeout=30000)
                 selection.select_option(label=args.scientific_geometry.stem)
                 expect(geometry_editor(page)).to_have_value(original_geometry.decode("utf-8-sig"))
                 expect(page.get_by_text(hashlib.sha256(original_geometry).hexdigest(), exact=True)).to_be_visible()
-                page.get_by_text("Monomer constraints", exact=True).click()
+                open_monomer_constraints(page)
                 expect(page.get_by_text("Retained R2/READ evidence was reopened after verifying its original file hashes.", exact=False)).to_be_visible(timeout=120000)
                 if args.admission_guards and args.scientific_kind == "r2_reference":
-                    page.get_by_text("Method and settings", exact=True).click()
-                    page.get_by_label("Exploratory calculation — no accuracy certification", exact=True).check()
+                    page.get_by_role("tab", name="Method and settings", exact=True).click()
+                    select_screening_goal(page)
+                    show_section(page, "Advanced: choose another method family")
                     select_prefix(page.get_by_label("Theory family:", exact=True), "T5")
                     select_prefix(page.get_by_role("combobox", name="Method:", exact=True), "wB97M-V")
                     page.get_by_label("Basis Set:", exact=True).select_option(label="def2-QZVPP")
                     select_prefix(page.get_by_label("Surroundings:", exact=True), "Gas phase")
-                    page.get_by_text("Monomer constraints", exact=True).click()
+                    open_monomer_constraints(page)
                     r2 = page.get_by_label("Recipe R2: reference monomers and intermolecular relaxation", exact=True)
                     r2.check()
                     select_prefix(page.get_by_role("combobox", name="Calculate:", exact=True), "Single point")
-                    page.get_by_text("Method and settings", exact=True).click()
+                    page.get_by_role("tab", name="Method and settings", exact=True).click()
                     expect(page.get_by_text("Recipe R2 requires intermolecular optimization", exact=False).first).to_be_visible(timeout=30000)
                     expect(page.get_by_role("button", name="Run ORCA single point", exact=True)).to_be_disabled()
                     page.screenshot(path=str(artifact / "r2-singlepoint-disabled.png"), full_page=True)
                     select_prefix(page.get_by_role("combobox", name="Calculate:", exact=True), "Optimization")
-                    page.get_by_text("Monomer constraints", exact=True).click()
+                    open_monomer_constraints(page)
                     r2.uncheck()
                     report["r2_operation_guard"] = {"genuine_reference_package_retained": True,
                         "single_point_disabled": True, "scientific_execution_performed": False}
@@ -781,7 +806,7 @@ def main() -> None:
             if args.library_input:
                 raw_library = args.library_input.read_bytes()
                 library_sha = hashlib.sha256(raw_library).hexdigest()
-                page.get_by_role("button", name="Your files", exact=True).click()
+                page.get_by_role("button", name="2 · Add your molecule", exact=True).click()
                 library_upload = page.get_by_role("button", name=re.compile(r"Upload scientific inputs(?:\s*\(\d+\))?$"))
                 expect(library_upload).to_be_enabled(timeout=15000)
                 with page.expect_file_chooser(timeout=15000) as chooser:
@@ -802,7 +827,7 @@ def main() -> None:
                 normalized_geometry = geometry_editor(page).input_value()
                 assert normalized_geometry.splitlines()[0] == "3"
                 reload_with_kernel_cleanup(page, report)
-                page.get_by_role("button", name="Your files", exact=True).click()
+                page.get_by_role("button", name="2 · Add your molecule", exact=True).click()
                 retained = page.get_by_label("Your uploaded file:", exact=True)
                 select_prefix(retained, args.library_input.name)
                 expect(scientific_input_table(page)).to_contain_text(library_sha)
@@ -811,7 +836,7 @@ def main() -> None:
                     "original_and_frame_reopened_without_reupload": True,
                     "normalized_geometry_sha256": hashlib.sha256(normalized_geometry.encode()).hexdigest()}
                 page.screenshot(path=str(artifact / "restored-scientific-library.png"), full_page=True)
-                page.get_by_role("button", name="Calculations", exact=True).click()
+                page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
                 page.get_by_role("tab", name="Starting structure", exact=True).click()
                 page.get_by_label("Starting geometry:", exact=True).select_option(label="student-water")
             if args.intake_manifest:
@@ -821,7 +846,7 @@ def main() -> None:
             if args.native_hessian_calculation:
                 accept_native_hessian_calculation(page, report, artifact, args.calculation_timeout)
             if args.hosted:
-                page.get_by_role("button", name="Start here", exact=True).click()
+                page.get_by_role("button", name="1 · Setup", exact=True).click()
                 select_prefix(page.get_by_label("Run calculations on:", exact=True), "GitHub Actions")
                 show_project_details(page)
                 page.get_by_label("GitHub project:", exact=True).fill(args.repository)
@@ -829,8 +854,8 @@ def main() -> None:
                 remote_check = page.get_by_role("button", name="Check ORCA & CFOUR", exact=True)
                 if remote_check.is_enabled():
                     remote_check.click()
-                page.get_by_role("button", name="Calculations", exact=True).click()
-                page.get_by_text("Method and settings", exact=True).click()
+                page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
+                page.get_by_role("tab", name="Method and settings", exact=True).click()
                 engine = page.get_by_label("Engine:", exact=True)
                 required_engine = "ORCA" if args.engine == "orca" else "CFOUR"
                 expect(engine.locator("option").filter(has_text=re.compile(r"^" + required_engine + r"\b"))).to_have_count(
@@ -839,7 +864,8 @@ def main() -> None:
                     "actual_archive_access_gated_choice": select_prefix(engine, required_engine),
                     "native_execution_established_by_readiness": False}
                 if args.engine == "orca":
-                    page.get_by_label("Exploratory calculation — no accuracy certification", exact=True).check()
+                    select_screening_goal(page)
+                show_section(page, "Advanced: choose another method family")
                 select_prefix(page.get_by_label("Theory family:", exact=True), "T2")
                 select_prefix(page.get_by_role("combobox", name="Method:", exact=True), "HF/STO-3G" if args.engine == "orca" else "HF")
                 select_prefix(page.get_by_label("Basis Set:", exact=True), "STO-3G")
@@ -849,10 +875,12 @@ def main() -> None:
                     page.get_by_role("button", name="Show Calculation resources and frequency guidance", exact=True).click()
                 page.get_by_label("Calculation timeout (s):", exact=True).fill(str(args.calculation_timeout))
                 page.get_by_label("Calculation timeout (s):", exact=True).press("Tab")
+                show_section(page, "Advanced: output location and reproducibility export")
                 page.get_by_label("Calculation label:", exact=True).fill("student-browser-" + uuid.uuid4().hex[:8])
                 run = page.get_by_role("button", name="Run on GitHub Actions", exact=True)
                 expect(run).to_be_enabled(timeout=30000)
                 run.click()
+                page.get_by_role("button", name="4 · Read and save results", exact=True).click()
                 deadline = time.monotonic() + args.hosted_timeout
                 request_id = None
                 run_url = None

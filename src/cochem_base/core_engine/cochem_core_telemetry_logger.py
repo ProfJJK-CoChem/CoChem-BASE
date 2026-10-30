@@ -41,6 +41,7 @@ import sys
 import threading
 import time
 import traceback
+import warnings
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,12 +58,6 @@ try:
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
-
-try:
-    import pynvml
-    HAS_PYNVML = True
-except ImportError:
-    HAS_PYNVML = False
 
 from cochem_base.config_loader import get_artifact_dir, get_scratch_dir
 
@@ -336,6 +331,79 @@ def get_plaintext_rotating_handler(
     )
     handler.setFormatter(formatter)
     return handler
+
+
+_PYNVML_DEPRECATION_MESSAGE = (
+    "The pynvml package is deprecated. Please install nvidia-ml-py instead. "
+    "If you did not install pynvml directly, please report this to the maintainers of "
+    "the package that installed pynvml for you."
+)
+
+
+def _retain_dependency_notice(notice: tuple, log_dir: Optional[Union[str, Path]]) -> None:
+    message, category, filename, lineno, _, _ = notice
+    handler = get_plaintext_rotating_handler(log_dir=log_dir)
+    try:
+        record = logging.LogRecord(
+            "CoChem-DependencyNotice", logging.WARNING, filename, lineno,
+            "DEPENDENCY_NOTICE %s at %s:%s: %s",
+            (category.__name__, filename, lineno, str(message)), None,
+        )
+        handler.acquire()
+        try:
+            # emit() swallows IO errors. Keep its bounded rotation behavior,
+            # but let write/flush failures reach the original-warning fallback.
+            if handler.shouldRollover(record):
+                handler.doRollover()
+            if handler.stream is None:
+                raise OSError("The dependency diagnostic stream is unavailable")
+            handler.stream.write(handler.format(record) + handler.terminator)
+            handler.flush()
+        finally:
+            handler.release()
+    finally:
+        handler.close()
+
+
+@contextlib.contextmanager
+def _route_known_nvml_deprecation(
+    log_dir: Optional[Union[str, Path]] = None,
+) -> Iterator[None]:
+    """Retain one known package notice; preserve all other warning policies."""
+    original = warnings.showwarning
+    notices: list[tuple] = []
+
+    def route(message, category, filename, lineno, file=None, line=None):
+        if category is FutureWarning and str(message) == _PYNVML_DEPRECATION_MESSAGE:
+            notices.append((message, category, filename, lineno, file, line))
+        else:
+            original(message, category, filename, lineno, file=file, line=line)
+
+    try:
+        with warnings.catch_warnings():
+            # Leave caller ignore/error policies intact, including policies for
+            # similarly worded warnings and subclasses of FutureWarning.
+            warnings.showwarning = route
+            yield
+    finally:
+        # Restore the caller's handler/filters before file/path resolution can
+        # import anything else or a failed diagnostic needs to remain visible.
+        for notice in notices:
+            try:
+                _retain_dependency_notice(notice, log_dir)
+            except Exception:
+                message, category, filename, lineno, file, line = notice
+                original(message, category, filename, lineno, file=file, line=line)
+
+
+# Resolve optional NVML only after its diagnostic sink/helpers exist. This
+# changes neither the installed binding nor GPU initialization/query behavior.
+try:
+    with _route_known_nvml_deprecation():
+        import pynvml
+    HAS_PYNVML = True
+except ImportError:
+    HAS_PYNVML = False
 
 
 def setup_cochem_rotating_logger(

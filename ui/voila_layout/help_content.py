@@ -18,7 +18,7 @@ HELP_CONTENT = {
         "A calculation applies a scientific model to the particular structure and settings you supply. Start with the task and settings your instructor assigned.",
         "A program can finish successfully while answering a different question. Checking the molecule, electronic state and requested task prevents that mistake.",
         "Use this route for an assigned molecular calculation after your project has been connected to the course.",
-        "Follow the header buttons 1 · Setup, 2 · Add your molecule, 3 · Run assigned calculation, then 4 · Read and save results. The navigation also calls these Start here, Your files, Calculations and Results.",
+        "Follow the four primary buttons: 1 · Setup, 2 · Add your molecule, 3 · Run assigned calculation, then 4 · Read and save results.",
         ("In Setup, confirm the calculation computer and required program are available.",
          "Add your file, select the intended structure or frame, and use it as the starting geometry. Check the atoms, charge and spin.",
          "In Calculations, check the assigned operation, method, basis and surroundings. Submit once and follow its recorded status.",
@@ -1179,6 +1179,10 @@ _extra_guidance("compare_results", "Results → advanced structure comparison", 
 # used only as private path bindings by the current student presentation.
 # Inventorying them must never imply a student can find or use them as controls.
 _SOURCE_RETAINED_NOT_DISPLAYED = {
+    "btn_install": "This retained compatibility button is not displayed. Use the primary 1 · Setup button.",
+    "btn_inputs": "This retained compatibility button is not displayed. Use the primary 2 · Add your molecule button.",
+    "btn_matrix": "This retained compatibility button is not displayed. Use the primary 3 · Run assigned calculation button.",
+    "btn_modules": "This retained compatibility button is not displayed. Use the primary 4 · Read and save results button.",
     "torq_dihedrals": "The retained legacy dihedral field is not shown. The current TORQ tool offers its explicitly supported rigid distance scan, not an enabled torsion scan.",
     "torq_resolution": "The retained legacy resolution field is not shown. Use Number of points in the supported Distance scan form.",
     "torq_qrrho": "The retained legacy qRRHO checkbox is not shown and does not enable a qualified thermochemistry producer.",
@@ -1207,6 +1211,9 @@ for _control_id, _explanation in _SOURCE_RETAINED_NOT_DISPLAYED.items():
 for _control_id in ('topos_heuristic', 'topos_walltime', 'btn_topos_refresh', 'btn_topos_submit', 'btn_topos_cancel', 'btn_topos_promote'):
     CONTROL_HELP[_control_id]["location"] = "Calculations → Advanced: other calculation tools → Other structures and energies → Advanced native conformer search"
 
+CONTROL_HELP["btn_terms"]["location"] = "Header → More scientific tools → Scientific terms"
+CONTROL_HELP["product_class_card"]["location"] = "Header → Goal requirements and current method"
+
 
 for _control_id, _guidance in CONTROL_HELP.items():
     _guidance.setdefault("kind", "dynamic_family" if "*" in _control_id else "interactive_attribute")
@@ -1216,3 +1223,7 @@ for _control_id, _guidance in CONTROL_HELP.items():
 for _topic_id, _content in HELP_CONTENT.items():
     _content["controls"] = tuple(control for control, entry in CONTROL_HELP.items()
                                  if entry["topic"] == _topic_id)
+
+# The controller retains both names for the same Submit Job widget. Cover its
+# alias without adding another student instruction or another constructor site.
+HELP_CONTENT["hpc"]["controls"] += ("slurm_submit_btn",)

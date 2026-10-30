@@ -13,8 +13,34 @@ import shutil
 import subprocess
 import sys
 
+ROOT = Path(__file__).resolve().parents[2]
+if __name__ == "__main__":
+    # The ordinary child must already have the canonical startup shim before
+    # any application/scientific import. Never manufacture missing authority.
+    context = ("COCHEM_SOURCE_QUARANTINE_ROOT", "COCHEM_SOURCE_QUARANTINE_ORIGINAL",
+               "COCHEM_SOURCE_QUARANTINE_EVIDENCE", "COCHEM_SOURCE_QUARANTINE_REVISION")
+    if any(os.environ.get(key) for key in context):
+        assert all(os.environ.get(key) for key in context)
+        startup = sys.modules.get("sitecustomize")
+        assert startup is not None and Path(startup.__file__).resolve() == ROOT / "ci_tools/quarantine_startup/sitecustomize.py"
+        guard = sys.modules.get("ci_tools.source_quarantine")
+        assert guard is not None and Path(guard.__file__).resolve() == ROOT / "ci_tools/source_quarantine.py"
+        state = guard._active
+        assert state is not None and state["copied"] == ROOT == Path(os.environ[context[0]]).resolve()
+        assert state["original"] == Path(os.environ[context[1]]).resolve()
+        assert state["revision"] == os.environ[context[3]]
+    sys.path.insert(0, str(ROOT))
+    from ci_tools.source_quarantine import source_paths
+    assert Path(sys.modules["ci_tools.source_quarantine"].__file__).resolve() == ROOT / "ci_tools/source_quarantine.py"
+    sys.path[:0] = [path for path in source_paths(ROOT) if path not in sys.path]
+    import importlib.util
+    assert Path(importlib.util.find_spec("ui.voila_layout.cochem_gui").origin).resolve() == ROOT / "ui/voila_layout/cochem_gui.py"
+    assert Path(importlib.util.find_spec("cochem_base.config_loader").origin).resolve() == ROOT / "src/cochem_base/config_loader.py"
+    assert Path(importlib.util.find_spec("cochem_base.calc.calculation_service").origin).resolve() == ROOT / "src/cochem_base/calc/calculation_service.py"
+
 import pytest
 from pydantic import ValidationError
+from ci_tools.source_quarantine import source_paths
 
 from cochem_base.config_loader import resolve_executable
 from cochem_base.spectroscopy.parser import SpectroscopyTelemetryParser
@@ -22,6 +48,12 @@ from ui.voila_layout.cochem_gui import BoundedTelemetryOutput, CoChemGUI, Matrix
 
 
 WATER = "O 0 0 0\nH 0 0 0.96\nH 0.92 0 -0.24"
+if __name__ == "__main__":
+    import inspect
+    assert Path(inspect.getfile(CoChemGUI)).resolve() == ROOT / "ui/voila_layout/cochem_gui.py"
+    assert Path(inspect.getfile(resolve_executable)).resolve() == ROOT / "src/cochem_base/config_loader.py"
+    from cochem_base.calc import calculation_service
+    assert Path(calculation_service.__file__).resolve() == ROOT / "src/cochem_base/calc/calculation_service.py"
 
 
 @pytest.fixture
@@ -101,15 +133,24 @@ def test_gui_executes_real_xtb_optimization(tmp_path, audited_xtb):
     _run_physical_gui_case("optimize", tmp_path, audited_xtb)
 
 
+def test_native_widget_child_proves_source_origins_without_calculation(tmp_path):
+    _run_physical_gui_case("source-origin", tmp_path, tmp_path / "absent-registry.json")
+    assert not list(tmp_path.rglob("result.json"))
+
+
 def _run_physical_gui_case(case, directory, registry):
     environment = dict(os.environ, COCHEM_CONFIG=str(registry),
-                       COCHEM_COMPLEXES_H5=str(directory / "complexes.h5"))
-    completed = subprocess.run([sys.executable, str(Path(__file__).resolve()), case, str(directory)],
+                       COCHEM_COMPLEXES_H5=str(directory / "complexes.h5"),
+                       PYTHONDONTWRITEBYTECODE="1", PYTHONPATH=os.pathsep.join(source_paths(ROOT)))
+    completed = subprocess.run([sys.executable, "-B", str(Path(__file__).resolve()), case, str(directory)],
                                env=environment, capture_output=True, text=True, timeout=90)
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 def _exercise_physical_gui_case(case, tmp_path):
+    if case == "source-origin":
+        # Startup and actual-import assertions at module entry already ran.
+        return
     if case == "actions-export":
         _exercise_actions_export(tmp_path)
         return
@@ -127,6 +168,8 @@ def _exercise_physical_gui_case(case, tmp_path):
         assert gui.state.system_status == "Calculation Cancelled", gui.state.error_message
         assert not gui._pipeline_running
         assert not list(tmp_path.rglob("result.json"))
+        assert not gui._research_observations
+        assert gui.btn_research_compare.disabled
         return
     assert not gui.btn_execute.disabled, gui.engine_warning.value
     gui._execute_pipeline(None)
@@ -153,6 +196,34 @@ def _exercise_physical_gui_case(case, tmp_path):
     assert np.isfinite(records["gradients_hartree_per_bohr"]).all()
     assert np.allclose(records["coordinates_angstrom"][-1], payload["coordinates_angstrom"], atol=1e-12, rtol=0)
     assert abs(records["energy_hartree"][-1] - payload["energy_hartree"]) < 1e-10
+    # Exactly one final calculation, not its native line-search evaluations.
+    assert len(gui._research_observations) == 1
+    observation = gui._research_observations[0]
+    assert observation["energy_hartree"] == payload["energy_hartree"]
+    assert observation["source"]["path"] == str(published / "result.json")
+    assert observation["source"]["sha256"] == hashlib.sha256((published / "result.json").read_bytes()).hexdigest()
+    assert observation["electronic_state"] == {"charge": payload["charge"], "multiplicity": payload["multiplicity"]}
+    assert observation["method"]["basis"] is None
+    assert observation["minimum_verified"] is False
+    assert "Calculated structures" in gui.research_isomer_choices.description
+    assert gui.btn_research_compare.description == "Compare calculated structures"
+    assert tuple(gui.research_isomer_choices.options) == (("Local calculation 1 · GFN2-xTB · Electronic energy", 0),)
+    gui._register_completed_local_calculation(execution, published)
+    assert len(gui._research_observations) == 1
+    assert gui._research_observations[0]["local_calculation_number"] == 1
+    gui.research_populations.value = False
+    gui.btn_research_compare.click()
+    assert "Structure energy differences" in gui.research_report_output.value
+    assert "Download table.csv" in gui.research_report_download.value
+    assert "population_fraction" not in gui.research_report_output.value
+    status, summary = gui.state.system_status, gui.calculation_result.value
+    gui._register_completed_local_calculation({**execution, "status": "REJECTED"}, published)
+    assert "could not be added to calculated structures" in gui.research_report_output.value
+    assert gui.state.system_status == status and gui.calculation_result.value == summary
+    assert len(gui._research_observations) == 1
+    gui.research_populations.value = True
+    gui.btn_research_compare.click()
+    assert "verified minimum" in gui.research_report_output.value
     for evaluation in evaluations:
         source = evaluation["gradient_artifact"]
         assert hashlib.sha256((published / source["path"]).read_bytes()).hexdigest() == source["sha256"]

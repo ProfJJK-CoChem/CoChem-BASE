@@ -101,6 +101,159 @@ def _comparison_key(record: dict, energy_kind: str) -> str:
     return json.dumps(key, sort_keys=True, allow_nan=False)
 
 
+def observation_from_completed_local_calculation(execution_receipt: dict, *, results_directory: str | Path) -> dict:
+    """Register one final local GFN2-xTB energy, never optimizer evaluations.
+
+    The caller supplies the actual completed service receipt. This is retained
+    local evidence, not remote attestation or an arbitrary native-JSON importer.
+    All checks are read-only; no engine, parser writer or calculation is invoked.
+    """
+    import re
+    import numpy as np
+    from collections import Counter
+    from cochem_base.calc.calculation_service import CalculationMatrixConfig
+    from cochem_base.calc.xtb_execution import validate_xtb_config
+    from cochem_base.calc.xtb_optimization import read_xtb_gradient
+    from cochem_base.geometry.nuclide_geometry import (
+        parse_geometry_identity, validate_nuclear_identity_metadata,
+    )
+
+    supplied = Path(results_directory).expanduser().absolute()
+    if any(path.is_symlink() for path in (supplied, *supplied.parents)):
+        raise ValueError("The final local result directory must not traverse a symlink.")
+    directory = supplied.resolve(strict=True)
+    if not directory.is_dir():
+        raise ValueError("Choose the exact final local Results directory.")
+    sources = []
+
+    def read(name: str, *, document: bool = False):
+        relative = Path(name)
+        path = directory / relative
+        if (relative.is_absolute() or ".." in relative.parts or not relative.parts
+                or any(part.is_symlink() for part in (path, *path.parents) if part.is_relative_to(directory))
+                or not path.is_file() or not path.resolve().is_relative_to(directory)
+                or path.stat().st_size > (2 if document else 32) * 1024 * 1024):
+            raise ValueError("Missing, unsafe or oversized final local evidence: " + name)
+        raw = path.read_bytes()
+        sidecar = path.with_name(path.name + ".sha256")
+        if sidecar.is_symlink() or not sidecar.is_file() or sidecar.stat().st_size > 512:
+            raise ValueError("A final local publication checksum is missing: " + name)
+        digest = hashlib.sha256(raw).hexdigest()
+        sidecar_raw = sidecar.read_bytes()
+        if sidecar_raw.decode("utf-8", errors="strict") != f"{digest}  {path.name}\n":
+            raise ValueError("Final local evidence checksum mismatch: " + name)
+        sources.extend([{"path": str(path), "sha256": digest},
+                        {"path": str(sidecar), "sha256": hashlib.sha256(sidecar_raw).hexdigest()}])
+        if not document:
+            return raw.decode("utf-8", errors="strict")
+        def unique_object(pairs):
+            data = {}
+            for key, value in pairs:
+                if key in data:
+                    raise ValueError("Duplicate JSON field in final local evidence: " + name)
+                data[key] = value
+            return data
+        data = json.loads(raw, object_pairs_hook=unique_object)
+        json.dumps(data, allow_nan=False)
+        if not isinstance(data, dict):
+            raise ValueError("Final local evidence must contain a JSON object: " + name)
+        return data
+
+    execution = read("execution.json", document=True)
+    if (not isinstance(execution_receipt, dict)
+            or json.dumps(execution_receipt, sort_keys=True, separators=(",", ":"), allow_nan=False)
+            != json.dumps(execution, sort_keys=True, separators=(",", ":"), allow_nan=False)
+            or execution.get("status") != "EXECUTION_VERIFIED" or execution.get("dry_run") is not False
+            or execution.get("engine") != "xtb" or execution.get("output_dir") != str(directory)):
+        raise ValueError("The actual completed local execution receipt does not match this final directory.")
+    config = read("matrix_config.validated.json", document=True)
+    required = {"engine", "method", "basis_set", "charge", "multiplicity", "geometry", "is_opt", "is_freq", "is_vpt2"}
+    if (not required.issubset(config) or not set(CalculationMatrixConfig.model_fields).issubset(config)
+            or type(config["charge"]) is not int or type(config["multiplicity"]) is not int):
+        raise ValueError("Local comparison requires recorded configuration and explicit integer electronic state.")
+    if any(type(config[key]) is not bool for key in ("is_opt", "is_freq", "is_vpt2")):
+        raise ValueError("The recorded local operation flags must be booleans.")
+    configuration = CalculationMatrixConfig.model_validate(config)
+    identity = parse_geometry_identity(config["geometry"])
+    validate_xtb_config(configuration, identity.elements)
+    operation = "optimization" if config["is_opt"] else "single_point"
+    if (config["engine"] != "xtb" or config["method"].strip().upper() != "GFN2-XTB"
+            or execution.get("method") != config["method"] or execution.get("basis_set") != config["basis_set"]
+            or execution.get("operation") != operation):
+        raise ValueError("Local comparison currently requires a matching GFN2-xTB screening protocol.")
+    native = read("result.json", document=True)
+    energy = _finite(native.get("energy_hartree"), "local native energy")
+    if (native.get("converged") is not True or native.get("engine") != "xtb"
+            or native.get("method") != config["method"] or native.get("scope") != "screening"
+            or ("operation" in native and native["operation"] != operation)
+            or any(type(native.get(key)) is not int or native[key] != config[key] for key in ("charge", "multiplicity"))):
+        raise ValueError("The final native method, convergence or electronic state does not match its recorded request.")
+    nuclear = validate_nuclear_identity_metadata(native.get("nuclides"), native.get("nuclear_identity"), allow_historical=True)
+    if (any(value is not None and type(value) is not int for value in nuclear["mass_numbers"])
+            or any(_finite(value, "recorded nuclear mass") <= 0 for value in nuclear["masses_u"])):
+        raise ValueError("Recorded nuclear masses and isotope numbers must retain their declared numeric types.")
+    if tuple(nuclear["nuclides"]) != identity.nuclides or native.get("elements") != list(identity.elements):
+        raise ValueError("The final local nuclear identities differ from the recorded ordered input.")
+    recorded_coordinates = native.get("coordinates_angstrom")
+    if (not isinstance(recorded_coordinates, list) or len(recorded_coordinates) != len(identity.elements)
+            or any(not isinstance(row, list) or len(row) != 3 for row in recorded_coordinates)):
+        raise ValueError("The final local result requires its complete finite ordered geometry.")
+    coordinates = np.asarray([[_finite(value, "recorded Cartesian coordinate") for value in row]
+                              for row in recorded_coordinates], dtype=float)
+    if coordinates.shape != (len(identity.elements), 3) or not np.isfinite(coordinates).all():
+        raise ValueError("The final local result requires its complete finite ordered geometry.")
+    authority = read("execution_authority.json", document=True)
+    if authority.get("engine") != "xtb" or not re.fullmatch(r"[a-f0-9]{64}", authority.get("binary_sha256", "")):
+        raise ValueError("The final local execution lacks recorded xTB executable identity.")
+    alignment = read("ingress_alignment.json", document=True)
+    input_geometry = parse_geometry_identity(read("input.xyz"))
+    if (alignment.get("elements") != list(identity.elements) or alignment.get("nuclear_identity") != nuclear
+            or input_geometry.elements != identity.elements
+            or not np.array_equal(np.asarray(alignment.get("original_coordinates_angstrom")), identity.coordinates_angstrom)
+            or not np.allclose(input_geometry.coordinates_angstrom, alignment.get("coordinates_angstrom"), rtol=0, atol=1e-9)):
+        raise ValueError("The retained native input does not match its recorded nuclear/frame context.")
+    stdout, stderr = read("xtb.out"), read("stderr.log")
+    energies = re.findall(r"\|\s*TOTAL ENERGY\s+([^\s]+)\s+Eh\s*\|", stdout)
+    if ("normal termination of xtb" not in (stdout + "\n" + stderr).lower()
+            or not re.search(r"convergence criteria satisfied after \d+ iterations", stdout, re.I)
+            or not energies or _finite(float(energies[-1].replace("D", "E").replace("d", "e")), "printed xTB energy") != energy):
+        raise ValueError("The native xTB output does not support the recorded final energy/convergence.")
+    if config["is_opt"]:
+        if native.get("optimization_converged") is not True:
+            raise ValueError("The requested local optimization did not report convergence.")
+        evidence = read("optimization_evidence.json", document=True)
+        final_geometry = parse_geometry_identity(read("xtbopt.xyz"))
+        gradient = native.get("gradient_artifact", {})
+        if not isinstance(gradient, dict) or gradient.get("path") != "gradient":
+            raise ValueError("The local optimization must reference its exact final native gradient.")
+        read("gradient")
+        parsed = read_xtb_gradient(directory / "gradient", identity.elements, coordinates, energy)
+        if (evidence.get("converged") is not True or native.get("optimization_evidence") != evidence
+                or final_geometry.elements != identity.elements
+                or not np.allclose(final_geometry.coordinates_angstrom, coordinates, rtol=0, atol=1e-9)
+                or gradient.get("sha256") != parsed["gradient_artifact"]["sha256"]
+                or native.get("gradients_hartree_per_bohr") != parsed["gradients_hartree_per_bohr"]):
+            raise ValueError("The final optimization geometry/gradient evidence is inconsistent.")
+    elif native.get("optimization_converged") is not None or not np.allclose(coordinates, input_geometry.coordinates_angstrom, rtol=0, atol=1e-9):
+        raise ValueError("The local single-point geometry/operation does not match its input.")
+    # Every provenance source is rechecked again when a later report is built.
+    # No optimizer history is enumerated or admitted as an independent structure.
+    for source in sources:
+        verify_source(source)
+    return {"label": directory.parent.name, "energy_hartree": energy,
+        "energy_kind": "electronic_energy", "validation_status": "computed", "degeneracy": 1,
+        "minimum_verified": False,
+        "source": {**next(source for source in sources if source["path"] == str(directory / "result.json")), "pointer": "/energy_hartree"},
+        "provenance_sources": sources,
+        "method": {"engine": "xtb", "method": native["method"], "basis": None,
+            "basis_convention": "native parameterized model; no Gaussian AO basis",
+            "comparison_protocol": {"kind": "BASE local screening electronic energy", "binary_sha256": authority["binary_sha256"],
+                                    "mass_convention": nuclear["mass_convention"], "implicit_solvation": config.get("implicit_solvation")}},
+        "electronic_state": {"charge": native["charge"], "multiplicity": native["multiplicity"]},
+        "composition": json.dumps(dict(sorted(Counter(nuclear["nuclides"]).items())), sort_keys=True),
+        "scope": "One final local calculated structure; optimization convergence does not establish a minimum, distinct isomer or population."}
+
+
 def build_isomer_report(observations: list[dict], *, temperature_kelvin: float = 298.15,
                         energy_kind: str = "electronic_energy", populations: bool = True) -> dict:
     """Compare computed isomers and optionally their explicitly defined weights.
@@ -119,14 +272,24 @@ def build_isomer_report(observations: list[dict], *, temperature_kelvin: float =
         raise ValueError("populations must be a boolean.")
     validated, keys, labels, sources = [], set(), set(), []
     for item in observations:
-        label = _text(item.get("label"), "isomer label")
+        label = _text(item.get("label"), "calculated structure label")
         if label in labels:
-            raise ValueError("Isomer labels must be unique.")
+            raise ValueError("Calculated structure labels must be unique.")
         labels.add(label)
         if item.get("validation_status") != "computed" or item.get("energy_kind") != energy_kind:
-            raise ValueError("Every isomer requires a computed observation of the selected energy kind.")
+            raise ValueError("Every calculated structure requires a computed observation of the selected energy kind.")
         energy = _finite(item.get("energy_hartree"), "energy_hartree")
         receipt, _ = verify_source(item.get("source"), expected=energy)
+        if "provenance_sources" in item:
+            provenance = item["provenance_sources"]
+            if not isinstance(provenance, list) or not 1 <= len(provenance) <= 32:
+                raise ValueError("Local comparison provenance must contain between 1 and 32 retained sources.")
+            for source in provenance:
+                path = Path(source.get("path", "")) if isinstance(source, dict) else Path("")
+                if any(parent.is_symlink() for parent in path.parents):
+                    raise ValueError("Local comparison provenance must not traverse a symlink.")
+                verified, _ = verify_source(source)
+                sources.append(verified)
         keys.add(_comparison_key(item, energy_kind))
         degeneracy = item.get("degeneracy", 1)
         if type(degeneracy) is not int or not 1 <= degeneracy <= 1_000_000:
@@ -146,7 +309,7 @@ def build_isomer_report(observations: list[dict], *, temperature_kelvin: float =
         validated.append({"label": label, "energy_hartree": energy, "degeneracy": degeneracy})
         sources.append(receipt)
     if len(keys) != 1:
-        raise ValueError("Isomer comparison requires identical composition, electronic state, method, basis and thermodynamic state.")
+        raise ValueError("Calculated structure comparison requires identical composition, electronic state, method, basis and thermodynamic state.")
     if energy_kind == "gibbs_free_energy" and not math.isclose(observations[0]["temperature_kelvin"], temperature, rel_tol=0, abs_tol=1e-8):
         raise ValueError("The Gibbs energies were not evaluated at the selected population temperature.")
     minimum = min(item["energy_hartree"] for item in validated)
@@ -174,7 +337,7 @@ def build_isomer_report(observations: list[dict], *, temperature_kelvin: float =
                 "does not establish a minimum, a unique isomer, a complete search or thermodynamic populations."
     else:
         scope += " Entries are assumed to represent distinct states; duplicate or equivalent structures must be removed before interpreting isomer populations."
-    report = {"schema_version": _SCHEMA, "report_type": "isomers", "title": "Isomer energy differences and populations" if populations else "Structure energy differences",
+    report = {"schema_version": _SCHEMA, "report_type": "isomers", "title": "Calculated structure energy differences and populations" if populations else "Structure energy differences",
               "columns": columns, "rows": validated, "sources": sources, "energy_kind": energy_kind,
               "temperature_kelvin": temperature, "comparison": json.loads(next(iter(keys))), "scope": scope,
               "plot": {"kind": "bars", "x": "label", "y": "relative_energy_kj_mol", "y_label": "Relative energy (kJ mol⁻¹)"}}

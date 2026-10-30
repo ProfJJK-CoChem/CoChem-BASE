@@ -3078,7 +3078,7 @@ class CoChemGUI(InputManagementMixin):
         self.research_populations = widgets.Checkbox(value=False, description="Include minimum-based population model")
         self.research_isomer_choices = widgets.SelectMultiple(options=[], description="Calculated structures:",
             style={'description_width': 'initial'}, layout=widgets.Layout(width='95%', height='130px'))
-        self.btn_research_compare = widgets.Button(description="Compare calculated isomers", disabled=True)
+        self.btn_research_compare = widgets.Button(description="Compare calculated structures", disabled=True)
         self.btn_research_compare.on_click(self._compare_student_isomers)
         self.research_report_output = widgets.HTML("<p role='status'>No tables or diagrams have been collected here yet.</p>")
         self.research_report_download = widgets.HTML()
@@ -3367,18 +3367,41 @@ class CoChemGUI(InputManagementMixin):
         from cochem_base.interfaces.student_reports import (
             discover_observations,
             load_reports,
-            report_html,
         )
         reports = load_reports(root)
         observations = discover_observations(root)
+        self._append_student_research_records(root, reports=reports, observations=observations)
+
+    def _register_completed_local_calculation(self, execution_receipt: dict, root: Path) -> None:
+        """Add the exact final local structure without changing execution status."""
+        try:
+            from cochem_base.interfaces.student_reports import observation_from_completed_local_calculation
+            observation = observation_from_completed_local_calculation(execution_receipt, results_directory=root)
+            identity = (json.dumps(observation["source"], sort_keys=True), observation["energy_kind"])
+            if any((json.dumps(item.get("source", {}), sort_keys=True), item.get("energy_kind")) == identity
+                   for item in self._research_observations):
+                return
+            number = 1 + max((item["local_calculation_number"] for item in self._research_observations
+                              if type(item.get("local_calculation_number")) is int), default=0)
+            observation = {**observation, "local_calculation_number": number,
+                "label": f"Local calculation {number} · {observation['method']['method']} · Electronic energy"}
+            self._append_student_research_records(root.parent, reports=[], observations=[observation])
+        except Exception as exc:
+            self.research_report_output.value = (
+                "<p role='alert'>The calculation completed, but its energy could not be added to calculated structures: "
+                + html.escape(str(exc)) + ". The original calculation output remains available.</p>"
+            )
+
+    def _append_student_research_records(self, root: Path, *, reports: list, observations: list) -> None:
+        from cochem_base.interfaces.student_reports import report_html
         self._research_reports.extend(reports)
         existing = {(json.dumps(item.get("source", {}), sort_keys=True), item.get("energy_kind")) for item in self._research_observations}
         for item in observations:
             key = (json.dumps(item.get("source", {}), sort_keys=True), item.get("energy_kind"))
             if key not in existing:
                 kind = "Gibbs free energy" if item.get("energy_kind") == "gibbs_free_energy" else "Electronic energy"
-                item["label"] = f"{root.name[:36]} · {item['label']} · {kind}"
-                self._research_observations.append(item)
+                label = item["label"] if type(item.get("local_calculation_number")) is int else f"{root.name[:36]} · {item['label']} · {kind}"
+                self._research_observations.append({**item, "label": label})
                 existing.add(key)
         chosen = set(self.research_isomer_choices.value)
         self.research_isomer_choices.options = [(item["label"], index) for index, item in enumerate(self._research_observations)]
@@ -3387,7 +3410,7 @@ class CoChemGUI(InputManagementMixin):
         if reports:
             self.research_report_output.value = "\n".join(report_html(report) for report in self._research_reports)
         elif observations:
-            self.research_report_output.value = f"<p role='status'>Retained {len(self._research_observations)} computed energy observations. Choose Compare calculated isomers for compatible structures.</p>"
+            self.research_report_output.value = f"<p role='status'>Retained {len(self._research_observations)} computed energy observations. Choose Compare calculated structures for compatible structures.</p>"
         else:
             self.research_report_output.value = "<p role='status'>Calculation artifacts were retained. The provider returned no compatible scientific report observations; no diagram or population has been invented.</p>"
         self.btn_research_compare.disabled = not bool(self._research_observations)
@@ -6281,6 +6304,7 @@ class CoChemGUI(InputManagementMixin):
             elif event.get("status") == "RUNNING":
                 self.state.system_status = "Running Pipeline..."
 
+        completed_local = None
         try:
             work_dir = config_path.parent
             configuration = json.loads(config_path.read_text(encoding="utf-8"))
@@ -6351,6 +6375,8 @@ class CoChemGUI(InputManagementMixin):
                 )
             else:
                 self.calculation_result.value = f"<b>ORCA {html.escape(operation)} accepted.</b> Results: <code>{html.escape(str(work_dir / 'Results'))}</code>"
+            if engine == "XTB":
+                completed_local = (dict(result), work_dir / "Results")
         except SubprocessCancelledError:
             self.state.system_status = "Calculation Cancelled"
             self.state.error_message = ""
@@ -6369,6 +6395,14 @@ class CoChemGUI(InputManagementMixin):
             self._check_dispersion_gate()
             self._refresh_topos_capabilities()
             self._refresh_running_jobs()
+        if completed_local is not None:
+            receipt, root = completed_local
+            try:
+                self._ui_call(lambda: self._register_completed_local_calculation(receipt, root))
+            except Exception as exc:
+                self.telemetry_output.append_stdout(
+                    "Calculation completed; comparison registration was unavailable: " + str(exc) + "\n"
+                )
 
     def display(self) -> widgets.VBox:
         self.app.add_class("cochem-mainlayout")

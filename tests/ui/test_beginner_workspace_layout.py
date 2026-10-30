@@ -144,15 +144,34 @@ def _exercise(case):
         goal_column = gui.guided_current.children[1]
         assert not isinstance(goal_column, Disclosure) and gui.guided_goal_status in goal_column.children
         assert gui.guided_goal_requirements in goal_column.children
-        for selected in ("Product A (Lead Screening)", "Product B (Materials and Extended Solids)",
-                         "Product C (Absolute Spectroscopic Calibration)", "Screening (no product accuracy claim)"):
+        assert gui.guided_draft_status in gui.guided_goal_requirements.body.children
+        assert gui.product_class_card in gui.guided_goal_requirements.body.children
+        labels = {
+            "Product A (Lead Screening)": "Screen candidate molecules in a solvent",
+            "Product B (Materials and Extended Solids)": "Study materials and repeating solids",
+            "Product C (Absolute Spectroscopic Calibration)": "Calibrate spectroscopic properties",
+            "Screening (no product accuracy claim)": "Exploratory screening — no accuracy claim",
+        }
+        options_before = gui.product_class_selector.options
+        for selected, label in labels.items():
             gui.product_class_selector.value = selected
             expected = _draft(gui)
+            scientific_card = gui.product_class_card.value
+            method = gui.matrix_method.value
+            execution_disabled = gui.btn_execute.disabled
             for button in gui.guided_step_buttons.values():
                 button.click()
-                assert selected in gui.guided_goal_status.value
+                assert label in gui.guided_goal_status.value
                 assert "Goal selection is not validation" in gui.guided_goal_status.value
+                assert selected in gui.guided_draft_status.value
+                assert method in gui.guided_draft_status.value
+                assert gui.product_class_card.value == scientific_card
+                assert gui.product_class_selector.value == selected
+                assert gui.product_class_selector.options == options_before
+                assert gui.btn_execute.disabled == execution_disabled
                 assert _draft(gui) == expected
+            gui.guided_goal_requirements.toggle.value = True
+            gui.guided_goal_requirements.toggle.value = False
             gui.advanced_goal.toggle.value = True
             gui.advanced_goal.toggle.value = False
             assert _draft(gui) == expected

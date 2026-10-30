@@ -35,6 +35,7 @@ def observation(tmp_path, label, energy=0., *, kind="electronic_energy", degener
 
 def test_equal_energy_degeneracy_normalization(tmp_path):
     report = build_isomer_report([observation(tmp_path, "a"), observation(tmp_path, "b", degeneracy=3)])
+    assert report["title"] == "Calculated structure energy differences and populations"
     assert [row["population_fraction"] for row in report["rows"]] == pytest.approx([.25, .75])
     assert "not thermodynamic equilibrium" in report["scope"]
 
@@ -86,6 +87,30 @@ def test_source_mutation_is_not_accepted(tmp_path):
     record = observation(tmp_path, "a")
     Path(record["source"]["path"]).write_text('{"energy_hartree": 100}')
     with pytest.raises(ValueError, match="checksum"):
+        build_isomer_report([record], populations=False)
+
+
+def test_calculated_structure_context_is_rechecked_before_report(tmp_path):
+    # This is a retained-byte presentation control, not native engine evidence.
+    record = observation(tmp_path, "calculated structure")
+    record["minimum_verified"] = False
+    context = tmp_path / "analytical-context.json"
+    context.write_text(json.dumps({"source_kind": "mathematical normalization test"}))
+    record["provenance_sources"] = [{"path": str(context), "sha256": hashlib.sha256(context.read_bytes()).hexdigest()}]
+    report = build_isomer_report([record], populations=False)
+    assert report["title"] == "Structure energy differences"
+    assert any(source["filename"] == context.name for source in report["sources"])
+    assert "population_fraction" not in report["rows"][0]
+    context.write_text(json.dumps({"source_kind": "changed context"}))
+    with pytest.raises(ValueError, match="checksum"):
+        build_isomer_report([record], populations=False)
+
+
+@pytest.mark.parametrize("provenance", [[], "unbound", [{}] * 33])
+def test_calculated_structure_context_inventory_is_bounded(tmp_path, provenance):
+    record = observation(tmp_path, "calculated structure")
+    record["provenance_sources"] = provenance
+    with pytest.raises(ValueError, match="between 1 and 32"):
         build_isomer_report([record], populations=False)
 
 

@@ -886,7 +886,7 @@ _CONTROL_LABELS = {
     'btn_remove_geometry': 'Remove from list',
     'btn_remove_input': 'Remove from list',
     'btn_research_clear_selection': 'Clear comparison selection',
-    'btn_research_compare': 'Compare calculated isomers',
+    'btn_research_compare': 'Compare calculated structures',
     'btn_research_fragment_states': 'Check monomer charges and spins',
     'btn_research_nbo': 'Calculate NBO analysis',
     'btn_research_refresh': 'Check available calculations',

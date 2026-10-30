@@ -468,11 +468,16 @@ def _guided_shell(gui: Any) -> None:
         gui.guided_input_summary.value = (
             "<p><b>Molecule:</b> " + molecule + "<br><b>Charge:</b> " + str(gui.charge_input.value)
             + " · <b>Spin multiplicity:</b> " + str(gui.multiplicity_input.value) + " (current draft)</p>")
-        goal = gui.product_class_selector.label or gui.product_class_selector.value
         selected_goal = gui.product_class_selector.value
         if selected_goal == "Screening (no product accuracy claim)":
+            goal_label = "Exploratory screening — no accuracy claim"
             meaning = "Exploratory work; no product accuracy claim."
         else:
+            goal_label = {
+                ProductClass.PRODUCT_A: "Screen candidate molecules in a solvent",
+                ProductClass.PRODUCT_B: "Study materials and repeating solids",
+                ProductClass.PRODUCT_C: "Calibrate spectroscopic properties",
+            }[ProductClass(selected_goal)]
             # Plain-language summaries of the canonical ProductClass policy;
             # the adjacent scientific card retains its full requirements.
             meaning = {
@@ -481,9 +486,10 @@ def _guided_shell(gui: Any) -> None:
                 ProductClass.PRODUCT_C: "Requires comparison of two allowed basis-set sizes for spectroscopic calibration.",
             }[ProductClass(selected_goal)]
         gui.guided_goal_status.value = (
-            "<p><b>Selected scientific goal:</b> " + html.escape(str(goal)) + " — " + html.escape(meaning)
-            + " Goal selection is not validation.</p>")
+            "<p><b>Selected scientific goal:</b> " + html.escape(goal_label)
+            + ". Goal selection is not validation.</p>")
         gui.guided_draft_status.value = (
+            "<p><b>Selected class:</b> " + html.escape(str(selected_goal)) + ". " + html.escape(meaning) + "</p>"
             "<p><b>Current settings:</b> program " + html.escape(str(program)) + "; method " + html.escape(str(method))
             + "; basis " + html.escape(str(gui.matrix_basis.value or "not selected"))
             + ".</p>"

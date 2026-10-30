@@ -24,14 +24,156 @@ env:
 permissions:
   contents: read
 
-concurrency:
-  group: cochem-student-research-${{ github.repository }}
-  cancel-in-progress: false
-
 jobs:
-  research:
+  admission:
     # A changed default branch/source hash is rejected again by request preflight.
     if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (github.event.repository.private == true || github.repository == 'ProfJJK-CoChem/CoChem-BASE')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      probe: ${{ steps.route.outputs.probe }}
+    defaults:
+      run:
+        working-directory: worker
+    env:
+      REQUEST_ID: ${{ inputs.request_id }}
+      REQUEST_SHA256: ${{ inputs.request_sha256 }}
+      REQUEST_BASE64: ${{ inputs.request_base64 }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      COCHEM_HEADLESS: '1'
+      COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
+      PYTHONDONTWRITEBYTECODE: '1'
+      QT_QPA_PLATFORM: offscreen
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - name: Set job-local runtime paths
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-student-runtime" >> "$GITHUB_ENV"
+          echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-student-runtime/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          path: assignment
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Verify submitted structures, identity and finite resource limits
+        id: request
+        working-directory: assignment
+        run: |
+          python scripts/run_student_research.py --preflight-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Verify the instructor-approved canonical worker revision
+        working-directory: assignment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          COCHEM_APPROVED_BASE_SHA: ${{ vars.COCHEM_APPROVED_BASE_SHA }}
+          COCHEM_COURSE_CHANNEL: ${{ vars.COCHEM_COURSE_CHANNEL }}
+        run: |
+          python scripts/run_student_research.py --approve-worker-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Obtain the exact canonical BASE worker without changing student files
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ProfJJK-CoChem/CoChem-BASE
+          ref: ${{ steps.request.outputs.worker_sha }}
+          path: worker
+          token: ${{ github.token }}
+          persist-credentials: false
+      - name: Audit the approved BASE source before application imports
+        env:
+          COCHEM_EXPECTED_REVISION: ${{ steps.request.outputs.worker_sha }}
+        run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "$RUNNER_TEMP/cochem-student-audit"
+      - name: Revalidate scientific capabilities and resources in the approved worker
+        id: worker
+        run: |
+          python scripts/run_student_research.py --verify-worker-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Recheck the current private project before provisioning access
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python -B scripts/run_student_research.py --verify-project-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Publish the canonical admitted request route
+        id: route
+        env:
+          VERIFIED_PROBE: ${{ steps.worker.outputs.probe }}
+        run: |
+          set -euo pipefail
+          case "$VERIFIED_PROBE" in
+            true|false) printf 'probe=%s\n' "$VERIFIED_PROBE" >> "$GITHUB_OUTPUT" ;;
+            *) echo '::error::Canonical worker did not admit a valid request route.'; exit 1 ;;
+          esac
+      - name: Seal honest admission failure diagnostics
+        id: failure_publication
+        if: always() && steps.request.outcome == 'success' && steps.route.outcome != 'success'
+        working-directory: ${{ github.workspace }}
+        run: |
+          python -B - <<'PY'
+          import os, runpy
+          from pathlib import Path
+          worker = runpy.run_path('assignment/scripts/run_student_research.py')
+          contract = worker['contract']
+          output = Path(os.environ['RUNNER_TEMP']) / 'cochem-student-evidence'
+          def record(name):
+              with (output / name).open('rb') as stream:
+                  raw = stream.read(4 * 1024 * 1024 + 1)
+              if len(raw) > 4 * 1024 * 1024:
+                  raise ValueError('Admission publication metadata exceeds its bound')
+              return contract.strict_json(raw)
+          request = contract.decode_transport_request(os.environ['REQUEST_BASE64'], os.environ['REQUEST_SHA256'])
+          saved_request = record('request.json')
+          if (contract.canonical_json(request) != contract.canonical_json(saved_request)
+                  or request['request_id'] != os.environ['REQUEST_ID']
+                  or request['repository'] != os.environ['GITHUB_REPOSITORY']
+                  or request['source_sha'] != os.environ['GITHUB_SHA']
+                  or os.environ['GITHUB_REF'] != 'refs/heads/' + os.environ['DEFAULT_BRANCH']):
+              raise ValueError('Admission publication request identity changed')
+          expected = worker['_identity'](request)
+          identity = ('request_id', 'repository', 'source_sha', 'worker_source_sha',
+                      'payload_sha256', 'run_id', 'run_attempt')
+          def verify_report(status):
+              report = record('student-result.json')
+              if (report.get('schema_version') != 'cochem.student-result/1'
+                      or report.get('status') != status or report.get('operation_performed') is not False
+                      or report.get('capability_probe_performed', False) is not False
+                      or any(type(report.get(key)) is not int for key in ('run_id', 'run_attempt'))
+                      or any(report.get(key) != expected[key] for key in identity)):
+                  raise ValueError('Admission may publish only its own unexecuted failed request')
+          verify_report('prepared')
+          worker['finalize'](output)
+          verify_report('failed')
+          manifest = record('publication-manifest.json')
+          if (manifest.get('schema_version') != 'cochem.student-publication/1'
+                  or any(type(manifest.get(key)) is not int for key in ('run_id', 'run_attempt'))
+                  or any(manifest.get(key) != expected[key] for key in identity)):
+              raise ValueError('Admission failure manifest identity changed')
+          PY
+      - name: Return the exact request's sealed admission failure to BASE
+        if: always() && steps.request.outcome == 'success' && steps.route.outcome != 'success' && steps.failure_publication.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cochem-student-${{ inputs.request_id }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cochem-student-evidence/
+          if-no-files-found: error
+          retention-days: 14
+  research:
+    needs: admission
+    concurrency:
+      group: ${{ needs.admission.outputs.probe == 'true' && format('cochem-student-probe-{0}', github.repository) || format('cochem-student-research-{0}', github.repository) }}
+      cancel-in-progress: false
+    # A changed default branch/source hash is rejected again by request preflight.
+    if: >-
+      needs.admission.result == 'success' &&
+      (needs.admission.outputs.probe == 'true' || needs.admission.outputs.probe == 'false') &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       (github.event.repository.private == true || github.repository == 'ProfJJK-CoChem/CoChem-BASE')
     runs-on: ubuntu-24.04
@@ -98,6 +240,24 @@ jobs:
         run: |
           python scripts/run_student_research.py --verify-worker-only \
             --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Bind the canonical worker route to the admitted request
+        env:
+          ADMITTED_PROBE: ${{ needs.admission.outputs.probe }}
+          VERIFIED_PROBE: ${{ steps.worker.outputs.probe }}
+        run: |
+          set -euo pipefail
+          case "$ADMITTED_PROBE" in
+            true|false) ;;
+            *) echo '::error::Admission did not provide a valid request route.'; exit 1 ;;
+          esac
+          case "$VERIFIED_PROBE" in
+            true|false) ;;
+            *) echo '::error::Canonical worker did not verify a valid request route.'; exit 1 ;;
+          esac
+          if [[ "$ADMITTED_PROBE" != "$VERIFIED_PROBE" ]]; then
+            echo '::error::The canonical request route differs from admission; no protected operation was started.'
+            exit 1
+          fi
       - name: Recheck the current private project before provisioning access
         env:
           GITHUB_TOKEN: ${{ github.token }}

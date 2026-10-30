@@ -18,7 +18,7 @@
     ".github/workflows/orca_calculation.yml": "5d744c367c088a1faa13c8fe98f5d851161db23492fb48d52098c4576733b45c",
     ".github/workflows/student_entrypoint_acceptance.yml": "f1267695ff33ceb97476b86f00b2f1304aab62722771fbc2e69f42b7a779b995",
     ".github/workflows/student_project_setup.yml": "da158f3bca4d3212c56ea3ac4145d874cae9a328b7db57fbff716bcb9a6f6905",
-    ".github/workflows/student_research.yml": "08438920bd2d3b7d3ef59bdeb4a0412ee49d2191f67f40cd390517183f6e7e81",
+    ".github/workflows/student_research.yml": "8dbde858f49ab857c77fcf8b5f79237942c49039b1292dd990ec9804f12d7f30",
     ".gitignore": "283df9a05fa2d25d68168d6cd1c8cdd5fcfc713336c63fb174efad9f42336e4d",
     ".scripts/install_qe_paw.py": "196a6cb6480b3a5ef7c56a5d75219405ff3d78c17b912ad478657a787a780ed1",
     ".scripts/prompts/1.2.3_prompt.json": "4ab19cdffaaff8ad6a7bc792b112a188a768810553dcc7a4b9e96fae47aea49a",

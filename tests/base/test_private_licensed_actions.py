@@ -174,7 +174,11 @@ def test_student_licensed_route_is_manual_private_pinned_and_rechecks_before_ass
     assert set(workflow.get("on", workflow.get(True))) == {"workflow_dispatch"}
     assert workflow["permissions"] == {"contents": "read"}
     research = workflow["jobs"]["research"]
+    assert "concurrency" not in workflow
+    assert research["needs"] == "admission"
     assert research["if"].strip() == (
+        "needs.admission.result == 'success' && "
+        "(needs.admission.outputs.probe == 'true' || needs.admission.outputs.probe == 'false') && "
         "github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && "
         "(github.event.repository.private == true || github.repository == 'ProfJJK-CoChem/CoChem-BASE')")
     assert not any("secret" in str(value).lower() for value in research["env"].values())
@@ -183,7 +187,8 @@ def test_student_licensed_route_is_manual_private_pinned_and_rechecks_before_ass
     visibility = names["Recheck the current private project before provisioning access"]
     audit = names["Audit the approved BASE source before application imports"]
     verified = names["Revalidate scientific capabilities and resources in the approved worker"]
-    assert audit < verified < visibility
+    bound = names["Bind the canonical worker route to the admitted request"]
+    assert audit < verified < bound < visibility
     assert "--verify-project-only" in steps[visibility]["run"]
     assert steps[visibility]["env"] == {"GITHUB_TOKEN": "${{ github.token }}"}
     checkouts = [step for step in steps if step.get("uses", "").startswith("actions/checkout@")]

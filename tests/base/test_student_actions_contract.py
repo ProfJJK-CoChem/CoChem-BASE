@@ -819,3 +819,331 @@ def test_preinstallation_worker_probe_uses_only_reviewed_checkout_and_stdlib(tmp
     completed = subprocess.run([sys.executable, "-B", "-I", "-S", "-c", program], env=environment,
                                cwd=tmp_path, capture_output=True, text=True, timeout=30, check=False)
     assert completed.returncode == 0, completed.stderr
+
+
+def _student_admission_workflow():
+    import yaml
+
+    return yaml.safe_load((Path(__file__).resolve().parents[2]
+                           / '.github/workflows/student_research.yml').read_text())
+
+
+def test_student_admission_preserves_transport_and_presecret_authority():
+    workflow = _student_admission_workflow()
+    dispatch = workflow.get('on', workflow.get(True))['workflow_dispatch']
+    assert set(dispatch['inputs']) == {'request_id', 'request_sha256', 'request_base64'}
+    assert workflow['permissions'] == {'contents': 'read'} and 'concurrency' not in workflow
+    admission, research = workflow['jobs']['admission'], workflow['jobs']['research']
+    assert 'concurrency' not in admission and admission['timeout-minutes'] == 5
+    assert admission['outputs'] == {'probe': '${{ steps.route.outputs.probe }}'}
+    steps = admission['steps']
+    names = {step.get('name'): index for index, step in enumerate(steps)}
+    ordered = ['Verify submitted structures, identity and finite resource limits',
+               'Verify the instructor-approved canonical worker revision',
+               'Obtain the exact canonical BASE worker without changing student files',
+               'Audit the approved BASE source before application imports',
+               'Revalidate scientific capabilities and resources in the approved worker',
+               'Recheck the current private project before provisioning access',
+               'Publish the canonical admitted request route']
+    assert [names[name] for name in ordered] == sorted(names[name] for name in ordered)
+    assert len(steps) == 12
+    for step in steps:
+        assert 'secrets[' not in json.dumps(step)
+        assert not step.get('uses', '').startswith('./worker/')
+        assert '--capability-probe' not in step.get('run', '')
+        assert 'sudo ' not in step.get('run', '')
+        assert 'hosted_dashboard.py setup' not in step.get('run', '')
+    route = next(step for step in steps if step.get('id') == 'route')
+    assert route['env'] == {'VERIFIED_PROBE': '${{ steps.worker.outputs.probe }}'}
+    assert research['needs'] == 'admission'
+    assert research['concurrency'] == {
+        'group': "${{ needs.admission.outputs.probe == 'true' && format('cochem-student-probe-{0}', github.repository) || format('cochem-student-research-{0}', github.repository) }}",
+        'cancel-in-progress': False}
+    assert "needs.admission.result == 'success'" in research['if']
+    assert "(needs.admission.outputs.probe == 'true' || needs.admission.outputs.probe == 'false')" in research['if']
+    failure = next(step for step in steps if step.get('id') == 'failure_publication')
+    upload = next(step for step in steps if step.get('uses', '').startswith('actions/upload-artifact@'))
+    assert failure['if'] == "always() && steps.request.outcome == 'success' && steps.route.outcome != 'success'"
+    assert upload['if'] == failure['if'] + " && steps.failure_publication.outcome == 'success'"
+    science_upload = next(step for step in research['steps']
+                          if step.get('uses', '').startswith('actions/upload-artifact@'))
+    assert upload['with']['name'] == science_upload['with']['name'] == (
+        'cochem-student-${{ inputs.request_id }}-${{ github.run_id }}-${{ github.run_attempt }}')
+    assert upload['with']['if-no-files-found'] == 'error'
+
+
+@pytest.mark.parametrize('value', ['true', 'false', '', 'TRUE', 'true\nprobe=false', '$(touch marker)'])
+def test_admission_route_publication_shell(tmp_path, value):
+    script = next(step['run'] for step in _student_admission_workflow()['jobs']['admission']['steps']
+                  if step.get('id') == 'route')
+    output = tmp_path / 'github-output'
+    result = subprocess.run(['bash', '-e', '-c', script], cwd=tmp_path,
+        env=dict(os.environ, VERIFIED_PROBE=value, GITHUB_OUTPUT=str(output)),
+        capture_output=True, text=True, timeout=10)
+    accepted = value in {'true', 'false'}
+    assert (result.returncode == 0) is accepted, result.stdout + result.stderr
+    if accepted:
+        assert output.read_bytes() == f'probe={value}\n'.encode()
+    else:
+        assert not output.exists()
+    assert not (tmp_path / 'marker').exists()
+
+
+@pytest.mark.parametrize(('admitted', 'verified'), [
+    ('true', 'true'), ('false', 'false'), ('true', 'false'), ('false', 'true'),
+    ('', 'false'), ('false', ''), ('TRUE', 'TRUE'), ('true\n', 'true\n'),
+    ('$(touch marker)', '$(touch marker)'),
+])
+def test_research_admitted_route_equality_shell(tmp_path, admitted, verified):
+    script = next(step['run'] for step in _student_admission_workflow()['jobs']['research']['steps']
+                  if step.get('name') == 'Bind the canonical worker route to the admitted request')
+    result = subprocess.run(['bash', '-e', '-c', script], cwd=tmp_path,
+        env=dict(os.environ, ADMITTED_PROBE=admitted, VERIFIED_PROBE=verified),
+        capture_output=True, text=True, timeout=10)
+    assert (result.returncode == 0) is (admitted == verified and admitted in {'true', 'false'})
+    assert not (tmp_path / 'marker').exists()
+
+
+_STUDENT_ADMISSION_CHILD = r'''
+import hashlib, io, json, os, runpy, sys, zipfile
+from pathlib import Path
+root, workspace, api_url, mode, case, program_path = sys.argv[1:]
+root, workspace = Path(root), Path(workspace)
+if os.environ.get('COCHEM_SOURCE_QUARANTINE_ROOT'):
+    startup = sys.modules.get('sitecustomize')
+    assert startup is not None
+    assert Path(startup.__file__).resolve() == root / 'ci_tools/quarantine_startup/sitecustomize.py'
+    state = getattr(sys.modules.get('ci_tools.source_quarantine'), '_active', None)
+    assert state is not None and state['copied'] == root
+module = runpy.run_path(str(root / 'scripts/run_student_research.py'))
+output = Path(os.environ['RUNNER_TEMP']) / 'cochem-student-evidence'
+def no_probe_output():
+    path = Path(os.environ['GITHUB_OUTPUT'])
+    assert not path.exists() or not any(line.startswith('probe=') for line in path.read_text().splitlines())
+if mode == 'canonical':
+    try:
+        request = module['preflight'](output)
+        if case == 'changed_saved_request':
+            changed = dict(request, submitted_at='2026-10-09T00:00:00+00:00')
+            (output / 'request.json').write_bytes(module['contract'].canonical_json(changed))
+        module['approve_worker'](output, api_url=api_url, allow_loopback=True)
+        module['verify_worker_checkout'](output)
+    except ValueError:
+        assert case != 'valid'
+        no_probe_output()
+        if case in {'digest', 'resource_allocation', 'assignment_source', 'default_branch'}:
+            assert not output.exists()
+        else:
+            assert (output / 'student-result.json').exists()
+    else:
+        assert case == 'valid'
+        probe = request['capability_probe'] is not None
+        lines = Path(os.environ['GITHUB_OUTPUT']).read_text().splitlines()
+        assert lines.count('probe=' + str(probe).lower()) == 1
+        approval = module['contract'].strict_json((output / 'worker-approval.json').read_bytes())
+        source = module['contract'].strict_json((output / 'worker-source.json').read_bytes())
+        assert approval['worker_source_sha'] == source['worker_source_sha'] == request['worker_source_sha']
+        assert approval['assignment_source_sha'] == request['source_sha']
+        catalog = (output / 'worker-module-distribution.json').read_bytes()
+        assert source['module_manifest_sha256'] == hashlib.sha256(catalog).hexdigest()
+        report = module['contract'].strict_json((output / 'student-result.json').read_bytes())
+        assert report['status'] == 'prepared' and report['operation_performed'] is False
+    print('admission-control-passed')
+else:
+    request = module['preflight'](output)
+    try:
+        module['approve_worker'](output, api_url=api_url, allow_loopback=True)
+    except ValueError as error:
+        assert 'exact approved worker source' in str(error)
+    else:
+        raise AssertionError('The real wrong-commit approval response unexpectedly succeeded')
+    path = output / 'student-result.json'
+    report = module['contract'].strict_json(path.read_bytes())
+    assert report['status'] == 'prepared' and report['operation_performed'] is False
+    field_faults = {'completed': ('status', 'completed'), 'operation_true': ('operation_performed', True),
+        'operation_zero': ('operation_performed', 0), 'probe_performed': ('capability_probe_performed', True),
+        'wrong_request': ('request_id', 'e5b58d6d-f042-4ffb-91df-e2092bf8d311'),
+        'wrong_repository': ('repository', 'different/project'), 'wrong_source': ('source_sha', '0' * 40),
+        'wrong_worker': ('worker_source_sha', '0' * 40), 'wrong_digest': ('payload_sha256', '0' * 64),
+        'wrong_run': ('run_id', 2), 'wrong_attempt': ('run_attempt', 2),
+        'boolean_run': ('run_id', True), 'boolean_attempt': ('run_attempt', True)}
+    if case in field_faults:
+        field, value = field_faults[case]
+        report[field] = value
+    if case == 'changed_saved_request':
+        changed = dict(request, repository='different/project')
+        (output / 'request.json').write_bytes(module['contract'].canonical_json(changed))
+    elif case in {'saved_cores_float', 'saved_memory_float'}:
+        changed = dict(request, resources=dict(request['resources']))
+        field = 'cores' if case == 'saved_cores_float' else 'maxcore_mb'
+        changed['resources'][field] = float(changed['resources'][field])
+        assert changed == request  # Numeric equality must not become byte identity.
+        assert module['contract'].canonical_json(changed) != module['contract'].canonical_json(request)
+        (output / 'request.json').write_bytes(module['contract'].canonical_json(changed))
+    path.write_bytes(module['contract'].canonical_json(report))
+    if case == 'oversize_report':
+        path.write_bytes(b' ' * (4 * 1024 * 1024 + 1))
+    before = path.read_bytes()
+    injected = {'done': False}
+    if case.startswith('post_manifest_'):
+        def corrupt_actual_manifest(event, arguments):
+            if event != 'open' or injected['done']:
+                return
+            try:
+                target = Path(os.fsdecode(arguments[0]))
+            except (TypeError, ValueError):
+                return
+            if target == output / 'publication-manifest.json' and target.exists():
+                injected['done'] = True
+                manifest = module['contract'].strict_json(target.read_bytes())
+                if case == 'post_manifest_boolean':
+                    manifest['run_attempt'] = True
+                elif case == 'post_manifest_identity':
+                    manifest['run_id'] = 2
+                if case == 'post_manifest_oversize':
+                    target.write_bytes(b' ' * (4 * 1024 * 1024 + 1))
+                else:
+                    target.write_bytes(module['contract'].canonical_json(manifest))
+        # Explicit child-only corruption at real finalizer I/O; parsing and
+        # finalization remain real. This is never installed in a shared process.
+        sys.addaudithook(corrupt_actual_manifest)
+    try:
+        exec(compile(Path(program_path).read_text(), 'tracked-admission-failure-publication', 'exec'), {})
+    except ValueError:
+        assert case != 'valid_failure'
+        if case.startswith('post_manifest_'):
+            assert injected['done'] and (output / 'publication-manifest.json').exists()
+            final = module['contract'].strict_json(path.read_bytes())
+            assert final['status'] == 'failed' and final['operation_performed'] is False
+        else:
+            assert path.read_bytes() == before
+            assert not (output / 'publication-manifest.json').exists()
+    else:
+        assert case == 'valid_failure', 'Admission guard accepted corrupt prepared state: ' + case
+        final = module['contract'].strict_json(path.read_bytes())
+        assert final['status'] == 'failed' and final['operation_performed'] is False
+        from cochem_base.interfaces.student_actions import StudentActionsError, _extract_verified_archive
+        identity = {key: final[key] for key in ('request_id', 'repository', 'source_sha', 'worker_source_sha',
+                    'payload_sha256', 'run_id', 'run_attempt')}
+        submission = dict(identity, workflow_id=123, branch='main')
+        def archive_bytes():
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+                for member in sorted(output.rglob('*')):
+                    if member.is_file(): archive.write(member, member.relative_to(output).as_posix())
+            return buffer.getvalue()
+        sealed = archive_bytes()
+        imported = _extract_verified_archive(sealed, workspace / 'retrieved', submission, submission)
+        assert imported['report']['status'] == 'failed' and imported['report']['operation_performed'] is False
+        try:
+            _extract_verified_archive(sealed, workspace / 'wrong-attempt', submission,
+                                      dict(submission, run_attempt=2))
+        except StudentActionsError:
+            pass
+        else:
+            raise AssertionError('A different run attempt admitted the failure archive')
+        path.write_bytes(path.read_bytes() + b' ')
+        try:
+            _extract_verified_archive(archive_bytes(), workspace / 'changed-report', submission, submission)
+        except StudentActionsError:
+            pass
+        else:
+            raise AssertionError('Changed report bytes admitted the failure archive')
+    no_probe_output()
+    print('admission-control-passed')
+'''
+
+
+def _run_student_admission_child(peer, tmp_path, *, route='calculation', case='valid', mode='canonical'):
+    from ci_tools.source_quarantine import source_paths
+
+    root = Path(__file__).resolve().parents[2]
+    revision = subprocess.run(['git', '-C', str(root), 'rev-parse', 'HEAD'],
+                              capture_output=True, text=True, check=True, timeout=15).stdout.strip()
+    peer.revision = 'b' * 40 if case == 'wrong_checkout' else revision
+    peer.commit_changed = mode == 'failure' or case == 'wrong_metadata'
+    request = _request()
+    request['worker_source_sha'] = peer.revision
+    if route in {'provider', 'provider_resources'}:
+        raw = request['calculation']['geometry'].encode()
+        digest = hashlib.sha256(raw).hexdigest()
+        request['calculation'] = None
+        request['provider'] = {'schema_version': 'cochem.student-provider/1', 'module': 'torq',
+            'operation': 'geometry_analysis', 'artifact': 'inputs/structure.xyz',
+            'artifact_sha256': digest, 'options': {}}
+        request['files'] = {'inputs/structure.xyz': {'content_base64': base64.b64encode(raw).decode(),
+                            'sha256': digest, 'size_bytes': len(raw)}}
+        if route == 'provider_resources':
+            request['resources'] = {'cores': 1, 'maxcore_mb': 128}
+            request['provider'].update(operation='nbo_analysis', options={
+                'engine': 'orca', 'method': {'name': 'HF', 'basis': 'STO-3G'},
+                'charge': 0, 'multiplicity': 1, 'cores': 2, 'memory_mb': 1024})
+    elif route == 'capability_probe':
+        request.update(calculation=None, capability_probe={'engines': ['orca', 'cfour']})
+    if case == 'dual_route':
+        request['capability_probe'] = {'engines': ['orca']}
+    elif case == 'no_route':
+        request['calculation'] = None
+    elif case == 'resource_allocation':
+        request['resources']['cores'] = 3
+    # Invalid-request controls deliberately encode raw canonical data rather
+    # than replacing or weakening the production encoder's validation.
+    raw = canonical_json(request)
+    digest = hashlib.sha256(raw).hexdigest()
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    (workspace / 'assignment').symlink_to(root, target_is_directory=True)
+    (workspace / 'runner').mkdir()
+    program = next(step['run'] for step in _student_admission_workflow()['jobs']['admission']['steps']
+                   if step.get('id') == 'failure_publication')
+    program_path = workspace / 'failure-publication.py'
+    program_path.write_text(program.split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0])
+    environment = dict(os.environ, PYTHONPATH=os.pathsep.join(source_paths(root)),
+        PYTHONDONTWRITEBYTECODE='1', RUNNER_TEMP=str(workspace / 'runner'),
+        REQUEST_ID=request['request_id'], REQUEST_BASE64=base64.b64encode(raw).decode(),
+        REQUEST_SHA256='0' * 64 if case == 'digest' else digest,
+        GITHUB_REPOSITORY=request['repository'],
+        GITHUB_SHA='0' * 40 if case == 'assignment_source' else request['source_sha'],
+        GITHUB_REF='refs/heads/other' if case == 'default_branch' else 'refs/heads/main',
+        DEFAULT_BRANCH='main', GITHUB_RUN_ID='1', GITHUB_RUN_ATTEMPT='1',
+        GITHUB_OUTPUT=str(workspace / 'github-output'), GITHUB_TOKEN=peer.token,
+        COCHEM_APPROVED_BASE_SHA='c' * 40 if case == 'stale_approval' else peer.revision,
+        COCHEM_COURSE_CHANNEL='')
+    for name in ('GH_TOKEN', 'COCHEM_SOURCE_CREDENTIAL', 'COCHEM_ORCA_ASSET_CREDENTIAL',
+                 'COCHEM_CFOUR_ASSET_CREDENTIAL'):
+        environment.pop(name, None)
+    executed = subprocess.run([sys.executable, '-B', '-c', _STUDENT_ADMISSION_CHILD,
+        str(root), str(workspace), f'http://127.0.0.1:{peer.server_port}', mode, case, str(program_path)],
+        env=environment, cwd=workspace, capture_output=True, text=True, timeout=30)
+    assert peer.token not in executed.stdout + executed.stderr
+    assert executed.returncode == 0, executed.stdout + executed.stderr
+    assert 'admission-control-passed' in executed.stdout
+
+
+@pytest.mark.parametrize('route', ['calculation', 'provider', 'capability_probe'])
+def test_canonical_admission_classifies_only_verified_requests(project_approval_peer, tmp_path, route):
+    _run_student_admission_child(project_approval_peer, tmp_path, route=route)
+    assert project_approval_peer.paths == [
+        '/repos/ProfJJK-CoChem/CoChem-BASE/commits/' + project_approval_peer.revision]
+
+
+@pytest.mark.parametrize('case', ['digest', 'dual_route', 'no_route', 'resource_allocation',
+    'assignment_source', 'default_branch', 'changed_saved_request', 'stale_approval',
+    'wrong_metadata', 'wrong_checkout', 'provider_resources'])
+def test_canonical_admission_refuses_unverified_route(project_approval_peer, tmp_path, case):
+    _run_student_admission_child(project_approval_peer, tmp_path, case=case,
+                                route='provider_resources' if case == 'provider_resources' else 'calculation')
+
+
+def test_admission_failure_is_sealed_and_retrievable_from_actual_preflight(project_approval_peer, tmp_path):
+    _run_student_admission_child(project_approval_peer, tmp_path, mode='failure', case='valid_failure')
+    assert len(project_approval_peer.paths) == 1
+
+
+@pytest.mark.parametrize('case', ['completed', 'operation_true', 'operation_zero', 'probe_performed',
+    'wrong_request', 'wrong_repository', 'wrong_source', 'wrong_worker', 'wrong_digest', 'wrong_run',
+    'wrong_attempt', 'boolean_run', 'boolean_attempt', 'changed_saved_request', 'saved_cores_float',
+    'saved_memory_float', 'oversize_report',
+    'post_manifest_boolean', 'post_manifest_identity', 'post_manifest_oversize'])
+def test_admission_failure_publication_refuses_unexpected_state(project_approval_peer, tmp_path, case):
+    _run_student_admission_child(project_approval_peer, tmp_path, mode='failure', case=case)

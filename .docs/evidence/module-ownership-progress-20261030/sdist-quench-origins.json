@@ -1,0 +1,22 @@
+{
+  "returncode": 0,
+  "cwd": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0",
+  "loaded_origins": {
+    "tests.base.test_topology_scientific_admission": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/tests/base/test_topology_scientific_admission.py",
+    "cochem_base.exceptions": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/src/cochem_base/exceptions.py",
+    "cochem_base.topology.cochem_topos_crusher": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/src/cochem_base/topology/cochem_topos_crusher.py",
+    "cochem_base.topology.cochem_topos_graph": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/src/cochem_base/topology/cochem_topos_graph.py",
+    "cochem_base.topology.cochem_topos_wiggle": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/src/cochem_base/topology/cochem_topos_wiggle.py",
+    "cochem_base.physics": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/src/cochem_base/physics/__init__.py",
+    "cochem_base.physics.nuclide_resolver": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/src/cochem_base/physics/nuclide_resolver.py",
+    "cochem_base.physics.isotopes": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/src/cochem_base/physics/isotopes.py",
+    "cochem_base.physics.eckart_aligner": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/src/cochem_base/physics/eckart_aligner.py",
+    "cochem_base.topology.deduplicator": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/src/cochem_base/topology/deduplicator.py",
+    "cochem_base.topology": "/workspace/.completion/ownership-boundary-review/sdist/cochem_base-1.1.0/src/cochem_base/topology/__init__.py"
+  },
+  "all_loaded_base_modules_from_extracted_sdist": true,
+  "no_foreign_provider_modules_loaded": true,
+  "sdist_python_files_unchanged": true,
+  "before_source_inventory_sha256": "6e94dd68c1860b488d5bfb40a047c028e69e215b95f5411cdcf0eff9a21874fe",
+  "after_source_inventory_sha256": "6e94dd68c1860b488d5bfb40a047c028e69e215b95f5411cdcf0eff9a21874fe"
+}

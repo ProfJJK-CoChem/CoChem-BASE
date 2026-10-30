@@ -221,9 +221,10 @@ def execute_module_handoff(handoff_path: str | Path, output: str | Path, *,
     sidecar = _prepare_torq_sidecar(installation_root, catalog, target) if handoff.module_id == "topos" else None
     artifact = path.parent / handoff.artifact.filename
     native_output = target / "operation.json"
+    use_artifact = handoff.module_id != "torq" and handoff.operation == "geometry_analysis"
     command = [receipt["python_path"], "-I", "-B", str(adapter),
-               "--artifact" if handoff.operation == "geometry_analysis" else "--handoff",
-               str(artifact) if handoff.operation == "geometry_analysis" else str(path),
+               "--artifact" if use_artifact else "--handoff",
+               str(artifact) if use_artifact else str(path),
                "--output", str(native_output)]
     if registry is not None and handoff.operation != "geometry_analysis":
         registry_path = Path(registry).expanduser().resolve(strict=True)

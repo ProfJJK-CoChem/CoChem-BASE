@@ -1,0 +1,67 @@
+{
+  "reviewer": "base_final_review independent agent",
+  "reviewed_at_utc": "2026-10-30T19:08:23.787153+00:00",
+  "status": "no_new_code_blocker_in_stable_module_migration_scope",
+  "scope": "BASE packaging, TORQ transport and reviewed pin, two BASE intake relocations and compatibility aliases; excludes concurrently edited restart and topology test split",
+  "source_sha256": {
+    "MANIFEST.in": "6d090871a47330a47dfd1c4076794e1e9463eb618b53308e46520ea8887f4987",
+    "pyproject.toml": "68faf09e6f8f0aecb7efedafc9eabd848132c6e1e1789df3c9e2b0f769aaf122",
+    "scripts/module-distribution.json": "316b47c8005ee9c8b3bd89bf4708481a53c03d32a1072c442a3358c0dcb960c9",
+    "scripts/module_adapter_torq.py": "6ab5612d40fe9c3c31c115b20e86e26ba5bd783722e7441aee7c8b20557351d8",
+    "src/cochem_base/interfaces/module_execution.py": "6f92dc382f9c081ffa452358e07cd964d8b0933c0d69d43fc2c2e7d993bc162d",
+    "src/cochem_base/intake/conformer_orchestrator.py": "74fbc09264da029db82edcbfa69e5caf8e5f6dba4685fb2deb7f94ca23a5fb02",
+    "src/cochem_base/intake/quench_broker.py": "249a43e32124cf4bc3bf16a38567436b8f6007133550fe37f67606978b53112f",
+    "src/cochem_torq/conformer/orchestrator.py": "6bd57138a69c81e2ecf9311bf5037228d2e1bd2cf4f6ea3d681061d3be511de9",
+    "src/cochem_torq/quench_broker.py": "12ad64e23e365e7004232b9ce6f4ace23be745ef8e73ebbb8bdd9b49db030678",
+    "tests/base/test_module_adapter_torq.py": "9ed10bb58cc3a54b9aa868cb45b1f85223eec4176147ac02e464f1f464f97314",
+    "tests/base/test_module_package_ownership.py": "16f04dd61e9d1026db29f011571ab9b1e45ea3a268c6f32f20f9989801730fd1",
+    "tests/torq/test_native_quench_broker.py": "1e7b3021659dc89120f77596441bd37ed6bd45d31ec118eef8ac5c478a7d9b24",
+    "tests/torq/test_goat_crest_conformer_union_pipeline.py": "5a417aafe9803a4606f53cc702260522d0d0bf41840451465fcf36eb869c8962"
+  },
+  "existing_review_source_comparison": {
+    "source": "/workspace/.completion/reviewer-base-migration/pytest-configured/base-release-ownership0/source",
+    "all_13_files_identical": true
+  },
+  "fresh_review_checks": {
+    "three_managed_TORQ_operations_status_completed": true,
+    "request_adapter_provider_operation_report_hashes_verified": true,
+    "native_artifact_hashes_verified": 24,
+    "rigid_water_dimer_mass_COM_separations_angstrom": [
+      3.0,
+      3.2
+    ],
+    "mass_COM_tolerance_angstrom": 1e-12,
+    "conformer_non_import_algorithm_AST_unchanged": true,
+    "quench_changes": "Ownership documentation plus creator/version/routine provenance; scientific algorithm unchanged"
+  },
+  "retained_tests": {
+    "configured_review_xml": {
+      "path": "/workspace/.completion/reviewer-base-migration/focused-configured.xml",
+      "sha256": "820a7807bc3c56c032145e3b2c3eed8e48cfd95b2034363e819af5d8a7bf5b02",
+      "tests": 33,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "initial_review_xml": "focused.xml retains initial30 configuration errors and is not the accepted result",
+    "fresh_test_execution": "Not rerun: current stable source bytes exactly match completed configured acceptance; this review freshly verified retained native bytes and COM invariants."
+  },
+  "negative_receipt": {
+    "path": "/workspace/.completion/torq-negative/summary.json",
+    "sha256": "deaf0e90be135224c59362cf079e33ece712c5813b39d7ed2ec5edc8ef087350",
+    "retained_results": [
+      "changed provider rejected",
+      "ambiguous entrypoint rejected",
+      "restored core-only geometry available; PySCF dependent operations unavailable"
+    ]
+  },
+  "limitations": [
+    "Not approval of a complete BASE release or student deployment.",
+    "The topology test split and restart changes are concurrent separate review scopes.",
+    "Canonical TOPOS structural source is not yet published/pinned and its new managed integration is pending.",
+    "The catalog science BASE dependency still points to the old foundation; publication must coordinate the clean new foundation and TOPOS pin.",
+    "92 legacy namespace files and active shared Libraries remain in source; package exclusion is partial ownership progress.",
+    "No current GitHub connection or student Codespace authorization established by local review.",
+    "No scientific accuracy, NBO/NAO, full SRS, hardware-platform or licensed-engine qualification is established."
+  ]
+}

@@ -18,7 +18,7 @@ import sys
 
 import pytest
 
-from cochem_torq.quench_broker import IPCTrajectoryQuenchBroker, QuenchMethodology, QuenchRequest
+from cochem_base.intake.quench_broker import IPCTrajectoryQuenchBroker, QuenchMethodology, QuenchRequest
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -81,7 +81,7 @@ def diagnostic_worker(tmp_path, binary):
     code = """
 import json, sys
 from pathlib import Path
-from cochem_torq.quench_broker import IPCTrajectoryQuenchBroker, QuenchExecutionError, QuenchRequest
+from cochem_base.intake.quench_broker import IPCTrajectoryQuenchBroker, QuenchExecutionError, QuenchRequest
 request = QuenchRequest.model_validate_json(Path(sys.argv[1]).read_text())
 try:
     IPCTrajectoryQuenchBroker(Path(sys.argv[2]) / 'manifest.json').dispatch_quench(request)

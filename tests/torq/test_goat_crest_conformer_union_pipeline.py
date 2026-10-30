@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from cochem_base.interfaces.conformer import ConformerGenerator
-from cochem_torq.conformer.orchestrator import (
+from cochem_base.intake.conformer_orchestrator import (
     ConformerOrchestrator, deduplicate_union_ensemble, kabsch_rmsd,
 )
 

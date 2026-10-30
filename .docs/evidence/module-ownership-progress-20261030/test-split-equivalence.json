@@ -1,0 +1,24 @@
+{
+  "scope": "Static exact-function transfer verification; test execution separate",
+  "base_source_revision": "807d4f993a0176a29343fcd5560aac6e73f2720e",
+  "base_test_before_sha256": "961220c537b9fb2dfcebe675f45856d3a66d775256beeda9a1dd92289435c591",
+  "base_test_after_sha256": "fe0f85abb3039acf4fddf15f02f86c17e4dca0b6c63644cfb877be9a07894d93",
+  "canonical_topos_test_sha256": "09b668310f710d6ee549f360c0d1b6e2d0e0ca0b2f7aa9a1ac70a79ddf239ea4",
+  "canonical_topos_revision": "eecff25b13343305a3f05310800503014667e80a",
+  "preserved_functions": {
+    "copper_pair": "b6846e91fbd46a3b10c451cf8ffaa78bb3c087821cfbd3c318bc18d3cc20207d",
+    "test_unconfigured_potential_cannot_be_replaced_by_lennard_jones": "b7cce1d69838e53468851f7816e46443a2e4a18e6f03b75694b93f1890f546a1",
+    "test_requested_unreviewed_model_is_refused_without_model_substitution": "3a84761d5bc8b8a99da7c23203bcfc9d4112360a9dc1ff2ff68fbbbe3bea1126",
+    "test_comparison_of_different_explicit_potential_parameters_is_refused": "ce8cd9043a23b1f79e7868866f1aac5e40aa417126bd831748451d8a97b57821",
+    "test_actual_nonconverged_optimizer_cannot_return_an_optimized_geometry": "0c6e7614fa769cf89dc23e1566f7f33e667f31a4ff0aa5853bf271b7007c02f7",
+    "test_genuine_explicit_emt_force_convergence_retains_exact_method_scope": "c0a990510219cec294f2a28d0d433c28d2e9319b656e871d54599570149c51cf"
+  },
+  "transferred_functions": {
+    "graph_from_smiles": "dbee08eb91145bcca51aff9c77849876252b25f876020850a45a9344f8fcfc10",
+    "test_general_resonance_retains_real_kekule_forms_without_isomer_populations": "394184e4aa5468ca39ef390c499217c732d5f6b2e3089d23713aa72b591323de",
+    "test_resonance_temperature_and_guessed_numeric_weights_are_explicitly_refused": "c8a7eec546d638fccc7d8ff64034ea00966b6651df809248e8ca176e06e4a014",
+    "test_structural_truncation_is_declared_instead_of_claiming_complete_coverage": "90e56ec56a9d93b8f3ad658ecc4e668c085bb22cb669d6ae9152f691b5023ec8",
+    "test_tautomer_topology_preserves_exact_explicit_nuclear_label": "8dadb8c223eba4134ed6451614fa7a75142faea069bd78b1148a1b881873d3a0"
+  },
+  "all_function_sources_byte_identical": true
+}

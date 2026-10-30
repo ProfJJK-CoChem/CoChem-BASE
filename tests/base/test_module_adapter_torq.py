@@ -74,7 +74,7 @@ def test_normalizes_all_requested_isotope_aliases(tmp_path: Path) -> None:
     assert symbols == ["13C", "13C", "2H", "3H"]
 
 
-def test_mixed_fragment_scan_masses_match_ingestion_and_preview() -> None:
+def test_mixed_fragment_preview_masses_match_ingestion() -> None:
     """Mixture weights move a mixed-element COM away from its nuclear COM."""
     import numpy as np
     from mendeleev import element
@@ -88,7 +88,8 @@ def test_mixed_fragment_scan_masses_match_ingestion_and_preview() -> None:
     options = {"method": {"name": "hf", "basis": "sto-3g"}, "charge": 0,
                "multiplicity": 1, "fragments": fragments,
                "distances_angstrom": [4.0], "cores": 1, "memory_mb": 512}
-    elements, masses = adapter._scan_nuclear_masses(symbols)
+    identity = resolve_nuclear_identity(symbols)
+    elements, masses = list(identity.elements), list(identity.masses_u)
     assert elements == symbols
     assert masses == list(resolve_nuclear_identity(symbols).masses_u)
     chlorine = element("Cl")
@@ -112,12 +113,13 @@ def test_scan_preserves_explicit_measured_isotopes_and_refuses_unassigned_radioe
     from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
 
     symbols = ["13C", "37Cl", "18O", "D", "T"]
-    elements, masses = adapter._scan_nuclear_masses(symbols)
+    identity = resolve_nuclear_identity(symbols)
+    elements, masses = list(identity.elements), list(identity.masses_u)
     assert elements == ["C", "Cl", "O", "H", "H"]
     assert masses == list(resolve_nuclear_identity(symbols).masses_u)
     assert masses[1] == next(isotope.mass for isotope in element("Cl").isotopes
                              if isotope.mass_number == 37)
-    with pytest.raises(ValueError, match="measured"):
-        adapter._scan_nuclear_masses(["Tc"])
-    with pytest.raises(ValueError, match="measured"):
-        adapter._scan_nuclear_masses(["999C"])
+    with pytest.raises(ValueError, match="explicit isotope"):
+        resolve_nuclear_identity(["Tc"])
+    with pytest.raises(ValueError, match="not found in Mendeleev"):
+        resolve_nuclear_identity(["999C"])

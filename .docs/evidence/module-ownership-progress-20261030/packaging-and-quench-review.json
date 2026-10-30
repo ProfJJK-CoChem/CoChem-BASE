@@ -1,0 +1,47 @@
+{
+  "scope": "Selected BASE test split and release artifact ownership; four actual structural cases remain owned by canonical TOPOS local eecff25b candidate, publication and managed acceptance remain pending",
+  "checks": [
+    {
+      "file": "base-quench.xml",
+      "sha256": "018550c9102e937033b0d3f1012673ebe4b137a60e4c59b2b3ff742a196f1bd5",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    {
+      "file": "packaging.xml",
+      "sha256": "91675e7715c801319fe9575fb38b87bbfba5a7ba3c67d40b7dd30f2282a2084f",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    {
+      "file": "sdist-quench.xml",
+      "sha256": "a32fcbf9027a38f6cd829da281a6df3c54758d6662cc1c63f0d6d9a6d2652d36",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    {
+      "file": "sdist-quench-origin.xml",
+      "sha256": "0caf76dc1a09ef47ee4c23029b81810d0454b25356070fe137ee0442f9d6233e",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    }
+  ],
+  "unique_scientific_cases": 5,
+  "notes": [
+    "Five BASE quench cases were run in source and twice in extracted sdist; repeated runs are not 15 distinct cases.",
+    "Final extracted-sdist run records all actual loaded BASE/test origins, no foreign module loaded, and unchanged complete Python source inventory.",
+    "Both wheel/sdist ownership tests passed with all 92 retired namespace sourcefiles excluded.",
+    "No threshold, production code, scientific function body, or required-profile selector was altered by this task.",
+    "Remaining 92 source copies are unshipped but still tracked; full source ownership not complete.",
+    "Build regenerated root CoChem_BASE.egg-info. Existing build/ predates task; neither removed."
+  ],
+  "test_source_sha256": "fe0f85abb3039acf4fddf15f02f86c17e4dca0b6c63644cfb877be9a07894d93"
+}

@@ -76,6 +76,7 @@ HOSTED_TESTS = (
     "tests/base/test_module_execution.py",
     "tests/base/test_module_adapter_topos.py",
     "tests/base/test_module_adapter_torq.py",
+    "tests/base/test_module_package_ownership.py",
     "tests/base/test_student_actions_contract.py",
     "tests/base/test_student_hpc_contract.py",
     "tests/base/test_student_setup.py",

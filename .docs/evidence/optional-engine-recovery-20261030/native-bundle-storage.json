@@ -1,0 +1,14 @@
+{
+  "scope": "Exact documentary archive and original native bytes preserved outside the application source. The raw archive is removed from current source HEAD to satisfy the unchanged binary-artifact airgap rule; no content repackaging or scientific modification.",
+  "original_name": "native-water-xtb.tar.gz",
+  "sha256": "9f5fb12c45aca908bf56ea488e91ee81240cd05b65a16de973fad1c5f1cc9f17",
+  "bytes": 82767,
+  "external_archive": "/workspace/.completion/evidence-preservation/optional-engine-native/native-water-xtb.tar.gz",
+  "native_original_root": "/workspace/.completion/optional-engine-ux/artifacts-final/GUI/run_fe60ad8c94d749f5b35f50e26c79fc9e",
+  "verified_original_native_members": 289,
+  "member_inventory": "native-inventory.json",
+  "historical_git_revision": "9624dc3ff8f46932e2afc9b10d3b72af57a2cae7",
+  "historical_git_path": ".docs/evidence/optional-engine-recovery-20261030/native-water-xtb.tar.gz",
+  "publication_status": "Historical revision is local; current remote publication is not verified. No current public downloadable native artifact is asserted.",
+  "exact_original_upload_in_bundle": false
+}

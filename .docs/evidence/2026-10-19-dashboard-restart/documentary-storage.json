@@ -3,9 +3,11 @@
   "files": [
     {
       "original": "browser-final.log",
-      "stored_as": "browser-final.log.txt",
+      "stored_as": "browser-final-transcript.txt",
       "sha256": "220f71c73b581aeb073948e1873c492681c4a239b52798deb5ddc9281f4bae87",
-      "bytes": 4241
+      "bytes": 4241,
+      "intermediate_refused_name": "browser-final.log.txt"
     }
-  ]
+  ],
+  "multipart_extension_correction": "The first .log.txt storage attempt was also refused by the unchanged multipart-extension rule. Both strict test profiles stopped before executing tests. Plain documentary transcript .txt names now have no runtime extension segment."
 }

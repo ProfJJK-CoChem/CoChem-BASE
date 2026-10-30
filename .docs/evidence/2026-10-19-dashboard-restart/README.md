@@ -91,4 +91,6 @@ The owned port-8874 server was stopped with the existing authenticated launcher.
 checked input/result-fixture hashes. The exited server remained a dead zombie
 owned by its external parent; it was not reported as a live service.
 
-The original failed reload log is stored as [browser-final.log.txt](browser-final.log.txt), with identical bytes and SHA-256. Historical receipts still use `browser-final.log`; [documentary-storage.json](documentary-storage.json) records the path-only change required by the source-airgap policy. The original failure remains unaccepted.
+The original failed reload log is stored as [browser-final-transcript.txt](browser-final-transcript.txt), with identical bytes and SHA-256. Historical receipts still use `browser-final.log`; [documentary-storage.json](documentary-storage.json) records the path-only change required by the source-airgap policy. The original failure remains unaccepted.
+
+An initial `.log.txt` rename was also refused by the multipart-extension rule; no tests ran in either refused attempt. The final transcript names follow the existing documentation convention. Original and intermediate paths remain recorded in the relocation map.

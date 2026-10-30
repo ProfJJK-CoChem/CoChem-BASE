@@ -27,9 +27,11 @@ remained unchanged. Browser and request errors were both zero.
 A local GUI GFN2-xTB water optimization converged at -5.070544447821 Eh. Its
 producer differs from the final GUI by one additional operation-selection
 observer; the final GUI was checked separately without rerunning that chemistry.
-The [native bundle](evidence/optional-engine-recovery-20261030/native-water-xtb.tar.gz)
-retains original inputs, analytic gradients, every optimization evaluation and
-native outputs; its inventory binds each original byte stream. This is a screening
+The [native artifact storage record](evidence/optional-engine-recovery-20261030/native-bundle-storage.json)
+locates the preserved original inputs, analytic gradients, every optimization
+evaluation and native outputs outside the application source. All 289 original
+files and the unchanged archive were reverified against the byte inventory.
+Current public download of that native artifact has not been established. This is a screening
 calculation with explicitly recorded convergence scope, not strict-quintuple,
 reference-accuracy, hosted ORCA/CFOUR or student acceptance.
 

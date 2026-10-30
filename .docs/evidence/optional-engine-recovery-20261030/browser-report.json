@@ -1,0 +1,202 @@
+{
+  "execution_origin": "actual local Voil\u00e0 kernel and Chromium",
+  "codespaces": false,
+  "hosted_native_execution": false,
+  "licensed_native_execution": false,
+  "source_before": {
+    "ui/voila_layout/cochem_gui.py": "668c3382f4916d84d8b34225b082fb791e0345a315912c2664e6d31c1d2094c8",
+    "tests/ui/test_optional_licensed_engines.py": "114628735add3e37eef7adc518c84a5cbe4dc51b853d2d04e38e1709a3cd1e12"
+  },
+  "original": {
+    "path": "/workspace/.completion/optional-engine-ux/artifacts-final/StudentInputs/79740112b9564b69a3b1e493ee6b6ba1/retained-water.xyz",
+    "sha256_before": "0594f1b62a79f97b5b12e27f66b852cc24afeab392fc21ee75057d019268f37d",
+    "sha256_after": "0594f1b62a79f97b5b12e27f66b852cc24afeab392fc21ee75057d019268f37d"
+  },
+  "hosted_check_actual_failure_text": "ORCA/CFOUR access could not be checked: GitHub could not be reached. Check this submission before creating another.",
+  "hosted_retry_through_button": true,
+  "hosted_free_selection_preserved": true,
+  "native_free_engine": {
+    "path": "/workspace/.completion/optional-engine-ux/artifacts-final/GUI/run_fe60ad8c94d749f5b35f50e26c79fc9e/Results/result.json",
+    "sha256": "de281fc9f133ce9d36683ae67bed0f3abab9082dc9c475567e376747766c6fdb",
+    "result": {
+      "engine": "xtb",
+      "method": "GFN2-xTB",
+      "scope": "screening",
+      "energy_hartree": -5.070544447821,
+      "converged": true,
+      "optimization_converged": true,
+      "elements": [
+        "O",
+        "H",
+        "H"
+      ],
+      "coordinates_angstrom": [
+        [
+          -0.041733479955528736,
+          -2.2640045871925154e-16,
+          -0.03641525004242918
+        ],
+        [
+          -0.07698574426831557,
+          1.4440788979521077e-16,
+          0.9221490920236254
+        ],
+        [
+          0.8842766991288171,
+          8.199256892403748e-17,
+          -0.28660190509904304
+        ]
+      ],
+      "charge": 0,
+      "multiplicity": 1,
+      "gradients_hartree_per_bohr": [
+        [
+          -3.837297252093e-08,
+          -1.5624528288634e-16,
+          -8.0946124308776e-08
+        ],
+        [
+          -1.5045161410982e-09,
+          1.3262219283148e-16,
+          8.9856759944853e-08
+        ],
+        [
+          3.9877488651245e-08,
+          2.3623090054855e-17,
+          -8.910635633162e-09
+        ]
+      ],
+      "native_coordinates_angstrom": [
+        [
+          -0.041733479955413065,
+          -0.0,
+          -0.03641525004232434
+        ],
+        [
+          -0.07698574426809618,
+          0.0,
+          0.9221490920210227
+        ],
+        [
+          0.8842766991263206,
+          0.0,
+          -0.28660190509823474
+        ]
+      ],
+      "gradient_energy_hartree": -5.07054444782,
+      "gradient_artifact": {
+        "path": "gradient",
+        "sha256": "2238986c53ecee1d78e151bf777a4f58a1911f6db181d297575772fe1124c9d7",
+        "byte_length": 506,
+        "format": "xtb_native_turbomole_gradient",
+        "unit": "hartree/bohr",
+        "coordinates_unit": "bohr",
+        "bohr_angstrom": 0.529177210903,
+        "coordinate_binding_tolerance_angstrom": 1e-09,
+        "unit_authority": "xTB native Turbomole Cartesian-gradient protocol",
+        "native_to_submitted_rotation": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ]
+      },
+      "operation": "optimization",
+      "optimization_evidence": {
+        "optimizer": "SciPy BFGS with native xTB analytic gradients",
+        "converged": true,
+        "iterations": 6,
+        "evaluations": 10,
+        "trajectory_scope": "Every genuine gradient evaluation, including line-search evaluations",
+        "gradient_norm_hartree_per_bohr": 1.3330744339993466e-07,
+        "maximum_gradient_component_hartree_per_bohr": 8.9856759944853e-08,
+        "gradient_norm_limit_hartree_per_bohr": 0.0001,
+        "maximum_gradient_component_limit_hartree_per_bohr": 1e-05,
+        "optimization_level": "tight",
+        "native_strict": false,
+        "optimizer_success_message": "Optimization terminated successfully.",
+        "scientific_accuracy_established": false
+      },
+      "metadata": {
+        "optimization_evidence": {
+          "optimizer": "SciPy BFGS with native xTB analytic gradients",
+          "converged": true,
+          "iterations": 6,
+          "evaluations": 10,
+          "trajectory_scope": "Every genuine gradient evaluation, including line-search evaluations",
+          "gradient_norm_hartree_per_bohr": 1.3330744339993466e-07,
+          "maximum_gradient_component_hartree_per_bohr": 8.9856759944853e-08,
+          "gradient_norm_limit_hartree_per_bohr": 0.0001,
+          "maximum_gradient_component_limit_hartree_per_bohr": 1e-05,
+          "optimization_level": "tight",
+          "native_strict": false,
+          "optimizer_success_message": "Optimization terminated successfully.",
+          "scientific_accuracy_established": false
+        },
+        "nuclear_identity": {
+          "nuclides": [
+            "O",
+            "H",
+            "H"
+          ],
+          "mass_numbers": [
+            null,
+            null,
+            null
+          ],
+          "masses_u": [
+            15.99491461926,
+            1.007825031898,
+            1.007825031898
+          ],
+          "mass_source": "dynamic_mendeleev",
+          "mass_convention": "explicit_isotope_mass_else_principal_isotope_mass"
+        }
+      },
+      "nuclides": [
+        "O",
+        "H",
+        "H"
+      ],
+      "nuclear_identity": {
+        "nuclides": [
+          "O",
+          "H",
+          "H"
+        ],
+        "mass_numbers": [
+          null,
+          null,
+          null
+        ],
+        "masses_u": [
+          15.99491461926,
+          1.007825031898,
+          1.007825031898
+        ],
+        "mass_source": "dynamic_mendeleev",
+        "mass_convention": "explicit_isotope_mass_else_principal_isotope_mass"
+      },
+      "telemetry_path": "/workspace/.completion/optional-engine-ux/artifacts-final/Databases/complexes.h5",
+      "telemetry_job_id": "job_f94c732cb3864d54b4d966a1da5c54cd"
+    }
+  },
+  "source_after": {
+    "ui/voila_layout/cochem_gui.py": "668c3382f4916d84d8b34225b082fb791e0345a315912c2664e6d31c1d2094c8",
+    "tests/ui/test_optional_licensed_engines.py": "114628735add3e37eef7adc518c84a5cbe4dc51b853d2d04e38e1709a3cd1e12"
+  },
+  "status": "passed",
+  "page_errors": [],
+  "request_failures": []
+}

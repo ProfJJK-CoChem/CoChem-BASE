@@ -1,0 +1,74 @@
+{
+  "scope": "Bounded optional ORCA/CFOUR absence and failed hosted-check UX qualification; local development source only",
+  "source_git_head": "0b1fbc89a79e5044d4f35a0b66a60387790e3ad6",
+  "uncommitted_source_sha256": {
+    "ui/voila_layout/cochem_gui.py": "218d99a746c0e74d3c4b05c3ab4a67643170bb43975458cb2a5e5c0a3a071138",
+    "tests/ui/test_optional_licensed_engines.py": "99ca49244faec14db432e35424204c28df3e7b65dcd4b7190b017f1fbe27b8e3"
+  },
+  "final_focused_tests": [
+    {
+      "receipt": "final-quarantine-controls.xml",
+      "tests": "8",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "39.120"
+    },
+    {
+      "receipt": "final-research-controls.xml",
+      "tests": "6",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "24.534"
+    }
+  ],
+  "final_gui_actual_browser": {
+    "receipt": "final-browser-report.json",
+    "source_unchanged": true,
+    "loaded_kernel_origin": "final-kernel-origin.json",
+    "page_errors": [],
+    "request_failures": [],
+    "checks": [
+      "real FileUpload and unchanged original hash",
+      "actual inherited GitHub route failed twice through check/retry button",
+      "licensed choices absent",
+      "existing free xTB selection/method preserved",
+      "genuinely audited local free xTB run button remains enabled"
+    ]
+  },
+  "actual_free_native_operation": {
+    "receipt": "browser-report.json",
+    "producer_source_sha256": "668c3382f4916d84d8b34225b082fb791e0345a315912c2664e6d31c1d2094c8",
+    "producer_source_retained": "native-producer-cochem_gui.py",
+    "final_gui_difference": "One additional research operation selection observer refreshes run admission; final GUI browser interaction was qualified separately without rerunning chemistry.",
+    "engine": "xtb",
+    "operation": "local GFN2-xTB water optimization",
+    "energy_hartree": -5.070544447821,
+    "optimization_converged": true,
+    "result_path": "/workspace/.completion/optional-engine-ux/artifacts-final/GUI/run_fe60ad8c94d749f5b35f50e26c79fc9e/Results/result.json",
+    "result_sha256": "de281fc9f133ce9d36683ae67bed0f3abab9082dc9c475567e376747766c6fdb",
+    "original_sha256": "0594f1b62a79f97b5b12e27f66b852cc24afeab392fc21ee75057d019268f37d"
+  },
+  "synthetic_engineering_controls": {
+    "case": "withdrawal-state-controls",
+    "purpose": "Prior positive GUI state withdrawal, dependent selectors, no silent replacement method, delayed wrong-target error, negative-only retrieved diagnostics and timeout-message admission handling. No synthetic state is live engine or scientific acceptance."
+  },
+  "quarantine": {
+    "child_paths": "ci_tools.source_quarantine.source_paths(source): quarantine_startup, src, src/cochem_base, source, Libraries",
+    "context": "All inherited COCHEM_SOURCE_QUARANTINE_* preserved; conditional child assertions require already-active startup boundary when authority exists.",
+    "active_committed_profile": "Root owns the pending committed-source strict profile and must run all 8 optional cases under active authority."
+  },
+  "limitations": [
+    "No successful hosted check, native ORCA/CFOUR execution, actual student account/Codespace or cohort acceptance established here.",
+    "Twenty-minute hosted timeout was not physically awaited; timeout error presentation/admission shares the verified early-withdrawal path and has a synthetic engineering state control.",
+    "Final rendered source proof is GUI-only; later changes to test child startup preserve quarantine and were separately retested.",
+    "Earlier failed harness attempts and old-installed-source failures are retained and do not count as accepted proof.",
+    "Overall release and SRS readiness are not established; restarted retained-input table issue is a separate ongoing investigation."
+  ],
+  "mutations": "Only the two source files above changed by this worker; no commits, ring edits, frozen env changes, or licensed availability overrides.",
+  "additional_differential": {
+    "receipt": "library-differential.json",
+    "scope": "Fresh local rendered kernel, initially empty canonical input library; actual Your files table and Refresh button succeeded. Separate from post-service-restart acceptance."
+  }
+}

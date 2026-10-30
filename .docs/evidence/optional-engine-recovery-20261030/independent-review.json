@@ -1,0 +1,32 @@
+{
+  "verdict": "No remaining blocking finding in bounded optional-engine patch; integration source gate pending",
+  "files": {
+    "ui/voila_layout/cochem_gui.py": "218d99a746c0e74d3c4b05c3ab4a67643170bb43975458cb2a5e5c0a3a071138",
+    "tests/ui/test_optional_licensed_engines.py": "99ca49244faec14db432e35424204c28df3e7b65dcd4b7190b017f1fbe27b8e3"
+  },
+  "evidence_checked": [
+    "final8optional+6researchJUnit",
+    "exactfinalsourcehashes",
+    "native result SHA256",
+    "native producer to final GUI one-observer difference",
+    "final GUI browser source/kernel qualification"
+  ],
+  "findings_resolved": [
+    "stale availability withdrawal",
+    "target-bound errors",
+    "explicit choice after lost licensed method",
+    "quarantine startup preservation in child tests"
+  ],
+  "required_before_release": [
+    "Run8optionalcases under active committed source quarantine",
+    "Resolve restarted retained-input DOM issue through actual browser proof",
+    "Complete publication and genuine student pilot gates"
+  ],
+  "claims_excluded": [
+    "Full SRS acceptance",
+    "Live hosted or licensed operation",
+    "20 student enrollment"
+  ],
+  "qualification_sha256": "1097c6e5c9d4d4464340805ccaa50cc0957100c126a947429e2e1a83f398c5a2",
+  "note": "Qualification appended retained-library differential and owned-service cleanup; reviewed production/test hashes unchanged."
+}

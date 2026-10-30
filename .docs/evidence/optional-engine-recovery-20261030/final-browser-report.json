@@ -1,0 +1,31 @@
+{
+  "execution_origin": "actual local Voil\u00e0 kernel and Chromium",
+  "codespaces": false,
+  "hosted_native_execution": false,
+  "licensed_native_execution": false,
+  "source_before": {
+    "ui/voila_layout/cochem_gui.py": "218d99a746c0e74d3c4b05c3ab4a67643170bb43975458cb2a5e5c0a3a071138",
+    "tests/ui/test_optional_licensed_engines.py": "fcc8f584fe581461aec3a45d5b32e021d863c1c147a8e0b0f89ba25cfa56e8e3"
+  },
+  "original": {
+    "path": "/workspace/.completion/optional-engine-ux/artifacts-final-gui/StudentInputs/a37e083faeb241b28e3091d2528e90aa/retained-water.xyz",
+    "sha256_before": "0594f1b62a79f97b5b12e27f66b852cc24afeab392fc21ee75057d019268f37d",
+    "sha256_after": "0594f1b62a79f97b5b12e27f66b852cc24afeab392fc21ee75057d019268f37d"
+  },
+  "hosted_check_actual_failure_text": "ORCA/CFOUR access could not be checked: GitHub could not be reached. Check this submission before creating another.",
+  "hosted_retry_through_button": true,
+  "hosted_free_selection_preserved": true,
+  "native_free_engine_execution_performed": false,
+  "previous_native_proof": "browser-report.json",
+  "kernel_origin": {
+    "gui_path": "/workspace/CoChem-BASE/ui/voila_layout/cochem_gui.py",
+    "gui_sha256": "218d99a746c0e74d3c4b05c3ab4a67643170bb43975458cb2a5e5c0a3a071138"
+  },
+  "source_after": {
+    "ui/voila_layout/cochem_gui.py": "218d99a746c0e74d3c4b05c3ab4a67643170bb43975458cb2a5e5c0a3a071138",
+    "tests/ui/test_optional_licensed_engines.py": "fcc8f584fe581461aec3a45d5b32e021d863c1c147a8e0b0f89ba25cfa56e8e3"
+  },
+  "status": "passed",
+  "page_errors": [],
+  "request_failures": []
+}

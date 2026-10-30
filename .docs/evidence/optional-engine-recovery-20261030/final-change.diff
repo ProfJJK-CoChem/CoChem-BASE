@@ -1,0 +1,303 @@
+diff --git a/tests/ui/test_optional_licensed_engines.py b/tests/ui/test_optional_licensed_engines.py
+index 2af37bc..540aa85 100644
+--- a/tests/ui/test_optional_licensed_engines.py
++++ b/tests/ui/test_optional_licensed_engines.py
+@@ -8,11 +8,23 @@ import sys
+ 
+ import pytest
+ 
++from ci_tools.source_quarantine import source_paths
+ 
+-@pytest.mark.parametrize('case', ['missing', 'free', 'remote', 'cfour-contract', 'remote-cfour', 'catalog-transitions'])
++
++@pytest.mark.parametrize('case', ['missing', 'free', 'remote', 'cfour-contract', 'remote-cfour', 'catalog-transitions', 'remote-auth-failure', 'withdrawal-state-controls'])
+ def test_optional_engine_controls_in_isolated_process(tmp_path, case):
+     environment = dict(os.environ, COCHEM_CONFIG=str(tmp_path / 'absent-registry.json'),
+                        COCHEM_ARTIFACT_DIR=str(tmp_path / 'artifacts'))
++    source = Path(__file__).resolve().parents[2]
++    environment['PYTHONPATH'] = os.pathsep.join(source_paths(source))
++    environment['COCHEM_STUDENT_AUTO_REMOTE_CHECK'] = '0'
++    if case == 'remote-auth-failure':
++        # A genuinely unauthenticated process, without a replacement GitHub API
++        # or fabricated engine/readiness responses.
++        environment.pop('GH_TOKEN', None)
++        environment.pop('GITHUB_TOKEN', None)
++        environment['PATH'] = str(tmp_path / 'no-credential-helper')
++        environment['COCHEM_STUDENT_AUTO_REMOTE_CHECK'] = '0'
+     completed = subprocess.run(
+         [sys.executable, str(Path(__file__).resolve()), case], env=environment,
+         capture_output=True, text=True, timeout=60,
+@@ -21,8 +33,22 @@ def test_optional_engine_controls_in_isolated_process(tmp_path, case):
+ 
+ 
+ def _exercise(case: str) -> None:
++    source = Path(__file__).resolve().parents[2]
++    if os.environ.get('COCHEM_SOURCE_QUARANTINE_ROOT'):
++        # Assert startup already enforced the inherited profile boundary;
++        # importing/activating quarantine here would conceal a missing shim.
++        startup = sys.modules.get('sitecustomize')
++        assert startup is not None
++        assert Path(startup.__file__).resolve() == source / 'ci_tools/quarantine_startup/sitecustomize.py'
++        quarantine = sys.modules.get('ci_tools.source_quarantine')
++        state = getattr(quarantine, '_active', None)
++        assert state is not None and state['copied'] == source
++        assert str(state['original']) == os.environ['COCHEM_SOURCE_QUARANTINE_ORIGINAL']
+     from traitlets import TraitError
+     from ui.voila_layout.cochem_gui import CoChemGUI, licensed_engine_availability
++    import ui.voila_layout.cochem_gui as gui_module
++
++    assert Path(gui_module.__file__).resolve() == Path(__file__).resolve().parents[2] / 'ui/voila_layout/cochem_gui.py'
+ 
+     gui = CoChemGUI()
+     available = licensed_engine_availability()
+@@ -46,6 +72,116 @@ def _exercise(case: str) -> None:
+     assert not gui.license_mode.disabled
+     geometry = Path(__file__).resolve().parents[2].joinpath('examples/jobs/water.xyz').read_text(encoding='utf-8')
+     gui.matrix_geometry.value = geometry
++    if case == 'withdrawal-state-controls':
++        # Synthetic prior widget state tests admission only. It is not a live
++        # GitHub readiness receipt or proof of these scientific capabilities.
++        for name in ('_research_capability_worker', '_student_setup_initial_worker'):
++            worker = getattr(gui, name, None)
++            if worker is not None:
++                worker.join(timeout=15)
++                assert not worker.is_alive()
++        target = ('course-organization/student-water', 'main')
++        gui.calc_env_dropdown.value = 'github-actions'
++        gui.gh_repo_input.value = target[0]
++        gui.gh_branch_input.value = target[1]
++        gui._remote_engine_target = target
++        gui._remote_engine_availability = {engine: {'status': 'available', 'provisionable': True,
++            'reason': 'Synthetic prior state for control regression; no external readiness claim.'}
++            for engine in ('orca', 'cfour')}
++        gui._research_capability_observations = {
++            'topos': {'module_id': 'topos', 'operations': ['energy', 'matrix']},
++            'torq': {'module_id': 'torq', 'operations': ['nbo_analysis'], 'provider_capabilities': {
++                'scientific_apis': {'nbo_analysis': {'available': True, 'supported_engines': ['orca', 'pyscf']}}}}}
++        gui.research_topos_operation.options = [('Synthetic state admission only', 'energy'),
++            ('Synthetic matrix admission only', 'matrix')]
++        gui._refresh_engine_choices()
++        gui._refresh_research_engine_choices()
++        gui._refresh_orbital_backend_choices()
++        gui.matrix_engine.value = 'ORCA'
++        gui.research_topos_engine.value = 'orca'
++        gui.research_orbital_backend.value = 'orca'
++        gui._withdraw_remote_engine_access(target)
++        assert gui.matrix_engine.value is None and gui.btn_execute.disabled, (
++            gui.matrix_engine.value, gui.btn_execute.disabled, gui.gh_repo_input.value,
++            gui.gh_branch_input.value, gui._remote_engine_availability)
++        assert gui.research_topos_engine.value is None and gui.btn_research_topos.disabled
++        assert gui.research_orbital_backend.value is None and gui.btn_research_nbo.disabled
++        assert 'orca' not in dict(gui.research_topos_engine.options).values()
++        assert 'orca' not in dict(gui.research_orbital_backend.options).values()
++        gui._run_student_topos()
++        assert 'Choose an available research method' in gui.research_status.value
++        assert not gui._pipeline_running and not gui._actions_running
++        gui._refresh_research_engine_choices()
++        assert gui.research_topos_engine.value is None  # Repeated refresh cannot choose xTB silently.
++        for message in ('Authentication unavailable', 'The remote engine check exceeded 20 minutes; cancellation was requested.'):
++            gui._render_remote_engine_check_failure(target, message)
++            assert message in gui.remote_engine_status.value
++            assert gui.matrix_engine.value is None
++        gui.matrix_engine.value = 'XTB'
++        gui.research_topos_engine.value = 'xtb'
++        gui.research_orbital_backend.value = 'pyscf'
++        method = gui.matrix_method.value
++        gui._withdraw_remote_engine_access(target)
++        assert gui.matrix_engine.value == 'XTB' and gui.matrix_method.value == method
++        assert gui.research_topos_engine.value == 'xtb'
++        assert gui.research_orbital_backend.value == 'pyscf'
++        assert not gui.btn_research_topos.disabled
++        gui.research_topos_operation.value = 'matrix'
++        assert gui.research_matrix_recipe.value == '' and gui.btn_research_topos.disabled
++        gui.research_topos_operation.value = 'energy'
++        assert not gui.btn_research_topos.disabled
++        gui._apply_student_engine_diagnostics({'failure_category': 'engine_provisioning',
++            'engine_availability': {'orca': {'status': 'available', 'provisionable': True}}},
++            {'repository': target[0], 'branch': target[1]})
++        assert not gui._remote_engine_availability['orca']['provisionable']
++        gui.gh_repo_input.value = 'course-organization/another-student'
++        guidance = gui.remote_engine_status.value
++        observations = gui._remote_engine_availability
++        gui._render_remote_engine_check_failure(target, 'Delayed failure for the earlier project')
++        gui._withdraw_remote_engine_access(target)
++        assert gui.remote_engine_status.value == guidance
++        assert gui._remote_engine_availability is observations
++        return
++    if case == 'remote-auth-failure':
++        from datetime import datetime, timezone
++        import hashlib
++
++        original = geometry.encode('utf-8')
++        gui.xyz_upload.value = ({'name': 'retained-water.xyz', 'type': 'chemical/x-xyz',
++            'size': len(original), 'content': memoryview(original),
++            'last_modified': datetime.now(timezone.utc)},)
++        selected = gui.student_geometry_choice.value
++        retained = Path(gui._student_uploads[selected]['path'])
++        digest = hashlib.sha256(retained.read_bytes()).hexdigest()
++        gui.calc_env_dropdown.value = 'github-actions'
++        gui.gh_repo_input.value = 'course-organization/student-water'
++        gui.matrix_engine.value = 'XTB'
++        method = gui.matrix_method.value
++        for _ in range(2):
++            previous_observations = gui._remote_engine_availability
++            gui.btn_remote_engine_check.click()
++            gui._remote_probe_worker.join(timeout=10)
++            assert not gui._remote_probe_worker.is_alive()
++            assert gui._remote_engine_availability is not previous_observations
++            assert all(not item['provisionable'] for item in gui._remote_engine_availability.values())
++            assert 'GitHub authentication is unavailable' in gui.remote_engine_status.value
++            assert 'Check ORCA &amp; CFOUR' in gui.remote_engine_status.value
++            assert not gui.btn_remote_engine_check.disabled
++            assert gui.btn_remote_engine_cancel.disabled
++            assert not gui._remote_probe_running
++            assert gui.matrix_engine.value == 'XTB' and gui.matrix_method.value == method
++            assert {'ORCA', 'CFOUR'}.isdisjoint(value for _, value in gui.matrix_engine.options)
++            assert gui.student_geometry_choice.value == selected
++            assert hashlib.sha256(retained.read_bytes()).hexdigest() == digest
++            assert gui.matrix_geometry.value.encode('utf-8') == original
++        gui.gh_repo_input.value = 'course-organization/another-student'
++        assert 'could not be checked' not in gui.remote_engine_status.value
++        assert all(not item['provisionable'] for item in gui._remote_engine_availability.values())
++        gui._prepare_actions_job()
++        assert gui._last_actions_job['config']['engine'] == 'xtb'
++        assert 'No calculation has been submitted or run' in gui.actions_job_download.value
++        assert not gui._pipeline_running and not gui._actions_running
++        return
+     if case == 'missing':
+         gui._execute_pipeline(None)
+         assert not gui._pipeline_running
+diff --git a/ui/voila_layout/cochem_gui.py b/ui/voila_layout/cochem_gui.py
+index fb960ed..1cb41a4 100644
+--- a/ui/voila_layout/cochem_gui.py
++++ b/ui/voila_layout/cochem_gui.py
+@@ -2855,6 +2855,9 @@ class CoChemGUI(InputManagementMixin):
+         advanced = _collapsed_section("Advanced: module installation and data transfer", self.view_modules)
+         advanced.selected_index = None
+         self.view_modules = build_results_panel(self, advanced)
++        self.research_topos_engine.observe(lambda change: self._refresh_execution_gate(), names='value')
++        self.research_matrix_recipe.observe(lambda change: self._refresh_execution_gate(), names='value')
++        self.research_topos_operation.observe(lambda change: self._refresh_execution_gate(), names='value')
+         self._refresh_research_capabilities()
+ 
+     def _refresh_research_capabilities(self, b: Any = None) -> None:
+@@ -2907,16 +2910,20 @@ class CoChemGUI(InputManagementMixin):
+         if orca_ready:
+             options.append(("ORCA r2SCAN-3c", "orca"))
+         previous = self.research_topos_engine.value
++        if previous not in dict(options).values():
++            options.insert(0, ("Choose an available research method", None))
+         self.research_topos_engine.options = options
+-        self.research_topos_engine.value = previous if previous in dict(options).values() else "xtb"
++        self.research_topos_engine.value = previous if previous in dict(options).values() else None
+         from cochem_base.interfaces.student_research import student_matrix_recipes
+         recipes = student_matrix_recipes(capabilities=list(self._research_capability_observations.values()))
+         self._student_matrix_recipes = {item['row_id']: item for item in recipes if item['engine'] != 'orca' or orca_ready}
+         choices = [(f"{row}: {item['method']} / {item['basis'] or 'built in'}", row)
+                    for row, item in self._student_matrix_recipes.items()]
+         current = self.research_matrix_recipe.value
++        if current not in self._student_matrix_recipes and choices:
++            choices.insert(0, ("Choose an available optimization recipe", ""))
+         self.research_matrix_recipe.options = choices or [("No verified molecule-only recipe", "")]
+-        self.research_matrix_recipe.value = current if current in self._student_matrix_recipes else (choices[0][1] if choices else '')
++        self.research_matrix_recipe.value = current if current in self._student_matrix_recipes else ''
+         self.research_matrix_recipe.disabled = not choices
+ 
+     def _refresh_orbital_backend_choices(self) -> None:
+@@ -2936,8 +2943,10 @@ class CoChemGUI(InputManagementMixin):
+             engines.discard('orca')
+         choices = [(engine.upper(), engine) for engine in sorted(engines)]
+         previous = self.research_orbital_backend.value
++        if choices and previous not in engines:
++            choices.insert(0, ('Choose an available orbital backend', None))
+         self.research_orbital_backend.options = choices or [('No verified orbital backend', None)]
+-        self.research_orbital_backend.value = previous if previous in engines else (choices[0][1] if choices else None)
++        self.research_orbital_backend.value = previous if previous in engines else None
+         self.research_orbital_backend.disabled = not choices
+ 
+     def _student_fragment_groups(self) -> list[list[int]]:
+@@ -2985,6 +2994,8 @@ class CoChemGUI(InputManagementMixin):
+             if operation not in self._research_capability_observations.get("topos", {}).get("operations", []):
+                 raise ValueError("This TOPOS calculation is unavailable. Open Start here and check the module installation")
+             engine = self.research_topos_engine.value
++            if operation != "matrix" and engine not in {"xtb", "orca"}:
++                raise ValueError("Choose an available research method before starting this calculation")
+             fragments, states = None, None
+             if operation == "association":
+                 fragments = self._student_fragment_groups()
+@@ -3261,6 +3272,27 @@ class CoChemGUI(InputManagementMixin):
+         except ImportError:
+             return False
+ 
++    def _withdraw_remote_engine_access(self, target: tuple[str, str]) -> None:
++        if (self.gh_repo_input.value.strip(), self.gh_branch_input.value.strip() or "main") != target:
++            return
++        self._remote_engine_target = target
++        self._remote_engine_availability = {engine: {"status": "unknown", "provisionable": False,
++            "reason": "A fresh archive-access check has not succeeded for this project and branch."}
++            for engine in ("orca", "cfour")}
++        self._refresh_engine_choices()
++        self._refresh_research_engine_choices()
++        self._refresh_orbital_backend_choices()
++        self._refresh_execution_gate()
++
++    def _render_remote_engine_check_failure(self, target: tuple[str, str], message: str,
++                                            setup_link: str = "") -> None:
++        if (self.gh_repo_input.value.strip(), self.gh_branch_input.value.strip() or "main") != target:
++            return
++        self.remote_engine_status.value = (
++            f"<p role='alert'>ORCA/CFOUR access could not be checked: {html.escape(message)}</p>"
++            + setup_link + "<p>Open <b>Setup help</b> below for the next steps, then select <b>Check ORCA &amp; CFOUR</b> to retry. "
++            "Dependent choices remain unavailable until access is verified. You can still upload files and use available free programs.</p>")
++
+     def _check_remote_engines(self, b: Any = None) -> None:
+         if self._remote_probe_running or self.calc_env_dropdown.value != "github-actions":
+             return
+@@ -3273,6 +3305,9 @@ class CoChemGUI(InputManagementMixin):
+             return
+         self._remote_probe_running = True
+         self._remote_probe_submission = None
++        # Rechecking access withdraws the previous observation immediately.
++        # A failed or timed-out check cannot leave stale licensed choices live.
++        self._withdraw_remote_engine_access(probe_target)
+         self.btn_remote_engine_check.disabled = True
+         self.btn_remote_engine_cancel.disabled = True
+         self.remote_engine_status.value = "<p role='status' aria-live='polite'>Checking this project and its ORCA/CFOUR downloads on GitHub Actions. This can take a few minutes. You can continue uploading research files.</p>"
+@@ -3329,14 +3364,14 @@ class CoChemGUI(InputManagementMixin):
+                         + "<details><summary>Check details</summary>" + html.escape(str(item.get('reason', '')))
+                         + "</details></li>" for engine, item in engines.items()) + "</ul><p>Each calculation installs and checks its selected program before running.</p>"
+                     self._refresh_engine_choices()
++                    self._refresh_research_engine_choices()
++                    self._refresh_orbital_backend_choices()
+                     self._refresh_research_capabilities()
+                 self._ui_call(success)
+             except (ValueError, RuntimeError, OSError, ImportError, AttributeError) as exc:
+                 message = str(exc)
+                 setup_link = _setup_check_link(getattr(exc, 'setup_url', None))
+-                self._ui_call(lambda: setattr(self.remote_engine_status, "value",
+-                    f"<p role='alert'>ORCA/CFOUR access could not be checked: {html.escape(message)}</p>"
+-                    + setup_link + "<p>Open <b>Setup help</b> below for the next steps. You can still upload files and use available free programs.</p>"))
++                self._ui_call(lambda: self._render_remote_engine_check_failure(probe_target, message, setup_link))
+             finally:
+                 def finished() -> None:
+                     self._remote_probe_running = False
+@@ -4126,7 +4161,10 @@ class CoChemGUI(InputManagementMixin):
+             busy = bool(hpc_reason) or self._pipeline_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._topos_running or self._student_setup_busy
+             top_ops = self._research_capability_observations.get('topos', {}).get('operations', [])
+             torq_ops = self._research_capability_observations.get('torq', {}).get('operations', [])
+-            self.btn_research_topos.disabled = busy or not bool(top_ops and self.research_topos_operation.value in top_ops)
++            selected_research = (self.research_matrix_recipe.value in getattr(self, '_student_matrix_recipes', {})
++                                if self.research_topos_operation.value == 'matrix'
++                                else self.research_topos_engine.value in {'xtb', 'orca'})
++            self.btn_research_topos.disabled = busy or not selected_research or not bool(top_ops and self.research_topos_operation.value in top_ops)
+             for button, operation in ((self.btn_research_torq, 'research_scan'),
+                                       (self.btn_research_wiberg, 'wiberg_lowdin'),
+                                       (self.btn_research_wiberg_nao, 'wiberg_nao'),
+@@ -5766,6 +5804,7 @@ class CoChemGUI(InputManagementMixin):
+                         self._remote_engine_availability[engine] = item
+                 self._refresh_engine_choices()
+                 self._refresh_research_engine_choices()
++                self._refresh_orbital_backend_choices()
+ 
+     def _import_student_actions_results(self, receipt: dict[str, Any]) -> None:
+         root = Path(receipt["path"]).resolve()

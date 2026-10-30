@@ -2855,6 +2855,9 @@ class CoChemGUI(InputManagementMixin):
         advanced = _collapsed_section("Advanced: module installation and data transfer", self.view_modules)
         advanced.selected_index = None
         self.view_modules = build_results_panel(self, advanced)
+        self.research_topos_engine.observe(lambda change: self._refresh_execution_gate(), names='value')
+        self.research_matrix_recipe.observe(lambda change: self._refresh_execution_gate(), names='value')
+        self.research_topos_operation.observe(lambda change: self._refresh_execution_gate(), names='value')
         self._refresh_research_capabilities()
 
     def _refresh_research_capabilities(self, b: Any = None) -> None:
@@ -2907,16 +2910,20 @@ class CoChemGUI(InputManagementMixin):
         if orca_ready:
             options.append(("ORCA r2SCAN-3c", "orca"))
         previous = self.research_topos_engine.value
+        if previous not in dict(options).values():
+            options.insert(0, ("Choose an available research method", None))
         self.research_topos_engine.options = options
-        self.research_topos_engine.value = previous if previous in dict(options).values() else "xtb"
+        self.research_topos_engine.value = previous if previous in dict(options).values() else None
         from cochem_base.interfaces.student_research import student_matrix_recipes
         recipes = student_matrix_recipes(capabilities=list(self._research_capability_observations.values()))
         self._student_matrix_recipes = {item['row_id']: item for item in recipes if item['engine'] != 'orca' or orca_ready}
         choices = [(f"{row}: {item['method']} / {item['basis'] or 'built in'}", row)
                    for row, item in self._student_matrix_recipes.items()]
         current = self.research_matrix_recipe.value
+        if current not in self._student_matrix_recipes and choices:
+            choices.insert(0, ("Choose an available optimization recipe", ""))
         self.research_matrix_recipe.options = choices or [("No verified molecule-only recipe", "")]
-        self.research_matrix_recipe.value = current if current in self._student_matrix_recipes else (choices[0][1] if choices else '')
+        self.research_matrix_recipe.value = current if current in self._student_matrix_recipes else ''
         self.research_matrix_recipe.disabled = not choices
 
     def _refresh_orbital_backend_choices(self) -> None:
@@ -2936,8 +2943,10 @@ class CoChemGUI(InputManagementMixin):
             engines.discard('orca')
         choices = [(engine.upper(), engine) for engine in sorted(engines)]
         previous = self.research_orbital_backend.value
+        if choices and previous not in engines:
+            choices.insert(0, ('Choose an available orbital backend', None))
         self.research_orbital_backend.options = choices or [('No verified orbital backend', None)]
-        self.research_orbital_backend.value = previous if previous in engines else (choices[0][1] if choices else None)
+        self.research_orbital_backend.value = previous if previous in engines else None
         self.research_orbital_backend.disabled = not choices
 
     def _student_fragment_groups(self) -> list[list[int]]:
@@ -2985,6 +2994,8 @@ class CoChemGUI(InputManagementMixin):
             if operation not in self._research_capability_observations.get("topos", {}).get("operations", []):
                 raise ValueError("This TOPOS calculation is unavailable. Open Start here and check the module installation")
             engine = self.research_topos_engine.value
+            if operation != "matrix" and engine not in {"xtb", "orca"}:
+                raise ValueError("Choose an available research method before starting this calculation")
             fragments, states = None, None
             if operation == "association":
                 fragments = self._student_fragment_groups()
@@ -3261,6 +3272,27 @@ class CoChemGUI(InputManagementMixin):
         except ImportError:
             return False
 
+    def _withdraw_remote_engine_access(self, target: tuple[str, str]) -> None:
+        if (self.gh_repo_input.value.strip(), self.gh_branch_input.value.strip() or "main") != target:
+            return
+        self._remote_engine_target = target
+        self._remote_engine_availability = {engine: {"status": "unknown", "provisionable": False,
+            "reason": "A fresh archive-access check has not succeeded for this project and branch."}
+            for engine in ("orca", "cfour")}
+        self._refresh_engine_choices()
+        self._refresh_research_engine_choices()
+        self._refresh_orbital_backend_choices()
+        self._refresh_execution_gate()
+
+    def _render_remote_engine_check_failure(self, target: tuple[str, str], message: str,
+                                            setup_link: str = "") -> None:
+        if (self.gh_repo_input.value.strip(), self.gh_branch_input.value.strip() or "main") != target:
+            return
+        self.remote_engine_status.value = (
+            f"<p role='alert'>ORCA/CFOUR access could not be checked: {html.escape(message)}</p>"
+            + setup_link + "<p>Open <b>Setup help</b> below for the next steps, then select <b>Check ORCA &amp; CFOUR</b> to retry. "
+            "Dependent choices remain unavailable until access is verified. You can still upload files and use available free programs.</p>")
+
     def _check_remote_engines(self, b: Any = None) -> None:
         if self._remote_probe_running or self.calc_env_dropdown.value != "github-actions":
             return
@@ -3273,6 +3305,9 @@ class CoChemGUI(InputManagementMixin):
             return
         self._remote_probe_running = True
         self._remote_probe_submission = None
+        # Rechecking access withdraws the previous observation immediately.
+        # A failed or timed-out check cannot leave stale licensed choices live.
+        self._withdraw_remote_engine_access(probe_target)
         self.btn_remote_engine_check.disabled = True
         self.btn_remote_engine_cancel.disabled = True
         self.remote_engine_status.value = "<p role='status' aria-live='polite'>Checking this project and its ORCA/CFOUR downloads on GitHub Actions. This can take a few minutes. You can continue uploading research files.</p>"
@@ -3329,14 +3364,14 @@ class CoChemGUI(InputManagementMixin):
                         + "<details><summary>Check details</summary>" + html.escape(str(item.get('reason', '')))
                         + "</details></li>" for engine, item in engines.items()) + "</ul><p>Each calculation installs and checks its selected program before running.</p>"
                     self._refresh_engine_choices()
+                    self._refresh_research_engine_choices()
+                    self._refresh_orbital_backend_choices()
                     self._refresh_research_capabilities()
                 self._ui_call(success)
             except (ValueError, RuntimeError, OSError, ImportError, AttributeError) as exc:
                 message = str(exc)
                 setup_link = _setup_check_link(getattr(exc, 'setup_url', None))
-                self._ui_call(lambda: setattr(self.remote_engine_status, "value",
-                    f"<p role='alert'>ORCA/CFOUR access could not be checked: {html.escape(message)}</p>"
-                    + setup_link + "<p>Open <b>Setup help</b> below for the next steps. You can still upload files and use available free programs.</p>"))
+                self._ui_call(lambda: self._render_remote_engine_check_failure(probe_target, message, setup_link))
             finally:
                 def finished() -> None:
                     self._remote_probe_running = False
@@ -4126,7 +4161,10 @@ class CoChemGUI(InputManagementMixin):
             busy = bool(hpc_reason) or self._pipeline_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._topos_running or self._student_setup_busy
             top_ops = self._research_capability_observations.get('topos', {}).get('operations', [])
             torq_ops = self._research_capability_observations.get('torq', {}).get('operations', [])
-            self.btn_research_topos.disabled = busy or not bool(top_ops and self.research_topos_operation.value in top_ops)
+            selected_research = (self.research_matrix_recipe.value in getattr(self, '_student_matrix_recipes', {})
+                                if self.research_topos_operation.value == 'matrix'
+                                else self.research_topos_engine.value in {'xtb', 'orca'})
+            self.btn_research_topos.disabled = busy or not selected_research or not bool(top_ops and self.research_topos_operation.value in top_ops)
             for button, operation in ((self.btn_research_torq, 'research_scan'),
                                       (self.btn_research_wiberg, 'wiberg_lowdin'),
                                       (self.btn_research_wiberg_nao, 'wiberg_nao'),
@@ -5766,6 +5804,7 @@ class CoChemGUI(InputManagementMixin):
                         self._remote_engine_availability[engine] = item
                 self._refresh_engine_choices()
                 self._refresh_research_engine_choices()
+                self._refresh_orbital_backend_choices()
 
     def _import_student_actions_results(self, receipt: dict[str, Any]) -> None:
         root = Path(receipt["path"]).resolve()

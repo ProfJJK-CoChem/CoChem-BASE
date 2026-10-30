@@ -230,6 +230,7 @@ def _exercise(case, root):
 
 
 def _http_case(gui, root, case):
+    from collections import Counter
     from datetime import datetime, timezone
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     import json
@@ -244,6 +245,7 @@ def _http_case(gui, root, case):
     token = secrets.token_urlsafe(32)
     request_id = str(uuid.uuid4())
     state = {'registered': case != 'pending_http', 'posts': [], 'gets': [],
+             'access_log': [], 'responses': [],
              'entered': threading.Event(), 'release': threading.Event(),
              'status_error': case == 'probe_http', 'terminal': False}
     submission = {'request_id': request_id, 'repository': 'student/project', 'branch': 'main',
@@ -251,10 +253,11 @@ def _http_case(gui, root, case):
         'workflow_id': 41, 'submitted_at': datetime.now(timezone.utc).isoformat(),
         'run_id': None if case == 'pending_http' else 123, 'run_attempt': 1, 'status': 'queued'}
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
+        def log_message(self, format, *args):
+            state['access_log'].append(format % args)
         def answer(self, status, value):
             raw = json.dumps(value).encode()
+            state['responses'].append((self.requestline, status))
             self.send_response(status)
             self.send_header('Content-Length', str(len(raw)))
             self.send_header('Content-Type', 'application/json')
@@ -289,6 +292,15 @@ def _http_case(gui, root, case):
     peer = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     server = threading.Thread(target=peer.serve_forever, daemon=True)
     server.start()
+    def finish_peer():
+        peer.shutdown()
+        server.join(10)
+        peer.server_close()
+        (root / 'http-access-log.json').write_text(json.dumps(state['access_log']) + '\n')
+        assert not server.is_alive() and state['responses']
+        assert Counter(state['access_log']) == Counter(f'"{request}" {status} -' for request, status in state['responses'])
+        assert len(state['access_log']) == len(state['gets']) + len(state['posts'])
+        assert all(token not in record and 'Authorization' not in record for record in state['access_log'])
     client = StudentActionsClient('student/project', token=token, branch='main',
         repository_root=Path(__file__).resolve().parents[2], artifact_dir=root / 'http-artifacts',
         api_url=f'http://127.0.0.1:{peer.server_port}', allow_loopback=True)
@@ -296,9 +308,7 @@ def _http_case(gui, root, case):
         try:
             return _probe_review_case(gui, client, submission, state)
         finally:
-            peer.shutdown()
-            server.join(10)
-            peer.server_close()
+            finish_peer()
     context = gui._new_remote_stop('actions')
     gui._actions_running = True
     gui._pipeline_running = True
@@ -379,9 +389,7 @@ def _http_case(gui, root, case):
         if worker is not None:
             worker.join(10)
         gui._actions_running = gui._pipeline_running = False
-        peer.shutdown()
-        server.join(10)
-        peer.server_close()
+        finish_peer()
 
 
 def _probe_review_case(gui, client, submission, state):

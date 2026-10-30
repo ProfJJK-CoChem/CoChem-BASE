@@ -56,6 +56,26 @@ def _hint(message: str) -> widgets.HTML:
     return widgets.HTML("<p>" + message + "</p>").add_class("cochem-hint")
 
 
+def _topic_help(gui: Any, topic: str, title: str) -> widgets.VBox:
+    button = widgets.Button(description=title, icon="question-circle", layout=widgets.Layout(width="auto"))
+    container = widgets.VBox([button])
+
+    def explain(_: Any) -> None:
+        from ui.voila_layout.learning import build_topic_answer
+
+        if len(container.children) == 1:
+            container.children = (button, build_topic_answer(topic))
+        else:
+            answer = container.children[1]
+            answer.layout.display = "" if answer.layout.display == "none" else "none"
+        shown = container.children[1].layout.display != "none"
+        button.description = "Hide help · " + title.removeprefix("Help · ") if shown else title
+
+    button.on_click(explain)
+    button.add_class("cochem-context-help")
+    return container
+
+
 def _help(title: str, content: str) -> widgets.HTML:
     """Keep teaching beside the decision, accessible without hover or a new page."""
     return widgets.HTML(
@@ -178,6 +198,9 @@ def build_topos_panel(gui: Any) -> widgets.VBox:
                        gui.research_candidates, gui.research_temperature)
     return widgets.VBox([
         widgets.HTML("<h3>Structures and energies · TOPOS</h3><p>Use your selected starting structure to calculate an energy, refine its geometry or explore other arrangements.</p>"),
+        _hint("Use this additional tool when your assignment asks for a structure search or one of the calculations below. "
+              "Start with the molecule and charge/spin state shown at the top of the page."),
+        _topic_help(gui, "calculation_types", "Help · Which calculation answers my question?"),
         _step("1. Choose what to calculate", gui.research_topos_operation,
               gui.research_operation_help, widgets.HTML(help_html("calculation_types"))),
         _step("2. Set the calculation conditions", gui.research_topos_method_section,
@@ -267,6 +290,8 @@ def build_torq_panel(gui: Any) -> widgets.VBox:
     gui.research_torq_tools.set_title(1, "Bond analysis")
     return widgets.VBox([
         widgets.HTML("<h3>Energy scans and bonding · TORQ</h3><p>Explore a separation between two monomers, or analyze bonding in your selected structure.</p>"),
+        _hint("These are additional tools. A distance scan and a bonding analysis answer different questions; follow the tool specified in your assignment."),
+        _topic_help(gui, "calculation_types", "Help · What can a scan tell me?"),
         _step("1. Choose the electronic-structure settings",
               gui.research_scan_method, gui.research_scan_basis,
               _hint("These settings apply to the selected tool below. Charge and multiplicity come from your calculation settings."),
@@ -331,7 +356,8 @@ def build_results_panel(gui: Any, advanced: widgets.Widget) -> widgets.VBox:
     return widgets.VBox([
         widgets.HTML("<h3>Results</h3><p>Review your calculated values and their limitations, compare compatible structures, and download the tables and diagrams.</p>"),
         gui.research_report_output,
-        _step("Compare calculated structures", gui.research_comparison_hint,
+        _details("Advanced: compare structures and population models",
+            _step("Compare calculated structures", gui.research_comparison_hint,
               gui.research_isomer_choices, _wrap(gui.btn_research_clear_selection),
               _help("How do I select more than one result?",
                     "<p>Hold Ctrl (Windows/Linux) or Command (macOS) while clicking to add or remove individual selections. "
@@ -342,7 +368,7 @@ def build_results_panel(gui: Any, advanced: widgets.Widget) -> widgets.VBox:
               gui.research_populations,
               gui.research_result_temperature, gui.research_population_hint,
               widgets.HTML(help_html("compare_results")),
-              _wrap(gui.btn_research_compare), gui.research_comparison_status),
+              _wrap(gui.btn_research_compare), gui.research_comparison_status)),
         _hint("Download the data alongside each figure. Keep its method, units, temperature where relevant, and calculation warnings in your research record."),
         gui.research_report_download,
         advanced,

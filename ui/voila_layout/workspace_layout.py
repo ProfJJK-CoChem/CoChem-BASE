@@ -6,6 +6,8 @@ input validation, capability checks and retained data stay with their owners.
 from __future__ import annotations
 
 import html
+import base64
+from html.parser import HTMLParser
 from typing import Any
 
 import ipywidgets as widgets
@@ -20,6 +22,61 @@ def _text(value: str) -> widgets.HTML:
 
 def _help(topic: str) -> widgets.HTML:
     return _text(hint_html(topic) + help_html(topic))
+
+
+def _teach(gui: Any, topic: str, title: str = "Help · Teach me more") -> widgets.VBox:
+    button = widgets.Button(description=title, icon="question-circle", layout=widgets.Layout(width="auto"))
+    container = widgets.VBox([button])
+
+    def explain(_: Any) -> None:
+        from ui.voila_layout.learning import build_topic_answer
+
+        if len(container.children) == 1:
+            container.children = (button, build_topic_answer(topic))
+        else:
+            answer = container.children[1]
+            answer.layout.display = "" if answer.layout.display == "none" else "none"
+        shown = container.children[1].layout.display != "none"
+        button.description = "Hide help · " + title.removeprefix("Help · ") if shown else title
+
+    button.on_click(explain)
+    button.add_class("cochem-context-help")
+    return container
+
+
+def _next_instruction(title: str, instruction: str) -> widgets.HTML:
+    return _text("<div class='cochem-next'><strong>" + html.escape(title) + "</strong><p>"
+                 + instruction + "</p></div>")
+
+
+def _displayed_result_download(value: str) -> str:
+    """Export the displayed text; never read or imply a native-results bundle."""
+    class DisplayText(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=True)
+            self.parts: list[str] = []
+
+        def handle_data(self, data: str) -> None:
+            self.parts.append(data)
+
+        def handle_starttag(self, tag: str, attrs: Any) -> None:
+            if tag in {"br", "p", "div", "li", "tr"}:
+                self.parts.append("\n")
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag in {"p", "div", "li", "tr"}:
+                self.parts.append("\n")
+
+    parser = DisplayText()
+    parser.feed(value)
+    content = ("CoChem — displayed result summary\n"
+               "This contains the text displayed in the result panel only.\n"
+               "It does not contain native output files or a provenance backup.\n\n"
+               + "".join(parser.parts).strip() + "\n")
+    encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
+    return ("<p><a download='cochem-displayed-result-summary.txt' href='data:text/plain;charset=utf-8;base64,"
+            + encoded + "'>Save displayed result summary</a></p>"
+            "<p class='cochem-hint'>Text shown here only. Save the full calculation files and record separately when available.</p>")
 
 
 def _heading(title: str, summary: str) -> widgets.HTML:
@@ -75,24 +132,26 @@ def _setup(gui: Any) -> None:
     )
     gui.local_setup_box.layout.border = ""
     gui.local_setup_box.children = (
-        _text("<h3>Programs on your calculation computer</h3><p>Use <b>Find installed engines</b> to locate ORCA or CFOUR. "
-              "If a program is installed elsewhere, select its executable path below.</p>"),
-        gui.bin_orca, gui.bin_cfour, _actions(gui.btn_detect_bins, gui.btn_save_bins), gui.local_setup_output,
+        _text("<h3>Programs on your calculation computer</h3><p>Use your instructor’s prepared computer. "
+              "If setup reports a missing program, open Help or ask your instructor.</p>"),
+        Disclosure("Advanced: find or select installed program files", gui.bin_orca, gui.bin_cfour,
+                   _actions(gui.btn_detect_bins, gui.btn_save_bins), gui.local_setup_output),
     )
     gui.install_input_upload.description = "Upload Hessian bundle"
     gui.advanced_local_setup.body.children = (
         _help("hessian"), gui.install_input_upload, *gui.advanced_local_setup.body.children,
     )
     gui.local_install_options.children = (
-        gui.license_mode, gui.licensed_engine_status, gui.advanced_local_setup,
-        Disclosure("Installation log", gui.install_output),
+        gui.licensed_engine_status,
+        Disclosure("Advanced: optional programs and existing scientific data", gui.license_mode,
+                   gui.advanced_local_setup, Disclosure("Installation log", gui.install_output)),
     )
     gui.btn_continue_inputs = _navigate(gui, "inputs", "Continue to Your files")
     gui.view_install.children = (
         _heading("Start here", "Prepare your workspace, then bring in your own structures and research data."),
-        _text("<ol class='cochem-steps'><li><strong>1 · Check access</strong><span>Choose where the chemistry runs.</span></li>"
-              "<li><strong>2 · Add your files</strong><span>Inspect the structure and its electronic state.</span></li>"
-              "<li><strong>3 · Calculate and interpret</strong><span>Choose a task, then inspect its evidence.</span></li></ol>"),
+        _next_instruction("Step 1 · Set up your workspace", "Follow your instructor’s choice of calculation computer below. "
+            "Read any setup message. You can add your molecule while setup runs; calculations that need unavailable programs stay disabled."),
+        _teach(gui, "workspace", "Help · Where does my calculation run?"),
         _section("Where will calculations run?", gui.calc_env_dropdown, _help("workspace"),
                  Disclosure("Where this interface runs", gui.interact_env_dropdown)),
         gui.dynamic_setup_container, gui.local_install_options, gui.run_install_btn,
@@ -102,7 +161,7 @@ def _setup(gui: Any) -> None:
     gui.student_setup_panel.layout.padding = "0"
     gui.student_setup_panel.add_class("cochem-section")
     gui.student_setup_panel.children = (
-        _text("<h3>CoChem tools and updates</h3><p>BASE installs and connects TOPOS and TORQ here. "
+        _text("<h3>CoChem tools and updates</h3><p>Read the setup status here before running a calculation. "
               "Use <b>Check for updates</b> when your instructor announces a fix. No terminal commands are needed.</p>"),
         *gui.student_setup_panel.children[1:],
     )
@@ -119,8 +178,8 @@ def _inputs(gui: Any) -> None:
     gui.input_library_choice.description = "Your uploaded file:"
     gui.input_kind.description = "File contents:"
     gui.input_upload_section = _section("1 · Upload a scientific file",
-        _text("<p>Start with <b>Detect from file</b> for ordinary molecular files. "
-              "For conformer pools or specialized data, select the matching contents first.</p>"),
+        _text("<p>Click <b>Upload scientific inputs</b> and choose the molecular file from your assignment. "
+              "For an ordinary molecule file, leave <b>Detect from file</b> selected. A file can contain more than one structure.</p>"),
         gui.input_kind, gui.input_pool_producer, gui.input_pool_energy_unit, gui.input_upload,
         _text(help_html("scientific_inputs")), gui.input_library_status)
     gui.input_inbox_disclosure = Disclosure("Import from the VS Code inbox",
@@ -134,6 +193,9 @@ def _inputs(gui: Any) -> None:
     gui.btn_continue_calculation_settings = _navigate(gui, "matrix", "Continue to calculation settings", tab=1)
     gui.view_inputs.children = (
         _heading("Your files", "Upload your scientific inputs, inspect them, and choose what to use next."),
+        _next_instruction("Step 2 · Add your molecule", "Upload your file below, choose its structure or frame, then click "
+            "<b>Use selected starting geometry</b>. In Calculations, inspect the picture and confirm the molecule, total charge and spin with your assignment."),
+        _teach(gui, "molecule_identity", "Help · How do I check my molecule?"),
         gui.input_upload_section, gui.input_library_rejections,
         _section("2 · Choose a structure or dataset", gui.input_library_choice,
                  gui.input_record_choice, gui.input_management_controls, gui.btn_use_input_geometry,
@@ -163,10 +225,15 @@ def _molecular_settings(gui: Any) -> None:
         _help("active_space"), gui.t9_panel)
     gui.t9_panel.children = gui.t9_panel.children[1:]
     gui.tab_base.children = (
-        _section("Electronic state", _actions(gui.charge_input, gui.multiplicity_input), _help("charge_spin")),
+        _section("Electronic state", _actions(gui.charge_input, gui.multiplicity_input),
+                 _text("<p class='cochem-hint'>Charge 0 means neutral; +1 means a positive ion and −1 a negative ion. "
+                       "Spin describes the electrons’ spin state. Use the state in your assignment; being neutral does not by itself determine spin.</p>"),
+                 _help("charge_spin")),
         _section("Method and basis", gui.matrix_engine, gui.engine_warning,
-                 gui.matrix_tier, _text(help_html("theory_tiers")),
-                 gui.matrix_method, gui.matrix_basis, _help("method_basis")),
+                 _text("<p class='cochem-hint'>The engine is the program that performs the calculation. "
+                       "Choose the program, method and basis written in your assignment. These choices affect the answer.</p>"),
+                 gui.matrix_method, gui.matrix_basis, _teach(gui, "method_basis", "Help · What are a method and basis set?"),
+                 Disclosure("Advanced: choose another method family", gui.matrix_tier, _text(help_html("theory_tiers")))),
         _section("Surroundings", gui.matrix_solvation, _help("solvent")),
         gui.cfour_operation, gui.dispersion_warning,
         Disclosure("Advanced: complete-basis extrapolation", gui.matrix_cbs_pair,
@@ -201,10 +268,11 @@ def _molecular_settings(gui: Any) -> None:
             _text("<h3>Starting structure</h3><p>Use a file from <b>Your files</b>, or upload an XYZ here. "
                   "Confirm the identity and electronic state before calculating.</p>"),
             gui.xyz_upload, gui.student_geometry_choice, gui.geometry_management_controls,
-            gui.student_input_role, gui.student_input_label,
+            gui.student_input_label,
             _actions(gui.geometry_charge, gui.geometry_multiplicity), _help("charge_spin"),
             Disclosure("Assign atoms to monomers", gui.student_fragment_atoms, _text(help_html("fragments_constraints"))),
             gui.btn_save_input_details, gui.student_upload_status,
+            Disclosure("Advanced: assign this structure a role", gui.student_input_role),
             gui.monomer_assembly_disclosure,
             Disclosure("Build from a name or SMILES", _text("<p>Use a molecule name or line notation to generate a starting guess. "
                 "Inspect the geometry and verify its charge and spin before use.</p>"), gui.smiles_input, gui.btn_build_smiles),
@@ -240,12 +308,6 @@ def _molecular_settings(gui: Any) -> None:
 
 def _calculations(gui: Any) -> None:
     gui.btn_goal_periodic = _navigate(gui, "periodic", "Open periodic-structure calculations")
-    gui.product_class_selector.options = [
-        ("Molecular screening in solution (Product A)", "Product A (Lead Screening)"),
-        ("Periodic materials and solids (Product B)", "Product B (Materials and Extended Solids)"),
-        ("Spectroscopic calibration (Product C)", "Product C (Absolute Spectroscopic Calibration)"),
-        ("Exploratory calculation — no accuracy certification", "Screening (no product accuracy claim)"),
-    ]
     gui.product_class_selector.description = "Scientific goal:"
     gui.goal_guidance = _text("")
 
@@ -256,7 +318,7 @@ def _calculations(gui: Any) -> None:
             "<p class='cochem-hint'>Use the Periodic structures tool for a repeating solid and its unit cell. "
             "Your current molecular settings are retained.</p>" if periodic else
             "<p class='cochem-hint'>The goal applies scientific requirements. It is not an accuracy guarantee. "
-            "For a basic gas-phase exercise, use Exploratory calculation and your assigned method.</p>")
+            "For an assigned basic screening exercise, use Screening (no product accuracy claim) and your assigned method.</p>")
 
     gui.product_class_selector.observe(goal_changed, names="value")
     goal_changed()
@@ -270,7 +332,9 @@ def _calculations(gui: Any) -> None:
     gui.molecular_operation_controls = widgets.VBox([gui.actions_job_options, gui.native_job_options])
     gui.matrix_config_panel.children = (
         gui.calculation_environment_status, gui.molecular_operation_controls,
-        gui.config_tabs, gui.output_config_box, gui.output_destination_guidance, gui.configuration_export,
+        gui.config_tabs,
+        Disclosure("Advanced: output location and reproducibility export", gui.output_config_box,
+                   gui.output_destination_guidance, gui.configuration_export),
     )
     gui.project_name.description = "Calculation label:"
     gui.project_name.style.description_width = "initial"
@@ -287,7 +351,7 @@ def _calculations(gui: Any) -> None:
             identity = parse_geometry_identity(gui.matrix_geometry.value)
             description = f"{label} · {len(identity.elements)} atoms · charge {gui.charge_input.value} · multiplicity {gui.multiplicity_input.value}"
         except (ValueError, TypeError):
-            description = "No valid starting structure selected. Open Your files to upload and select one."
+            description = "No readable starting structure selected. Open Your files to upload and select one."
         gui.context_summary.value = "<p><strong>Calculation input</strong><br>" + html.escape(description) + "</p>"
 
     for field in (gui.matrix_geometry, gui.student_geometry_choice, gui.charge_input, gui.multiplicity_input):
@@ -295,11 +359,23 @@ def _calculations(gui: Any) -> None:
     refresh_context()
     gui.goal_section = _section("Calculation goal", gui.product_class_selector, gui.goal_guidance, gui.btn_goal_periodic,
                                Disclosure("Scientific requirements for this goal", gui.product_class_card))
+    gui.advanced_goal = Disclosure("Advanced: scientific goal and requirements", gui.goal_section)
+    gui.advanced_tools = Disclosure("Advanced: other calculation tools",
+        _text("<p>Open these tools only when your assignment calls for them. Your current settings are kept. "
+              "Check the selected method and starting structure before running a different task.</p>"),
+        _actions(_navigate(gui, "matrix", "Other structures and energies", tab=2),
+                 _navigate(gui, "matrix", "Distance scans and bonding", tab=3),
+                 _navigate(gui, "matrix", "Monomer constraints", tab=4)))
+    gui.config_tabs.add_class("cochem-guided-tabs")
     gui.view_matrix.children = (
-        _heading("Calculations", "Choose your scientific question, check the starting structure, then select a supported method."),
+        _heading("Calculations", "Follow the settings in your assignment. Ask your instructor before guessing a method, charge or spin state."),
+        _next_instruction("Step 3 · Choose and run your assigned calculation", "Check your starting molecule in <b>Starting structure</b>. "
+            "In <b>Method and settings</b>, choose the assigned calculation program, method and basis set. "
+            "Then read the status beside the Run button. A disabled button means something still needs attention."),
+        _teach(gui, "first_calculation", "Help · Walk me through my first calculation"),
         gui.context_summary,
-        gui.goal_section,
-        gui.matrix_config_panel, gui.slurm_panel, gui.telemetry_panel,
+        gui.matrix_config_panel, gui.advanced_goal, gui.advanced_tools, gui.slurm_panel, gui.telemetry_panel,
+        _actions(_navigate(gui, "modules", "Continue to read and save results")),
     )
     gui.telemetry_panel.layout.border = ""
     gui.telemetry_panel.layout.padding = "0"
@@ -350,13 +426,110 @@ def _inspection(gui: Any) -> None:
     )
 
 
+def _guided_shell(gui: Any) -> None:
+    """Keep orientation, the selected input and recovery visible on every page."""
+    steps = (("install", "1 · Setup"), ("inputs", "2 · Add your molecule"),
+             ("matrix", "3 · Run assigned calculation"), ("modules", "4 · Read and save results"))
+    gui.guided_step_buttons = {view: _navigate(gui, view, title) for view, title in steps}
+    gui.guided_step_status = _text("").add_class("cochem-step-status")
+    gui.guided_input_summary = _text(gui.context_summary.value).add_class("cochem-current-input")
+    gui._guided_input_link = widgets.dlink((gui.context_summary, "value"), (gui.guided_input_summary, "value"))
+    gui.guided_draft_status = _text("")
+    gui.guided_goal_status = _text("")
+    gui.guided_cancel = widgets.Button(description="Stop current calculation", icon="stop", disabled=gui.btn_cancel.disabled,
+        tooltip="Request cancellation, then wait for the calculation status to confirm it has stopped.",
+        layout=widgets.Layout(width="auto"))
+    gui._guided_cancel_link = widgets.dlink((gui.btn_cancel, "disabled"), (gui.guided_cancel, "disabled"))
+    gui.guided_cancel.on_click(lambda _: gui.btn_cancel.click())
+
+    def update_current(_: Any = None) -> None:
+        from cochem_base.theory_matrix import ProductClass
+
+        current = gui.state.active_view
+        for view, button in gui.guided_step_buttons.items():
+            button.button_style = "primary" if view == current else ""
+            button.tooltip = "Current step" if view == current else "Open " + button.description
+        step = dict(steps).get(current, "Additional scientific tool")
+        gui.guided_step_status.value = "<p role='status'><b>Current page: " + html.escape(step) + "</b></p>"
+        method = gui.matrix_method.value or "not selected"
+        program = gui.matrix_engine.value or "not selected"
+        goal = gui.product_class_selector.label or gui.product_class_selector.value
+        selected_goal = gui.product_class_selector.value
+        if selected_goal == "Screening (no product accuracy claim)":
+            meaning = "Exploratory screening; no product accuracy is certified. Follow the method assigned for your question."
+        else:
+            # Plain-language summaries of the canonical ProductClass policy;
+            # the adjacent scientific card retains its full requirements.
+            meaning = {
+                ProductClass.PRODUCT_A: "Screen molecules in a solvent. This goal requires a solvent model and exploration of different molecular arrangements.",
+                ProductClass.PRODUCT_B: "Study a repeating solid or crystal. Use Periodic structures to supply its repeating cell and the required electronic-structure inputs.",
+                ProductClass.PRODUCT_C: "Calibrate spectroscopic predictions. This goal requires a controlled comparison of two allowed basis-set sizes; one basic energy calculation is insufficient.",
+            }[ProductClass(selected_goal)]
+        gui.guided_goal_status.value = (
+            "<p><b>Selected scientific goal:</b> " + html.escape(str(goal)) + "<br>" + html.escape(meaning)
+            + " The calculation’s scientific requirements still apply; selecting a goal does not show they have been met.</p>")
+        gui.guided_draft_status.value = (
+            "<p><b>Current settings:</b> program " + html.escape(str(program)) + "; method " + html.escape(str(method))
+            + "; basis " + html.escape(str(gui.matrix_basis.value or "not selected"))
+            + ". <b>Goal:</b> " + html.escape(str(goal)) + ".</p>"
+            "<p class='cochem-hint'>These are your current settings, not a completed or validated result.</p>")
+
+    gui.state.observe(update_current, names="active_view")
+    for field in (gui.matrix_engine, gui.matrix_method, gui.matrix_basis, gui.product_class_selector):
+        field.observe(update_current, names="value")
+    update_current()
+    gui.guided_journey = widgets.VBox([
+        _text("<p class='cochem-nav-label'>YOUR FOUR STEPS</p>"),
+        widgets.HBox(list(gui.guided_step_buttons.values())).add_class("cochem-journey-buttons"),
+        gui.guided_step_status,
+    ]).add_class("cochem-journey")
+    gui.guided_current = widgets.VBox([
+        gui.guided_input_summary, gui.guided_goal_status,
+        _actions(gui.guided_cancel, _teach(gui, "charge_spin", "Help · Check charge and spin")),
+        Disclosure("Current method and scientific goal requirements", gui.guided_draft_status, gui.product_class_card),
+    ]).add_class("cochem-current")
+    gui.app.header = widgets.VBox([gui.header, gui.guided_journey, gui.guided_current,
+                                   gui.learning_help.widget]).add_class("cochem-guided-header")
+    results = gui.view_modules.children
+    gui.result_summary_download = _text("")
+
+    def refresh_summary(_: Any = None) -> None:
+        text = gui.calculation_result.value
+        completed = gui.state.system_status in {"Optimization Finished", "Harmonic Frequencies Finished",
+            "Single Point Finished", "Actions results imported"}
+        pending_text = text in {"<i>Calculation is running.</i>", "<i>No accepted calculation result yet.</i>"}
+        gui.result_summary_download.value = _displayed_result_download(text) if completed and text and not pending_text else ""
+
+    gui.calculation_result.observe(refresh_summary, names="value")
+    gui.state.observe(refresh_summary, names="system_status")
+    refresh_summary()
+    gui.view_modules.children = (
+        _heading("Read and save results", "Check what actually finished before interpreting a number or figure."),
+        _next_instruction("Step 4 · Read, check and save", "For a remote job, click <b>Refresh calculation status</b>, then "
+            "<b>Retrieve and inspect results</b> when available. Read convergence messages and units. "
+            "Save the available data and calculation record alongside any figure you use."),
+        _teach(gui, "read_results", "Help · How do I know what this result means?"),
+        _section("Your current calculation result", gui.calculation_result, gui.result_summary_download, gui.actions_controls,
+                 _text("<p class='cochem-hint'>A job can finish without a scientifically accepted result. "
+                       "If there is no accepted result, read the status and diagnostic messages before trying again.</p>")),
+        Disclosure("Where did this result come from?", _text(help_html("provenance")),
+                   _teach(gui, "provenance", "Help · Keep the calculation record")),
+        _actions(_navigate(gui, "inspector", "Inspect spectra and calculated properties")),
+        *results,
+    )
+
+
 def apply_workspace_layout(gui: Any) -> None:
     """Compose real controls after ingestion and provider bindings are installed."""
+    from ui.voila_layout.learning import build_learning_help
+
+    gui.learning_help = build_learning_help()
     _setup(gui)
     _inputs(gui)
     _molecular_settings(gui)
     _calculations(gui)
     _inspection(gui)
+    _guided_shell(gui)
     glossary = build_glossary()
     glossary.children = glossary.children[1:]
     gui.view_guide = widgets.VBox([
@@ -368,8 +541,7 @@ def apply_workspace_layout(gui: Any) -> None:
     gui.sidebar.children = (
         _text("<p class='cochem-nav-label'>RESEARCH WORKSPACE</p>"),
         gui.btn_install, gui.btn_inputs, gui.btn_matrix, gui.btn_modules,
-        _text("<p class='cochem-nav-label'>SCIENTIFIC TOOLS</p>"),
-        gui.btn_inspector, gui.btn_periodic,
+        Disclosure("More scientific tools", gui.btn_inspector, gui.btn_periodic),
         _text("<p class='cochem-nav-label'>HELP</p>"), gui.btn_terms,
     )
     gui.sidebar.layout.width = "220px"

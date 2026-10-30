@@ -28,6 +28,21 @@ WORKSPACE_CSS = """
 .cochem-accessible .cochem-brand p {font-size: 12px; color: var(--cc-muted); margin: 0;}
 .cochem-accessible .cochem-status {font-size: 13px; color: var(--cc-muted);}
 .cochem-accessible .cochem-status strong {color: var(--cc-ink);}
+.cochem-accessible .cochem-guided-header {background: var(--cc-surface); border-bottom: 1px solid var(--cc-line);}
+.cochem-accessible .cochem-journey, .cochem-accessible .cochem-current {padding: 8px 24px; gap: 4px;}
+.cochem-accessible .cochem-journey-buttons {display: flex; gap: 8px;}
+.cochem-accessible .cochem-journey-buttons > .jupyter-button {flex: 1 1 180px; min-height: 44px;}
+.cochem-accessible .cochem-step-status p {margin: 0; font-size: 13px;}
+.cochem-accessible .cochem-current-input p {margin: 0; font-size: 14px;}
+.cochem-accessible .cochem-current .cochem-actions {padding: 0;}
+.cochem-accessible .cochem-next {background: var(--cc-accent-soft); border-left: 3px solid var(--cc-accent); padding: 12px 16px;}
+.cochem-accessible .cochem-next p {margin: 4px 0 0;}
+.cochem-accessible .cochem-context-help.jupyter-button {background: var(--cc-surface); color: var(--cc-accent);}
+.cochem-accessible .cochem-learning-help {padding: 12px 24px; border-top: 1px solid var(--cc-line);}
+.cochem-accessible .cochem-help-topic {border-left: 2px solid var(--cc-line); padding-left: 12px;}
+.cochem-accessible .cochem-help-depth, .cochem-accessible .cochem-help-controls {margin: 12px 0 4px;}
+.cochem-accessible .cochem-context-answer {margin-top: 4px; width: 100%;}
+.cochem-accessible .cochem-guided-tabs > .widget-tab-bar :is(.p-TabBar-tab, .lm-TabBar-tab):nth-child(n+3):not(.p-mod-current):not(.lm-mod-current) {display: none;}
 .cochem-accessible .cochem-navigation {background: var(--cc-canvas); border: 0 !important;
   padding: 24px 12px !important; gap: 4px; align-self: stretch;}
 .cochem-accessible .cochem-nav-label {color: var(--cc-muted); font-size: 11px;
@@ -128,6 +143,9 @@ WORKSPACE_CSS = """
   .cochem-accessible .cochem-structure-columns > .widget-box {width: 100% !important; padding: 0 !important;}
 }
 @media (max-width: 600px) {
+  .cochem-accessible .cochem-journey, .cochem-accessible .cochem-current {padding: 8px 12px;}
+  .cochem-accessible .cochem-learning-help {padding: 8px 12px;}
+  .cochem-accessible .cochem-journey-buttons > .jupyter-button {flex-basis: 140px;}
   .cochem-accessible .cochem-header {padding: 12px !important; gap: 8px;}
   .cochem-accessible .cochem-page {padding: 16px 12px !important;}
   .cochem-accessible .cochem-steps {display: block;}

@@ -9,6 +9,11 @@ instructor supplies access to the lab and the calculation settings for your
 study. A calculation uses a mathematical model of your molecule; its answer
 needs to be interpreted using that model's assumptions and limitations.
 
+**Already connected and ready for your first lab?** Use the shorter
+[first-calculation guide](FIRST_LAB.md). It follows the four steps on the
+dashboard and explains where to find **Help search** and **Teach me more**. Keep this page
+for the one-time account, access and Codespace setup.
+
 ## Before you begin
 
 Use a laptop or desktop browser so there is room for the controls. Have your

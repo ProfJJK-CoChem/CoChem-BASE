@@ -311,14 +311,15 @@ HELP_CONTENT = {
          "Do not repeatedly submit to make a queued calculation start sooner. A status refresh does not run new chemistry.")),
     "cancellation_retry": _topic(
         "Stop a calculation and retry safely", ("cancel", "stop", "retry", "run again", "cancellation requested", "duplicate job"),
-        "Cancellation asks the selected job to stop. Retrying creates or submits work again; it does not correct the scientific input by itself.",
+        "Cancellation asks a job to stop. Stop running jobs requests a stop for all calculations and engine checks currently tracked in this interface. Retrying creates or submits work again; it does not correct the scientific input by itself.",
         "A duplicate job can consume resources without fixing the original problem. Keep failed evidence so a corrected run can be understood.",
         "Cancel a job you intentionally want to stop. Retry after identifying the specific input, access or resource problem.",
-        "Calculations → Cancel calculation, or the guided Stop current calculation button. The engine check and specialized search/HPC tools have their own cancel controls.",
+        "Calculations → Cancel calculation, or the guided Stop running jobs button. The header requests a stop for every calculation and engine check currently tracked here; individual Cancel controls target their own operation.",
         ("Confirm which request is active, then use its cancellation control once.",
-         "Wait for an observed terminal status; cancellation requested is not yet confirmation that the job stopped.",
+         "Wait for each job's confirmed final status. A stop request may first wait for confirmation that the job was submitted or for a current program check. Cancellation requested does not mean the job has stopped.",
          "Read and retain the error/output. Correct only the justified setting or prerequisite, verify the selected input, then submit a new bounded request."),
-        ("Cancellation can leave partial results, which must retain their partial/failed status.",
+        ("Cancellation can leave partial results, which must retain their partial/failed status. Original inputs and earlier verified results remain available.",
+         "Stop running jobs does not stop installation, imports or result retrieval, cancel other account jobs, or retain a stop request across an interface reload.",
          "Do not change an assigned method, charge or spin solely to make a retry pass.")),
     "retrieve_results": _topic(
         "Retrieve the result that belongs to your job", ("retrieve", "download calculation bundle", "no results", "artifact", "matching result", "get output"),
@@ -634,8 +635,8 @@ _controls("job_status", "Calculations → retained request and status", False, {
     "btn_actions_open": "Open the selected retained calculation and confirm its input, operation and run identity.",
 })
 _controls("cancellation_retry", "Calculations → active request", False, {
-    "btn_cancel": "Request cancellation of the active calculation, then wait for an observed stopped outcome.",
-    "guided_cancel": "Request stopping the current calculation; cancellation requested is not yet confirmation that it stopped.",
+    "btn_cancel": "Request cancellation of the active calculation, then wait for confirmation that it stopped.",
+    "guided_cancel": "Request stopping every calculation and engine check tracked here; wait for each confirmed final status. This does not stop installations or imports.",
     "btn_remote_engine_cancel": "Cancel the selected program-access check; this is separate from cancelling a chemistry calculation.",
 })
 _controls("retrieve_results", "Calculations → completed request", False, {
@@ -935,7 +936,7 @@ _CONTROL_LABELS = {
     'geometry_multiplicity': 'Structure multiplicity:',
     'gh_branch_input': 'Project branch:',
     'gh_repo_input': 'GitHub project:',
-    'guided_cancel': 'Stop current calculation',
+    'guided_cancel': 'Stop running jobs',
     'guided_step_buttons.inputs': '2 · Add your molecule',
     'guided_step_buttons.install': '1 · Setup',
     'guided_step_buttons.matrix': '3 · Run assigned calculation',
@@ -1173,6 +1174,12 @@ _extra_guidance("orbital_analysis", "Advanced distance scans and bonding → Bon
 _extra_guidance("compare_results", "Results → advanced structure comparison", "read_only_status", {
     "research_comparison_status": ("Comparison status", "Read which selected compatible energy observations were compared and which requirements or values remain missing."),
 })
+
+
+_extra_guidance("job_status", "Header → Running jobs", "read_only_status", {
+    "guided_jobs_status": ("Running jobs", "Read the status of each calculation or engine check separately. Waiting for submission confirmation or asking for cancellation does not mean that the work has ended."),
+})
+CONTROL_HELP["guided_cancel"]["location"] = "Header → Stop running jobs"
 
 
 # These objects remain in the controller source but are replaced, hidden, or

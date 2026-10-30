@@ -8,6 +8,7 @@ import math
 import os
 import re
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -324,11 +325,17 @@ def licensed_engine_availability(registry_path: str | Path | None = None) -> dic
     return availability
 
 
+from cochem_base.interfaces.student_hpc import StudentHpcSubmissionUnknown
+
+
 class CoChemGUI(InputManagementMixin):
     def __init__(self) -> None:
         from ui.voila_layout.initial_widget_state import ensure_widget_runtime
         ensure_widget_runtime()
         self.state = CoChemGUIState()
+        self._remote_stops: dict[str, dict[str, Any]] = {}
+        self._job_stop_lock = threading.Lock()
+        self._topos_attention = False
         self._pipeline_running = False
         self._pipeline_cancellation = threading.Event()
         self._student_research_running = False
@@ -339,6 +346,8 @@ class CoChemGUI(InputManagementMixin):
         self._inbox_stop = threading.Event()
         self._student_setup_busy = False
         self._hpc_running = False
+        self._hpc_unknown_active = False
+        self._hpc_unknown_attempt = None
         self._hpc_retrieving = False
         self._hpc_submission: dict[str, Any] | None = None
         self._hpc_job_serial = 0
@@ -843,7 +852,7 @@ class CoChemGUI(InputManagementMixin):
         self.btn_topos_submit = widgets.Button(description="Start conformer search", button_style="success")
         self.btn_topos_submit.on_click(self._start_topos_search)
         self.btn_topos_cancel = widgets.Button(description="Cancel conformer search", disabled=True)
-        self.btn_topos_cancel.on_click(lambda _: self._topos_cancellation.set())
+        self.btn_topos_cancel.on_click(self._cancel_topos_search)
         self.btn_topos_promote = widgets.Button(description="Publish conformer ensemble", disabled=True)
         self.btn_topos_promote.on_click(self._promote_topos_search)
         self._refresh_topos_capabilities()
@@ -1363,7 +1372,7 @@ class CoChemGUI(InputManagementMixin):
         self.btn_periodic_run.on_click(self._execute_periodic_pipeline)
         self.btn_periodic_cancel = widgets.Button(description="Cancel periodic calculation", disabled=True,
                                                   layout=widgets.Layout(width='auto'))
-        self.btn_periodic_cancel.on_click(self._cancel_pipeline)
+        self.btn_periodic_cancel.on_click(self._cancel_local_calculation)
         self.periodic_structure_status = widgets.HTML("<p role='status'>No periodic structure loaded.</p>")
         self.view_periodic = widgets.VBox([
             widgets.HTML("<h3>Product B periodic structure ingestion</h3><p>Load an ordered bulk CIF or explicitly unit-labelled periodic JSON. Cell vectors, fractional coordinates and source hashes are preserved. Disordered or partially occupied structures require resolved input.</p>"),
@@ -1481,6 +1490,162 @@ class CoChemGUI(InputManagementMixin):
             callback()
             return
         callback()
+
+    def _refresh_running_jobs(self) -> None:
+        """Summarize this GUI's owned jobs without inferring remote termination."""
+        if not hasattr(self, 'guided_cancel'):
+            return
+        jobs = []
+        if self._pipeline_running:
+            message = ('stop requested; waiting for owned work to finish'
+                       if self._pipeline_cancellation.is_set() else 'running')
+            jobs.append(('Local calculation or geometry analysis', message))
+        if self._topos_running:
+            message = ('stop could not be confirmed; select Stop running jobs to retry'
+                       if self._topos_attention else
+                       'stop requested; waiting for owned search to finish'
+                       if self._topos_cancellation.is_set() else 'running')
+            jobs.append(('Native conformer search', message))
+        for kind, label in (('hpc', 'HPC calculation'), ('actions', 'GitHub calculation'),
+                            ('remote_probe', 'Remote engine check')):
+            if getattr(self, '_' + kind + '_running'):
+                if kind == 'hpc' and self._hpc_unknown_active:
+                    jobs.append(('HPC request waiting for confirmation', 'stop requested; waiting for the calculation service to confirm this job'
+                        if self._remote_stops.get(kind, {}).get('requested') else 'contact the instructor or cluster support before submitting again'))
+                    if self._hpc_submission is None:
+                        continue
+                context = self._remote_stops.get(kind, {})
+                message = context.get('message') or ('stop requested; waiting for the calculation service to confirm this job'
+                    if context.get('requested') else 'submitting or running')
+                jobs.append((label, message))
+        self.guided_cancel.disabled = not jobs
+        self.guided_jobs_status.value = ('<ul>' + ''.join(
+            '<li>' + html.escape(label) + ': ' + html.escape(message) + '</li>'
+            for label, message in jobs) + '</ul>' if jobs else
+            '<p>No running jobs are currently tracked here.</p>')
+
+    def _new_remote_stop(self, kind: str) -> dict[str, Any]:
+        # Context object identity is the generation; it is never reused by a new job.
+        context = {'requested': False, 'inflight': False, 'sent': False,
+                   'client': None, 'submission': None, 'message': '', 'retry_required': False}
+        self._remote_stops[kind] = context
+        return context
+
+    def _bind_remote_stop(self, kind: str, client: Any, submission: dict[str, Any],
+                          context: dict[str, Any] | None = None) -> None:
+        explicit_context = context is not None
+        context = context if explicit_context else self._remote_stops.get(kind)
+        if context is None:
+            context = self._new_remote_stop(kind)
+        if self._remote_stops.get(kind) is not context:
+            return
+        previous = context['submission']
+        if previous is not None and previous.get('request_id') != submission.get('request_id'):
+            if explicit_context:
+                return
+            context = self._new_remote_stop(kind)
+        context['client'], context['submission'] = client, dict(submission)
+        if submission.get('status') in {'completed', 'rejected'}:
+            context['message'] = 'finished; see the recorded outcome'
+        elif context['requested']:
+            self._send_remote_stop(kind, context)
+        self._ui_call(self._refresh_running_jobs)
+
+    def _request_remote_stop(self, kind: str) -> None:
+        if not getattr(self, '_' + kind + '_running'):
+            return
+        context = self._remote_stops.get(kind)
+        if context is None:
+            context = self._new_remote_stop(kind)
+        client = getattr(self, '_' + kind + '_client')
+        submission = getattr(self, '_' + kind + '_submission')
+        if client is not None and submission is not None:
+            previous = context['submission']
+            if previous is not None and previous.get('request_id') != submission.get('request_id'):
+                context = self._new_remote_stop(kind)
+            self._bind_remote_stop(kind, client, submission, context)
+        context['requested'] = True
+        if context['retry_required']:
+            context['sent'] = False
+        context['retry_required'] = False  # Only a deliberate click retries an unconfirmed cancellation.
+        self._send_remote_stop(kind, context)
+        if kind == 'remote_probe':
+            monitor = context.get('monitor')
+            worker = getattr(self, '_remote_probe_worker', None)
+            if monitor is not None and (worker is None or not worker.is_alive()):
+                self._remote_probe_worker = threading.Thread(target=monitor, daemon=True)
+                self._remote_probe_worker.start()
+        self._refresh_running_jobs()
+
+    def _send_remote_stop(self, kind: str, context: dict[str, Any]) -> None:
+        """Cancel only a captured owned identity, keeping monitors alive."""
+        if self._remote_stops.get(kind) is not context or not context['requested']:
+            return
+        client, saved = context['client'], context['submission']
+        if saved is not None and saved.get('status') in {'completed', 'rejected'}:
+            return
+        if client is None or saved is None or (kind != 'hpc' and saved.get('run_id') is None):
+            context['message'] = 'stop requested; waiting for the calculation service to confirm this job'
+            return
+        with self._job_stop_lock:
+            if context['inflight'] or context['sent'] or context['retry_required']:
+                return
+            context['inflight'] = True
+        submission = dict(saved)
+        context['message'] = 'requesting cancellation; waiting for confirmation'
+        def cancel() -> None:
+            try:
+                observed = client.cancel(submission)
+            except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
+                message = 'stop could not be confirmed; select Stop running jobs or this job’s Cancel to retry: ' + str(exc)
+                with self._job_stop_lock:
+                    context['inflight'] = False
+                    context['retry_required'] = True
+            else:
+                message = 'cancellation requested; waiting for the final remote outcome'
+                with self._job_stop_lock:
+                    context['inflight'], context['sent'] = False, True
+                if isinstance(observed, dict) and observed.get('status') == 'completed':
+                    message = 'finished; see the recorded remote outcome'
+            def publish() -> None:
+                if self._remote_stops.get(kind) is not context:
+                    return
+                current = getattr(self, '_' + kind + '_submission')
+                if current is None or current.get('request_id') != submission.get('request_id'):
+                    return
+                context['message'] = message
+                self._refresh_running_jobs()
+            self._ui_call(publish)
+        context['worker'] = threading.Thread(target=cancel, daemon=True)
+        context['worker'].start()
+
+    def _cancel_local_calculation(self, b: Any = None) -> None:
+        if self._pipeline_running:
+            self._pipeline_cancellation.set()
+            self.btn_cancel.disabled = True
+            self.btn_periodic_cancel.disabled = True
+            self.state.system_status = 'Stop requested; waiting for owned calculation cleanup'
+            self._refresh_running_jobs()
+
+    def _cancel_topos_search(self, b: Any = None) -> None:
+        if not self._topos_running:
+            return
+        self._topos_cancellation.set()
+        self.topos_status.value = '<p role="status">Stop requested; waiting for the owned conformer search to stop.</p>'
+        worker = getattr(self, '_topos_worker', None)
+        if self._topos_attention and (worker is None or not worker.is_alive()):
+            self._topos_attention = False
+            self._topos_worker = threading.Thread(target=self._poll_topos_search, daemon=True)
+            self._topos_worker.start()
+        self._refresh_running_jobs()
+
+    def _cancel_all_running_jobs(self, b: Any = None) -> None:
+        # Independent fan-out, including legacy/recovered concurrent operations.
+        self._cancel_local_calculation()
+        self._cancel_topos_search()
+        for kind in ('hpc', 'actions', 'remote_probe'):
+            self._request_remote_stop(kind)
+        self._refresh_running_jobs()
 
     def _start_course_project_discovery(self) -> None:
         """Resolve the original project off the UI thread when no launcher context exists."""
@@ -2915,7 +3080,7 @@ class CoChemGUI(InputManagementMixin):
             style={'description_width': 'initial'}, layout=widgets.Layout(width='95%', height='130px'))
         self.btn_research_compare = widgets.Button(description="Compare calculated isomers", disabled=True)
         self.btn_research_compare.on_click(self._compare_student_isomers)
-        self.research_report_output = widgets.HTML("<p role='status'>No calculation results yet. Run a calculation to see its energy tables and available diagrams here.</p>")
+        self.research_report_output = widgets.HTML("<p role='status'>No tables or diagrams have been collected here yet.</p>")
         self.research_report_download = widgets.HTML()
         advanced = _collapsed_section("Advanced: module installation and data transfer", self.view_modules)
         advanced.selected_index = None
@@ -3134,7 +3299,8 @@ class CoChemGUI(InputManagementMixin):
             return
         if self._pipeline_running or self._topos_running or self._hpc_running or self._actions_running:
             raise ValueError("Wait for or cancel the current calculation before starting another")
-        self._pipeline_cancellation.clear()
+        self._pipeline_cancellation = threading.Event()
+        cancellation = self._pipeline_cancellation
         self._student_research_running = True
         self._pipeline_running = True
         self.btn_cancel.disabled = False
@@ -3150,7 +3316,7 @@ class CoChemGUI(InputManagementMixin):
                 path.parent.mkdir(parents=True, exist_ok=False)
                 path.write_text(geometry, encoding="utf-8", newline="")
                 result = execute_provider_request(provider, root, root / "results", root=Path(self.module_root.value),
-                    cancel_event=self._pipeline_cancellation, resources={"cores": self.actions_cores.value,
+                    cancel_event=cancellation, resources={"cores": self.actions_cores.value,
                         "memory_mb": self.actions_memory.value * self.actions_cores.value, "budget_seconds": self.actions_timeout.value})
                 def success() -> None:
                     self._last_module_result = result
@@ -3369,6 +3535,8 @@ class CoChemGUI(InputManagementMixin):
             self.remote_engine_status.value = f"<p role='status'>Open Project details and check the GitHub repository name: {html.escape(str(exc))}</p>"
             return
         self._remote_probe_running = True
+        stop_context = self._new_remote_stop("remote_probe")
+        self._refresh_running_jobs()
         self._remote_probe_submission = None
         # Rechecking access withdraws the previous observation immediately.
         # A failed or timed-out check cannot leave stale licensed choices live.
@@ -3381,35 +3549,32 @@ class CoChemGUI(InputManagementMixin):
                 from cochem_base.config_loader import get_artifact_dir
                 from cochem_base.interfaces.student_actions import StudentActionsClient
                 artifacts = get_artifact_dir()
-                client = StudentActionsClient(repository, branch=branch,
-                    repository_root=Path(os.environ.get("COCHEM_ASSIGNMENT_ROOT", str(_REPO_ROOT))), artifact_dir=artifacts)
-                self._remote_probe_client = client
-                pending = []
-                cache = artifacts / 'StudentActions' / 'submissions'
-                if cache.is_dir() and not cache.is_symlink():
-                    for path in cache.glob('*.json'):
-                        try:
-                            if path.is_symlink() or path.stat().st_size > 64 * 1024:
+                if stop_context['submission'] is not None:
+                    client = stop_context['client']
+                    submission = dict(stop_context['submission'])
+                else:
+                    client = StudentActionsClient(repository, branch=branch,
+                        repository_root=Path(os.environ.get("COCHEM_ASSIGNMENT_ROOT", str(_REPO_ROOT))), artifact_dir=artifacts)
+                    pending = []
+                    cache = artifacts / 'StudentActions' / 'submissions'
+                    if cache.is_dir() and not cache.is_symlink():
+                        for path in cache.glob('*.json'):
+                            try:
+                                if path.is_symlink() or path.stat().st_size > 64 * 1024:
+                                    continue
+                                cached = json.loads(path.read_text(encoding='utf-8'))
+                                if cached.get('request_kind') == 'capability_probe' and (cached.get('repository'), cached.get('branch')) == probe_target and cached.get('status') not in {'completed', 'rejected'}:
+                                    pending.append((path.stat().st_mtime, cached))
+                            except (ValueError, OSError, TypeError):
                                 continue
-                            cached = json.loads(path.read_text(encoding='utf-8'))
-                            if cached.get('request_kind') == 'capability_probe' and (cached.get('repository'), cached.get('branch')) == probe_target and cached.get('status') not in {'completed', 'rejected'}:
-                                pending.append((path.stat().st_mtime, cached))
-                        except (ValueError, OSError, TypeError):
-                            continue
-                submission = max(pending, key=lambda item: item[0])[1] if pending else client.check_engines(engines=["orca", "cfour"])
+                    if stop_context['requested'] and not pending:
+                        raise RuntimeError('Engine check stopped before submission; no new check was dispatched')
+                    submission = max(pending, key=lambda item: item[0])[1] if pending else client.check_engines(engines=["orca", "cfour"])
+                self._remote_probe_client = client
                 self._remote_probe_submission = submission
+                self._bind_remote_stop("remote_probe", client, submission, stop_context)
                 self._ui_call(lambda: setattr(self.btn_remote_engine_cancel, 'disabled', False))
-                deadline = time.monotonic() + 20 * 60
-                while True:
-                    current = client.status(submission)
-                    submission = current
-                    self._remote_probe_submission = current
-                    if current.get("status") == "completed":
-                        break
-                    if time.monotonic() >= deadline:
-                        client.cancel(submission)
-                        raise RuntimeError("The remote engine check exceeded 20 minutes; cancellation was requested. Retry after the workflow stops.")
-                    time.sleep(3)
+                submission = self._poll_remote_engine_check(client, submission, stop_context)
                 directory = artifacts / "RemoteEngineChecks" / f"{submission['request_id']}-{uuid.uuid4().hex}"
                 receipt = client.download_results(submission, directory)
                 report = receipt["report"]
@@ -3419,6 +3584,8 @@ class CoChemGUI(InputManagementMixin):
                 if set(engines) != {"orca", "cfour"}:
                     raise ValueError("The remote engine check returned an incomplete engine inventory")
                 def success() -> None:
+                    if self._remote_stops.get("remote_probe") is not stop_context:
+                        return
                     if (self.gh_repo_input.value.strip(), self.gh_branch_input.value.strip() or "main") != probe_target:
                         return
                     self._remote_engine_target = probe_target
@@ -3436,31 +3603,51 @@ class CoChemGUI(InputManagementMixin):
             except (ValueError, RuntimeError, OSError, ImportError, AttributeError) as exc:
                 message = str(exc)
                 setup_link = _setup_check_link(getattr(exc, 'setup_url', None))
-                self._ui_call(lambda: self._render_remote_engine_check_failure(probe_target, message, setup_link))
+                self._ui_call(lambda: self._render_remote_engine_check_failure(probe_target, message, setup_link)
+                    if self._remote_stops.get('remote_probe') is stop_context else None)
             finally:
-                def finished() -> None:
-                    self._remote_probe_running = False
-                    self.btn_remote_engine_check.disabled = False
-                    self.btn_remote_engine_cancel.disabled = True
-                    if (self.gh_repo_input.value.strip(), self.gh_branch_input.value.strip() or "main") != probe_target and self._automatic_remote_checks_enabled():
-                        self._check_remote_engines()
-                self._ui_call(finished)
+                self._ui_call(lambda: self._finish_remote_engine_check(stop_context, probe_target))
+        stop_context['monitor'] = check
         self._remote_probe_worker = threading.Thread(target=check, daemon=True)
         self._remote_probe_worker.start()
 
-    def _cancel_remote_engine_check(self, b: Any = None) -> None:
-        if not self._remote_probe_running or self._remote_probe_client is None or self._remote_probe_submission is None:
+    def _poll_remote_engine_check(self, client: Any, submission: dict[str, Any],
+                                  context: dict[str, Any]) -> dict[str, Any]:
+        deadline = context.setdefault('deadline', time.monotonic() + 20 * 60)
+        while self._remote_stops.get('remote_probe') is context:
+            current = client.status(submission)
+            submission = current
+            self._remote_probe_submission = current
+            self._bind_remote_stop('remote_probe', client, current, context)
+            if current.get('status') in {'completed', 'rejected'}:
+                return current
+            if time.monotonic() >= deadline:
+                context['requested'] = True
+                self._send_remote_stop('remote_probe', context)
+                raise RuntimeError('The 20-minute monitoring limit was reached. This check remains tracked until its stop is confirmed; use Cancel check to retry or refresh.')
+            time.sleep(3)
+        raise RuntimeError('This engine-check monitor was superseded by another owned context')
+
+    def _finish_remote_engine_check(self, context: dict[str, Any], target: tuple[str, str]) -> None:
+        if self._remote_stops.get('remote_probe') is not context:
             return
-        self.btn_remote_engine_cancel.disabled = True
-        def cancel() -> None:
-            try:
-                self._remote_probe_client.cancel(dict(self._remote_probe_submission))
-                self._ui_call(lambda: setattr(self.remote_engine_status, 'value', '<p role="status">Remote engine check cancellation requested. BASE waits for GitHub confirmation; free engines remain available.</p>'))
-            except (ValueError, RuntimeError, OSError) as exc:
-                message = str(exc)
-                self._ui_call(lambda: setattr(self.remote_engine_status, 'value', f'<p role="alert">Engine check cancellation could not be confirmed: {html.escape(message)}.</p>'))
-        self._remote_probe_cancel_worker = threading.Thread(target=cancel, daemon=True)
-        self._remote_probe_cancel_worker.start()
+        saved = context['submission']
+        pending = saved is not None and saved.get('status') not in {'completed', 'rejected'}
+        self._remote_probe_running = pending
+        self.btn_remote_engine_check.disabled = pending
+        self.btn_remote_engine_cancel.disabled = not pending
+        if pending:
+            context['retry_required'] = True
+            context['message'] = context['message'] or 'monitoring paused; the owned check remains tracked'
+            self.remote_engine_status.value += '<p role="status">This submitted engine check has no confirmed final outcome. Cancel check or Stop running jobs retries its owned stop and monitoring; do not submit a duplicate.</p>'
+        self._refresh_running_jobs()
+        if (not pending and not context['requested']
+                and (self.gh_repo_input.value.strip(), self.gh_branch_input.value.strip() or 'main') != target
+                and self._automatic_remote_checks_enabled()):
+            self._check_remote_engines()
+
+    def _cancel_remote_engine_check(self, b: Any = None) -> None:
+        self._request_remote_stop('remote_probe')
 
     def _refresh_actions_guidance(self, change: Any = None) -> None:
         repository = self.gh_repo_input.value.strip()
@@ -3676,7 +3863,7 @@ class CoChemGUI(InputManagementMixin):
             except (ValueError, OSError, RuntimeError, KeyError) as exc:
                 self.state.error_message = str(exc)
             return
-        if self._pipeline_running or self._hpc_running or self._topos_running or self._installation_running:
+        if self._pipeline_running or self._hpc_running or self._actions_running or self._topos_running or self._installation_running:
             self.state.error_message = "Wait for the active operation before starting a periodic calculation"
             return
         try:
@@ -3684,7 +3871,7 @@ class CoChemGUI(InputManagementMixin):
         except (ValueError, OSError, RuntimeError) as exc:
             self.state.error_message = str(exc)
             return
-        self._pipeline_cancellation.clear()
+        self._pipeline_cancellation = threading.Event()
         self._pipeline_running = True
         self.btn_periodic_run.disabled = True
         self.btn_periodic_cancel.disabled = False
@@ -3694,6 +3881,7 @@ class CoChemGUI(InputManagementMixin):
         self.calculation_result.value = "<p role='status'>Periodic calculation is running.</p>"
         self._pipeline_worker = threading.Thread(target=self._pipeline_thread, args=(target,), daemon=True)
         self._pipeline_worker.start()
+        self._refresh_running_jobs()
 
     def _refresh_module_capabilities(self, b: Any = None) -> None:
         from cochem_base.interfaces.module_execution import installed_module_status
@@ -3751,7 +3939,11 @@ class CoChemGUI(InputManagementMixin):
         import uuid
 
         from cochem_base.interfaces.artifact_handoff import prepare_module_handoff
-        from cochem_base.interfaces.module_execution import execute_module_handoff
+        from cochem_base.interfaces.module_execution import ModuleOperationCancelled, execute_module_handoff
+        from cochem_base.core_engine.cochem_core_subprocess_broker import SubprocessCancelledError
+        if self._pipeline_running or self._topos_running or self._hpc_running or self._actions_running or self._installation_running:
+            self.module_handoff_status.value = "<p role='alert'>Wait for or cancel the active calculation before starting geometry analysis.</p>"
+            return
         name = self.module_recipient.value
         artifact = self.module_artifact.value
         if self.calc_env_dropdown.value in {"hpc", "github-actions"}:
@@ -3768,23 +3960,41 @@ class CoChemGUI(InputManagementMixin):
         destination = Path(self.module_output.value).expanduser() / f"execution_{uuid.uuid4().hex}"
         root = Path(self.module_root.value).expanduser()
         self.btn_module_run.disabled = True
-        self.module_handoff_status.value = "<p role='status'>Running geometry analysis…</p>"
+        self.module_handoff_status.value = "<p role='status'>Running geometry analysis. A stop request waits for the current bounded installation check before stopping owned execution.</p>"
+        self._pipeline_cancellation = threading.Event()
+        cancellation = self._pipeline_cancellation
+        self._pipeline_running = True
+        self.btn_cancel.disabled = False
+        self._refresh_execution_gate()
 
         def run() -> None:
             try:
+                if cancellation.is_set():
+                    raise ModuleOperationCancelled('Stopped before preparing the geometry handoff')
                 prepare_module_handoff(name, artifact, destination / 'handoff', operation='geometry_analysis')
-                result = execute_module_handoff(destination / 'handoff/handoff.json', destination / 'result', root=root)
+                if cancellation.is_set():
+                    raise ModuleOperationCancelled('Stopped after preserving the handoff, before module execution')
+                result = execute_module_handoff(destination / 'handoff/handoff.json', destination / 'result', root=root,
+                                                cancel_event=cancellation)
+                if result.get('status') != 'completed' or result.get('operation_performed') is not True:
+                    raise RuntimeError('Geometry analysis did not complete; retain its diagnostics without accepting a result')
                 self._last_module_result = result
                 self.module_handoff_status.value = (
                     f"<p role='status'>Geometry analysis completed for {html.escape(name)}.</p>"
                     f"<p>{html.escape(result['scope'])}</p><p>Result: <code>{html.escape(str(destination / 'result/result.json'))}</code></p>"
                     f"<pre>{html.escape(json.dumps(result['operation_report'], indent=2, allow_nan=False))}</pre>")
+            except (ModuleOperationCancelled, SubprocessCancelledError) as exc:
+                self.module_handoff_status.value = f"<p role='status'>Geometry analysis cancelled. Its owned execution stopped; partial diagnostics remain: {html.escape(str(destination))}. {html.escape(str(exc))}</p>"
             except Exception as exc:
                 self.module_handoff_status.value = f"<p role='alert'>Module operation failed: {html.escape(str(exc))}</p>"
             finally:
-                self.btn_module_run.disabled = False
-        self._module_worker = threading.Thread(target=run, daemon=True)
-        self._module_worker.start()
+                if self._pipeline_cancellation is cancellation:
+                    self._pipeline_running = False
+                    self.btn_module_run.disabled = False
+                    self.btn_cancel.disabled = True
+                    self._ui_call(self._refresh_execution_gate)
+        self._module_geometry_worker = threading.Thread(target=run, daemon=True)
+        self._module_geometry_worker.start()
 
     def _prepare_module_handoff(self, b: Any = None) -> None:
         import base64
@@ -4133,6 +4343,7 @@ class CoChemGUI(InputManagementMixin):
 
     def _refresh_execution_gate(self) -> None:
         from cochem_base.core_engine.execution_authority import authorize_engine_execution
+        self._refresh_running_jobs()
         reason = ""
         remote = self.calc_env_dropdown.value == "github-actions"
         if remote:
@@ -4213,15 +4424,16 @@ class CoChemGUI(InputManagementMixin):
         hpc_reason = self._student_hpc_admission_reason() if self.calc_env_dropdown.value == 'hpc' else ''
         reason = reason or hpc_reason
         self.btn_hpc_connect.disabled = self.calc_env_dropdown.value != 'hpc' or self._hpc_preflight_running
+        self.btn_hpc_open.disabled = not bool(getattr(self, '_hpc_history', {})) or self._hpc_running or self._hpc_retrieving or self._actions_running or self._pipeline_running or self._topos_running
         self.engine_warning.value = f"<b>{html.escape(reason)}</b>" if reason else ""
         self.btn_execute.disabled = bool(reason or self.dispersion_warning.value or self._pipeline_running or self._hpc_running or self._hpc_retrieving or self._actions_running
                                          or self._topos_running or self._installation_running)
         self.btn_slurm_submit.disabled = self.calc_env_dropdown.value != 'hpc' or self.btn_execute.disabled
         if hasattr(self, 'btn_periodic_run'):
-            self.btn_periodic_run.disabled = bool(hpc_reason or self._pipeline_running or self._hpc_running or self._hpc_retrieving)
+            self.btn_periodic_run.disabled = bool(hpc_reason or self._pipeline_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._topos_running or self._installation_running)
         if hasattr(self, 'btn_topos_submit') and self.calc_env_dropdown.value == 'hpc':
             self.btn_topos_submit.disabled = bool(hpc_reason or not self.topos_heuristic.value or self._topos_running
-                                                or self._pipeline_running or self._hpc_running or self._installation_running)
+                                                or self._pipeline_running or self._hpc_running or self._actions_running or self._installation_running)
         if hasattr(self, 'btn_research_topos'):
             busy = bool(hpc_reason) or self._pipeline_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._topos_running or self._student_setup_busy
             top_ops = self._research_capability_observations.get('topos', {}).get('operations', [])
@@ -4720,7 +4932,7 @@ class CoChemGUI(InputManagementMixin):
         self._topos_engines = available
         self.topos_heuristic.options = options or [("[MISSING DATA] No audited search engine", "")]
         self.topos_heuristic.disabled = not options
-        self.btn_topos_submit.disabled = not options or getattr(self, '_pipeline_running', False) or self._installation_running
+        self.btn_topos_submit.disabled = not options or self._pipeline_running or self._hpc_running or self._actions_running or self._topos_running or self._installation_running
         if self.calc_env_dropdown.value == 'hpc':
             self.btn_topos_submit.disabled = self.btn_topos_submit.disabled or bool(self._student_hpc_admission_reason())
         self.topos_capabilities.value = (
@@ -4768,7 +4980,7 @@ class CoChemGUI(InputManagementMixin):
             self.topos_status.value = "<p role='alert'>Use the integrated TOPOS research panel to submit an approved search on Actions. This native screening request was not started.</p>"
             return
         try:
-            if self._pipeline_running or self._hpc_running or self._installation_running:
+            if self._pipeline_running or self._hpc_running or self._actions_running or self._installation_running:
                 raise ValueError("Wait for the active operation before starting another calculation")
             identity = parse_run_geometry_identity(self.matrix_geometry.value)
             symbols, coordinates = list(identity.nuclides), identity.coordinates_angstrom
@@ -4796,7 +5008,8 @@ class CoChemGUI(InputManagementMixin):
             )
             self._topos_job_id = broker.launch_search(config)
             self._topos_broker = broker
-            self._topos_cancellation.clear()
+            self._topos_cancellation = threading.Event()
+            self._topos_attention = False
             self._topos_running = True
             self.state.system_status = "TOPOS RUNNING"
             self._refresh_execution_gate()
@@ -4811,9 +5024,11 @@ class CoChemGUI(InputManagementMixin):
 
     def _poll_topos_search(self) -> None:
         broker, job = self._topos_broker, self._topos_job_id
+        cancellation = self._topos_cancellation
+        unknown = False
         try:
             while True:
-                if self._topos_cancellation.is_set():
+                if cancellation.is_set():
                     broker.cancel_search(job)
                 data = broker.poll_telemetry(job)
                 status = data["status"]
@@ -4831,18 +5046,30 @@ class CoChemGUI(InputManagementMixin):
                         self.topos_status.value += f"<p role='alert'>{html.escape(str(data.get('error')))}</p>"
                     self.btn_topos_promote.disabled = status != "COMPLETED"
                     break
-                self._topos_cancellation.wait(0.25)
-        except (ValueError, RuntimeError, OSError) as exc:
+                cancellation.wait(0.25)
+        except Exception as exc:
             self.topos_status.value = f"<p role='alert'>Conformer monitoring failed: {html.escape(str(exc))}</p>"
             try:
                 broker.cancel_search(job)
-            except (ValueError, RuntimeError, OSError):
+            except Exception:
                 logger.exception("Failed to stop owned conformer job %s", job)
+                process = broker.active_processes.get(job)
+                unknown = process is None or process.poll() is None
+                if unknown:
+                    self.topos_status.value += "<p role='alert'>Stop could not be confirmed. The owned job remains tracked; select Cancel conformer search or Stop running jobs to retry.</p>"
         finally:
-            self._topos_running = False
-            self.btn_topos_cancel.disabled = True
-            self._refresh_topos_capabilities()
-            self._refresh_execution_gate()
+            if self._topos_broker is broker and self._topos_job_id == job:
+                process = broker.active_processes.get(job)
+                if process is not None and process.poll() is None:
+                    unknown = True
+                    self.topos_status.value += "<p role='alert'>The owned search has not exited. Stop is not confirmed; wait or retry cancellation.</p>"
+                self._topos_running = unknown
+                self._topos_attention = unknown
+                self.btn_topos_cancel.disabled = not unknown
+                if unknown:
+                    self.btn_topos_promote.disabled = True
+                self._refresh_topos_capabilities()
+                self._refresh_execution_gate()
 
     def _promote_topos_search(self, b: Any = None) -> None:
         import base64
@@ -5081,7 +5308,7 @@ class CoChemGUI(InputManagementMixin):
         except Exception as exc:
             self.state.error_message = str(exc)
             return
-        self._pipeline_cancellation.clear()
+        self._pipeline_cancellation = threading.Event()
         self._pipeline_running = True
         self.btn_topos_submit.disabled = True
         self.btn_execute.disabled = True
@@ -5091,6 +5318,7 @@ class CoChemGUI(InputManagementMixin):
         self.calculation_result.value = "<i>Calculation is running.</i>"
         self._pipeline_worker = threading.Thread(target=self._pipeline_thread, args=(config_path,), daemon=True)
         self._pipeline_worker.start()
+        self._refresh_running_jobs()
 
     def _student_original_ingestion_input(self) -> dict[str, Any] | None:
         original = self._student_uploads.get(self.student_geometry_choice.value)
@@ -5191,7 +5419,7 @@ class CoChemGUI(InputManagementMixin):
                 from cochem_base.interfaces.student_hpc import StudentHpcClient
                 client = StudentHpcClient(artifact_dir=get_artifact_dir(), module_root=module_root, registry_path=Path(binding[0]))
                 observation = client.preflight()
-            except (ImportError, ValueError, RuntimeError, OSError, KeyError, TypeError) as exc:
+            except (ImportError, ValueError, RuntimeError, OSError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
                 observation = {'ready': False, 'scheduler': None, 'reason': str(exc)}
             def publish() -> None:
                 self._hpc_preflight_running = False
@@ -5241,6 +5469,7 @@ class CoChemGUI(InputManagementMixin):
             self.state.error_message = str(exc)
             return
         self._hpc_running = True
+        stop_context = self._new_remote_stop("hpc")
         self._hpc_submission = None
         self._hpc_job_serial += 1
         self._hpc_monitor_stop.clear()
@@ -5262,11 +5491,14 @@ class CoChemGUI(InputManagementMixin):
                 self._ui_call(lambda: self._cache_student_hpc_preflight(preflight, binding))
                 if preflight.get('ready') is not True:
                     raise RuntimeError(preflight.get('reason', 'No configured cluster scheduler is available'))
+                if stop_context["requested"]:
+                    raise RuntimeError("Scheduler submission stopped before dispatch")
                 submission = client.submit(calculation, provider=provider, xyz_files=files,
                     resources=resources, native_search=native_search, ingestion_inputs=ingestion_inputs, periodic_inputs=periodic_inputs,
                     scientific_inputs=scientific_inputs, t9_request=t9_request)
                 self._hpc_client = client
                 self._hpc_submission = submission
+                self._bind_remote_stop("hpc", client, submission, stop_context)
                 def submitted() -> None:
                     self.btn_hpc_refresh.disabled = False
                     self.btn_hpc_cancel.disabled = False
@@ -5274,9 +5506,14 @@ class CoChemGUI(InputManagementMixin):
                     self._render_student_hpc_status(submission)
                 self._ui_call(submitted)
                 self._poll_student_hpc()
+            except StudentHpcSubmissionUnknown as exc:
+                error = exc
+                self._ui_call(lambda: self._hold_unknown_hpc_submission(client, error, stop_context))
             except (ImportError, ValueError, RuntimeError, OSError, KeyError) as exc:
                 message = str(exc)
                 def failed() -> None:
+                    if self._remote_stops.get("hpc") is not stop_context:
+                        return
                     pending = self._hpc_submission is not None and self._hpc_submission.get("status") != "completed"
                     self._hpc_running = pending
                     self.btn_slurm_submit.disabled = pending
@@ -5294,12 +5531,15 @@ class CoChemGUI(InputManagementMixin):
     def _render_student_hpc_status(self, observation: dict[str, Any]) -> None:
         if self._hpc_submission is None:
             return
+        if observation.get("request_id") not in {None, self._hpc_submission.get("request_id")}:
+            return
         for field in ("status", "conclusion"):
             if field in observation:
                 self._hpc_submission[field] = observation[field]
         state = observation.get('status', 'unknown')
         finished = state == 'completed'
-        self._hpc_running = not finished
+        self._hpc_running = not finished or self._hpc_unknown_active
+        self._bind_remote_stop('hpc', self._hpc_client, self._hpc_submission)
         self.btn_hpc_refresh.disabled = False
         self.btn_hpc_cancel.disabled = finished
         self.btn_hpc_retrieve.disabled = not finished
@@ -5318,11 +5558,13 @@ class CoChemGUI(InputManagementMixin):
         submission = dict(self._hpc_submission)
         client = self._hpc_client
         serial = self._hpc_job_serial
+        context = self._remote_stops.get('hpc')
         while serial == self._hpc_job_serial and not self._hpc_monitor_stop.is_set():
             observation = client.status(submission)
             for field in ("status", "conclusion"):
                 if field in observation:
                     submission[field] = observation[field]
+            self._bind_remote_stop('hpc', client, submission, context)
             self._ui_call(lambda current=observation: self._render_student_hpc_status(current)
                 if serial == self._hpc_job_serial else None)
             if observation.get('status') == 'completed':
@@ -5347,21 +5589,7 @@ class CoChemGUI(InputManagementMixin):
         self._hpc_refresh_worker.start()
 
     def _cancel_student_hpc(self, b: Any = None) -> None:
-        if self._hpc_client is None or self._hpc_submission is None:
-            return
-        self.btn_hpc_cancel.disabled = True
-        submission = dict(self._hpc_submission)
-        def cancel() -> None:
-            try:
-                self._hpc_client.cancel(submission)
-                self._ui_call(lambda: setattr(self.slurm_status_output, 'value', "<p role='status'>Scheduler cancellation requested. Refresh status to confirm the final queue outcome; partial diagnostics remain available.</p>"))
-                self._refresh_student_hpc()
-            except (ValueError, RuntimeError, OSError) as exc:
-                message = str(exc)
-                self._ui_call(lambda: setattr(self.slurm_status_output, 'value', f"<p role='alert'>HPC cancellation was not confirmed: {html.escape(message)}. Refresh status before taking another action.</p>"))
-                self._ui_call(lambda: setattr(self.btn_hpc_cancel, 'disabled', False))
-        self._hpc_cancel_worker = threading.Thread(target=cancel, daemon=True)
-        self._hpc_cancel_worker.start()
+        self._request_remote_stop('hpc')
 
     def _retrieve_student_hpc(self, b: Any = None) -> None:
         if self._hpc_client is None or self._hpc_submission is None or self._hpc_retrieving:
@@ -5413,30 +5641,71 @@ class CoChemGUI(InputManagementMixin):
         self._hpc_history_worker = threading.Thread(target=restore, daemon=True)
         self._hpc_history_worker.start()
 
+    def _hold_unknown_hpc_submission(self, client: Any, error: StudentHpcSubmissionUnknown,
+                                     context: dict[str, Any] | None = None) -> None:
+        if context is not None and self._remote_stops.get('hpc') is not context:
+            return
+        self._hpc_unknown_active = True
+        self._hpc_unknown_attempt = error.attempt
+        self._hpc_running = True
+        if self._hpc_submission is None:
+            self._hpc_client = client
+        self.btn_slurm_submit.disabled = True
+        self.btn_hpc_cancel.disabled = False
+        self.btn_cancel.disabled = False
+        self.btn_hpc_refresh.disabled = self._hpc_submission is None
+        self.slurm_status_output.value = (
+            '<p role="alert">We cannot confirm whether the calculation service accepted this request. '
+            'Do not submit it again. Contact the instructor or cluster support to confirm the job and recover its identity. '
+            'A stop request will wait for that confirmation; no job is reported as stopped.</p>'
+            '<details><summary>Request details for support</summary><p>'
+            + html.escape(str(error.locator)) + ': ' + html.escape(str(error)) + '</p></details>')
+        self._refresh_execution_gate()
+
     def _refresh_student_hpc_history(self) -> None:
         if self._hpc_client is None:
             return
+        client = self._hpc_client
+        serial = self._hpc_job_serial
+        context = self._remote_stops.get('hpc')
+        def current() -> bool:
+            return (self._hpc_client is client and self._hpc_job_serial == serial
+                    and self._remote_stops.get('hpc') is context)
         try:
-            items = self._hpc_client.history()
+            pending_attempts = client.pending_attempts()
+            if pending_attempts:
+                self._ui_call(lambda: self._hold_unknown_hpc_submission(client, StudentHpcSubmissionUnknown(
+                    'A saved scheduler request is still waiting for confirmation.', pending_attempts[0])) if current() else None)
+                return
+            items = client.history()
             history = {str(item['request_id']): item for item in items}
             pending = next((item for item in reversed(items) if item.get('status') != 'completed'), None)
-            if pending is not None and self._hpc_submission is None:
-                self._hpc_running = True
-                self._hpc_submission = dict(pending)
-                self._hpc_job_serial += 1
             def publish() -> None:
+                if not current() or self._hpc_unknown_active:
+                    return
                 self._hpc_history = history
                 self.hpc_history.options = [(f"{item.get('scheduler', 'HPC')} {item.get('job_id', 'pending')} ({item.get('status', 'unknown')})", key)
                     for key, item in history.items()] or [("No retained scheduler jobs", "")]
-                self.btn_hpc_open.disabled = not bool(history)
+                if pending is not None and self._hpc_submission is None:
+                    self._hpc_running = True
+                    self._hpc_submission = dict(pending)
+                    self._hpc_job_serial += 1
+                    self._new_remote_stop('hpc')
+                self.btn_hpc_open.disabled = not bool(history) or self._hpc_running or self._hpc_retrieving or self._actions_running or self._pipeline_running or self._topos_running
                 if pending is not None and self._hpc_submission is not None:
                     self.hpc_history.value = str(self._hpc_submission['request_id'])
                     self._render_student_hpc_status(self._hpc_submission)
             self._ui_call(publish)
+        except StudentHpcSubmissionUnknown as exc:
+            error = exc
+            self._ui_call(lambda: self._hold_unknown_hpc_submission(client, error) if current() else None)
         except (ValueError, RuntimeError, OSError, KeyError) as exc:
             logger.warning('Retained HPC history was not loaded: %s', exc)
 
     def _open_student_hpc_history(self, b: Any = None) -> None:
+        if self._hpc_running or self._hpc_retrieving or self._actions_running or self._pipeline_running or self._topos_running:
+            self.slurm_status_output.value = '<p role="status">Wait for or cancel the tracked calculation before opening another saved HPC job. Its owned request remains selected for cancellation.</p>'
+            return
         item = getattr(self, '_hpc_history', {}).get(self.hpc_history.value)
         if item is None:
             return
@@ -5562,6 +5831,7 @@ class CoChemGUI(InputManagementMixin):
         self._actions_submission = None
         self._actions_client = None
         self._actions_running = True
+        stop_context = self._new_remote_stop("actions")
         self._refresh_execution_gate()
         self._actions_monitor_stop.clear()
         self.btn_execute.disabled = True
@@ -5578,6 +5848,8 @@ class CoChemGUI(InputManagementMixin):
                 from cochem_base.interfaces.student_actions import StudentActionsClient
                 client = StudentActionsClient(repository, branch=branch,
                     repository_root=Path(os.environ.get("COCHEM_ASSIGNMENT_ROOT", str(_REPO_ROOT))), artifact_dir=get_artifact_dir())
+                if stop_context["requested"]:
+                    raise RuntimeError("Calculation stopped before GitHub dispatch")
                 submission = client.submit(configuration, xyz_files=inputs, provider=provider,
                     scientific_inputs=scientific_input, t9_request=t9_request,
                     **({'periodic_inputs': periodic_inputs} if periodic_inputs is not None else {}),
@@ -5585,6 +5857,7 @@ class CoChemGUI(InputManagementMixin):
                     cores=cores, maxcore_mb=maxcore_mb)
                 self._actions_client = client
                 self._actions_submission = submission
+                self._bind_remote_stop("actions", client, submission, stop_context)
                 self._retain_student_actions_submission(submission)
                 def submitted() -> None:
                     self.btn_cancel.disabled = False
@@ -5601,6 +5874,8 @@ class CoChemGUI(InputManagementMixin):
                 if isinstance(rejected, dict) and rejected.get('status') == 'rejected':
                     self._retain_student_actions_submission(rejected)
                 def failure() -> None:
+                    if self._remote_stops.get("actions") is not stop_context:
+                        return
                     dispatched = self._actions_submission is not None
                     self._actions_running = dispatched
                     self.btn_cancel.disabled = not dispatched
@@ -5617,6 +5892,8 @@ class CoChemGUI(InputManagementMixin):
         self._actions_worker.start()
 
     def _render_student_actions_status(self, observation: dict[str, Any]) -> None:
+        if self._actions_submission is not None and observation.get('request_id') != self._actions_submission.get('request_id'):
+            return
         if self._actions_submission is not None and observation.get("request_id") == self._actions_submission.get("request_id"):
             self._actions_submission = dict(observation)
             self._retain_student_actions_submission(observation)
@@ -5640,6 +5917,7 @@ class CoChemGUI(InputManagementMixin):
             self.actions_status.value += "<p role='status'>GitHub acknowledgement is delayed. BASE is checking the original request; do not submit it again.</p>"
         complete = status in {"completed", "rejected"}
         self._actions_running = not complete
+        self._bind_remote_stop('actions', self._actions_client, observation)
         self.btn_cancel.disabled = complete
         self.btn_actions_retrieve.disabled = not (complete and conclusion is not None)
         self.btn_actions_retrieve.description = "Retrieve and inspect results" if conclusion == "success" else "Retrieve calculation diagnostics"
@@ -5764,15 +6042,21 @@ class CoChemGUI(InputManagementMixin):
 
     def _poll_student_actions(self) -> None:
         deadline = time.monotonic() + 90 * 60
-        while self._actions_submission is not None and not self._actions_monitor_stop.is_set():
-            observation = self._actions_client.status(self._actions_submission)
-            self._ui_call(lambda current=observation: self._render_student_actions_status(current))
+        context = self._remote_stops.get('actions')
+        client, submission = self._actions_client, dict(self._actions_submission)
+        while self._remote_stops.get('actions') is context and not self._actions_monitor_stop.is_set():
+            observation = client.status(submission)
+            submission = observation
+            self._bind_remote_stop('actions', client, observation, context)
+            self._ui_call(lambda current=observation: self._render_student_actions_status(current)
+                if self._remote_stops.get('actions') is context else None)
             if observation.get("status") == "completed":
                 return
             if time.monotonic() >= deadline:
-                self._actions_client.cancel(self._actions_submission)
+                client.cancel(submission)
                 self._ui_call(lambda: setattr(self.actions_status, "value",
-                    "<p role='alert'>The 90-minute monitoring limit was reached. BASE requested cancellation; refresh status to confirm the final workflow outcome.</p>"))
+                    "<p role='alert'>The 90-minute monitoring limit was reached. BASE requested cancellation; refresh status to confirm the final workflow outcome.</p>")
+                    if self._remote_stops.get('actions') is context else None)
                 return
             self._actions_monitor_stop.wait(5)
 
@@ -5793,21 +6077,7 @@ class CoChemGUI(InputManagementMixin):
         self._actions_refresh_worker.start()
 
     def _cancel_student_actions(self, b: Any = None) -> None:
-        if self._actions_submission is None or self._actions_client is None:
-            return
-        self.btn_cancel.disabled = True
-        self.state.system_status = "Requesting remote cancellation"
-        def cancel() -> None:
-            try:
-                self._actions_client.cancel(self._actions_submission)
-                self._ui_call(lambda: setattr(self.actions_status, "value",
-                    "<p role='status'>Cancellation requested. BASE continues monitoring until GitHub confirms the final outcome.</p>"))
-            except (ValueError, RuntimeError, OSError) as exc:
-                message = str(exc)
-                self._ui_call(lambda: setattr(self.actions_status, "value", f"<p role='alert'>Cancellation could not be confirmed: {html.escape(message)}. Refresh status.</p>"))
-                self._ui_call(lambda: setattr(self.btn_cancel, "disabled", False))
-        self._actions_cancel_worker = threading.Thread(target=cancel, daemon=True)
-        self._actions_cancel_worker.start()
+        self._request_remote_stop('actions')
 
     def _retrieve_student_actions(self, b: Any = None) -> None:
         if self._actions_submission is None or self._actions_client is None:
@@ -5991,17 +6261,13 @@ class CoChemGUI(InputManagementMixin):
             self.actions_status.value = f"<p role='alert'>Calculated structure was not loaded: {html.escape(str(exc))}</p>"
 
     def _cancel_pipeline(self, b: Any = None) -> None:
-        if self._hpc_running and self._hpc_submission is not None:
+        if self._hpc_running:
             self._cancel_student_hpc()
             return
         if self._actions_running and self._actions_submission is not None:
             self._cancel_student_actions()
             return
-        if self._pipeline_running:
-            self._pipeline_cancellation.set()
-            self.btn_cancel.disabled = True
-            self.btn_periodic_cancel.disabled = True
-            self.state.system_status = "Cancelling calculation..."
+        self._cancel_local_calculation()
 
     def _pipeline_thread(self, config_path: Path) -> None:
         from cochem_base.calc.calculation_service import run_calculation
@@ -6102,6 +6368,7 @@ class CoChemGUI(InputManagementMixin):
             self.btn_periodic_run.disabled = False
             self._check_dispersion_gate()
             self._refresh_topos_capabilities()
+            self._refresh_running_jobs()
 
     def display(self) -> widgets.VBox:
         self.app.add_class("cochem-mainlayout")

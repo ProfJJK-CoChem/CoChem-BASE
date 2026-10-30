@@ -433,11 +433,12 @@ def _guided_shell(gui: Any) -> None:
     gui.guided_input_summary = _text("").add_class("cochem-current-input")
     gui.guided_draft_status = _text("")
     gui.guided_goal_status = _text("")
-    gui.guided_cancel = widgets.Button(description="Stop current calculation", icon="stop", disabled=gui.btn_cancel.disabled,
-        tooltip="Request cancellation, then wait for the calculation status to confirm it has stopped.",
+    gui.guided_cancel = widgets.Button(description="Stop running jobs", icon="stop", disabled=True,
+        tooltip="Request a stop for all calculations and engine checks tracked here, then wait for each final status.",
         layout=widgets.Layout(width="auto"))
-    gui._guided_cancel_link = widgets.dlink((gui.btn_cancel, "disabled"), (gui.guided_cancel, "disabled"))
-    gui.guided_cancel.on_click(lambda _: gui.btn_cancel.click())
+    gui.guided_jobs_status = _text("")
+    gui.guided_cancel.on_click(gui._cancel_all_running_jobs)
+    gui._refresh_running_jobs()
 
     def update_current(_: Any = None) -> None:
         from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
@@ -499,7 +500,7 @@ def _guided_shell(gui: Any) -> None:
     ]).add_class("cochem-journey")
     gui.guided_goal_requirements = Disclosure("Goal requirements and current method", gui.guided_draft_status, gui.product_class_card)
     gui.guided_current = widgets.Box([
-        gui.guided_input_summary, widgets.VBox([gui.guided_goal_status, gui.guided_goal_requirements]),
+        widgets.VBox([gui.guided_input_summary, gui.guided_jobs_status]), widgets.VBox([gui.guided_goal_status, gui.guided_goal_requirements]),
     ]).add_class("cochem-current")
     gui.more_scientific_tools = Disclosure("More scientific tools", gui.btn_inspector, gui.btn_periodic, gui.btn_terms)
     gui.more_scientific_tools.layout.width = "auto"

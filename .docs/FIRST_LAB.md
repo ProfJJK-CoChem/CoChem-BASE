@@ -84,10 +84,18 @@ prepared route, use its displayed submit button. Read the status:
 is still working. Refresh the status when prompted; avoid submitting another
 copy just because a result has not appeared yet.
 
-If you chose the wrong input or settings, use **Stop current calculation**.
-A cancellation request can take time to reach the running job. Wait
-for its confirmed outcome before starting the replacement. Failed or canceled
-work may have useful diagnostic files, but is not a completed calculation.
+If you chose the wrong input or settings, use **Stop running jobs**. It requests
+a stop for all calculations and engine checks currently tracked in this
+interface. An individual **Cancel** control targets its own job. A request can
+take time to reach the running job or finish a current check. Keep the interface
+open and wait for each job's confirmed final status before starting a replacement.
+Failed or canceled work may have useful diagnostic files, but is not a completed
+calculation.
+
+If CoChem says it cannot confirm whether a cluster job was submitted, do not
+submit another copy. Keep the visible message and request number for your
+instructor. CoChem retains the original request so the cluster administrator
+can investigate.
 
 ## 4. Read, save and explain the result
 

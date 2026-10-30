@@ -29,6 +29,7 @@ from pathlib import Path
 from .student_request import canonical_json, safe_relative_path, strict_json
 
 SCHEMA = "cochem.student-hpc/1"
+ATTEMPT_SCHEMA = "cochem.hpc-dispatch-attempt/1"
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 JOB_IDS = {"slurm": re.compile(r"[1-9][0-9]*"), "pbs": re.compile(r"[1-9][0-9]*(?:\.[A-Za-z0-9_.-]+)?")}
 COMMANDS = {"slurm": ("sbatch", "squeue", "scontrol", "scancel"), "pbs": ("qsub", "qstat", "qdel")}
@@ -37,6 +38,14 @@ MAX_FILES, MAX_BYTES = 4096, 512 * 1024 * 1024
 
 class StudentHpcError(RuntimeError):
     """Scheduler access, admission or result-integrity failure."""
+
+
+class StudentHpcSubmissionUnknown(StudentHpcError):
+    """A retained dispatch has no verified job identity; never safe to resubmit."""
+    def __init__(self, message: str, attempt: dict | None = None, locator: str = ''):
+        super().__init__(message)
+        self.attempt = deepcopy(attempt) if attempt is not None else None
+        self.locator = locator or (attempt['request_id'] if attempt else '')
 
 
 def _write(path: Path, data: dict) -> None:
@@ -222,12 +231,17 @@ def render_batch_script(package: Path, scheduler: str, resources: dict, *, reque
     return "\n".join(lines) + "\n"
 
 
-def _command(name: str, arguments: list[str], *, cwd: Path | None = None) -> str:
+def _command(name: str, arguments: list[str], *, cwd: Path | None = None, timeout: float = 30) -> str:
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or not 0 < timeout <= 30:
+        raise ValueError('Scheduler command timeout must be finite, positive and at most30seconds')
     executable = shutil.which(name)
     if not executable:
         raise StudentHpcError("Required scheduler command is unavailable: " + name)
-    completed = subprocess.run([executable, *arguments], cwd=cwd, stdin=subprocess.DEVNULL,
-                               capture_output=True, text=True, check=False, timeout=30)
+    try:
+        completed = subprocess.run([executable, *arguments], cwd=cwd, stdin=subprocess.DEVNULL,
+                                   capture_output=True, text=True, check=False, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        raise StudentHpcError('The calculation service did not respond within its scheduler-command time limit; the job outcome is not confirmed') from error
     if completed.returncode:
         raise StudentHpcError(name + " failed with exit " + str(completed.returncode) + ": " + completed.stderr.strip()[:1000])
     if len(completed.stdout.encode("utf-8")) > 4 * 1024 * 1024:
@@ -296,13 +310,16 @@ class StudentHpcClient:
                 if not isinstance(queues, dict) or not queues:
                     raise StudentHpcError("OpenPBS requires an accessible JSON controller and configured queues")
             return {"ready": True, "scheduler": scheduler, "reason": "Connected single-node scheduler route; chemistry requires a measured compute allocation"}
-        except (ValueError, OSError, RegistryError, StudentHpcError) as error:
+        except (ValueError, OSError, RegistryError, StudentHpcError, subprocess.TimeoutExpired) as error:
             return {"ready": False, "scheduler": None, "reason": str(error)}
 
     def submit(self, calculation: dict | None, *, provider: dict | None = None, xyz_files: dict[str, str | bytes] | None = None,
                resources: dict, native_search: dict | None = None, ingestion_inputs: dict | None = None,
                periodic_inputs: dict | None = None, scientific_inputs: dict | None = None,
                t9_request: dict | None = None) -> dict:
+        pending = self.pending_attempts()
+        if pending:
+            raise StudentHpcSubmissionUnknown('An earlier scheduler request is still waiting for confirmation. Contact the instructor or cluster support; do not submit again.', pending[0])
         ready = self.preflight()
         if not ready["ready"]:
             raise StudentHpcError(ready["reason"])
@@ -380,57 +397,231 @@ class StudentHpcClient:
             if requested > resources["cores"] or config.max_hours * 3600 > _seconds(resources["walltime"]):
                 raise ValueError("Physical search exceeds the requested compute allocation")
             native_search = config.model_dump(mode="json")
-        request_id = str(uuid.uuid4())
-        package = self.jobs / request_id
-        package.mkdir(parents=True, exist_ok=False)
-        for name, contents in input_files.items():
-            path = package / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(contents)
-        data_descriptor = None
-        geometry = calculation["geometry"].encode("utf-8") if calculation is not None else input_files[(provider["artifact"] if provider else native_search["input_xyz_path"])]
-        scientific_descriptor = None
-        if scientific_inputs is not None:
-            from .scientific_inputs import build_bundle, verify_bundle
-            geometry_sha256 = hashlib.sha256(geometry).hexdigest()
-            if scientific_inputs.get("geometry_sha256") != geometry_sha256:
-                raise ValueError("The uploaded scientific evidence belongs to a different original geometry")
-            contents, scientific_descriptor = build_bundle(scientific_inputs.get("files"), kind=scientific_inputs["kind"],
-                entrypoint=scientific_inputs["entrypoint"], request_id=request_id, geometry_sha256=geometry_sha256)
-            verify_bundle(contents, request_id=request_id, geometry_sha256=geometry_sha256,
-                          kind=scientific_inputs["kind"], entrypoint=scientific_inputs["entrypoint"])
-            (package / "scientific-inputs.zip").write_bytes(contents)
-        if ingestion_inputs is not None or periodic_inputs is not None:
-            from .student_data_inputs import build_data_bundle
-            contents, data_descriptor = build_data_bundle(periodic_inputs if periodic_inputs is not None else ingestion_inputs,
-                kind="periodic_inputs" if periodic_inputs is not None else "molecular_ingestion", request_id=request_id,
-                geometry_sha256=hashlib.sha256(geometry).hexdigest())
-            (package / "data-inputs.zip").write_bytes(contents)
-        from cochem_base.config_loader import resolve_config_path
-        registry = resolve_config_path(self.registry_path)
-        request = {"schema_version": SCHEMA, "request_id": request_id, "scheduler": scheduler, "resources": resources,
-            "calculation": calculation, "provider": provider, "native_search": native_search, "data_inputs": data_descriptor,
-            "scientific_inputs": scientific_descriptor, "t9_request": deepcopy(t9_request),
-            "module_root": str(self.module_root), "source": _source_inventory(), "registry_path": str(registry),
-            "provider_receipts": provider_receipts,
-            "registry_sha256": _hash(registry), "files": {str(path.relative_to(package)): {"sha256": _hash(path), "size_bytes": path.stat().st_size}
-                for path in sorted(package.rglob("*")) if path.is_file()}, "created_at": datetime.now(timezone.utc).isoformat()}
-        _write(package / "request.json", request)
-        request_sha256 = _hash(package / "request.json")
-        script = package / "submit.sh"
-        script.write_text(render_batch_script(package, scheduler, resources, request_sha256=request_sha256))
-        if scheduler == "slurm":
-            raw = _command("sbatch", ["--parsable", "--comment=CoChem-" + request_id, str(script)], cwd=package).strip()
-            job_id = raw.split(";", 1)[0]
-        else:
-            job_id = _command("qsub", ["-v", "COCHEM_HPC_REQUEST_ID=" + request_id, str(script)], cwd=package).strip()
-        if not JOB_IDS[scheduler].fullmatch(job_id):
-            raise StudentHpcError("Scheduler did not return a valid job ID; inspect its queue before resubmitting")
-        submission = {"schema_version": SCHEMA, "request_id": request_id, "scheduler": scheduler, "job_id": job_id,
-                      "package": str(package), "request_sha256": request_sha256, "script_sha256": _hash(script),
-                      "submitted_at": datetime.now(timezone.utc).isoformat()}
-        _write(package / "submission.json", submission)
+        with self._dispatch_admission():
+            pending = self._pending_attempts(ignore_admission=True)
+            if pending:
+                raise StudentHpcSubmissionUnknown('An earlier scheduler request is still waiting for confirmation. Contact the instructor or cluster support; do not submit again.', pending[0])
+            request_id = str(uuid.uuid4())
+            package = self.jobs / request_id
+            package.mkdir(parents=True, exist_ok=False)
+            for name, contents in input_files.items():
+                path = package / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(contents)
+            data_descriptor = None
+            geometry = calculation["geometry"].encode("utf-8") if calculation is not None else input_files[(provider["artifact"] if provider else native_search["input_xyz_path"])]
+            scientific_descriptor = None
+            if scientific_inputs is not None:
+                from .scientific_inputs import build_bundle, verify_bundle
+                geometry_sha256 = hashlib.sha256(geometry).hexdigest()
+                if scientific_inputs.get("geometry_sha256") != geometry_sha256:
+                    raise ValueError("The uploaded scientific evidence belongs to a different original geometry")
+                contents, scientific_descriptor = build_bundle(scientific_inputs.get("files"), kind=scientific_inputs["kind"],
+                    entrypoint=scientific_inputs["entrypoint"], request_id=request_id, geometry_sha256=geometry_sha256)
+                verify_bundle(contents, request_id=request_id, geometry_sha256=geometry_sha256,
+                              kind=scientific_inputs["kind"], entrypoint=scientific_inputs["entrypoint"])
+                (package / "scientific-inputs.zip").write_bytes(contents)
+            if ingestion_inputs is not None or periodic_inputs is not None:
+                from .student_data_inputs import build_data_bundle
+                contents, data_descriptor = build_data_bundle(periodic_inputs if periodic_inputs is not None else ingestion_inputs,
+                    kind="periodic_inputs" if periodic_inputs is not None else "molecular_ingestion", request_id=request_id,
+                    geometry_sha256=hashlib.sha256(geometry).hexdigest())
+                (package / "data-inputs.zip").write_bytes(contents)
+            from cochem_base.config_loader import resolve_config_path
+            registry = resolve_config_path(self.registry_path)
+            request = {"schema_version": SCHEMA, "request_id": request_id, "scheduler": scheduler, "resources": resources,
+                "calculation": calculation, "provider": provider, "native_search": native_search, "data_inputs": data_descriptor,
+                "scientific_inputs": scientific_descriptor, "t9_request": deepcopy(t9_request),
+                "module_root": str(self.module_root), "source": _source_inventory(), "registry_path": str(registry),
+                "provider_receipts": provider_receipts,
+                "registry_sha256": _hash(registry), "files": {str(path.relative_to(package)): {"sha256": _hash(path), "size_bytes": path.stat().st_size}
+                    for path in sorted(package.rglob("*")) if path.is_file()}, "created_at": datetime.now(timezone.utc).isoformat()}
+            _write(package / "request.json", request)
+            request_sha256 = _hash(package / "request.json")
+            script = package / "submit.sh"
+            script.write_text(render_batch_script(package, scheduler, resources, request_sha256=request_sha256))
+            attempt = self._record_dispatch_attempt(package, scheduler)
+        return self._dispatch_recorded_attempt(attempt)
+
+    @contextmanager
+    def _dispatch_admission(self):
+        """Serialize only owned preparation and immutable attempt publication."""
+        self.jobs.mkdir(parents=True, exist_ok=True)
+        if self.jobs.is_symlink():
+            raise StudentHpcSubmissionUnknown('Saved scheduler requests need instructor review.')
+        lock = self.jobs / '.dispatch-admission'
+        try:
+            lock.mkdir(mode=0o700)
+        except FileExistsError as error:
+            raise StudentHpcSubmissionUnknown('Another scheduler request has not finished confirmation. Wait, then contact the instructor or cluster support if this persists.') from error
+        owner = {'schema_version': 'cochem.hpc-admission/1', 'nonce': uuid.uuid4().hex}
+        jobs_identity = (self.jobs.stat().st_dev, self.jobs.stat().st_ino)
+        lock_identity = (lock.stat().st_dev, lock.stat().st_ino)
+        directory_fd = None
+        try:
+            if os.name == 'posix' and hasattr(os, 'O_DIRECTORY'):
+                directory_fd = os.open(lock, os.O_RDONLY | os.O_DIRECTORY)
+            with (lock / 'owner.json').open('xb') as stream:
+                stream.write(canonical_json(owner)); stream.flush(); os.fsync(stream.fileno())
+            yield owner['nonce']
+        finally:
+            try:
+                if (self.jobs.is_symlink() or lock.is_symlink()
+                        or (self.jobs.stat().st_dev, self.jobs.stat().st_ino) != jobs_identity
+                        or (lock.stat().st_dev, lock.stat().st_ino) != lock_identity):
+                    raise ValueError('Admission directory identity changed')
+                if directory_fd is not None:
+                    descriptor = os.open('owner.json', os.O_RDONLY, dir_fd=directory_fd)
+                    with os.fdopen(descriptor, 'rb') as stream:
+                        retained = strict_json(stream.read(4097))
+                else:
+                    retained = strict_json((lock / 'owner.json').read_bytes())
+                if retained != owner:
+                    raise ValueError('Admission owner changed')
+                if directory_fd is not None:
+                    os.unlink('owner.json', dir_fd=directory_fd)
+                else:
+                    (lock / 'owner.json').unlink()
+                if lock.is_symlink() or (lock.stat().st_dev, lock.stat().st_ino) != lock_identity:
+                    raise ValueError('Admission directory changed before release')
+                lock.rmdir()
+            except (ValueError, OSError) as error:
+                raise StudentHpcSubmissionUnknown('Scheduler admission ownership cannot be confirmed. Contact the instructor or cluster support; do not remove or retry this saved request automatically.') from error
+            finally:
+                if directory_fd is not None:
+                    os.close(directory_fd)
+
+    def _record_dispatch_attempt(self, package: Path, scheduler: str) -> dict:
+        """Retain exact immutable identity before a possibly mutating command."""
+        if Path(package).is_symlink():
+            raise StudentHpcError('Scheduler attempt cannot follow a linked package')
+        package = _external(package).resolve(strict=True)
+        if package.parent != self.jobs.resolve():
+            raise StudentHpcError('Scheduler attempt must use its owned request package')
+        request = strict_json((package / 'request.json').read_bytes())
+        if (not isinstance(request, dict) or scheduler not in COMMANDS or request.get('schema_version') != SCHEMA or request.get('request_id') != package.name
+                or request.get('scheduler') != scheduler):
+            raise StudentHpcError('Scheduler attempt differs from its staged request')
+        attempt = {'schema_version': ATTEMPT_SCHEMA, 'request_id': package.name,
+            'scheduler': scheduler, 'package': str(package),
+            'request_sha256': _hash(package / 'request.json'), 'script_sha256': _hash(package / 'submit.sh'),
+            'created_at': datetime.now(timezone.utc).isoformat()}
+        path = package / 'dispatch-attempt.json'
+        # The package is exclusively created by this submit call. Publish once;
+        # an interrupted write is an actionable unknown hold, never permission
+        # to repeat a potentially accepted scheduler submission.
+        with path.open('xb') as stream:
+            stream.write(canonical_json(attempt))
+            stream.flush()
+            os.fsync(stream.fileno())
+        path.chmod(0o400)
+        return attempt
+
+    def _read_dispatch_attempt(self, package: Path) -> dict:
+        path = package / 'dispatch-attempt.json'
+        try:
+            if (package.is_symlink() or package.parent != self.jobs.resolve()
+                    or str(uuid.UUID(package.name)) != package.name
+                    or path.is_symlink() or not path.is_file() or path.stat().st_size > 64 * 1024):
+                raise ValueError('Unsafe or missing attempt identity')
+            attempt = strict_json(path.read_bytes())
+            fields = {'schema_version', 'request_id', 'scheduler', 'package', 'request_sha256', 'script_sha256', 'created_at'}
+            if (not isinstance(attempt, dict) or set(attempt) != fields
+                    or attempt['schema_version'] != ATTEMPT_SCHEMA or attempt['request_id'] != package.name
+                    or attempt['scheduler'] not in COMMANDS or attempt['package'] != str(package)
+                    or any(not isinstance(attempt[key], str) or re.fullmatch(r'[0-9a-f]{64}', attempt[key]) is None
+                           for key in ('request_sha256', 'script_sha256'))
+                    or datetime.fromisoformat(attempt['created_at']).tzinfo is None):
+                raise ValueError('Unsupported attempt identity')
+            for name, key in [('request.json', 'request_sha256'), ('submit.sh', 'script_sha256')]:
+                item = package / name
+                if item.is_symlink() or not item.is_file() or item.stat().st_size > 4 * 1024 * 1024 or _hash(item) != attempt[key]:
+                    raise ValueError('Staged scheduler input changed')
+            request = strict_json((package / 'request.json').read_bytes())
+            if (not isinstance(request, dict) or request.get('schema_version') != SCHEMA or request.get('request_id') != package.name
+                    or request.get('scheduler') != attempt['scheduler']):
+                raise ValueError('Attempt differs from the original request')
+            return attempt
+        except (ValueError, TypeError, KeyError, OSError) as error:
+            raise StudentHpcSubmissionUnknown('A retained scheduler attempt cannot be verified. Contact the instructor or cluster support; do not submit again.', None, package.name) from error
+
+    def pending_attempts(self) -> list[dict]:
+        """Fail closed on every unconfirmed/corrupt owned dispatch after restart."""
+        return self._pending_attempts()
+
+    def _pending_attempts(self, *, ignore_admission: bool = False) -> list[dict]:
+        if not self.jobs.exists() and not self.jobs.is_symlink():
+            return []
+        if self.jobs.is_symlink() or not self.jobs.is_dir():
+            raise StudentHpcSubmissionUnknown('Saved scheduler requests cannot be verified; contact the instructor or cluster support.')
+        admission = self.jobs / '.dispatch-admission'
+        if not ignore_admission and (admission.exists() or admission.is_symlink()):
+            raise StudentHpcSubmissionUnknown('A scheduler request has not finished confirmation. Contact the instructor or cluster support if this remains; do not remove the retained admission record automatically.')
+        packages = sorted(path for path in self.jobs.iterdir() if path.name != '.dispatch-admission')
+        if len(packages) > MAX_FILES:
+            raise StudentHpcSubmissionUnknown('The saved scheduler request inventory exceeds its bound; contact cluster support.')
+        pending = []
+        for package in packages:
+            if package.is_symlink() or not package.is_dir():
+                raise StudentHpcSubmissionUnknown('An unsafe saved scheduler request needs instructor review.', None, package.name)
+            attempt_path, saved_path = package / 'dispatch-attempt.json', package / 'submission.json'
+            attempt = self._read_dispatch_attempt(package) if attempt_path.exists() or attempt_path.is_symlink() else None
+            if saved_path.exists() or saved_path.is_symlink():
+                try:
+                    if saved_path.is_symlink() or not saved_path.is_file() or saved_path.stat().st_size > 64 * 1024:
+                        raise ValueError('Unsafe saved submission')
+                    saved = strict_json(saved_path.read_bytes())
+                    if (not isinstance(saved, dict) or saved.get('schema_version') != SCHEMA
+                            or set(saved) != {'schema_version', 'request_id', 'scheduler', 'package', 'request_sha256', 'script_sha256', 'job_id', 'submitted_at'}):
+                        raise ValueError('Unsupported saved scheduler receipt')
+                    self._saved(saved)
+                    if attempt is not None and any(saved.get(key) != attempt[key] for key in
+                            ('request_id', 'scheduler', 'package', 'request_sha256', 'script_sha256')):
+                        raise ValueError('Submission does not resolve its original attempt')
+                except (ValueError, TypeError, KeyError, OSError, StudentHpcError) as error:
+                    raise StudentHpcSubmissionUnknown('The scheduler did not leave a verifiable matching submission. Contact the instructor or cluster support; do not submit again.', attempt, package.name) from error
+            elif attempt is not None:
+                pending.append(attempt)
+            else:
+                raise StudentHpcSubmissionUnknown('A retained scheduler package has no confirmed dispatch identity. Contact the instructor or cluster support; do not submit again.', None, package.name)
+        return pending
+
+    def _accept_dispatch_ack(self, attempt: dict, raw: str) -> dict:
+        package = Path(attempt['package'])
+        if self._read_dispatch_attempt(package) != attempt:
+            raise StudentHpcSubmissionUnknown('The original scheduler attempt changed; contact cluster support.', attempt)
+        job_id = raw.strip().split(';', 1)[0] if attempt['scheduler'] == 'slurm' else raw.strip()
+        if not JOB_IDS[attempt['scheduler']].fullmatch(job_id):
+            raise StudentHpcSubmissionUnknown('The calculation service has not confirmed this job. Keep this request and contact the instructor or cluster support; do not submit again.', attempt)
+        submission = {'schema_version': SCHEMA, **{key: attempt[key] for key in
+            ('request_id', 'scheduler', 'package', 'request_sha256', 'script_sha256')},
+            'job_id': job_id, 'submitted_at': datetime.now(timezone.utc).isoformat()}
+        _write(package / 'submission.json', submission)
         return submission
+
+    def _dispatch_recorded_attempt(self, attempt: dict) -> dict:
+        package = Path(attempt['package'])
+        scheduler = attempt['scheduler']
+        if self._read_dispatch_attempt(package) != attempt:
+            raise StudentHpcSubmissionUnknown('The original scheduler attempt changed before service confirmation.', attempt)
+        script = package / 'submit.sh'
+        name, arguments = (('sbatch', ['--parsable', '--comment=CoChem-' + attempt['request_id'], str(script)])
+                           if scheduler == 'slurm' else
+                           ('qsub', ['-v', 'COCHEM_HPC_REQUEST_ID=' + attempt['request_id'], str(script)]))
+        return self._dispatch_command(attempt, name, arguments)
+
+    def _dispatch_command(self, attempt: dict, name: str, arguments: list[str], *, timeout: float = 30) -> dict:
+        """Classify a real command outcome; public submission selects only scheduler commands."""
+        package = Path(attempt['package'])
+        if self._read_dispatch_attempt(package) != attempt:
+            raise StudentHpcSubmissionUnknown('The original scheduler attempt changed before service confirmation.', attempt)
+        try:
+            raw = _command(name, arguments, cwd=package, timeout=timeout)
+            return self._accept_dispatch_ack(attempt, raw)
+        except StudentHpcSubmissionUnknown:
+            raise
+        except Exception as error:
+            raise StudentHpcSubmissionUnknown('The calculation service has not confirmed this job. Keep this request and contact the instructor or cluster support; do not submit again.', attempt) from error
 
     def _saved(self, submission: dict) -> tuple[Path, dict]:
         if not isinstance(submission, dict) or not isinstance(submission.get("request_id"), str):

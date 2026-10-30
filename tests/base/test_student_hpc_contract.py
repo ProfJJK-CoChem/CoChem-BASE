@@ -17,11 +17,14 @@ from pathlib import Path
 
 import pytest
 
+from ci_tools.source_quarantine import source_paths
+
 from cochem_base.interfaces.scientific_inputs import build_bundle
 from cochem_base.interfaces.student_hpc import (
     SCHEMA,
     StudentHpcClient,
     StudentHpcError,
+    StudentHpcSubmissionUnknown,
     _bind_scientific_inputs,
     _hash,
     _load_package,
@@ -43,14 +46,30 @@ WATER = (FIXTURE / "water.xyz").read_text()
 ROOT = FIXTURE.parents[2]
 
 
-def _run_without_allocation(code, *arguments, allocation=None):
+def _run_without_allocation(code, *arguments, allocation=None, background=False):
     """Run an actual child process with explicit admission-only environment."""
     environment = dict(os.environ)
     for name in ("SLURM_JOB_ID", "PBS_JOBID"):
         environment.pop(name, None)
     environment.update(allocation or {})
-    environment["PYTHONPATH"] = os.pathsep.join(_source_inventory()["module_search_paths"])
-    return subprocess.run([sys.executable, "-c", code, *map(str, arguments)], env=environment,
+    environment["PYTHONPATH"] = os.pathsep.join(source_paths(ROOT))
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    prefix = """from pathlib import Path
+import os,sys
+source = Path(SOURCE_ROOT)
+if os.environ.get('COCHEM_SOURCE_QUARANTINE_ROOT'):
+    startup = sys.modules.get('sitecustomize')
+    assert startup is not None
+    assert Path(startup.__file__).resolve() == source / 'ci_tools/quarantine_startup/sitecustomize.py'
+    state = getattr(sys.modules.get('ci_tools.source_quarantine'), '_active', None)
+    assert state is not None and state['copied'] == source
+import cochem_base.interfaces.student_hpc as actual_hpc
+assert Path(actual_hpc.__file__).resolve() == source / 'src/cochem_base/interfaces/student_hpc.py'
+""".replace('SOURCE_ROOT', repr(str(ROOT)))
+    if background:
+        return subprocess.Popen([sys.executable, "-B", "-c", prefix + code, *map(str, arguments)], env=environment,
+            cwd="/tmp", text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return subprocess.run([sys.executable, "-B", "-c", prefix + code, *map(str, arguments)], env=environment,
         cwd="/tmp", text=True, capture_output=True, check=False, timeout=30)
 
 
@@ -175,8 +194,11 @@ def test_environment_job_id_alone_cannot_replace_actual_controller_authority(tmp
 
 
 def test_worker_without_scheduler_allocation_retains_failure_and_performs_no_science(tmp_path):
-    package, _, digest = staged(tmp_path)
-    process = _run_without_allocation("from pathlib import Path; import sys; from cochem_base.interfaces.student_hpc import execute_staged; execute_staged(Path(sys.argv[1]),request_sha256=sys.argv[2])", package, digest)
+    # Stage inside this same canonical child so the original allocation refusal
+    # is exercised after the unchanged exact source/interpreter guard. The
+    # separate retained alias diagnostic covers ordinary production3-path use.
+    process = _run_without_allocation("from pathlib import Path; import sys,json; from tests.base.test_student_hpc_contract import staged; from cochem_base.interfaces.student_hpc import execute_staged; package,_,digest=staged(Path(sys.argv[1])); Path(sys.argv[2]).write_text(json.dumps({'package':str(package),'digest':digest})); execute_staged(package,request_sha256=digest)", tmp_path, tmp_path / "child-staged-request.json")
+    package = Path(json.loads((tmp_path / "child-staged-request.json").read_text())["package"])
     assert process.returncode != 0 and "compute allocation" in process.stderr
     report = json.loads((package / "results/student-result.json").read_text())
     assert report["status"] == "failed" and report["operation_performed"] is False
@@ -436,3 +458,190 @@ def test_worker_temp_cache_and_scratch_aliases_are_local_and_restored_after_exce
             raise ValueError("retained engineering exception")
     assert {key: os.environ.get(key) for key in keys} == original_environment
     assert tempfile.tempdir == original_tempdir
+
+
+# Dispatch-protocol fixtures below never execute submit.sh, sbatch/qsub or
+# chemistry. Real filesystem publication and bounded Python side effects test
+# uncertain acknowledgement; real Slurm/OpenPBS acceptance remains external.
+def _dispatch_protocol_package(client, scheduler="slurm"):
+    package = client.jobs / str(uuid.uuid4())
+    package.mkdir(parents=True)
+    _write(package / "request.json", {"schema_version": SCHEMA, "request_id": package.name, "scheduler": scheduler})
+    (package / "submit.sh").write_text("#!/bin/sh\n# Engineering protocol fixture; never executed.\n")
+    return package
+
+
+def test_unknown_dispatch_survives_a_real_side_effect_timeout_and_blocks_duplicate(tmp_path):
+    client = StudentHpcClient(artifact_dir=tmp_path)
+    package = _dispatch_protocol_package(client)
+    attempt = client._record_dispatch_attempt(package, "slurm")
+    before = (package / "dispatch-attempt.json").read_bytes()
+    witness = tmp_path / "engineering-side-effect"
+    with pytest.raises(subprocess.TimeoutExpired):
+        subprocess.run([sys.executable, "-B", "-c",
+            "from pathlib import Path;import sys,time;Path(sys.argv[1]).write_text('side effect before timeout');time.sleep(2)", str(witness)],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=.2, check=True)
+    assert witness.is_file() and "job_id" not in attempt
+    restored = StudentHpcClient(artifact_dir=tmp_path)
+    assert restored.pending_attempts() == [attempt]
+    inventory = sorted(client.jobs.iterdir())
+    with pytest.raises(StudentHpcSubmissionUnknown) as refused:
+        restored.submit(None, resources={})  # Hold precedes even preflight/staging.
+    assert refused.value.attempt == attempt
+    assert sorted(client.jobs.iterdir()) == inventory
+    assert (package / "dispatch-attempt.json").read_bytes() == before
+    assert not (package / "submission.json").exists()
+
+
+@pytest.mark.parametrize("scheduler,reply", [("slurm", ""), ("slurm", "not-a-job"),
+    ("slurm", "123\n456"), ("pbs", "pending"), ("pbs", "0.server")])
+def test_invalid_dispatch_ack_retains_unknown_without_inventing_job_id(tmp_path, scheduler, reply):
+    client = StudentHpcClient(artifact_dir=tmp_path)
+    package = _dispatch_protocol_package(client, scheduler)
+    attempt = client._record_dispatch_attempt(package, scheduler)
+    with pytest.raises(StudentHpcSubmissionUnknown) as failed:
+        client._accept_dispatch_ack(attempt, reply)
+    assert failed.value.attempt == attempt and "job_id" not in failed.value.attempt
+    assert StudentHpcClient(artifact_dir=tmp_path).pending_attempts() == [attempt]
+    assert not (package / "submission.json").exists()
+
+
+@pytest.mark.parametrize("scheduler,reply,expected", [("slurm", "123;cluster\n", "123"), ("pbs", "456.server\n", "456.server")])
+def test_matching_saved_receipt_resolves_only_its_original_dispatch_protocol(tmp_path, scheduler, reply, expected):
+    client = StudentHpcClient(artifact_dir=tmp_path)
+    package = _dispatch_protocol_package(client, scheduler)
+    attempt = client._record_dispatch_attempt(package, scheduler)
+    immutable = (package / "dispatch-attempt.json").read_bytes()
+    saved = client._accept_dispatch_ack(attempt, reply)
+    assert saved["job_id"] == expected and client._saved(saved)[1] == saved
+    assert client.pending_attempts() == []
+    assert (package / "dispatch-attempt.json").read_bytes() == immutable
+    with pytest.raises(StudentHpcError, match="original owned"):
+        client.cancel({**saved, "job_id": "999"})  # Real protected API refuses before scheduler access.
+
+
+@pytest.mark.parametrize("fault", ["attempt_missing", "attempt_json", "attempt_schema", "attempt_jobid",
+    "request_changed", "script_changed", "attempt_link", "receipt_json", "receipt_schema", "receipt_wrong_hash", "receipt_link"])
+def test_corrupt_or_unsupported_dispatch_storage_never_releases_unknown_hold(tmp_path, fault):
+    client = StudentHpcClient(artifact_dir=tmp_path)
+    package = _dispatch_protocol_package(client)
+    attempt = client._record_dispatch_attempt(package, "slurm")
+    path = package / "dispatch-attempt.json"
+    path.chmod(0o600)
+    if fault == "attempt_missing": path.unlink()
+    elif fault == "attempt_json": path.write_text("{")
+    elif fault == "attempt_schema": path.write_bytes(json.dumps({**attempt, "schema_version": "future/9"}).encode())
+    elif fault == "attempt_jobid": path.write_bytes(json.dumps({**attempt, "job_id": "123"}).encode())
+    elif fault == "request_changed": (package / "request.json").write_text("{}")
+    elif fault == "script_changed": (package / "submit.sh").write_text("changed")
+    elif fault == "attempt_link":
+        outside = tmp_path / "outside-attempt.json"
+        outside.write_bytes(path.read_bytes()); path.unlink(); path.symlink_to(outside)
+    else:
+        saved = client._accept_dispatch_ack(attempt, "123")
+        receipt = package / "submission.json"
+        if fault == "receipt_json": receipt.write_text("{")
+        elif fault == "receipt_schema": receipt.write_text(json.dumps({**saved, "schema_version": "future/9"}))
+        elif fault == "receipt_wrong_hash": receipt.write_text(json.dumps({**saved, "script_sha256": "0" * 64}))
+        elif fault == "receipt_link":
+            outside = tmp_path / "outside-submission.json"
+            outside.write_bytes(receipt.read_bytes()); receipt.unlink(); receipt.symlink_to(outside)
+    restored = StudentHpcClient(artifact_dir=tmp_path)
+    with pytest.raises(StudentHpcSubmissionUnknown): restored.pending_attempts()
+    with pytest.raises(StudentHpcSubmissionUnknown): restored.submit(None, resources={})
+
+
+def test_dispatch_attempt_cannot_be_overwritten_or_resolved_by_another_request(tmp_path):
+    client = StudentHpcClient(artifact_dir=tmp_path)
+    package = _dispatch_protocol_package(client)
+    attempt = client._record_dispatch_attempt(package, "slurm")
+    with pytest.raises(FileExistsError): client._record_dispatch_attempt(package, "slurm")
+    with pytest.raises(StudentHpcSubmissionUnknown):
+        client._accept_dispatch_ack({**attempt, "request_sha256": "0" * 64}, "123")
+    assert client.pending_attempts() == [attempt]
+
+
+@pytest.mark.parametrize("boundary", ["timeout_after_side_effect", "invalid_ack"])
+def test_actual_dispatch_command_boundary_classifies_unknown_without_cluster(tmp_path, boundary):
+    client = StudentHpcClient(artifact_dir=tmp_path)
+    with client._dispatch_admission():
+        assert client._pending_attempts(ignore_admission=True) == []
+        package = _dispatch_protocol_package(client)
+        attempt = client._record_dispatch_attempt(package, "slurm")
+    assert not (client.jobs / ".dispatch-admission").exists()
+    witness = package / "engineering-side-effect"
+    program = ("from pathlib import Path;import sys,time;Path(sys.argv[1]).write_text('observed before timeout');time.sleep(2)"
+               if boundary == "timeout_after_side_effect" else "print('invalid acknowledgement')")
+    with pytest.raises(StudentHpcSubmissionUnknown) as failed:
+        # Same private production wrapper, real _command and real subprocess.
+        # Public submit constructs only sbatch/qsub. This Python command tests
+        # the engineering error boundary, never a fake scheduler or accepted job.
+        client._dispatch_command(attempt, sys.executable, ["-B", "-c", program, str(witness)], timeout=.2)
+    assert failed.value.attempt == attempt and "job_id" not in attempt
+    if boundary == "timeout_after_side_effect":
+        assert witness.is_file()
+        assert isinstance(failed.value.__cause__, StudentHpcError)
+        assert isinstance(failed.value.__cause__.__cause__, subprocess.TimeoutExpired)
+    assert client.pending_attempts() == [attempt]
+    assert not (package / "submission.json").exists()
+
+
+@pytest.mark.parametrize("when", ["while_admitted", "after_unconfirmed"])
+def test_real_two_process_admission_blocks_a_second_dispatch_intent(tmp_path, when):
+    import time
+    ready, release = tmp_path / "ready", tmp_path / "release"
+    code = """from pathlib import Path
+import sys,time
+from cochem_base.interfaces.student_hpc import StudentHpcClient
+from tests.base.test_student_hpc_contract import _dispatch_protocol_package
+client=StudentHpcClient(artifact_dir=Path(sys.argv[1]))
+with client._dispatch_admission():
+    assert client._pending_attempts(ignore_admission=True)==[]
+    package=_dispatch_protocol_package(client)
+    client._record_dispatch_attempt(package,'slurm')
+    Path(sys.argv[2]).write_text('immutable attempt published')
+    deadline=time.monotonic()+10
+    while not Path(sys.argv[3]).exists() and time.monotonic()<deadline:time.sleep(.01)
+    assert Path(sys.argv[3]).exists()
+"""
+    first = _run_without_allocation(code, tmp_path, ready, release, background=True)
+    try:
+        deadline = time.monotonic() + 10
+        while not ready.exists() and time.monotonic() < deadline: time.sleep(.01)
+        assert ready.is_file()
+        if when == "after_unconfirmed":
+            release.write_text("release before second client")
+            stdout, stderr = first.communicate(timeout=15)
+            assert first.returncode == 0, stdout + stderr
+        second = _run_without_allocation("from pathlib import Path;import sys;from cochem_base.interfaces.student_hpc import StudentHpcClient,StudentHpcSubmissionUnknown;client=StudentHpcClient(artifact_dir=Path(sys.argv[1]));\ntry:client.submit(None,resources={})\nexcept StudentHpcSubmissionUnknown:pass\nelse:raise AssertionError('Second client escaped the durable admission hold')", tmp_path)
+        assert second.returncode == 0, second.stdout + second.stderr
+        assert len(tuple((tmp_path / "StudentHpc").glob("*/dispatch-attempt.json"))) == 1
+        assert not tuple((tmp_path / "StudentHpc").glob("*/submission.json"))
+    finally:
+        release.write_text("finish owned first client")
+        stdout, stderr = first.communicate(timeout=15)
+        assert first.returncode == 0, stdout + stderr
+
+
+def test_admission_release_never_removes_an_actual_replacement_directory(tmp_path):
+    client = StudentHpcClient(artifact_dir=tmp_path)
+    lock = client.jobs / ".dispatch-admission"
+    moved = client.jobs / "retained-original-admission"
+    with pytest.raises(StudentHpcSubmissionUnknown, match="ownership cannot be confirmed"):
+        with client._dispatch_admission():
+            lock.rename(moved)
+            lock.mkdir()
+            (lock / "foreign-owner").write_bytes(b"unrelated replacement bytes")
+    assert (lock / "foreign-owner").read_bytes() == b"unrelated replacement bytes"
+    assert (moved / "owner.json").is_file()
+    with pytest.raises(StudentHpcSubmissionUnknown): client.pending_attempts()
+
+
+def test_abandoned_admission_is_never_removed_using_a_pid_or_stale_guess(tmp_path):
+    code = "from pathlib import Path;import sys,os;from cochem_base.interfaces.student_hpc import StudentHpcClient;client=StudentHpcClient(artifact_dir=Path(sys.argv[1]));\nwith client._dispatch_admission():os._exit(0)"
+    child = _run_without_allocation(code, tmp_path)
+    assert child.returncode == 0, child.stderr
+    owner = tmp_path / "StudentHpc/.dispatch-admission/owner.json"
+    retained = owner.read_bytes()
+    with pytest.raises(StudentHpcSubmissionUnknown): StudentHpcClient(artifact_dir=tmp_path).submit(None, resources={})
+    assert owner.read_bytes() == retained

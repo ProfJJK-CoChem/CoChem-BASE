@@ -1,0 +1,7 @@
+{
+  "path": "src/cochem_base/intake/quench_broker.py",
+  "change": "Remove one inherited blank line at EOF; complete Python AST unchanged",
+  "before_sha256": "249a43e32124cf4bc3bf16a38567436b8f6007133550fe37f67606978b53112f",
+  "after_sha256": "571b8efa02107c98131b059a6872d25c0102fcc9654d0bec86ee33c7064e4a0d",
+  "ast_equal": true
+}

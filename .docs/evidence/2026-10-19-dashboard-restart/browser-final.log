@@ -1,0 +1,81 @@
+Traceback (most recent call last):
+  File "/workspace/.completion/restart-live/verify-browser-restart.py", line 78, in <module>
+    table = helpers['scientific_input_table'](page)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/CoChem-BASE/tests/ui/student_entrypoint_browser_acceptance.py", line 103, in scientific_input_table
+    expect(table).to_be_visible(timeout=120000)
+  File "/workspace/.completion/envs/review/lib/python3.12/site-packages/playwright/sync_api/_generated.py", line 14811, in to_be_visible
+    self._sync(
+  File "/workspace/.completion/envs/review/lib/python3.12/site-packages/playwright/_impl/_sync_base.py", line 111, in _sync
+    return task.result()
+           ^^^^^^^^^^^^^
+  File "/workspace/.completion/envs/review/lib/python3.12/site-packages/playwright/_impl/_assertions.py", line 852, in to_be_visible
+    await self._expect_impl(
+  File "/workspace/.completion/envs/review/lib/python3.12/site-packages/playwright/_impl/_assertions.py", line 128, in _expect_impl
+    _record_soft_or_raise(
+  File "/workspace/.completion/envs/review/lib/python3.12/site-packages/playwright/_impl/_assertions.py", line 60, in _record_soft_or_raise
+    raise error
+AssertionError: Locator expected to be visible
+Actual value: None
+Error: element(s) not found 
+Call log:
+  - Expect "to_be_visible" get_by_role("table", name="Verified retained scientific inputs", exact=True) with timeout 120000ms
+  - waiting for get_by_role("table", name="Verified retained scientific inputs", exact=True)
+
+Aria snapshot:
+- paragraph:
+  - text: Start with Start here in the workspace below. Use Explain… beside a setting for guidance, or search Scientific terms.
+  - link "Quick start guide":
+    - /url: https://github.com/ProfJJK-CoChem/CoChem-BASE/blob/main/.docs/GET_STARTED.md
+- heading "CoChem" [level=1]
+- paragraph: Computational chemistry workspace
+- status:
+  - text: "Workspace status:"
+  - strong: Idle
+- group: "Interface: Local-Linux"
+- paragraph: RESEARCH WORKSPACE
+- button "Start here"
+- button "Your files"
+- button "Calculations"
+- button "Results"
+- paragraph: SCIENTIFIC TOOLS
+- button "Spectra and properties"
+- button "Periodic structures"
+- paragraph: HELP
+- button "Scientific terms"
+- heading "Your files" [level=2]
+- paragraph: Upload your scientific inputs, inspect them, and choose what to use next.
+- heading "1 · Upload a scientific file" [level=3]
+- paragraph: Start with Detect from file for ordinary molecular files. For conformer pools or specialized data, select the matching contents first.
+- text: "File contents:"
+- combobox "File contents:":
+  - option "Detect from file" [selected]
+  - option "Molecular coordinates / multi-frame ensemble"
+  - option "CREST / ORCA GOAT conformer pool"
+  - option "Periodic structure"
+  - option "Geometry-bound Hessian"
+  - option "Native spectroscopy output"
+  - option "Measured HDF5 trajectories"
+  - option "Physical HDF5 / NPZ data"
+  - option "Native calculation result"
+  - option "PAW pseudopotential"
+- button " Upload scientific inputs (0)"
+- group: Explain which research inputs I can use
+- status: Upload your molecular structures, native outputs, conformer ensembles or physical data. BASE validates the complete file before adding it; original bytes and hashes are retained outside the application.
+- heading "2 · Choose a structure or dataset" [level=3]
+- text: "Your uploaded file:"
+- combobox "Your uploaded file:":
+  - option "Upload a scientific input" [selected]
+- text: "Structure / frame:"
+- combobox "Structure / frame:"
+- button "Remove from list" [disabled]
+- button "Undo remove" [disabled]
+- button "Show removed inputs"
+- button "Use selected starting geometry" [disabled]
+- paragraph: For a molecular calculation, select a structure and choose Use selected starting geometry. Check charge and spin in Calculations. For spectra, Hessians or periodic data, choose the corresponding tool in the navigation.
+- button "Continue to calculation settings"
+- button "Hide File details and provenance"
+- group: Explain the calculation record and file checksums
+- button "Refresh retained inputs" [disabled]
+- button "Show Import from the VS Code inbox"
+- button "Show Combine conformer ensembles and remove duplicates"

@@ -9,7 +9,9 @@ The [ownership audit](Module_Ownership_Audit_2026-10-18.md), complete SRS and
 BASE retains its Chunk 17 REQ-BASE-006 conformer and proposal §3.14 CREST/GOAT
 responsibilities. The orchestrator and quench broker now live under
 `cochem_base.intake`; the old source paths are deprecated, unshipped shims.
-The scientific algorithms and thresholds were preserved. Isolated provider
+The scientific algorithms and thresholds were preserved. A final formatting
+follow-up removed one inherited blank line at EOF from the relocated quench
+broker; its complete Python AST remained equal (the follow-up hashes are retained). Isolated provider
 execution continues to implement WBS 17.1.3 and proposal §3.3.
 
 The catalog selects published canonical TORQ

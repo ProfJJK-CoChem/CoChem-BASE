@@ -1,0 +1,120 @@
+{
+  "schema": "cochem.public-selected-security-progress/1",
+  "scope": "Separate actual producer summaries; no complete-security, full-SRS or student-ready claim",
+  "pip_bootstrap": {
+    "source_revision": "ac404f2353e821890968fd008d701f6f501dd827",
+    "publication": "ordinary nonforce push with exact remote main readback",
+    "four_installer_routes_use_verified_pip": "26.2",
+    "targeted_pytest": {
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "owned_cleanup_empty": true,
+    "accepted_existing_environments_upgraded": false,
+    "original_publication_sha256": "e4029f80ce977b477b862d3d2bcdc9796e37dfed2ffea7cb5ba888808d852764",
+    "original_qualification_sha256": "1f8a9ada0e11c2f23d1be663042e4fcf6d2b2a4285d561db8913737cd6872b00",
+    "original_junit_sha256": "7b93e3f35a512c2fc48b16307e0a714c1ee4a54590fed2848033fe9903a8af2f"
+  },
+  "filelock_tornado_selected": {
+    "source_revision": "061e9db92c310a9ec87a50889aa4501308e9c246",
+    "versions": {
+      "filelock": "4.2.1",
+      "tornado": "6.6"
+    },
+    "initial_direct_pins": 19,
+    "initial_install_pipcheck_and_API_passed": true,
+    "initial_whole_attempt_passed": false,
+    "initial_phase4_pytest_exit": 4,
+    "initial_phase4_collection_errors": 2,
+    "initial_phase4_passed": 0,
+    "initial_failure_reason": "h5py missing from candidate test environment due eager package initializer imports",
+    "actual_API_observations": [
+      "FileLock contention, release and sentinel preservation",
+      "loopback HTTP and WebSocket echo",
+      "same-environment marker-only Jupyter kernel and shutdown",
+      "Jupyter Server and Voila API object construction"
+    ],
+    "separate_additions_only_resume_pytest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "prior_API_checks_repeated": false,
+    "original96_distributions_and_payloads_unchanged": true,
+    "old_accepted_environment_unchanged": true,
+    "resume_owned_cleanup_empty": true,
+    "original_selected_qualification_sha256": "7c3bd2a26d72112fc2220b5330a880398a7d2312cc8e91349f1c9857b4146b71",
+    "original_initial_failure_readback_sha256": "74c1aba378efea63ba74df75dab9ff0a4ace5be30574f965e7bd36f662e6dc05",
+    "original_API_receipt_sha256": "da52ee1f2a3ee23196f64b6c7ad2dc53c0a1635c8e1e318cee746ccdd3618200",
+    "original_resume_receipt_sha256": "81327f8bf42a29180060583d5951d8f0731b4a06b5a5bea05ac04944c14b62a0",
+    "original_resume_owner_sha256": "620314357ac61d001c5e5abac474e68525886a291ec405b155cf7c8657396f70",
+    "original_resume_junit_sha256": "ea16118c541233742da2ab0546c9960f9ba50a333b4f6fdac8018debf2ec039b"
+  },
+  "advisory_boundary": {
+    "source_matched_packages": 7,
+    "source_matched_exact_versions": 10,
+    "source_matched_alias_families": 61,
+    "source_matches_are_not_GitHub_alert_mapping": true,
+    "repository_server_notice_count": 42,
+    "actual_alert_details_status": "Unresolved discrepancy: verified ADMIN GraphQL reports zero open and unfiltered alerts; REST403; last push notice42. No individual alert mapping established.",
+    "prior_pip25_0_1_families_are_separate": 6,
+    "original_static_triage_sha256": "0fbdb847926b61a71498dc60c682debce1777376b9d8d29377df15d94019f14e"
+  },
+  "remaining_limits": [
+    "Existing accepted pip25 environments were not modified by these source updates",
+    "Remaining ML/AIMNet, release/CI and other pip mutation paths need separately scoped coverage; not every entry point is claimed patched",
+    "Full ML/transitive resolver/native profile qualification is not established by direct-source inspection or minimal API checks",
+    "No full browser/GUI, hosted deployment, licensed engine, full SRS or student readiness acceptance"
+  ],
+  "five_package_selected": {
+    "state": "SELECTED_RUNTIME_PASS",
+    "proposal_READY_sha256": "082864812dac265d652986d143dcffe28f39de9b74794c3731fc80ec9d4b59e1",
+    "packages": [
+      "certifi",
+      "GitPython",
+      "Pillow",
+      "setuptools",
+      "wheel"
+    ],
+    "actual_runtime_result": true,
+    "qualified_source_revision": "548adbb4ec80a602f152e058dfb4607a229eb9b4",
+    "actual_qualification_receipt_sha256": "a6f80053476f1193c983b14aed3fcb53b5d60c263c872a479bcc158d4a41f608",
+    "versions": {
+      "certifi": "2026.10.18",
+      "GitPython": "3.2.1",
+      "Pillow": "13.0.0",
+      "setuptools": "84.1.0",
+      "wheel": "0.46.2"
+    },
+    "build_pytest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "package_APIs_passed": true,
+    "installed_stdlib_payload_passed": true,
+    "installed_BASE_RECORD_members": 1092,
+    "owned_cleanup_empty": true,
+    "accepted_existing_environments_upgraded": false,
+    "scientific_operations": 0,
+    "original_API_receipt_sha256": "369211d18c776cf53d1847bb7566ff95c4ac9b06c7e572b931c5420981c52f1d",
+    "original_installed_payload_sha256": "5919e0443c83b73c7c0e62722c220ce5c652eca6db5e1e857ca6c61388a6c436",
+    "artifacts": [
+      {
+        "name": "cochem_base-1.1.0-py3-none-any.whl",
+        "bytes": 3154982,
+        "sha256": "1023712788d3965fde196e9c56e45ca8db18eb52555e1ca01b7c0f8024a0002f"
+      },
+      {
+        "name": "cochem_base-1.1.0.tar.gz",
+        "bytes": 12438185,
+        "sha256": "e6d1b367905468c37e6d1977933a68866f90e06562337c022229ff6fb5e11780"
+      }
+    ],
+    "scope": "Bounded package APIs, real BASE build and installed stdlib helper; not complete UI/ML/scientific dependency runtime"
+  }
+}

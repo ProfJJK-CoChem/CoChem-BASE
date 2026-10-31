@@ -655,9 +655,56 @@ def test_xyz_bound_bytes_seam_preserves_path_parser_results_and_refusals(
         from_bytes = _parse_xyz_bytes(payload, source_path=path, require_energy=require_energy)
         assert len(from_path) == len(from_bytes) == 1
         left, right = from_path[0], from_bytes[0]
-        assert left.symbols == right.symbols == ["H"]
+        assert left.symbols == right.symbols == ("H",)
         assert left.energy == right.energy
         assert left.conformer_id == right.conformer_id == f"{tmp_path.name}:0"
         assert left.source == right.source == hashlib.sha256(payload).hexdigest()
         np.testing.assert_array_equal(left.coordinates, right.coordinates)
     assert path.read_bytes() == payload
+
+
+@pytest.mark.parametrize(
+    ("requested_symbols", "accepted"),
+    [
+        (["O", "H"], True),
+        (["H", "O"], False),
+        (["O", "H", "H"], False),
+        (["N", "H"], False),
+    ],
+)
+def test_crest_actual_parsed_frame_preserves_requested_ordered_elements(
+    requested_symbols, accepted
+):
+    """Actual ASE/frame contracts only; declared parser bytes are not native evidence."""
+    from ase import Atoms
+
+    from cochem_base.exceptions import EcosystemDependencyError
+    from cochem_base.topology.cochem_topos_crusher import CRESTConformerEngine
+    from cochem_base.topos_runner import _parse_xyz_bytes
+
+    payload = b"2\nE=-1.0 Hartree\nO 0 0 0\nH 0 0 0.96\n"
+    frame = _parse_xyz_bytes(
+        payload, source_path=Path("declared-guard-frame.xyz"), require_energy=True
+    )[0]
+    positions = [[0.0, 0.0, float(index)] for index in range(len(requested_symbols))]
+    requested = Atoms(requested_symbols, positions=positions)
+    original_frame_symbols = frame.symbols
+    original_requested_symbols = requested.get_chemical_symbols()
+    if accepted:
+        assert (
+            CRESTConformerEngine._validate_ordered_crest_elements(frame, requested)
+            is None
+        )
+    else:
+        with pytest.raises(
+            EcosystemDependencyError,
+            match="changed the ordered unlabelled input elements",
+        ):
+            CRESTConformerEngine._validate_ordered_crest_elements(frame, requested)
+    assert frame.symbols == original_frame_symbols == ("O", "H")
+    assert (
+        requested.get_chemical_symbols()
+        == original_requested_symbols
+        == requested_symbols
+    )
+    assert requested.calc is None

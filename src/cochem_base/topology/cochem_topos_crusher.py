@@ -1770,6 +1770,14 @@ class CRESTConformerEngine:
             "ground_state_status": "unverified",
         }
 
+    @staticmethod
+    def _validate_ordered_crest_elements(frame: Any, seed_atoms: Atoms) -> None:
+        """Keep the parsed ordered elements; normalize only sequence containers."""
+        if tuple(frame.symbols) != tuple(seed_atoms.get_chemical_symbols()):
+            raise EcosystemDependencyError(
+                "CREST ensemble changed the ordered unlabelled input elements"
+            )
+
     def execute_secondary_search(
         self,
         seed_atoms: Atoms,
@@ -1960,8 +1968,7 @@ class CRESTConformerEngine:
                 ensemble = []
                 for frame in _parse_xyz_bytes(ensemble_bytes, source_path=work.path / ensemble_name,
                                                require_energy=True):
-                    if frame.symbols != seed_snapshot.get_chemical_symbols():
-                        raise EcosystemDependencyError("CREST ensemble changed the ordered unlabelled input elements")
+                    self._validate_ordered_crest_elements(frame, seed_snapshot)
                     conformer = Atoms(frame.symbols, positions=frame.coordinates)
                     conformer.info["energy_kcal"] = (
                         frame.energy * units.Hartree / (units.kcal / units.mol)

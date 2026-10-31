@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=84.1.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -49,8 +49,8 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.8.0",
     "build>=1.2",
-    "setuptools>=77",
-    "wheel>=0.45"
+    "setuptools>=84.1.0",
+    "wheel>=0.46.2"
 ]
 hpc = ["parsl"]
 catalog = ["pyarrow", "pandas"]

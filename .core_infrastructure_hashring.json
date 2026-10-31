@@ -6,6 +6,7 @@
     ".devcontainer/devcontainer.json": "1920195e9d407ea8e13c9086ede6f1b5f7cb9bcff53c7c08927ffa6a091819d9",
     ".devcontainer/setup_tmpfs.sh": "6b0c13cf51ebd5bf719b8b8ecb0e6d10ad3892b5c2ae471b3bac7e15883610af",
     ".gitattributes": "acb8f8602e8028ccee1406adfa8430827b95ab498435c90c1e82845bbf42b1e8",
+    ".github/ISSUE_TEMPLATE/beginner_lab_problem.yml": "ac20a58b0148d3c923e3a2b5b18bc5765bbf38dfcd43d9e25b6acabb99b479fa",
     ".github/actions/setup-cfour/action.yml": "bfc0035e9bf9981401148d8dfdbf24c990c7f21d0889f3dbbde8713cf8118906",
     ".github/actions/setup-orca/action.yml": "2f81ac91656fec45fd9ab97d19269f266e4e133f971609d0c3b64701035195c0",
     ".github/workflows/cfour_acceptance.yml": "8886a9f3e82ccbc204dfba5b90c1aa95b5272013bef525fad0718848a5d407bc",

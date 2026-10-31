@@ -499,12 +499,26 @@ def case_actions_geometry_control_denies_missing_identity_without_local_fallback
     gui.calc_env_dropdown.value = 'github-actions'
     gui.gh_repo_input.value = 'ProfJJK-CoChem/CoChem-BASE'
     gui.gh_branch_input.value = 'main'
-    gui._run_module_geometry()
-    gui._actions_worker.join(timeout=30)
-    assert not gui._actions_worker.is_alive() and not gui._actions_running
+    with gui._local_file_workers_lock:
+        catalog_workers = tuple(gui._local_file_workers)
+    for worker in catalog_workers:
+        worker.join(timeout=20)
+        assert not worker.is_alive(), 'Initial saved-file catalog did not finish'
+    assert gui._local_file_operation is None
+    draft = (gui.matrix_geometry.value, gui.charge_input.value, gui.multiplicity_input.value)
+    assert gui._actions_admission_checked is None and not gui.btn_actions_recover.disabled
+    gui.btn_actions_recover.click()
+    gui._actions_recovery_worker.join(timeout=30)
+    assert not gui._actions_recovery_worker.is_alive() and not gui._actions_running
     assert 'GitHub authentication is unavailable' in gui.actions_status.value, gui.actions_status.value
+    assert gui._actions_admission_checked is None and gui._actions_state_operation is None
+    gui._run_module_geometry()
+    assert 'Check saved project request' in gui.actions_status.value
+    assert not hasattr(gui, '_actions_worker')
     assert not hasattr(gui, '_module_worker') and not hasattr(gui, '_research_worker')
+    assert not hasattr(gui, '_module_geometry_worker')
     assert not hasattr(gui, '_pipeline_worker')
+    assert (gui.matrix_geometry.value, gui.charge_input.value, gui.multiplicity_input.value) == draft
 
 
 def case_hpc_selection_denies_interface_host_scientific_execution(gui):

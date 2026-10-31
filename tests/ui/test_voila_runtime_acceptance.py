@@ -630,7 +630,17 @@ def _classroom_gui():
     gui.matrix_geometry.value = WATER
     gui.product_class_selector.value = "Screening (no product accuracy claim)"
     gui.matrix_engine.value = "XTB"
+    gui.xtb_task.value = "optimization"
+    gui.charge_input.value = 0
+    gui.multiplicity_input.value = 1
     gui.project_name.value = "water homework"
+    with gui._local_file_workers_lock:
+        catalog_workers = tuple(gui._local_file_workers)
+    deadline = time.monotonic() + 20
+    for worker in catalog_workers:
+        worker.join(timeout=max(0, deadline - time.monotonic()))
+        assert not worker.is_alive(), "Initial saved-file catalog did not finish"
+    assert gui._local_file_operation is None
     return gui
 
 
@@ -652,7 +662,8 @@ def _exercise_actions_export(tmp_path):
         authorize_engine_execution("orca", cores=1)
     gui = _classroom_gui()
     gui.artifact_output_path.value = str(tmp_path / "local-results")
-    assert not gui.btn_execute.disabled
+    assert gui._actions_admission_checked is None and gui.btn_execute.disabled
+    assert "Check saved project request" in gui.engine_warning.value
     assert {'ORCA', 'CFOUR'}.isdisjoint(value for _, value in gui.matrix_engine.options)
     gui._save_matrix_config(None)
     encoded = re.search(r"data:application/json;base64,([^']+)", gui.actions_job_download.value).group(1)
@@ -667,7 +678,7 @@ def _exercise_actions_export(tmp_path):
     assert not gui._pipeline_running and not hasattr(gui, "_pipeline_worker")
     assert not (tmp_path / "local-results").exists()
     assert "No calculation has been submitted or run" in gui.actions_job_download.value
-    assert 'Select <b>Run on GitHub Actions</b>' in gui.actions_job_download.value
+    assert 'select <b>Check saved project request</b>' in gui.actions_job_download.value
     assert 'Upload this file' not in gui.actions_job_download.value
     gui.matrix_geometry.value = "invalid geometry"
     assert gui._last_actions_job is None and gui.actions_job_download.value == ""
@@ -721,7 +732,8 @@ def test_actions_selection_never_falls_back_to_local_engine(tmp_path):
     gui = _classroom_gui()
     gui.matrix_engine.value = "XTB"
     gui.artifact_output_path.value = str(tmp_path / "local-results")
-    assert not gui.btn_execute.disabled
+    assert gui._actions_admission_checked is None and gui.btn_execute.disabled
+    assert "Check saved project request" in gui.engine_warning.value
     assert gui.btn_execute.description == "Run on GitHub Actions"
     gui.gh_repo_input.value = "invalid-course-repository"
     gui._execute_pipeline(None)

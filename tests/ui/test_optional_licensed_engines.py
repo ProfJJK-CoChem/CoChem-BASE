@@ -97,6 +97,18 @@ def _exercise(case: str) -> None:
         gui._refresh_engine_choices()
         gui._refresh_research_engine_choices()
         gui._refresh_orbital_backend_choices()
+        gui.research_topos_operation.value = 'energy'
+        assert gui._actions_admission_checked != target
+        gui._refresh_execution_gate()
+        assert gui.btn_research_topos.disabled  # Unchecked project admission is independently required.
+        assert not (gui._pipeline_running or gui._hpc_running or gui._hpc_retrieving
+                    or gui._actions_running or gui._actions_state_operation is not None
+                    or gui._topos_running or gui._student_setup_busy)
+        # Synthetic prior checked-target UI state only, like the prior licensed
+        # observations above; not an actual GitHub check, capability or readiness receipt.
+        gui._actions_admission_checked = target
+        gui._refresh_execution_gate()
+        assert not gui.btn_research_topos.disabled
         gui.matrix_engine.value = 'ORCA'
         gui.research_topos_engine.value = 'orca'
         gui.research_orbital_backend.value = 'orca'

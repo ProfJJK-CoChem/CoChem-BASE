@@ -5960,7 +5960,7 @@ class CoChemGUI(InputManagementMixin):
             self.actions_job_download.value = (
                 "<p role='status'><b>Actions request validated.</b> No calculation has been submitted or run.</p>"
                 f"<p><a download='{filename}' href='data:application/json;base64,{encoded}'>Download {engine_name} request JSON</a></p>"
-                "<p>This copy is optional. Select <b>Run on GitHub Actions</b> to submit, monitor and retrieve your calculation directly in BASE.</p>"
+                "<p>This copy is optional. Before submitting, select <b>Check saved project request</b> and follow the instructions shown there.</p>"
                 f"<p>Input SHA-256: <code>{digest}</code>. Calculation timeout: {self.actions_timeout.value} seconds.</p>"
             )
             self.state.system_status = "Actions job prepared"

@@ -211,13 +211,18 @@ def test_gui_reports_missing_provider_without_success_or_result(geometry, tmp_pa
     from ui.voila_layout.cochem_gui import CoChemGUI
 
     gui = CoChemGUI()
+    # This case rejects an absent local provider, including in Codespaces where
+    # the ordinary GUI default is remote. No hosted request is part of this test.
+    gui.calc_env_dropdown.value = 'local' if sys.platform == 'win32' else 'macos' if sys.platform == 'darwin' else 'linux'
     gui.module_recipient.value = "topos"
     gui.module_artifact.value = str(geometry)
     gui.module_root.value = str(tmp_path / "absent-modules")
     gui.module_output.value = str(tmp_path / "gui-executions")
+    assert not gui.btn_module_run.disabled
     gui.btn_module_run.click()
-    gui._module_worker.join(timeout=20)
-    assert not gui._module_worker.is_alive()
+    gui._module_geometry_worker.join(timeout=20)
+    assert not gui._module_geometry_worker.is_alive()
+    assert not gui._pipeline_running
     assert gui.btn_module_run.disabled is False
     assert "role='alert'" in gui.module_handoff_status.value
     assert "Module operation failed" in gui.module_handoff_status.value

@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import runpy
 import subprocess
 import sys
 import tarfile
@@ -110,17 +111,24 @@ def install(root: Path, name: str) -> dict:
         return {**release, "path": str(executable), "version_output": version_output.strip()}
 
     interpreter = target / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    if not interpreter.exists():
+    created = not interpreter.exists()
+    if created:
         if target.exists() and any(target.iterdir()):
             raise RuntimeError(f"Refusing nonempty non-venv directory: {target}")
-        run([sys.executable, "-I", "-m", "venv", str(target)], timeout=120)
+        run([sys.executable, "-I", "-B", "-m", "venv", "--without-pip", str(target)], timeout=120)
     # Validate the interpreter before pip can mutate anything. An existing
     # bin/python symlink alone is not evidence of an isolated virtual environment.
     run([str(interpreter), "-I", "-c", "import pathlib,site,sys; p=pathlib.Path(sys.argv[1]).resolve(); assert pathlib.Path(sys.prefix).resolve()==p and sys.prefix!=sys.base_prefix and not site.ENABLE_USER_SITE; assert 'include-system-site-packages = false' in (p/'pyvenv.cfg').read_text().lower()", str(target)], timeout=30)
+    installer = runpy.run_path(str(REPOSITORY / "scripts/manage_modules.py"))
+    # Existing silos keep their installed pip unchanged; all package mutation
+    # executes the verified wheel. An interrupted bootstrap may still lack pip.
+    installer["_ensure_pip"](interpreter, target, env=clean_environment(),
+        label="Bootstrap reviewed free-engine installer", timeout=120)
     requirements = Path(__file__).resolve().parent / "free_engine_requirements" / f"{name}.txt"
     pins = requirements.read_text().splitlines()
-    run([str(interpreter), "-I", "-m", "pip", "install", "--disable-pip-version-check",
-         "--no-input", "--only-binary=:all:", "--no-deps", "-r", str(requirements)])
+    installer["_run_pip"](interpreter, ["install", "--disable-pip-version-check",
+         "--no-input", "--only-binary=:all:", "--no-deps", "-r", str(requirements)],
+         env=clean_environment(), label="Install pinned free-engine dependencies", timeout=600)
     run([str(interpreter), "-I", "-m", "pip", "check"], timeout=60)
     probe = """
 import importlib.metadata, json, pathlib, site, sys

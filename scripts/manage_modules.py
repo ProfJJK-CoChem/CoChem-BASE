@@ -14,9 +14,12 @@ import json
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -25,6 +28,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_SCHEMA = "cochem.module-distribution/1"
 RECEIPT_SCHEMA = "cochem.module-installation/1"
 SOURCE_SCHEMA = "cochem.module-source/1"
+PINNED_PIP_VERSION = "26.2"
+PINNED_PIP_FILENAME = "pip-26.2-py3-none-any.whl"
+PINNED_PIP_SIZE = 1816475
+PINNED_PIP_SHA256 = "931c303696af6fa3417112103b1cad26890e5a07eccb5b99783700e33f2b8aad"
+PINNED_PIP_URL = "https://files.pythonhosted.org/packages/62/36/a3aed958d60531cb442b7ab4596cda7b3621cfb916f8ae1d6769795c7dc1/pip-26.2-py3-none-any.whl"
 ID_PATTERN = re.compile(r"[a-z][a-z0-9_-]*\Z")
 REPOSITORY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 REQUIREMENT_PATTERN = re.compile(
@@ -158,15 +166,140 @@ def _run(command: list[str], *, env: dict[str, str], label: str, cwd: Path | Non
     return result.stdout.rstrip("\r\n")
 
 
-def _build_env() -> dict[str, str]:
+def _build_env(environment: dict[str, str] | None = None) -> dict[str, str]:
     blocked = {"COCHEM_SOURCE_CREDENTIAL", "base_source_credential", "COCHEM_ORCA_ASSET_CREDENTIAL", "GH_TOKEN", "GITHUB_TOKEN", "SSH_ASKPASS", "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
-    env = {key: value for key, value in os.environ.items()
+    env = {key: value for key, value in (os.environ if environment is None else environment).items()
            if key not in blocked and not key.startswith("GIT_")
            and not any(marker in key.upper() for marker in ("TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "AUTHORIZATION"))
            and not key.upper().endswith("_KEY")}
     # Prevent dependency Git commands from inheriting persisted checkout credentials.
     env.update({"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0", "PYTHONNOUSERSITE": "1", "PIP_DISABLE_PIP_VERSION_CHECK": "1"})
     return env
+
+
+def _pinned_pip_bytes(*, env: dict[str, str], wheel: Path | None = None,
+                      timeout: float = 30) -> bytes:
+    """Acquire exactly the reviewed artifact, without executing or writing it."""
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not 0 < timeout < float("inf"):
+        raise ModuleInstallationError("Pinned pip requires a finite positive setup budget.")
+    if wheel is not None and not isinstance(wheel, Path):
+        raise ModuleInstallationError("Pinned pip artifact must be a local Path.")
+    if wheel is None and "COCHEM_PINNED_PIP_WHEEL" in env:
+        if not env["COCHEM_PINNED_PIP_WHEEL"]:
+            raise ModuleInstallationError("The configured pinned pip artifact path is empty.")
+        wheel = Path(env["COCHEM_PINNED_PIP_WHEEL"])
+    deadline = time.monotonic() + timeout
+    environment = _build_env(env)
+    environment.pop("COCHEM_PINNED_PIP_WHEEL", None)
+    try:
+        if wheel is not None:
+            if wheel.is_symlink() or not wheel.is_file() or wheel.stat().st_size != PINNED_PIP_SIZE:
+                raise ModuleInstallationError("The pinned pip artifact is missing, redirected or has the wrong size.")
+            with wheel.open("rb") as source:
+                data = source.read(PINNED_PIP_SIZE + 1)
+        else:
+            if environment.get("PIP_NO_INDEX", "").strip().lower() not in ("", "0", "false", "no"):
+                raise ModuleInstallationError("Offline setup requires the exact pinned pip artifact; no installed-pip fallback is allowed.")
+            # Match pip/requests' supported explicit CA precedence, preserving
+            # the ordinary default SSL trust when no override is configured.
+            authority = next((environment[name] for name in
+                ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "PIP_CERT") if environment.get(name)), None)
+            context = ssl.create_default_context(
+                cafile=(authority if not Path(authority).is_dir() else None) if authority else environment.get("SSL_CERT_FILE"),
+                capath=(authority if Path(authority).is_dir() else None) if authority else environment.get("SSL_CERT_DIR"))
+            if environment.get("PIP_CLIENT_CERT"):
+                # Do not prompt for a private-key password in unattended setup.
+                context.load_cert_chain(environment["PIP_CLIENT_CERT"], password=lambda: "")
+            class NoRedirect(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, req, fp, code, msg, headers, newurl):
+                    raise ModuleInstallationError("Pinned pip download redirected; setup was stopped.")
+            request = urllib.request.Request(PINNED_PIP_URL, headers={"User-Agent": "CoChem-pinned-installer"})
+            with urllib.request.build_opener(NoRedirect(), urllib.request.HTTPSHandler(context=context)).open(
+                    request, timeout=min(30, timeout)) as response:
+                data = response.read(PINNED_PIP_SIZE + 1)
+        if len(data) != PINNED_PIP_SIZE or hashlib.sha256(data).hexdigest() != PINNED_PIP_SHA256:
+            raise ModuleInstallationError("Pinned pip artifact checksum verification failed; no package tool was executed.")
+        if time.monotonic() >= deadline:
+            raise ModuleInstallationError("Pinned pip artifact acquisition budget expired.")
+        return data
+    except ModuleInstallationError:
+        raise
+    except (OSError, ValueError) as error:
+        raise ModuleInstallationError("Pinned pip artifact could not be read using the configured TLS/proxy trust; check setup access and retry.") from error
+
+
+def _run_pip(python: Path, arguments: list[str], *, env: dict[str, str], label: str,
+             cwd: Path | None = None, timeout: float = 1800, wheel: Path | None = None,
+             bootstrap: bool = False) -> str:
+    """Run only the reviewed pip wheel, without upgrading an existing caller.
+
+    The optional local artifact (or COCHEM_PINNED_PIP_WHEEL) is data delivery,
+    never a version/URL override. An invalid supplied artifact never falls back
+    to downloading or to the interpreter's installed pip. Fresh environments
+    alone use bootstrap=True to install this same verified wheel offline.
+    """
+    if bootstrap and arguments:
+        raise ModuleInstallationError("Pinned pip bootstrap accepts no package arguments.")
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not 0 < timeout < float("inf"):
+        raise ModuleInstallationError("Pinned pip requires a finite positive setup budget.")
+    deadline = time.monotonic() + timeout
+    data = _pinned_pip_bytes(env=env, wheel=wheel, timeout=timeout)
+    environment = _build_env(env)
+    environment.pop("COCHEM_PINNED_PIP_WHEEL", None)
+    try:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ModuleInstallationError("Pinned pip setup budget expired before execution.")
+        with tempfile.TemporaryDirectory(prefix="cochem-pinned-pip-") as folder:
+            verified = Path(folder) / PINNED_PIP_FILENAME
+            verified.write_bytes(data)
+            verified.chmod(0o400)
+            selected = (["install", "--no-index", "--no-deps", "--no-cache-dir",
+                         "--disable-pip-version-check", str(verified)] if bootstrap else arguments)
+            if bootstrap:
+                # No inherited requirement/config may add an install input or
+                # redirect this one local wheel outside the fresh prefix.
+                environment = {key: value for key, value in environment.items()
+                               if not key.startswith("PIP_")}
+                environment.update(PIP_CONFIG_FILE=os.devnull, PIP_NO_INDEX="1",
+                                   PIP_DISABLE_PIP_VERSION_CHECK="1", PIP_NO_INPUT="1")
+            # This is pip's own wheelpath entry point, supported by __main__.
+            return _run([str(python), "-I", "-B", str(verified) + "/pip", *selected],
+                        env=environment, label=label, cwd=cwd, timeout=remaining)
+    except ModuleInstallationError:
+        raise
+    except (OSError, ValueError) as error:
+        raise ModuleInstallationError("Pinned pip artifact could not be read using the configured TLS/proxy trust; check setup access and retry.") from error
+
+
+def _ensure_pip(python: Path, expected_prefix: Path, *, env: dict[str, str], label: str,
+                wheel: Path | None = None, timeout: float = 120) -> None:
+    """Recover an interrupted fresh venv bootstrap; never upgrade existing pip."""
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not 0 < timeout < float("inf"):
+        raise ModuleInstallationError("Pinned pip requires a finite positive setup budget.")
+    deadline = time.monotonic() + timeout
+    check = """import importlib.metadata as metadata,pathlib,site,sys
+prefix=pathlib.Path(sys.prefix).resolve()
+assert prefix==pathlib.Path(sys.argv[1]).resolve() and sys.prefix!=sys.base_prefix
+assert not site.ENABLE_USER_SITE
+assert 'include-system-site-packages = false' in (prefix/'pyvenv.cfg').read_text().lower()
+try:
+    dist=metadata.distribution('pip')
+except metadata.PackageNotFoundError:
+    print('missing')
+else:
+    assert pathlib.Path(dist.locate_file('')).resolve().is_relative_to(prefix)
+    print('present')
+"""
+    observed = _run([str(python), "-I", "-B", "-c", check, str(expected_prefix)],
+                    env=_build_env(env), label="Validate isolated installer target", timeout=min(30, timeout))
+    if observed == "missing":
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ModuleInstallationError("Pinned pip bootstrap budget expired during target validation.")
+        _run_pip(python, [], env=env, label=label, wheel=wheel, bootstrap=True, timeout=remaining)
+    elif observed != "present":
+        raise ModuleInstallationError("The isolated pip bootstrap state could not be verified.")
 
 
 def _git_env() -> dict[str, str]:
@@ -499,15 +632,16 @@ def install_module(module_id: str, spec: dict, root: Path, *, activate: bool = T
         environment.mkdir()
     except FileExistsError as error:
         raise ModuleInstallationError("An unreceipted environment exists at this pin; inspect it before choosing a clean root.") from error
-    _run([sys.executable, "-I", "-m", "venv", str(environment)], env=_build_env(), label="Create isolated module environment")
+    _run([sys.executable, "-I", "-B", "-m", "venv", "--without-pip", str(environment)], env=_build_env(), label="Create isolated module environment")
     python = _python_path(environment)
+    _run_pip(python, [], env=_build_env(), label="Bootstrap reviewed module installer", bootstrap=True)
     # Build from a disposable copy: backend-created egg-info never dirties source.
     with tempfile.TemporaryDirectory(prefix=".build-", dir=location) as temporary:
         build_root = Path(temporary)
         build_source = build_root / "source"
         shutil.copytree(source, build_source, ignore=shutil.ignore_patterns(".git"), symlinks=True)
         wheels = build_root / "wheels"
-        _run([str(python), "-I", "-B", "-m", "pip", "wheel", "--no-deps", "--wheel-dir", str(wheels), str(build_source)], env=_build_env(), label="Build pinned module wheel")
+        _run_pip(python, ["wheel", "--no-deps", "--wheel-dir", str(wheels), str(build_source)], env=_build_env(), label="Build pinned module wheel")
         candidates = list(wheels.glob("*.whl"))
         if len(candidates) != 1:
             raise ModuleInstallationError("Module build did not produce exactly one wheel.")
@@ -536,7 +670,7 @@ def install_module(module_id: str, spec: dict, root: Path, *, activate: bool = T
                 "sha256": hashlib.sha256(dependency.read_bytes()).hexdigest()})
         # Explicit wheel files satisfy reviewed private package requirements.
         # Their parent directories are never opened as unrestricted indexes.
-        _run([str(python), "-I", "-B", "-m", "pip", "install", str(wheel),
+        _run_pip(python, ["install", str(wheel),
               *[item["path"] for item in supplied], *spec["adapter_requirements"]],
              env=_build_env(), label="Install module and adapter dependencies")
         _run([str(python), "-I", "-B", "-m", "pip", "check"], env=_build_env(), label="Dependency check")

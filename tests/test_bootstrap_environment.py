@@ -50,7 +50,8 @@ def test_incomplete_environment_attempts_install_and_propagates_real_pip_failure
                                env=_isolated_environment(), capture_output=True, text=True, timeout=60)
     assert completed.returncode != 0
     assert "Provisioning CoChem UI dependencies" in completed.stdout
-    assert "CalledProcessError" in completed.stderr
+    assert "ModuleInstallationError: Provision CoChem UI dependencies failed (exit " in completed.stderr
+    assert "No matching distribution found" in completed.stderr
     assert not bootstrap_environment._environment_ready(python)
 
 

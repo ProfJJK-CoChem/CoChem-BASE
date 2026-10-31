@@ -350,7 +350,7 @@ class StudentSetupService:
         with tempfile.TemporaryDirectory(prefix=".wheel-build-", dir=location) as temporary:
             copied = Path(temporary) / "source"
             shutil.copytree(source, copied, ignore=shutil.ignore_patterns(".git"), symlinks=True)
-            installer._run([sys.executable, "-I", "-B", "-m", "pip", "wheel", "--no-deps", "--wheel-dir", str(wheels), str(copied)],
+            installer._run_pip(Path(sys.executable), ["wheel", "--no-deps", "--wheel-dir", str(wheels), str(copied)],
                 env=installer._build_env(), label="Build verified private BASE dependency wheel")
         candidates = list(wheels.glob("*.whl"))
         if len(candidates) != 1:

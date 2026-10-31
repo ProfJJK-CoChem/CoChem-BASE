@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import runpy
 import subprocess
 import sys
 import tomllib
@@ -158,11 +159,9 @@ def ensure_dependencies(python: Path) -> None:
     if _environment_ready(python):
         return
     print(f"Provisioning CoChem UI dependencies in {python.parent.parent}...")
-    subprocess.check_call(
-        [
-            str(python),
-            "-m",
-            "pip",
+    installer = runpy.run_path(str(REPO_ROOT / "scripts/manage_modules.py"))
+    installer["_run_pip"](
+        python, [
             "install",
             "--disable-pip-version-check",
             "-e",
@@ -172,6 +171,7 @@ def ensure_dependencies(python: Path) -> None:
             "-r",
             str(REPO_ROOT / "requirements.txt"),
         ],
+        label="Provision CoChem UI dependencies",
         cwd=REPO_ROOT,
         env=build_environment(),
     )
@@ -194,7 +194,10 @@ def ensure_virtual_environment(venv_dir: Path) -> Path:
     python = _python_in(venv_dir)
     if not python.exists():
         print(f"Creating CoChem Python environment at {venv_dir}...")
-        venv.EnvBuilder(with_pip=True).create(venv_dir)
+        venv.EnvBuilder(with_pip=False).create(venv_dir)
+    installer = runpy.run_path(str(REPO_ROOT / "scripts/manage_modules.py"))
+    installer["_ensure_pip"](python, venv_dir, env=build_environment(),
+        label="Bootstrap reviewed interface installer")
     ensure_dependencies(python)
     return python
 

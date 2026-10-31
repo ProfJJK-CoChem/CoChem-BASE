@@ -82,6 +82,7 @@ HOSTED_TESTS = (
     "tests/torq/test_retired_legacy_potential_admission.py",
     "tests/base/test_module_installer.py",
     "tests/base/test_pinned_pip_runtime.py",
+    "tests/base/test_pip_command_context.py",
     "tests/base/test_module_execution.py",
     "tests/base/test_module_adapter_topos.py",
     "tests/base/test_module_adapter_torq.py",

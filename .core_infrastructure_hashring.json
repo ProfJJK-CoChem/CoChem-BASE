@@ -69,7 +69,7 @@
     "scripts/export_topos_evidence.py": "dc6ae27649f3ad93e6348565c0e6d296b88babe2e1c3f6adfaca21741f117bbb",
     "scripts/free_engine_requirements/openmm.txt": "0247ec4eba16e569d8862166f0f50eb306ca961cc573a0fae01748406725366e",
     "scripts/free_engine_requirements/pyscf.txt": "93526fc027287d2b05ee3d27b4fab9ae63c4fcaf8f18b76e001445d7dc60fd8e",
-    "scripts/hosted_dashboard.py": "f875db3a40d1bf314d6028293e3c7103f64a6d6f5336ca29ebb33ddc041e2488",
+    "scripts/hosted_dashboard.py": "cd2b40880a1b6dfb47c8910073ed5dd191f8879ada2dfb4e64869e7d962e5d62",
     "scripts/hosted_module_kit.py": "0485da2b2409ef02d4d2aa46fc032a93391388e1f5f9c0565b639f1ec2cd4413",
     "scripts/install_free_engines.py": "7ee1fa65d2cc6d39c6b643f7a724bfc85d171f1a8a882db03a4fe70356271356",
     "scripts/install_native_free_engines.py": "4d8c429baf329fa99e683dacfdd83ddd552be309e3c6c5c39831fc68192faebd",

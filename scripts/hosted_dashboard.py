@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import re
+import runpy
 import shutil
 import signal
 import socket
@@ -353,10 +354,16 @@ def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) 
     ], cwd=REPO_ROOT, env=build_env, check=True)
     # Explicitly refresh the entire UI contract, including newly added plotting
     # dependencies, even when the bootstrap import probe succeeds on an old venv.
-    subprocess.run([
-        str(python), "-m", "pip", "install", "-e", ".[dev,symmetry]",
+    installer = runpy.run_path(str(REPO_ROOT / "scripts/manage_modules.py"))
+    refresh_output = installer["_run_pip"](python, [
+        "install", "-e", ".[dev,symmetry]",
         "-r", "requirements.txt", "-r", "requirements-ui.txt",
-    ], cwd=REPO_ROOT, env=build_env, check=True)
+    ], cwd=REPO_ROOT, env=build_env, label="Refresh dashboard dependencies")
+    if refresh_output:
+        # The shared runner captures output; retain visible diagnostics after
+        # completion without printing known secrets or URL user information.
+        visible = installer["_redact"](refresh_output, build_env)
+        print(re.sub(r"(https?://)[^/\s]*@", r"\1[redacted]@", visible), flush=True)
     subprocess.run([str(python), "-m", "pip", "check"], env=build_env, check=True)
     paw_inputs = prepare_paw_inputs(python, artifact_dir)
     if paw_inputs["status"] == "failed":

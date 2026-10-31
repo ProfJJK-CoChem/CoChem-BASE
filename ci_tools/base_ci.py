@@ -12,6 +12,7 @@ import configparser
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import shutil
@@ -431,29 +432,65 @@ def evaluate_test_evidence(evidence: dict[str, Any], manifest: dict[str, Any]) -
     if (len(collected_ids) != evidence.get("collected") or len(set(collected_ids)) != len(collected_ids)
             or set(collected_ids) != set(evidence.get("tests", {}))):
         coverage_errors.append("Reported outcomes do not cover every collected test exactly once")
+    subtests = evidence.get("subtests", {})
+    subtest_counts = {"passed": 0, "failed": 0, "skipped": 0, "xfail": 0}
+    supported_subtests = {}
+    if not isinstance(subtests, dict):
+        coverage_errors.append("Malformed builtin subtest outcome map")
+    else:
+        for parent, rows in subtests.items():
+            if parent not in collected_ids or not isinstance(rows, list) or not rows:
+                coverage_errors.append(f"Subtest outcomes have no valid collected parent: {parent}")
+                continue
+            valid = []
+            for row in rows:
+                context = row.get("context") if isinstance(row, dict) else None
+                if (not isinstance(row, dict)
+                        or set(row) != {"phase", "outcome", "reason", "xfail", "duration_seconds", "report_type", "context"}
+                        or row["report_type"] != "_pytest.subtests.SubtestReport" or row["phase"] != "call"
+                        or not isinstance(row["outcome"], str) or row["outcome"] not in {"passed", "failed", "skipped"}
+                        or row["reason"] is not None and not isinstance(row["reason"], str)
+                        or row["xfail"] is not None and not isinstance(row["xfail"], str)
+                        or type(row["duration_seconds"]) not in (int, float)
+                        or not math.isfinite(row["duration_seconds"]) or row["duration_seconds"] < 0
+                        or not isinstance(context, dict) or set(context) != {"msg", "kwargs"}
+                        or context["msg"] is not None and not isinstance(context["msg"], str)
+                        or not isinstance(context["kwargs"], dict)
+                        or any(not isinstance(key, str) or not isinstance(value, str)
+                               for key, value in context["kwargs"].items())):
+                    coverage_errors.append(f"Malformed or unsupported builtin subtest outcome: {parent}")
+                    continue
+                valid.append(row)
+                subtest_counts[row["outcome"]] += 1
+                if row["xfail"] is not None:
+                    subtest_counts["xfail"] += 1
+            supported_subtests[parent] = valid
     for nodeid, phases in evidence.get("tests", {}).items():
         phase_names = [phase["phase"] for phase in phases]
         setup_skipped = any(phase["phase"] == "setup" and phase["outcome"] == "skipped" for phase in phases)
         expected_phases = {"setup", "teardown"} if setup_skipped else {"setup", "call", "teardown"}
         if set(phase_names) != expected_phases or len(phase_names) != len(expected_phases):
             coverage_errors.append(f"Incomplete or duplicate execution phases: {nodeid}")
-        if any(phase["outcome"] == "failed" or phase.get("xfail") for phase in phases):
+        subphases = supported_subtests.get(nodeid, [])
+        node_failed = (any(phase["outcome"] == "failed" or phase.get("xfail") is not None for phase in phases)
+                       or any(phase["outcome"] == "failed" or phase["xfail"] is not None for phase in subphases))
+        if node_failed:
             failed.append(nodeid)
-        skipped = [phase for phase in phases if phase["outcome"] == "skipped"]
+        skipped = [phase for phase in [*phases, *subphases] if phase["outcome"] == "skipped"]
         if skipped:
             entry = deferred.get(nodeid)
             if entry and all(phase["reason"] == entry["expected_skip_reason"] for phase in skipped):
                 pending.append(entry)
             else:
                 unexpected.append({"nodeid": nodeid, "reasons": [phase["reason"] for phase in skipped]})
-        elif any(phase["phase"] == "call" and phase["outcome"] == "passed" for phase in phases):
+        elif not node_failed and any(phase["phase"] == "call" and phase["outcome"] == "passed" for phase in phases):
             passed += 1
     ok = (evidence.get("exit_code") == 0 and evidence.get("collected", 0) > 0
           and passed > 0 and not failed and not unexpected
           and not coverage_errors and not evidence.get("collection_errors") and not evidence.get("deselected"))
     return {"passed": ok, "passed_tests": passed, "failed_tests": failed,
             "pending_external_acceptance": pending, "unexpected_skips": unexpected,
-            "coverage_errors": coverage_errors,
+            "coverage_errors": coverage_errors, "subtest_counts": subtest_counts,
             "collected": evidence.get("collected", 0),
             "scope": "Local runnable acceptance; pending external checks do not count as passed"}
 

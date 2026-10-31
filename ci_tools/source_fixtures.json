@@ -294,6 +294,13 @@
       "purpose": "Frozen-coordinate tangent-gradient, trajectory and constraint parser regression; replay is not fresh calculation acceptance or an accuracy certificate",
       "provenance_status": "recorded_engine_provenance",
       "provenance": "Unmodified ORCA 6.1.1 one-core r2SCAN-3c DEFGRID1 constrained water-dimer stage from BASE 4d4834dcac8a07786e691ba667cbb8d66e650925. Native stage converged; whole original lifecycle was rejected because it gated frozen normal forces. See adjacent provenance.json. No binary or wavefunction checkpoint is included."
+    },
+    {
+      "path": "tests/fixtures/workflow_compatibility/run_student_research-3880882.txt",
+      "sha256": "265e3abcdf76ad3ed9ff863f63fcc1f786e73e9542775c5019c01b543b622b35",
+      "purpose": "Immutable historical public worker flag-presence compatibility input; byte inspection only, not live workflow or science acceptance",
+      "provenance_status": "immutable_public_git_source_blob",
+      "provenance": "Verbatim public ProfJJK-CoChem/CoChem-BASE commit 388088281b8c23951f191edb88f3e865eaa8146d:scripts/run_student_research.py; original Git blob a00d9bec098f163518fe4b32a1ddf27eba37d706. Retained as non-executable text only. Never imported or executed; the test checks the complete SHA-256 before historical CLI token assertions."
     }
   ]
 }

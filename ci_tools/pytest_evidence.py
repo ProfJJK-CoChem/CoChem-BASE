@@ -4,6 +4,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from _pytest.reports import TestReport
+
+try:
+    from _pytest.subtests import SubtestContext, SubtestReport
+except ModuleNotFoundError as error:
+    if error.name != "_pytest.subtests":
+        raise
+    # Older pytest's ordinary reports retain their existing strict accounting.
+    # Third-party subreport types are not silently treated as builtin subtests.
+    SubtestContext = SubtestReport = None
+
 
 def pytest_addoption(parser):
     parser.addoption("--cochem-evidence", help="Write actual per-node acceptance outcomes as JSON")
@@ -11,6 +22,7 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config._cochem_outcomes = {}
+    config._cochem_subtests = {}
     config._cochem_collection_errors = []
     config._cochem_deselected = []
 
@@ -20,16 +32,26 @@ def pytest_runtest_logreport(report):
     # one process; no application test objects or physics values are intercepted.
     if _active_config is None:
         return
-    rows = _active_config._cochem_outcomes.setdefault(report.nodeid, [])
+    subtest = SubtestReport is not None and type(report) is SubtestReport
+    if subtest:
+        if type(report.context) is not SubtestContext or report.when != "call":
+            raise TypeError("Unsupported builtin pytest subtest report/context")
+        rows = _active_config._cochem_subtests.setdefault(report.nodeid, [])
+    elif type(report) is TestReport:
+        rows = _active_config._cochem_outcomes.setdefault(report.nodeid, [])
+    else:
+        raise TypeError("Unsupported pytest runtime report type")
     reason = None
     if report.skipped:
         if isinstance(report.longrepr, tuple):
             reason = str(report.longrepr[2]).removeprefix("Skipped: ")
         else:
             reason = str(report.longrepr)
-    rows.append({"phase": report.when, "outcome": report.outcome, "reason": reason,
-                 "xfail": getattr(report, "wasxfail", None),
-                 "duration_seconds": report.duration})
+    row = {"phase": report.when, "outcome": report.outcome, "reason": reason,
+           "xfail": getattr(report, "wasxfail", None), "duration_seconds": report.duration}
+    if subtest:
+        row.update(report_type="_pytest.subtests.SubtestReport", context=report.context._to_json())
+    rows.append(row)
 
 
 _active_config = None
@@ -71,4 +93,5 @@ def pytest_sessionfinish(session, exitstatus):
             "collection_errors": session.config._cochem_collection_errors,
             "deselected": session.config._cochem_deselected,
             "tests": session.config._cochem_outcomes,
+            "subtests": session.config._cochem_subtests,
         }, indent=2) + "\n", encoding="utf-8")

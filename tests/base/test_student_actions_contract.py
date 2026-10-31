@@ -1058,9 +1058,8 @@ def test_all_three_readonly_barriers_skip_only_canonical_probe_and_keep_legacy_p
     # Preserve the exact approved historical worker as a compatibility fixture.
     # No old application is imported/executed; no source guard is changed.
     root = Path(__file__).resolve().parents[2]
-    legacy = subprocess.run(['git', '-C', str(root), 'show',
-        '388088281b8c23951f191edb88f3e865eaa8146d:scripts/run_student_research.py'],
-        capture_output=True, timeout=10, check=True).stdout
+    legacy = (root / 'tests/fixtures/workflow_compatibility/run_student_research-3880882.txt').read_bytes()
+    assert hashlib.sha256(legacy).hexdigest() == '265e3abcdf76ad3ed9ff863f63fcc1f786e73e9542775c5019c01b543b622b35'
     assert b'--verify-admission-only' not in legacy
     assert b'--verify-worker-only' in legacy and b'capability_probe' in legacy
     route = next(step for step in workflow['jobs']['admission']['steps'] if step.get('id') == 'route')

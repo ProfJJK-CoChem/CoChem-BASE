@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import os
+import runpy
 import subprocess
 import sys
 import tarfile
@@ -193,12 +194,19 @@ def wheel(output: Path, *, expected_revision: str | None = None) -> dict:
     if len(wheels) != 1:
         raise RuntimeError("Expected exactly one freshly built BASE wheel")
     venv = output / "wheel-env"
-    _run([sys.executable, "-m", "venv", str(venv)], output, environment, output / "venv.log", 120)
+    _run([sys.executable, "-B", "-m", "venv", "--without-pip", str(venv)], output, environment, output / "venv.log", 120)
     binary_dir = venv / ("Scripts" if os.name == "nt" else "bin")
     python = binary_dir / ("python.exe" if os.name == "nt" else "python")
     command = binary_dir / ("cochem-cli.exe" if os.name == "nt" else "cochem-cli")
-    _run([str(python), "-m", "pip", "install", "--disable-pip-version-check", str(wheels[0])],
-         output, environment, output / "wheel-install.log")
+    # Direct script execution uses this exact source-local helper, not an
+    # installed/foreign scripts package. The caller retains its real log streams.
+    pip_command = runpy.run_path(str(ROOT / "scripts/manage_modules.py"),
+                                run_name="reviewed_release_pip")["_pip_command"]
+    with pip_command(python, [], env=environment, timeout=120, bootstrap=True) as (argv, prepared, remaining):
+        _run(argv, output, prepared, output / "pip-bootstrap.log", remaining)
+    with pip_command(python, ["install", "--disable-pip-version-check", str(wheels[0])],
+                     env=environment, timeout=1800) as (argv, prepared, remaining):
+        _run(argv, output, prepared, output / "wheel-install.log", remaining)
     _run([str(python), "-m", "pip", "check"], output, environment, output / "pip-check.log", 60)
     for label, argv in (
         ("console-version", [str(command), "--version"]),

@@ -76,19 +76,28 @@ def provision_mace_silo(root: str | Path, *, profile: str = "cpu") -> dict:
         if root.exists() and any(root.iterdir()):
             raise MicroSiloValidationError('Refusing to overwrite a nonempty ML silo')
         root.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run([sys.executable, '-I', '-m', 'venv', str(root)], check=True,
+        subprocess.run([sys.executable, '-I', '-B', '-m', 'venv', '--without-pip', str(root)], check=True,
                        env=isolated_environment(), timeout=120)
+        from scripts.manage_modules import _pip_command
+
+        with (root/'install-bootstrap.log').open('x') as stream:
+            with _pip_command(python, [], env=isolated_environment(), timeout=120,
+                              bootstrap=True) as (command, environment, remaining):
+                subprocess.run(command, check=True, env=environment, timeout=remaining,
+                               stdout=stream, stderr=subprocess.STDOUT)
         commands = [
-            [str(python), '-I', '-m', 'pip', 'install', '--disable-pip-version-check', '--no-input',
+            ['install', '--disable-pip-version-check', '--no-input',
              '--no-deps', '--report', str(root/'torch-install-report.json'), *wheel_sources.values()],
-            [str(python), '-I', '-m', 'pip', 'install', '--disable-pip-version-check', '--no-input',
+            ['install', '--disable-pip-version-check', '--no-input',
              '--no-deps', '--report', str(root/'mace-install-report.json'),
              *[pin for pin in requirements if pin.split('==', 1)[0] not in wheel_sources]],
         ]
-        for number, command in enumerate(commands):
+        for number, arguments in enumerate(commands):
             with (root/f'install-{number}.log').open('x') as stream:
-                subprocess.run(command, check=True, env=isolated_environment(), timeout=3600,
-                               stdout=stream, stderr=subprocess.STDOUT)
+                with _pip_command(python, arguments, env=isolated_environment(),
+                                  timeout=3600) as (command, environment, remaining):
+                    subprocess.run(command, check=True, env=environment, timeout=remaining,
+                                   stdout=stream, stderr=subprocess.STDOUT)
     evidence = verify_micro_silo(root, python_version='3.12', requirements=requirements,
                                  imports=['torch', 'mace', 'e3nn'])
     observed = probe_torch_runtime(root)

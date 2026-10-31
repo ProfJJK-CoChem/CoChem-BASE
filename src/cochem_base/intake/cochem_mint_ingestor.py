@@ -52,11 +52,15 @@ def bootstrap_watchdog() -> bool:
     if HAS_WATCHDOG:
         return True
     try:
-        cmd = [sys.executable, "-m", "pip", "install", "watchdog==6.0.0"]
-        if safe_subprocess_run is not None:
-            safe_subprocess_run(cmd, timeout=60.0, check=True)
-        else:
-            subprocess.run(cmd, check=True, timeout=60.0, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        from scripts.manage_modules import _pip_command
+
+        with _pip_command(Path(sys.executable), ["install", "watchdog==6.0.0"],
+                          env=dict(os.environ), timeout=60.0) as (cmd, environment, remaining):
+            if safe_subprocess_run is not None:
+                safe_subprocess_run(cmd, env=environment, timeout=remaining, check=True)
+            else:
+                subprocess.run(cmd, env=environment, check=True, timeout=remaining,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         importlib.invalidate_caches()
         importlib.reload(site)
 

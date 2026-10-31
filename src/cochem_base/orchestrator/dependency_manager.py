@@ -9,6 +9,7 @@ SRS Document 2 Part 2, SRS Document 4, and SRS Document 5 Compliant.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -690,26 +691,36 @@ class DependencyManager:
         check: bool = False,
     ) -> PipExecutionResult:
         """
-        Execute a pip command using the specified Python binary or system python.
+        Execute pip with actual subprocess results and a lexical target interpreter.
+
+        Known installed-pip reads do not acquire an artifact. Other commands
+        use the reviewed wheel; prelaunch admission errors raise without a
+        fabricated PipExecutionResult, including when check=False.
         """
-        py_exe = str(Path(python_executable).resolve()) if python_executable else sys.executable
+        py_exe = str(Path(python_executable).absolute()) if python_executable else sys.executable
         cmd = [py_exe, "-m", "pip"] + args
 
         exec_env = os.environ.copy()
         if env:
             exec_env.update(env)
 
+        from scripts.manage_modules import _pip_command, _pip_command_is_readonly
+
         start_time = time.perf_counter()
+        prepared = (contextlib.nullcontext((cmd, exec_env, timeout))
+                    if _pip_command_is_readonly(args) else
+                    _pip_command(Path(py_exe), args, env=exec_env, timeout=timeout))
         try:
-            res = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                cwd=str(cwd) if cwd else None,
-                timeout=timeout,
-                env=exec_env,
-                check=False,
-            )
+            with prepared as (cmd, execution_env, remaining):
+                res = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    cwd=str(cwd) if cwd else None,
+                    timeout=remaining,
+                    env=execution_env,
+                    check=False,
+                )
             duration = round(time.perf_counter() - start_time, 3)
             success = res.returncode == 0
             stdout_str = res.stdout or ""

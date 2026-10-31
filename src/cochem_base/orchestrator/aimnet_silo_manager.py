@@ -37,19 +37,28 @@ def provision_aimnet_silo(root: str | Path) -> dict:
         if root.exists() and any(root.iterdir()):
             raise MicroSiloValidationError("Refusing to overwrite a nonempty AIMNet silo")
         root.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run([sys.executable, "-I", "-m", "venv", str(root)], check=True,
+        subprocess.run([sys.executable, "-I", "-B", "-m", "venv", "--without-pip", str(root)], check=True,
                        env=isolated_environment(), timeout=120)
+        from scripts.manage_modules import _pip_command
+
+        with (root / "aimnet-install-bootstrap.log").open("x") as stream:
+            with _pip_command(python, [], env=isolated_environment(), timeout=120,
+                              bootstrap=True) as (command, environment, remaining):
+                subprocess.run(command, check=True, env=environment, timeout=remaining,
+                               stdout=stream, stderr=subprocess.STDOUT)
         commands = [
-            [str(python), "-I", "-m", "pip", "install", "--disable-pip-version-check", "--no-input",
+            ["install", "--disable-pip-version-check", "--no-input",
              "--no-deps", "--report", str(root / "torch-install-report.json"), TORCH_CPU_WHEEL],
-            [str(python), "-I", "-m", "pip", "install", "--disable-pip-version-check", "--no-input",
+            ["install", "--disable-pip-version-check", "--no-input",
              "--no-deps", "--report", str(root / "aimnet-install-report.json"),
              *[pin for pin in DEFAULT_PINS["aimnet2"] if not pin.startswith("torch==")]],
         ]
-        for number, command in enumerate(commands):
+        for number, arguments in enumerate(commands):
             with (root / f"aimnet-install-{number}.log").open("x") as stream:
-                subprocess.run(command, check=True, env=isolated_environment(), timeout=900,
-                               stdout=stream, stderr=subprocess.STDOUT)
+                with _pip_command(python, arguments, env=isolated_environment(),
+                                  timeout=900) as (command, environment, remaining):
+                    subprocess.run(command, check=True, env=environment, timeout=remaining,
+                                   stdout=stream, stderr=subprocess.STDOUT)
     # Warp emits a native initialization banner. Keep the generic JSON-stream
     # probe to torch and verify the remaining imports through the file probe.
     evidence = verify_micro_silo(root, python_version="3.12", requirements=DEFAULT_PINS["aimnet2"],

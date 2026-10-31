@@ -228,15 +228,27 @@ def _pinned_pip_bytes(*, env: dict[str, str], wheel: Path | None = None,
         raise ModuleInstallationError("Pinned pip artifact could not be read using the configured TLS/proxy trust; check setup access and retry.") from error
 
 
-def _run_pip(python: Path, arguments: list[str], *, env: dict[str, str], label: str,
-             cwd: Path | None = None, timeout: float = 1800, wheel: Path | None = None,
-             bootstrap: bool = False) -> str:
-    """Run only the reviewed pip wheel, without upgrading an existing caller.
+def _pip_command_is_readonly(arguments: list[str]) -> bool:
+    """Recognize only legacy installed-pip reads; unknown forms stay protected.
 
-    The optional local artifact (or COCHEM_PINNED_PIP_WHEEL) is data delivery,
-    never a version/URL override. An invalid supplied artifact never falls back
-    to downloading or to the interpreter's installed pip. Fresh environments
-    alone use bootstrap=True to install this same verified wheel offline.
+    This classifier is for callers with an existing read-only route. Neither
+    _pip_command nor _run_pip bypasses the verified tool based on arguments.
+    """
+    return arguments in (["--version"], ["-V"]) or bool(arguments) and arguments[0] in {
+        "list", "check", "freeze",
+    }
+
+
+@contextlib.contextmanager
+def _pip_command(python: Path, arguments: list[str], *, env: dict[str, str],
+                 timeout: float = 1800, wheel: Path | None = None,
+                 bootstrap: bool = False):
+    """Yield actual argv, prepared env and remaining budget for a caller executor.
+
+    The verified private0400 wheel remains alive until the caller leaves this
+    context. Admission/materialization failures occur before yield. Exceptions
+    from the caller's executor retain their original type and process evidence;
+    this context never translates them into artifact-admission failures.
     """
     if bootstrap and arguments:
         raise ModuleInstallationError("Pinned pip bootstrap accepts no package arguments.")
@@ -246,30 +258,49 @@ def _run_pip(python: Path, arguments: list[str], *, env: dict[str, str], label: 
     data = _pinned_pip_bytes(env=env, wheel=wheel, timeout=timeout)
     environment = _build_env(env)
     environment.pop("COCHEM_PINNED_PIP_WHEEL", None)
-    try:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise ModuleInstallationError("Pinned pip setup budget expired before execution.")
-        with tempfile.TemporaryDirectory(prefix="cochem-pinned-pip-") as folder:
+    with contextlib.ExitStack() as owned:
+        try:
+            folder = owned.enter_context(tempfile.TemporaryDirectory(prefix="cochem-pinned-pip-"))
             verified = Path(folder) / PINNED_PIP_FILENAME
             verified.write_bytes(data)
             verified.chmod(0o400)
             selected = (["install", "--no-index", "--no-deps", "--no-cache-dir",
                          "--disable-pip-version-check", str(verified)] if bootstrap else arguments)
             if bootstrap:
-                # No inherited requirement/config may add an install input or
-                # redirect this one local wheel outside the fresh prefix.
+                # Only this exact local wheel may seed the fresh target prefix.
                 environment = {key: value for key, value in environment.items()
                                if not key.startswith("PIP_")}
                 environment.update(PIP_CONFIG_FILE=os.devnull, PIP_NO_INDEX="1",
                                    PIP_DISABLE_PIP_VERSION_CHECK="1", PIP_NO_INPUT="1")
-            # This is pip's own wheelpath entry point, supported by __main__.
-            return _run([str(python), "-I", "-B", str(verified) + "/pip", *selected],
-                        env=environment, label=label, cwd=cwd, timeout=remaining)
-    except ModuleInstallationError:
-        raise
-    except (OSError, ValueError) as error:
-        raise ModuleInstallationError("Pinned pip artifact could not be read using the configured TLS/proxy trust; check setup access and retry.") from error
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ModuleInstallationError("Pinned pip setup budget expired before execution.")
+            command = [str(python), "-I", "-B", str(verified) + "/pip", *selected]
+        except ModuleInstallationError:
+            raise
+        except (OSError, ValueError) as error:
+            raise ModuleInstallationError("Pinned pip artifact could not be read using the configured TLS/proxy trust; check setup access and retry.") from error
+        # Keep the setup exception handler above this yield: caller failures
+        # must not be reported as failed artifact checks or fabricated results.
+        yield command, environment, remaining
+
+
+def _run_pip(python: Path, arguments: list[str], *, env: dict[str, str], label: str,
+             cwd: Path | None = None, timeout: float = 1800, wheel: Path | None = None,
+             bootstrap: bool = False) -> str:
+    """Run the verified wheel using the existing captured-output executor.
+
+    Explicit calls, including --version/check, always use the reviewed artifact.
+    Legacy callers choose their own known installed-pip read-only routes.
+    """
+    with _pip_command(python, arguments, env=env, timeout=timeout, wheel=wheel,
+                      bootstrap=bootstrap) as (command, environment, remaining):
+        try:
+            return _run(command, env=environment, label=label, cwd=cwd, timeout=remaining)
+        except (OSError, ValueError) as error:
+            # Preserve this wrapper's public exception contract while keeping
+            # the shared context transparent for other executors/callers.
+            raise ModuleInstallationError("Pinned pip could not execute with the configured interpreter, working directory or process settings; no process result is available.") from error
 
 
 def _ensure_pip(python: Path, expected_prefix: Path, *, env: dict[str, str], label: str,

@@ -13,7 +13,7 @@ import pytest
 from ci_tools.source_quarantine import source_paths
 
 
-@pytest.mark.parametrize("case", ["guided_navigation", "help_preserves_draft", "advanced_preserves_draft", "persistent_state_and_results", "goal_remains_visible", "displayed_summary_download_bytes"])
+@pytest.mark.parametrize("case", ["guided_navigation", "help_preserves_draft", "advanced_preserves_draft", "persistent_state_and_results", "goal_remains_visible", "displayed_summary_download_bytes", "xtb_task_navigation"])
 def test_beginner_workspace_in_source_child(tmp_path, case):
     source = Path(__file__).resolve().parents[2]
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join(source_paths(source)),
@@ -40,7 +40,7 @@ def _draft(gui):
         gui.matrix_engine.value, gui.matrix_method.value, gui.matrix_basis.value,
         gui.matrix_tier.value, gui.matrix_solvation.value, gui.product_class_selector.value,
         gui.cb_recipe_r1.value, gui.cb_recipe_r2.value,
-        gui.native_operation.value, gui.actions_operation.value)
+        gui.native_operation.value, gui.actions_operation.value, gui.xtb_task.value)
 
 
 def _exercise(case):
@@ -74,6 +74,23 @@ def _exercise(case):
     digest = hashlib.sha256(original.read_bytes()).hexdigest()
     assert original.read_bytes() == raw and gui.btn_execute.disabled
 
+    if case == "xtb_task_navigation":
+        assert gui.xtb_task.value == "optimization"
+        assert gui.xtb_task not in gui._initial_library_state_models
+        assert len(gui._initial_library_state_models) == 15
+        gui.xtb_task.value = "single_point"
+        chosen = _draft(gui)
+        assert gui.xtb_task_controls in tuple(_walk(gui.telemetry_panel))
+        assert gui.xtb_task_controls.layout.display == ""
+        assert "task Calculate energy at the current geometry" in gui.guided_draft_status.value
+        for button in gui.guided_step_buttons.values():
+            button.click()
+            assert _draft(gui) == chosen
+            assert gui.xtb_task.value == "single_point"
+        assert gui.charge_input.value == 1 and gui.multiplicity_input.value == 2
+        assert gui.btn_execute.disabled
+        assert original.read_bytes() == raw and hashlib.sha256(original.read_bytes()).hexdigest() == digest
+        return
     if case == "guided_navigation":
         assert list(gui.guided_step_buttons) == ["install", "inputs", "matrix", "modules"]
         for view, button in gui.guided_step_buttons.items():

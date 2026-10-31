@@ -8,13 +8,16 @@ from pathlib import Path
 
 import pytest
 
+from ci_tools.source_quarantine import source_paths
+
 
 @pytest.mark.parametrize("case", [
     "operation_fields", "shared_status", "clear_selection", "scan_sampling",
     "comparison_guidance", "contextual_help",
 ])
 def test_actual_research_widgets_in_fresh_process(tmp_path, case):
-    environment = dict(os.environ,
+    source = Path(__file__).resolve().parents[2]
+    environment = dict(os.environ, PYTHONPATH=os.pathsep.join(source_paths(source)),
         COCHEM_CONFIG=str(tmp_path / "absent-registry.json"),
         COCHEM_ARTIFACT_DIR=str(tmp_path / "artifacts"),
         COCHEM_ARTIFACTS=str(tmp_path / "artifacts"),
@@ -34,9 +37,21 @@ def _descendants(widget):
 
 
 def _exercise(case):
+    source = Path(__file__).resolve().parents[2]
+    if os.environ.get("COCHEM_SOURCE_QUARANTINE_ROOT"):
+        startup = sys.modules.get("sitecustomize")
+        assert startup is not None and Path(startup.__file__).resolve() == source / "ci_tools/quarantine_startup/sitecustomize.py"
+        guard = sys.modules["ci_tools.source_quarantine"]
+        assert Path(guard.__file__).resolve() == source / "ci_tools/source_quarantine.py"
+        state = guard._active
+        assert state is not None and state["copied"] == source
+        assert state["original"] == Path(os.environ["COCHEM_SOURCE_QUARANTINE_ORIGINAL"]).resolve()
+        assert state["revision"] == os.environ["COCHEM_SOURCE_QUARANTINE_REVISION"]
     import ipywidgets as widgets
 
     from ui.voila_layout.cochem_gui import CoChemGUI
+    import ui.voila_layout.cochem_gui as gui_module
+    assert Path(gui_module.__file__).resolve() == source / "ui/voila_layout/cochem_gui.py"
     from ui.voila_layout.disclosure import Disclosure
     from ui.voila_layout.research_panels import OPERATION_LABELS
 
@@ -105,8 +120,19 @@ def _exercise(case):
         assert tuple(gui._research_observations) == observations_before
         assert gui.research_report_output.value == displayed_before
         assert gui.research_report_download.value == downloads_before
+        assert "Selection cleared." in gui.research_comparison_status.value
         gui.research_isomer_choices.value = (1,)
         assert gui.research_isomer_choices.value == (1,)
+        assert gui.research_comparison_status.value == ""
+        gui.btn_research_clear_selection.click()
+        assert "Selection cleared." in gui.research_comparison_status.value
+        gui.research_comparison_status.value = "Other comparison guidance"
+        gui.research_isomer_choices.value = (0, 1)
+        assert gui.research_comparison_status.value == "Other comparison guidance"
+        assert tuple(gui._research_reports) == reports_before
+        assert tuple(gui._research_observations) == observations_before
+        assert gui.research_report_output.value == displayed_before
+        assert gui.research_report_download.value == downloads_before
         assert gui.btn_research_compare.disabled
         return
     if case == "scan_sampling":

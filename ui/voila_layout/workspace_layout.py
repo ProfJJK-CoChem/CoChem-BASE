@@ -378,7 +378,7 @@ def _calculations(gui: Any) -> None:
     gui.telemetry_panel.layout.border = ""
     gui.telemetry_panel.layout.padding = "0"
     gui.telemetry_panel.add_class("cochem-section")
-    gui.telemetry_panel.children = (gui.telemetry_panel.children[0], _text(help_html("convergence_frequencies")),
+    gui.telemetry_panel.children = (gui.telemetry_panel.children[0], gui.xtb_task_controls, _text(help_html("convergence_frequencies")),
                                     *gui.telemetry_panel.children[1:])
 
     def tool_changed(_: Any = None) -> None:
@@ -488,16 +488,26 @@ def _guided_shell(gui: Any) -> None:
         gui.guided_goal_status.value = (
             "<p><b>Selected scientific goal:</b> " + html.escape(goal_label)
             + ". Goal selection is not validation.</p>")
+        task_summary = ""
+        if program == "XTB":
+            task = dict((value, label) for label, value in gui.xtb_task.options)[gui.xtb_task.value]
+            route = gui.calc_env_dropdown.value
+            task_summary = "; task " + task
+            if route in {"github-actions", "hpc"}:
+                task_summary += "; remote route supports optimization only"
+                if gui.xtb_task.value == "single_point":
+                    task_summary += "; submission blocked for this preserved single-point draft"
         gui.guided_draft_status.value = (
             "<p><b>Selected class:</b> " + html.escape(str(selected_goal)) + ". " + html.escape(meaning) + "</p>"
             "<p><b>Current settings:</b> program " + html.escape(str(program)) + "; method " + html.escape(str(method))
             + "; basis " + html.escape(str(gui.matrix_basis.value or "not selected"))
-            + ".</p>"
+            + html.escape(task_summary) + ".</p>"
             "<p class='cochem-hint'>These are your current settings, not a completed or validated result.</p>")
 
     gui.state.observe(update_current, names="active_view")
     for field in (gui.matrix_engine, gui.matrix_method, gui.matrix_basis, gui.product_class_selector,
-                  gui.matrix_geometry, gui.student_geometry_choice, gui.charge_input, gui.multiplicity_input):
+                  gui.matrix_geometry, gui.student_geometry_choice, gui.charge_input, gui.multiplicity_input,
+                  gui.xtb_task, gui.calc_env_dropdown):
         field.observe(update_current, names="value")
     update_current()
     gui.guided_journey = widgets.VBox([

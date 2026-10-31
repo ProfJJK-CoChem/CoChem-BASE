@@ -133,6 +133,15 @@ def test_gui_executes_real_xtb_optimization(tmp_path, audited_xtb):
     _run_physical_gui_case("optimize", tmp_path, audited_xtb)
 
 
+def test_gui_executes_real_xtb_single_point(tmp_path, audited_xtb):
+    _run_physical_gui_case("single-point", tmp_path, audited_xtb)
+
+
+def test_xtb_task_settings_in_actual_source_widget(tmp_path):
+    _run_physical_gui_case("task-settings", tmp_path, tmp_path / "absent-registry.json")
+    assert not list(tmp_path.rglob("result.json"))
+
+
 def test_native_widget_child_proves_source_origins_without_calculation(tmp_path):
     _run_physical_gui_case("source-origin", tmp_path, tmp_path / "absent-registry.json")
     assert not list(tmp_path.rglob("result.json"))
@@ -141,6 +150,7 @@ def test_native_widget_child_proves_source_origins_without_calculation(tmp_path)
 def _run_physical_gui_case(case, directory, registry):
     environment = dict(os.environ, COCHEM_CONFIG=str(registry),
                        COCHEM_COMPLEXES_H5=str(directory / "complexes.h5"),
+                       COCHEM_STUDENT_AUTO_SETUP="0", COCHEM_STUDENT_AUTO_REMOTE_CHECK="0",
                        PYTHONDONTWRITEBYTECODE="1", PYTHONPATH=os.pathsep.join(source_paths(ROOT)))
     completed = subprocess.run([sys.executable, "-B", str(Path(__file__).resolve()), case, str(directory)],
                                env=environment, capture_output=True, text=True, timeout=90)
@@ -154,12 +164,17 @@ def _exercise_physical_gui_case(case, tmp_path):
     if case == "actions-export":
         _exercise_actions_export(tmp_path)
         return
-    if case not in {"cancel", "optimize"}:
+    if case == "task-settings":
+        _exercise_xtb_task_settings()
+        return
+    if case not in {"cancel", "optimize", "single-point"}:
         raise ValueError("Unknown physical GUI case")
     gui = CoChemGUI()
     gui.matrix_geometry.value = WATER
     gui.matrix_engine.value = "XTB"
     gui.artifact_output_path.value = str(tmp_path)
+    if case == "single-point":
+        gui.xtb_task.value = "single_point"
     if case == "cancel":
         config_path = gui._prepare_pipeline()
         gui._pipeline_running = True
@@ -172,10 +187,18 @@ def _exercise_physical_gui_case(case, tmp_path):
         assert gui.btn_research_compare.disabled
         return
     assert not gui.btn_execute.disabled, gui.engine_warning.value
+    disabled_transitions = []
+    def task_busy_changed(change):
+        disabled_transitions.append((change["new"], gui.xtb_task.value))
+    gui.xtb_task.observe(task_busy_changed, names="disabled")
     gui._execute_pipeline(None)
     gui._pipeline_worker.join(timeout=45)
     assert not gui._pipeline_worker.is_alive()
-    assert gui.state.system_status == "Optimization Finished", gui.state.error_message
+    assert gui.state.system_status == ("Single Point Finished" if case == "single-point" else "Optimization Finished"), gui.state.error_message
+    assert not gui.xtb_task.disabled
+    selected_task = "single_point" if case == "single-point" else "optimization"
+    assert gui.xtb_task.value == selected_task
+    assert disabled_transitions == [(True, selected_task), (False, selected_task)]
     executions = list(tmp_path.rglob("execution.json"))
     assert len(executions) == 1
     execution = json.loads(executions[0].read_text())
@@ -183,8 +206,33 @@ def _exercise_physical_gui_case(case, tmp_path):
     published = executions[0].parent
     payload = json.loads((published / "result.json").read_text())
     assert payload["engine"] == "xtb" and payload["scope"] == "screening"
-    assert payload["optimization_converged"] is True
+    assert payload["optimization_converged"] is (None if case == "single-point" else True)
+    assert execution["operation"] == ("single_point" if case == "single-point" else "optimization")
     assert payload["energy_hartree"] < 0
+    card = gui.calculation_result.value
+    assert "Saved xTB screening result" in card
+    assert "Total charge:</b> 0" in card and "Spin multiplicity:</b> 1" in card
+    assert "Calculation details and provenance" in card
+    assert ("No geometry optimization was requested" in card) is (case == "single-point")
+    assert ("optimizer’s stopping checks passed" in card) is (case == "optimize")
+    assert "Optimization converged: False" not in card
+    gui.xtb_task.value = "optimization" if case == "single-point" else "single_point"
+    gui.charge_input.value = 1
+    gui.multiplicity_input.value = 2
+    assert gui.calculation_result.value == card
+    gui._publish_completed_xtb_result(execution, published)
+    assert gui.calculation_result.value == card
+    status = gui.state.system_status
+    gui._publish_completed_xtb_result({**execution, "operation": "unsupported"}, published)
+    assert "saved result details are unavailable" in gui.calculation_result.value
+    assert gui.state.system_status == status
+    gui._publish_completed_xtb_result(execution, published)
+    if case == "single-point":
+        assert len(gui._research_observations) == 1
+        assert tuple(gui.research_isomer_choices.options) == (("Local calculation 1 · GFN2-xTB · Electronic energy", 0),)
+        assert gui._research_observations[0]["electronic_state"] == {"charge": 0, "multiplicity": 1}
+        assert gui._research_observations[0]["minimum_verified"] is False
+        return
     from cochem_base.core_engine.scientific_telemetry import read_scientific_results
     import numpy as np
 
@@ -227,6 +275,68 @@ def _exercise_physical_gui_case(case, tmp_path):
     for evaluation in evaluations:
         source = evaluation["gradient_artifact"]
         assert hashlib.sha256((published / source["path"]).read_bytes()).hexdigest() == source["sha256"]
+
+
+def _exercise_xtb_task_settings():
+    from ui.voila_layout.cochem_gui import MethodologyViolationError
+    gui = CoChemGUI()
+    assert tuple(gui.xtb_task.options) == (
+        ("Calculate energy at the current geometry", "single_point"),
+        ("Optimize the geometry", "optimization"))
+    assert gui.xtb_task.value == "optimization"
+    assert gui.xtb_task.description == "Calculation task:"
+    assert gui.xtb_task._view_count is None
+    assert gui.xtb_task not in gui._initial_library_state_models
+    assert len(gui._initial_library_state_models) == 15
+    gui.matrix_geometry.value = WATER
+    gui.matrix_engine.value = "XTB"
+    state = (gui.matrix_geometry.value, gui.charge_input.value, gui.multiplicity_input.value,
+             gui.product_class_selector.value, gui.matrix_method.value, gui.matrix_basis.value)
+    for task in ("single_point", "optimization", "single_point"):
+        gui.xtb_task.value = task
+        config = gui._collect_run_config()
+        assert config["is_opt"] is (task == "optimization") and config["is_freq"] is False
+        assert gui.btn_execute.description == ("Calculate energy" if task == "single_point" else "Optimize geometry")
+        assert (gui.matrix_geometry.value, gui.charge_input.value, gui.multiplicity_input.value,
+                gui.product_class_selector.value, gui.matrix_method.value, gui.matrix_basis.value) == state
+    for engine in ("PYSCF", "XTB"):
+        gui.matrix_engine.value = engine
+        assert gui.xtb_task.value == "single_point"
+    gui.gh_repo_input.value = "course-organization/student-water"
+    for route in ("github-actions", "hpc"):
+        gui.calc_env_dropdown.value = route
+        assert gui.xtb_task.value == "single_point"
+        assert gui.xtb_task_controls.layout.display == ""
+        assert "If your assignment calls for optimization, choose <b>Optimize the geometry</b> here" in gui.xtb_task_controls.children[1].value
+        assert gui.btn_execute.disabled
+        assert "selected single-point task is unsupported" in gui.engine_warning.value
+        assert "submission blocked for this preserved single-point draft" in gui.guided_draft_status.value
+        with pytest.raises(MethodologyViolationError, match="single-point task is unsupported"):
+            gui._collect_run_config()
+        preserved = (gui.matrix_geometry.value, gui.charge_input.value, gui.multiplicity_input.value,
+                     gui.product_class_selector.value, gui.matrix_method.value, gui.matrix_basis.value)
+        gui.xtb_task.value = "optimization"
+        assert gui.calc_env_dropdown.value == route
+        recovered = gui._collect_run_config()
+        assert recovered["is_opt"] is True and recovered["is_freq"] is False
+        assert "single-point task is unsupported" not in gui.engine_warning.value
+        assert "submission blocked" not in gui.guided_draft_status.value
+        assert (gui.matrix_geometry.value, gui.charge_input.value, gui.multiplicity_input.value,
+                gui.product_class_selector.value, gui.matrix_method.value, gui.matrix_basis.value) == preserved
+        gui.xtb_task.value = "single_point"
+        assert gui.calc_env_dropdown.value == route and gui.btn_execute.disabled
+        with pytest.raises(MethodologyViolationError, match="single-point task is unsupported"):
+            gui._collect_run_config()
+    gui.calc_env_dropdown.value = "linux"
+    assert gui.xtb_task.value == "single_point" and gui.xtb_task_controls.layout.display == ""
+    assert gui._collect_run_config()["is_opt"] is False
+    gui.xtb_task.value = "optimization"
+    for route in ("github-actions", "hpc"):
+        gui.calc_env_dropdown.value = route
+        assert gui._collect_run_config()["is_opt"] is True
+        assert "remote route supports optimization only" in gui.guided_draft_status.value
+        assert "submission blocked" not in gui.guided_draft_status.value
+    assert not gui._research_observations
 
 
 def test_pyscf_gui_configuration_is_a_single_point_and_rejects_open_shell():

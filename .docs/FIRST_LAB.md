@@ -78,6 +78,21 @@ the mathematical approximation used for the calculation. It affects the
 meaning of your result, so do not choose it only because its name sounds more
 advanced.
 
+Check what you want the program to do before submitting:
+
+| Task | What changes | What you can learn |
+| --- | --- | --- |
+| **Calculate energy at the current geometry** (single point) | The atom positions stay as supplied. | The chosen model's energy for that particular arrangement. |
+| **Optimize the geometry** | The program adjusts the allowed atom positions. | A nearby structure that satisfies the optimizer's stopping checks, if it converges. This alone does not prove a minimum. |
+
+For xTB, choose using **Calculation task**. A prepared local xTB route supports
+both tasks; remote xTB currently supports optimization only. If a selected
+single point is unavailable after switching to a remote route, CoChem keeps your
+choice and blocks submission. Use a prepared local computer for that single
+point, or explicitly choose **Optimize the geometry** on the same page if that
+is your assigned task. Other engines show their own supported choices. Recheck
+the task and run-button label after changing the engine or calculation location.
+
 For the course's remote route, choose **Run on GitHub Actions**. For another
 prepared route, use its displayed submit button. Read the status:
 **waiting** or **queued** means the job has not finished. **Running** means it
@@ -103,6 +118,9 @@ Choose **Retrieve and inspect results** when CoChem offers it for the completed
 hosted job, then open **Results**.
 Check that the record belongs to your molecule and the settings you submitted.
 Read the completion status, warnings and units before using a number or plot.
+The result records the settings used for that calculation. Changing the current
+charge, spin or method afterward does not change a completed result. Open
+**Calculation details**, when available, to inspect the saved evidence.
 
 Use these questions to guide your interpretation:
 
@@ -111,7 +129,10 @@ Use these questions to guide your interpretation:
   information; optimization alone does not prove it is the lowest-energy isomer.
 - **Energy:** which quantity is shown, and in what units? Compare results only
   when their compositions, methods and conditions support that comparison.
-  Electronic energy alone does not give equilibrium populations.
+  Electronic energy alone does not give equilibrium populations. Extra decimal
+  places do not establish accuracy: a tiny difference can be smaller than the
+  numerical or model uncertainty, so its sign alone does not establish which
+  structure is preferred.
 - **Spectrum:** what property and horizontal-axis units are shown? A calculated
   vibrational spectrum uses an approximation. Its peaks are not automatically
   the peaks of an experimental sample.

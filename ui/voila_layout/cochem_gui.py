@@ -328,6 +328,40 @@ def licensed_engine_availability(registry_path: str | Path | None = None) -> dic
 from cochem_base.interfaces.student_hpc import StudentHpcSubmissionUnknown
 
 
+def completed_xtb_result_html(execution_receipt: dict, results_directory: Path) -> str:
+    """Describe a saved local result, independently of every current draft field."""
+    from cochem_base.interfaces.student_reports import (
+        observation_from_completed_local_calculation, verify_source,
+    )
+    observation = observation_from_completed_local_calculation(
+        execution_receipt, results_directory=results_directory)
+    saved = {name: json.loads((results_directory / name).read_text(encoding="utf-8"))
+             for name in ("matrix_config.validated.json", "result.json", "execution_authority.json")}
+    for source in observation["provenance_sources"]:
+        verify_source(source)
+    state = observation["electronic_state"]
+    explanation = (
+        "Energy calculated at the supplied geometry. No geometry optimization was requested."
+        if execution_receipt["operation"] == "single_point" else
+        "Geometry optimization finished. The optimizer’s stopping checks passed. "
+        "This does not prove that the structure is a minimum.")
+    details = {"actual_execution": execution_receipt, "saved_configuration": saved["matrix_config.validated.json"],
+               "final_result": saved["result.json"], "execution_authority": saved["execution_authority.json"],
+               "retained_source_receipts": observation["provenance_sources"]}
+    return (
+        "<section class='cochem-saved-result'><h3>Saved xTB screening result</h3>"
+        "<p>" + html.escape(explanation) + "</p>"
+        "<p><b>Method:</b> " + html.escape(observation["method"]["method"])
+        + "<br><b>Electronic energy:</b> " + f"{observation['energy_hartree']:.12f} Hartree"
+        + "<br><b>Total charge:</b> " + str(state["charge"])
+        + " · <b>Spin multiplicity:</b> " + str(state["multiplicity"]) + "</p>"
+        "<p>These are the saved calculation’s settings. Changes to your current draft do not change this result. "
+        "No product accuracy certification or population model is established.</p>"
+        "<details class='cochem-calculation-details'><summary>Calculation details and provenance</summary><pre>"
+        + html.escape(json.dumps(details, indent=2, allow_nan=False)) + "</pre></details></section>"
+    )
+
+
 class CoChemGUI(InputManagementMixin):
     def __init__(self) -> None:
         from ui.voila_layout.initial_widget_state import ensure_widget_runtime
@@ -487,6 +521,14 @@ class CoChemGUI(InputManagementMixin):
                                                     style={'description_width': 'initial'})
         self.native_operation = widgets.Dropdown(options=list(self.actions_operation.options), value='optimization',
             description='Calculation operation:', style={'description_width': 'initial'})
+        self.xtb_task = widgets.Dropdown(
+            options=[("Calculate energy at the current geometry", "single_point"),
+                     ("Optimize the geometry", "optimization")],
+            value="optimization", description="Calculation task:",
+            style={"description_width": "initial"}, layout=widgets.Layout(width="100%"))
+        self.xtb_task_controls = widgets.VBox([self.xtb_task, widgets.HTML(
+            "<p class='cochem-hint'>Calculating energy keeps the supplied coordinates fixed. "
+            "Optimizing lets the atoms move. Neither task proves that a structure is a minimum.</p>")])
         self.native_timeout = widgets.BoundedIntText(value=1800, min=30, max=172800,
             description='Native timeout (s):', style={'description_width': 'initial'})
         self.native_job_options = widgets.VBox([self.native_operation, self.native_timeout,
@@ -937,6 +979,8 @@ class CoChemGUI(InputManagementMixin):
         self.matrix_engine.observe(update_preview, 'value')
         self.actions_operation.observe(update_preview, 'value')
         self.native_operation.observe(update_preview, 'value')
+        self.xtb_task.observe(update_preview, 'value')
+        self.xtb_task.observe(self._check_dispersion_gate, 'value')
         self.native_timeout.observe(update_preview, 'value')
         self.native_operation.observe(self._check_dispersion_gate, 'value')
         self.cfour_operation.observe(update_preview, 'value')
@@ -4396,8 +4440,21 @@ class CoChemGUI(InputManagementMixin):
                     # controls enabled until the next installation refresh.
                     self._refresh_engine_choices()
                     return
+        self.xtb_task_controls.layout.display = "" if self.matrix_engine.value == "XTB" else "none"
+        remote_xtb = self.calc_env_dropdown.value in {"github-actions", "hpc"}
+        self.xtb_task_controls.children[1].value = (
+            "<p class='cochem-hint'>This calculation computer supports xTB geometry optimization only. "
+            "If your assignment calls for optimization, choose <b>Optimize the geometry</b> here. "
+            "For a single point, select a prepared local calculation computer. Your task is not changed automatically. "
+            "Optimization alone does not prove that a structure is a minimum.</p>"
+            if remote_xtb else
+            "<p class='cochem-hint'>Calculating energy keeps the supplied coordinates fixed. "
+            "Optimizing lets the atoms move. Neither task proves that a structure is a minimum.</p>")
+        self.xtb_task.disabled = bool(self._pipeline_running or self._hpc_running or self._hpc_retrieving
+                                      or self._actions_running or self._topos_running or self._installation_running)
+        reason = self._xtb_task_route_reason() or reason
         if not remote:
-            self.btn_execute.description = {"XTB": "Run xTB optimization", "PYSCF": "Run PySCF single point",
+            self.btn_execute.description = {"XTB": "Calculate energy" if self.xtb_task.value == "single_point" else "Optimize geometry", "PYSCF": "Run PySCF single point",
                                             "CFOUR": "Run CFOUR calculation", None: "Select a calculation engine"}.get(self.matrix_engine.value, "Run ORCA optimization")
         if self.calc_env_dropdown.value == "hpc":
             self.btn_execute.description = "Submit HPC calculation"
@@ -5220,10 +5277,22 @@ class CoChemGUI(InputManagementMixin):
             raise MethodologyViolationError(f"CFOUR {capability.operation} is unavailable: {capability.reason}")
         return config.model_dump(mode='json')
 
+    def _xtb_task_route_reason(self) -> str:
+        if (self.matrix_engine.value == "XTB" and self.xtb_task.value == "single_point"
+                and self.calc_env_dropdown.value in {"github-actions", "hpc"}):
+            return ("The selected single-point task is unsupported on this remote route. "
+                    "If your assignment calls for optimization, choose Optimize the geometry here. "
+                    "For a single point, select a prepared local calculation computer. "
+                    "This interface’s remote xTB routes support optimization only.")
+        return ""
+
     def _xtb_run_config(self) -> dict[str, Any]:
         from cochem_base.calc.calculation_service import CalculationMatrixConfig, parse_run_geometry
         from cochem_base.calc.xtb_execution import validate_xtb_config
         elements, _ = parse_run_geometry(self.matrix_geometry.value)
+        route_reason = self._xtb_task_route_reason()
+        if route_reason:
+            raise MethodologyViolationError(route_reason)
         if self.t9_config_path.value.strip():
             raise MethodologyViolationError("T9 recovery is configured for ORCA; clear the active-space configuration before xTB screening")
         config = CalculationMatrixConfig(
@@ -5234,7 +5303,8 @@ class CoChemGUI(InputManagementMixin):
             implicit_solvation=self.matrix_solvation.value,
             cbs_cardinal_pair=self.matrix_cbs_pair.value,
             recipe="R1" if self.cb_recipe_r1.value else ("R2" if self.cb_recipe_r2.value else None),
-            **({"is_opt": True, "is_freq": False, "timeout_seconds": float(self.actions_timeout.value)}
+            is_opt=self.xtb_task.value == "optimization", is_freq=False,
+            **({"timeout_seconds": float(self.actions_timeout.value)}
                if self.calc_env_dropdown.value == "github-actions" else {}),
         )
         validate_xtb_config(config, elements)
@@ -5333,6 +5403,7 @@ class CoChemGUI(InputManagementMixin):
             return
         self._pipeline_cancellation = threading.Event()
         self._pipeline_running = True
+        self.xtb_task.disabled = True
         self.btn_topos_submit.disabled = True
         self.btn_execute.disabled = True
         self.btn_cancel.disabled = False
@@ -6292,6 +6363,15 @@ class CoChemGUI(InputManagementMixin):
             return
         self._cancel_local_calculation()
 
+    def _publish_completed_xtb_result(self, execution_receipt: dict, results_directory: Path) -> None:
+        """A display failure must not turn accepted native execution into failure."""
+        try:
+            self.calculation_result.value = completed_xtb_result_html(execution_receipt, results_directory)
+        except Exception as exc:
+            self.calculation_result.value = (
+                "<p role='status'>xTB execution completed. The saved result details are unavailable: "
+                + html.escape(str(exc)) + ". The native calculation files remain retained.</p>")
+
     def _pipeline_thread(self, config_path: Path) -> None:
         from cochem_base.calc.calculation_service import run_calculation
         from cochem_base.core_engine.cochem_core_subprocess_broker import (
@@ -6341,14 +6421,17 @@ class CoChemGUI(InputManagementMixin):
             self.telemetry_output.append_stdout(f"\n{engine} execution and scientific output checks passed. Results: {work_dir / 'Results'}\n")
             hessians = self._prepare_calculation_hessians(work_dir / "Results")
             self._ui_call(lambda: self._publish_calculation_hessians(hessians))
-            if engine in {"XTB", "PYSCF"}:
+            if engine == "XTB":
+                receipt, directory = dict(result), work_dir / "Results"
+                self._ui_call(lambda: self._publish_completed_xtb_result(receipt, directory))
+            elif engine == "PYSCF":
                 result_path = work_dir / "Results" / "result.json"
                 payload = json.loads(result_path.read_text(encoding="utf-8"))
                 self.calculation_result.value = (
-                    f"<b>{'xTB screening result' if engine == 'XTB' else 'PySCF RHF single-point result'}</b> (no product accuracy certification)<br/>"
+                    "<b>PySCF RHF single-point result</b> (no product accuracy certification)<br/>"
                     f"Method: {html.escape(payload['method'])}<br/>"
                     f"Energy: {float(payload['energy_hartree']):.12f} Hartree<br/>"
-                    + (f"Optimization converged: {payload['optimization_converged'] is True}<br/>" if engine == "XTB" else f"SCF converged: {payload['scf_converged'] is True}<br/>Nuclear gradient: recorded in the result artifact.<br/>")
+                    + f"SCF converged: {payload['scf_converged'] is True}<br/>Nuclear gradient: recorded in the result artifact.<br/>"
                     +
                     f"Artifact: <code>{html.escape(str(result_path))}</code>"
                 )

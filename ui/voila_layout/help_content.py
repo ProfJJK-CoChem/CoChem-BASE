@@ -132,11 +132,12 @@ HELP_CONTENT = {
         "A single point evaluates energy at the supplied geometry. Optimization changes allowed nuclear coordinates. Frequencies examine local energy curvature.",
         "These tasks answer different questions. An energy at one geometry does not improve that geometry or establish a minimum.",
         "Choose the operation named in your assignment before pressing the run button.",
-        "3 · Run assigned calculation / Calculations → Run calculation. The operation controls depend on the selected calculation computer and engine.",
-        ("For energy at a specified geometry, use the assigned single-point operation.",
-         "For a nearby stationary structure, use the assigned optimization operation and inspect convergence.",
+        "3 · Run assigned calculation / Calculations → Run calculation. For xTB, use Calculation task. Other engines have their own supported operation controls.",
+        ("To evaluate the current arrangement without moving the atoms, choose Calculate energy at the current geometry for local xTB, or the assigned single-point operation on another supported route.",
+         "To let the program adjust allowed atomic positions, choose Optimize the geometry for local xTB, or the assigned optimization operation on another supported route. Inspect its stopping checks afterward.",
          "When the protocol calls for minimum classification, inspect appropriate frequencies at the optimized geometry as well.",
-         "Read the current run-button label: it changes with the selected engine and task."),
+         "Remote xTB currently supports optimization only. If a selected single point is unavailable on that route, keep it and use a prepared local computer, or explicitly choose Optimize the geometry on the same page only when that is your assigned task.",
+         "Before submitting, check the task and run-button label again, especially after changing the calculation computer or engine. Reading help or selecting a task does not start a calculation."),
         ("Optimization does not prove a global minimum, or even a local minimum without suitable classification.",
          "Only operations with a verified available provider can run; selecting a task cannot supply a missing scientific capability.")),
     "convergence_frequencies": _topic(
@@ -229,7 +230,8 @@ HELP_CONTENT = {
          "Choose the same recorded energy type, and inspect each result's method, basis, state and surroundings.",
          "Use a population model only when the required minima, free energies, temperature and other assumptions are justified.",
          "Download the tables with the comparison figure and keep its scientific qualifications."),
-        ("Electronic energies omit nuclear-motion and entropy contributions; their weights are not measured equilibrium abundances.",
+        ("Extra decimal places do not establish accuracy. A tiny energy difference may be smaller than numerical or model uncertainty; its sign alone does not establish a preferred structure or prove that the geometries are different isomers.",
+         "Electronic energies omit nuclear-motion and entropy contributions; their weights are not measured equilibrium abundances.",
          "Equilibrium fractions need consistent free energies, temperature, degeneracies and standard state, plus accessible interconversion. Missing values must not become zero.")),
     "provenance": _topic(
         "Keep the calculation's evidence", ("provenance", "checksum", "SHA256", "run ID", "reproducible", "source", "audit"),
@@ -339,7 +341,8 @@ HELP_CONTENT = {
         "Read these checks after retrieval and before submitting your work.",
         "4 · Read and save results opens Results. Use Spectra and properties for the supported native-property and Hessian/isotope tools.",
         ("Identify the molecule/selected structure and the actual operation performed.",
-         "Read convergence, warnings, units and whether a value is supplied, newly calculated or derived from earlier data.",
+         "Read convergence, warnings, units and whether a value is supplied, newly calculated or derived from earlier data. A single point leaves the supplied geometry unchanged; an optimization changes allowed positions but does not by itself prove a minimum.",
+         "The result records the charge and spin used for that run. Changing your current settings afterward does not change the completed calculation; open Calculation details when available to inspect its saved evidence.",
          "Compare only compatible quantities; an electronic energy is not a Gibbs free energy and Be is not automatically B0.",
          "Download the matching calculation bundle and report data when those controls are available. Save displayed result summary saves only the text shown on screen; keep the raw evidence separately, then write your interpretation with its assumptions."),
         ("Unavailable or missing quantities stay unavailable; a blank is not zero.",
@@ -619,6 +622,7 @@ _controls("cbs", "Calculations → advanced complete-basis extrapolation", True,
 _controls("calculation_types", "Calculations → Run calculation", False, {
     "actions_operation": "Choose the assigned remote task: energy, optimization and frequencies answer different questions.",
     "native_operation": "Choose the assigned supported local operation before submitting.",
+    "xtb_task": "Choose energy at the current geometry or optimization for xTB. Remote xTB supports optimization only; an unsupported choice is preserved and blocks submission. Change it explicitly only if your assignment calls for optimization.",
     "cfour_operation": "Choose an operation that this CFOUR route genuinely supports; unavailable operations cannot be completed by an unrelated single point.",
     "btn_execute": "Check the current molecule, state, method and task, then submit once using this button's current operation label.",
 })
@@ -1046,6 +1050,7 @@ _CONTROL_LABELS = {
     'torq_resolution': 'Scan Res:',
     'unphysical_override': 'Dispersion safeguards are required',
     'walltime_input': 'Walltime:',
+    'xtb_task': 'Calculation task:',
     'xyz_upload': 'Upload .xyz',
 }
 

@@ -340,6 +340,12 @@ def build_results_panel(gui: Any, advanced: widgets.Widget) -> widgets.VBox:
                             "and must not be reported as equilibrium populations.")
         gui.research_population_hint.value = "<p>" + explanation + "</p>"
 
+    def clear_stale_selection_notice(change: Any) -> None:
+        if (not change["old"] and change["new"]
+                and gui.research_comparison_status.value.startswith("<p role='status'>Selection cleared.")):
+            gui.research_comparison_status.value = ""
+
+    gui.research_isomer_choices.observe(clear_stale_selection_notice, names="value")
     gui.research_isomer_choices.observe(show_comparison_guidance, names=["options", "value"])
     gui.research_energy_kind.observe(show_comparison_guidance, names="value")
     gui.research_populations.observe(show_comparison_guidance, names="value")

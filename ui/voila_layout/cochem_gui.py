@@ -358,7 +358,7 @@ def _saved_xtb_result_markup(execution_receipt: dict, observation: dict, details
         "<p>These are the saved calculation’s settings. Changes to your current draft do not change this result. "
         "These are calculated estimates. Their accuracy for your goal has not been established. They do not show which structures are in a real sample or how much of each is present.</p>"
         "<details class='cochem-calculation-details'><summary>Calculation details and provenance</summary><pre>"
-        + html.escape(json.dumps(details, indent=2, allow_nan=False)) + "</pre></details></section>"
+        + html.escape(json.dumps(details, indent=2, allow_nan=False, sort_keys=True)) + "</pre></details></section>"
     )
 
 

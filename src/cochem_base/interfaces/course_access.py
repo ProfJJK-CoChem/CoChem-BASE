@@ -22,6 +22,7 @@ RECEIPT_SCHEMA = "cochem.student-project-access-receipt.v1"
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\Z")
 _SHA = re.compile(r"[a-f0-9]{40}\Z")
 _DEVCONTAINER = ".devcontainer/devcontainer.json"
+_PROJECT_RING = ".core_infrastructure_hashring.json"
 _CRITICAL_PREFIXES = (
     "src/", "scripts/", ".scripts/", "ci_tools/", "ui/", "frontend/", "cochem/",
     "cochem_topos/", "cochem_geom/", "cochem_ml/", "cochem_mobile/", "cochem_torq/",
@@ -344,16 +345,9 @@ def _git_blob_sha(content: bytes) -> str:
     return hashlib.sha1(b"blob " + str(len(content)).encode("ascii") + b"\0" + content).hexdigest()
 
 
-def _project_codespaces_configuration(api: GitHubAPI, config: ControllerConfig,
-                                      template_sha: str, project: str) -> bytes:
-    """Derive one exact project grant from the approved configuration blob.
-
-    Every lifecycle command, environment setting and extension comes from the
-    instructor-approved source. GitHub permits additional repository requests
-    only within the source repository's owner, so personal projects replace the
-    canonical owner's repository list instead of requesting cross-owner access.
-    """
-    repository_name(project)
+def _approved_configuration(api: GitHubAPI, config: ControllerConfig,
+                            template_sha: str) -> tuple[bytes, dict]:
+    """Read bounded authenticated JSON; no project data supplies authority."""
     value = api.call("GET", f"/repos/{config.approved_base_repository}/git/blobs/{template_sha}")
     if (not isinstance(value, dict) or value.get("sha") != template_sha
             or value.get("encoding") != "base64" or type(value.get("size")) is not int
@@ -373,6 +367,17 @@ def _project_codespaces_configuration(api: GitHubAPI, config: ControllerConfig,
         if len(content) != value["size"] or _git_blob_sha(content) != template_sha:
             raise ValueError("configuration blob identity differs")
         document = json.loads(content, object_pairs_hook=unique_object)
+        if not isinstance(document, dict):
+            raise ValueError("configuration must be an object")
+        return content, document
+    except (ValueError, TypeError, KeyError, UnicodeError):
+        raise CourseAccessError("The approved Codespaces configuration is invalid; ask the instructor to update BASE.") from None
+
+
+def _codespaces_content(document: dict, project: str) -> bytes:
+    """Replace cross-owner requests, retaining every approved launch setting."""
+    repository_name(project)
+    try:
         codespaces = document["customizations"]["codespaces"]
         if not isinstance(codespaces["repositories"], dict):
             raise ValueError("repository permissions must be explicit")
@@ -380,6 +385,33 @@ def _project_codespaces_configuration(api: GitHubAPI, config: ControllerConfig,
         return (json.dumps(document, indent=2, allow_nan=False) + "\n").encode("utf-8")
     except (ValueError, TypeError, KeyError, UnicodeError):
         raise CourseAccessError("The approved Codespaces configuration is invalid; ask the instructor to update BASE.") from None
+
+
+def _project_codespaces_configuration(api: GitHubAPI, config: ControllerConfig,
+                                      template_sha: str, project: str) -> bytes:
+    return _codespaces_content(_approved_configuration(api, config, template_sha)[1], project)
+
+
+def _project_codespaces_pair(api: GitHubAPI, config: ControllerConfig,
+                             template_sha: str, ring_sha: str, project: str) -> dict[str, bytes]:
+    """Derive the sole project grant and exactly its one changed ring digest."""
+    original, document = _approved_configuration(api, config, template_sha)
+    _, ring = _approved_configuration(api, config, ring_sha)
+    files = ring.get("files")
+    if (set(ring) != {"schema_version", "algorithm", "files"}
+            or type(ring.get("schema_version")) is not int or ring["schema_version"] != 1
+            or ring.get("algorithm") != "sha256" or not isinstance(files, dict)
+            or not files or _PROJECT_RING in files
+            or any(not isinstance(name, str) or not name or name.startswith("/")
+                   or "\\" in name or any(part in {"", ".", ".."} for part in name.split("/"))
+                   or not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest)
+                   for name, digest in files.items())
+            or files.get(_DEVCONTAINER) != hashlib.sha256(original).hexdigest()):
+        raise CourseAccessError("The approved infrastructure ring does not bind the approved Codespaces template.")
+    content = _codespaces_content(document, project)
+    files[_DEVCONTAINER] = hashlib.sha256(content).hexdigest()
+    return {_DEVCONTAINER: content,
+            _PROJECT_RING: (json.dumps(ring, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")}
 
 
 def _project_revision(api: GitHubAPI, project: dict) -> str:
@@ -393,29 +425,41 @@ def _project_revision(api: GitHubAPI, project: dict) -> str:
 
 
 def verify_project_source(project_api: GitHubAPI, authority_api: GitHubAPI,
-                          config: ControllerConfig, project: dict) -> dict[str, str]:
-    """Require exact executable blobs and the exact generated project grant."""
+                          config: ControllerConfig, project: dict, *,
+                          allow_migration: bool = False) -> dict[str, str]:
+    """Require the exact paired grant; legacy source is migration input only."""
     project_revision = _project_revision(project_api, project)
     actual = _tree(project_api, project["full_name"], project_revision)
     for revision in dict.fromkeys((config.approved_base_sha, *config.allowed_starter_shas)):
         approved = _tree(authority_api, config.approved_base_repository, revision)
         critical = {name: value for name, value in approved.items() if _protected_source_path(name)}
         template = critical.get(_DEVCONTAINER)
-        if not template or template[1] != "100644":
+        ring = critical.get(_PROJECT_RING)
+        if not template or template[1] != "100644" or not ring or ring[1] != "100644":
             continue
-        generated = _project_codespaces_configuration(authority_api, config, template[0], project["full_name"])
-        generated_identity = (_git_blob_sha(generated), "100644")
+        generated = _project_codespaces_pair(authority_api, config, template[0], ring[0], project["full_name"])
+        derived = {name: (_git_blob_sha(content), "100644") for name, content in generated.items()}
+        pair = (actual.get(_DEVCONTAINER), actual.get(_PROJECT_RING))
+        state = ("paired" if pair == (derived[_DEVCONTAINER], derived[_PROJECT_RING]) else
+                 "canonical_migration" if pair == (template, ring) else
+                 "legacy_migration" if pair == (derived[_DEVCONTAINER], ring) else "invalid")
         if (critical and "scripts/run_student_research.py" in critical
                 and ".github/workflows/student_research.yml" in critical
-                and all(actual.get(name) == identity or
-                        (name == _DEVCONTAINER and actual.get(name) == generated_identity)
+                and (state == "paired" or allow_migration and state in {"canonical_migration", "legacy_migration"})
+                and all(name in derived or actual.get(name) == identity
                         for name, identity in critical.items())
                 and not any(_protected_source_path(name) and name not in approved for name in actual)):
             return {"starter_sha": revision, "project_revision": project_revision,
+                    "source_state": state,
                     "devcontainer_template_sha": template[0],
+                    "ring_template_sha": ring[0],
                     "devcontainer_current_sha": actual[_DEVCONTAINER][0],
+                    "ring_current_sha": actual[_PROJECT_RING][0],
                     "source_digest": hashlib.sha256(
-                json.dumps(critical, sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
+                        json.dumps(critical, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+                    "project_source_digest": hashlib.sha256(
+                        json.dumps({name: actual[name] for name in critical}, sort_keys=True,
+                                   separators=(",", ":")).encode()).hexdigest()}
     raise CourseAccessError("The project starter is not an instructor-approved BASE revision. Ask the instructor to approve your compatible starter or use BASE's reviewed update; retain your student data.")
 
 
@@ -423,11 +467,15 @@ def _configure_project_codespaces(app_api: GitHubAPI, installation: dict,
                                   project_api: GitHubAPI, authority_api: GitHubAPI,
                                   config: ControllerConfig, project: dict,
                                   binding: dict[str, str]) -> dict[str, Any]:
-    content = _project_codespaces_configuration(authority_api, config,
-        binding["devcontainer_template_sha"], project["full_name"])
-    digest = _git_blob_sha(content)
-    result = {"codespaces_configuration_sha": digest, "codespaces_authorization_required": True}
-    if binding["devcontainer_current_sha"] == digest:
+    contents = _project_codespaces_pair(authority_api, config,
+        binding["devcontainer_template_sha"], binding["ring_template_sha"], project["full_name"])
+    digests = {name: _git_blob_sha(content) for name, content in contents.items()}
+    result = {"codespaces_configuration_sha": digests[_DEVCONTAINER],
+              "codespaces_ring_sha": digests[_PROJECT_RING],
+              "codespaces_binding_schema": "cochem.codespaces-project-binding/2",
+              "codespaces_authorization_required": True, "project_revision": binding["project_revision"]}
+    if (binding["devcontainer_current_sha"] == digests[_DEVCONTAINER]
+            and binding["ring_current_sha"] == digests[_PROJECT_RING]):
         return result
     try:
         writer = _installation_api(app_api, installation, {"contents": "write"}, project["id"])
@@ -441,16 +489,19 @@ def _configure_project_codespaces(app_api: GitHubAPI, installation: dict,
             or not isinstance(commit.get("tree"), dict)
             or not _SHA.fullmatch(str(commit["tree"].get("sha", "")))):
         raise CourseAccessError("The verified project tree could not be read; retry setup.")
-    blob = writer.call("POST", prefix + "/blobs", {
-        "encoding": "base64", "content": base64.b64encode(content).decode("ascii")})
-    if not isinstance(blob, dict) or blob.get("sha") != digest:
-        raise CourseAccessError("GitHub did not retain the exact project Codespaces configuration.")
+    entries = []
+    for name, content in contents.items():
+        blob = writer.call("POST", prefix + "/blobs", {
+            "encoding": "base64", "content": base64.b64encode(content).decode("ascii")})
+        if not isinstance(blob, dict) or blob.get("sha") != digests[name]:
+            raise CourseAccessError("GitHub did not retain the exact project Codespaces configuration pair.")
+        entries.append({"path": name, "mode": "100644", "type": "blob", "sha": digests[name]})
     tree = writer.call("POST", prefix + "/trees", {"base_tree": commit["tree"]["sha"],
-        "tree": [{"path": _DEVCONTAINER, "mode": "100644", "type": "blob", "sha": digest}]})
+        "tree": entries})
     if not isinstance(tree, dict) or not _SHA.fullmatch(str(tree.get("sha", ""))):
         raise CourseAccessError("GitHub did not prepare the project Codespaces configuration.")
     saved = writer.call("POST", prefix + "/commits", {
-        "message": "Configure this project's Codespace to submit CoChem calculations",
+        "message": "Bind this project's Codespace and reviewed infrastructure ring",
         "tree": tree["sha"], "parents": [binding["project_revision"]]})
     if not isinstance(saved, dict) or not _SHA.fullmatch(str(saved.get("sha", ""))):
         raise CourseAccessError("GitHub did not save the project Codespaces configuration.")
@@ -464,6 +515,7 @@ def _configure_project_codespaces(app_api: GitHubAPI, installation: dict,
     if (not isinstance(updated, dict) or not isinstance(updated.get("object"), dict)
             or updated["object"].get("type") != "commit" or updated["object"].get("sha") != saved["sha"]):
         raise CourseAccessError("The project's Codespaces setup update could not be confirmed.")
+    result["project_revision"] = saved["sha"]
     return result
 
 
@@ -880,7 +932,7 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
             or expected_repository_id <= 0 or project["id"] != expected_repository_id):
         raise CourseAccessError("The project immutable identity changed after the inbox hold check; no project access was written.")
     authority_api = authority_api or controller_api
-    source_binding = verify_project_source(read_api, authority_api, config, project)
+    source_binding = verify_project_source(read_api, authority_api, config, project, allow_migration=True)
     writer_api = _project_writer(app_api, installation, project)
     ledger_api = _controller_ledger_api(app_api, config)
     owned = _ownership(ledger_api, config, project)
@@ -917,6 +969,22 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
     owned["state"] = "staging"
     codespaces_configuration = _configure_project_codespaces(app_api, installation, read_api,
         authority_api, config, project, source_binding)
+    # A canonical or config-only starter is not a final grant. Confirm the
+    # atomic pair, immutable target and exact resulting HEAD before recording
+    # staging ownership or delivering any credential. Later owner edits cannot
+    # be made transactional with GitHub secrets; they remain a separate limit.
+    current = read_api.call("GET", f"/repos/{project['full_name']}")
+    if (not isinstance(current, dict) or type(current.get("id")) is not int
+            or current["id"] != project["id"]
+            or any(current.get(name) != project.get(name)
+                   for name in ("full_name", "default_branch", "private", "archived", "fork", "owner"))):
+        raise CourseAccessError("The project identity changed during Codespaces binding; no access was staged.")
+    final_binding = verify_project_source(read_api, authority_api, config, current)
+    if (final_binding["starter_sha"] != source_binding["starter_sha"]
+            or final_binding["project_revision"] != codespaces_configuration["project_revision"]
+            or _project_revision(read_api, current) != final_binding["project_revision"]):
+        raise CourseAccessError("The project source changed during Codespaces binding; no access was staged.")
+    source_binding = final_binding
     # Durable authenticated ownership precedes writes, so interrupted staging is
     # cleanup-safe on retry. Old readers/bindings remain in place until verified.
     _save_ownership(ledger_api, config, owned)

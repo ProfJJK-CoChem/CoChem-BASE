@@ -64,6 +64,7 @@ HOSTED_TESTS = (
     "tests/base/test_workspace_facade.py",
     "tests/base/test_hardware_observation_authority.py",
     "tests/base/test_course_project_access.py",
+    "tests/base/test_course_project_binding.py",
     "tests/base/test_course_access_inbox.py",
     "tests/ui/test_course_access_widget.py",
     "tests/base/test_module_handoff_contract.py",

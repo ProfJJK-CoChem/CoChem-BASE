@@ -140,7 +140,8 @@ def store_for(cohort):
 
 def project_snapshot(root):
     return {name: (dict(project.variables), dict(project.secret_values), dict(project.codespaces_values),
-                   project.project_revision) for name, project in root.projects.items()}
+                   project.project_revision, project.project_devcontainer, project.project_ring)
+            for name, project in root.projects.items()}
 
 
 @pytest.mark.parametrize("cohort", [20], indirect=True)
@@ -161,6 +162,7 @@ def test_twenty_durable_requests_survive_lost_wakeups_and_repeated_sweep(cohort,
         assert config.private_key not in project.codespaces_values.values()
         grant = json.loads(project.project_devcontainer)["customizations"]["codespaces"]["repositories"]
         assert set(grant) == {repository}
+        assert json.loads(project.project_ring)["files"][".devcontainer/devcontainer.json"] == hashlib.sha256(project.project_devcontainer).hexdigest()
         signed = json.loads(root.controller_variables[f"COCHEM_ACCESS_PROJECT_{project.project_id}"])
         assert signed["payload"]["state"] == "active" and len(signed["payload"]["actions"]) == 1
         project.writes.clear()
@@ -363,7 +365,34 @@ def test_instructor_provision_releases_only_granted_immutable_id_after_name_swap
     assert root.projects["student01/project"].project_id == 2001
     assert store.read("COCHEM_ACCESS_INBOX_HOLD_1001")["held"] is False
     assert store.read("COCHEM_ACCESS_INBOX_HOLD_2001")["held"] is True
-    assert root.identity_fetches["student01/project"] == 2
+    # Captured hold target, provision target, then required post-pair readback.
+    assert root.identity_fetches["student01/project"] == 3
+
+
+def test_historical_config_only_done_receipt_is_not_automatically_upgraded(cohort):
+    """Controlled old-schema protocol state; not a claimed live legacy receipt."""
+    root, *_ = cohort
+    assert sweep(cohort)["processed"] == 1
+    store = store_for(cohort)
+    key = "COCHEM_ACCESS_INBOX_ISSUE_10001"
+    saved = store.read(key)
+    # Preserve the actual generated configuration; the old deployment paired
+    # it with the canonical ring and had no new paired-binding receipt fields.
+    for name in ("codespaces_binding_schema", "codespaces_ring_sha", "ring_template_sha",
+                 "ring_current_sha", "project_source_digest", "source_state"):
+        saved["receipt"].pop(name)
+    store.write(key, saved)
+    project = root.projects["student01/project"]
+    project.project_ring = project.infrastructure_ring
+    assert project.project_devcontainer != project.devcontainer
+    project.writes.clear()
+    before = project_snapshot(root)
+    comments = len(root.comments)
+    result = sweep(cohort)
+    assert result["skipped"] == 1 and result["processed"] == result["failed"] == 0
+    assert project_snapshot(root) == before and project.writes == []
+    assert store.read(key) == saved and len(root.comments) == comments
+    assert project.project_ring == project.infrastructure_ring
 
 
 @pytest.mark.parametrize("notified", [True, False])

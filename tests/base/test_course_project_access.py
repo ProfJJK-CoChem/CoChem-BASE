@@ -122,6 +122,11 @@ class ProtocolServer(ThreadingHTTPServer):
         self.ledger_denied = False
         self.devcontainer = (Path(__file__).resolve().parents[2] / ".devcontainer/devcontainer.json").read_bytes()
         self.project_devcontainer = self.devcontainer
+        self.infrastructure_ring = (Path(__file__).resolve().parents[2] / ".core_infrastructure_hashring.json").read_bytes()
+        self.project_ring = self.infrastructure_ring
+        self.binding_failure = ""
+        self.binding_readback = ""
+        self.binding_committed = False
         self.project_revision = hashlib.sha1(b"original project commit").hexdigest()
         self.project_tree = hashlib.sha1(b"original project tree").hexdigest()
         self.git_blobs = {}
@@ -139,6 +144,9 @@ class ProtocolServer(ThreadingHTTPServer):
             self.critical.append({"path": name, "sha": hashlib.sha1(name.encode()).hexdigest(), "mode": "100644", "type": "blob"})
         self.critical.append({"path": ".devcontainer/devcontainer.json", "sha": _blob_sha(self.devcontainer),
                               "mode": "100644", "type": "blob"})
+        for item in self.critical:
+            if item["path"] == ".core_infrastructure_hashring.json":
+                item["sha"] = _blob_sha(self.infrastructure_ring)
 
     @property
     def url(self):
@@ -293,7 +301,8 @@ class ProtocolHandler(BaseHTTPRequestHandler):
             if auth != state.controller_token:
                 assert permissions == {"contents": "read"}
                 assert state.tokens[auth]["repositories"] == [state.project_repository.split("/")[1]]
-            self.answer({"id": state.project_id, "full_name": state.project_repository, "default_branch": "main", "private": state.private,
+            identifier = state.project_id + 1 if state.binding_committed and state.binding_readback == "wrong_id" else state.project_id
+            self.answer({"id": identifier, "full_name": state.project_repository, "default_branch": "main", "private": state.private,
                          "archived": state.project_archived, "fork": state.project_fork,
                          "owner": {"login": state.project_owner_login, "type": state.project_owner_type}})
             return
@@ -312,6 +321,9 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                 for item in tree:
                     if item["path"] == ".devcontainer/devcontainer.json":
                         item["sha"] = _blob_sha(state.project_devcontainer)
+                    if item["path"] == ".core_infrastructure_hashring.json":
+                        item["sha"] = _blob_sha(state.infrastructure_ring if state.binding_committed
+                            and state.binding_readback == "missing_ring" else state.project_ring)
                     if item["path"] == state.tampered_path:
                         item["sha"] = hashlib.sha1(b"unapproved changed executable").hexdigest()
                 if state.source_extra:
@@ -320,13 +332,15 @@ class ProtocolHandler(BaseHTTPRequestHandler):
             self.answer({"tree": tree, "truncated": state.source_truncated})
             return
         if path.startswith("/repos/Lab/BASE/git/blobs/"):
-            assert path.rsplit("/", 1)[1] == _blob_sha(state.devcontainer)
-            self.answer({"sha": _blob_sha(state.devcontainer), "encoding": "base64",
-                         "size": len(state.devcontainer), "content": base64.b64encode(state.devcontainer).decode()})
+            blobs = {_blob_sha(content): content for content in (state.devcontainer, state.infrastructure_ring)}
+            content = blobs[path.rsplit("/", 1)[1]]
+            self.answer({"sha": _blob_sha(content), "encoding": "base64",
+                         "size": len(content), "content": base64.b64encode(content).decode()})
             return
         if path == "/repos/" + state.project_repository + "/git/ref/heads/main":
             assert permissions == {"contents": "read"}
-            self.answer({"object": {"type": "commit", "sha": state.project_revision}})
+            revision = "f" * 40 if state.binding_committed and state.binding_readback == "wrong_head" else state.project_revision
+            self.answer({"object": {"type": "commit", "sha": revision}})
             return
         if path.startswith("/repos/" + state.project_repository + "/git/commits/") and method == "GET":
             assert permissions == {"contents": "read"}
@@ -340,6 +354,9 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                 assert permissions == {"contents": "write"}
                 state.writes.append((method, path))
                 if path.endswith("/git/blobs") and method == "POST":
+                    if state.binding_failure == "blob2" and state.git_blobs:
+                        self.answer({}, 503)
+                        return
                     assert payload["encoding"] == "base64"
                     content = base64.b64decode(payload["content"], validate=True)
                     digest = _blob_sha(content)
@@ -347,17 +364,23 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                     self.answer({"sha": digest}, 201)
                     return
                 if path.endswith("/git/trees") and method == "POST":
+                    if state.binding_failure == "tree":
+                        self.answer({}, 503)
+                        return
                     assert payload["base_tree"] == state.project_tree
-                    assert len(payload["tree"]) == 1
-                    entry = payload["tree"][0]
-                    assert entry["path"] == ".devcontainer/devcontainer.json"
-                    assert entry["mode"] == "100644" and entry["type"] == "blob"
-                    assert entry["sha"] in state.git_blobs
+                    assert len(payload["tree"]) == 2
+                    assert {entry["path"] for entry in payload["tree"]} == {
+                        ".devcontainer/devcontainer.json", ".core_infrastructure_hashring.json"}
+                    assert all(entry["mode"] == "100644" and entry["type"] == "blob"
+                               and entry["sha"] in state.git_blobs for entry in payload["tree"])
                     digest = hashlib.sha1(json.dumps(payload, sort_keys=True).encode()).hexdigest()
                     state.git_trees[digest] = payload
                     self.answer({"sha": digest}, 201)
                     return
                 if path.endswith("/git/commits") and method == "POST":
+                    if state.binding_failure == "commit":
+                        self.answer({}, 503)
+                        return
                     assert payload["parents"] == [state.project_revision]
                     assert payload["tree"] in state.git_trees
                     digest = hashlib.sha1(json.dumps(payload, sort_keys=True).encode()).hexdigest()
@@ -366,15 +389,21 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                     return
                 if path.endswith("/git/refs/heads/main") and method == "PATCH":
                     assert payload["force"] is False
-                    if state.move_project_before_update:
+                    if state.move_project_before_update or state.binding_failure == "ref":
                         self.answer({"message": "Reference update is not a fast-forward"}, 422)
                         return
                     commit = state.git_commits[payload["sha"]]
                     assert commit["parents"] == [state.project_revision]
                     tree = state.git_trees[commit["tree"]]
-                    state.project_devcontainer = state.git_blobs[tree["tree"][0]["sha"]]
+                    entries = {entry["path"]: entry["sha"] for entry in tree["tree"]}
+                    state.project_devcontainer = state.git_blobs[entries[".devcontainer/devcontainer.json"]]
+                    state.project_ring = state.git_blobs[entries[".core_infrastructure_hashring.json"]]
                     state.project_revision = payload["sha"]
                     state.project_tree = commit["tree"]
+                    state.binding_committed = True
+                    if state.binding_failure == "lost_ref_response":
+                        self.answer({}, 503)
+                        return
                     self.answer({"object": {"type": "commit", "sha": state.project_revision}})
                     return
             assert permissions == {"secrets": "write", "actions_variables": "write", "codespaces_secrets": "write"}
@@ -505,6 +534,13 @@ def test_enrollment_prepares_exact_project_permissions_without_changing_launch_c
     original["customizations"]["codespaces"]["repositories"] = actual["customizations"]["codespaces"]["repositories"]
     assert actual == original
     assert receipt["codespaces_configuration_sha"] == _blob_sha(peer.project_devcontainer)
+    assert receipt["codespaces_ring_sha"] == _blob_sha(peer.project_ring)
+    assert receipt["codespaces_binding_schema"] == "cochem.codespaces-project-binding/2"
+    assert receipt["source_state"] == "paired"
+    ring = json.loads(peer.project_ring)
+    assert ring["files"][".devcontainer/devcontainer.json"] == hashlib.sha256(peer.project_devcontainer).hexdigest()
+    ring["files"][".devcontainer/devcontainer.json"] = hashlib.sha256(peer.devcontainer).hexdigest()
+    assert ring == json.loads(peer.infrastructure_ring)
     assert receipt["codespaces_authorization_required"] is True
     assert len(peer.git_commits) == 1
     assert all(request.get("repository_ids") == [42] for request in peer.tokens.values()

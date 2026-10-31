@@ -18,7 +18,7 @@ from cochem_base.orchestrator.cochem_setup_phase_4 import (
 def config(path, **overrides):
     values = dict(name="verification", silo_type=SiloType.CORE,
                   target_path=str(path), python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
-                  is_requested=True, packages=["filelock"], pip_packages=["filelock==3.32.7"])
+                  is_requested=True, packages=["filelock"], pip_packages=["filelock==4.2.1"])
     values.update(overrides)
     return SiloConfig(**values)
 

@@ -147,13 +147,15 @@ def provision_isolated_silo(
         if root.exists() and any(root.iterdir()):
             raise MicroSiloValidationError(f"Refusing to overwrite a nonempty silo directory: {root}")
         root.parent.mkdir(parents=True, exist_ok=True)
+        from scripts.manage_modules import ModuleInstallationError, _run_pip
+
         try:
-            subprocess.run([sys.executable, "-I", "-m", "venv", str(root)], env=isolated_environment(), check=True, capture_output=True, text=True, timeout=120)
+            subprocess.run([sys.executable, "-I", "-B", "-m", "venv", "--without-pip", str(root)], env=isolated_environment(), check=True, capture_output=True, text=True, timeout=120)
+            _run_pip(python, [], env=isolated_environment(),
+                     label="Bootstrap reviewed micro-silo installer", timeout=120, bootstrap=True)
             if requirements:
-                subprocess.run(
-                    [str(python), "-I", "-m", "pip", "install", "--disable-pip-version-check", "--no-input", "--no-deps", *requirements],
-                    env=isolated_environment(), check=True, capture_output=True, text=True, timeout=300,
-                )
-        except (OSError, subprocess.SubprocessError) as exc:
+                _run_pip(python, ["install", "--disable-pip-version-check", "--no-input", "--no-deps", *requirements],
+                         env=isolated_environment(), label="Install closed micro-silo dependencies", timeout=300)
+        except (OSError, subprocess.SubprocessError, ModuleInstallationError) as exc:
             raise MicroSiloValidationError(f"Could not provision {root}: {getattr(exc, 'stderr', '') or exc}") from exc
     return verify_micro_silo(root, python_version=python_version, requirements=requirements, imports=imports)

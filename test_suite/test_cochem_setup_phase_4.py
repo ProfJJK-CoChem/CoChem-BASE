@@ -678,7 +678,7 @@ def test_provision_micro_silo_real_venv_creation(tmp_path: Path) -> None:
         is_requested=True,
         is_heavy=False,
         packages=["filelock"],
-        pip_packages=["filelock==3.32.7"],
+        pip_packages=["filelock==4.2.1"],
         env_vars={"OMP_STACKSIZE": "64M"},
         stack_flags=get_native_stack_flags(),
         description="Test core silo",
@@ -754,7 +754,7 @@ def test_audit_micro_silos_full_suite(tmp_path: Path) -> None:
         config.target_path = str(silos_dir / name)
         config.python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
         config.packages = ["filelock"]
-        config.pip_packages = ["filelock==3.32.7"]
+        config.pip_packages = ["filelock==4.2.1"]
     silos = audit_micro_silos(silos_dir, manifest_filter=manifest_filter, custom_configs=configs, dry_run=False)
     assert len(silos) == 5
     assert silos["cochem_core_silo"].is_available is True

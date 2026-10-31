@@ -1,24 +1,24 @@
-"""Inductive Split-Conformal Prediction and Force Calibration (Suggestion #54, #133, #138 / Method Matrix v4 §12.5, §19 [M], [D])."""
+"""BASE compatibility exports; unsupported TORQ science stays unavailable.
+
+No sibling checkout or cross-environment Python objects are imported.
+"""
 
 from __future__ import annotations
 
-from Libraries.cochem_torq_conformal import (
-    CalibrationSample,
-    ConformalPredictor,
-)
-from Libraries.cochem_torq_inference_schemas import (
-    ConformalInterval,
-    ConformalPredictorConfig,
-)
-
 from cochem_base.exceptions import ConformalCalibrationError
+from cochem_base.ml._legacy_api import unavailable_attribute
 from cochem_base.schemas import ConformalCalibrationConfig
 
-__all__ = [
+_UNAVAILABLE = (
     "CalibrationSample",
-    "ConformalCalibrationConfig",
-    "ConformalCalibrationError",
     "ConformalInterval",
     "ConformalPredictor",
     "ConformalPredictorConfig",
-]
+)
+
+
+def __getattr__(name: str):
+    return unavailable_attribute(__name__, name, _UNAVAILABLE)
+
+
+__all__ = ["ConformalCalibrationConfig", "ConformalCalibrationError"]

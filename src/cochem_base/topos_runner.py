@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import math
 import os
@@ -93,10 +94,18 @@ def _parse_xyz(path: Path, *, require_energy: bool) -> list[ConformerCandidate]:
     Native CREST/GOAT comments contain Hartree energies. Named ``E=``/``energy=``
     values and bare native numeric comments are accepted; other units are rejected.
     """
+    return _parse_xyz_bytes(path.read_bytes(), source_path=path, require_energy=require_energy)
+
+
+def _parse_xyz_bytes(
+    data: bytes, *, source_path: Path, require_energy: bool,
+) -> list[ConformerCandidate]:
+    """Parse an immutable byte snapshot with the unchanged ensemble grammar."""
+    path = source_path
     frames: list[ConformerCandidate] = []
-    source_digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    source_digest = hashlib.sha256(data).hexdigest()
     number = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[EeDd][-+]?\d+)?"
-    with path.open(encoding="utf-8-sig") as stream:
+    with io.StringIO(data.decode("utf-8-sig"), newline=None) as stream:
         while True:
             first = stream.readline()
             if not first:

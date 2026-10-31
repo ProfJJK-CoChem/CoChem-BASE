@@ -1608,6 +1608,168 @@ class CRESTConformerEngine:
         env["MKL_NUM_THREADS"] = str(threads)
         return env
 
+    @staticmethod
+    def _validated_crest_flags(crest_flags: Optional[list[str]]) -> list[str]:
+        """Preserve actual caller chemistry flags; reject executable/resource overrides."""
+        if crest_flags is not None and not isinstance(crest_flags, list):
+            raise EcosystemDependencyError(
+                "CREST flags must be a list of supported boolean arguments; no argument was silently dropped."
+            )
+        flags = ["--nci", "--nocross", "--noreftopo"] if not crest_flags else crest_flags
+        allowed = {"--nci", "--nocross", "--noreftopo", "--gfn2"}
+        if not isinstance(flags, list) or any(
+            not isinstance(flag, str) or flag not in allowed for flag in flags
+        ):
+            raise EcosystemDependencyError(
+                "This bounded external-GFN2 CREST route accepts only --nci, --nocross, "
+                "--noreftopo and --gfn2. Engine, thread, path and other argument overrides "
+                "are unsupported; no argument was silently dropped."
+            )
+        return list(flags)
+
+    @staticmethod
+    def _requested_crest_state(seed_atoms: Atoms) -> dict[str, Any]:
+        """Admit an explicit neutral-singlet, zero-unpaired xTB request only.
+
+        Flat ASE info charge/multiplicity are the caller contract. ASE's default
+        zero arrays and electron parity never supply a missing state. This is a
+        requested execution profile, not proof of the physical ground state.
+        """
+        if (
+            not isinstance(seed_atoms, Atoms)
+            or "charge" not in seed_atoms.info
+            or "multiplicity" not in seed_atoms.info
+        ):
+            raise EcosystemDependencyError(
+                "This CREST route requires explicit ASE seed.info['charge']=0 and "
+                "seed.info['multiplicity']=1 from the intended scientific request; "
+                "missing state is not inferred from geometry or ASE defaults."
+            )
+        try:
+            # This legacy XYZ route carries element labels, not nuclear identity.
+            # Reject declared identity rather than silently discarding it when
+            # reconstructing ordinary ASE Atoms from the native ensemble.
+            if seed_atoms.has("masses"):
+                raise ValueError("Explicit ASE masses are unsupported in this unlabelled/default-mass route")
+            identity_fields = {
+                "nuclear_identity", "mass_numbers", "resolved_mass_numbers", "masses_u",
+                "mass_source", "mass_convention", "mass", "masses", "atomic_masses",
+                "monoisotopic_mass", "monoisotopic_masses", "M_aux",
+            }
+            for name in seed_atoms.arrays:
+                if name in identity_fields or "isotope" in name.lower() or "nuclide" in name.lower():
+                    raise ValueError(f"Declared ASE nuclear identity array {name!r} is unsupported")
+            pending, seen = [(seed_atoms.info, "seed.info")], set()
+            while pending:
+                fields, location = pending.pop()
+                if id(fields) in seen:
+                    continue
+                seen.add(id(fields))
+                for name, value in fields.items():
+                    if (isinstance(name, str) and
+                            (name in identity_fields or "isotope" in name.lower() or "nuclide" in name.lower())):
+                        raise ValueError(f"Declared nuclear identity {location}.{name} is unsupported")
+                    if isinstance(value, dict):
+                        pending.append((value, f"{location}.{name}"))
+            if "rdkit_mol" in seed_atoms.info:
+                from rdkit import Chem
+
+                molecule = seed_atoms.info["rdkit_mol"]
+                if not isinstance(molecule, Chem.Mol) or any(atom.GetIsotope() for atom in molecule.GetAtoms()):
+                    raise ValueError("Unsupported or isotope-bearing rdkit_mol nuclear identity")
+            if np.any(seed_atoms.get_atomic_numbers() <= 0):
+                raise ValueError("This legacy route requires ordinary real unlabelled elements")
+            charge = PhysicalCascadeCalculator._integer_state(seed_atoms.info["charge"], "charge")
+            multiplicity = PhysicalCascadeCalculator._integer_state(
+                seed_atoms.info["multiplicity"], "multiplicity", 1
+            )
+            if charge != 0 or multiplicity != 1:
+                raise ValueError("Only an explicitly requested neutral singlet is supported")
+            for name in ("net_charge", "uhf", "spin", "unpaired_electrons"):
+                if (
+                    name in seed_atoms.info
+                    and PhysicalCascadeCalculator._integer_state(seed_atoms.info[name], name) != 0
+                ):
+                    raise ValueError(
+                        f"The separately declared {name} conflicts with the zero-unpaired request"
+                    )
+            if "open_shell" in seed_atoms.info and seed_atoms.info["open_shell"] is not False:
+                raise ValueError(
+                    "A separately declared open-shell or unresolved request is unsupported"
+                )
+            if "electronic_state" in seed_atoms.info:
+                nested = seed_atoms.info["electronic_state"]
+                if not isinstance(nested, dict) or not {"charge", "multiplicity"}.issubset(nested):
+                    raise ValueError("The additional electronic_state declaration is ambiguous")
+                if (
+                    PhysicalCascadeCalculator._integer_state(nested["charge"], "charge") != charge
+                    or PhysicalCascadeCalculator._integer_state(
+                        nested["multiplicity"], "multiplicity", 1
+                    )
+                    != multiplicity
+                    or set(nested) - {"charge", "multiplicity"}
+                ):
+                    raise ValueError(
+                        "The additional electronic_state declaration conflicts or is unsupported"
+                    )
+            if "requested_electronic_state" in seed_atoms.info:
+                nested = seed_atoms.info["requested_electronic_state"]
+                allowed = {
+                    "charge",
+                    "multiplicity",
+                    "unpaired_electrons",
+                    "profile_assumption",
+                    "ground_state_status",
+                }
+                if (
+                    not isinstance(nested, dict)
+                    or not {"charge", "multiplicity"}.issubset(nested)
+                    or set(nested) - allowed
+                    or PhysicalCascadeCalculator._integer_state(nested["charge"], "charge")
+                    != charge
+                    or PhysicalCascadeCalculator._integer_state(
+                        nested["multiplicity"], "multiplicity", 1
+                    )
+                    != multiplicity
+                    or (
+                        "unpaired_electrons" in nested
+                        and PhysicalCascadeCalculator._integer_state(
+                            nested["unpaired_electrons"], "unpaired_electrons", 0
+                        )
+                        != 0
+                    )
+                ):
+                    raise ValueError(
+                        "The additional requested_electronic_state conflicts or is unsupported"
+                    )
+            if seed_atoms.has("initial_charges"):
+                values = seed_atoms.get_initial_charges()
+                if (
+                    np.iscomplexobj(values)
+                    or not np.isfinite(values).all()
+                    or not math.isclose(float(np.sum(values)), charge, abs_tol=1e-6)
+                ):
+                    raise ValueError(
+                        "Explicit ASE atomic charges conflict with the molecular request"
+                    )
+            if seed_atoms.has("initial_magmoms"):
+                values = seed_atoms.get_initial_magnetic_moments()
+                if np.iscomplexobj(values) or not np.isfinite(values).all() or np.any(values != 0):
+                    raise ValueError(
+                        "Explicit ASE magnetic moments conflict with the zero-unpaired request"
+                    )
+        except (TypeError, ValueError) as error:
+            raise EcosystemDependencyError(
+                f"CREST electronic-state request refused: {error}"
+            ) from error
+        return {
+            "charge": charge,
+            "multiplicity": multiplicity,
+            "unpaired_electrons": 0,
+            "profile_assumption": "requested neutral singlet with zero unpaired electrons in xTB",
+            "ground_state_status": "unverified",
+        }
+
     def execute_secondary_search(
         self,
         seed_atoms: Atoms,
@@ -1615,67 +1777,229 @@ class CRESTConformerEngine:
         crest_flags: Optional[list[str]] = None,
         thread_budget: Optional[int] = None,
     ) -> list[Atoms]:
-        """Execute CREST binary subprocess with mutual toolchain audit and OpenMP safeguards."""
-        flags = crest_flags or ["--nci", "--nocross", "--noreftopo"]
-        crest_bin = shutil.which("crest")
-        xtb_bin = shutil.which("xtb")
+        """Run explicitly authorized external GFN2-xTB through owned CREST containment.
 
-        # Audit mutual toolchain co-existence [M]
-        if not crest_bin or not xtb_bin:
+        The --legacy/--xnam route binds an actual external xTB executable instead
+        of CREST's in-process library backend. It requires separate qualification;
+        this method does not claim blanket equivalence to that older backend.
+        Input, logs, ensemble and authorization evidence remain in owned scratch.
+        """
+        from copy import deepcopy
+        from dataclasses import asdict
+        from io import StringIO
+
+        from cochem_base.core.managed_files import ManagedPathError, atomic_write_bytes
+        from cochem_base.core.scratch import admit_scratch
+        from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+        from cochem_base.core_engine.execution_authority import authorize_engine_execution
+        from cochem_base.topos_runner import _parse_xyz_bytes
+
+        flags = self._validated_crest_flags(crest_flags)
+        self._requested_crest_state(seed_atoms)
+        seed_snapshot = seed_atoms.copy()
+        seed_snapshot.info = deepcopy(seed_atoms.info)
+        requested_state = self._requested_crest_state(seed_snapshot)
+        effective_threads = thread_budget if thread_budget is not None else self.thread_budget
+        effective_threads = 1 if effective_threads is None else effective_threads
+        if type(effective_threads) is not int or effective_threads < 1:
             raise EcosystemDependencyError(
-                f"CREST relies intrinsically on xTB, but one or both executables were not found on PATH. "
-                f"(crest: {crest_bin or 'MISSING'}, xtb: {xtb_bin or 'MISSING'})"
+                "CREST threads require an explicit positive integer within audited resources"
             )
-
-        effective_threads = thread_budget or self.thread_budget or 1
+        admission = admit_scratch()
+        crest = authorize_engine_execution(
+            "crest", registry_path=admission.registry_path, cores=effective_threads
+        )
+        xtb = authorize_engine_execution(
+            "xtb", registry_path=admission.registry_path, cores=effective_threads
+        )
+        if (
+            crest.registry_path != xtb.registry_path
+            or crest.cpu_affinity != xtb.cpu_affinity
+            or crest.cores != xtb.cores
+        ):
+            raise EcosystemDependencyError(
+                "CREST and external xTB require the same audited registry and CPU allocation"
+            )
         env = self._build_execution_env(budgeted_threads=effective_threads)
-
-        env_scratch = os.environ.get("COCH_SCRATCH") or os.environ.get("COCHEM_SCRATCH_DIR")
-        if env_scratch:
-            base_scratch = Path(env_scratch)
-        else:
-            try:
-                from Libraries.cochem_torq_environment import resolve_hpc_safe_scratch
-                base_scratch = resolve_hpc_safe_scratch()
-            except Exception:
-                base_scratch = Path(tempfile.gettempdir())
-
-        import uuid
-        crest_workdir = base_scratch / f"crest_{uuid.uuid4().hex}"
-        crest_workdir.mkdir(parents=True, exist_ok=True)
-
-        try:
-            xyz_path = crest_workdir / "input.xyz"
-            from ase.io import write as ase_write
-            ase_write(str(xyz_path), seed_atoms)
-
-            cmd = [crest_bin, str(xyz_path)] + flags + ["--ewin", str(self.ewin), "-T", str(effective_threads)]
-            subprocess.run(
-                cmd, cwd=crest_workdir, capture_output=True, text=True, timeout=120, check=True, env=env
+        for variable in (
+            "OMP_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "OPENBLAS_NUM_THREADS",
+            "BLIS_NUM_THREADS",
+            "VECLIB_MAXIMUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+        ):
+            env[variable] = str(effective_threads)
+        env["COCHEM_SCRATCH_DIR"] = str(admission.directory)
+        # --xnam is the actual supported CREST external-binary selection. PATH
+        # also resolves ordinary child lookup to that same verified executable.
+        env["PATH"] = str(Path(xtb.executable).parent) + os.pathsep + env.get("PATH", "")
+        if shutil.which(Path(xtb.executable).name, path=env["PATH"]) != xtb.executable:
+            raise EcosystemDependencyError(
+                "The subprocess PATH does not select the exact audited xTB executable"
             )
+        # Consumer-owned I/O and Popen cwd retain the same held directory.
+        # Inherited broker quota/authorization/crash paths remain separately scoped.
+        with admission.create_operation_directory("crest") as work:
+            self.last_work_directory = work.path
+            identity = os.fstat(work.fd)
+            method_flags = [] if "--gfn2" in flags else ["--gfn2"]
+            cmd = [
+                crest.executable, "input.xyz", *flags, *method_flags,
+                "--legacy", "--xnam", xtb.executable,
+                "--chrg", str(requested_state["charge"]),
+                "--uhf", str(requested_state["unpaired_electrons"]),
+                "--ewin", str(self.ewin), "-T", str(effective_threads),
+            ]
+            input_profile = {
+                "scope": "ordinary unlabelled elements with default ASE masses",
+                "explicit_mass_and_label_support": False,
+                "physical_identity_qualification": False,
+            }
+            receipt = {
+                "schema_version": "cochem.base-crest-external-gfn2/1",
+                "status": "prepared_not_executed",
+                "command": cmd,
+                "timeout_seconds": 120,
+                "requested_threads": effective_threads,
+                "invocation_backend": "CREST --legacy external GFN2-xTB via --xnam",
+                "backend_equivalence_qualified": False,
+                "crest_authorization": asdict(crest),
+                "xtb_authorization": asdict(xtb),
+                "requested_electronic_state": requested_state,
+                "legacy_crest_input_profile": input_profile,
+                "scratch_directory": str(work.path),
+                "scratch_authority_sources": list(admission.sources),
+                "directory_identity": {"device": identity.st_dev, "inode": identity.st_ino},
+                "directory_chain": [(str(path), device, inode) for path, device, inode in work.chain],
+                "ensemble_byte_limit": 64 * 1024 * 1024,
+                "retention": "Input, available native stdout/stderr, ensemble and diagnostics are retained; no parent or neighbor cleanup",
+                "diagnostic_capture": {"status": "not_attempted", "timeout_cleanup_tail_available": False},
+            }
+            captured = False
 
-            ensemble_path = crest_workdir / "crest_conformers.xyz"
-            if not ensemble_path.exists():
-                ensemble_path = crest_workdir / "crest_ensemble.xyz"
-            if ensemble_path.exists():
-                from cochem_base.topos_runner import _parse_xyz
+            def publish_receipt() -> None:
+                atomic_write_bytes(work.path, "execution_authorizations.json",
+                                   json.dumps(receipt, indent=2, allow_nan=False).encode("utf-8"),
+                                   expected_chain=work.chain)
 
+            def retain_capture(payload: Any, status: str) -> None:
+                nonlocal captured
+                streams = {}
+                for name in ("stdout", "stderr"):
+                    value = getattr(payload, name, None)
+                    if name == "stdout" and value is None:
+                        value = getattr(payload, "output", None)
+                    available = value is not None
+                    if value is None:
+                        data, encoding = b"", "unavailable_no_payload"
+                    elif isinstance(value, bytes):
+                        data, encoding = value, "raw_captured_bytes"
+                    elif isinstance(value, str):
+                        data, encoding = value.encode("utf-8"), "decoded_text_utf8_transcript"
+                    else:
+                        raise EcosystemDependencyError("Unexpected broker output type; diagnostics were not invented")
+                    filename = f"process_{name}.log"
+                    atomic_write_bytes(work.path, filename, data, immutable=True, expected_chain=work.chain)
+                    streams[name] = {"path": filename, "available": available,
+                                     "representation": encoding, "bytes": len(data),
+                                     "sha256": hashlib.sha256(data).hexdigest()}
+                receipt["diagnostic_capture"] = {
+                    "status": status, "streams": streams,
+                    "timeout_cleanup_tail_available": False,
+                    "scope": "Existing nonstreaming broker payload only; no post-timeout tail is available",
+                }
+                captured = True
+
+            try:
+                from ase.io import write as ase_write
+
+                # ASE's .xyz extension selects extxyz in the existing exporter.
+                # Keep that same format while publishing only through the held fd.
+                with StringIO() as stream:
+                    ase_write(stream, seed_snapshot, format="extxyz")
+                    input_bytes = stream.getvalue().encode("utf-8")
+                atomic_write_bytes(work.path, "input.xyz", input_bytes,
+                                   immutable=True, expected_chain=work.chain)
+                receipt["input_sha256"] = hashlib.sha256(input_bytes).hexdigest()
+                publish_receipt()
+                if admit_scratch(admission.registry_path) != admission:
+                    raise EcosystemDependencyError("Scratch authority changed before native launch")
+                native_cwd, inherited = work.subprocess_cwd()
+                receipt["working_directory_capability"] = native_cwd
+                publish_receipt()
+                result = safe_subprocess_run(
+                    cmd, cwd=native_cwd, pass_fds=inherited,
+                    capture_output=True, text=False, timeout=120, check=True, env=env,
+                    cpu_affinity=list(crest.cpu_affinity) or None, stream_to_disk=False,
+                )
+                work.verify()
+                retain_capture(result, "complete_returned_process_streams")
+                receipt.update(status="native_process_completed", returncode=result.returncode)
+                if (
+                    authorize_engine_execution(
+                        "crest", registry_path=admission.registry_path, cores=effective_threads
+                    ) != crest
+                    or authorize_engine_execution(
+                        "xtb", registry_path=admission.registry_path, cores=effective_threads
+                    ) != xtb
+                ):
+                    raise EcosystemDependencyError("CREST/xTB authorization changed during the actual operation")
+                if admit_scratch(admission.registry_path) != admission:
+                    raise EcosystemDependencyError("Audited scratch authority changed during the actual operation")
+                ensemble_bytes = None
+                for filename in ("crest_conformers.xyz", "crest_ensemble.xyz"):
+                    try:
+                        ensemble_bytes = work.read_file(filename, max_bytes=64 * 1024 * 1024)
+                    except FileNotFoundError:
+                        continue
+                    ensemble_name = filename
+                    break
+                if ensemble_bytes is None:
+                    raise EcosystemDependencyError("CREST did not produce a nonempty validated ensemble")
                 ensemble = []
-                for frame in _parse_xyz(ensemble_path, require_energy=True):
+                for frame in _parse_xyz_bytes(ensemble_bytes, source_path=work.path / ensemble_name,
+                                               require_energy=True):
+                    if frame.symbols != seed_snapshot.get_chemical_symbols():
+                        raise EcosystemDependencyError("CREST ensemble changed the ordered unlabelled input elements")
                     conformer = Atoms(frame.symbols, positions=frame.coordinates)
-                    conformer.info["energy_kcal"] = frame.energy * units.Hartree / (units.kcal / units.mol)
+                    conformer.info["energy_kcal"] = (
+                        frame.energy * units.Hartree / (units.kcal / units.mol)
+                    )
                     conformer.info["source_engine"] = "CREST"
+                    conformer.info["charge"] = requested_state["charge"]
+                    conformer.info["multiplicity"] = requested_state["multiplicity"]
+                    conformer.info["uhf"] = requested_state["unpaired_electrons"]
+                    conformer.info["requested_electronic_state"] = dict(requested_state)
+                    conformer.info["legacy_crest_input_profile"] = dict(input_profile)
                     ensemble.append(conformer)
-                if ensemble:
-                    return ensemble
-            raise EcosystemDependencyError("CREST did not produce a nonempty validated ensemble")
-        except EcosystemDependencyError:
-            raise
-        except Exception as exc:
-            raise EcosystemDependencyError(f"CREST search failed without a publishable result: {exc}") from exc
-        finally:
-            if crest_workdir.exists():
-                shutil.rmtree(crest_workdir, ignore_errors=True)
+                if not ensemble:
+                    raise EcosystemDependencyError("CREST did not produce a nonempty validated ensemble")
+                work.verify()
+                receipt.update(status="ensemble_parsed", parsed_structures=len(ensemble),
+                               ensemble_path=ensemble_name,
+                               ensemble_sha256=hashlib.sha256(ensemble_bytes).hexdigest())
+                publish_receipt()
+                return ensemble
+            except BaseException as exc:
+                try:
+                    work.verify()
+                    if not captured:
+                        capture_status = (
+                            "partial_timeout_capture_no_cleanup_tail" if isinstance(exc, subprocess.TimeoutExpired)
+                            else "complete_nonzero_process_streams" if isinstance(exc, subprocess.CalledProcessError)
+                            else "available_exception_payload_only"
+                        )
+                        retain_capture(exc, capture_status)
+                    receipt.update(status="failed", error_type=type(exc).__name__, error=str(exc))
+                    publish_receipt()
+                except (OSError, ManagedPathError, EcosystemDependencyError) as diagnostic_error:
+                    exc.add_note(f"Diagnostics could not be published without changing bound ownership: {diagnostic_error}")
+                if isinstance(exc, EcosystemDependencyError) or not isinstance(exc, Exception):
+                    raise
+                raise EcosystemDependencyError(
+                    f"CREST search failed without a publishable result: {exc}. Retained diagnostics: {work.path}"
+                ) from exc
 
 
 # ===========================================================================
@@ -1980,6 +2304,12 @@ class TopologyCrusher:
 
         Use the canonical TOPOS runner for the native ORCA GOAT + CREST protocol.
         """
+        if (isinstance(seed_atoms, Atoms) and seed_atoms.calc is None
+                and "energy_kcal" not in seed_atoms.info):
+            # Preserve the existing absent-energy refusal without running a
+            # calculator merely to discover that the state request is missing.
+            self._resolve_energy_kcal(seed_atoms)
+        self.crest_engine._requested_crest_state(seed_atoms)
         self._resolve_energy_kcal(seed_atoms)
         goat_ensemble = self.goat_engine.generate_conformers(
             seed_atoms, num_conformers=num_goat_variants

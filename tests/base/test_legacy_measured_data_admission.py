@@ -53,15 +53,83 @@ def test_measured_pes_rejects_conflicting_energy_aliases(tmp_path):
     with pytest.raises(ValueError, match='aliases conflict'):
         store.read_point('retained')
 
+
+@pytest.mark.parametrize("invalid", [None, float("nan"), float("inf"), -float("inf")])
+def test_guarded_store_refuses_missing_or_nonfinite_energy_without_replacing_native_point(
+    tmp_path, invalid
+):
+    _, symbols, coordinates, energy, gradient = native()
+    path = tmp_path / "retained-observation.h5"
+    store = PESStore(path, swmr=False)
+    store.write_point(
+        "retained",
+        energy_hartree=energy,
+        coordinates=coordinates,
+        gradient=gradient,
+        symbols=symbols,
+        tier="HF-STO3G",
+    )
+    before = path.read_bytes()
+    with pytest.raises(ValueError):
+        store.write_point("retained", energy_hartree=invalid)
+    assert path.read_bytes() == before
+    assert store.read_point("retained")["energy_hartree"] == energy
+
+
+def test_guarded_store_refuses_conflicting_units_and_malformed_geometry_before_mutation(tmp_path):
+    _, symbols, coordinates, energy, gradient = native()
+    path = tmp_path / "units-and-order.h5"
+    store = PESStore(path, swmr=False)
+    store.write_point(
+        "retained",
+        energy_hartree=energy,
+        coordinates=coordinates,
+        gradient=gradient,
+        symbols=symbols,
+        tier="HF-STO3G",
+    )
+    before = path.read_bytes()
+    for fields in (
+        {"energy_ev": 0.0},
+        {"coordinates": [[0.0, 0.0]]},
+        {"coordinates": [[float("nan"), 0.0, 0.0]]},
+        {"symbols": ["H"], "coordinates": coordinates},
+    ):
+        with pytest.raises(ValueError):
+            store.write_point("retained", energy_hartree=energy, **fields)
+        assert path.read_bytes() == before
+    record = store.read_point("retained")
+    assert record["energy_hartree"] == energy and np.array_equal(record["coordinates"], coordinates)
+
+
+def test_explicit_zero_is_a_declared_data_value_and_is_never_inferred_from_missing_energy(tmp_path):
+    # This is an explicit schema datum, not native chemistry or a measured zero.
+    path = tmp_path / "declared-data-only.h5"
+    store = PESStore(path, swmr=False)
+    store.write_point(
+        "declared",
+        energy_hartree=0.0,
+        extra_attrs={"data_origin": "declared schema input; no native calculation"},
+    )
+    before = path.read_bytes()
+    record = store.read_point("declared")
+    assert record["energy_hartree"] == 0.0 and record["energy_ev"] == 0.0
+    assert record["data_origin"] == "declared schema input; no native calculation"
+    assert path.read_bytes() == before
+    with pytest.raises(ValueError, match="explicit finite electronic energy"):
+        store.write_point("declared")
+    assert path.read_bytes() == before
+
+
 def test_vault_keeps_unevaluated_geometry_energy_unknown(tmp_path):
     _, symbols, coordinates, energy, _ = native()
-    path = tmp_path / 'geometry.h5'
-    with h5py.File(path, 'w') as handle:
-        node = handle.create_group('conformers/water')
-        node.create_dataset('coordinates', data=coordinates)
-        node.create_dataset('symbols', data=symbols, dtype=h5py.string_dtype())
-    record = fetch_topos_matrices(path, 'water')
-    assert record['energy_hartree'] is None and record['energy_status'] == 'uncomputed'
+    path = tmp_path / "geometry.h5"
+    with h5py.File(path, "w") as handle:
+        node = handle.create_group("conformers/water")
+        node.create_dataset("coordinates", data=coordinates)
+        node.create_dataset("symbols", data=symbols, dtype=h5py.string_dtype())
+    record = fetch_topos_matrices(path, "water")
+    assert record["energy_hartree"] is None and record["energy_status"] == "uncomputed"
     assert np.array_equal(record['coordinates'], coordinates)
     with h5py.File(path, 'a') as handle:
         handle['conformers/water'].attrs['energy_hartree'] = energy

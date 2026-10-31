@@ -7,7 +7,7 @@ graft src
 graft cochem
 graft frontend
 graft ui
-graft Libraries
+prune Libraries
 graft scripts
 graft ci_tools
 graft examples

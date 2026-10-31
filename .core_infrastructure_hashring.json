@@ -28,7 +28,7 @@
     ".scripts/prompts/5.2.5_prompt.json": "b0ca0f50112c8754d2f7c0ae1e8866619e7a70a4f5eea19df7a6735495a06c3d",
     ".scripts/prompts/5.3.2_prompt.json": "4b029bc0f273833667a38a920d3742f2ec77897597eddb210c15d170d5af69d5",
     ".trash/setup/requirements_scribe.txt": "4306a52ab7e5285f8f43aad8e761baaf6e6b53a27c311826bf82308566d5368c",
-    "MANIFEST.in": "6d090871a47330a47dfd1c4076794e1e9463eb618b53308e46520ea8887f4987",
+    "MANIFEST.in": "05b709e39f6bce9a73ddd4de101c54f53cd88c33557335d3e23d66d3213b8629",
     "ci_tools/__init__.py": "8e1c2caf17ff55969f721556db7722ebf22534678514c38a7f7c670a5817e95b",
     "ci_tools/anti_spoof_linter.py": "05c1c6c960274c7df55bd6d3e4dfe25ffdba7ab199cfdeaa83e7ac1ca54ba683",
     "ci_tools/base_ci.py": "1142a4000fc45a89f1c830bd1df40cdff87647d39fe6a30f9552870381ba9970",
@@ -52,7 +52,7 @@
     "ci_tools/verify_core_integrity.py": "8f60c4bc47ea89e80637ae4b24b82e3b5c80b9fe6c9f73015e1bc219249a5950",
     "ci_tools/zero_trust_runner.py": "3ed284ff44fb8b472364ce70fcb2dc9745f2ae010332785725bd13a03d2a19e5",
     "cli.py": "a8ed85cc3dfe2d1bc729f1353f51e4a686de04f7c14c802fe995db0ccd8bd20b",
-    "pyproject.toml": "53d4c1efef0895e7616a9f977a3a4a9f1eb14e2c1dcfce5491189f364e8b2716",
+    "pyproject.toml": "c4b4306728a893b8f29ce5d85a2d40e9303fd4c3b2d1ef45bb3f527f714816d8",
     "pytest-srs.ini": "9a92d3275d4b9c219a07e8f0d1cbcbd85bd55515b8e5e5b5db4d3a1bedba117e",
     "pytest.ini": "4a34ec6847952c060f9b381550f877b692999b368c2e375cd779ea76fb130bd2",
     "requirements-ui.txt": "8d334b2e1862be789d52872b6704e3c2d96521b9b7dfed71e55be420d69076b4",
@@ -224,7 +224,7 @@
     "src/cochem_base/orchestrator/silo_dependency_pins.py": "bc321bdd9f9e317b59e657f283983f425b2d2264035d7cd14c3ce45152384137",
     "src/cochem_base/orchestrator/stage0_authority.py": "67d57fd89cc603d751fb43815ec13833008dc9142d6e8d4c2f69d3e0412b5412",
     "src/cochem_base/spectroscopy/spcat_runner.py": "6d39e3af765451b32c3ded68a9a066b2cd5d2c56766f357c48897563e1f01952",
-    "src/cochem_base/topos_runner.py": "d7b3a9a0cace865989ed399bdc14e67ea6ea615eeb6ae5f5a6e9618376a213cb"
+    "src/cochem_base/topos_runner.py": "6da5b655d8378b9bcd9b908b38e8ee242545383f6d0a7ceb2216255dccd619a5"
   },
   "schema_version": 1
 }

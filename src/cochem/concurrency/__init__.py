@@ -1,15 +1,18 @@
-"""CoChem Concurrency and OS-level file locking module."""
+"""BASE atomic locking; retired TORQ scratch object exports are unavailable."""
 
 from __future__ import annotations
 
 from cochem.concurrency.atomic_file_lock import AtomicFileLock
 
-__all__ = ["AtomicFileLock", "EphemeralScratchSession", "resolve_hpc_safe_scratch"]
+__all__ = ["AtomicFileLock"]
 
 
 def __getattr__(name: str):
-    """Load optional TORQ scratch helpers only when they are requested."""
     if name in {"EphemeralScratchSession", "resolve_hpc_safe_scratch"}:
-        from importlib import import_module
-        return getattr(import_module("Libraries.cochem_torq_environment"), name)
+        raise ImportError(
+            f"{__name__}.{name} is unavailable: the retired TORQ scratch-object "
+            "API is not imported across isolated environments. BASE scratch "
+            "operations require cochem_base.core.scratch.admit_scratch and "
+            "actual Stage 0 evidence; engine execution requires separate authorization."
+        )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

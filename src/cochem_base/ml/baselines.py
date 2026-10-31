@@ -1,27 +1,15 @@
-"""Semi-empirical Hamiltonians, Empirical Baselines & Dispersion Layers (Suggestion #60, #138, #139 / Method Matrix v4 §9A.5 [M], [D])."""
+"""BASE compatibility exports; unsupported TORQ science stays unavailable.
+
+No sibling checkout or cross-environment Python objects are imported.
+"""
 
 from __future__ import annotations
 
-from Libraries.cochem_torq_delta_ml import (
-    BaselinePhysicsEngine,
-    DeltaMLEngine,
-    EMTBaselineEngine,
-    GFN2xTBEngine,
-    LennardJonesBaselineEngine,
-    PM6Engine,
-    UnitHarmonizer,
-)
-from Libraries.cochem_torq_dispersion_d3 import (
-    DispersionD3Layer,
-    compute_coordination_numbers,
-)
-from Libraries.cochem_torq_inference_schemas import DispersionD3Config
-
+from cochem_base.ml._legacy_api import unavailable_attribute
 from cochem_base.schemas import DeltaMLDispersionConfig
 
-__all__ = [
+_UNAVAILABLE = (
     "BaselinePhysicsEngine",
-    "DeltaMLDispersionConfig",
     "DeltaMLEngine",
     "DispersionD3Config",
     "DispersionD3Layer",
@@ -31,4 +19,11 @@ __all__ = [
     "PM6Engine",
     "UnitHarmonizer",
     "compute_coordination_numbers",
-]
+)
+
+
+def __getattr__(name: str):
+    return unavailable_attribute(__name__, name, _UNAVAILABLE)
+
+
+__all__ = ["DeltaMLDispersionConfig"]

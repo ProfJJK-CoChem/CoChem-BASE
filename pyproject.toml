@@ -71,12 +71,11 @@ cochem_mobile = "src/cochem_mobile"
 frontend = "frontend"
 ui = "ui"
 scripts = "scripts"
-Libraries = "Libraries"
 
 [tool.setuptools.packages.find]
 where = [".", "src"]
-include = ["cochem", "cochem.*", "cochem_base*", "cochem_geom*", "cochem_ml*", "cochem_mobile*", "frontend", "frontend.*", "ui", "ui.*", "scripts", "scripts.*", "Libraries", "Libraries.*"]
-exclude = ["*.egg-info*", "cochem.topos", "cochem.topos.*", "cochem.torq", "cochem.torq.*", "cochem_topos", "cochem_topos.*", "cochem_torq", "cochem_torq.*"]
+include = ["cochem", "cochem.*", "cochem_base*", "cochem_geom*", "cochem_ml*", "cochem_mobile*", "frontend", "frontend.*", "ui", "ui.*", "scripts", "scripts.*"]
+exclude = ["Libraries", "Libraries.*", "*.egg-info*", "cochem.topos", "cochem.topos.*", "cochem.torq", "cochem.torq.*", "cochem_topos", "cochem_topos.*", "cochem_torq", "cochem_torq.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["test_suite", "tests"]
@@ -122,7 +121,6 @@ module = [
     "networkx.*",
     "pynvml.*",
     "cochem.*",
-    "Libraries.*",
     "cochem_bench.*",
     "bench_core.*",
     "cochem_geom_ingest_math.*",

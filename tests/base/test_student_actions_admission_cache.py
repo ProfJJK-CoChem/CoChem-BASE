@@ -5,6 +5,7 @@ import base64
 from collections import Counter
 from copy import deepcopy
 import hashlib
+from http.server import ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
@@ -50,6 +51,34 @@ class CacheHandler(_fixtures['GitHandler']):
         return super().do_GET()
 
 
+class CacheServer(ThreadingHTTPServer):
+    """Owned real loopback server retaining the stopped fixture's exact state."""
+
+    def __init__(self, previous):
+        super().__init__(('127.0.0.1', 0), CacheHandler)
+        self.posts = previous.posts
+        self.runs = previous.runs
+        self.gets = previous.gets
+        self.access = previous.access
+        self.protected = previous.protected
+        self.cancels = previous.cancels
+        self.ref_updates = previous.ref_updates
+        self.lock = previous.lock
+        self.store = previous.store
+        self.repository = previous.repository
+        self.repository_id = previous.repository_id
+        self.workflow_id = previous.workflow_id
+        self.drop_ref_ack = previous.drop_ref_ack
+        self.drop_dispatch_ack = previous.drop_dispatch_ack
+        self.observation_override = previous.observation_override
+        self.git_writes = previous.git_writes
+        self.drop_create_ack = previous.drop_create_ack
+        self.drop_patch_ack = previous.drop_patch_ack
+        self.listing_extra = previous.listing_extra
+        self.listing_change_page = previous.listing_change_page
+        self.daemon_threads = True
+
+
 @pytest.fixture
 def cache_peer(tmp_path, request):
     controller = _fixtures['Controls']('test_exact_transport_original_bytes_and_noncircular_anchor')
@@ -61,15 +90,7 @@ def cache_peer(tmp_path, request):
     controller.peer.server_close()
     controller.thread.join(timeout=3)
     assert not controller.thread.is_alive()
-    import http.server
-    peer = http.server.ThreadingHTTPServer(('127.0.0.1', 0), CacheHandler)
-    for key, value in vars(controller.peer).items():
-        if key in {'posts', 'runs', 'gets', 'access', 'protected', 'cancels', 'ref_updates', 'lock',
-                   'store', 'repository', 'repository_id', 'workflow_id', 'drop_ref_ack',
-                   'drop_dispatch_ack', 'observation_override', 'git_writes', 'drop_create_ack',
-                   'drop_patch_ack', 'listing_extra', 'listing_change_page'}:
-            setattr(peer, key, value)
-    peer.daemon_threads = True
+    peer = CacheServer(controller.peer)
     controller.peer = peer
     controller.thread = threading.Thread(target=peer.serve_forever, daemon=True)
     controller.thread.start()

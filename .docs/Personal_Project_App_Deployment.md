@@ -509,11 +509,17 @@ instead. Keep the run link and exact error; do not paste credentials into an iss
 | Public TOPOS/TORQ downloads have no source token | Public source does not need one. Inspect the actual module installation result; do not create a private-source credential just to remove a warning. |
 | Billing or usage blocks the controller | Check the lab organization's Actions allowance/policy. Changing the student Codespace's payer does not fix the organization's controller job. |
 
-After correcting setup, ask the student to **close and reopen the same enrollment
-issue**, or edit its existing BASE-generated body without changing its required
-structure. Those events retry setup using the original student's authorship;
-adding a comment does not. Confirm a new controller run actually starts.
-There is no need to create repeated requests or repeat App registration.
+For a pending or failed enrollment, keep the same open enrollment issue after
+correcting setup. The scheduled inbox sweep retries it when the controller can
+run. **Close and reopen** can request an earlier sweep; adding a comment does
+not. Confirm an actual controller run and its result, because a queued wake-up
+can be replaced before it starts. There is no need to create repeated requests
+or repeat App registration.
+
+An unchanged enrollment already recorded as completed is deliberately skipped,
+even after close/reopen. Repair its configuration or rotate access through the
+instructor maintenance steps below. Reopening an issue does not release an
+instructor withdrawal hold.
 
 ## Updates and credential maintenance
 
@@ -532,6 +538,18 @@ eight). The controller checks program/configuration file contents, not commit
 ancestry, because template copies have new histories. Added student documents
 outside protected code/configuration paths are retained.
 
+The controller derives the personal Codespaces permission settings from that
+exact approved template. It saves those settings and the matching single
+permission-file digest in the infrastructure integrity file together in one
+ordinary commit, then rechecks project identity, complete protected source and
+the resulting revision before delivering access. Every other integrity entry
+and student file stays unchanged. An original template or the older
+configuration-only form is accepted only as input to this repair, not as final
+paired verification. Do not hand-edit or regenerate the student's integrity
+file to suppress a mismatch. If the project changes during repair, inspect the
+retained result and retry the authorized maintenance operation after review;
+the controller does not overwrite intervening student work.
+
 A missing/outdated student workflow needs an instructor update to the actual
 files in that project's default branch. Update the complete compatible
 workflow/script set, including `.github/workflows/student_project_setup.yml`
@@ -549,19 +567,27 @@ publish replacement project workflow files.
 2. Open **private controller → Actions → CoChem private project access controller**.
 3. Choose **Run workflow**, select the controller's default branch, and enter
    the actual student project as `owner/project` in **project_repository**.
-4. In **engines**, enter `orca cfour` for both, `orca` or `cfour` for one, or
-   clear the field for neither. Select **provision** to grant or rotate access,
-   **reconcile** to recheck membership and repair pending cleanup, or
-   **deprovision** to withdraw this controller's stored access. Choose
-   **Run workflow** to submit.
-5. Inspect the run's outcome. The manual route requires instructor
-   Write/Maintain/Admin access and still checks student membership, ownership,
-   private visibility, selected App installation and approved starter. It does
-   not establish that the student completed their own enrollment interaction.
+4. In **operation**, choose **reconcile** to repair an active enrollment or
+   refresh its access. A withdrawn project remains withdrawn under reconcile.
+   Choose **provision** only for intended initial setup or explicitly authorized
+   re-enrollment; a successful provision can release its withdrawal hold.
+   The default **sweep** processes the issue inbox and does not perform this
+   targeted maintenance operation. To withdraw access, choose **deprovision**.
+5. In **engines**, enter `orca cfour` for both, `orca` or `cfour` for one, or
+   clear the field for neither. Choose **Run workflow** to submit.
+6. Confirm that this particular run actually starts, then inspect its outcome
+   and the receipt for the intended project and operation. A submitted or queued
+   dispatch is not a completed repair; manual dispatches can be replaced before
+   they start. The route requires instructor Write/Maintain/Admin access and
+   still checks student membership, ownership, private visibility, selected App
+   installation and approved starter. It does not establish that the student
+   completed their own enrollment interaction.
 
 Manual runs have no enrollment issue to comment on; read the Actions result.
-They refresh encrypted access and the reviewed project Codespaces settings,
-not scientific input files. A changed permission or private-source credential
+For an active approved member, the repair refreshes encrypted access and the
+reviewed paired Codespaces/integrity settings while retaining scientific input
+files. Reconciliation withdraws access when membership is absent or a hold
+remains. A changed permission or private-source credential
 requires a **new Codespace** before relying on it; preserve local uploads and
 completed bundles first.
 

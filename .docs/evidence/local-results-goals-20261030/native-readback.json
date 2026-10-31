@@ -1,0 +1,494 @@
+{
+  "schema_version": "cochem.local-results-native-readback/1",
+  "packaged_on": "2026-10-31",
+  "record_kind": "curated documentary derivative; original execution receipts remain separately preserved",
+  "producer": "4e8148bceb1b67cdd1e806ef7183fd00e7edf3f3",
+  "source": {
+    "original_relative_path": "local-result-native-acceptance-plan/NATIVE-RECEIPT.json",
+    "sha256": "d7d4f5aec941024daf787a5d75253879dfc46e667a5b8646480e94a45959c96d",
+    "size_bytes": 28325
+  },
+  "pytest_nodes": [
+    {
+      "classname": "tests.calc.test_xtb_cli_execution",
+      "name": "test_real_cli_calculation_and_atomic_publication[False-GFN2-xTB-T1]",
+      "time": "6.861"
+    },
+    {
+      "classname": "tests.calc.test_xtb_cli_execution",
+      "name": "test_real_cli_calculation_and_atomic_publication[False-GFN-FF-T0]",
+      "time": "6.457"
+    },
+    {
+      "classname": "tests.calc.test_xtb_cli_execution",
+      "name": "test_real_cli_calculation_and_atomic_publication[True-GFN2-xTB-T1]",
+      "time": "8.204"
+    },
+    {
+      "classname": "tests.calc.test_xtb_cli_execution",
+      "name": "test_real_cli_calculation_and_atomic_publication[True-GFN-FF-T0]",
+      "time": "8.522"
+    },
+    {
+      "classname": "tests.calc.test_xtb_cli_execution",
+      "name": "test_two_actual_local_calculated_structures_export_electronic_differences",
+      "time": "2.207"
+    },
+    {
+      "classname": "tests.ui.test_voila_runtime_acceptance",
+      "name": "test_gui_executes_real_xtb_optimization",
+      "time": "11.534"
+    },
+    {
+      "classname": "tests.ui.test_voila_runtime_acceptance",
+      "name": "test_gui_cancellation_stops_its_actual_worker",
+      "time": "7.651"
+    }
+  ],
+  "completed_calculations": 7,
+  "single_points": 4,
+  "optimizations": 3,
+  "gradient_evaluations": 25,
+  "native_payload_invocations_evidenced": 29,
+  "count_basis": "Four genuine single-point outputs plus one real native gradient invocation for each retained measured optimizer evaluation; final optimizer output copies are not counted twice. This is not a count of every operating-system helper process.",
+  "counts_not_all_operating_system_helper_processes": true,
+  "calculations": [
+    {
+      "original_execution": {
+        "original_relative_path": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/execution.json",
+        "sha256": "4e6f6e60baf11386c2e616ea6fbc392582a504af5f29025a88a4dbead37abd7b",
+        "size_bytes": 873
+      },
+      "operation": "optimization",
+      "method": "GFN2-xTB",
+      "original_execution_status": "EXECUTION_VERIFIED",
+      "gradient_evaluations": 10,
+      "final_result_retained_after_tests": true,
+      "terminal_bundle_import_scope": "Complete retained result, subject to actual importer validation",
+      "authority_sha256": "0035988eca59369f15414283bbb9a46beaa11f87578d09f52ba8c9d46a8031ed",
+      "cores": 1,
+      "cpu_affinity_recorded": [
+        0
+      ],
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a"
+    },
+    {
+      "original_execution": {
+        "original_relative_path": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_0/results/execution.json",
+        "sha256": "1104a493daded0064ec05057aea7d314330729205b8491223ea6961ece202620",
+        "size_bytes": 743
+      },
+      "operation": "single_point",
+      "method": "GFN2-xTB",
+      "original_execution_status": "EXECUTION_VERIFIED",
+      "gradient_evaluations": 0,
+      "final_result_retained_after_tests": false,
+      "terminal_bundle_import_scope": "Not a successful portable import bundle: test deliberately deleted final result.json during its subsequent negative control.",
+      "authority_sha256": "a75468f8b62ce70bb550baa8cf6325af5c0abb679a6b4a571936ab410fd697b2",
+      "cores": 1,
+      "cpu_affinity_recorded": [
+        0
+      ],
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a"
+    },
+    {
+      "original_execution": {
+        "original_relative_path": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_1/results/execution.json",
+        "sha256": "5739a68a532026320baa3761f30cf484491a20353622b08b4dfa0959ba8d0f6c",
+        "size_bytes": 741
+      },
+      "operation": "single_point",
+      "method": "GFN-FF",
+      "original_execution_status": "EXECUTION_VERIFIED",
+      "gradient_evaluations": 0,
+      "final_result_retained_after_tests": false,
+      "terminal_bundle_import_scope": "Not a successful portable import bundle: test deliberately deleted final result.json during its subsequent negative control.",
+      "authority_sha256": "a75468f8b62ce70bb550baa8cf6325af5c0abb679a6b4a571936ab410fd697b2",
+      "cores": 1,
+      "cpu_affinity_recorded": [
+        0
+      ],
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a"
+    },
+    {
+      "original_execution": {
+        "original_relative_path": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_2/results/execution.json",
+        "sha256": "478c485b4fbea83938ac0190a1656df73abd853694dc8624fc837b0c482997e7",
+        "size_bytes": 743
+      },
+      "operation": "optimization",
+      "method": "GFN2-xTB",
+      "original_execution_status": "EXECUTION_VERIFIED",
+      "gradient_evaluations": 7,
+      "final_result_retained_after_tests": false,
+      "terminal_bundle_import_scope": "Not a successful portable import bundle: test deliberately deleted final result.json during its subsequent negative control.",
+      "authority_sha256": "a75468f8b62ce70bb550baa8cf6325af5c0abb679a6b4a571936ab410fd697b2",
+      "cores": 1,
+      "cpu_affinity_recorded": [
+        0
+      ],
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a"
+    },
+    {
+      "original_execution": {
+        "original_relative_path": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_3/results/execution.json",
+        "sha256": "82a8ff248edabe2faecc6240f27c6be9343b7386d232d5b5a7c58bd4ea74600d",
+        "size_bytes": 741
+      },
+      "operation": "optimization",
+      "method": "GFN-FF",
+      "original_execution_status": "EXECUTION_VERIFIED",
+      "gradient_evaluations": 8,
+      "final_result_retained_after_tests": false,
+      "terminal_bundle_import_scope": "Not a successful portable import bundle: test deliberately deleted final result.json during its subsequent negative control.",
+      "authority_sha256": "a75468f8b62ce70bb550baa8cf6325af5c0abb679a6b4a571936ab410fd697b2",
+      "cores": 1,
+      "cpu_affinity_recorded": [
+        0
+      ],
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a"
+    },
+    {
+      "original_execution": {
+        "original_relative_path": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_two_actual_local_calculat0/calculated-structure-0/Results/execution.json",
+        "sha256": "fe4ed4758bd8e1cce3e4df754b71c182e229aefc0e1ec05b9e71aa633afbebfc",
+        "size_bytes": 812
+      },
+      "operation": "single_point",
+      "method": "GFN2-xTB",
+      "original_execution_status": "EXECUTION_VERIFIED",
+      "gradient_evaluations": 0,
+      "final_result_retained_after_tests": true,
+      "terminal_bundle_import_scope": "Complete retained result, subject to actual importer validation",
+      "authority_sha256": "a75468f8b62ce70bb550baa8cf6325af5c0abb679a6b4a571936ab410fd697b2",
+      "cores": 1,
+      "cpu_affinity_recorded": [
+        0
+      ],
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a"
+    },
+    {
+      "original_execution": {
+        "original_relative_path": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_two_actual_local_calculat0/calculated-structure-1/Results/execution.json",
+        "sha256": "09a2ed4388c0576f554e92bbd6d441feda92edc66c5798a3dd24463fa857542f",
+        "size_bytes": 812
+      },
+      "operation": "single_point",
+      "method": "GFN2-xTB",
+      "original_execution_status": "EXECUTION_VERIFIED",
+      "gradient_evaluations": 0,
+      "final_result_retained_after_tests": true,
+      "terminal_bundle_import_scope": "Complete retained result, subject to actual importer validation",
+      "authority_sha256": "a75468f8b62ce70bb550baa8cf6325af5c0abb679a6b4a571936ab410fd697b2",
+      "cores": 1,
+      "cpu_affinity_recorded": [
+        0
+      ],
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a"
+    }
+  ],
+  "payloads": [
+    {
+      "native_output_sha256": "9174a033014dc6f0edbade3e66b9ec642203ed9af379f04c32f48499ae7fb33a",
+      "gradient_sha256": "a3764cb06dc14e8e973accca6a0e9b8d1cd49e2c6b955cde33cfd6fd120076b0",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/evaluation-0000"
+    },
+    {
+      "native_output_sha256": "a094dc9f6b5a685b9fa84809d21b74da4cc1dd288ec38050d5c4b6e267bb0d48",
+      "gradient_sha256": "8b7e782e55fdcfcc95abb29a56eef484ea02c4816746a6263eb374c8ccb0bc7f",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/evaluation-0001"
+    },
+    {
+      "native_output_sha256": "b4e153a3008c9e7e311788c7b02b583d8aafeffcac5c7264d8557c81a9566962",
+      "gradient_sha256": "c9d78ad863555974ee09b19a78ed54da4f1e36c142d4de8a0d9350d2d4558eb1",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/evaluation-0002"
+    },
+    {
+      "native_output_sha256": "2f4f9670b2bd5bfc5045f6de8d9170e9c8ae0fad17572da86489ef9a0fc7bcec",
+      "gradient_sha256": "795fe79d86adc84b80cdc25b013fb2c9ad8cfa38fac149255b64e141be5e9a2d",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/evaluation-0003"
+    },
+    {
+      "native_output_sha256": "535b6e0c1dc5d8424582d8b7f3140f3bdb3dbb03dc9d57938f6681429ab2807e",
+      "gradient_sha256": "bdf4914fa3423c879b08172553aca077bad93cb94350b1d9b26717b0bcff78bf",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/evaluation-0004"
+    },
+    {
+      "native_output_sha256": "d594820ed679670715c315d36c20e735b2822118e307af4c99cc73e843cc1a93",
+      "gradient_sha256": "28ba87573ccd5ee6d7023757e40c5e886ba5f9bfebf50f18e87b71adf22b66cb",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/evaluation-0005"
+    },
+    {
+      "native_output_sha256": "9931916ebde225804f018a4fe711c7e1f87f0911299693da8c2a62a652c932b8",
+      "gradient_sha256": "016bc53fc61239c9f0c77bd1a14490be967b3151c65c6507e1a72a38484f4179",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/evaluation-0006"
+    },
+    {
+      "native_output_sha256": "caadfbdb58f3354eff1fa4317735623e0b923d6eed0ae56017939e9dbb924867",
+      "gradient_sha256": "f8127734f500af6fc9b3dc59e83ee6b158691f108308ad30c7d24f873d9ee1a2",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/evaluation-0007"
+    },
+    {
+      "native_output_sha256": "529d85f32769b3c0f572d29936f68d371a5e9ce27ce67fa585002b8cba5b41ac",
+      "gradient_sha256": "2238986c53ecee1d78e151bf777a4f58a1911f6db181d297575772fe1124c9d7",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/evaluation-0008"
+    },
+    {
+      "native_output_sha256": "bdf02813bf9ae4c707c0d0ba8dcf305b681d8441531bb7df31b11a1b8fc25601",
+      "gradient_sha256": "2238986c53ecee1d78e151bf777a4f58a1911f6db181d297575772fe1124c9d7",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_1c6ecc7d3d0947fbbeff259c6ef5d919/Results/evaluation-0009"
+    },
+    {
+      "native_output_sha256": "979d5f64358bb703ae7917594bc0d7eee4111d2c554fc9c17cafd80b6b891da8",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_0/results"
+    },
+    {
+      "native_output_sha256": "f3de1e97ca4d754ef58bc7987aa3fbf24d1154cbcbe137b10e9c8cf4ee649ec5",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_1/results"
+    },
+    {
+      "native_output_sha256": "f2a0f7c28cd3c40869e77ec63599848b81e9d55b8adab37e0b388f9798e778df",
+      "gradient_sha256": "6b88c3eba2bfab23106f78c4fd512bd2ad4cf39baeb91d002979e42c5dc77da9",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_2/results/evaluation-0000"
+    },
+    {
+      "native_output_sha256": "c067c84e539579b290ba00fa43d8b17f2c5116fd6840c14bfc54cbaad870f202",
+      "gradient_sha256": "6b8acc7f5876ee44fdb8fec1d8399e9e994cdf7e0828e7d3c51809c4f16b719a",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_2/results/evaluation-0001"
+    },
+    {
+      "native_output_sha256": "fc3370a8bb9fbb7ded26ed2a9f5ee1cbd5c42451cdac4922a3af228e89b55db8",
+      "gradient_sha256": "67837d899889930102e272b806ab2b3f2b4e283f55a4e44bc39f87170f1bb99c",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_2/results/evaluation-0002"
+    },
+    {
+      "native_output_sha256": "18343b0d0d057f0863d28b6afe82bbb931e3987aa1f46ca17ce57f3ec93c19ab",
+      "gradient_sha256": "2723f6e4e3ad8817499db96f22be4a1a95f50c04c3a2e51b9ebe63aadeafd4b8",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_2/results/evaluation-0003"
+    },
+    {
+      "native_output_sha256": "1ac5c56be99b32ba214ebfc86944049d01a360eeb8f5aec9ad457aa5782a106b",
+      "gradient_sha256": "e7954d234e8a93a68e0d226b4df746ad3706f7fbad9ad8c46daf47a2333c2dbc",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_2/results/evaluation-0004"
+    },
+    {
+      "native_output_sha256": "4d337837530e988d143a69246e2ecdc1707a966b411283519943ee634b00185a",
+      "gradient_sha256": "fbd6030cd8817d7b05da54e99073a98ac370a1fad2af21287dc28da3d5ad0b19",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_2/results/evaluation-0005"
+    },
+    {
+      "native_output_sha256": "fb3b7d92e7214ab65898e7d4d31f1e5179a80e575296f0ba3765d9df908bab17",
+      "gradient_sha256": "fbd6030cd8817d7b05da54e99073a98ac370a1fad2af21287dc28da3d5ad0b19",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_2/results/evaluation-0006"
+    },
+    {
+      "native_output_sha256": "dfc57da30ad5fbb6b008e7b1b327cf887d8a58f28323c4a1c7e5ebed54489ba4",
+      "gradient_sha256": "136ecafe7dd5aeb176f0455fcf7b99b75a940aba505df18bf516d0e9c2b0af3a",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_3/results/evaluation-0000"
+    },
+    {
+      "native_output_sha256": "66b0f040c6ea002a30fced6cd874e6567b3dcbc975bf346882ea659e0d231d74",
+      "gradient_sha256": "bd6fb6bdcb464710c6bc270e3e8d72744626d7e0c4202872094d434eca70b3d3",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_3/results/evaluation-0001"
+    },
+    {
+      "native_output_sha256": "26c307eb13b04855d0915c863ea03b3b213072da28774890bdf5a0e51a6fa599",
+      "gradient_sha256": "985c8d9e7557b065942142c7d761c43f724dd26d8273927fbf4a54005fd12b53",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_3/results/evaluation-0002"
+    },
+    {
+      "native_output_sha256": "3bd3046d7fc327818e8da43dbdcdb764cc15f03feba3029556ad06b30819f4c9",
+      "gradient_sha256": "f7223c5e932b16baf335bd0c0a3df1f1c4cc3ebc46617629dd8c6a78452cc6ba",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_3/results/evaluation-0003"
+    },
+    {
+      "native_output_sha256": "dc674bb4761281928668fbf0d729443f0719f0ab0e33a0a30e19b4e8e42ddda6",
+      "gradient_sha256": "0f5b8736688219cfb12a8e4e918bd50215e2913b282833c5962530176277df91",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_3/results/evaluation-0004"
+    },
+    {
+      "native_output_sha256": "0cd807f4aaeb464622559529f95d84f2dbf6c5ff4582b032c6285cdaf7539633",
+      "gradient_sha256": "fc03ab93d2a73fefe25d981e7470ba950eba7029eff8383e40c726a7b18e768a",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_3/results/evaluation-0005"
+    },
+    {
+      "native_output_sha256": "293b234a370d9e43113511130bfb8c2eca495835d80c443032677ab4c4dd436a",
+      "gradient_sha256": "4e6950c44427a28c646671ccc0dc84d700614d37c5080d997172182a83fe4579",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_3/results/evaluation-0006"
+    },
+    {
+      "native_output_sha256": "119273abae7bf0d83882a9daaf9b5c8a540483e8225d8d9cfd0e1dcd703acdfc",
+      "gradient_sha256": "4e6950c44427a28c646671ccc0dc84d700614d37c5080d997172182a83fe4579",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_real_cli_calculation_and_3/results/evaluation-0007"
+    },
+    {
+      "native_output_sha256": "97a5a2083ca241749b3a11918986bbf74f0d0fa205cb7c43f8fc1f1c25c9a6c6",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_two_actual_local_calculat0/calculated-structure-0/Results"
+    },
+    {
+      "native_output_sha256": "c6a8720cddd3bc569514c2c04f58cb65dd5eb42af8750cec5d7e0d486ab86ca3",
+      "cores": 1,
+      "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+      "affinity_from_calculation_authority": [
+        0
+      ],
+      "original_relative_directory": "local-result-native-acceptance-plan/runtime-accepted/tmp/pytest-of-agent/pytest-0/test_two_actual_local_calculat0/calculated-structure-1/Results"
+    }
+  ],
+  "per_evaluation_authority_limit": "Optimizer evaluation metadata records actual cores/binary/output/gradient identity and inherits the per-calculation authorized affinity. It does not provide a separate execution_authority.json or PID witness per gradient evaluation.",
+  "zero_engine_precancel_control": {
+    "nodes": 1,
+    "native_engine_calls": 0,
+    "no_execution_result_or_native_output": true
+  },
+  "original_limits": [
+    "CLI test intentionally deletes its own final result.json after genuine acceptance to verify missing SCC/termination cannot republish success; original execution/native/optimizer artifacts remain, and this deliberate negative-control terminal state is not a portable successful import bundle.",
+    "GFN-FF execution is genuine but comparison adapter deliberately refuses it.",
+    "Optimizations are convergence evidence, not verified minima or distinct isomers; no populations or scientific accuracy claim.",
+    "Per-calculation authority records preserve one-core affinity; optimizer evaluation records preserve actual cores/binary/output/gradient hashes, not separate execution_authority.json per evaluation. Frozen source passes the authorized affinity to each native subprocess.",
+    "No browser/installed comm, student deployment, hosted/license, or full-run archive proof.",
+    "Initial extra driver-affinity preflight refused before0tests/0native; corrected successful driver and initial refusal both retained."
+  ],
+  "source_registry_binary_unchanged": true,
+  "owned_boundary_empty": true
+}

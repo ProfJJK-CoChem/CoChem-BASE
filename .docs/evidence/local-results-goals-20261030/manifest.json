@@ -1,0 +1,80 @@
+{
+  "schema_version": "cochem.local-results-documentary-manifest/1",
+  "packaged_on": "2026-10-31",
+  "record_kind": "curated documentary derivative; original execution receipts remain separately preserved",
+  "producer": "4e8148bceb1b67cdd1e806ef7183fd00e7edf3f3",
+  "self_hash_supplied_externally": true,
+  "files": [
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/README.md",
+      "size_bytes": 6440,
+      "sha256": "3eef343a554a78447b0ed967bdc7a79d9f86dbe336f507aa6e0d251fb103885a"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/browser-file-readback.json",
+      "size_bytes": 142386,
+      "sha256": "2182d3cf6d1cc11de8b9e6c1e7eaae007d8a4a42e16797702df5de8b50821119"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/browser-summary.json",
+      "size_bytes": 5128,
+      "sha256": "76bea8ba9d7ad14331bf79f2c4f762b71f13cbcbdb75cc4c192a29227aa7c266"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/console-notices.json",
+      "size_bytes": 3713,
+      "sha256": "8e876f7e13b2fe4bb9f475ac3016a1703ddf82916f66d321d64043e54cf555b7"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/junit/native.xml",
+      "size_bytes": 1210,
+      "sha256": "dc1d32c4c21fb67a68f143278126c3cd1141ed7547af6b3c6c5e91527e2d9a20"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/junit/nonnative.xml",
+      "size_bytes": 10973,
+      "sha256": "84abd75ddc241492943cefb9d780262c16d286e3ad9b1dd6a10b158407b0c9ac"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/native-archive.json",
+      "size_bytes": 378665,
+      "sha256": "d1f5ec82d4e1821f28876c2bb04245fbecb47a2c0c34796b58da21a189dd6e99"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/native-readback.json",
+      "size_bytes": 26517,
+      "sha256": "cc608b113017497b771833f0e09d0f5bf63356d8c1515f8e8d4218840ea6f391"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/scope-and-attempt-history.json",
+      "size_bytes": 3184,
+      "sha256": "af14fd231f67799fe81fcfe36e827495ea3d7950fa4adeb3d99533fa041236dc"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/screenshots/01-plain-goal-and-exact-requirements.png",
+      "size_bytes": 124493,
+      "sha256": "5b55ab5a6c37bba22d1dbd53d539afda729cac3e738f58614a8cdc3e7d779245"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/screenshots/02-real-comparison-and-download.png",
+      "size_bytes": 93683,
+      "sha256": "25a68749232e5062c4e603cb24a0425d06897cf4d566622514e1431979eaad7d"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/summary.json",
+      "size_bytes": 5316,
+      "sha256": "2874098db8d4cf333c4c10e5492a5681711f7665453d494f40ca66e119d02598"
+    },
+    {
+      "path": ".docs/evidence/local-results-goals-20261030/test-identities.json",
+      "size_bytes": 15682,
+      "sha256": "603f7d30c821637505280e62c51cb7c693808078f62b27513a8569bc420775d4"
+    }
+  ],
+  "permitted_content": [
+    "documentary JSON/Markdown",
+    "derived JUnit XML",
+    "original documentary PNG screenshots"
+  ],
+  "raw_native_archive_in_source_plane": false
+}

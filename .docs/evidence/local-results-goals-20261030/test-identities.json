@@ -1,0 +1,421 @@
+{
+  "schema_version": "cochem.local-results-junit-identities/1",
+  "packaged_on": "2026-10-31",
+  "record_kind": "curated documentary derivative; original execution receipts remain separately preserved",
+  "selections": {
+    "nonnative": [
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_equal_energy_degeneracy_normalization",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_exact_boltzmann_ratio_and_unit_conversion",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_large_separation_normalization_is_finite",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_invalid_or_incomparable_populations_rejected[energy]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_invalid_or_incomparable_populations_rejected[method]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_invalid_or_incomparable_populations_rejected[state]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_invalid_or_incomparable_populations_rejected[minimum]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_invalid_or_incomparable_populations_rejected[negative_frequency]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_invalid_or_incomparable_populations_rejected[degeneracy]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_invalid_or_incomparable_populations_rejected[temperature]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_gibbs_temperature_and_state_are_explicit",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_source_mutation_is_not_accepted",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_calculated_structure_context_is_rechecked_before_report",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_calculated_structure_context_inventory_is_bounded[provenance0]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_calculated_structure_context_inventory_is_bounded[unbound]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_calculated_structure_context_inventory_is_bounded[provenance2]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_unknown_scan_gap_does_not_join_computed_points",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_safe_labels_and_csv_formula_escaping",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_bond_indices_keep_basis_and_exact_receipt",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_scan_exact_rigid_translation_preserves_monomer",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_scan_rejects_unsafe_or_unimplemented_requests[fragments-value0]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_scan_rejects_unsafe_or_unimplemented_requests[distances_angstrom-value1]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_scan_rejects_unsafe_or_unimplemented_requests[multiplicity-3]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_scan_rejects_unsafe_or_unimplemented_requests[cores-3]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_scan_rejects_unsafe_or_unimplemented_requests[memory_mb-8192]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.base.test_student_reports",
+        "name": "test_authentic_nbo_uses_orbital_nodes_and_preserves_units",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_beginner_workspace_layout",
+        "name": "test_beginner_workspace_in_source_child[guided_navigation]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_beginner_workspace_layout",
+        "name": "test_beginner_workspace_in_source_child[help_preserves_draft]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_beginner_workspace_layout",
+        "name": "test_beginner_workspace_in_source_child[advanced_preserves_draft]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_beginner_workspace_layout",
+        "name": "test_beginner_workspace_in_source_child[persistent_state_and_results]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_beginner_workspace_layout",
+        "name": "test_beginner_workspace_in_source_child[goal_remains_visible]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_beginner_workspace_layout",
+        "name": "test_beginner_workspace_in_source_child[displayed_summary_download_bytes]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_ordinary_questions_find_the_relevant_authored_explanation[chiralty-chirality]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_ordinary_questions_find_the_relevant_authored_explanation[Why are mirror images different?-chirality]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_ordinary_questions_find_the_relevant_authored_explanation[What does R/S mean?-chirality]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_ordinary_questions_find_the_relevant_authored_explanation[What is the difference between isomers and resonance?-isomers]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_ordinary_questions_find_the_relevant_authored_explanation[What does a negative frequency mean?-convergence_frequencies]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_ordinary_questions_find_the_relevant_authored_explanation[What total charge should I enter?-charge_spin]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_ordinary_questions_find_the_relevant_authored_explanation[How do I start my first calculation?-first_calculation]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_ordinary_questions_find_the_relevant_authored_explanation[Did my calculation succeed?-read_results]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_deliberate_alias_and_case_variants_rank_chirality_first",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_search_is_bounded_and_shorter_query_can_recover",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_unbounded_or_invalid_result_limit_is_rejected[0]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_unbounded_or_invalid_result_limit_is_rejected[-1]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_unbounded_or_invalid_result_limit_is_rejected[13]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_unbounded_or_invalid_result_limit_is_rejected[True]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_unbounded_or_invalid_result_limit_is_rejected[2.5]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_unbounded_or_invalid_result_limit_is_rejected[6]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_help_is_compact_and_uses_labelled_native_input_and_button",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_live_widget_search_clear_and_context_open_use_the_same_content",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_repeated_search_does_not_allocate_an_output_model_per_keystroke",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_empty_and_unknown_topic_states_are_explicit_escaped_and_recoverable",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_authored_text_is_rendered_as_text_in_every_answer_field",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_inline_and_search_answers_share_the_same_authored_content",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_coverage_inventory_reports_unmapped_controls_without_claiming_all_coverage",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_individual_control_instructions_are_searchable_and_visible[charge_input]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_individual_control_instructions_are_searchable_and_visible[matrix_method]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_individual_control_instructions_are_searchable_and_visible[btn_actions_retrieve]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_learning_search",
+        "name": "test_real_help_runs_without_credentials_network_or_provider_processes",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes0]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes1]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes2]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes3]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes4]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes5]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes6]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes7]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes8]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes9]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes10]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes11]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_unsupported_scientific_requests_cannot_be_silently_ignored[changes12]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_native_cli_child_proves_source_origins_without_calculation",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_voila_runtime_acceptance",
+        "name": "test_native_widget_child_proves_source_origins_without_calculation",
+        "outcome": "passed"
+      }
+    ],
+    "native": [
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_real_cli_calculation_and_atomic_publication[False-GFN2-xTB-T1]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_real_cli_calculation_and_atomic_publication[False-GFN-FF-T0]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_real_cli_calculation_and_atomic_publication[True-GFN2-xTB-T1]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_real_cli_calculation_and_atomic_publication[True-GFN-FF-T0]",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.calc.test_xtb_cli_execution",
+        "name": "test_two_actual_local_calculated_structures_export_electronic_differences",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_voila_runtime_acceptance",
+        "name": "test_gui_executes_real_xtb_optimization",
+        "outcome": "passed"
+      },
+      {
+        "classname": "tests.ui.test_voila_runtime_acceptance",
+        "name": "test_gui_cancellation_stops_its_actual_worker",
+        "outcome": "passed"
+      }
+    ]
+  },
+  "selection_counts": {
+    "nonnative": 74,
+    "native": 7
+  },
+  "not_a_single_full_suite_or_unique_total": true
+}

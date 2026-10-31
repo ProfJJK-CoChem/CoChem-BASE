@@ -1,0 +1,110 @@
+{
+  "schema_version": "cochem.local-results-browser-summary/1",
+  "packaged_on": "2026-10-31",
+  "record_kind": "curated documentary derivative; original execution receipts remain separately preserved",
+  "producer": "4e8148bceb1b67cdd1e806ef7183fd00e7edf3f3",
+  "source": {
+    "original_relative_path": "local-comparison-browser-review/candidate-4e8148b/lane1/terminal-summary.json",
+    "sha256": "119cb3c36019a8ee9dd68fe4c38877f742acc66ebae85033091ea21b636ee0aa",
+    "size_bytes": 6508
+  },
+  "original_report": {
+    "original_relative_path": "local-comparison-browser-review/candidate-4e8148b/lane1/browser/browser-report.json",
+    "sha256": "edc79cce688f60299d938b496268e9414a2ab4f57a487a654c08b6ec121e8180",
+    "size_bytes": 235740
+  },
+  "actual_notebook": "Unchanged canonical Start_Here.ipynb",
+  "actual_operations": [
+    "optimization",
+    "optimization"
+  ],
+  "actual_calculations": 2,
+  "default_local_operation_only": true,
+  "GUI_single_point_selector_exposed": false,
+  "native_single_point_API_evidence_is_separate": true,
+  "readable_labels": [
+    "Local calculation 1 \u00b7 GFN2-xTB \u00b7 Electronic energy",
+    "Local calculation 2 \u00b7 GFN2-xTB \u00b7 Electronic energy"
+  ],
+  "comparison_selection_and_reselect": "First selection preserved after second result; clear retained both; reselect/navigation preserved exactly two; no backend registration reentry injected.",
+  "source_native_hashes": [
+    {
+      "original_relative_path": "local-comparison-browser-review/candidate-4e8148b/lane1/artifacts/GUI/run_d7194f67084842dd891ddcb9331f5909/Results/result.json",
+      "sha256": "294dd8c8aaf01ed87ef781f1ebf4f8740dda436e6c657f35a897312ab8913752",
+      "execution_sha256": "1dba2e5b72db795a523d23477b54197ebf077433f03334fe86df65ebc8e7f18f"
+    },
+    {
+      "original_relative_path": "local-comparison-browser-review/candidate-4e8148b/lane1/artifacts/GUI/run_3ffaa0afec6a48e294b59f3e84e2a005/Results/result.json",
+      "sha256": "f2ca71c3b524745032a5ee18961101d02135e2515381ae1a4b96667762a18ecd",
+      "execution_sha256": "dea81225fd2b3ca5addccf2f21b44a990be74f0b74ca3d155502751cae180622"
+    }
+  ],
+  "scientific_state": "Both saved native configurations explicitly charge 0 / multiplicity 1 / GFN2-xTB optimization; test goals and original/current draft were preserved, not inferred as user assignment defaults.",
+  "downloaded_csv_bytes": 225,
+  "downloaded_csv_sha256": "7c2c67de3664d55e61dba3a866fb10f842ba0de9bbd0ac825a781c0fd1a97abd",
+  "tiny_energy_difference": "Observed screening electronic difference is not evidence of distinct isomers, minima, populations or empirical accuracy.",
+  "actual_Stop_enabled_samples": [
+    false,
+    false
+  ],
+  "stop_note": "Neither immediate enabled-state sample saw enabled Stop. Both terminal states were disabled. No cancellation proof is claimed.",
+  "cancellation_claim": false,
+  "raw_optimization_flag_explained_by_new_card": false,
+  "complete_native_archive_download_or_reopen_proof": false,
+  "stale_Selection_cleared_notice_preserved": true,
+  "source_and_copy_unchanged": true,
+  "authority_and_binaries_unchanged": true,
+  "source_records": 32,
+  "source_startup_only": 0,
+  "page_errors": [],
+  "request_failures": [],
+  "actual_console_notices": 17,
+  "owned_boundary_empty": true,
+  "remaining_servers": [],
+  "listeners": [],
+  "original_process_observation": {
+    "346963": {
+      "present": true,
+      "status": "zombie",
+      "create_time": 1793403912.88,
+      "command": []
+    },
+    "347015": {
+      "present": false
+    },
+    "347017": {
+      "present": false
+    },
+    "347077": {
+      "present": false
+    },
+    "347225": {
+      "present": false
+    }
+  },
+  "screenshots": [
+    {
+      "documentary_path": "screenshots/01-plain-goal-and-exact-requirements.png",
+      "sha256": "5b55ab5a6c37bba22d1dbd53d539afda729cac3e738f58614a8cdc3e7d779245",
+      "source": {
+        "original_relative_path": "local-comparison-browser-review/candidate-4e8148b/lane1/browser/01-plain-goal-and-exact-requirements.png",
+        "sha256": "5b55ab5a6c37bba22d1dbd53d539afda729cac3e738f58614a8cdc3e7d779245",
+        "size_bytes": 124493
+      },
+      "visual_scope": "Actual plain selected screening goal and adjacent exact class/current-method requirements, no assigned-method replacement or validation claim.",
+      "image_editing": false
+    },
+    {
+      "documentary_path": "screenshots/02-real-comparison-and-download.png",
+      "sha256": "25a68749232e5062c4e603cb24a0425d06897cf4d566622514e1431979eaad7d",
+      "source": {
+        "original_relative_path": "local-comparison-browser-review/candidate-4e8148b/lane1/browser/02-real-comparison-and-download.png",
+        "sha256": "25a68749232e5062c4e603cb24a0425d06897cf4d566622514e1431979eaad7d",
+        "size_bytes": 93683
+      },
+      "visual_scope": "Actual two selected readable calculated results and report-download links. Stale Selection cleared notice remains visibly present after reselect; it was not fixed or erased. This is not a complete-run archive/reopen control.",
+      "image_editing": false
+    }
+  ],
+  "release_accepted": false
+}

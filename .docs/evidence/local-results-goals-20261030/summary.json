@@ -1,0 +1,114 @@
+{
+  "schema_version": "cochem.local-results-goals-evidence/1",
+  "packaged_on": "2026-10-31",
+  "record_kind": "curated documentary derivative; original execution receipts remain separately preserved",
+  "producer": "4e8148bceb1b67cdd1e806ef7183fd00e7edf3f3",
+  "root_original_review": {
+    "original_relative_path": "local-results-goals-root-acceptance.json",
+    "sha256": "6dd237be292d1945c5c56a1c28716afd4dd81a64edbaf8e153e34d29f6219936",
+    "size_bytes": 2653
+  },
+  "integrated_source_sha256": {
+    "src/cochem_base/interfaces/student_reports.py": "d7387b76cf2af875e0b6f9ec318f15b7549ed628b4557d9d6189b800840f35cc",
+    "ui/voila_layout/cochem_gui.py": "e633a5f1689185ab211601e4c7c2b377b8f16dc8a703d0c99e61c57d96a3f1c5",
+    "tests/base/test_student_reports.py": "343f979762c9f2166571e782ad4196abeb1fcf36862596af5a7434bc47f17ab9",
+    "tests/calc/test_xtb_cli_execution.py": "6e0cf582baf805348b72ee5244e1521f597ef492f345f9c6bf11bb46a0811f95",
+    "tests/ui/test_voila_runtime_acceptance.py": "6d593255d5e6f40af1282488b1ec5408a78691e675882e04606d918da6d5d225",
+    "ui/voila_layout/workspace_layout.py": "5d8c6a45e4dcdf0d283f0dcd1bf250fe2f48244cb5d96ad318f51fa3461d50b9",
+    "tests/ui/test_beginner_workspace_layout.py": "568aa83a0e1ff69d1af3ccc3e12465effe1a09092b4ed9d6c6c7eabc95624a27",
+    "ui/voila_layout/help_content.py": "7f7d2362e18769e2695606c9b262dfd2087f33f343bbcd56a660de182d863a9f"
+  },
+  "source_profiles": [
+    {
+      "role": "nonnative",
+      "passed": 74,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "source": {
+        "original_relative_path": "local-results-goals-4e8148b-nonnative/test-acceptance.json",
+        "sha256": "a43a476e4ce431c9f63c447b35442aabc08fc3d5bbb266af987ff46327d09520",
+        "size_bytes": 3178
+      },
+      "profile_harness_release_acceptance": true,
+      "full_product_release_qualified": false,
+      "source_and_copy_unchanged": true,
+      "actual_origin_records": 20,
+      "startup_only_records": [],
+      "owned_boundary_empty": true
+    },
+    {
+      "role": "native",
+      "passed": 7,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "source": {
+        "original_relative_path": "local-result-native-acceptance-plan/native-profile/test-acceptance.json",
+        "sha256": "6a5488180ca50dc4d4db05a9c33cc329d8ddb247884e2f6e6748be850df0eab8",
+        "size_bytes": 3122
+      },
+      "profile_harness_release_acceptance": true,
+      "full_product_release_qualified": false,
+      "source_and_copy_unchanged": true,
+      "actual_origin_records": 14,
+      "startup_only_records": [],
+      "owned_boundary_empty": true
+    }
+  ],
+  "native_summary": {
+    "pytest_nodes": 7,
+    "completed_calculations": 7,
+    "single_points": 4,
+    "optimizations": 3,
+    "gradient_evaluations": 25,
+    "native_payload_invocations_evidenced": 29,
+    "count_formula": "4 single-point outputs + 25 genuine gradient evaluations; final optimizer output copies not counted again.",
+    "not_all_OS_helper_processes": true,
+    "precancelled_node_engine_calls": 0
+  },
+  "browser_summary": {
+    "separate_actual_default_optimizations": 2,
+    "actual_downloaded_csv_bytes": 225,
+    "native_files_read_back": 446,
+    "console_notices": 17,
+    "Stop_enabled_samples": [
+      false,
+      false
+    ],
+    "cancellation_claim": false
+  },
+  "lane_counts_not_merged_into_unique_tests_or_scientific_reference_total": true,
+  "original_producer_histories_not_relabelled": true,
+  "XML_derivatives": [
+    {
+      "documentary_path": "junit/nonnative.xml",
+      "source": {
+        "original_relative_path": "local-results-goals-4e8148b-nonnative/pytest.xml",
+        "sha256": "c7209fa83ed1963f1d2d6971466f6a41a2e4a121317032b56337db675d506589",
+        "size_bytes": 10995
+      },
+      "sha256": "84abd75ddc241492943cefb9d780262c16d286e3ad9b1dd6a10b158407b0c9ac",
+      "hostname_attributes_removed": 1,
+      "transform": "Transient hostname attributes removed and XML reserialized only; test identities/outcomes/times/timestamps retained."
+    },
+    {
+      "documentary_path": "junit/native.xml",
+      "source": {
+        "original_relative_path": "local-result-native-acceptance-plan/native-profile/pytest.xml",
+        "sha256": "782e5671d32b7a8d2a6d7ae147b47a98475e1ed68a67bd4a839817967827c8d3",
+        "size_bytes": 1232
+      },
+      "sha256": "dc1d32c4c21fb67a68f143278126c3cd1141ed7547af6b3c6c5e91527e2d9a20",
+      "hostname_attributes_removed": 1,
+      "transform": "Transient hostname attributes removed and XML reserialized only; test identities/outcomes/times/timestamps retained."
+    }
+  ],
+  "scientific_limits": [
+    "Screening electronic energies only; tiny difference does not establish distinct isomers, minima, populations or empirical accuracy.",
+    "GFN-FF actual execution is not accepted by the GFN2 comparison adapter.",
+    "Four CLI terminal result.json files intentionally deleted by owned negative controls; these states are not successful portable import bundles.",
+    "No browser single-point selector, complete native bundle download/reopen, hosted/student/licensed/physical-HPC or full SRS release proof.",
+    "Generic export_report serializes an already-built report; original-byte revalidation is at comparison build, not independent delayed export-time assurance."
+  ]
+}

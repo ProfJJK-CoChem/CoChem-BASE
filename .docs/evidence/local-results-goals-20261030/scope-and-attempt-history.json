@@ -1,0 +1,48 @@
+{
+  "schema_version": "cochem.local-results-attempt-history/1",
+  "packaged_on": "2026-10-31",
+  "record_kind": "curated documentary derivative; original execution receipts remain separately preserved",
+  "initial_affinity_refusal": {
+    "status": "read-only-authority-refusal",
+    "tests_executed": 0,
+    "native_jobs_launched": 0,
+    "reason": "Extra driver affinity narrowed caller below full registry audited allocation; actual authority correctly refused. Corrected lane preserves caller allocation and uses actual cores=1 native authority affinity.",
+    "source_or_registry_modified": false,
+    "source": {
+      "original_relative_path": "local-result-native-acceptance-plan/initial-refusal.json",
+      "sha256": "576106112e4c0eff908b38c3244ccd0c44e0378f02c74b83f60721edf64395a7",
+      "size_bytes": 361
+    }
+  },
+  "driver_authority_correction": "Driver retains full audited caller allocation; native payload authority separately grants one core/affinity. No source, registry or source guard was weakened.",
+  "corrected_single_point_plan": {
+    "source": {
+      "original_relative_path": "local-result-native-acceptance-plan/DOM-HANDOFF.md",
+      "sha256": "a262bc79c71ac17e3871333b12d685f9141e3551d8794c96d8fa958f6766c39e",
+      "size_bytes": 535
+    },
+    "actual_GUI_scope": "Default optimization only; source API single-point proof is not GUI selector proof."
+  },
+  "stale_entry_receipt": {
+    "source": {
+      "original_relative_path": "local-comparison-browser-review/candidate-4e8148b/lane1/entry-receipt.json",
+      "sha256": "f074e7e46e456544c834e674287e1898ec91e726e5b46b4148bb6af100e8dff7",
+      "size_bytes": 703
+    },
+    "original_descriptive_scope": "Unmodified canonical Start_Here and real Chromium DOM Stop/recovery/result caption, local native lifecycle only.",
+    "actual_executed_browser_script": "browser_compare.py",
+    "actual_terminal_correction": "entry-receipt.json copied an old descriptive scope string mentioning Stop/recovery/caption. Its executed browser command and immutable browser source were browser_compare.py; this terminal receipt specifies the actual narrower registration/comparison lane. No prior cancellation evidence is repeated or claimed.",
+    "claim": "Original descriptive field retained unchanged; actual executed source/command and terminal scope establish registration/comparison only, no Stop/recovery/caption cancellation repetition."
+  },
+  "integration_receipt_temporal_limit": {
+    "source": {
+      "original_relative_path": "local-results-goals-integration.json",
+      "sha256": "b9ad1613a1aecfcd075e168f3f2ab5e8bd868f8f3e87c6ce6e3496d22b03161c",
+      "size_bytes": 1370
+    },
+    "created_at": "2026-10-30T23:35:40.530385+00:00",
+    "original_native_added_cases_at_commit": "Not yet run; exact combined acceptance pending",
+    "note": "Original at-commit pending status is historical; later native acceptance is separately source-bound, not a rewrite of the earlier receipt."
+  },
+  "prior_a305_evidence": "Earlier 41-pass development/two-retained-water replay and cancellation496 proof retain their original producers and scopes; they are not relabelled or added to this 4e packet."
+}

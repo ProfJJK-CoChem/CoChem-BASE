@@ -65,7 +65,7 @@
   },
   "remaining_limits": [
     "Existing accepted pip25 environments were not modified by these source updates",
-    "Remaining ML/AIMNet, release/CI and other pip mutation paths need separately scoped coverage; not every entry point is claimed patched",
+    "Eight workflow pip bootstrap mutation sites and build frontend internal pip provisioning remain separately unqualified; no all-entry-point remediation claim",
     "Full ML/transitive resolver/native profile qualification is not established by direct-source inspection or minimal API checks",
     "No full browser/GUI, hosted deployment, licensed engine, full SRS or student readiness acceptance"
   ],
@@ -116,5 +116,37 @@
       }
     ],
     "scope": "Bounded package APIs, real BASE build and installed stdlib helper; not complete UI/ML/scientific dependency runtime"
+  },
+  "pip_adapter_selected": {
+    "revision": "499494b6ea7d49a6a53a22a1a73777714c41a262",
+    "passed": true,
+    "scope": "Verified pip context, actual DependencyManager target and subprocess results, actual intake broker streams, original installer controls; no complete ML/intake install/hosted/scientific qualification",
+    "pytest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 24
+    },
+    "new_context_cases": 11,
+    "original_installer_cases": 13,
+    "elapsed_seconds": 78.59242510795593,
+    "owned_boundary_empty": true,
+    "accepted_environment_unchanged": true,
+    "source_audit_passed": true,
+    "infrastructure_members": 232,
+    "prior_a699_source_audit_passed": false,
+    "prior_a699_tests_executed": false,
+    "native_owner_sha256": "eb034e313c977b8e0f60bebb8464ec0b839ad74455220feaa235cd371244c748",
+    "native_worker_sha256": "8b64fbb0864f5c0a43ff5ce74762b6c12db29795d7bac6682f7980d1c7020ee8",
+    "native_junit_sha256": "a38439e471c207aab7eb28ee925241d3ada6214ba0dff327ceac3c9551c1df84",
+    "native_outcomes_sha256": "4ad27a876510f4d2e3fbe99361443d39fa2367bdc11a0408347a05abd5be56e5",
+    "remaining": [
+      "Eight workflow pip bootstrap mutation sites",
+      "Build frontend internal pip provisioning",
+      "Full ML/AIMNet installations and complete application/scientific/hosted acceptance",
+      "Existing accepted pip25 installed metadata remains, while these mutations execute verifiedpip26.2",
+      "GitHub alert discrepancy remains unresolved"
+    ],
+    "original_selected_qualification_sha256": "3ee409137aa08e83a2afdd6a758a61b3f995df20e44ac5ec5afb58fdb0f1a80f"
   }
 }

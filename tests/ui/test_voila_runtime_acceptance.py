@@ -737,7 +737,7 @@ def test_actions_selection_never_falls_back_to_local_engine(tmp_path):
     with pytest.raises(ValueError, match="GitHub Actions"):
         gui._build_pipeline_command()
     gui.calc_env_dropdown.value = "linux"
-    assert gui.btn_execute.description == "Run xTB optimization"
+    assert gui.btn_execute.description == "Optimize geometry"
     assert gui.actions_job_options.layout.display == "none"
 
 

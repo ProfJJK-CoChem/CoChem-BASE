@@ -570,13 +570,13 @@ def case_remove_input_and_geometry_choices_is_recoverable_after_restart(gui):
     assert other_source in gui._input_library
     assert first_geometry not in gui._student_uploads
     assert other_geometry in gui._student_uploads
-    assert gui.student_geometry_choice.value is None and gui.matrix_geometry.value == ''
+    assert gui.student_geometry_choice.value == '' and gui.matrix_geometry.value == ''
     assert gui.input_library_choice.value == ''
     assert original_state == (original.read_bytes(), receipt.read_bytes(), original.stat().st_mode)
     gui.btn_undo_input_remove.click()
     assert source_id in gui._input_library, gui.input_management_status.value
     assert first_geometry in gui._student_uploads
-    assert gui.student_geometry_choice.value is None
+    assert gui.student_geometry_choice.value == ''
     gui.student_geometry_choice.value = first_geometry
     gui.btn_remove_geometry.click()
     assert first_geometry not in gui._student_uploads

@@ -22,7 +22,8 @@ HELP_CONTENT = {
         ("In Setup, confirm the calculation computer and required program are available.",
          "Add your file, select the intended structure or frame, and use it as the starting geometry. Check the atoms, charge and spin.",
          "In Calculations, check the assigned operation, method, basis and surroundings. Submit once and follow its recorded status.",
-         "Retrieve the matching completed result, read its warnings, and download its bundle before preparing your report."),
+         "Open Read and save results. For a completed GitHub Actions job, choose Retrieve and inspect results, read the saved task, warnings and units, then Download calculation bundle.",
+         "For a supported local xTB result, choose Prepare calculation download, wait for the link, then Download calculation files (.zip). Save the file to your own computer before preparing your report."),
         ("Help does not assign a method, charge, spin or scientific protocol for your molecule.",
          "A setup/access check is not a chemistry result; an uploaded or drawn structure is not a verified minimum.")),
     "workspace": _topic(

@@ -20,7 +20,7 @@ your selected settings.
 | **1 · Setup** | **Start here** | Check where the calculation will run and which engines are available. |
 | **2 · Add your molecule** | **Your files** | Upload and select your starting structure, then inspect it in Calculations. |
 | **3 · Run assigned calculation** | **Calculations** | Check the assignment's settings, submit and watch its progress. |
-| **4 · Read and save results** | **Results** | Check what finished, interpret it and download your work. |
+| **4 · Read and save results** | **Read and save results** | Check what finished, interpret it and download your work. |
 
 **Help search** is available while you work. Search for a word you do
 not understand, such as **charge**, **chirality**, **isomer** or **spectrum**.
@@ -115,7 +115,7 @@ can investigate.
 ## 4. Read, save and explain the result
 
 Choose **Retrieve and inspect results** when CoChem offers it for the completed
-hosted job, then open **Results**.
+hosted job, then open **Read and save results**.
 Check that the record belongs to your molecule and the settings you submitted.
 Read the completion status, warnings and units before using a number or plot.
 The result records the settings used for that calculation. Changing the current

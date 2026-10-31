@@ -17,6 +17,12 @@ on:
         required: true
         type: string
 
+      admission_anchor:
+        description: BASE-generated exact saved research dispatch commit (empty for a probe)
+        required: false
+        default: ''
+        type: string
+
 # Calculations never need write access to source, students' reports or secrets.
 env:
   PYTHONDONTWRITEBYTECODE: '1'
@@ -30,6 +36,9 @@ jobs:
     if: >-
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       (github.event.repository.private == true || github.repository == 'ProfJJK-CoChem/CoChem-BASE')
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -41,6 +50,8 @@ jobs:
       REQUEST_ID: ${{ inputs.request_id }}
       REQUEST_SHA256: ${{ inputs.request_sha256 }}
       REQUEST_BASE64: ${{ inputs.request_base64 }}
+      REQUEST_ADMISSION_ANCHOR: ${{ inputs.admission_anchor }}
+      GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       COCHEM_HEADLESS: '1'
       COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
@@ -53,6 +64,7 @@ jobs:
       - name: Set job-local runtime paths
         working-directory: ${{ github.workspace }}
         run: |
+          echo "COCHEM_ADMISSION_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
           echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-student-runtime" >> "$GITHUB_ENV"
           echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-student-runtime/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -101,6 +113,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python -B scripts/run_student_research.py --verify-project-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Verify this exact admitted run before publishing the route
+        if: steps.worker.outputs.probe != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python -B scripts/run_student_research.py --verify-admission-only --admission-wait \
             --output "$RUNNER_TEMP/cochem-student-evidence"
       - name: Publish the canonical admitted request route
         id: route
@@ -176,6 +195,9 @@ jobs:
       (needs.admission.outputs.probe == 'true' || needs.admission.outputs.probe == 'false') &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       (github.event.repository.private == true || github.repository == 'ProfJJK-CoChem/CoChem-BASE')
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     defaults:
@@ -185,6 +207,8 @@ jobs:
       REQUEST_ID: ${{ inputs.request_id }}
       REQUEST_SHA256: ${{ inputs.request_sha256 }}
       REQUEST_BASE64: ${{ inputs.request_base64 }}
+      REQUEST_ADMISSION_ANCHOR: ${{ inputs.admission_anchor }}
+      GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       COCHEM_HEADLESS: '1'
       COCHEM_CPU_ALLOCATION_POLICY: github_hosted_vcpus
@@ -197,6 +221,7 @@ jobs:
       - name: Set job-local runtime paths
         working-directory: ${{ github.workspace }}
         run: |
+          echo "COCHEM_ADMISSION_JOB_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
           echo "COCHEM_ARTIFACT_DIR=$RUNNER_TEMP/cochem-student-runtime" >> "$GITHUB_ENV"
           echo "COCHEM_CONFIG=$RUNNER_TEMP/cochem-student-runtime/Registry/cochem_system_config.json" >> "$GITHUB_ENV"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -263,6 +288,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python -B scripts/run_student_research.py --verify-project-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
+      - name: Recheck this exact research binding and Stop before protected work
+        if: steps.worker.outputs.probe != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python -B scripts/run_student_research.py --verify-admission-only \
             --output "$RUNNER_TEMP/cochem-student-evidence"
       - name: Install native prerequisites on the disposable runner
         if: steps.worker.outputs.probe != 'true'
@@ -383,6 +415,13 @@ jobs:
           if not report['ready']:
               raise SystemExit('A required provider installation failed; no scientific operation was run.')
           PY
+      - name: Recheck exact request and Stop immediately before execution
+        if: steps.worker.outputs.probe != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python -B scripts/run_student_research.py --verify-admission-only \
+            --output "$RUNNER_TEMP/cochem-student-evidence"
       - name: Run the requested native calculation or reviewed scientific provider
         if: steps.worker.outputs.probe != 'true'
         run: |

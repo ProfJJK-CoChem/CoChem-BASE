@@ -88,6 +88,8 @@ class ProtocolServer(ThreadingHTTPServer):
         self.correct_installation = configuration.correct_installation
         self.source_changed = configuration.source_changed
         self.tampered_path = ""
+        self.omit_project_path = ""
+        self.extra_project_entries = []
         self.starter_previous = False
         self.source_extra = configuration.source_extra
         self.source_truncated = configuration.source_truncated
@@ -328,6 +330,8 @@ class ProtocolHandler(BaseHTTPRequestHandler):
                         item["sha"] = hashlib.sha1(b"unapproved changed executable").hexdigest()
                 if state.source_extra:
                     tree.append({"path": "scripts/extra.py", "sha": "d" * 40, "mode": "100644", "type": "blob"})
+                tree = [item for item in tree if item["path"] != state.omit_project_path]
+                tree.extend(dict(item) for item in state.extra_project_entries)
                 tree.append({"path": "student-complex.xyz", "sha": "c" * 40, "mode": "100644", "type": "blob"})
             self.answer({"tree": tree, "truncated": state.source_truncated})
             return
@@ -679,6 +683,36 @@ def test_actual_bootstrap_and_build_control_blob_changes_refuse_private_readers(
     with pytest.raises(CourseAccessError, match="starter"):
         provision(peer)
     assert peer.writes == []
+
+
+@pytest.mark.parametrize("case", ["correct_new", "missing_new", "tampered_new", "valid_old", "unexpected_old"])
+def test_admission_descriptor_source_identity_is_required_only_when_approved(peer, case):
+    """Real HTTP tree checks prove source identity, not descriptor semantics or hosted enrollment."""
+    path = ".cochem/student-actions-admission.json"
+    raw = json.dumps({"schema_version": "engineering.source-identity/1",
+                      "purpose": "Descriptor path membership control; no execution authority"}).encode()
+    entry = {"path": path, "sha": _blob_sha(raw), "mode": "100644", "type": "blob"}
+    if case.endswith("new"):
+        peer.critical.append(entry)
+    if case == "missing_new":
+        peer.omit_project_path = path
+    elif case == "tampered_new":
+        peer.tampered_path = path
+    elif case == "unexpected_old":
+        peer.extra_project_entries.append(entry)
+    # An unrelated student data record must not turn into protected executable
+    # source merely because it shares the .cochem directory with the descriptor.
+    peer.extra_project_entries.append({"path": ".cochem/student-notes.json",
+        "sha": _blob_sha(b'{"note":"Independent student data, not admission authority"}\n'),
+        "mode": "100644", "type": "blob"})
+    if case in {"correct_new", "valid_old"}:
+        receipt = provision(peer)
+        assert receipt["status"] == "provisioned"
+        assert receipt["starter_sha"] == "a" * 40
+    else:
+        with pytest.raises(CourseAccessError, match="starter"):
+            provision(peer)
+        assert peer.writes == []
 
 
 def test_calculation_rechecks_actual_private_personal_repository(peer):

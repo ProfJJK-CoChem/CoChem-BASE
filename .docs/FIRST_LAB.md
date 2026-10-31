@@ -93,8 +93,21 @@ point, or explicitly choose **Optimize the geometry** on the same page if that
 is your assigned task. Other engines show their own supported choices. Recheck
 the task and run-button label after changing the engine or calculation location.
 
-For the course's remote route, choose **Run on GitHub Actions**. For another
-prepared route, use its displayed submit button. Read the status:
+For the course's remote route, choose **Check saved project request** first.
+This checks your project without starting chemistry. If no active request is
+found, check your current draft and choose **Run on GitHub Actions**.
+If an existing request is active or needs confirmation, use **Refresh calculation
+status** for that original request. Do not start a second copy.
+
+If the button instead says **Submit saved calculation**, a request was saved
+before it was sent to the calculation service. Read **Review the saved calculation**
+and check its input and task, plus method, basis, charge and spin where they apply,
+against your assignment. This button deliberately submits those saved settings. Edits to your current draft are not
+used. If extra saved options apply, read the notice and open **Advanced saved
+settings and provenance** with your instructor when needed. If the details
+cannot be verified, keep the request and ask your instructor; do not guess.
+
+For another prepared calculation route, use its displayed submit button. Read the status:
 **waiting** or **queued** means the job has not finished. **Running** means it
 is still working. Refresh the status when prompted; avoid submitting another
 copy just because a result has not appeared yet.
@@ -106,6 +119,19 @@ take time to reach the running job or finish a current check. Keep the interface
 open and wait for each job's confirmed final status before starting a replacement.
 Failed or canceled work may have useful diagnostic files, but is not a completed
 calculation.
+
+For a saved GitHub calculation, Stop can be recorded even while its run number
+is unknown. Wait for CoChem to confirm that Stop is recorded in the project.
+If you reopen the interface, choose **Check saved project request** and refresh
+that same request. A stop request survives reopening only once it was recorded;
+a lost connection before confirmation does not prove that it was saved.
+Cancellation being accepted does not mean the job has finished. Keep checking
+until its exact final outcome is confirmed before preparing a replacement.
+
+If a saved GitHub request or its history cannot be verified, keep the visible
+message and request identifier for your instructor. There is no automatic retry
+that makes an unknown submission safe. Keep the project and its files while
+the original request is investigated.
 
 If CoChem says it cannot confirm whether a cluster job was submitted, do not
 submit another copy. Keep the visible message and request number for your

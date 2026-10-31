@@ -33,6 +33,7 @@ _CRITICAL_FILES = {
     "pytest-srs.ini", ".core_infrastructure_hashring.json", ".pre-commit-config.yaml",
     ".gitattributes", "setup.py", "setup.cfg", "tox.ini", "uv.lock", "poetry.lock",
     "Pipfile", "Pipfile.lock",
+    ".cochem/student-actions-admission.json",
 }
 BINDING_VARIABLES = {
     "orca": "COCHEM_ORCA_ACCESS_SECRET",

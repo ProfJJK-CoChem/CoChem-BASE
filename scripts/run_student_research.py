@@ -185,6 +185,105 @@ def approve_worker(output: Path, *, api_url: str = "https://api.github.com", all
     return report
 
 
+
+def verify_admission(output: Path, *, wait: bool = False,
+                     api_url: str = "https://api.github.com", allow_loopback: bool = False,
+                     engineering_git_url: str | None = None) -> dict:
+    """Read-only exact run barrier, after canonical worker and route validation.
+
+    The deadline originates at the first job step, not this process. A probe is
+    classified from the canonical request before deciding whether C is required.
+    """
+    import time
+    verify_worker_checkout(output)
+    request = contract.strict_json((output / "request.json").read_bytes())
+    if request["capability_probe"] is not None:
+        return {"route": "probe", "admission_required": False}
+    admission = _local_contract("student_actions_admission")
+    transport = _local_contract("student_actions_admission_git")
+    anchor = os.environ.get("REQUEST_ADMISSION_ANCHOR", "")
+    if not admission.HEX40.fullmatch(anchor):
+        raise ValueError("Research needs its original saved project request; no protected operation was started")
+    try:
+        started = int(os.environ["COCHEM_ADMISSION_JOB_STARTED_EPOCH"])
+        now = time.time()
+        if started < 1 or started > now + 5:
+            raise ValueError("Invalid earliest job start")
+        # 60 seconds remain in the 300-second admission job for honest sealing.
+        deadline = min(started + 240, now + 90) if wait else now + 30
+        if deadline <= now:
+            raise ValueError("The admission budget was consumed before verification")
+        api = transport.ReadOnlyAPI(os.environ.get("GITHUB_TOKEN", ""), deadline=deadline,
+                                   api_url=api_url, allow_loopback=allow_loopback)
+        repository = os.environ["GITHUB_REPOSITORY"]
+        repository_id = int(os.environ["GITHUB_REPOSITORY_ID"])
+        run_id = int(os.environ["GITHUB_RUN_ID"])
+        attempt = int(os.environ["GITHUB_RUN_ATTEMPT"])
+        project = api._request(f"/repos/{repository}")
+        run = api._request(f"/repos/{repository}/actions/runs/{run_id}")
+        workflow_id = run.get("workflow_id")
+        if not admission.positive(workflow_id):
+            raise ValueError("GitHub did not confirm the real workflow identity")
+        workflow = api._request(f"/repos/{repository}/actions/workflows/{workflow_id}")
+        if (not admission.positive(repository_id) or type(project.get("id")) is not int
+                or project.get("id") != repository_id or project.get("full_name") != repository
+                or project.get("default_branch") != os.environ["DEFAULT_BRANCH"]
+                or project.get("private") is not True and repository != "ProfJJK-CoChem/CoChem-BASE"
+                or type(workflow.get("id")) is not int or workflow["id"] != workflow_id
+                or workflow.get("path") != ".github/workflows/student_research.yml"
+                or workflow.get("state") != "active"
+                or type(run.get("id")) is not int or run["id"] != run_id
+                or type(run.get("run_attempt")) is not int or run["run_attempt"] != attempt
+                or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+                or os.environ.get("GITHUB_REF") != "refs/heads/" + project["default_branch"]):
+            raise ValueError("The actual project, event or workflow identity changed")
+        hint = transport.qualify_capability(api, canonical_repository="ProfJJK-CoChem/CoChem-BASE",
+            worker_sha=request["worker_source_sha"], repository=repository, source_sha=os.environ["GITHUB_SHA"])
+        reader = _local_contract("student_actions_admission_git_readonly")
+        staging = Path(os.environ.get('RUNNER_TEMP', str(output.parent))) / 'cochem-admission-objects'
+        backend = reader.ReadOnlyGitAdmissionBackend(api, repository, work_root=staging,
+            deadline=deadline, github_token_from_env='GITHUB_TOKEN',
+            engineering_git_url=engineering_git_url, allow_loopback=allow_loopback)
+        try:
+            with backend:
+                store = admission.AdmissionStore(backend)
+                expected = dict(repository_id=repository_id, repository=repository, workflow_id=workflow_id,
+                    branch=project["default_branch"], source_sha=os.environ["GITHUB_SHA"],
+                    worker_source_sha=request["worker_source_sha"], request_id=os.environ["REQUEST_ID"])
+                # Validate the run using independent API/context, not expectations copied from I.
+                admission.validate_run(run, {**expected})
+                while True:
+                    snapshot = store.read()
+                    if snapshot is None:
+                        raise ValueError("The saved project request is missing; instructor review is needed")
+                    # First inspect the complete active generation; never authorize an old B.
+                    if (any(snapshot.intent[k] != v for k, v in expected.items())
+                            or snapshot.anchor != anchor or snapshot.intent["payload_sha256"] != os.environ["REQUEST_SHA256"]
+                            or snapshot.state["stop_requested"] or snapshot.state["phase"] in {"prepared", "terminal"}):
+                        raise ValueError("The current request identity or Stop state refuses execution")
+                    if snapshot.state["phase"] == "bound":
+                        if backend.tip() != snapshot.tip:
+                            raise ValueError("The saved project request changed before authorization; no protected operation was started")
+                        receipt = admission.verify_for_science(snapshot, anchor=anchor,
+                            request_sha256=os.environ["REQUEST_SHA256"], run_id=run_id, run_attempt=attempt, **expected)
+                        _atomic_json(output / "admission-verification.json", {"protocol": admission.PROTOCOL,
+                            **receipt, "capability": hint, "ledger_tip": snapshot.tip,
+                            "job_started_epoch": started, "verified_at": datetime.now(timezone.utc).isoformat()})
+                        return receipt
+                    if not wait or time.time() >= deadline:
+                        raise ValueError("Waiting for this exact job confirmation ended; the project request remains held")
+                    time.sleep(min(5, max(0, deadline - time.time())))
+        finally:
+            _atomic_json(output / 'admission-git-observations.json', {
+                'schema_version': 'cochem.admission-git-observations/1',
+                'request_id': request['request_id'], 'records': backend.diagnostics})
+    except Exception as error:
+        _atomic_json(output / "admission-verification.json", {"status": "refused", "operation_performed": False,
+            "reason": str(error), "request_id": request["request_id"], "anchor": anchor,
+            "job_started_epoch": os.environ.get("COCHEM_ADMISSION_JOB_STARTED_EPOCH", "")})
+        raise
+
+
 def _preflight_periodic(calculation: dict) -> None:
     """Reject unsupported Product B operations before installing the free solver."""
     import math
@@ -696,6 +795,8 @@ def main(argv=None) -> int:
     modes.add_argument("--approve-worker-only", action="store_true")
     modes.add_argument("--verify-worker-only", action="store_true")
     modes.add_argument("--verify-project-only", action="store_true")
+    modes.add_argument("--verify-admission-only", action="store_true")
+    parser.add_argument("--admission-wait", action="store_true")
     modes.add_argument("--capability-probe", action="store_true")
     modes.add_argument("--download-scientific-inputs", action="store_true")
     modes.add_argument("--download-data-inputs", action="store_true")
@@ -712,6 +813,8 @@ def main(argv=None) -> int:
             verify_worker_checkout(args.output)
         elif args.verify_project_only:
             verify_project(args.output)
+        elif args.verify_admission_only:
+            verify_admission(args.output, wait=args.admission_wait)
         elif args.capability_probe:
             capability_probe(args.output)
         elif args.download_scientific_inputs:

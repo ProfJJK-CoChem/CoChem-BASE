@@ -41,7 +41,13 @@ RUNTIME_RUNNERS = {"src/cochem_base/interfaces/module_execution.py", "src/cochem
                    "src/cochem_base/interfaces/student_setup.py", "src/cochem_base/interfaces/student_actions.py",
                    "src/cochem_base/interfaces/student_hpc.py", "src/cochem_base/interfaces/actions_jobs.py",
                    "src/cochem_base/interfaces/executors.py", "src/cochem_base/spectroscopy/spcat_runner.py",
-                   "src/cochem_base/topos_runner.py", "src/cochem_base/cochem_torq_engine.py"}
+                   "src/cochem_base/topos_runner.py", "src/cochem_base/cochem_torq_engine.py",
+                   ".cochem/student-actions-admission.json",
+                   "src/cochem_base/interfaces/student_actions_admission.py",
+                   "src/cochem_base/interfaces/student_actions_admission_git.py",
+                   "src/cochem_base/interfaces/student_actions_admission_git_readonly.py",
+                   "src/cochem_base/interfaces/student_request.py",
+                   "src/cochem_base/interfaces/student_research.py"}
 
 
 class InfrastructureIntegrityError(ValueError):

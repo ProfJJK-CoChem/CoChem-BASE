@@ -25,6 +25,9 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from . import student_actions_admission as admission
+from . import student_actions_admission_git as admission_git
+
 from .student_request import (
     COMMIT_PATTERN,
     REPOSITORY_PATTERN,
@@ -236,6 +239,7 @@ class StudentActionsClient:
         self._api_url = api_url
         self._token = _credential(token)
         self._opener = urllib.request.build_opener(_NoRedirect())
+        self._admission_immutable_objects = admission_git.ImmutableGitObjects()
 
     def _request(self, path: str, *, method: str = "GET", body: dict | None = None,
                  binary: bool = False, maximum_bytes: int | None = None):
@@ -249,7 +253,11 @@ class StudentActionsClient:
         limit = maximum_bytes if maximum_bytes is not None else (MAX_ARCHIVE_BYTES if binary else 4 * 1024 * 1024)
         try:
             with self._opener.open(request, timeout=30) as response:
-                contents = _read_bounded(response, limit)
+                try:
+                    contents = _read_bounded(response, limit)
+                except StudentActionsError as error:
+                    error.uncertain = method in {"POST", "PATCH"}
+                    raise
                 return contents if binary else strict_json(contents) if contents else {}
         except urllib.error.HTTPError as error:
             if binary and error.code == 302:
@@ -281,13 +289,13 @@ class StudentActionsClient:
                 raise StudentActionsError("GitHub could not find this project, calculation workflow or result for your account",
                                           http_status=error.code) from None
             raise StudentActionsError(f"GitHub could not complete the request (HTTP {error.code})",
-                                      http_status=error.code) from None
+                                      http_status=error.code, uncertain=method in {"POST", "PATCH"} and error.code >= 500) from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise StudentActionsError("GitHub could not be reached. Check this submission before creating another.",
-                                      uncertain=method == "POST") from None
+                                      uncertain=method in {"POST", "PATCH"}) from None
         except (ValueError, UnicodeError):
             raise StudentActionsError("GitHub returned an invalid acknowledgement. Check the original submission before retrying.",
-                                      uncertain=method == "POST") from None
+                                      uncertain=method in {"POST", "PATCH"}) from None
 
     def _persist_submission(self, submission: dict) -> None:
         root = Path(self.artifact_dir or os.environ.get("COCHEM_ARTIFACT_DIR", "~/CoChem_Artifacts")).expanduser().resolve()
@@ -308,6 +316,10 @@ class StudentActionsClient:
 
     def preflight(self) -> dict:
         repo = self._request(f"/repos/{self.repository}")
+        if (type(repo.get("id")) is not int or repo["id"] < 1
+                or repo.get("full_name") != self.repository
+                or repo.get("private") is not True and self.repository != CANONICAL_BASE):
+            raise StudentActionsError("GitHub must confirm the current private project identity")
         branch = repo["default_branch"]
         if self.branch is not None and self.branch != branch:
             raise StudentActionsError("Select this project's main working branch before submitting calculations")
@@ -317,7 +329,8 @@ class StudentActionsClient:
         if permissions and not any(permissions.get(key) for key in ("push", "maintain", "admin")):
             raise StudentActionsError("Ask the project owner to give your GitHub account Write access so you can submit jobs")
         workflow = self._request(f"/repos/{self.repository}/actions/workflows/{WORKFLOW}")
-        if workflow.get("state") != "active":
+        if (workflow.get("state") != "active" or type(workflow.get("id")) is not int
+                or workflow["id"] < 1 or workflow.get("path") != ".github/workflows/" + WORKFLOW):
             raise StudentActionsError("The student calculation workflow must be enabled by the instructor")
         commit = self._request(f"/repos/{self.repository}/commits/{urllib.parse.quote(branch, safe='')}")
         if not COMMIT_PATTERN.fullmatch(commit.get("sha", "")):
@@ -329,7 +342,9 @@ class StudentActionsClient:
             exc.project_access = setup["access"]
             exc.setup_url = exc.setup_url or setup["url"]
             raise
-        return {"repository": self.repository, "branch": branch, "source_sha": commit["sha"],
+        return {"repository": self.repository, "repository_id": repo["id"],
+                "research_admission": setup.get("research_admission"),
+                "branch": branch, "source_sha": commit["sha"],
                 "worker_source_sha": worker["revision"], "worker_approval": worker["approval"],
                 "project_access": setup["access"], "setup_check_url": setup["url"],
                 "workflow_id": workflow["id"], "workflow_ready": True,
@@ -441,11 +456,14 @@ class StudentActionsClient:
                         or entries[0].file_size > MAX_SETUP_BYTES):
                     raise ValueError("Unexpected setup archive")
                 metadata = strict_json(archive.read(entries[0]))
-            identity = {"schema_version": "cochem.project-setup/1", "request_id": request_id,
+            schema = metadata.get("schema_version") if isinstance(metadata, dict) else None
+            extra = {"research_admission"} if schema == "cochem.project-setup/2" else set()
+            identity = {"schema_version": schema, "request_id": request_id,
                         "repository": self.repository, "source_sha": source_sha,
                         "run_id": run["id"], "run_attempt": run["run_attempt"]}
             if (not isinstance(metadata, dict)
-                    or set(metadata) != {*identity, "approved_base_sha", "course_channel", "access"}
+                    or schema not in {"cochem.project-setup/1", "cochem.project-setup/2"}
+                    or set(metadata) != {*identity, "approved_base_sha", "course_channel", "access", *extra}
                     or any(metadata.get(key) != value for key, value in identity.items())
                     or type(metadata["run_id"]) is not int or type(metadata["run_attempt"]) is not int
                     or not isinstance(metadata["approved_base_sha"], str)
@@ -454,6 +472,13 @@ class StudentActionsClient:
                     or set(metadata["access"]) != {"source", "orca", "cfour"}
                     or any(type(value) is not bool for value in metadata["access"].values())):
                 raise ValueError("Mismatched setup identity")
+            if extra:
+                hint = metadata["research_admission"]
+                if (not isinstance(hint, dict) or set(hint) != {"protocol", "descriptor_sha256", "ledger_ref"}
+                        or hint["protocol"] != admission.PROTOCOL or hint["ledger_ref"] != admission.LEDGER_REF
+                        or not isinstance(hint["descriptor_sha256"], str)
+                        or not SHA_PATTERN.fullmatch(hint["descriptor_sha256"])):
+                    raise ValueError("Invalid admission setup capability")
         except (ValueError, TypeError, KeyError, UnicodeError, zipfile.BadZipFile):
             raise StudentActionsError(
                 "The setup-check result is invalid or does not match this project and GitHub run. "
@@ -523,6 +548,8 @@ class StudentActionsClient:
                ingestion_inputs: dict | None = None, periodic_inputs: dict | None = None,
                cores: int = 2, maxcore_mb: int = 512) -> dict:
         prepared = self.preflight()
+        if capability_probe is None:
+            self._qualify_admission(prepared)
         # Source-secret presence does not establish repository access: public
         # modules need no reader credential, while private fetches may be denied
         # even with one. The worker must fetch and verify the selected sources
@@ -598,6 +625,8 @@ class StudentActionsClient:
                 "url": f"https://github.com/{self.repository}/actions", "status": "prepared"}
         submission["request_kind"] = ("capability_probe" if capability_probe is not None
                                       else "provider" if provider is not None else "calculation")
+        if capability_probe is None:
+            return self._submit_admitted(prepared, request, submission)
         # Save correlation identity before the POST. A lost acknowledgement must
         # never turn a successfully accepted request into a blind duplicate.
         self._persist_submission(submission)
@@ -621,6 +650,185 @@ class StudentActionsClient:
             except (OSError, StudentActionsError):
                 submission["record_warning"] = "GitHub accepted the request. Its initial identity is retained; check this request's status."
         return submission
+
+    def _admission_store(self):
+        return admission.AdmissionStore(admission_git.GitAdmissionBackend(self, self.repository))
+
+    def _qualify_admission(self, prepared: dict) -> dict:
+        if prepared.get("research_admission") is None:
+            raise StudentActionsError("This project's calculation workflow needs an instructor update before new research. Your files are kept.")
+        try:
+            return admission_git.qualify_capability(self, canonical_repository=CANONICAL_BASE,
+                worker_sha=prepared["worker_source_sha"], repository=self.repository,
+                source_sha=prepared["source_sha"], setup_hint=prepared["research_admission"])
+        except admission.AdmissionError as error:
+            raise StudentActionsError(str(error)) from error
+
+    def _saved_admission(self, snapshot) -> dict:
+        intent, binding = snapshot.intent, snapshot.binding
+        status = {"prepared": "admission_prepared", "dispatch_intent": "dispatch_unconfirmed",
+                  "bound": "dispatching", "terminal": "completed"}[snapshot.state["phase"]]
+        if snapshot.state["phase"] == "terminal" and binding is None:
+            status = "rejected"
+        return {"request_id": intent["request_id"], "repository": intent["repository"],
+            "repository_id": intent["repository_id"], "branch": intent["branch"],
+            "source_sha": intent["source_sha"], "worker_source_sha": intent["worker_source_sha"],
+            "workflow_id": intent["workflow_id"], "payload_sha256": intent["payload_sha256"],
+            "submitted_at": snapshot.request["submitted_at"], "run_id": binding["run_id"] if binding else None,
+            "run_attempt": 1 if binding else None, "status": status,
+            "url": (f"https://github.com/{self.repository}/actions/runs/{binding['run_id']}" if binding
+                    else f"https://github.com/{self.repository}/actions"),
+            "admission_protocol": admission.PROTOCOL, "admission_generation": intent["generation"],
+            "admission_identity": admission.identity(snapshot),
+            "admission_anchor": snapshot.anchor, "admission_tip": snapshot.tip,
+            "admission_phase": snapshot.state["phase"], "admission_terminal": snapshot.state["phase"] == "terminal",
+            "stop_requested": snapshot.state["stop_requested"],
+            "request_base64": base64.b64encode(snapshot.raw).decode(),
+            "request_kind": "provider" if snapshot.request["provider"] is not None else "calculation"}
+
+    def _submit_admitted(self, prepared: dict, request: dict, submission: dict) -> dict:
+        store = self._admission_store()
+        snapshot = None
+        # Retain exact R locally before any durable publication, not only UUID/H.
+        submission.update(admission_protocol=admission.PROTOCOL, admission_terminal=False,
+                          request_base64=base64.b64encode(canonical_json(request)).decode())
+        self._persist_submission(submission)
+        try:
+            snapshot = store.prepare(canonical_json(request), repository_id=prepared["repository_id"],
+                                     branch=prepared["branch"], workflow_id=prepared["workflow_id"])
+            submission = self._saved_admission(snapshot)
+            self._persist_submission(submission)
+            owner = store.resume(admission.identity(snapshot))
+            owner.publish()
+            snapshot = store.read()
+            submission = self._saved_admission(snapshot)
+            self._persist_submission(submission)
+            owner.post(admission_git.ActionsAdmissionTransport(self))
+            return self._admitted_status(submission)
+        except (admission.AdmissionError, StudentActionsError, OSError) as error:
+            # Publication may have succeeded even when its acknowledgement/local save failed.
+            # The actual remote generation is recovered independently; never POST here.
+            try:
+                current = store.read()
+                if current is not None:
+                    submission = self._saved_admission(current)
+            except (admission.AdmissionError, StudentActionsError, OSError):
+                submission.update(status="admission_unknown", admission_terminal=False)
+            failure = StudentActionsError("This project request needs confirmation. Do not submit it again. " + str(error), uncertain=True)
+            failure.submission = submission
+            failure.can_transfer_stop = submission.get("request_id") == request["request_id"]
+            try:
+                self._persist_submission(submission)
+            except (OSError, StudentActionsError):
+                submission["record_warning"] = "The project-backed request must be recovered before further research."
+            raise failure from error
+
+    def recover_admission(self) -> dict | None:
+        """Discover current project state without a setup dispatch, POST or local-history cap."""
+        project = self._request(f"/repos/{self.repository}")
+        if (type(project.get("id")) is not int or project["id"] < 1
+                or project.get("full_name") != self.repository
+                or project.get("private") is not True and self.repository != CANONICAL_BASE):
+            raise StudentActionsError("GitHub did not confirm the current private project")
+        try:
+            snapshot = self._admission_store().read()
+            if snapshot is None:
+                return None
+            if snapshot.intent["repository_id"] != project["id"]:
+                raise admission.AdmissionError("The ledger belongs to another project identity")
+            submission = self._saved_admission(snapshot)
+            self._persist_submission(submission)
+            return submission
+        except admission.AdmissionError as error:
+            raise StudentActionsError("The saved project request needs instructor review. " + str(error)) from error
+
+    def resume_prepared_admission(self, submission: dict) -> dict:
+        """A deliberate GUI action may resume only a never-dispatched prepared R."""
+        prepared = self.preflight()
+        self._qualify_admission(prepared)
+        store = self._admission_store()
+        snapshot = store.read()
+        self._check_saved_admission(submission, snapshot)
+        if (snapshot.state["phase"] != "prepared" or snapshot.state["stop_requested"]
+                or snapshot.intent["repository_id"] != prepared["repository_id"]
+                or snapshot.intent["source_sha"] != prepared["source_sha"]
+                or snapshot.intent["worker_source_sha"] != prepared["worker_source_sha"]
+                or snapshot.intent["workflow_id"] != prepared["workflow_id"]):
+            raise StudentActionsError("This saved request cannot be dispatched again")
+        owner = store.resume(submission["admission_identity"])
+        try:
+            owner.publish()
+            owner.post(admission_git.ActionsAdmissionTransport(self))
+        except (admission.AdmissionError, StudentActionsError, OSError) as error:
+            failure = StudentActionsError("This saved request needs confirmation; do not submit it again", uncertain=True)
+            failure.submission = dict(submission, status="admission_unknown", admission_terminal=False)
+            try:
+                current = store.read()
+                self._check_saved_admission(submission, current)
+                failure.submission = self._saved_admission(current)
+            except (admission.AdmissionError, StudentActionsError, OSError):
+                failure.submission["record_warning"] = "The original saved request remains held."
+            raise failure from error
+        return self._admitted_status(submission)
+
+    def _check_saved_admission(self, submission, snapshot):
+        admission.require_expected(snapshot, submission.get("admission_identity"))
+        if snapshot is None or any(submission.get(key) != snapshot.intent[key] for key in (
+                "request_id", "repository", "source_sha", "worker_source_sha", "payload_sha256", "workflow_id")):
+            raise StudentActionsError("The current project request differs from this saved identity; keep its historical results")
+        if submission.get("admission_generation") != snapshot.intent["generation"]:
+            raise StudentActionsError("The saved request generation changed")
+
+    def _admitted_status(self, submission: dict) -> dict:
+        self._validate_submission(submission)
+        store = self._admission_store()
+        snapshot = store.read()
+        historical = snapshot is not None and snapshot.intent["generation"] != submission.get("admission_generation")
+        if historical:
+            current = snapshot.tip
+            for unused in range(admission.MAX_HISTORY):
+                files, parent = store.files(current)
+                intent = admission.strict(files["intent.json"], 16384)
+                if intent["generation"] == submission.get("admission_generation"):
+                    snapshot = store.read(current)
+                    break
+                if parent is None:
+                    raise StudentActionsError("The historical request is not in this project's retained ledger")
+                current = parent
+            else:
+                raise StudentActionsError("Historical admission ancestry exceeded its reviewed bound")
+            if snapshot.state["phase"] != "terminal":
+                raise StudentActionsError("An earlier request has no confirmed terminal identity")
+        self._check_saved_admission(submission, snapshot)
+        transport = admission_git.ActionsAdmissionTransport(self)
+        if snapshot.state["phase"] == "dispatch_intent":
+            try:
+                snapshot = store.bind(transport, submission["admission_identity"])
+            except admission.AdmissionError as error:
+                latest = store.read()
+                self._check_saved_admission(submission, latest)
+                current = self._saved_admission(latest)
+                current["attention"] = str(error)
+                self._persist_submission(current)
+                return current
+        current = self._saved_admission(snapshot)
+        if snapshot.binding is not None:
+            run = transport.observe(snapshot.intent, snapshot.binding["run_id"])
+            if (not isinstance(run, dict) or type(run.get('id')) is not int
+                    or run['id'] != snapshot.binding['run_id']):
+                raise StudentActionsError('The returned run differs from the exact saved binding; no status or artifact was accepted')
+            admission.validate_run(run, snapshot.intent, terminal=run.get("status") == "completed")
+            current = {**self._validate_run(current, run)}
+            if run["status"] == "completed" and snapshot.state["phase"] != "terminal":
+                try:
+                    snapshot = store.finish(transport, submission["admission_identity"])
+                    current.update(admission_terminal=True, admission_phase="terminal", admission_tip=snapshot.tip)
+                except admission.AdmissionError as error:
+                    current.update(status="admission_unknown", admission_terminal=False, attention=str(error))
+            if snapshot.state["stop_requested"] and not current["admission_terminal"]:
+                store.cancel_bound(transport, submission["admission_identity"])
+        self._persist_submission(current)
+        return current
 
     def check_engines(self, engines: list[str] | None = None) -> dict:
         """Probe access through protected Actions secrets, never list their names."""
@@ -658,6 +866,8 @@ class StudentActionsClient:
             raise StudentActionsError("The saved submission identity is invalid; select an intact BASE submission record")
 
     def status(self, submission: dict) -> dict:
+        if submission.get("admission_protocol") == admission.PROTOCOL:
+            return self._admitted_status(submission)
         self._validate_submission(submission)
         if submission.get("run_id") is not None:
             current = self._validate_run(submission, self._request(
@@ -683,6 +893,12 @@ class StudentActionsClient:
         return current
 
     def cancel(self, submission: dict) -> dict:
+        if submission.get("admission_protocol") == admission.PROTOCOL:
+            store = self._admission_store()
+            self._check_saved_admission(submission, store.read())
+            if not store.read().state["phase"] == "terminal":
+                store.stop(submission["admission_identity"])
+            return self._admitted_status(submission)
         current = self.status(submission)
         if current.get("run_id") is None:
             raise StudentActionsError("GitHub has not registered this run yet; retry cancellation shortly")

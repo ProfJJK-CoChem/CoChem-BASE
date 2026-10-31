@@ -24,7 +24,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Read setup settings without disclosing credentials
+      - name: Read setup settings and exact admission capability without disclosing credentials
         env:
           PYTHONDONTWRITEBYTECODE: '1'
           SETUP_REQUEST_ID: ${{ inputs.request_id }}

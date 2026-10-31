@@ -7,6 +7,9 @@ The calculation worker independently revalidates software authorization.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.util
+import sys
 import json
 import os
 import re
@@ -14,7 +17,24 @@ import uuid
 from pathlib import Path
 
 
-def project_setup_report(environment: dict[str, str]) -> dict:
+def _research_admission(source: Path) -> dict:
+    path = source / "src/cochem_base/interfaces/student_actions_admission.py"
+    spec = importlib.util.spec_from_file_location("cochem_setup_admission", path)
+    if spec is None or spec.loader is None:
+        raise ValueError("The reviewed research admission contract is unavailable")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    raw = (source / module.DESCRIPTOR_PATH).read_bytes()
+    descriptor = module.parse_descriptor(raw)
+    for relative, expected in descriptor["required_files"].items():
+        if hashlib.sha256((source / relative).read_bytes()).hexdigest() != expected:
+            raise ValueError("The project research admission files need an instructor update")
+    return {"protocol": module.PROTOCOL, "ledger_ref": module.LEDGER_REF,
+            "descriptor_sha256": hashlib.sha256(raw).hexdigest()}
+
+
+def project_setup_report(environment: dict[str, str], *, source: Path | None = None) -> dict:
     request_id = environment.get("SETUP_REQUEST_ID", "")
     if str(uuid.UUID(request_id)) != request_id:
         raise ValueError("The setup check needs its original request identifier.")
@@ -42,7 +62,8 @@ def project_setup_report(environment: dict[str, str]) -> dict:
         if value not in {"true", "false"}:
             raise ValueError("The setup check needs a yes/no access status for each optional component.")
         access[kind] = value == "true"
-    return {"schema_version": "cochem.project-setup/1", "request_id": request_id,
+    return {"schema_version": "cochem.project-setup/2",
+            "research_admission": _research_admission(source or Path(__file__).resolve().parents[1]), "request_id": request_id,
             "repository": repository, "source_sha": source_sha,
             "run_id": run_id, "run_attempt": run_attempt,
             "approved_base_sha": revision, "course_channel": channel, "access": access}

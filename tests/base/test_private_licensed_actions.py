@@ -51,6 +51,9 @@ def run_guard(source: str, **updates: str) -> subprocess.CompletedProcess[str]:
         "ASSET_CREDENTIAL": "isolated-guard-test-value",
         **updates,
     }
+    # The workflow's setup-python step supplies this genuine interpreter;
+    # retain the controlled tool paths and inherited child source boundary.
+    environment["PATH"] = str(Path(sys.executable).parent) + os.pathsep + environment.get("PATH", os.defpath)
     result = subprocess.run(["bash", "-e", "-c", source], cwd=ROOT, env=environment,
                             capture_output=True, text=True, timeout=15, check=False)
     if environment["ASSET_CREDENTIAL"]:
@@ -511,3 +514,26 @@ def test_canonical_source_batch_uses_optional_reader_and_preserves_real_failures
         worker.join(timeout=5)
         server.server_close()
         assert not worker.is_alive()
+
+
+def test_student_admission_jobs_gain_only_scoped_metadata_read_and_never_execution_token():
+    workflow = document(WORKFLOWS / 'student_research.yml')
+    assert workflow['permissions'] == {'contents': 'read'}
+    assert set(workflow['jobs']) == {'admission', 'research'}
+    for job in workflow['jobs'].values():
+        assert job['permissions'] == {'contents': 'read', 'actions': 'read'}
+        assert 'GITHUB_TOKEN' not in job['env']
+        barriers = [step for step in job['steps'] if '--verify-admission-only' in step.get('run', '')]
+        assert len(barriers) == (1 if job is workflow['jobs']['admission'] else 2)
+        assert all(step['env'] == {'GITHUB_TOKEN': '${{ github.token }}'} for step in barriers)
+        first = job['steps'][0]
+        assert 'COCHEM_ADMISSION_JOB_STARTED_EPOCH=$(date +%s)' in first['run']
+        assert first['working-directory'] == '${{ github.workspace }}'
+    science = workflow['jobs']['research']['steps']
+    index = next(i for i, step in enumerate(science) if step.get('name') == 'Run the requested native calculation or reviewed scientific provider')
+    assert '--verify-admission-only' in science[index-1]['run']
+    assert 'env' not in science[index]
+    assert '--admission-wait' not in science[index-1]['run']
+    setup = document(WORKFLOWS / 'student_project_setup.yml')
+    assert setup['permissions'] == {'contents': 'read'}
+    assert all('permissions' not in job for job in setup['jobs'].values())

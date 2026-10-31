@@ -21,7 +21,7 @@ HELP_CONTENT = {
         "Follow the four primary buttons: 1 · Setup, 2 · Add your molecule, 3 · Run assigned calculation, then 4 · Read and save results.",
         ("In Setup, confirm the calculation computer and required program are available.",
          "Add your file, select the intended structure or frame, and use it as the starting geometry. Check the atoms, charge and spin.",
-         "In Calculations, check the assigned operation, method, basis and surroundings. Submit once and follow its recorded status.",
+         "In Calculations, check the assigned operation, method, basis and surroundings. For GitHub Actions, choose Check saved project request first. Submit once and follow the original request's recorded status.",
          "Open Read and save results. For a completed GitHub Actions job, choose Retrieve and inspect results, read the saved task, warnings and units, then Download calculation bundle.",
          "For a supported local xTB result, choose Prepare calculation download, wait for the link, then Download calculation files (.zip). Save the file to your own computer before preparing your report."),
         ("Help does not assign a method, charge, spin or scientific protocol for your molecule.",
@@ -301,6 +301,20 @@ HELP_CONTENT = {
          "If there is an error or no confirmed response, keep the request link and exact message for your instructor rather than creating repeated requests."),
         ("Never paste passwords, tokens, cookies or private keys into this interface or a help search.",
          "A repository connection does not grant unlimited compute, resolve billing, or refresh permissions in an old Codespace.")),
+    "saved_project_request": _topic(
+        "Check or submit a saved GitHub calculation", ("saved project request", "check saved", "submit saved calculation", "prepared", "held request", "lost connection", "reload", "duplicate submission", "original draft"),
+        "A saved project request keeps the original calculation's input and settings in your GitHub project. Check saved project request reads that record; it does not start a calculation.",
+        "After a lost connection or reopened interface, the original calculation may still exist. Checking it prevents another submission from being mistaken for a retry.",
+        "Check before starting a GitHub calculation, after reopening CoChem, or when a submission's outcome is uncertain.",
+        "Calculations → Run calculation → Check saved project request. The nearby button says either Refresh calculation status or Submit saved calculation; read its current label.",
+        ("Choose Check saved project request. If no active request is found, review your current molecule and settings, then use Run on GitHub Actions for that draft.",
+         "If a saved calculation is active or needs confirmation, use Refresh calculation status for that original request. Do not submit another copy when the connection is slow or its status is unknown.",
+         "Submit saved calculation appears only for a saved request that has not been sent to the calculation service. Review its saved task, input, method, basis, charge and spin where they apply against your assignment before choosing it. This explicit action starts submission using the saved settings, not your current draft edits.",
+         "If extra saved options apply, read the visible notice and open Advanced saved settings and provenance with your instructor when needed. Do not guess missing scientific settings to make the button available.",
+         "If the request cannot be verified, keep its visible message and identifier for your instructor. Reading or checking a saved request does not replace your current molecular draft."),
+        ("An unknown submission is held until its original outcome can be verified. There is no automatic retry or expiry that makes a second submission safe.",
+         "The saved request is not a backup of every result file. Keep your original input and downloaded results; missing or expired hosted outputs cannot be recreated from the request alone.",
+         "If the stored history needs instructor review, keep the project and its files. Creating another project does not resolve an uncertain earlier calculation.")),
     "job_status": _topic(
         "What is my calculation doing?", ("job status", "queued", "waiting", "running", "how long", "finished", "why failed", "failed", "timeout"),
         "Status describes the recorded stage of a particular request: preparing, submitted, queued, running or finished with a reported outcome.",
@@ -311,7 +325,7 @@ HELP_CONTENT = {
          "Queued/waiting means execution is not yet confirmed; running means work has started. Read the outcome and warnings when it finishes.",
          "Follow the linked run details if needed. Keep a startup, access, timeout or chemistry error with its request ID for diagnosis."),
         ("No fixed completion time is promised; molecule, method, basis, properties, hardware and service queues all affect it.",
-         "Do not repeatedly submit to make a queued calculation start sooner. A status refresh does not run new chemistry.")),
+         "Do not repeatedly submit to make a queued calculation start sooner. Refresh calculation status does not submit new chemistry; the separate label Submit saved calculation is an explicit submission action.")),
     "cancellation_retry": _topic(
         "Stop a calculation and retry safely", ("cancel", "stop", "retry", "run again", "cancellation requested", "duplicate job"),
         "Cancellation asks a job to stop. Stop running jobs requests a stop for all calculations and engine checks currently tracked in this interface. Retrying creates or submits work again; it does not correct the scientific input by itself.",
@@ -320,9 +334,10 @@ HELP_CONTENT = {
         "Calculations → Cancel calculation, or the guided Stop running jobs button. The header requests a stop for every calculation and engine check currently tracked here; individual Cancel controls target their own operation.",
         ("Confirm which request is active, then use its cancellation control once.",
          "Wait for each job's confirmed final status. A stop request may first wait for confirmation that the job was submitted or for a current program check. Cancellation requested does not mean the job has stopped.",
+         "For a saved GitHub calculation, Stop can be recorded before GitHub supplies its run number. Once CoChem confirms that Stop is recorded in the project, reopen with Check saved project request and refresh that same request. A lost connection before confirmation does not prove that Stop was saved.",
          "Read and retain the error/output. Correct only the justified setting or prerequisite, verify the selected input, then submit a new bounded request."),
         ("Cancellation can leave partial results, which must retain their partial/failed status. Original inputs and earlier verified results remain available.",
-         "Stop running jobs does not stop installation, imports or result retrieval, cancel other account jobs, or retain a stop request across an interface reload.",
+         "Stop running jobs does not stop installation, imports or result retrieval, or cancel unrelated account jobs. Do not assume the saved GitHub-request behavior applies to every calculation route or engine check; keep the interface open until those operations confirm their final status.",
          "Do not change an assigned method, charge or spin solely to make a retry pass.")),
     "retrieve_results": _topic(
         "Retrieve the result that belongs to your job", ("retrieve", "download calculation bundle", "no results", "artifact", "matching result", "get output"),
@@ -649,8 +664,11 @@ _controls("resources", "Calculations → route-specific resource limits", True, 
     "native_timeout": "Use a justified local time bound in seconds and preserve timeout diagnostics if the calculation stops.",
     "install_min_disk": "This is the setup disk-admission requirement in GB; do not lower it merely to label an inadequate machine ready.",
 })
+_controls("saved_project_request", "Calculations → Run calculation → saved project request", False, {
+    "btn_actions_recover": "Check the project's saved request without starting chemistry. Use this before a new GitHub calculation and after reopening the interface.",
+    "btn_actions_refresh": "Read this button's current label: Refresh calculation status checks the original request; Submit saved calculation deliberately submits the reviewed saved settings, not your current draft edits.",
+})
 _controls("job_status", "Calculations → retained request and status", False, {
-    "btn_actions_refresh": "Refresh the selected request's actual remote status; this does not submit another calculation.",
     "actions_history": "Select a previous retained calculation by its identifying record rather than assuming the newest run is yours.",
     "btn_actions_open": "Open the selected retained calculation and confirm its input, operation and run identity.",
 })
@@ -870,6 +888,7 @@ _CONTROL_LABELS = {
     'bin_cfour': 'CFOUR Path:',
     'bin_orca': 'ORCA Path:',
     'btn_actions_open': 'Open selected calculation',
+    'btn_actions_recover': 'Check saved project request',
     'btn_actions_refresh': 'Refresh calculation status',
     'btn_actions_retrieve': 'Retrieve and inspect results / Retrieve calculation diagnostics',
     'btn_actions_use_geometry': 'Use calculated structure',

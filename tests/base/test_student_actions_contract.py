@@ -6,7 +6,11 @@ import hashlib
 import io
 import json
 import os
+import runpy
+import tempfile
+import urllib.parse
 import secrets
+import signal
 import stat
 import subprocess
 import sys
@@ -14,7 +18,7 @@ import uuid
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Thread
+from threading import Thread, Event
 
 import pytest
 
@@ -27,13 +31,23 @@ from cochem_base.interfaces.student_actions import (
 from cochem_base.interfaces.student_request import canonical_json, decode_request, encode_request
 
 
+# Reuse real local Git/HTTP fixture code, never a fake scientific executor.
+_ADMISSION_FIXTURES = runpy.run_path(str(Path(__file__).with_name('test_student_actions_admission.py')),
+                                  run_name='canonical_admission_fixture')
+AdmissionGitHandler = _ADMISSION_FIXTURES['GitHandler']
+AdmissionGitStore = _ADMISSION_FIXTURES['GitStore']
+_SMART_FIXTURES = runpy.run_path(str(Path(__file__).with_name('test_student_actions_admission_git_readonly.py')),
+                              run_name='canonical_smart_git_fixture')
+from cochem_base.interfaces import student_actions_admission as admission_contract
+
+
 class ProjectApprovalServer(ThreadingHTTPServer):
     """Actual local REST exchange for approval metadata, never science output."""
 
     def __init__(self, *, variable_name_changed: bool = False,
                  commit_changed: bool = False, worker_missing: bool = False,
                  repository: str = "student/project"):
-        super().__init__(("127.0.0.1", 0), ProjectApprovalHandler)
+        super().__init__(("127.0.0.1", 0), ProjectApprovalSmartGitHandler)
         self.token = secrets.token_urlsafe(32)
         self.revision = "b" * 40
         self.variables = {"COCHEM_APPROVED_BASE_SHA": self.revision}
@@ -54,26 +68,64 @@ class ProjectApprovalServer(ThreadingHTTPServer):
         self.setup_digest_changed = False
         self.setup_status = 200
         self.submitted = []
+        self._git_fixture = tempfile.TemporaryDirectory(prefix='project-admission-git-')
+        self.store = AdmissionGitStore.create(Path(self._git_fixture.name) / 'ledger.git')
+        self.gets = []
+        self.git_writes = []
+        self.drop_create_ack = self.drop_patch_ack = False
+        self.runs = []
+        self.setup_schema = 'cochem.project-setup/2'
+        self.capability_changes = {}
+        self.source_changes = {}
+        self.admission_metadata_status = 200
+        self.admission_run_changes = {}
+        self.admission_project_id = 17
+        self.dispatch_terminal_race = False
+        self.binding_patch_race = False
+        self.race_new_submission = None
+        self.blocked_route = None
+        self.blocked_entered, self.blocked_release = Event(), Event()
+        _SMART_FIXTURES["configure_smart_git_peer"](self)
 
 
-class ProjectApprovalHandler(BaseHTTPRequestHandler):
-    def log_message(self, *args):
-        return None
+class ProjectApprovalHandler(AdmissionGitHandler):
+    def log_message(self, fmt, *args):
+        self.server.gets.append({"access": fmt % args})
 
     def do_GET(self):
+        if '/git/' in self.path:
+            peer = self.server
+            if peer.blocked_route == self.path:
+                peer.blocked_entered.set()
+                if not peer.blocked_release.wait(timeout=5):
+                    self.answer({'error': 'bounded engineering HTTP barrier expired'}, 503)
+                    return
+            return super().do_GET()
         peer = self.server
         peer.paths.append(self.path)
+        if peer.blocked_route == self.path:
+            peer.blocked_entered.set()
+            if not peer.blocked_release.wait(timeout=5):
+                self.answer({'error': 'bounded engineering HTTP barrier expired'}, 503)
+                return
         if self.headers.get("Authorization") != "Bearer " + peer.token:
             self.answer({}, 401)
             return
         prefix = "/repos/" + peer.repository
         if self.path == prefix:
-            self.answer({"full_name": "student/project", "private": True,
+            self.answer({"id": peer.admission_project_id, "full_name": peer.repository, "private": True,
                          "owner": {"type": "User", "login": "student"},
                          "default_branch": "main", "permissions": {"push": True},
                          "fork": False, "archived": False, "disabled": False})
-        elif self.path == prefix + "/actions/workflows/student_research.yml":
-            self.answer({"id": 123, "state": "active"})
+        elif self.path in {prefix + "/actions/workflows/student_research.yml", prefix + "/actions/workflows/123"}:
+            self.answer({"id": 123, "state": "active", "path": ".github/workflows/student_research.yml"})
+        elif self.path.startswith(prefix + '/actions/workflows/123/runs?'):
+            page = int(urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)['page'][0])
+            self.answer({'total_count': len(peer.runs), 'workflow_runs': peer.runs[(page-1)*100:page*100]})
+        elif self.path.startswith(prefix + '/actions/runs/') and self.path.rsplit('/', 1)[-1].isdigit():
+            run_id = int(self.path.rsplit('/', 1)[-1])
+            matches = [run for run in peer.runs if run['id'] == run_id]
+            self.answer({**matches[0], **peer.admission_run_changes} if len(matches) == 1 else {}, peer.admission_metadata_status if len(matches) == 1 else 404)
         elif self.path == prefix + "/commits/main":
             self.answer({"sha": "a" * 40})
         elif self.path == prefix + "/actions/workflows/student_project_setup.yml":
@@ -112,8 +164,19 @@ class ProjectApprovalHandler(BaseHTTPRequestHandler):
                       "approved_base_revision": "not-a-commit" if peer.channel_changed else peer.revision}
             self.answer({"type": "file", "encoding": "base64",
                          "content": base64.b64encode(canonical_json(course)).decode()})
-        elif self.path == "/repos/ProfJJK-CoChem/CoChem-BASE/contents/scripts/run_student_research.py?ref=" + peer.revision:
-            self.answer({"type": "file"}, 404 if peer.worker_missing else 200)
+        elif (self.path.startswith('/repos/ProfJJK-CoChem/CoChem-BASE/contents/')
+              or self.path.startswith(prefix + '/contents/')):
+            parsed = urllib.parse.urlsplit(self.path)
+            relative = urllib.parse.unquote(parsed.path.split('/contents/', 1)[1])
+            revision = urllib.parse.parse_qs(parsed.query).get('ref', [''])[0]
+            source = Path(__file__).resolve().parents[2]
+            allowed = admission_contract.REQUIRED_PATHS | {admission_contract.DESCRIPTOR_PATH}
+            if relative not in allowed or revision not in {peer.revision, peer.setup_revision} or peer.worker_missing:
+                self.answer({}, 404)
+            else:
+                raw = peer.source_changes.get((revision, relative), (source / relative).read_bytes())
+                self.answer({'type': 'file', 'path': relative, 'encoding': 'base64', 'size': len(raw),
+                    'sha': admission_contract.blob_id(raw), 'content': base64.b64encode(raw).decode()})
         else:
             self.answer({"message": "Unexpected engineering endpoint"}, 404)
 
@@ -124,6 +187,8 @@ class ProjectApprovalHandler(BaseHTTPRequestHandler):
         self.wfile.write(canonical_json(payload))
 
     def do_POST(self):
+        if '/git/' in self.path:
+            return super().do_POST()
         peer = self.server
         peer.paths.append(self.path)
         if self.headers.get("Authorization") != "Bearer " + peer.token:
@@ -131,7 +196,22 @@ class ProjectApprovalHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/repos/" + peer.repository + "/actions/workflows/123/dispatches":
             data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            peer.submitted.append(decode_request(data["inputs"]["request_base64"], data["inputs"]["request_sha256"]))
+            submitted = decode_request(data["inputs"]["request_base64"], data["inputs"]["request_sha256"])
+            peer.submitted.append(submitted)
+            if submitted['capability_probe'] is None:
+                assert set(data['inputs']) == {'request_id', 'request_sha256', 'request_base64', 'admission_anchor'}
+                assert admission_contract.HEX40.fullmatch(data['inputs']['admission_anchor'])
+            else:
+                assert set(data['inputs']) == {'request_id', 'request_sha256', 'request_base64'}
+            number = 458 + len(peer.submitted)
+            peer.runs.append({'id': number, 'run_attempt': 1, 'workflow_id': 123,
+                'repository': {'id': 17, 'full_name': peer.repository}, 'event': 'workflow_dispatch',
+                'display_title': 'CoChem student ' + submitted['request_id'], 'head_branch': data['ref'],
+                'head_sha': submitted['source_sha'], 'status': 'queued', 'conclusion': None,
+                'html_url': f'https://github.com/{peer.repository}/actions/runs/{number}'})
+            if peer.dispatch_terminal_race:
+                peer.dispatch_terminal_race = False
+                self._advance_old_request_for_race()
             self.answer({}, 204)
             return
         if self.path != "/repos/" + peer.repository + "/actions/workflows/124/dispatches":
@@ -143,14 +223,51 @@ class ProjectApprovalHandler(BaseHTTPRequestHandler):
         assert str(uuid.UUID(peer.setup_request)) == peer.setup_request
         self.answer({}, 204)
 
+    def _advance_old_request_for_race(self):
+        """Actual local Git append + nested HTTP at a response boundary, no chemistry."""
+        from cochem_base.interfaces import student_actions_admission_git as transport
+        peer = self.server
+        observer = StudentActionsClient(peer.repository, branch='main', token=peer.token,
+            api_url=f'http://127.0.0.1:{peer.server_port}', allow_loopback=True)
+        actual = transport.ActionsAdmissionTransport(observer)
+        old = peer.store.read()
+        bound = peer.store.bind(actual, admission_contract.identity(old))
+        run = next(run for run in peer.runs if run['id'] == bound.binding['run_id'])
+        # An API-shaped failure is only an engineering transport observation; no
+        # result/output/operation_performed success is created by this fixture.
+        run.update(status='completed', conclusion='failure')
+        peer.store.finish(actual, admission_contract.identity(bound))
+        replacement = json.loads(bound.raw)
+        replacement['request_id'] = 'ac72d7ea-3c83-425e-9163-e5d5b15d0af2'
+        new = peer.store.prepare(canonical_json(replacement), repository_id=17, branch='main', workflow_id=123)
+        peer.race_new_submission = observer._saved_admission(new)
+
+    def _patch_body(self, body):
+        peer = self.server
+        if peer.binding_patch_race:
+            files, unused_parent = peer.store.files(body['sha'])
+            state = admission_contract.strict(files['state.json'])
+            if state['phase'] == 'bound':
+                peer.binding_patch_race = False
+                self._advance_old_request_for_race()
+                peer.git_writes.append({'method': 'PATCH', 'path': self.path, 'body': body, 'refused_after_competing_append': True})
+                self.answer({'error': 'actual competing local Git append won'}, 422)
+                return
+        return super()._patch_body(body)
+
     def setup_archive(self):
         peer = self.server
-        metadata = {"schema_version": "cochem.project-setup/1", "request_id": peer.setup_request,
+        metadata = {"schema_version": peer.setup_schema, "request_id": peer.setup_request,
                     "repository": peer.repository, "source_sha": peer.setup_revision,
                     "run_id": 456, "run_attempt": 1,
                     "approved_base_sha": peer.variables.get("COCHEM_APPROVED_BASE_SHA", ""),
                     "course_channel": peer.variables.get("COCHEM_COURSE_CHANNEL", ""),
                     "access": peer.setup_access}
+        if peer.setup_schema == 'cochem.project-setup/2':
+            raw = (Path(__file__).resolve().parents[2] / admission_contract.DESCRIPTOR_PATH).read_bytes()
+            metadata['research_admission'] = {'protocol': admission_contract.PROTOCOL,
+                'ledger_ref': admission_contract.LEDGER_REF, 'descriptor_sha256': hashlib.sha256(raw).hexdigest(),
+                **peer.capability_changes}
         metadata.update(peer.setup_artifact_changes)
         if peer.variable_name_changed:
             metadata["unexpected_field"] = "not part of the version contract"
@@ -159,6 +276,28 @@ class ProjectApprovalHandler(BaseHTTPRequestHandler):
             info = zipfile.ZipInfo("project-setup.json", date_time=(2026, 1, 1, 0, 0, 0))
             archive.writestr(info, canonical_json(metadata))
         return buffer.getvalue()
+
+
+class ProjectApprovalSmartGitHandler(_SMART_FIXTURES['SmartGitHTTPMixin'], ProjectApprovalHandler):
+    """Serve the original real bare fixture through actual Git smart HTTP."""
+    protocol_version = 'HTTP/1.0'
+
+
+def finish_smart_git_peer(peer):
+    """Reap only fixture-owned CGI children and finish its actual handler threads."""
+    peer.git_release.set()
+    for handler in peer.git_handlers:
+        handler.join(timeout=5)
+        assert not handler.is_alive()
+    for child in peer.cgi_children:
+        if child.poll() is None:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                # The owned group may have naturally completed before cleanup.
+                assert child.poll() is not None
+        child.wait(timeout=2)
+        assert child.returncode is not None
 
 
 @pytest.fixture
@@ -170,10 +309,13 @@ def project_approval_peer(request):
     try:
         yield peer
     finally:
+        peer.git_release.set()
         peer.shutdown()
         peer.server_close()
         thread.join(timeout=5)
         assert not thread.is_alive()
+        finish_smart_git_peer(peer)
+        peer._git_fixture.cleanup()
 
 
 def project_approval_client(peer, tmp_path):
@@ -247,11 +389,35 @@ def test_old_project_missing_setup_workflow_has_an_actionable_update_link(projec
     assert not peer.submitted
 
 
+@pytest.mark.parametrize('changes', [None, {'protocol': 'unknown'}, {'descriptor_sha256': '0'*64}])
+def test_old_or_mismatched_capability_refuses_before_claim_or_science_dispatch(project_approval_peer, tmp_path, changes):
+    peer = project_approval_peer
+    if changes is None:
+        peer.setup_schema = 'cochem.project-setup/1'
+    else:
+        peer.capability_changes = changes
+    with pytest.raises(StudentActionsError):
+        project_approval_client(peer, tmp_path).submit(_request()['calculation'])
+    assert not peer.submitted and not peer.git_writes
+    assert peer.store.tip() is None
+
+
+@pytest.mark.parametrize('revision', ['assignment', 'worker'])
+def test_every_advertised_protected_file_is_compared_at_both_sources(project_approval_peer, tmp_path, revision):
+    peer = project_approval_peer
+    sha = peer.setup_revision if revision == 'assignment' else peer.revision
+    for relative in admission_contract.REQUIRED_PATHS:
+        peer.source_changes = {(sha, relative): b'Changed engineering source bytes; not application execution'}
+        with pytest.raises(StudentActionsError):
+            project_approval_client(peer, tmp_path).submit(_request()['calculation'])
+        assert not peer.submitted and not peer.git_writes and peer.store.tip() is None
+
+
 def test_free_base_calculation_submits_without_any_private_component_access(project_approval_peer, tmp_path):
     peer = project_approval_peer
     peer.setup_access = {"source": False, "orca": False, "cfour": False}
     submitted = project_approval_client(peer, tmp_path).submit(_request()["calculation"])
-    assert submitted["status"] == "dispatching"
+    assert submitted["status"] == "queued"
     assert len(peer.submitted) == 1
     assert peer.submitted[0]["calculation"]["engine"] == "xtb"
     assert peer.submitted[0]["worker_source_sha"] == peer.revision
@@ -265,7 +431,7 @@ def test_available_licensed_engine_is_independent_of_other_optional_components(p
     peer.setup_access = {"source": False, "orca": engine == "orca", "cfour": engine == "cfour"}
     calculation = {**_request()["calculation"], "engine": engine, "method": "HF", "basis_set": "STO-3G"}
     submitted = project_approval_client(peer, tmp_path).submit(calculation)
-    assert submitted["status"] == "dispatching"
+    assert submitted["status"] == "queued"
     assert len(peer.submitted) == 1
     assert peer.submitted[0]["calculation"] == calculation
 
@@ -280,7 +446,7 @@ def test_public_provider_submits_without_private_source_credentials(project_appr
                 "artifact_sha256": hashlib.sha256(geometry.encode()).hexdigest(), "options": {}}
     submitted = project_approval_client(peer, tmp_path).submit(
         None, provider=provider, xyz_files={provider["artifact"]: geometry})
-    assert submitted["status"] == "dispatching"
+    assert submitted["status"] == "queued"
     assert len(peer.submitted) == 1
     assert peer.submitted[0]["provider"] == provider
     assert peer.submitted[0]["worker_source_sha"] == peer.revision
@@ -831,10 +997,12 @@ def _student_admission_workflow():
 def test_student_admission_preserves_transport_and_presecret_authority():
     workflow = _student_admission_workflow()
     dispatch = workflow.get('on', workflow.get(True))['workflow_dispatch']
-    assert set(dispatch['inputs']) == {'request_id', 'request_sha256', 'request_base64'}
+    assert set(dispatch['inputs']) == {'request_id', 'request_sha256', 'request_base64', 'admission_anchor'}
+    assert dispatch['inputs']['admission_anchor'] == {'description': 'BASE-generated exact saved research dispatch commit (empty for a probe)', 'required': False, 'default': '', 'type': 'string'}
     assert workflow['permissions'] == {'contents': 'read'} and 'concurrency' not in workflow
     admission, research = workflow['jobs']['admission'], workflow['jobs']['research']
     assert 'concurrency' not in admission and admission['timeout-minutes'] == 5
+    assert admission['permissions'] == research['permissions'] == {'contents': 'read', 'actions': 'read'}
     assert admission['outputs'] == {'probe': '${{ steps.route.outputs.probe }}'}
     steps = admission['steps']
     names = {step.get('name'): index for index, step in enumerate(steps)}
@@ -844,9 +1012,10 @@ def test_student_admission_preserves_transport_and_presecret_authority():
                'Audit the approved BASE source before application imports',
                'Revalidate scientific capabilities and resources in the approved worker',
                'Recheck the current private project before provisioning access',
+               'Verify this exact admitted run before publishing the route',
                'Publish the canonical admitted request route']
     assert [names[name] for name in ordered] == sorted(names[name] for name in ordered)
-    assert len(steps) == 12
+    assert len(steps) == 13
     for step in steps:
         assert 'secrets[' not in json.dumps(step)
         assert not step.get('uses', '').startswith('./worker/')
@@ -870,6 +1039,33 @@ def test_student_admission_preserves_transport_and_presecret_authority():
     assert upload['with']['name'] == science_upload['with']['name'] == (
         'cochem-student-${{ inputs.request_id }}-${{ github.run_id }}-${{ github.run_attempt }}')
     assert upload['with']['if-no-files-found'] == 'error'
+
+
+def test_all_three_readonly_barriers_skip_only_canonical_probe_and_keep_legacy_probe_route():
+    """Actual source/workflow contract; route-shell negatives remain separate.
+
+    This does not execute GitHub expression evaluation or a hosted job. It proves
+    the exact guards use the prior canonical classification, not request input.
+    """
+    workflow = _student_admission_workflow()
+    barriers = [step for job in ('admission', 'research')
+        for step in workflow['jobs'][job]['steps']
+        if '--verify-admission-only' in step.get('run', '')]
+    assert len(barriers) == 3
+    for step in barriers:
+        assert step['if'] == "steps.worker.outputs.probe != 'true'"
+        assert step['env'] == {'GITHUB_TOKEN': '${{ github.token }}'}
+    # Preserve the exact approved historical worker as a compatibility fixture.
+    # No old application is imported/executed; no source guard is changed.
+    root = Path(__file__).resolve().parents[2]
+    legacy = subprocess.run(['git', '-C', str(root), 'show',
+        '388088281b8c23951f191edb88f3e865eaa8146d:scripts/run_student_research.py'],
+        capture_output=True, timeout=10, check=True).stdout
+    assert b'--verify-admission-only' not in legacy
+    assert b'--verify-worker-only' in legacy and b'capability_probe' in legacy
+    route = next(step for step in workflow['jobs']['admission']['steps'] if step.get('id') == 'route')
+    assert route['env'] == {'VERIFIED_PROBE': '${{ steps.worker.outputs.probe }}'}
+    assert "(needs.admission.outputs.probe == 'true' || needs.admission.outputs.probe == 'false')" in workflow['jobs']['research']['if']
 
 
 @pytest.mark.parametrize('value', ['true', 'false', '', 'TRUE', 'true\nprobe=false', '$(touch marker)'])
@@ -1147,3 +1343,68 @@ def test_admission_failure_is_sealed_and_retrievable_from_actual_preflight(proje
     'post_manifest_boolean', 'post_manifest_identity', 'post_manifest_oversize'])
 def test_admission_failure_publication_refuses_unexpected_state(project_approval_peer, tmp_path, case):
     _run_student_admission_child(project_approval_peer, tmp_path, mode='failure', case=case)
+
+
+def _prepared_engineering_request(client, peer):
+    from cochem_base.interfaces import student_actions_admission_git as transport
+    request = _request()
+    request.update(repository=peer.repository, source_sha=peer.setup_revision, worker_source_sha=peer.revision)
+    store = admission_contract.AdmissionStore(transport.GitAdmissionBackend(client, peer.repository))
+    snapshot = store.prepare(canonical_json(request), repository_id=17, branch='main', workflow_id=123)
+    return store, client._saved_admission(snapshot)
+
+
+def test_prepared_resume_post_ack_never_returns_the_new_project_generation(project_approval_peer, tmp_path):
+    peer = project_approval_peer
+    client = project_approval_client(peer, tmp_path)
+    store, saved = _prepared_engineering_request(client, peer)
+    peer.dispatch_terminal_race = True
+    observed = client.resume_prepared_admission(saved)
+    assert observed['request_id'] == saved['request_id']
+    assert observed['run_id'] == peer.runs[0]['id'] and observed['conclusion'] == 'failure'
+    assert observed['admission_terminal'] is True
+    assert peer.race_new_submission['request_id'] != saved['request_id']
+    assert store.read().intent['request_id'] == peer.race_new_submission['request_id']
+    assert store.read().state['phase'] == 'prepared' and not store.read().state['stop_requested']
+    assert len(peer.submitted) == 1
+
+
+def test_bind_cas_exception_never_retargets_status_to_replacement_request(project_approval_peer, tmp_path):
+    from cochem_base.interfaces import student_actions_admission_git as transport
+    peer = project_approval_peer
+    client = project_approval_client(peer, tmp_path)
+    store, saved = _prepared_engineering_request(client, peer)
+    store.resume(saved['admission_identity']).publish().post(transport.ActionsAdmissionTransport(client))
+    saved = client._saved_admission(store.read())
+    peer.binding_patch_race = True
+    with pytest.raises((admission_contract.AdmissionError, StudentActionsError)):
+        client.status(saved)
+    assert peer.race_new_submission['request_id'] != saved['request_id']
+    assert store.read().intent['request_id'] == peer.race_new_submission['request_id']
+    assert store.read().state['phase'] == 'prepared' and not store.read().state['stop_requested']
+    assert len(peer.submitted) == 1
+    assert any(row.get('refused_after_competing_append') for row in peer.git_writes)
+
+
+@pytest.mark.parametrize('historical', [False, True])
+def test_completed_bound_status_refuses_same_uuid_wrong_returned_run_id(project_approval_peer, tmp_path, historical):
+    peer = project_approval_peer
+    client = project_approval_client(peer, tmp_path)
+    submitted = client.submit(_request()['calculation'])
+    actual_id = submitted['run_id']
+    peer.runs[0].update(status='completed', conclusion='failure')
+    terminal = client.status(submitted)
+    assert terminal['admission_terminal'] is True and terminal['run_id'] == actual_id
+    if historical:
+        newer = _request()
+        newer.update(repository=peer.repository, source_sha=peer.setup_revision, worker_source_sha=peer.revision,
+                     request_id='ac72d7ea-3c83-425e-9163-e5d5b15d0af2')
+        peer.store.prepare(canonical_json(newer), repository_id=17, branch='main', workflow_id=123)
+    before = json.loads((tmp_path/'runtime/StudentActions/submissions'/f"{submitted['request_id']}.json").read_bytes())
+    peer.admission_run_changes = {'id': actual_id + 200}
+    with pytest.raises(StudentActionsError, match='exact saved binding'):
+        client.status(terminal)
+    after = json.loads((tmp_path/'runtime/StudentActions/submissions'/f"{submitted['request_id']}.json").read_bytes())
+    assert after == before
+    assert not any(f'/actions/runs/{actual_id}/artifacts' in path for path in peer.paths)
+    assert len(peer.submitted) == 1

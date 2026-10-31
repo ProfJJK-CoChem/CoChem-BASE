@@ -298,7 +298,7 @@ def _exercise_physical_gui_case(case, tmp_path):
     gui.research_populations.value = False
     gui.btn_research_compare.click()
     assert "Structure energy differences" in gui.research_report_output.value
-    assert "Download table.csv" in gui.research_report_download.value
+    assert "Download comparison table (CSV)" in gui.research_report_download.value
     assert "population_fraction" not in gui.research_report_output.value
     status, summary = gui.state.system_status, gui.calculation_result.value
     gui._register_completed_local_calculation({**execution, "status": "REJECTED"}, published)

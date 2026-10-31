@@ -65,6 +65,9 @@ def test_base_wheel_does_not_publish_canonical_module_namespaces(release_artifac
     foreign = ("cochem_topos/", "cochem_torq/", "cochem/topos/", "cochem/torq/", "Libraries/")
     assert not sorted(name for name in members if name.startswith(foreign))
     for owned in (
+        "cochem_base/interfaces/student_actions_admission.py",
+        "cochem_base/interfaces/student_actions_admission_git.py",
+        "cochem_base/interfaces/student_actions_admission_git_readonly.py",
         "cochem_base/intake/structure_formats.py",
         "cochem_base/intake/conformer_engine.py",
         "cochem_base/intake/conformer_deduplication.py",
@@ -95,6 +98,7 @@ def test_base_source_distribution_excludes_obsolete_provider_copies(release_arti
     )
     assert not sorted(name for name in members if name.startswith(foreign))
     assert "src/cochem_base/intake/conformer_engine.py" in members
+    assert ".cochem/student-actions-admission.json" in members
 
 
 def test_supported_base_ml_exports_keep_their_actual_implementation_identity():

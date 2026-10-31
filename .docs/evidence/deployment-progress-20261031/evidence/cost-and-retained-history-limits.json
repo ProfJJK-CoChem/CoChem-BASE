@@ -1,0 +1,54 @@
+{
+  "projection_of_original_receipt": true,
+  "original_sha256": "82962a278e4177a86474859f2a7ebec20e2da1abb9ee40c39fc05dd9f4876512",
+  "transformation": "Explicit safe-field projection; no raw output, private identifiers or scientific payload copied.",
+  "facts": {
+    "producer": "fc89fb7145f902945597dfa86f90a895bbc6158f",
+    "cold_workflow_barrier_REST_GETs": 31,
+    "three_barriers_per_fixture_request_REST_GETs": 93,
+    "twenty_sequential_requests_same_fixture_project": {
+      "requests": 20,
+      "cold_source_guarded_checks": 60,
+      "REST_GET_total": 1860,
+      "additional_authenticated_fixture_Git_HTTP_requests": 180
+    },
+    "nominal_workflow_token_budget_premise_per_hour": 1000,
+    "exceeds_that_premise": true,
+    "not_live_rate_limit_or_twenty_student_acceptance": true,
+    "separate_personal_projects_do_not_share_a_single_repository_token_budget": true,
+    "excludes_other_setup_upload_visibility_wait_retries_secondary_limits": true,
+    "normal_client_status_counts": [
+      {
+        "completed_jobs": 0,
+        "ledger_commits": 3,
+        "normal_client_cold_total": 14,
+        "normal_client_warm_total": 2
+      },
+      {
+        "completed_jobs": 5,
+        "ledger_commits": 23,
+        "normal_client_cold_total": 89,
+        "normal_client_warm_total": 2
+      },
+      {
+        "completed_jobs": 20,
+        "ledger_commits": 83,
+        "normal_client_cold_total": 314,
+        "normal_client_warm_total": 2
+      },
+      {
+        "completed_jobs": 50,
+        "ledger_commits": 203,
+        "normal_client_cold_total": 764,
+        "normal_client_warm_total": 2
+      }
+    ],
+    "cold_warm_scope": "Warm2 is tested status path only, not all buttons or all new sessions. Cold status grows with retained object history.",
+    "history_limit_commits_not_jobs": 256,
+    "overflow_unknown_or_unavailable_remains_held": true,
+    "no_automatic_prune_reset_or_ancestry_omission": true
+  },
+  "source_receipt_sha256s": [
+    "82962a278e4177a86474859f2a7ebec20e2da1abb9ee40c39fc05dd9f4876512"
+  ]
+}

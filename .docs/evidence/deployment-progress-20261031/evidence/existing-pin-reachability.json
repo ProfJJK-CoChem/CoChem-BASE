@@ -1,0 +1,16 @@
+{
+  "projection_of_original_receipt": true,
+  "original_sha256": "f2d3a0d759cc0342ab09a997ba1861153e8730b2e8b6ccd59615b76b28bb9edb",
+  "transformation": "Explicit safe-field projection; no raw output, private identifiers or scientific payload copied.",
+  "facts": {
+    "existing_TOPOS_revision": "b157b7e210aee5bdfa09c22270d77d794f52cdde",
+    "fresh_exact_remote_fetch_passed": true,
+    "root_readback_sha256": "5357fa58e858492ae064c621da379c1628b1ebada2138b1ab821cd7270b6aa74",
+    "meaning": "Pin was reachable; do not describe it as unreachable. This does not prove old-trio installation, compatibility or scientific acceptance.",
+    "fetched_code_execution": false
+  },
+  "source_receipt_sha256s": [
+    "f2d3a0d759cc0342ab09a997ba1861153e8730b2e8b6ccd59615b76b28bb9edb",
+    "5357fa58e858492ae064c621da379c1628b1ebada2138b1ab821cd7270b6aa74"
+  ]
+}

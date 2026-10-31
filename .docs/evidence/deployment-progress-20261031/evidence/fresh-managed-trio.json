@@ -1,0 +1,60 @@
+{
+  "projection_of_original_receipt": true,
+  "original_sha256": "303d9b7f39931d119a48cfe26c924d2b70bb7c6fe1600701cd498e257a95d6d4",
+  "transformation": "Explicit safe-field projection; no raw output, private identifiers or scientific payload copied.",
+  "facts": {
+    "scope": "Fresh managed installation with reviewed development catalog overlay, dependency/capability verification and two geometry-only water handoffs. No SCF, hosted student deployment or full scientific acceptance.",
+    "passed": true,
+    "owner_session_exit_code": 0,
+    "elapsed_seconds": 272.1367130279541,
+    "protected_regular_files_rehashed": 2958,
+    "canonical_and_candidate_files_rehashed_each": 2522,
+    "comparisons": {
+      "protected-before.json == protected-after.json": true,
+      "canonical-before.json == canonical-after.json": true,
+      "candidate-source-before.json == candidate-source-after.json": true
+    },
+    "resource_observations": {
+      "sample_count": 108,
+      "sampled_max_owned_rss_bytes": 586539008,
+      "sampled_max_new_allocated_bytes": 5269725184,
+      "sampled_min_tmp_free_bytes": 12296056832,
+      "sampled_min_cgroup_headroom_bytes": 10699939840
+    },
+    "resource_scope": "Sampled observations, not hard quota or exact peak.",
+    "canonical_head": "fc89fb7145f902945597dfa86f90a895bbc6158f",
+    "tuple": {
+      "TORQ": "aa22bb6df25d7509120a91c927cba621d8a02879",
+      "TOPOS": "91509add838819ad57e3e4df67890a88ec4552b0",
+      "science_BASE": "388088281b8c23951f191edb88f3e865eaa8146d"
+    },
+    "catalog_mode": "At the installation's fc89 producer: explicit reviewed development overlay, with canonical pins not yet changed. Subsequent64e publication binds that exact qualified two-file candidate.",
+    "actual_fresh_provider_environments": 2,
+    "full_dependencies_pip_check_RECORD_PEP610_and_owning_payloads_verified": true,
+    "actual_geometry_only_water_handoffs": 2,
+    "SCF_or_new_native_scientific_campaign_in_this_lane": false,
+    "prior_runtime_rollback_proven": false,
+    "H2_followup_not_yet_counted": false,
+    "independent_current_artifact_readback_sha256": "f0eea997998c526d4f8a5871b6584ef7ff6188b8af734b1a3954d96bf4345a72",
+    "installed_distribution_RECORD_counts": {
+      "TORQ": 40,
+      "TOPOS": 86
+    },
+    "scientific_SOURCE_Git_blob_counts": {
+      "TORQ": 1070,
+      "TOPOS": 1101,
+      "science_BASE": 2511
+    },
+    "subsequent_catalog_publication": {
+      "revision": "64e5b2d6f52f7efa3e6842ea7fcbd67941008bf1",
+      "original_receipt_sha256": "e449358d7de66afb6cdb3045c997bcfc44217eb57e82b27080992bebd01eda4e",
+      "source_files_equal_actual_qualified_candidate": 2522
+    },
+    "H2_followup_is_separate_lane": "One actual installed H2 compatibility invariant; see installed-h2-compatibility.json. Installation lane remains two geometry-only operations, with no SCF in that lane."
+  },
+  "source_receipt_sha256s": [
+    "303d9b7f39931d119a48cfe26c924d2b70bb7c6fe1600701cd498e257a95d6d4",
+    "f0eea997998c526d4f8a5871b6584ef7ff6188b8af734b1a3954d96bf4345a72",
+    "e449358d7de66afb6cdb3045c997bcfc44217eb57e82b27080992bebd01eda4e"
+  ]
+}

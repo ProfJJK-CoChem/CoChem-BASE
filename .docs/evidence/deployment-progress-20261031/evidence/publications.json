@@ -1,0 +1,51 @@
+{
+  "projection_of_original_receipt": true,
+  "original_sha256": "d84304354c172c476577556ef916ca7b02b0b656ff0b9a09ac53f48adeaf9b62",
+  "transformation": "Explicit safe-field projection; no raw output, private identifiers or scientific payload copied.",
+  "facts": {
+    "BASE": {
+      "revision": "fc89fb7145f902945597dfa86f90a895bbc6158f",
+      "ordinary_nonforce_push": true,
+      "published": true,
+      "fresh_remote_before": "388088281b8c23951f191edb88f3e865eaa8146d",
+      "fresh_remote_after": "fc89fb7145f902945597dfa86f90a895bbc6158f",
+      "clean_source2522_unchanged": true
+    },
+    "TOPOS": {
+      "revision": "91509add838819ad57e3e4df67890a88ec4552b0",
+      "actual_ordinary_push_and_fresh_exact_readback": true,
+      "original_receipt_sha256": "386a875e9669dc2bf2eacac9c5f0bfb83bc45c47bfbef0af325500dcfc5eb7b1"
+    },
+    "TORQ": {
+      "revision": "aa22bb6df25d7509120a91c927cba621d8a02879",
+      "actual_ordinary_push_and_fresh_exact_readback": true,
+      "original_receipt_sha256": "2e40e16009f372437587bee860a5675a633ef687729d06c82b381dd297d560d8"
+    },
+    "no_API_identity_or_hosted_deployment_inference": true,
+    "subsequent_BASE_pin_publication": {
+      "published_revision": "64e5b2d6f52f7efa3e6842ea7fcbd67941008bf1",
+      "parent": "fc89fb7145f902945597dfa86f90a895bbc6158f",
+      "ordinary_nonforce_push_exit_code": 0,
+      "fresh_ls_remote_main": "64e5b2d6f52f7efa3e6842ea7fcbd67941008bf1",
+      "clean_working_tree": true,
+      "source_files_equal_actual_qualified_candidate": 2522,
+      "original_receipt_sha256": "e449358d7de66afb6cdb3045c997bcfc44217eb57e82b27080992bebd01eda4e"
+    },
+    "server_security_notice": {
+      "total": 42,
+      "critical": 5,
+      "high": 23,
+      "moderate": 13,
+      "low": 1,
+      "scope": "Observed GitHub push notice; individual alert details and affected runtime applicability not verified via blocked API.",
+      "runtime_vulnerabilities_verified_by_this_notice": false,
+      "caused_by_this_change": "not established; no individual alert triage or new-environment scanner claim"
+    }
+  },
+  "source_receipt_sha256s": [
+    "d84304354c172c476577556ef916ca7b02b0b656ff0b9a09ac53f48adeaf9b62",
+    "386a875e9669dc2bf2eacac9c5f0bfb83bc45c47bfbef0af325500dcfc5eb7b1",
+    "2e40e16009f372437587bee860a5675a633ef687729d06c82b381dd297d560d8",
+    "e449358d7de66afb6cdb3045c997bcfc44217eb57e82b27080992bebd01eda4e"
+  ]
+}

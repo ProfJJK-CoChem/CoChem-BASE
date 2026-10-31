@@ -1,0 +1,31 @@
+{
+  "projection_of_original_receipt": true,
+  "original_sha256": "93c7f63e3423410fcee972fb4018b23a94da47c2a490baaeaa8bd8748fa5457c",
+  "source_receipt_sha256s": [
+    "93c7f63e3423410fcee972fb4018b23a94da47c2a490baaeaa8bd8748fa5457c",
+    "59607f83e6d64971b9f4a8f4a762ed23e5409cbcb04f897a89f78935bc750929"
+  ],
+  "transformation": "Explicit scalar identity/count/invariant/scope projection; no scientific arrays/checkpoints/raw logs/geometry/request payload copied.",
+  "facts": {
+    "scope": "One actual installed public execute_handoff H2 RHF/STO-3G Wiberg-NAO compatibility invariant in the fresh TORQ environment, separate from the installation geometry lane.",
+    "provider_revision": "aa22bb6df25d7509120a91c927cba621d8a02879",
+    "provider_source_sha256": "8aba8feba7302d8e3e807ef3543e996a20a150a1866ee4027ebcbee9ff068bbc",
+    "passed": true,
+    "owner_session_exit": 0,
+    "elapsed_seconds": 6.4835898876190186,
+    "both_owned_boundaries_empty": true,
+    "public_dispatches": 1,
+    "protected_files_rehashed": 5491,
+    "protected_unchanged": true,
+    "pair_value": 0.999999999999998,
+    "owning_pair_abs_tolerance": 1e-10,
+    "owning_pair_relative_tolerance": 0,
+    "density_trace_internal_conservation": 1.9999999999999982,
+    "diagnostic_cutoffs": null,
+    "fresh_runtime_epoch": "PySCF2.14.0/NumPy2.5.4, independent current installed result",
+    "not_original_owning_pytest_node_execution": true,
+    "physical_scope": "H/O-only experimental profile; one neutral singlet H2 invariant. No carbon/organic NBO/NPA/E2, empirical accuracy, broad scientific or platform/fullSRS qualification.",
+    "native_energy_reference_accuracy_claim": false,
+    "hosted_or_student_deployment": false
+  }
+}

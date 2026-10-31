@@ -1,0 +1,96 @@
+{
+  "projection_of_original_receipt": true,
+  "original_sha256": "82962a278e4177a86474859f2a7ebec20e2da1abb9ee40c39fc05dd9f4876512",
+  "transformation": "Explicit safe-field projection; no raw output, private identifiers or scientific payload copied.",
+  "facts": {
+    "producer": "fc89fb7145f902945597dfa86f90a895bbc6158f",
+    "protocol_parent_tests": 212,
+    "protocol_passed_subtests_separate": 34,
+    "original_identity_union_exact": true,
+    "recorder_controls": 29,
+    "legacy_fixture_target": 1,
+    "combined_recorder_fixture_parents": 30,
+    "artifact_cases": 2,
+    "do_not_sum_overlapping_source_selections_or_subtests": true,
+    "later_composite_original_sha256": "6f1de950500d3a4a9177022f24bf0520f2298b11001a9dcdc0a9ca98262aa9f5",
+    "groups": {
+      "recorder_and_fixture": {
+        "collected": 30,
+        "passed": 30,
+        "failed_count": 0,
+        "unexpected_skip_count": 0,
+        "subtests_separate": {
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0,
+          "xfail": 0
+        }
+      },
+      "protocol_core": {
+        "collected": 207,
+        "passed": 207,
+        "failed_count": 0,
+        "unexpected_skip_count": 0,
+        "subtests_separate": {
+          "passed": 34,
+          "failed": 0,
+          "skipped": 0,
+          "xfail": 0
+        }
+      },
+      "cold_history_small": {
+        "collected": 3,
+        "passed": 3,
+        "failed_count": 0,
+        "unexpected_skip_count": 0,
+        "subtests_separate": {
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0,
+          "xfail": 0
+        }
+      },
+      "cold_history_large": {
+        "collected": 1,
+        "passed": 1,
+        "failed_count": 0,
+        "unexpected_skip_count": 0,
+        "subtests_separate": {
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0,
+          "xfail": 0
+        }
+      },
+      "sequential20": {
+        "collected": 1,
+        "passed": 1,
+        "failed_count": 0,
+        "unexpected_skip_count": 0,
+        "subtests_separate": {
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0,
+          "xfail": 0
+        }
+      },
+      "artifacts": {
+        "collected": 2,
+        "passed": 2,
+        "failed_count": 0,
+        "unexpected_skip_count": 0,
+        "subtests_separate": {
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0,
+          "xfail": 0
+        }
+      }
+    },
+    "all_original_failures_preserved": true
+  },
+  "source_receipt_sha256s": [
+    "82962a278e4177a86474859f2a7ebec20e2da1abb9ee40c39fc05dd9f4876512",
+    "6f1de950500d3a4a9177022f24bf0520f2298b11001a9dcdc0a9ca98262aa9f5"
+  ]
+}

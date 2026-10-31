@@ -4,6 +4,8 @@ Prepared 18 October 2026. This is the current entry point for a replacement
 agent/environment. It supplements the [completion backlog](WORKSTATION_COMPLETION_HANDOFF.md),
 not a declaration that BASE or the entire ecosystem is finished.
 
+31 October update: read [current deployment progress](DEPLOYMENT_PROGRESS_2026-10-31.md) and its [curated evidence](evidence/deployment-progress-20261031/EVIDENCE_MANIFEST.json) before relying on dated snapshots. Selected local qualification does not establish full SRS or student deployment.
+
 30 October update: read the [first-semester workspace progress and bounded
 evidence](BEGINNER_WORKSPACE_PROGRESS_2026-10-30.md),
 [module ownership progress](MODULE_OWNERSHIP_PROGRESS_2026-10-30.md), and

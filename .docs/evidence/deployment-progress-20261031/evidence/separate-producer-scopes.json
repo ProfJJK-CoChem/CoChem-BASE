@@ -1,0 +1,68 @@
+{
+  "projection_of_original_receipt": true,
+  "original_sha256": "6f1de950500d3a4a9177022f24bf0520f2298b11001a9dcdc0a9ca98262aa9f5",
+  "transformation": "Explicit safe-field projection; no raw output, private identifiers or scientific payload copied.",
+  "facts": {
+    "producer_observations": [
+      {
+        "lane": "gui-f2f1c71",
+        "producer": "f2f1c71381effb847dd97802c3088025334b2e88",
+        "original_receipt_sha256": "519b4b1c54e972df64b4aa2806645c8db3636582a3f8b84812c11a215b034b57",
+        "owner_exit": 1,
+        "owned_boundary_empty": true,
+        "collected": 210,
+        "passed": 209,
+        "failed_count": 1,
+        "source_file_count": 2521,
+        "source_origins_verified": true,
+        "whole_GUI_failure_remains_failed": true
+      },
+      {
+        "lane": "helper-f2f1c71",
+        "producer": "f2f1c71381effb847dd97802c3088025334b2e88",
+        "original_receipt_sha256": "9f85373557a68ddb0a7feb1f01a2212193f76d63cc093ffea32889ab8ed561f2",
+        "owner_exit": 0,
+        "owned_boundary_empty": true,
+        "collected": 17,
+        "passed": 17,
+        "failed_count": 0,
+        "source_file_count": 2521,
+        "source_origins_verified": true,
+        "whole_GUI_failure_remains_failed": false
+      },
+      {
+        "lane": "artifacts-fc89fb7",
+        "producer": "fc89fb7145f902945597dfa86f90a895bbc6158f",
+        "original_receipt_sha256": "468f5f8ac1bd33f687412f92059d06a89bf4a70f6000bd20c87c7b078545fd91",
+        "owner_exit": 0,
+        "owned_boundary_empty": true,
+        "collected": 2,
+        "passed": 2,
+        "failed_count": 0,
+        "source_file_count": 2522,
+        "source_origins_verified": true,
+        "whole_GUI_failure_remains_failed": false
+      }
+    ],
+    "updater_real_Git_conformance": {
+      "producer": "f2f1c71381effb847dd97802c3088025334b2e88",
+      "original_sha256": "93b3141a06c02989bac463516fc46221d5ae7c3ddf5ba8710b0b1be75ebe01ce",
+      "tests": 29,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "owner_exit": 0,
+      "owned_boundary_empty": true,
+      "actual_project_apply": false
+    },
+    "legacy_target_resolution": "One exact failed GUI target was repaired and passed on successor alongside29recorder cases; the original209pass/1fail GUI producer is not converted to a whole-run pass.",
+    "unchanged_helper_source_and_test_reuse_is_explicit_not_new_execution": true
+  },
+  "source_receipt_sha256s": [
+    "6f1de950500d3a4a9177022f24bf0520f2298b11001a9dcdc0a9ca98262aa9f5",
+    "519b4b1c54e972df64b4aa2806645c8db3636582a3f8b84812c11a215b034b57",
+    "9f85373557a68ddb0a7feb1f01a2212193f76d63cc093ffea32889ab8ed561f2",
+    "468f5f8ac1bd33f687412f92059d06a89bf4a70f6000bd20c87c7b078545fd91",
+    "93b3141a06c02989bac463516fc46221d5ae7c3ddf5ba8710b0b1be75ebe01ce"
+  ]
+}

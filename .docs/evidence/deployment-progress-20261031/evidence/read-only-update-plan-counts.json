@@ -1,0 +1,22 @@
+{
+  "projection_of_original_receipt": true,
+  "original_sha256": "b4e306a909017a937e59d648339e1db5162230647a453d565335845d090d59bb",
+  "transformation": "Counts-only projection. Original location and all project identifiers/configuration/pair/plan contents intentionally withheld; retained privately under root custody.",
+  "facts": {
+    "planned_source_operations": 294,
+    "conflict_count": 0,
+    "application_blocker_count": 0,
+    "read_only_phase_passed": true,
+    "no_commit_push_fetch_performed": true,
+    "canonical_source_unchanged": true,
+    "actual_apply": false,
+    "external_identity_verified": false,
+    "private_project_identifiers_paths_commits_and_plan_contents_copied": false,
+    "stale_after_published_source_revision": "64e5b2d6f52f7efa3e6842ea7fcbd67941008bf1",
+    "fresh_plan_required_before_any_apply": true,
+    "counts_belong_to_prior_fc89_plan_not_a_new64e_plan": true
+  },
+  "source_receipt_sha256s": [
+    "b4e306a909017a937e59d648339e1db5162230647a453d565335845d090d59bb"
+  ]
+}

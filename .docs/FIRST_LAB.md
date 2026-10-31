@@ -209,3 +209,7 @@ If you still need help, give your instructor the visible message, the
 step you were on and the run link when one is shown. Keep the original input
 and failed result record. You do not need to send passwords, access tokens or
 terminal commands.
+
+For the Tuesday 3–Friday 6 November 2026 class tryout, use the
+[short daily guide and reporting instructions](BEGINNER_FIRE_TEST_2026-11-03.md).
+Use your instructor’s private reporting route for private project or coursework details.

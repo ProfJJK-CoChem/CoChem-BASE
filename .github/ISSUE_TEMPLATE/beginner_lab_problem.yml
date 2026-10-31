@@ -1,0 +1,60 @@
+name: Beginner lab problem
+description: Tell us what happened while using the four-step CoChem workspace.
+title: "[Beginner lab] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem. Plain language is enough; you do not need to diagnose it.
+
+        **This is a public report.** Do not include passwords, tokens, private project links, personal information, molecular files, calculation bundles or coursework data.
+        **Never send passwords or access tokens, even privately.**
+        For private project links, personal information, molecular files or coursework details, use the **private reporting route your instructor provided**. If you do not have one, ask your instructor how to send the report privately. You do not need to provide an email address here.
+  - type: dropdown
+    id: lab_step
+    attributes:
+      label: Which step were you using?
+      options:
+        - "1 · Setup"
+        - "2 · Add your molecule"
+        - "3 · Run assigned calculation"
+        - "4 · Read and save results"
+        - "Not sure"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: "For example: I expected the download link to appear."
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: Copy only non-sensitive message text. Send a full message privately to your instructor if it includes private details.
+      placeholder: "For example: The button stayed disabled and a message appeared."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you click just before the problem?
+      description: A few short steps or button names are enough. Do not attach your molecular input or assignment files.
+    validations:
+      required: false
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device, if you know them
+      placeholder: "For example: Firefox on a laptop. Not sure is also fine."
+    validations:
+      required: false
+  - type: textarea
+    id: public_evidence
+    attributes:
+      label: Optional public-safe run link or screenshot
+      description: Only share a run that is already public and approved for sharing. Crop screenshots to remove names, account details, private project names, file paths, molecules and coursework. If unsure, leave this blank and send it privately to your instructor.
+    validations:
+      required: false

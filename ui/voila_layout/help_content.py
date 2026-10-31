@@ -359,6 +359,21 @@ HELP_CONTENT = {
          "Check the submitted report can be opened through that course route."),
         ("Your private personal repository is not automatically the instructor's collection location.",
          "Commit/Sync does not copy every managed result from outside source, and downloads alone do not submit an assignment.")),
+    "saved_local_calculations": _topic(
+        "Save calculation files and reopen an earlier local result", ("prepare calculation download", "save calculation files", "download local calculation", "zip", "backup", "reopen", "saved calculation", "history", "find previous result", "lost result"),
+        "A saved local calculation keeps the result together with its recorded inputs and the files produced by the calculation. Reopening lets you read that earlier result without calculating it again.",
+        "The displayed energy alone is not enough to check your work. Keeping the underlying files lets you and your instructor trace a number to the calculation that produced it.",
+        "Use this after a supported local xTB calculation has completed and its saved record is available, or after reopening this same workspace.",
+        "4 · Read and save results / Results → Prepare calculation download. Open Saved calculations in this workspace for its refresh, selection and reopen controls.",
+        ("Check the result you are viewing, then choose Prepare calculation download. Wait for the file status and choose Download calculation files (.zip). Save that file on your own computer.",
+         "To view earlier work, open Saved calculations in this workspace, choose Refresh saved calculations, select the intended Saved calculation, then choose Reopen saved calculation. Selecting a name alone does not open it.",
+         "Check the saved task, method, energy and units. Reopening changes the result you are viewing; it does not replace the molecule or settings you are preparing for your next calculation.",
+         "The download is prepared for the result you are viewing, which may differ from a name you have only highlighted in the saved-calculation list. Preparing it alone does not save a copy to your computer.",
+         "If saving or reopening fails, read the message beside those controls and keep the original files. The calculation's recorded outcome does not become a failed calculation just because its download could not be prepared."),
+        ("The ZIP contains this calculation's recorded inputs and output files. It excludes shared project databases; read the stated scope and any unavailable input evidence.",
+         "Reopen needs the registered original files in this same workspace. A downloaded ZIP backs up files, but cannot currently restore saved-calculation history in another workspace or after the originals are moved or deleted.",
+         "This route covers supported recorded local GFN2-xTB energy and geometry-optimization results. Other routes have their own available downloads; an older or unregistered calculation may not appear here.",
+         "Neither downloading nor reopening proves a minimum, establishes accuracy, or submits your assignment.")),
     "updates": _topic(
         "Setup, compatible updates and restart", ("retry setup", "update", "restart", "rollback", "roll back", "software version"),
         "BASE manages its installed tools and compatible software updates. Restarting the interface starts its service again using the selected managed runtime.",
@@ -820,6 +835,12 @@ _controls("help_navigation", "Help and optional-section controls", False, {
     "Disclosure.toggle": "Show or hide this optional section while retaining its current control values; opening it does not enable a missing scientific capability.",
     "context_help_buttons[*]": "Open the explanation beside this task; its What/Why/When/Where/How and individual-control hints do not alter the calculation.",
 })
+_controls("saved_local_calculations", "Results → retained local files and saved calculations", False, {
+    "btn_save_local_files": "Prepare a ZIP of the recorded input and output files for the result you are viewing; then use its download link to save a copy to your computer. This does not run a calculation.",
+    "saved_local_calculation": "Choose the earlier saved local calculation you want to read. Selecting a name alone does not open it or change your current result.",
+    "btn_reopen_saved_local": "Check and reopen the selected saved local result. Your next calculation's molecule, settings and goal stay as you left them.",
+    "btn_refresh_saved_local": "Refresh the list of registered local calculations in this workspace; this does not search arbitrary files or launch chemistry.",
+})
 _controls("read_results", "Results → completed displayed result", False, {
     "result_summary_download": "Save displayed result summary downloads only the text currently shown after a completed result; it is not the native output, a full provenance archive or assignment submission.",
 })
@@ -827,6 +848,10 @@ _controls("read_results", "Results → completed displayed result", False, {
 
 # Display labels are presentation descriptions, not executable attribute lookups.
 _CONTROL_LABELS = {
+    'btn_save_local_files': 'Prepare calculation download',
+    'saved_local_calculation': 'Saved calculation:',
+    'btn_reopen_saved_local': 'Reopen saved calculation',
+    'btn_refresh_saved_local': 'Refresh saved calculations',
     'result_summary_download': 'Save displayed result summary',
     'Disclosure.toggle': 'Show / Hide optional section',
     'LearningHelp.clear': 'Clear help',
@@ -1098,6 +1123,14 @@ _extra_guidance("job_status", "Calculations → observed request status", "read_
 _extra_guidance("retrieve_results", "Calculations → request-bound downloads", "download_link", {
     "actions_results_download": ("Download calculation bundle", "Save the available bundle matched to this request/run, keeping its raw results, warnings and provenance."),
     "actions_job_download": ("Saved request/configuration download", "Read what this download contains: a request/configuration is separate from the result of executed chemistry."),
+})
+_extra_guidance("saved_local_calculations", "Results → retained local files", "download_link", {
+    "local_files_download": ("Download calculation files (.zip)", "Save the prepared ZIP for the viewed result to your computer. Read its stated scope; it is separate from assignment submission and cannot be imported here as trusted calculation history."),
+})
+_extra_guidance("saved_local_calculations", "Results → retained local files and saved calculations", "read_only_status", {
+    "viewed_local_calculation": ("Viewing saved calculation", "This identifies the saved result currently displayed and targeted by Prepare calculation download. Highlighting another name in the list does not change this viewed result."),
+    "local_files_status": ("Calculation-file status", "Read whether the viewed result's file download is available and which files it includes. A file-export problem does not change the recorded scientific outcome."),
+    "saved_local_status": ("Saved-calculation status", "Check which saved result was opened or why reopening was refused. Your current calculation draft is kept; a selected list item is not automatically the viewed result."),
 })
 _extra_guidance("read_results", "Calculations / Results", "read_only_data", {
     "calculation_result": ("Displayed calculation result", "Check the actual operation, values, units, convergence and warnings. The displayed summary is only part of the scientific record."),

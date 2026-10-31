@@ -12,6 +12,13 @@ import re
 import shutil
 import subprocess
 import sys
+import time
+import threading
+import ast
+import inspect
+import stat
+import zipfile
+import io
 
 ROOT = Path(__file__).resolve().parents[2]
 if __name__ == "__main__":
@@ -142,6 +149,11 @@ def test_xtb_task_settings_in_actual_source_widget(tmp_path):
     assert not list(tmp_path.rglob("result.json"))
 
 
+def test_local_saved_file_controls_without_native_execution(tmp_path):
+    _run_physical_gui_case("local-files", tmp_path, tmp_path / "absent-registry.json")
+    assert not list(tmp_path.rglob("execution.json"))
+
+
 def test_native_widget_child_proves_source_origins_without_calculation(tmp_path):
     _run_physical_gui_case("source-origin", tmp_path, tmp_path / "absent-registry.json")
     assert not list(tmp_path.rglob("result.json"))
@@ -149,6 +161,7 @@ def test_native_widget_child_proves_source_origins_without_calculation(tmp_path)
 
 def _run_physical_gui_case(case, directory, registry):
     environment = dict(os.environ, COCHEM_CONFIG=str(registry),
+                       COCHEM_ARTIFACTS=str(directory), COCHEM_ARTIFACT_DIR=str(directory),
                        COCHEM_COMPLEXES_H5=str(directory / "complexes.h5"),
                        COCHEM_STUDENT_AUTO_SETUP="0", COCHEM_STUDENT_AUTO_REMOTE_CHECK="0",
                        PYTHONDONTWRITEBYTECODE="1", PYTHONPATH=os.pathsep.join(source_paths(ROOT)))
@@ -163,6 +176,9 @@ def _exercise_physical_gui_case(case, tmp_path):
         return
     if case == "actions-export":
         _exercise_actions_export(tmp_path)
+        return
+    if case == "local-files":
+        _exercise_local_saved_controls(tmp_path)
         return
     if case == "task-settings":
         _exercise_xtb_task_settings()
@@ -194,6 +210,7 @@ def _exercise_physical_gui_case(case, tmp_path):
     gui._execute_pipeline(None)
     gui._pipeline_worker.join(timeout=45)
     assert not gui._pipeline_worker.is_alive()
+    _finish_local_file_work(gui)
     assert gui.state.system_status == ("Single Point Finished" if case == "single-point" else "Optimization Finished"), gui.state.error_message
     assert not gui.xtb_task.disabled
     selected_task = "single_point" if case == "single-point" else "optimization"
@@ -209,8 +226,27 @@ def _exercise_physical_gui_case(case, tmp_path):
     assert payload["optimization_converged"] is (None if case == "single-point" else True)
     assert execution["operation"] == ("single_point" if case == "single-point" else "optimization")
     assert payload["energy_hartree"] < 0
+    assert execution['retained_files']['available'] is True
+    assert gui._viewed_local_record_id == execution['run_id']
+    saved_label = "Saved calculation 1 · GFN2-xTB · " + ("Energy at supplied geometry" if case == "single-point" else "Geometry optimization")
+    assert saved_label in gui.viewed_local_calculation.value
+    assert tuple(gui.research_isomer_choices.options) == ((saved_label, 0),)
+    gui.btn_save_local_files.click()
+    _finish_local_file_work(gui)
+    assert "Download calculation files (.zip)" in gui.local_files_download.value
+    assert "to save it on your computer" in gui.local_files_status.value
+    encoded = re.search(r"data:application/zip;base64,([^']+)", gui.local_files_download.value).group(1)
+    with zipfile.ZipFile(io.BytesIO(base64.b64decode(encoded))) as archive:
+        manifest = json.loads(archive.read('manifest.json'))
+        assert 'shared-multi-job-telemetry-database' in manifest['excluded_scopes']
+        assert all(not name.endswith('complexes.h5') for name in archive.namelist())
+        for name, evidence in manifest['files'].items():
+            assert hashlib.sha256(archive.read(name)).hexdigest() == evidence['sha256']
+    _exercise_fresh_saved_reopen(execution, published, saved_label)
     card = gui.calculation_result.value
     assert "Saved xTB screening result" in card
+    assert "These are calculated estimates. Their accuracy for your goal has not been established." in card
+    assert "how much of each is present" in card
     assert "Total charge:</b> 0" in card and "Spin multiplicity:</b> 1" in card
     assert "Calculation details and provenance" in card
     assert ("No geometry optimization was requested" in card) is (case == "single-point")
@@ -229,7 +265,7 @@ def _exercise_physical_gui_case(case, tmp_path):
     gui._publish_completed_xtb_result(execution, published)
     if case == "single-point":
         assert len(gui._research_observations) == 1
-        assert tuple(gui.research_isomer_choices.options) == (("Local calculation 1 · GFN2-xTB · Electronic energy", 0),)
+        assert tuple(gui.research_isomer_choices.options) == ((saved_label, 0),)
         assert gui._research_observations[0]["electronic_state"] == {"charge": 0, "multiplicity": 1}
         assert gui._research_observations[0]["minimum_verified"] is False
         return
@@ -255,7 +291,7 @@ def _exercise_physical_gui_case(case, tmp_path):
     assert observation["minimum_verified"] is False
     assert "Calculated structures" in gui.research_isomer_choices.description
     assert gui.btn_research_compare.description == "Compare calculated structures"
-    assert tuple(gui.research_isomer_choices.options) == (("Local calculation 1 · GFN2-xTB · Electronic energy", 0),)
+    assert tuple(gui.research_isomer_choices.options) == ((saved_label, 0),)
     gui._register_completed_local_calculation(execution, published)
     assert len(gui._research_observations) == 1
     assert gui._research_observations[0]["local_calculation_number"] == 1
@@ -275,6 +311,240 @@ def _exercise_physical_gui_case(case, tmp_path):
     for evaluation in evaluations:
         source = evaluation["gradient_artifact"]
         assert hashlib.sha256((published / source["path"]).read_bytes()).hexdigest() == source["sha256"]
+
+
+def _finish_local_file_work(gui):
+    deadline = time.monotonic() + 30
+    while gui._local_file_work_active() and time.monotonic() < deadline:
+        for worker in tuple(gui._local_file_workers):
+            worker.join(timeout=max(0.01, deadline - time.monotonic()))
+    assert not gui._local_file_work_active(), "Actual file worker did not finish"
+
+
+def _exercise_local_saved_controls(directory):
+    gui = CoChemGUI()
+    _finish_local_file_work(gui)
+    assert len(gui._initial_library_state_models) == 15
+    assert gui._initial_local_record_state_models == (gui.saved_local_calculation, gui.saved_local_status, gui.btn_refresh_saved_local)
+    assert len(gui._initial_library_state_models + gui._initial_local_record_state_models) == 18
+    assert gui.saved_local_calculation.value is None and gui.saved_local_calculation.index == 0
+    assert gui.saved_local_calculation._view_count == 0
+    assert gui.btn_reopen_saved_local.disabled and gui.btn_save_local_files.disabled
+    assert not gui.btn_refresh_saved_local.disabled
+    assert not gui._research_observations
+    # Presentation-only options exercise real SelectMultiple semantics without
+    # inventing a scientific observation or a trusted saved record.
+    gui._set_student_research_choice_options([('Presentation row A', 0), ('Presentation row B', 1)])
+    for chosen in ((), (1,)):
+        gui.research_isomer_choices.value = chosen
+        gui._set_student_research_choice_options([('Relabeled A', 0), ('Relabeled B', 1)],
+                                                select_all_if_empty=False)
+        assert gui.research_isomer_choices.value == chosen
+        assert gui.research_isomer_choices.options == (('Relabeled A', 0), ('Relabeled B', 1))
+    gui._refresh_student_research_choices()
+    assert not gui.research_isomer_choices.options and not gui._research_observations
+    before = (gui.matrix_geometry.value, gui.xtb_task.value, gui.charge_input.value, gui.multiplicity_input.value,
+              gui.product_class_selector.value, gui.calculation_result.value, gui.state.system_status)
+    from cochem_base.config_loader import get_artifact_dir
+    root = get_artifact_dir()
+    store = root / 'LocalCalculations'
+    store.mkdir(exist_ok=True)
+    # Real malformed-record catalog entries remain unavailable. These are
+    # deliberately missing record files, never fabricated calculation results
+    # or registered execution authority. Exercise actual async list refresh and
+    # real widget choice preservation even when a row cannot be reopened.
+    identifiers = ['job_' + letter * 32 for letter in ('a', 'b')]
+    index = {'schema_version': 'cochem.local-calculation-index/1', 'records': {
+        identifier: {'path': 'records/' + identifier + '.json', 'sha256': '0' * 64}
+        for identifier in identifiers}, 'order': identifiers}
+    (store / 'index.json').write_text(json.dumps(index))
+    gui.btn_refresh_saved_local.click()
+    _finish_local_file_work(gui)
+    assert tuple(gui._saved_local_summaries) == tuple(identifiers)
+    assert all(not item.available for item in gui._saved_local_summaries.values())
+    assert gui.saved_local_calculation.value is None and gui.saved_local_calculation.index == 0
+    gui.saved_local_calculation.value = identifiers[1]
+    gui.btn_refresh_saved_local.click()
+    _finish_local_file_work(gui)
+    assert gui.saved_local_calculation.value == identifiers[1] and gui.saved_local_calculation.index == 2
+    assert gui.btn_reopen_saved_local.disabled and not gui._research_observations
+    gui.saved_local_calculation.value = None
+    gui.btn_refresh_saved_local.click()
+    _finish_local_file_work(gui)
+    assert gui.saved_local_calculation.value is None and gui.saved_local_calculation.index == 0
+    (store / 'index.json').write_text('{ genuine malformed index')
+    gui.btn_refresh_saved_local.click()
+    _finish_local_file_work(gui)
+    assert 'unavailable' in gui.saved_local_status.value
+    assert not gui._saved_local_catalog_available
+    assert gui.saved_local_calculation.value is None and gui.btn_reopen_saved_local.disabled
+    fresh = CoChemGUI()
+    _finish_local_file_work(fresh)
+    assert 'unavailable' in fresh.saved_local_status.value
+    assert fresh.matrix_geometry is not None and not fresh._research_observations
+    assert (gui.matrix_geometry.value, gui.xtb_task.value, gui.charge_input.value, gui.multiplicity_input.value,
+            gui.product_class_selector.value, gui.calculation_result.value, gui.state.system_status) == before
+    (store / 'index.json').unlink()
+    # Genuine owned I/O pause: no parser/executor or availability replacement.
+    watched = root / 'owned-file-worker-gate.txt'
+    watched.write_bytes(b'bounded file-worker engineering control')
+    paused, release = threading.Event(), threading.Event()
+    main_ident = threading.get_ident()
+    def pause_owned_read(event, arguments):
+        if (event == 'open' and arguments[0] == str(watched)
+                and threading.get_ident() != main_ident and not paused.is_set()):
+            paused.set()
+            assert release.wait(10), 'Owned I/O pause was not released'
+    sys.addaudithook(pause_owned_read)
+    def real_catalog_read():
+        assert watched.read_bytes() == b'bounded file-worker engineering control'
+        return gui._local_store().list_saved()
+    gui._student_setup_initial_worker.join(timeout=30)
+    assert not gui._student_setup_initial_worker.is_alive()
+    assert gui._setup_service is not None
+    try:
+        gui._start_local_file_job('Reading saved calculations', real_catalog_read,
+                                  gui._apply_saved_local_catalog, gui.saved_local_status)
+        assert paused.wait(5), 'The actual owned worker never reached the I/O pause'
+        assert gui._local_file_work_active()
+        assert any(worker.is_alive() for worker in gui._local_file_workers)
+        assert gui._setup_service.idle_check() is False
+    finally:
+        release.set()
+        _finish_local_file_work(gui)
+    assert not gui._local_file_work_active()
+    # Both real construction sites must supply the actual-thread guard.
+    tree = ast.parse(inspect.getsource(CoChemGUI))
+    idle = [keyword.value for call in ast.walk(tree) if isinstance(call, ast.Call)
+            for keyword in call.keywords if keyword.arg == 'idle_check']
+    assert len(idle) == 2
+    assert all(any(isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                   and node.func.attr == '_local_file_work_active' for node in ast.walk(predicate)) for predicate in idle)
+
+
+def _exercise_fresh_saved_reopen(execution, published, saved_label):
+    # Chemistry already completed above. The following new GUI must need no
+    # engine installation/probe to read the known original record.
+    previous = {key: os.environ.get(key) for key in ('COCHEM_CONFIG', 'XTB_CMD')}
+    os.environ['COCHEM_CONFIG'] = str(published.parent / 'absent-registry.json')
+    os.environ['XTB_CMD'] = str(published.parent / 'absent-native-engine')
+    probes = []
+    def forbid_new_science(event, arguments):
+        if event == 'subprocess.Popen':
+            command = arguments[1]
+            allowed = [['uname', '-p'], ['wsl', '-l', '-q'],
+                ['git', '-C', str(ROOT), 'rev-parse', 'HEAD'],
+                ['git', '-C', str(ROOT), 'config', '--get', 'remote.origin.url']]
+            assert command in allowed, command
+            probes.append(command)
+        elif event in {'os.system', 'socket.connect'}:
+            raise AssertionError('Saved-result reopen cannot launch chemistry or network work')
+    sys.addaudithook(forbid_new_science)
+    try:
+        fresh = CoChemGUI()
+        _finish_local_file_work(fresh)
+        assert not fresh._research_observations
+        assert fresh.saved_local_calculation.value is None and fresh.saved_local_calculation.index == 0
+        fresh.btn_refresh_saved_local.click()
+        _finish_local_file_work(fresh)
+        assert fresh.saved_local_calculation.value is None and fresh.saved_local_calculation.index == 0
+        fresh.xtb_task.value = 'single_point'
+        fresh.matrix_geometry.value = 'O 0 0 0\nH 0 0 1.2\nH 1 0 -.2'
+        fresh.charge_input.value, fresh.multiplicity_input.value = 1, 2
+        draft = (fresh.matrix_geometry.value, fresh.xtb_task.value, fresh.matrix_engine.value, fresh.matrix_method.value,
+                 fresh.matrix_basis.value, fresh.charge_input.value, fresh.multiplicity_input.value, fresh.product_class_selector.value)
+        status, card = fresh.state.system_status, fresh.calculation_result.value
+        fresh.saved_local_calculation.value = execution['run_id']
+        fresh.btn_refresh_saved_local.click()
+        _finish_local_file_work(fresh)
+        assert fresh.saved_local_calculation.value == execution['run_id']
+        assert fresh.calculation_result.value == card and not fresh._research_observations
+        fresh.btn_reopen_saved_local.click()
+        _finish_local_file_work(fresh)
+        assert 'Viewing a saved calculation' in fresh.saved_local_status.value
+        assert fresh._viewed_local_record_id == execution['run_id']
+        assert tuple(fresh.research_isomer_choices.options) == ((saved_label, 0),)
+        assert fresh._research_observations[0]['source']['path'] == str(published / 'result.json')
+        assert fresh._research_observations[0]['electronic_state'] == {'charge': 0, 'multiplicity': 1}
+        assert fresh.state.system_status == status
+        assert (fresh.matrix_geometry.value, fresh.xtb_task.value, fresh.matrix_engine.value, fresh.matrix_method.value,
+                fresh.matrix_basis.value, fresh.charge_input.value, fresh.multiplicity_input.value, fresh.product_class_selector.value) == draft
+        for chosen in ((), (0,)):
+            fresh.research_isomer_choices.value = chosen
+            fresh.btn_reopen_saved_local.click()
+            _finish_local_file_work(fresh)
+            assert fresh.research_isomer_choices.value == chosen
+            assert len(fresh._research_observations) == 1 and fresh._research_observations[0]['label'] == saved_label
+        if execution['operation'] == 'optimization':
+            _exercise_reopen_snapshot_replacement(fresh, published, draft, status)
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def _exercise_reopen_snapshot_replacement(fresh, published, draft, status):
+    # This native case owns both actual files. Retain the verified final A,
+    # then replace that same path with its own real first-evaluation B. B is
+    # never registered/admitted as a completed calculation.
+    identifier = fresh.saved_local_calculation.value
+    verified = fresh._local_store().reopen_saved(identifier)
+    target = published / 'result.json'
+    original, mode = target.read_bytes(), stat.S_IMODE(target.stat().st_mode)
+    alternative = (published / 'evaluation-0000/result.json').read_bytes()
+    assert json.loads(alternative)['energy_hartree'] != verified.observation['energy_hartree']
+    from ui.voila_layout.cochem_gui import reopened_xtb_result_html
+    card = reopened_xtb_result_html(verified)
+    protected = [False]
+    prefix = str(published) + os.sep
+    def forbid_snapshot_reread(event, arguments):
+        if protected[0] and event == 'open' and isinstance(arguments[0], (str, bytes, os.PathLike)):
+            path = os.fsdecode(arguments[0])
+            assert not path.startswith(prefix), 'Rendering a verified snapshot reread mutable result files'
+    sys.addaudithook(forbid_snapshot_reread)
+    try:
+        target.chmod(0o600)
+        target.write_bytes(alternative)
+        protected[0] = True
+        try:
+            assert reopened_xtb_result_html(verified) == card
+            fresh._publish_reopened_local_calculation(verified)
+        finally:
+            protected[0] = False
+        assert fresh.calculation_result.value == card
+        assert fresh._viewed_local_record_id == identifier
+        assert fresh._research_observations[0]['energy_hartree'] == verified.observation['energy_hartree']
+        assert fresh._research_observations[0]['source'] == verified.observation['source']
+        details = json.loads(unescape(re.search(r'<pre>(.*?)</pre>', card, re.S).group(1)))
+        assert details['final_result'] == verified.native_result
+        assert details['saved_configuration'] == verified.configuration
+        assert details['actual_execution'] == verified.execution_receipt
+        assert details['saved_input_context'] == verified.input_context
+        before = (fresh.calculation_result.value, fresh._viewed_local_record_id,
+                  fresh.viewed_local_calculation.value, json.dumps(fresh._research_observations, sort_keys=True),
+                  fresh.research_isomer_choices.value)
+        fresh.btn_reopen_saved_local.click()
+        _finish_local_file_work(fresh)
+        assert 'unavailable' in fresh.saved_local_status.value
+        assert (fresh.calculation_result.value, fresh._viewed_local_record_id,
+                fresh.viewed_local_calculation.value, json.dumps(fresh._research_observations, sort_keys=True),
+                fresh.research_isomer_choices.value) == before
+        assert fresh.state.system_status == status
+        assert (fresh.matrix_geometry.value, fresh.xtb_task.value, fresh.matrix_engine.value, fresh.matrix_method.value,
+                fresh.matrix_basis.value, fresh.charge_input.value, fresh.multiplicity_input.value,
+                fresh.product_class_selector.value) == draft
+    finally:
+        protected[0] = False
+        target.write_bytes(original)
+        target.chmod(mode)
+    assert target.read_bytes() == original and stat.S_IMODE(target.stat().st_mode) == mode
+    fresh.btn_reopen_saved_local.click()
+    _finish_local_file_work(fresh)
+    assert 'Viewing a saved calculation' in fresh.saved_local_status.value
+    assert fresh.calculation_result.value == card and fresh._viewed_local_record_id == identifier
+    assert len(fresh._research_observations) == 1
 
 
 def _exercise_xtb_task_settings():

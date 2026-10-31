@@ -138,8 +138,34 @@ def _external_run_path(path: Path) -> Path:
     return path
 
 
-def _publish_run_artifacts(sandbox_dir: Path, output: Path) -> None:
+def _retained_output_path(requested: Path, *, authorized: Path) -> Path:
+    """Keep the original lexical request after existing writable admission.
+
+    This initial check creates nothing and is not durable authority: the bound
+    retained publisher independently revalidates the current lexical chain.
+    """
+    from cochem_base.core.managed_files import open_directory_chain
+    lexical = Path(requested).expanduser().absolute()
+    if ".." in lexical.parts or lexical == REPO_ROOT or REPO_ROOT in lexical.parents:
+        raise ValueError("Retained output requires an ordinary lexical path outside program source")
+    if _external_run_path(lexical) != authorized:
+        raise ValueError("Output writable admission changed before retained-file binding")
+    ancestor = lexical.parent
+    while not ancestor.exists() and not ancestor.is_symlink():
+        ancestor = ancestor.parent
+    with open_directory_chain(ancestor) as parent:
+        parent.verify()
+    if lexical.exists() or lexical.is_symlink():
+        with open_directory_chain(lexical) as existing:
+            existing.verify()
+    return lexical
+
+
+def _publish_run_artifacts(sandbox_dir: Path, output: Path, *, retained_receipt: dict | None = None,
+                           submitted_config: bytes | None = None, input_snapshot: Any = None) -> dict | None:
     """Publish a complete evidence or pending-input package atomically."""
+    if retained_receipt is not None:
+        return _publish_retained_run_artifacts(sandbox_dir, output, retained_receipt, submitted_config, input_snapshot)
     import filelock
     output.parent.mkdir(parents=True, exist_ok=True)
     with filelock.FileLock(str(output) + ".lock", timeout=10.0):
@@ -170,6 +196,113 @@ def _publish_run_artifacts(sandbox_dir: Path, output: Path) -> None:
         finally:
             if staging.exists():
                 shutil.rmtree(staging)
+
+
+def _publish_retained_run_artifacts(sandbox_dir: Path, output: Path, receipt: dict,
+                                    submitted_config: bytes, input_snapshot: Any) -> dict:
+    """The supported retained branch: bound writes and uncapped native copy.
+
+    Archive byte/count caps apply only to optional export metadata. No recursive
+    cleanup follows a failed/relocated stage, or a later owner at its old name.
+    """
+    import time
+    from contextlib import ExitStack
+    try:
+        import fcntl
+    except ImportError:
+        fcntl = None
+    if fcntl is None or not hasattr(os, 'O_NOFOLLOW') or not hasattr(os, 'O_DIRECTORY'):
+        # Preserve ordinary native publication on runtimes lacking this optional
+        # POSIX file feature. This is the original publication path, not a claim
+        # that an unsupported runtime produced a safe retained-file inventory.
+        payload = dict(receipt)
+        payload['retained_files'] = {'available': False, 'code': 'UNSUPPORTED_RETAINED_FILE_RUNTIME',
+            'reason': 'This runtime lacks descriptor-bound retained-file publication; ordinary native files remain available.'}
+        (sandbox_dir / 'execution.json').write_text(json.dumps(payload, indent=2), encoding='utf-8')
+        _publish_run_artifacts(sandbox_dir, output)
+        return payload
+    from cochem_base.core.managed_files import atomic_write_bytes, copy_regular_file, open_directory_chain
+    from cochem_base.calc.local_publication import finalize_publication
+    with ExitStack() as bindings:
+        parent = bindings.enter_context(open_directory_chain(Path(output.anchor)))
+        for component in output.parent.parts[1:]:
+            parent = bindings.enter_context(parent.mkdir_child(component))
+        sandbox = bindings.enter_context(open_directory_chain(sandbox_dir))
+        lock = parent.open_file(output.name + '.lock', os.O_RDWR | os.O_CREAT)
+        bindings.callback(os.close, lock)
+        lock_identity = os.fstat(lock)
+        deadline = time.monotonic() + 10.0
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError('Native output publication is busy; its original target is unchanged') from None
+                parent.verify()
+                time.sleep(min(.05, remaining))
+        parent.verify()
+        current_lock = os.stat(output.name + '.lock', dir_fd=parent.fd, follow_symlinks=False)
+        if (lock_identity.st_dev, lock_identity.st_ino) != (current_lock.st_dev, current_lock.st_ino):
+            raise ValueError('Native publication lock identity changed')
+        try:
+            existing = bindings.enter_context(parent.child(output.name))
+        except FileNotFoundError:
+            existing = None
+        if existing is not None and os.listdir(existing.fd):
+            raise FileExistsError(f'Output directory is not empty: {output}')
+        stage_name = '.' + output.name + '.' + uuid.uuid4().hex + '.tmp'
+        stage = bindings.enter_context(parent.mkdir_child(stage_name, exist_ok=False))
+        promoted = False
+        try:
+            published_members = set()
+            for artifact in sandbox_dir.rglob('*'):
+                # Keep the same native traversal, membership and exclusion rules
+                # as the existing publisher; only its IO mechanism is different.
+                if (artifact.is_symlink() or artifact.name in {'GENBAS', 'ECPDATA'}
+                        or artifact.name.endswith(('.lock', '.lock.sha256'))):
+                    continue
+                if artifact.is_file():
+                    sandbox.verify()
+                    relative = artifact.relative_to(sandbox_dir)
+                    with ExitStack() as children:
+                        destination = stage
+                        for component in relative.parts[:-1]:
+                            destination = children.enter_context(destination.mkdir_child(component))
+                        size, measured_hash = copy_regular_file(artifact, destination, relative.name)
+                        sandbox.verify()
+                        checksum = f'{measured_hash}  {artifact.name}\n'.encode('utf-8')
+                        atomic_write_bytes(destination.path, relative.name + '.sha256', checksum,
+                            expected_chain=destination.chain)
+                    name = relative.as_posix()
+                    published_members.update((name, name + '.sha256'))
+            payload = finalize_publication(staging=stage.path, sandbox=sandbox_dir,
+                native_members=published_members, receipt=receipt, submitted_config=submitted_config,
+                input_snapshot=input_snapshot, stage_binding=stage, sandbox_binding=sandbox)
+            parent.verify()
+            stage.verify()
+            if existing is not None:
+                existing.verify()
+                os.rmdir(output.name, dir_fd=parent.fd)
+            current_stage = os.stat(stage_name, dir_fd=parent.fd, follow_symlinks=False)
+            original_stage = os.fstat(stage.fd)
+            if (current_stage.st_dev, current_stage.st_ino) != (original_stage.st_dev, original_stage.st_ino):
+                raise ValueError('Native publication stage identity changed before promotion')
+            os.replace(stage_name, output.name, src_dir_fd=parent.fd, dst_dir_fd=parent.fd)
+            promoted = True
+            parent.verify()
+            published = os.stat(output.name, dir_fd=parent.fd, follow_symlinks=False)
+            if (published.st_dev, published.st_ino) != (original_stage.st_dev, original_stage.st_ino):
+                raise ValueError('Native output identity changed after promotion')
+            os.fsync(parent.fd)
+            return payload
+        finally:
+            if not promoted:
+                logger.warning('Unpublished retained-file stage left explicitly unclaimed: %s (directory inode %s)',
+                    stage.path, os.fstat(stage.fd).st_ino)
+            # Never rmtree this path: on failure it preserves evidence; after a
+            # successful promotion the old name may belong to a different owner.
 
 
 def _accept_orca_result(result: Any, sandbox_dir: Path, basin_id: str, config: CalculationMatrixConfig) -> dict[str, Any]:
@@ -230,6 +363,7 @@ def run_calculation(
     engine: str | None = None, cancellation_event: Any = None,
     on_event: Callable[[dict[str, Any]], None] | None = None,
     registry_path: str | Path | None = None,
+    input_snapshot: Any = None,
 ) -> dict[str, Any]:
     """Execute native capabilities, or preserve a pending job for future integration."""
 
@@ -254,7 +388,8 @@ def run_calculation(
     sandbox_dir = None
     success = False
     try:
-        raw = json.loads(cfg_path.read_text(encoding="utf-8"))
+        submitted_config = cfg_path.read_bytes()
+        raw = json.loads(submitted_config.decode("utf-8"))
         if engine:
             raw["engine"] = engine
         config = CalculationMatrixConfig.model_validate(raw)
@@ -327,7 +462,13 @@ def run_calculation(
                 molecule = molecule.model_copy(update={"nprocs": threads, "maxcore_mb": authorization.maxcore_mb})
         scratch_root = _external_run_path(Path(scratch or os.environ.get("COCH_SCRATCH") or get_artifact_dir() / "Scratch"))
         output_arg = output
+        output_requested_lexical = Path(output_arg).expanduser().absolute() if output_arg else None
         output = _external_run_path(Path(output_arg)) if output_arg else None
+        retained_output_eligible = (output is not None and not dry_run and not pending
+            and config.engine == "xtb" and config.method.upper() == "GFN2-XTB"
+            and capability.operation in {"single_point", "optimization"} and config.t9_fallback is None)
+        if retained_output_eligible and hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY"):
+            output = _retained_output_path(output_requested_lexical, authorized=output)
         scratch_root.mkdir(parents=True, exist_ok=True)
         sandbox_dir = scratch_root / basin_id
         sandbox_dir.mkdir()
@@ -564,9 +705,14 @@ def run_calculation(
             payload.update(requested_engine=config.engine, requested_method=config.method,
                            engine="pyscf", method=fallback["method"], basis_set=fallback["basis"],
                            fallback=fallback, original_single_reference_rejected=True)
-        (sandbox_dir / "execution.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        if output is not None:
-            _publish_run_artifacts(sandbox_dir, output)
+        if retained_output_eligible and status == "EXECUTION_VERIFIED":
+            payload["run_id"] = basin_id
+            payload = _publish_run_artifacts(sandbox_dir, output, retained_receipt=payload,
+                submitted_config=submitted_config, input_snapshot=input_snapshot)
+        else:
+            (sandbox_dir / "execution.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            if output is not None:
+                _publish_run_artifacts(sandbox_dir, output)
         emit({"kind": "status", **payload})
         success = True
         return payload

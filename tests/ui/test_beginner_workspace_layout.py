@@ -13,7 +13,7 @@ import pytest
 from ci_tools.source_quarantine import source_paths
 
 
-@pytest.mark.parametrize("case", ["guided_navigation", "help_preserves_draft", "advanced_preserves_draft", "persistent_state_and_results", "goal_remains_visible", "displayed_summary_download_bytes", "xtb_task_navigation"])
+@pytest.mark.parametrize("case", ["guided_navigation", "help_preserves_draft", "advanced_preserves_draft", "persistent_state_and_results", "goal_remains_visible", "displayed_summary_download_bytes", "xtb_task_navigation", "local_saved_controls"])
 def test_beginner_workspace_in_source_child(tmp_path, case):
     source = Path(__file__).resolve().parents[2]
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join(source_paths(source)),
@@ -74,6 +74,24 @@ def _exercise(case):
     digest = hashlib.sha256(original.read_bytes()).hexdigest()
     assert original.read_bytes() == raw and gui.btn_execute.disabled
 
+    if case == "local_saved_controls":
+        for worker in tuple(gui._local_file_workers):
+            worker.join(timeout=30)
+            assert not worker.is_alive()
+        assert len(gui._initial_library_state_models) == 15 and len(gui._initial_local_record_state_models) == 3
+        assert gui.saved_local_calculation.value is None and gui.saved_local_calculation.index == 0
+        assert gui.btn_save_local_files.description == "Prepare calculation download"
+        assert gui.btn_reopen_saved_local.description == "Reopen saved calculation"
+        assert gui.btn_refresh_saved_local.description == "Refresh saved calculations"
+        assert gui.btn_save_local_files.disabled and gui.btn_reopen_saved_local.disabled
+        controls = tuple(_walk(gui.view_modules))
+        assert gui.viewed_local_calculation in controls and gui.saved_local_calculation in controls
+        for button in gui.guided_step_buttons.values():
+            button.click()
+            assert _draft(gui) == before
+        assert original.read_bytes() == raw and hashlib.sha256(original.read_bytes()).hexdigest() == digest
+        assert not gui._research_observations
+        return
     if case == "xtb_task_navigation":
         assert gui.xtb_task.value == "optimization"
         assert gui.xtb_task not in gui._initial_library_state_models
@@ -167,7 +185,7 @@ def _exercise(case):
             "Product A (Lead Screening)": "Screen candidate molecules in a solvent",
             "Product B (Materials and Extended Solids)": "Study materials and repeating solids",
             "Product C (Absolute Spectroscopic Calibration)": "Calibrate spectroscopic properties",
-            "Screening (no product accuracy claim)": "Exploratory screening — no accuracy claim",
+            "Screening (no product accuracy claim)": "Initial exploration — accuracy not yet established",
         }
         options_before = gui.product_class_selector.options
         for selected, label in labels.items():

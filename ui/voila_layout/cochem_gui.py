@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple
 from urllib.parse import quote
@@ -328,8 +329,42 @@ def licensed_engine_availability(registry_path: str | Path | None = None) -> dic
 from cochem_base.interfaces.student_hpc import StudentHpcSubmissionUnknown
 
 
+@dataclass(frozen=True)
+class _LocalSubmission:
+    config_bytes: bytes
+    artifact_root: Path
+    selected_id: str | None
+    record_bytes: bytes | None
+    source_kind: str
+    unavailable_code: str | None = None
+    message: str = ""
+
+
+def _saved_xtb_result_markup(execution_receipt: dict, observation: dict, details: dict) -> str:
+    """Format already validated immutable values; never reopen their source paths."""
+    state = observation["electronic_state"]
+    explanation = (
+        "Energy calculated at the supplied geometry. No geometry optimization was requested."
+        if execution_receipt["operation"] == "single_point" else
+        "Geometry optimization finished. The optimizer’s stopping checks passed. "
+        "This does not prove that the structure is a minimum.")
+    return (
+        "<section class='cochem-saved-result'><h3>Saved xTB screening result</h3>"
+        "<p>" + html.escape(explanation) + "</p>"
+        "<p><b>Method:</b> " + html.escape(observation["method"]["method"])
+        + "<br><b>Electronic energy:</b> " + f"{observation['energy_hartree']:.12f} Hartree"
+        + "<br><b>Total charge:</b> " + str(state["charge"])
+        + " · <b>Spin multiplicity:</b> " + str(state["multiplicity"]) + "</p>"
+        "<p>These are the saved calculation’s settings. Changes to your current draft do not change this result. "
+        "These are calculated estimates. Their accuracy for your goal has not been established. They do not show which structures are in a real sample or how much of each is present.</p>"
+        "<details class='cochem-calculation-details'><summary>Calculation details and provenance</summary><pre>"
+        + html.escape(json.dumps(details, indent=2, allow_nan=False)) + "</pre></details></section>"
+    )
+
+
+
 def completed_xtb_result_html(execution_receipt: dict, results_directory: Path) -> str:
-    """Describe a saved local result, independently of every current draft field."""
+    """Validate a newly completed local result independently of every draft field."""
     from cochem_base.interfaces.student_reports import (
         observation_from_completed_local_calculation, verify_source,
     )
@@ -339,27 +374,23 @@ def completed_xtb_result_html(execution_receipt: dict, results_directory: Path) 
              for name in ("matrix_config.validated.json", "result.json", "execution_authority.json")}
     for source in observation["provenance_sources"]:
         verify_source(source)
-    state = observation["electronic_state"]
-    explanation = (
-        "Energy calculated at the supplied geometry. No geometry optimization was requested."
-        if execution_receipt["operation"] == "single_point" else
-        "Geometry optimization finished. The optimizer’s stopping checks passed. "
-        "This does not prove that the structure is a minimum.")
     details = {"actual_execution": execution_receipt, "saved_configuration": saved["matrix_config.validated.json"],
                "final_result": saved["result.json"], "execution_authority": saved["execution_authority.json"],
                "retained_source_receipts": observation["provenance_sources"]}
-    return (
-        "<section class='cochem-saved-result'><h3>Saved xTB screening result</h3>"
-        "<p>" + html.escape(explanation) + "</p>"
-        "<p><b>Method:</b> " + html.escape(observation["method"]["method"])
-        + "<br><b>Electronic energy:</b> " + f"{observation['energy_hartree']:.12f} Hartree"
-        + "<br><b>Total charge:</b> " + str(state["charge"])
-        + " · <b>Spin multiplicity:</b> " + str(state["multiplicity"]) + "</p>"
-        "<p>These are the saved calculation’s settings. Changes to your current draft do not change this result. "
-        "No product accuracy certification or population model is established.</p>"
-        "<details class='cochem-calculation-details'><summary>Calculation details and provenance</summary><pre>"
-        + html.escape(json.dumps(details, indent=2, allow_nan=False)) + "</pre></details></section>"
-    )
+    return _saved_xtb_result_markup(execution_receipt, observation, details)
+
+
+def reopened_xtb_result_html(verified: Any) -> str:
+    """Render exactly the backend-verified byte snapshot, without a second file read.
+
+    The results directory is a provenance locator, never input to this formatter.
+    This presentation seam does not grant an arbitrary result execution authority.
+    """
+    execution, observation = verified.execution_receipt, verified.observation
+    details = {"actual_execution": execution, "saved_configuration": verified.configuration,
+               "final_result": verified.native_result, "saved_input_context": verified.input_context,
+               "retained_source_receipts": observation["provenance_sources"]}
+    return _saved_xtb_result_markup(execution, observation, details)
 
 
 class CoChemGUI(InputManagementMixin):
@@ -374,6 +405,15 @@ class CoChemGUI(InputManagementMixin):
         self._pipeline_cancellation = threading.Event()
         self._student_research_running = False
         self._student_uploads: dict[str, dict[str, Any]] = {}
+        self._generated_input_provenance = {}
+        self._local_file_workers = []
+        self._local_file_workers_lock = threading.RLock()
+        self._local_file_operation = None
+        self._local_view_generation = object()
+        self._viewed_local_record_id = None
+        self._expected_local_card_update = None
+        self._saved_local_summaries = {}
+        self._saved_local_catalog_available = False
         self._input_library: dict[str, dict[str, Any]] = {}
         self._input_library_refresh_serial = 0
         self._ingestion_busy = False
@@ -1237,6 +1277,7 @@ class CoChemGUI(InputManagementMixin):
         self.btn_cancel.on_click(self._cancel_pipeline)
         self.telemetry_output = BoundedTelemetryOutput(layout=widgets.Layout(border='1px solid #ccc', height='400px', overflow='auto', padding='5px'))
         self.calculation_result = widgets.HTML("<i>No accepted calculation result yet.</i>")
+        self._build_local_calculation_controls()
         self.execution_description = widgets.HTML()
         self.actions_status = widgets.HTML("<p role='status'>No remote calculation submitted.</p>")
         self.btn_actions_refresh = widgets.Button(description="Refresh calculation status", disabled=True)
@@ -1514,6 +1555,12 @@ class CoChemGUI(InputManagementMixin):
         )
         for model in self._initial_library_state_models:
             arm_initial_widget_state(model)
+        self._initial_local_record_state_models = (
+            self.saved_local_calculation, self.saved_local_status, self.btn_refresh_saved_local,
+        )
+        for model in self._initial_local_record_state_models:
+            arm_initial_widget_state(model)
+        self._refresh_saved_local_calculations()
         self._refresh_input_library()
         self._start_course_project_discovery()
         atexit.register(self._inbox_stop.set)
@@ -1567,6 +1614,7 @@ class CoChemGUI(InputManagementMixin):
             '<li>' + html.escape(label) + ': ' + html.escape(message) + '</li>'
             for label, message in jobs) + '</ul>' if jobs else
             '<p>No running jobs are currently tracked here.</p>')
+        self._refresh_local_file_controls()
 
     def _new_remote_stop(self, kind: str) -> dict[str, Any]:
         # Context object identity is the generation; it is never reused by a new job.
@@ -2034,6 +2082,9 @@ class CoChemGUI(InputManagementMixin):
                 'multiplicity': multiplicity, 'fragments': None, 'coordinate_unit': 'angstrom',
                 'origin': 'canonical_ingestion', 'source_input_id': receipt.get('input_id', receipt.get('id')),
                 'source_sha256': receipt['sha256'], 'source_frame': frame_index}
+            known = self._generated_input_provenance.get(record['source_input_id'])
+            if known is not None:
+                record['generation_provenance'] = json.loads(known)
             (directory / 'input-manifest.json').write_text(json.dumps(record, indent=2) + '\n', encoding='utf-8')
             self._student_uploads[key] = record
             self.student_geometry_choice.options = [(item['label'], key) for key, item in self._student_uploads.items()]
@@ -2307,15 +2358,15 @@ class CoChemGUI(InputManagementMixin):
                         # Intake and exact receipt selection are complete. Keep
                         # release, promotion and cleanup in one UI callback so
                         # no later builder cleanup can clear a new upload's busy state.
+                        generation_link = {'path': str(sidecar), 'sha256': hashlib.sha256(sidecar.read_bytes()).hexdigest(),
+                            'query': query, 'resolution_source': provenance['resolution_source'], 'quantum_optimized': False}
+                        self._generated_input_provenance[receipt['input_id']] = json.dumps(generation_link, sort_keys=True)
                         self._ingestion_busy = False
                         self._sync_library_geometry_use()
                         self._use_library_geometry()
                         record = self._student_uploads.get(self.student_geometry_choice.value)
                         if not record or record.get('source_input_id') != receipt['input_id']:
                             raise ValueError('The generated starting geometry was not selected; its original is retained')
-                        record['generation_provenance'] = {'path': str(sidecar), 'sha256': hashlib.sha256(sidecar.read_bytes()).hexdigest(),
-                            'query': query, 'resolution_source': provenance['resolution_source'], 'quantum_optimized': False}
-                        Path(record['path']).parent.joinpath('input-manifest.json').write_text(json.dumps(record, indent=2) + '\n', encoding='utf-8')
                         self.student_upload_status.value += ('<p role="status">Generated starting geometry only. ' +
                             html.escape(str(provenance['forcefield'])) + '; molecular identity source: ' +
                             html.escape(str(provenance['resolution_source'])) +
@@ -2399,7 +2450,7 @@ class CoChemGUI(InputManagementMixin):
                 from cochem_base.interfaces.student_setup import StudentSetupService
                 self._setup_service = StudentSetupService(artifact_dir=get_artifact_dir(), repository_root=_REPO_ROOT,
                     idle_check=lambda: not (
-                    self._pipeline_running or self._topos_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._actions_retrieving or self._remote_probe_running or self._ingestion_busy))
+                    self._pipeline_running or self._topos_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._actions_retrieving or self._remote_probe_running or self._ingestion_busy or self._local_file_work_active()))
                 status = self._setup_service.status()
                 self._ui_call(lambda: self._render_student_setup_status(status))
                 automatic = os.environ.get("COCHEM_STUDENT_AUTO_SETUP", "").lower()
@@ -2444,7 +2495,7 @@ class CoChemGUI(InputManagementMixin):
                     from cochem_base.interfaces.student_setup import StudentSetupService
                     self._setup_service = StudentSetupService(artifact_dir=get_artifact_dir(), repository_root=_REPO_ROOT,
                         idle_check=lambda: not (
-                        self._pipeline_running or self._topos_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._actions_retrieving or self._remote_probe_running or self._ingestion_busy))
+                        self._pipeline_running or self._topos_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._actions_retrieving or self._remote_probe_running or self._ingestion_busy or self._local_file_work_active()))
                 receipt = getattr(self._setup_service, action)()
                 status = self._setup_service.status()
                 if action == "check_updates" and isinstance(receipt, dict):
@@ -2678,6 +2729,16 @@ class CoChemGUI(InputManagementMixin):
                 records[key] = record
             except (ValueError, KeyError, TypeError, UnicodeError, OSError):
                 continue
+        for record in records.values():
+            source_id = record.get("source_input_id")
+            if source_id and "generation_provenance" in record:
+                try:
+                    known = json.dumps(record["generation_provenance"], sort_keys=True, allow_nan=False)
+                except (ValueError, TypeError):
+                    known = json.dumps({"unavailable": "Stored construction metadata is invalid"})
+                previous = self._generated_input_provenance.get(source_id)
+                self._generated_input_provenance[source_id] = known if previous in (None, known) else json.dumps(
+                    {"unavailable": "Stored construction associations conflict"})
         records = self._active_geometry_records(records)
         self._student_uploads = records
         self._sync_input_management()
@@ -3447,10 +3508,7 @@ class CoChemGUI(InputManagementMixin):
                 label = item["label"] if type(item.get("local_calculation_number")) is int else f"{root.name[:36]} · {item['label']} · {kind}"
                 self._research_observations.append({**item, "label": label})
                 existing.add(key)
-        chosen = set(self.research_isomer_choices.value)
-        self.research_isomer_choices.options = [(item["label"], index) for index, item in enumerate(self._research_observations)]
-        self.research_isomer_choices.value = tuple(index for _, index in self.research_isomer_choices.options
-                                                   if index in chosen or not chosen)
+        self._refresh_student_research_choices()
         if reports:
             self.research_report_output.value = "\n".join(report_html(report) for report in self._research_reports)
         elif observations:
@@ -3458,6 +3516,17 @@ class CoChemGUI(InputManagementMixin):
         else:
             self.research_report_output.value = "<p role='status'>Calculation artifacts were retained. The provider returned no compatible scientific report observations; no diagram or population has been invented.</p>"
         self.btn_research_compare.disabled = not bool(self._research_observations)
+
+    def _set_student_research_choice_options(self, options: list, *, select_all_if_empty: bool = True) -> None:
+        chosen = self.research_isomer_choices.value
+        self.research_isomer_choices.options = options
+        self.research_isomer_choices.value = tuple(index for _, index in options
+                                                   if index in chosen or (select_all_if_empty and not chosen))
+
+    def _refresh_student_research_choices(self, *, select_all_if_empty: bool = True) -> None:
+        self._set_student_research_choice_options(
+            [(item["label"], index) for index, item in enumerate(self._research_observations)],
+            select_all_if_empty=select_all_if_empty)
 
     def _compare_student_isomers(self, b: Any = None) -> None:
         try:
@@ -5401,6 +5470,13 @@ class CoChemGUI(InputManagementMixin):
         except Exception as exc:
             self.state.error_message = str(exc)
             return
+        submission = self._capture_local_submission(config_path)
+        self._local_view_generation = object()
+        view_generation = self._local_view_generation
+        self._viewed_local_record_id = None
+        self.viewed_local_calculation.value = "<p>This calculation is not in saved history yet.</p>"
+        self.local_files_download.value = ""
+        self._refresh_local_file_controls()
         self._pipeline_cancellation = threading.Event()
         self._pipeline_running = True
         self.xtb_task.disabled = True
@@ -5409,8 +5485,10 @@ class CoChemGUI(InputManagementMixin):
         self.btn_cancel.disabled = False
         self.state.system_status = 'Running Pipeline...'
         self.telemetry_output.clear_output()
+        self._expected_local_card_update = "<i>Calculation is running.</i>"
         self.calculation_result.value = "<i>Calculation is running.</i>"
-        self._pipeline_worker = threading.Thread(target=self._pipeline_thread, args=(config_path,), daemon=True)
+        self._expected_local_card_update = None
+        self._pipeline_worker = threading.Thread(target=self._pipeline_thread, args=(config_path, submission, view_generation), daemon=True)
         self._pipeline_worker.start()
         self._refresh_running_jobs()
 
@@ -6363,16 +6441,323 @@ class CoChemGUI(InputManagementMixin):
             return
         self._cancel_local_calculation()
 
-    def _publish_completed_xtb_result(self, execution_receipt: dict, results_directory: Path) -> None:
+    def _build_local_calculation_controls(self) -> None:
+        self.btn_save_local_files = widgets.Button(description="Prepare calculation download", disabled=True)
+        self.local_files_download = widgets.HTML()
+        self.local_files_status = widgets.HTML()
+        self.viewed_local_calculation = widgets.HTML("<p>No registered local result is being viewed.</p>")
+        self.saved_local_calculation = widgets.Dropdown(options=[("Choose a saved calculation", None)], index=0,
+            description="Saved calculation:", style={"description_width": "initial"}, layout=widgets.Layout(width="100%"))
+        self.btn_reopen_saved_local = widgets.Button(description="Reopen saved calculation", disabled=True)
+        self.btn_refresh_saved_local = widgets.Button(description="Refresh saved calculations", disabled=True)
+        self.saved_local_status = widgets.HTML("<p role='status'>Reading registered local calculations…</p>")
+        self.calculation_result.observe(self._local_result_card_changed, names="value")
+        self.saved_local_calculation.observe(self._refresh_local_file_controls, names="value")
+        self.btn_save_local_files.on_click(self._save_retained_local_files)
+        self.btn_reopen_saved_local.on_click(self._reopen_saved_local_calculation)
+        self.btn_refresh_saved_local.on_click(self._refresh_saved_local_calculations)
+
+    def _local_result_card_changed(self, change: Any) -> None:
+        if self._expected_local_card_update == change["new"]:
+            self._expected_local_card_update = None
+            return
+        # Other native/remote/periodic writers cannot leave an old xTB archive
+        # attached to the newly displayed result. History itself is unchanged.
+        self._local_view_generation = object()
+        self._viewed_local_record_id = None
+        self.viewed_local_calculation.value = "<p>No registered local result is being viewed.</p>"
+        self.local_files_download.value = ""
+        self._refresh_local_file_controls()
+
+    def _local_file_work_active(self) -> bool:
+        with self._local_file_workers_lock:
+            self._local_file_workers = [worker for worker in self._local_file_workers
+                                        if worker.ident is None or worker.is_alive()]
+            return bool(self._local_file_workers)
+
+    def _start_local_file_worker(self, run: Any) -> None:
+        worker = threading.Thread(target=run, daemon=True)
+        with self._local_file_workers_lock:
+            self._local_file_workers.append(worker)
+            try:
+                worker.start()
+            except BaseException:
+                self._local_file_workers.remove(worker)
+                raise
+
+    def _local_store(self):
+        from cochem_base.config_loader import get_artifact_dir
+        from cochem_base.interfaces.local_calculations import LocalCalculationStore
+        return LocalCalculationStore(get_artifact_dir())
+
+    def _local_result_writer_active(self) -> bool:
+        return bool(self._pipeline_running or self._actions_running or self._actions_retrieving
+                    or self._hpc_running or self._hpc_retrieving)
+
+    def _refresh_local_file_controls(self, change: Any = None) -> None:
+        if not hasattr(self, "btn_save_local_files"):
+            return
+        busy = self._local_file_operation is not None
+        selected = self._saved_local_summaries.get(self.saved_local_calculation.value)
+        self.btn_refresh_saved_local.disabled = busy
+        self.btn_reopen_saved_local.disabled = bool(busy or self._local_result_writer_active()
+            or not self._saved_local_catalog_available or selected is None or not selected.available)
+        self.btn_save_local_files.disabled = busy or self._viewed_local_record_id is None
+        running_notice = "<p role='status'>Finish or stop the current calculation before reopening an earlier result. Its saved files are kept.</p>"
+        if not busy and selected is not None and selected.available and self._local_result_writer_active():
+            self.saved_local_status.value = running_notice
+        elif self.saved_local_status.value == running_notice:
+            self.saved_local_status.value = "<p role='status'>Choose Reopen saved calculation to view the selected result.</p>"
+        if selected is not None and not selected.available:
+            self.saved_local_status.value = ("<p role='alert'>This saved calculation is unavailable.</p>"
+                "<details><summary>Saved-record details</summary>" + html.escape(selected.notice) + "</details>")
+
+    def _start_local_file_job(self, operation: str, work: Any, publish: Any, status: widgets.HTML) -> None:
+        if self._local_file_operation is not None:
+            return
+        context = object()
+        self._local_file_operation = context
+        status.value = "<p role='status'>" + html.escape(operation) + "…</p>"
+        self._refresh_local_file_controls()
+        def run() -> None:
+            try:
+                result = work()
+            except Exception as exc:
+                message = str(exc)
+                def finish_error() -> None:
+                    if self._local_file_operation is context:
+                        status.value = ("<p role='alert'>" + html.escape(operation) + " was unavailable. The current calculation and original files are unchanged.</p>"
+                            "<details><summary>File-operation details</summary>" + html.escape(message) + "</details>")
+                        self._local_file_operation = None
+                        self._refresh_local_file_controls()
+                self._ui_call(finish_error)
+            else:
+                def finish() -> None:
+                    if self._local_file_operation is context:
+                        try:
+                            publish(result)
+                        except Exception as exc:
+                            status.value = "<p role='alert'>File view was unavailable: " + html.escape(str(exc)) + "</p>"
+                        finally:
+                            self._local_file_operation = None
+                            self._refresh_local_file_controls()
+                self._ui_call(finish)
+        try:
+            self._start_local_file_worker(run)
+        except Exception as exc:
+            if self._local_file_operation is context:
+                self._local_file_operation = None
+                status.value = "<p role='alert'>File work could not start. Existing calculations are unchanged.</p><details><summary>File-operation details</summary>" + html.escape(str(exc)) + "</details>"
+                self._refresh_local_file_controls()
+
+    def _apply_saved_local_catalog(self, summaries: tuple, *, announce: bool = True) -> None:
+        previous = tuple(self._saved_local_summaries)
+        incoming = tuple(item.record_id for item in summaries)
+        if previous and incoming[:len(previous)] != previous:
+            # The managed index never evicts/reorders. A delayed or damaged
+            # catalog cannot erase a newer known record or pending choice.
+            self._saved_local_catalog_available = False
+            self.saved_local_status.value = "<p role='alert'>The saved list changed unexpectedly. Your current choices and files are kept; refresh the list before reopening.</p>"
+            return
+        self._saved_local_catalog_available = True
+        current = self.saved_local_calculation.value
+        self._saved_local_summaries = {item.record_id: item for item in summaries}
+        with self.saved_local_calculation.hold_sync():
+            self.saved_local_calculation.options = [("Choose a saved calculation", None)] + [(item.label, item.record_id) for item in summaries]
+            if current in self._saved_local_summaries:
+                self.saved_local_calculation.value = current
+            else:
+                # Ordinary catalog reconciliation selects only the visible
+                # None-valued placeholder, never a real saved calculation.
+                self.saved_local_calculation.index = 0
+        if announce:
+            self.saved_local_status.value = ("<p role='status'>Choose a saved calculation, then Reopen saved calculation. Highlighting a name does not change the viewed result.</p>"
+                if summaries else "<p role='status'>No local calculations are registered here yet. Existing files are not automatically scanned or imported.</p>")
+
+    def _refresh_saved_local_calculations(self, button: Any = None) -> None:
+        if self._local_file_operation is not None:
+            return
+        self._saved_local_catalog_available = False
+        self._start_local_file_job("Reading saved calculations", lambda: self._local_store().list_saved(),
+                                   self._apply_saved_local_catalog, self.saved_local_status)
+
+    def _saved_observation_identity(self, observation: dict) -> tuple:
+        return (json.dumps(observation["source"], sort_keys=True), observation["energy_kind"])
+
+    def _merge_saved_local_observation(self, verified: Any) -> None:
+        observation = verified.observation
+        key = self._saved_observation_identity(observation)
+        for existing in self._research_observations:
+            if self._saved_observation_identity(existing) == key:
+                existing.update(label=verified.label, saved_record_id=verified.record_id)
+                # Enriching an existing row must preserve an intentional empty
+                # selection just as precisely as a nonempty selection.
+                self._refresh_student_research_choices(select_all_if_empty=False)
+                return
+        number = 1 + max((item["local_calculation_number"] for item in self._research_observations
+                          if type(item.get("local_calculation_number")) is int), default=0)
+        self._append_student_research_records(verified.results_directory.parent, reports=[],
+            observations=[{**observation, "label": verified.label, "saved_record_id": verified.record_id,
+                           "local_calculation_number": number}])
+
+    def _register_saved_local_completion(self, receipt: dict, results_directory: Path, view_generation: object) -> None:
+        def run() -> None:
+            try:
+                store = self._local_store()
+                summary = store.register_completed(receipt, results_directory=results_directory)
+                verified = store.reopen_saved(summary.record_id)
+                summaries = store.list_saved()
+            except Exception as exc:
+                message = str(exc)
+                def unavailable() -> None:
+                    if self._local_view_generation is view_generation:
+                        self.local_files_status.value = ("<p role='alert'>Calculation completed; its saved-file record is unavailable. "
+                            "The calculation and current-session comparison remain available.</p><details><summary>File-record details</summary>"
+                            + html.escape(message) + "</details>")
+                self._ui_call(unavailable)
+            else:
+                def publish() -> None:
+                    self._merge_saved_local_observation(verified)
+                    self._apply_saved_local_catalog(summaries, announce=self._local_file_operation is None)
+                    if self._local_view_generation is view_generation:
+                        self._viewed_local_record_id = summary.record_id
+                        self.viewed_local_calculation.value = "<p><b>Viewing:</b> " + html.escape(summary.label) + "</p>"
+                        self.local_files_status.value = "<p role='status'>Retained calculation files are available for this saved result.</p>"
+                    self._refresh_local_file_controls()
+                self._ui_call(publish)
+        try:
+            self._start_local_file_worker(run)
+        except Exception as exc:
+            self.local_files_status.value = "<p role='alert'>Calculation completed; its file record could not be prepared.</p><details><summary>File-record details</summary>" + html.escape(str(exc)) + "</details>"
+
+    def _save_retained_local_files(self, button: Any = None) -> None:
+        identifier, generation = self._viewed_local_record_id, self._local_view_generation
+        if identifier is None:
+            return
+        def publish(archive: Any) -> None:
+            if self._viewed_local_record_id != identifier or self._local_view_generation is not generation:
+                return
+            encoded = base64.b64encode(archive.content).decode("ascii")
+            self.local_files_download.value = ("<a download='" + html.escape(archive.filename, quote=True)
+                + "' href='data:application/zip;base64," + encoded + "'>Download calculation files (.zip)</a>")
+            self.local_files_status.value = ("<p role='status'>Download is ready. Choose Download calculation files (.zip) to save it on your computer.</p>"
+                "<details><summary>File download details</summary>" + str(archive.member_count) + " members; SHA-256 "
+                + html.escape(archive.sha256) + "; exclusions: " + html.escape(", ".join(archive.exclusions)) + "</details>")
+        self._start_local_file_job("Preparing retained calculation files", lambda: self._local_store().retained_files_zip(identifier), publish, self.local_files_status)
+
+    def _reopen_saved_local_calculation(self, button: Any = None) -> None:
+        identifier = self.saved_local_calculation.value
+        summary = self._saved_local_summaries.get(identifier)
+        if summary is None or not summary.available or self._local_result_writer_active():
+            return
+        generation = self._local_view_generation
+        def publish(verified: Any) -> None:
+            if self._local_view_generation is not generation or self._local_result_writer_active():
+                self.saved_local_status.value = "<p role='status'>The current calculation view changed. Reopen the saved result again when it is idle.</p>"
+                return
+            self._publish_reopened_local_calculation(verified)
+        self._start_local_file_job("Reopening saved calculation", lambda: self._local_store().reopen_saved(identifier),
+                                   publish, self.saved_local_status)
+
+    def _publish_reopened_local_calculation(self, verified: Any) -> None:
+        # Render before changing the view or comparison. Every displayed value
+        # and the merged observation comes from this same validated snapshot.
+        card = reopened_xtb_result_html(verified)
+        self._merge_saved_local_observation(verified)
+        self._local_view_generation = object()
+        self._viewed_local_record_id = verified.record_id
+        self.viewed_local_calculation.value = "<p><b>Viewing:</b> " + html.escape(verified.label) + "</p>"
+        self._expected_local_card_update = card
+        self.calculation_result.value = card
+        self._expected_local_card_update = None
+        self.local_files_download.value = ""
+        self.local_files_status.value = "<p>Retained files are available for the saved result you are viewing.</p>"
+        self.saved_local_status.value = "<p role='status'>Viewing a saved calculation. Your current molecule and settings are unchanged.</p>"
+
+    def _capture_local_submission(self, config_path: Path) -> _LocalSubmission:
+        from cochem_base.config_loader import get_artifact_dir
+        raw = config_path.read_bytes()
+        identifier = self.student_geometry_choice.value or None
+        record = self._student_uploads.get(identifier) if identifier else None
+        kind = "editor_geometry" if identifier is None else "uploaded_record"
+        code, message, encoded = None, "", None
+        if identifier is not None:
+            try:
+                if record is None:
+                    raise ValueError("The selected input record is unavailable")
+                if "generation_provenance" in record:
+                    kind = "constructed_starting_geometry"
+                if record.get("origin") == "student_monomer_translation_seed":
+                    kind, code, message = "assembled_starting_geometry", "ASSEMBLED_SOURCE_CONTEXT_UNSUPPORTED", "Original records for assembled monomers are outside this file-export version"
+                elif record.get("origin") != "canonical_ingestion":
+                    code, message = "INPUT_SOURCE_UNVERIFIED", "This source is outside the supported InputLibrary original/frame contract"
+                encoded = json.dumps(record, sort_keys=True, allow_nan=False).encode()
+            except (ValueError, TypeError) as exc:
+                code = code or ("CONSTRUCTION_PROVENANCE_UNVERIFIED" if kind == "constructed_starting_geometry" else "INPUT_SOURCE_UNVERIFIED")
+                message = str(exc)
+        return _LocalSubmission(raw, get_artifact_dir(), identifier, encoded, kind, code, message)
+
+    def _build_local_input_snapshot(self, submission: _LocalSubmission):
+        from cochem_base.calc.local_publication import InputSnapshot, build_input_snapshot, digest, read_member
+        from cochem_base.interfaces.student_request import canonical_json, strict_json
+        code = submission.unavailable_code or "INPUT_SOURCE_UNVERIFIED"
+        try:
+            if submission.unavailable_code:
+                raise ValueError(submission.message)
+            if submission.source_kind == "editor_geometry":
+                return build_input_snapshot(submitted_config=submission.config_bytes, source_kind="editor_geometry")
+            record = strict_json(submission.record_bytes)
+            identifier, source_id = submission.selected_id, record.get("source_input_id")
+            if not isinstance(identifier, str) or not re.fullmatch(r"[a-f0-9]{32}", identifier) or not isinstance(source_id, str) or not re.fullmatch(r"[a-f0-9]{32}", source_id):
+                raise ValueError("The selected source identifiers are invalid")
+            manifest = read_member(submission.artifact_root, f"StudentInputs/{identifier}/input-manifest.json", limit=2 * 1024 * 1024)
+            if canonical_json(strict_json(manifest)) != canonical_json(record):
+                raise ValueError("The selected input metadata changed after submission")
+            source = strict_json(read_member(submission.artifact_root, f"InputLibrary/{source_id}/receipt.json", limit=2 * 1024 * 1024))
+            original_path = Path(source["path"]).absolute().relative_to(submission.artifact_root)
+            if original_path.parent != Path("InputLibrary") / source_id or source.get("input_id") != source_id:
+                raise ValueError("The original path is outside its exact managed source")
+            original = read_member(submission.artifact_root, original_path.as_posix(), limit=8 * 1024 * 1024)
+            if digest(original) != source["sha256"] or source["sha256"] != record["source_sha256"]:
+                raise ValueError("The original source bytes changed")
+            code = "SELECTED_FRAME_UNVERIFIED"
+            frame_path = Path(record["path"]).absolute().relative_to(submission.artifact_root)
+            if frame_path.parent != Path("StudentInputs") / identifier or frame_path.name != "canonical-frame.xyz":
+                raise ValueError("The selected frame is outside its exact managed record")
+            frame = read_member(submission.artifact_root, frame_path.as_posix(), limit=2 * 1024 * 1024)
+            construction = None
+            if submission.source_kind == "constructed_starting_geometry":
+                code = "CONSTRUCTION_PROVENANCE_UNVERIFIED"
+                link = record["generation_provenance"]
+                path = Path(link["path"]).absolute().relative_to(submission.artifact_root)
+                if (len(path.parts) != 4 or path.parts[:2] != ("Input_Files", "Generated")
+                        or not re.fullmatch(r"[a-f0-9]{32}", path.parts[2]) or path.name != "starting-geometry.starting-geometry.json"):
+                    raise ValueError("The construction receipt is outside its managed producer")
+                raw = read_member(submission.artifact_root, path.as_posix(), limit=2 * 1024 * 1024)
+                document = strict_json(raw)
+                if digest(raw) != link["sha256"] or document.get("query") != link["query"] or document.get("resolution_source") != link["resolution_source"]:
+                    raise ValueError("The construction receipt changed")
+                construction = {"receipt": raw}
+            return build_input_snapshot(submitted_config=submission.config_bytes, source_kind=submission.source_kind,
+                source={"filename": source["filename"], "format": original_path.suffix.lower().lstrip("."), "content": original},
+                selected_frame={"record_index": record["source_frame"], "geometry": frame, "receipt": manifest}, construction=construction)
+        except Exception as exc:
+            return InputSnapshot.unavailable(submission.config_bytes, source_kind=submission.source_kind, code=code, message=str(exc))
+
+    def _publish_completed_xtb_result(self, execution_receipt: dict, results_directory: Path, view_generation: object = None) -> None:
         """A display failure must not turn accepted native execution into failure."""
         try:
-            self.calculation_result.value = completed_xtb_result_html(execution_receipt, results_directory)
+            card = completed_xtb_result_html(execution_receipt, results_directory)
+            if view_generation is not None and self._local_view_generation is view_generation:
+                self._expected_local_card_update = card
+            self.calculation_result.value = card
+            self._expected_local_card_update = None
         except Exception as exc:
             self.calculation_result.value = (
                 "<p role='status'>xTB execution completed. The saved result details are unavailable: "
                 + html.escape(str(exc)) + ". The native calculation files remain retained.</p>")
 
-    def _pipeline_thread(self, config_path: Path) -> None:
+    def _pipeline_thread(self, config_path: Path, submission: _LocalSubmission | None = None, view_generation: object = None) -> None:
         from cochem_base.calc.calculation_service import run_calculation
         from cochem_base.core_engine.cochem_core_subprocess_broker import (
             SubprocessCancelledError,
@@ -6385,6 +6770,8 @@ class CoChemGUI(InputManagementMixin):
                 self.state.system_status = "Running Pipeline..."
 
         completed_local = None
+        if view_generation is None:
+            view_generation = self._local_view_generation
         try:
             work_dir = config_path.parent
             configuration = json.loads(config_path.read_text(encoding="utf-8"))
@@ -6400,8 +6787,9 @@ class CoChemGUI(InputManagementMixin):
                          else "harmonic frequencies" if configuration['is_freq']
                          else "optimization" if configuration['is_opt'] else "single point")
             self.telemetry_output.append_stdout(f"Running the saved {engine} {operation} configuration.\nFull logs and results: {work_dir}\n")
+            input_snapshot = self._build_local_input_snapshot(submission) if submission is not None and engine == "XTB" else None
             result = run_calculation(
-                config_path, scratch=work_dir / "Scratch", output=work_dir / "Results", device="cpu",
+                config_path, input_snapshot=input_snapshot, scratch=work_dir / "Scratch", output=work_dir / "Results", device="cpu",
                 on_event=on_event,
                 cancellation_event=self._pipeline_cancellation,
             )
@@ -6423,7 +6811,7 @@ class CoChemGUI(InputManagementMixin):
             self._ui_call(lambda: self._publish_calculation_hessians(hessians))
             if engine == "XTB":
                 receipt, directory = dict(result), work_dir / "Results"
-                self._ui_call(lambda: self._publish_completed_xtb_result(receipt, directory))
+                self._ui_call(lambda: self._publish_completed_xtb_result(receipt, directory, view_generation))
             elif engine == "PYSCF":
                 result_path = work_dir / "Results" / "result.json"
                 payload = json.loads(result_path.read_text(encoding="utf-8"))
@@ -6478,10 +6866,12 @@ class CoChemGUI(InputManagementMixin):
             self._check_dispersion_gate()
             self._refresh_topos_capabilities()
             self._refresh_running_jobs()
+            self._ui_call(self._refresh_local_file_controls)
         if completed_local is not None:
             receipt, root = completed_local
             try:
                 self._ui_call(lambda: self._register_completed_local_calculation(receipt, root))
+                self._ui_call(lambda: self._register_saved_local_completion(receipt, root, view_generation))
             except Exception as exc:
                 self.telemetry_output.append_stdout(
                     "Calculation completed; comparison registration was unavailable: " + str(exc) + "\n"

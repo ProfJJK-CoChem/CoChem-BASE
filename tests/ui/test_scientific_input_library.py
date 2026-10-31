@@ -250,6 +250,79 @@ def case_canonical_molecule_builder_retains_generated_provenance(gui):
     assert native['resolution_source'] == 'direct_smiles'
     assert record['charge'] == native['charge'] == 0
     assert 'No quantum minimum or energy is claimed' in gui.student_upload_status.value
+    source_id = record['source_input_id']
+    gui.input_library_choice.value = source_id
+    gui.btn_use_input_geometry.click()
+    promoted = gui._student_uploads[gui.student_geometry_choice.value]
+    assert promoted['generation_provenance'] == provenance
+    gui._restore_student_inputs()
+    gui.input_library_choice.value = source_id
+    gui.btn_use_input_geometry.click()
+    restored = gui._student_uploads[gui.student_geometry_choice.value]
+    assert restored['generation_provenance'] == provenance
+    gui.matrix_engine.value = 'XTB'
+    gui.charge_input.value, gui.multiplicity_input.value = 0, 1
+    captured = gui._capture_local_submission(gui._prepare_pipeline())
+    from cochem_base.interfaces.student_request import strict_json
+    complete = gui._build_local_input_snapshot(captured)
+    assert strict_json(complete.metadata_bytes)['source_kind'] == 'constructed_starting_geometry'
+    assert dict(complete.files)['cochem-local-files/inputs/construction.json'] == raw
+    path = Path(provenance['path'])
+    missing = path.with_name(path.name + '.owned-test-backup')
+    try:
+        path.rename(missing)
+        gui.student_geometry_choice.value = None
+        failed = strict_json(gui._build_local_input_snapshot(captured).metadata_bytes)
+        assert failed['available'] is False and failed['code'] == 'CONSTRUCTION_PROVENANCE_UNVERIFIED'
+        assert failed['source_kind'] == 'constructed_starting_geometry'
+    finally:
+        missing.rename(path)
+    assert path.read_bytes() == raw
+    # Correct bytes/hash/schema at a different path are still not the linked
+    # managed producer receipt; a neighboring copy grants no read authority.
+    gui.input_library_choice.value = source_id
+    gui.btn_use_input_geometry.click()
+    selected = gui._student_uploads[gui.student_geometry_choice.value]
+    selected_manifest = Path(selected['path']).parent / 'input-manifest.json'
+    preserved_manifest = selected_manifest.read_bytes()
+    from cochem_base.config_loader import get_artifact_dir
+    outside = get_artifact_dir() / 'outside-generated-provenance.json'
+    outside.write_bytes(raw)
+    try:
+        selected['generation_provenance'] = {**provenance, 'path': str(outside)}
+        selected_manifest.write_text(json.dumps(selected, indent=2))
+        gui.matrix_engine.value = 'XTB'
+        gui.charge_input.value, gui.multiplicity_input.value = 0, 1
+        outside_capture = gui._capture_local_submission(gui._prepare_pipeline())
+        failed = strict_json(gui._build_local_input_snapshot(outside_capture).metadata_bytes)
+        assert failed['available'] is False and failed['code'] == 'CONSTRUCTION_PROVENANCE_UNVERIFIED'
+    finally:
+        selected_manifest.write_bytes(preserved_manifest)
+        selected['generation_provenance'] = provenance
+        outside.unlink()
+
+    manifest = Path(restored['path']).parent / 'input-manifest.json'
+    original_manifest = manifest.read_bytes()
+    try:
+        damaged = json.loads(original_manifest)
+        damaged['generation_provenance'] = {'invalid_optional_value': float('nan')}
+        manifest.write_text(json.dumps(damaged))
+        # A malformed optional construction field cannot abort ordinary input
+        # restoration or become editor/config-only provenance later.
+        gui._restore_student_inputs()
+        gui.input_library_choice.value = source_id
+        gui.btn_use_input_geometry.click()
+        gui.matrix_engine.value = 'XTB'
+        gui.charge_input.value, gui.multiplicity_input.value = 0, 1
+        failed_capture = gui._capture_local_submission(gui._prepare_pipeline())
+        failed = strict_json(gui._build_local_input_snapshot(failed_capture).metadata_bytes)
+        assert failed['available'] is False and failed['source_kind'] == 'constructed_starting_geometry'
+        assert failed['code'] == 'CONSTRUCTION_PROVENANCE_UNVERIFIED'
+    finally:
+        manifest.write_bytes(original_manifest)
+    assert manifest.read_bytes() == original_manifest
+
+
 
 
 def case_pool_sieve_retains_unranked_records_and_uses_explicit_protocol(gui):
@@ -497,13 +570,13 @@ def case_remove_input_and_geometry_choices_is_recoverable_after_restart(gui):
     assert other_source in gui._input_library
     assert first_geometry not in gui._student_uploads
     assert other_geometry in gui._student_uploads
-    assert gui.student_geometry_choice.value == '' and gui.matrix_geometry.value == ''
+    assert gui.student_geometry_choice.value is None and gui.matrix_geometry.value == ''
     assert gui.input_library_choice.value == ''
     assert original_state == (original.read_bytes(), receipt.read_bytes(), original.stat().st_mode)
     gui.btn_undo_input_remove.click()
     assert source_id in gui._input_library, gui.input_management_status.value
     assert first_geometry in gui._student_uploads
-    assert gui.student_geometry_choice.value == ''
+    assert gui.student_geometry_choice.value is None
     gui.student_geometry_choice.value = first_geometry
     gui.btn_remove_geometry.click()
     assert first_geometry not in gui._student_uploads
@@ -738,6 +811,98 @@ def case_actual_inbox_busy_use_guard_success(gui):
 
 def case_actual_inbox_busy_use_guard_rejection(gui):
     _busy_intake_preserves_draft(gui, operation='inbox', malformed=True)
+
+
+def case_local_submission_snapshot_binds_selected_original_and_later_draft(gui):
+    from cochem_base.interfaces.student_request import strict_json
+    filename, raw, count = molecular_formats()[3]
+    upload(gui, raw, filename)
+    source_id = gui.input_library_choice.value
+    gui.input_record_choice.value = 1
+    gui.btn_use_input_geometry.click()
+    gui.matrix_engine.value = 'XTB'
+    gui.charge_input.value, gui.multiplicity_input.value = 0, 1
+    path = gui._prepare_pipeline()
+    captured = gui._capture_local_submission(path)
+    gui.student_geometry_choice.value = None
+    gui.matrix_geometry.value = 'O 0 0 0\nH 0 0 1.2\nH 1 0 -.2'
+    gui.charge_input.value, gui.multiplicity_input.value = 1, 2
+    snapshot = gui._build_local_input_snapshot(captured)
+    context = strict_json(snapshot.metadata_bytes)
+    assert context['available'] is True and context['source_kind'] == 'uploaded_record'
+    assert context['record_index'] == 1 and context['relationship'] == 'selected_frame_unchanged'
+    assert context['submitted_state'] == {'charge': 0, 'multiplicity': 1}
+    assert dict(snapshot.files)['cochem-local-files/inputs/original.sdf'] == raw
+    assert Path(gui._input_library[source_id]['path']).read_bytes() == raw
+    assert gui.charge_input.value == 1 and gui.multiplicity_input.value == 2
+    assert gui.student_geometry_choice.value is None
+    gui.input_library_choice.value = source_id
+    gui.input_record_choice.value = 1
+    gui.btn_use_input_geometry.click()
+    gui.matrix_geometry.value = 'O 0 0 0\n2H 0 0 1.2\nH 1 0 -.2'
+    gui.charge_input.value, gui.multiplicity_input.value = 0, 1
+    edited = gui._capture_local_submission(gui._prepare_pipeline())
+    assert strict_json(gui._build_local_input_snapshot(edited).metadata_bytes)['relationship'] == 'edited_after_selection'
+    assert not gui._research_observations
+
+
+def case_missing_known_frame_never_becomes_editor_context(gui):
+    from cochem_base.interfaces.student_request import strict_json
+    raw = NATIVE.joinpath('water.xyz').read_bytes()
+    upload(gui, raw, 'actual-water.xyz')
+    gui.btn_use_input_geometry.click()
+    gui.matrix_engine.value = 'XTB'
+    gui.charge_input.value, gui.multiplicity_input.value = 0, 1
+    captured = gui._capture_local_submission(gui._prepare_pipeline())
+    record = gui._student_uploads[gui.student_geometry_choice.value]
+    frame = Path(record['path'])
+    original = frame.read_bytes()
+    try:
+        frame.chmod(0o600)
+        frame.write_bytes(b'damaged selected frame')
+        gui.student_geometry_choice.value = None
+        failed = strict_json(gui._build_local_input_snapshot(captured).metadata_bytes)
+        assert failed['available'] is False and failed['source_kind'] == 'uploaded_record'
+        assert failed['code'] == 'SELECTED_FRAME_UNVERIFIED'
+        assert 'configuration_only' not in failed.values()
+    finally:
+        frame.write_bytes(original)
+        frame.chmod(0o444)
+    assert Path(gui._input_library[record['source_input_id']]['path']).read_bytes() == raw
+
+
+def case_editor_legacy_and_assembly_source_scopes_are_explicit(gui):
+    from cochem_base.interfaces.student_request import strict_json
+    raw = NATIVE.joinpath('water.xyz').read_bytes()
+    gui.student_geometry_choice.value = None
+    gui.matrix_engine.value = 'XTB'
+    gui.matrix_geometry.value = raw.decode()
+    gui.charge_input.value, gui.multiplicity_input.value = 0, 1
+    editor = gui._capture_local_submission(gui._prepare_pipeline())
+    editor_context = strict_json(gui._build_local_input_snapshot(editor).metadata_bytes)
+    assert editor_context['available'] is True and editor_context['source_kind'] == 'editor_geometry'
+    assert editor_context['exclusions'] == ['no-original-upload-declared-for-editor-geometry']
+    identifiers = []
+    for index, role in enumerate(('monomer_a', 'monomer_b')):
+        gui.student_input_role.value = role
+        gui.xyz_upload.value = ({'name': f'original-monomer-{index}.xyz', 'type': 'chemical/x-xyz',
+            'size': len(raw), 'content': memoryview(raw), 'last_modified': datetime.now(timezone.utc)},)
+        identifiers.append(gui.student_geometry_choice.value)
+        assert gui._student_uploads[identifiers[-1]]['origin'] == 'student_upload'
+    legacy = gui._capture_local_submission(gui._prepare_pipeline())
+    legacy_context = strict_json(gui._build_local_input_snapshot(legacy).metadata_bytes)
+    assert legacy_context['available'] is False and legacy_context['code'] == 'INPUT_SOURCE_UNVERIFIED'
+    gui.student_monomer_choices.value = tuple(identifiers)
+    gui._assemble_student_monomers()
+    assembled = gui._student_uploads[gui.student_geometry_choice.value]
+    assert assembled['origin'] == 'student_monomer_translation_seed'
+    captured = gui._capture_local_submission(gui._prepare_pipeline())
+    gui.student_geometry_choice.value = None
+    context = strict_json(gui._build_local_input_snapshot(captured).metadata_bytes)
+    assert context['available'] is False and context['source_kind'] == 'assembled_starting_geometry'
+    assert context['code'] == 'ASSEMBLED_SOURCE_CONTEXT_UNSUPPORTED'
+    assert not gui._research_observations
+    assert all(Path(gui._student_uploads[key]['path']).read_bytes() == raw for key in identifiers)
 
 
 CASES = [name.removeprefix('case_') for name in globals() if name.startswith('case_')]

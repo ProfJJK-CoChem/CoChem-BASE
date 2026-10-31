@@ -13,7 +13,7 @@ from typing import Any
 import ipywidgets as widgets
 
 from ui.voila_layout.disclosure import Disclosure
-from ui.voila_layout.learning import build_glossary, help_html, hint_html
+from ui.voila_layout.learning import build_glossary, help_html, hint_html, topic_html
 
 
 def _text(value: str) -> widgets.HTML:
@@ -470,7 +470,7 @@ def _guided_shell(gui: Any) -> None:
             + " · <b>Spin multiplicity:</b> " + str(gui.multiplicity_input.value) + " (current draft)</p>")
         selected_goal = gui.product_class_selector.value
         if selected_goal == "Screening (no product accuracy claim)":
-            goal_label = "Exploratory screening — no accuracy claim"
+            goal_label = "Initial exploration — accuracy not yet established"
             meaning = "Exploratory work; no product accuracy claim."
         else:
             goal_label = {
@@ -531,7 +531,7 @@ def _guided_shell(gui: Any) -> None:
 
     def refresh_summary(_: Any = None) -> None:
         text = gui.calculation_result.value
-        completed = gui.state.system_status in {"Optimization Finished", "Harmonic Frequencies Finished",
+        completed = gui._viewed_local_record_id is not None or gui.state.system_status in {"Optimization Finished", "Harmonic Frequencies Finished",
             "Single Point Finished", "Actions results imported"}
         pending_text = text in {"<i>Calculation is running.</i>", "<i>No accepted calculation result yet.</i>"}
         gui.result_summary_download.value = _displayed_result_download(text) if completed and text and not pending_text else ""
@@ -545,7 +545,13 @@ def _guided_shell(gui: Any) -> None:
             "<b>Retrieve and inspect results</b> when available. Read convergence messages and units. "
             "Save the available data and calculation record alongside any figure you use."),
         _teach(gui, "read_results", "Help · How do I know what this result means?"),
-        _section("Your current calculation result", gui.calculation_result, gui.result_summary_download, gui.actions_controls,
+        _section("Calculation result", gui.viewed_local_calculation, gui.calculation_result, gui.result_summary_download,
+                 gui.btn_save_local_files, gui.local_files_status, gui.local_files_download,
+                 _text("<p class='cochem-hint'>Recorded inputs and output files for the calculation you are viewing; shared project databases are excluded. "
+                       "This history works in this workspace while the original calculation files remain in place.</p>"),
+                 Disclosure("Saved calculations in this workspace", gui.saved_local_calculation,
+                            _actions(gui.btn_refresh_saved_local, gui.btn_reopen_saved_local), gui.saved_local_status,
+                            _text(topic_html("saved_local_calculations"))), gui.actions_controls,
                  _text("<p class='cochem-hint'>A job can finish without a scientifically accepted result. "
                        "If there is no accepted result, read the status and diagnostic messages before trying again.</p>")),
         Disclosure("Where did this result come from?", _text(help_html("provenance")),

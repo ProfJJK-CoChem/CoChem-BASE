@@ -143,9 +143,32 @@ Use these questions to guide your interpretation:
 For a completed hosted job, choose **Download calculation bundle** and save the
 tables or figures requested by your assignment. Keep a copy on your own computer of the original
 file you uploaded, together with the raw output and your report.
+For a supported local xTB result, choose **Prepare calculation download**,
+wait for the file status, then choose **Download calculation files
+(.zip)**. This saves the recorded inputs and declared files for the result you
+are viewing. Read the stated scope: the shared database containing several
+jobs is excluded. Save the ZIP to your own computer; the displayed energy alone
+is not enough to check the calculation later.
+
+To read an earlier local result in this same workspace, open **Saved calculations
+in this workspace**. Choose **Refresh saved calculations**, select the intended
+**Saved calculation**, then choose **Reopen saved calculation**. Selecting a name alone does not open it. Check the saved
+task, method, units and warnings. Reopening does not run the chemistry again or
+change the molecule and settings you are preparing for your next calculation.
+The download is prepared for the result you are viewing, even if you have
+highlighted a different name in the list. Preparing it alone does not save a
+copy to your computer; use the download link.
+
+Reopening needs the registered original files in this workspace. Keep those
+files in place. The downloaded ZIP is a file backup; it cannot currently
+restore saved-calculation history in a new workspace or after the originals
+are moved or deleted. Older or unregistered calculations may not appear in
+the saved list. A download or reopen error has its own message and does not
+change an accepted calculation's recorded outcome.
+
 If **Save displayed result summary** is shown, it saves only the text in that
-panel. That summary is useful for reading, but does not replace the complete
-calculation files or their provenance record.
+panel. That summary is useful for reading, but does not replace the retained
+calculation files or their record of how the calculation was made.
 Follow your instructor's submission link; a private project link alone may not
 give the instructor access to your work.
 

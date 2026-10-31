@@ -1,4 +1,4 @@
-"""Initial backend-owned library state after each model's own display acknowledgement.
+"""Initial backend-owned catalog state after each model's own display acknowledgement.
 
 Qualified with ipywidgets 8.1.9 and its widgets-manager8 frontend. The synced
 ``_view_count`` opt-in is experimental: runtime features are checked explicitly.
@@ -45,10 +45,13 @@ def _check_view_count(trait: object) -> None:
 def arm_initial_widget_state(widget: widgets.Widget) -> None:
     """Replay only backend-owned fields once, on this model's first real view.
 
-    This is scoped to the initial library catalog: placeholder index 0, frame
-    index None and an empty pool selection. ``index`` and ``value`` are never
-    replayed over a pending local choice. It is not general reconciliation of
-    resized/reordered catalogs or arbitrary stale indices. No scan or timer.
+    This is scoped to the initial input-library and saved-local catalogs.
+    Input-library selections retain placeholder index 0, frame index None and
+    an empty pool selection. Saved-local history retains placeholder index 0
+    (value None) and stable append ordering. Selection ``index`` and ``value``
+    are never replayed over a pending local choice. This is not general
+    reconciliation of resized/reordered catalogs or arbitrary stale indices.
+    Each model uses its own first view; there is no global scan or timer.
     """
     ensure_widget_runtime()
     _check_view_count(widget.traits().get("_view_count"))

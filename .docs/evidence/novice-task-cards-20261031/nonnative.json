@@ -1,0 +1,40 @@
+{
+  "record_kind": "Documentary derivative; original execution receipts remain separately preserved",
+  "packaged_on": "2026-10-31",
+  "producer": "103dddf3da9c1c7e94f537c9e652ff692e671e04",
+  "scope": "Immutable selected nonnative task/card/help/report/refusal/source-origin acceptance; fresh native/browser operation tests remain separate",
+  "passed": 82,
+  "failed": 0,
+  "errors": 0,
+  "skips": 0,
+  "deferred": 0,
+  "startup_only": 0,
+  "class_counts": {
+    "tests.base.test_student_reports": 26,
+    "tests.ui.test_beginner_workspace_layout": 7,
+    "tests.ui.test_research_panel_clarity": 6,
+    "tests.ui.test_learning_search": 27,
+    "tests.ui.test_voila_runtime_acceptance": 2,
+    "tests.calc.test_xtb_cli_execution": 14
+  },
+  "source_and_copy_unchanged": true,
+  "source_origins_verified": true,
+  "owned_boundary_empty": true,
+  "wrapper_observed_returncode": 0,
+  "wrapper_seconds": 138.40809931600234,
+  "original_hashes": {
+    "test-acceptance.json": "9cf6bc3d8a8c33bed6f90beefa9178e2893a4a136634c2596aea75bb5b728b63",
+    "pytest.xml": "5590d27daf63f69c895168166e16c3654a8c6751db29e3a725361b9393be7445",
+    "pytest-outcomes.json": "32dc3d5505a77b153caaf1d18abd6aa2e235828b06ba9c5ca4dda26d6230f8b9",
+    "source-before.json": "ff4f6c2806d63a5f2df03fcd8a4fe69c12a08d00a2f2cb1a7af4721b12e8a8a5",
+    "source-after.json": "ff4f6c2806d63a5f2df03fcd8a4fe69c12a08d00a2f2cb1a7af4721b12e8a8a5",
+    "quarantine-source-before.json": "ff4f6c2806d63a5f2df03fcd8a4fe69c12a08d00a2f2cb1a7af4721b12e8a8a5",
+    "quarantine-source-after.json": "ff4f6c2806d63a5f2df03fcd8a4fe69c12a08d00a2f2cb1a7af4721b12e8a8a5"
+  },
+  "wrapper_terminal_sha256": "d82a7d00ee4307a14e3a17b7a8aaff6ece0808b1ef3d38357454da856094e302",
+  "original_root_receipt": {
+    "original_relative_path": "novice-task-nonnative-root-acceptance.json",
+    "sha256": "25a449d7b7c96bf5c056500201fccacc6cdb3b72d4e0129648991b7b1912032d",
+    "size_bytes": 1649
+  }
+}

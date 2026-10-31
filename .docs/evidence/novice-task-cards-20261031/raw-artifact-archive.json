@@ -1,0 +1,20 @@
+{
+  "record_kind": "Documentary derivative; original execution receipts remain separately preserved",
+  "packaged_on": "2026-10-31",
+  "producer": "103dddf3da9c1c7e94f537c9e652ff692e671e04",
+  "scope": "External free-engine inputs/native/log/summary and original local receipts only; not a product download bundle. Never place raw scientific files or archive in BASE source.",
+  "archive": {
+    "external_relative_path": "novice-task-public-evidence-proposal/raw-archive/novice-task-103dddf-free-engine-artifacts.tar.gz",
+    "sha256": "1f38155452073dc5897f66b4977a0030bcad2b25250c3803d1ff5593649f4225",
+    "size_bytes": 1686880,
+    "members": 420,
+    "all_original_members_rehashed": true
+  },
+  "member_map": {
+    "external_relative_path": "novice-task-public-evidence-proposal/raw-archive/member-map.json",
+    "sha256": "37912e88e000ad2d0a5aa0a422d5c12c7cccdd9747389adb13d8ce1398296c29"
+  },
+  "packaging_transform": "Original member data bytes unchanged; safe relative member names and normalized tar uid/gid/mode/mtime plus gzip mtime0 only. No env/site-packages/registry/App/account/controller/licensed asset or executable selected.",
+  "not_a_complete_native_archive_product": true,
+  "no_new_CSV_claim": true
+}

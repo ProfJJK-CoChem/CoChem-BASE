@@ -1,0 +1,351 @@
+{
+  "record_kind": "Documentary derivative; original execution receipts remain separately preserved",
+  "packaged_on": "2026-10-31",
+  "producer": "103dddf3da9c1c7e94f537c9e652ff692e671e04",
+  "scope": "Documentary member manifest; excludes its own recursive hash. External delivery manifest supplies all files including this one.",
+  "members": [
+    {
+      "path": "README.md",
+      "sha256": "d13abfb2dbde07861e1bd65476ae7dac21511cf2bfffde38f84b6abdcce58b8f",
+      "size_bytes": 3865
+    },
+    {
+      "path": "attempt-history.json",
+      "sha256": "4af1f928c2faf245df11e4ef7fe02427e2e553317cde41ffec833c68082d48c9",
+      "size_bytes": 1449
+    },
+    {
+      "path": "console-notices.json",
+      "sha256": "bd15a682e7f4ea2049093febaf28e965747b01e75a607d0751ee157e454e2d77",
+      "size_bytes": 3803
+    },
+    {
+      "path": "ethanol-dom.json",
+      "sha256": "298421286fc2df3e2c6da92160428b2b9d69b60c200e72bd57db17a91424d30c",
+      "size_bytes": 6929
+    },
+    {
+      "path": "junit/nonnative.xml",
+      "sha256": "42206e72c480cc698fb60a485030ac215ef68cded75d0df5b56179ca65660d2f",
+      "size_bytes": 12114
+    },
+    {
+      "path": "junit/water-native.xml",
+      "sha256": "09a628e2f74af91a3960b7a4999cf4f15e9972d948ff5c8ad3b67fca80ec3704",
+      "size_bytes": 474
+    },
+    {
+      "path": "nonnative.json",
+      "sha256": "949ba64869fb1c6aca96ddb2b5e5b562243a7c2a91bd1631a74b31ec7e632e48",
+      "size_bytes": 1935
+    },
+    {
+      "path": "raw-artifact-archive.json",
+      "sha256": "4fc646bd944cda9b156494f3c84277bd256a67866f7bc8b2a371f5116f46431b",
+      "size_bytes": 1225
+    },
+    {
+      "path": "screenshots/01-preserved-SP-remote-refusal.png",
+      "sha256": "053decae0bc74479cbbf1af9c638d6788fa8e612b90178b79d8560aae08cfa95",
+      "size_bytes": 128872
+    },
+    {
+      "path": "screenshots/02-local-SP-task-and-current-settings.png",
+      "sha256": "7be1db1a7036ef03b8ebf9565fe76330087e432ab3c9a2baa6021ec2299260ec",
+      "size_bytes": 125700
+    },
+    {
+      "path": "screenshots/03-genuine-ethanol-SP-saved-card-and-provenance.png",
+      "sha256": "ce76cb11bc2b27022bf3b39a2ab4815eadcc3553a22bdc2fe8b7ba72b003489f",
+      "size_bytes": 130917
+    },
+    {
+      "path": "source-and-cleanup.json",
+      "sha256": "5e1f5615da71a2d5a9db51417299cf3c2f87da78616f4ae3d27cdd91d7737040",
+      "size_bytes": 3495
+    },
+    {
+      "path": "summary.json",
+      "sha256": "4a07ec763205d933b075914c146cfaba3b23994fb374555023bd5633e7cc1b9c",
+      "size_bytes": 1666
+    },
+    {
+      "path": "water-native.json",
+      "sha256": "4f9d382d2f1ccce0105b5cb6eecc07b30a04499c0f86abc5215cedbeccd76245",
+      "size_bytes": 5992
+    }
+  ],
+  "transformations": [
+    {
+      "documentary_path": "summary.json",
+      "sources": [
+        {
+          "original_relative_path": "novice-task-nonnative-root-acceptance.json",
+          "sha256": "25a449d7b7c96bf5c056500201fccacc6cdb3b72d4e0129648991b7b1912032d",
+          "size_bytes": 1649
+        },
+        {
+          "original_relative_path": "novice-task-native-root-acceptance.json",
+          "sha256": "9a3ba914b9c92a639e5995af1d7bf8fb821e5e87e0b44c26fb929a05e46a4023",
+          "size_bytes": 1557
+        },
+        {
+          "original_relative_path": "xtb-task-card-native-103dddf/NATIVE-RECEIPT.json",
+          "sha256": "241000a319bb330a5ca32d4a5b386e03bb81566fbbbc1b95116927c0d25e5c0b",
+          "size_bytes": 13787
+        },
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/terminal-summary.json",
+          "sha256": "370a3193c07e2a4b19b04ea1861bbe76c3763847c1745cb775afcfc3e05f6258",
+          "size_bytes": 4250
+        }
+      ],
+      "transformation": "Selected producer/count/scope fields; no raw scientific arrays, source trees or credential data copied."
+    },
+    {
+      "documentary_path": "nonnative.json",
+      "sources": [
+        {
+          "original_relative_path": "novice-task-nonnative-root-acceptance.json",
+          "sha256": "25a449d7b7c96bf5c056500201fccacc6cdb3b72d4e0129648991b7b1912032d",
+          "size_bytes": 1649
+        },
+        {
+          "original_relative_path": "novice-task-103dddf-nonnative/test-acceptance.json",
+          "sha256": "9cf6bc3d8a8c33bed6f90beefa9178e2893a4a136634c2596aea75bb5b728b63",
+          "size_bytes": 3315
+        }
+      ],
+      "transformation": "Root nonnative summary fields projected exactly; observation timestamp omitted, producer normalized to shared exact revision field."
+    },
+    {
+      "documentary_path": "water-native.json",
+      "sources": [
+        {
+          "original_relative_path": "xtb-task-card-native-103dddf/NATIVE-RECEIPT.json",
+          "sha256": "241000a319bb330a5ca32d4a5b386e03bb81566fbbbc1b95116927c0d25e5c0b",
+          "size_bytes": 13787
+        },
+        {
+          "original_relative_path": "novice-task-native-root-acceptance.json",
+          "sha256": "9a3ba914b9c92a639e5995af1d7bf8fb821e5e87e0b44c26fb929a05e46a4023",
+          "size_bytes": 1557
+        },
+        {
+          "original_relative_path": "xtb-task-card-native-103dddf/SHA256SUMS",
+          "sha256": "991fbf6a23a4c2b5e6452eed0c1c0d7bfc382efd7831fbe3bd39beff652652c0",
+          "size_bytes": 74313
+        }
+      ],
+      "transformation": "Exact scalar counts, measured model energy/state and scoped authority projected; registry/executable absolute locators omitted; execution/result locators become .completion-relative references. Payload and matrix bytes remain external."
+    },
+    {
+      "documentary_path": "ethanol-dom.json",
+      "sources": [
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/terminal-summary.json",
+          "sha256": "370a3193c07e2a4b19b04ea1861bbe76c3763847c1745cb775afcfc3e05f6258",
+          "size_bytes": 4250
+        },
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/browser/browser-report.json",
+          "sha256": "3229e71dbb340695d6ee933aff4ad3a95fbe87184b12bed0d83b4f563819c078",
+          "size_bytes": 140496
+        },
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/acceptance.json",
+          "sha256": "50c56167cb0b92fd484f82b78e7d4ceda6c51fed1addda41b88c5d56cd28ae62",
+          "size_bytes": 625102
+        },
+        {
+          "original_relative_path": "novice-task-ethanol-dom-root-acceptance.json",
+          "sha256": "c08bcdda44c6f55c0469c8a5a20bb88327755abe58ab570123740000367d9da3",
+          "size_bytes": 11048
+        }
+      ],
+      "transformation": "Explicit terminal scalar/boolean/check fields retained; download/input absolute locators converted to original relative refs; raw geometry, saved HTML and native file bodies excluded. Top-level release_accepted remains false unchanged. Root original readback selected fields bound separately, retaining release_accepted:false;28 raw member paths reduced to count with original receipt hash."
+    },
+    {
+      "documentary_path": "source-and-cleanup.json",
+      "sources": [
+        {
+          "original_relative_path": "novice-task-nonnative-root-acceptance.json",
+          "sha256": "25a449d7b7c96bf5c056500201fccacc6cdb3b72d4e0129648991b7b1912032d",
+          "size_bytes": 1649
+        },
+        {
+          "original_relative_path": "xtb-task-card-native-103dddf/native-profile/test-acceptance.json",
+          "sha256": "24f5cfefed327d66e700fa8438600461fb8dfb74ab8e524a82f8c4272368a4df",
+          "size_bytes": 2895
+        },
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/acceptance.json",
+          "sha256": "50c56167cb0b92fd484f82b78e7d4ceda6c51fed1addda41b88c5d56cd28ae62",
+          "size_bytes": 625102
+        },
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/terminal-summary.json",
+          "sha256": "370a3193c07e2a4b19b04ea1861bbe76c3763847c1745cb775afcfc3e05f6258",
+          "size_bytes": 4250
+        },
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/browser/browser-report.json",
+          "sha256": "3229e71dbb340695d6ee933aff4ad3a95fbe87184b12bed0d83b4f563819c078",
+          "size_bytes": 140496
+        }
+      ],
+      "transformation": "Selected recorded source/context/cleanup facts only; absolute module origins and launch command arrays omitted. Exited zombie distinction retained rather than claiming all PIDs absent."
+    },
+    {
+      "documentary_path": "attempt-history.json",
+      "sources": [
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane1/terminal-summary.json",
+          "sha256": "2064d0d9900914b9fa712a9df23cdbc5f8743c3c3bf2021c5f620604f511ec73",
+          "size_bytes": 1584
+        },
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/terminal-summary.json",
+          "sha256": "370a3193c07e2a4b19b04ea1861bbe76c3763847c1745cb775afcfc3e05f6258",
+          "size_bytes": 4250
+        }
+      ],
+      "transformation": "Lane1 zero-native NBSP/navigation observer failure and lane2 accepted bounded result remain separate; launcher command/path arrays omitted."
+    },
+    {
+      "documentary_path": "console-notices.json",
+      "sources": [
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/browser/browser-report.json",
+          "sha256": "3229e71dbb340695d6ee933aff4ad3a95fbe87184b12bed0d83b4f563819c078",
+          "size_bytes": 140496
+        }
+      ],
+      "transformation": "console_messages copied verbatim, preserving all17 warning records; actual empty error/failure arrays retained."
+    },
+    {
+      "documentary_path": "junit/nonnative.xml",
+      "sources": [
+        {
+          "original_relative_path": "novice-task-103dddf-nonnative/pytest.xml",
+          "sha256": "5590d27daf63f69c895168166e16c3654a8c6751db29e3a725361b9393be7445",
+          "size_bytes": 12136
+        }
+      ],
+      "transformation": "Metadata-only XML reconstruction; original testsuites root name, every testcase identity/time and observed passed outcome retained. Transient hostname attributes removed as listed; no rerun.",
+      "removed_attributes": [
+        {
+          "element": "testsuite",
+          "attribute": "hostname"
+        }
+      ],
+      "removed_elements": [],
+      "testcase_count": 82,
+      "root_attributes_preserved": {
+        "name": "pytest tests"
+      }
+    },
+    {
+      "documentary_path": "junit/water-native.xml",
+      "sources": [
+        {
+          "original_relative_path": "xtb-task-card-native-103dddf/native-profile/pytest.xml",
+          "sha256": "ee9255c40f44e461ea154f370c2c15029ba734004e94b5e1ec06231178524e74",
+          "size_bytes": 496
+        }
+      ],
+      "transformation": "Metadata-only XML reconstruction; original testsuites root name, every testcase identity/time and observed passed outcome retained. Transient hostname attributes removed as listed; no rerun.",
+      "removed_attributes": [
+        {
+          "element": "testsuite",
+          "attribute": "hostname"
+        }
+      ],
+      "removed_elements": [],
+      "testcase_count": 2,
+      "root_attributes_preserved": {
+        "name": "pytest tests"
+      }
+    },
+    {
+      "documentary_path": "screenshots/01-preserved-SP-remote-refusal.png",
+      "sources": [
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/browser/01-preserved-SP-remote-refusal.png",
+          "sha256": "053decae0bc74479cbbf1af9c638d6788fa8e612b90178b79d8560aae08cfa95",
+          "size_bytes": 128872
+        }
+      ],
+      "transformation": "Original PNG bytes copied unchanged; viewport crop scope retained, no editing/redaction/resizing."
+    },
+    {
+      "documentary_path": "screenshots/02-local-SP-task-and-current-settings.png",
+      "sources": [
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/browser/02-local-SP-task-and-current-settings.png",
+          "sha256": "7be1db1a7036ef03b8ebf9565fe76330087e432ab3c9a2baa6021ec2299260ec",
+          "size_bytes": 125700
+        }
+      ],
+      "transformation": "Original PNG bytes copied unchanged; viewport crop scope retained, no editing/redaction/resizing."
+    },
+    {
+      "documentary_path": "screenshots/03-genuine-ethanol-SP-saved-card-and-provenance.png",
+      "sources": [
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/browser/03-genuine-ethanol-SP-saved-card-and-provenance.png",
+          "sha256": "ce76cb11bc2b27022bf3b39a2ab4815eadcc3553a22bdc2fe8b7ba72b003489f",
+          "size_bytes": 130917
+        }
+      ],
+      "transformation": "Original PNG bytes copied unchanged; viewport crop scope retained, no editing/redaction/resizing."
+    },
+    {
+      "documentary_path": "raw-artifact-archive.json",
+      "sources": [
+        {
+          "original_relative_path": "xtb-task-card-native-103dddf/NATIVE-RECEIPT.json",
+          "sha256": "241000a319bb330a5ca32d4a5b386e03bb81566fbbbc1b95116927c0d25e5c0b",
+          "size_bytes": 13787
+        },
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/terminal-summary.json",
+          "sha256": "370a3193c07e2a4b19b04ea1861bbe76c3763847c1745cb775afcfc3e05f6258",
+          "size_bytes": 4250
+        }
+      ],
+      "transformation": "Archive inventory generated from explicit own-job/input/receipt allowlist; original path/hash map remains external. No raw input/log/scientific payload copied into documentary packet."
+    },
+    {
+      "documentary_path": "README.md",
+      "sources": [
+        {
+          "original_relative_path": "novice-task-nonnative-root-acceptance.json",
+          "sha256": "25a449d7b7c96bf5c056500201fccacc6cdb3b72d4e0129648991b7b1912032d",
+          "size_bytes": 1649
+        },
+        {
+          "original_relative_path": "novice-task-native-root-acceptance.json",
+          "sha256": "9a3ba914b9c92a639e5995af1d7bf8fb821e5e87e0b44c26fb929a05e46a4023",
+          "size_bytes": 1557
+        },
+        {
+          "original_relative_path": "xtb-task-card-native-103dddf/NATIVE-RECEIPT.json",
+          "sha256": "241000a319bb330a5ca32d4a5b386e03bb81566fbbbc1b95116927c0d25e5c0b",
+          "size_bytes": 13787
+        },
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane1/terminal-summary.json",
+          "sha256": "2064d0d9900914b9fa712a9df23cdbc5f8743c3c3bf2021c5f620604f511ec73",
+          "size_bytes": 1584
+        },
+        {
+          "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/terminal-summary.json",
+          "sha256": "370a3193c07e2a4b19b04ea1861bbe76c3763847c1745cb775afcfc3e05f6258",
+          "size_bytes": 4250
+        }
+      ],
+      "transformation": "New curator prose restricted to identified original observations and their explicit limitations; no execution or source mutation."
+    }
+  ]
+}

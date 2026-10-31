@@ -1,0 +1,142 @@
+{
+  "record_kind": "Documentary derivative; original execution receipts remain separately preserved",
+  "packaged_on": "2026-10-31",
+  "producer": "103dddf3da9c1c7e94f537c9e652ff692e671e04",
+  "pytest_passed": 2,
+  "pytest_seconds": 24.9,
+  "actual_service_requests": 2,
+  "completed_calculations": 2,
+  "single_points": 1,
+  "optimizations": 1,
+  "actual_gradient_evaluations": 10,
+  "evidenced_native_payload_invocations": 11,
+  "count_basis": "one genuine single-point output plus each measured genuine optimizer gradient invocation; copied final optimizer output excluded; not a count of all OS helpers",
+  "calculations": [
+    {
+      "operation": "optimization",
+      "method": "GFN2-xTB",
+      "energy_hartree": -5.070544447821,
+      "charge": 0,
+      "multiplicity": 1,
+      "nuclides": [
+        "O",
+        "H",
+        "H"
+      ],
+      "native_gradient_evaluations": 10,
+      "authority_sha256": "5c2b50927f73405a3103cd601476db18e28fb24927b38d845f78e49a4bd601b2",
+      "actual_test_registry_sha256": "88964b3423699d3ac0aa69fbda74c7ad91083db0840108a9b311ac079a7bce1e",
+      "native_output_sha256": "7a065d73c96048407073c5683dbdab880f33a5ffd375045080bae3ea4ef20f2c",
+      "execution": {
+        "original_relative_path": "xtb-task-card-native-103dddf/runtime/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_356b8f34504742b6976bf442cee66c6d/Results/execution.json",
+        "sha256": "321b8fdceea4e8f5762dc7c084c78479d71094f97f0e274b3a82df19bee5537c",
+        "size_bytes": 825
+      },
+      "result": {
+        "original_relative_path": "xtb-task-card-native-103dddf/runtime/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_opt0/GUI/run_356b8f34504742b6976bf442cee66c6d/Results/result.json",
+        "sha256": "fc7b526ad66a99b22ba6014ad8e5a8ec5b35a75ba954a5990c6b8f9ae9e8cff1",
+        "size_bytes": 4329
+      },
+      "authority": {
+        "engine": "xtb",
+        "cores": 1,
+        "maxcore_mb": 64,
+        "total_memory_mb": 64,
+        "cpu_affinity": [
+          0
+        ],
+        "cpu_budget_unit": "physical_core",
+        "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+        "runtime_seal_sha256": null
+      }
+    },
+    {
+      "operation": "single_point",
+      "method": "GFN2-xTB",
+      "energy_hartree": -5.070318052191,
+      "charge": 0,
+      "multiplicity": 1,
+      "nuclides": [
+        "O",
+        "H",
+        "H"
+      ],
+      "native_gradient_evaluations": 0,
+      "authority_sha256": "0d34b89e9851ea8e0360717f26d6865ec3cc1efa48a705d9ed6d6b5c23ec8a3c",
+      "actual_test_registry_sha256": "8c9ee9179c03caef50cb3abc982cbd5f4e53eac7084324c177ea77ac6830391b",
+      "native_output_sha256": "b71fd18662dc51541a0619813f41a0a1f32a2a5de35305bf8ef3421c3f471598",
+      "execution": {
+        "original_relative_path": "xtb-task-card-native-103dddf/runtime/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_sin0/GUI/run_73aa69cc413547558bf1e97395b2c9c4/Results/execution.json",
+        "sha256": "46b71a52d5eaaef3e67ce89a43678d23d35a8b8c477492594fbe690dedadfdb2",
+        "size_bytes": 825
+      },
+      "result": {
+        "original_relative_path": "xtb-task-card-native-103dddf/runtime/tmp/pytest-of-agent/pytest-0/test_gui_executes_real_xtb_sin0/GUI/run_73aa69cc413547558bf1e97395b2c9c4/Results/result.json",
+        "sha256": "8609713521cdbca0bfe4ecbfed1551ef45444b04d2e3002f68c87bf5b1349e32",
+        "size_bytes": 1540
+      },
+      "authority": {
+        "engine": "xtb",
+        "cores": 1,
+        "maxcore_mb": 64,
+        "total_memory_mb": 64,
+        "cpu_affinity": [
+          0
+        ],
+        "cpu_budget_unit": "physical_core",
+        "binary_sha256": "debf27a9e0fa4bfb5ca75aafe4b90d8211f08ec2f4a482f375a4987212eaa12a",
+        "runtime_seal_sha256": null
+      }
+    }
+  ],
+  "source_binding_mode": "release",
+  "source_and_copy_unchanged": true,
+  "source_origins_clean_records": 6,
+  "actual_wrapper_os_exit": {
+    "pid": 430897,
+    "state": "zombie",
+    "kernel_raw_exit_status": 0,
+    "actual_os_exit_code": 0,
+    "actual_os_exit_status_observed": true,
+    "status_source": "Linux proc stat field52 exit_code",
+    "zombie_pending_external_reaper": true,
+    "observed_unix": 1793406715.7042918
+  },
+  "owned_profile_cleanup": {
+    "launcher_pid": 430964,
+    "launcher_returncode": 0,
+    "owned_work_stopped": true,
+    "ownership_scope": "posix-group",
+    "collection_observation": "owned-boundary-empty",
+    "launcher_create_time": 1793406672.01,
+    "admitted_before_exec": true,
+    "external_reaping_pending": []
+  },
+  "terminal_zombies_pending_external_reaper": [
+    {
+      "pid": 430897,
+      "status": "zombie",
+      "cmdline": null,
+      "native_binary": false
+    }
+  ],
+  "original_limits": [
+    "Actual neutral-singlet-water GFN2-xTB SP and optimization only; no ethanol/general-input/student deployment proof.",
+    "Existing measured-host/binary64MB test-registry fixture is bounded native test authority, not eleven-phase deployment evidence.",
+    "Actual task/card/saved-state/busy-transition assertions ran in real GUI children, not a browser or installed-comm proof.",
+    "Optimization convergence is not a minimum/isomer/population/accuracy claim.",
+    "No cancellation, broad suite, full archive, durable reopen or scientific-threshold change.",
+    "Terminal wrapper zombie is separately recorded as pending external PID1 reaping; it is exited with kernel-observed code0 and owns no running engine or driver child."
+  ],
+  "original_receipt": {
+    "original_relative_path": "xtb-task-card-native-103dddf/NATIVE-RECEIPT.json",
+    "sha256": "241000a319bb330a5ca32d4a5b386e03bb81566fbbbc1b95116927c0d25e5c0b",
+    "size_bytes": 13787
+  },
+  "root_readback": {
+    "original_relative_path": "novice-task-native-root-acceptance.json",
+    "sha256": "9a3ba914b9c92a639e5995af1d7bf8fb821e5e87e0b44c26fb929a05e46a4023",
+    "size_bytes": 1557
+  },
+  "all371_original_manifest_entries_rehashed": true
+}

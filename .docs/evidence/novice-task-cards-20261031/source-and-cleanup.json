@@ -1,0 +1,74 @@
+{
+  "record_kind": "Documentary derivative; original execution receipts remain separately preserved",
+  "packaged_on": "2026-10-31",
+  "producer": "103dddf3da9c1c7e94f537c9e652ff692e671e04",
+  "nonnative": {
+    "source_and_copy_unchanged": true,
+    "source_origins_verified": true,
+    "startup_only": 0,
+    "owned_boundary_empty": true
+  },
+  "water_native": {
+    "source_and_copy_unchanged": true,
+    "clean_origin_records": 6,
+    "startup_only": 0,
+    "cleanup": {
+      "launcher_pid": 430964,
+      "launcher_returncode": 0,
+      "owned_work_stopped": true,
+      "ownership_scope": "posix-group",
+      "collection_observation": "owned-boundary-empty",
+      "launcher_create_time": 1793406672.01,
+      "admitted_before_exec": true,
+      "external_reaping_pending": []
+    },
+    "wrapper": {
+      "pid": 430897,
+      "state": "zombie",
+      "kernel_raw_exit_status": 0,
+      "actual_os_exit_code": 0,
+      "actual_os_exit_status_observed": true,
+      "status_source": "Linux proc stat field52 exit_code",
+      "zombie_pending_external_reaper": true,
+      "observed_unix": 1793406715.7042918
+    }
+  },
+  "ethanol": {
+    "original_top_level_release_accepted": false,
+    "source_binding_mode": "release",
+    "source_binding_release_accepted": true,
+    "meaning": "Source binding accepts exact clean producer; browser receipt expressly does not certify broad release.",
+    "source_records": 34,
+    "startup_only": 0,
+    "authority_errors": [],
+    "source_original_copy_unchanged": true,
+    "owned_boundary": {
+      "launcher_pid": 432101,
+      "launcher_returncode": 0,
+      "owned_work_stopped": true,
+      "ownership_scope": "posix-group",
+      "collection_observation": "owned-boundary-empty",
+      "launcher_create_time": 1793406949.95,
+      "admitted_before_exec": true,
+      "external_reaping_pending": []
+    },
+    "remaining_owned_servers": [],
+    "remaining_listeners": []
+  },
+  "source_hashes": {
+    "ui/voila_layout/cochem_gui.py": "06e9da8fde1d95ddb78d613bc8e2230cf4b8f07385b09ac5becefc57fc6d17c7",
+    "ui/voila_layout/workspace_layout.py": "121bf96286849b6a606c5e4d963d9db10fe53e002ac9fc6f9af0d2880fd0bb17",
+    "ui/voila_layout/research_panels.py": "97fe09b6924ca2710bd1d589b4ecbf5f0636a0944d8cbcac40ec2e5c32ad44d9",
+    "ui/voila_layout/help_content.py": "42cc3cc849a94818550dfa693611cc2beb45d6d8f5eb03e6abee1d16fba95895",
+    "src/cochem_base/interfaces/student_reports.py": "d7387b76cf2af875e0b6f9ec318f15b7549ed628b4557d9d6189b800840f35cc",
+    "src/cochem_base/calc/calculation_service.py": "db3fb947c53650017773051c2db9b6b2a7e6b3316f24d14a0012ae3dec490ff2",
+    "src/cochem_base/calc/xtb_execution.py": "c23ef8c71b8393b6fbee1190072fc31c176edf0372518cd727a8e1554f31ca19",
+    "src/cochem_base/calc/xtb_optimization.py": "58b51485e378e9c07cae11d25f9b4755af0a1ee49e8c48abe982d5a2c31c3a3d",
+    "tests/base/test_student_reports.py": "343f979762c9f2166571e782ad4196abeb1fcf36862596af5a7434bc47f17ab9",
+    "tests/calc/test_xtb_cli_execution.py": "6e0cf582baf805348b72ee5244e1521f597ef492f345f9c6bf11bb46a0811f95",
+    "tests/ui/test_voila_runtime_acceptance.py": "be2f99483f9bd09285e307a19bce7789e89a9e3a989258b445ee0e1d480129e1",
+    "Start_Here.ipynb": "60b8f19009edb8176545dad4cc16aed6326508044a733b6a549f61d5af100fbd"
+  },
+  "source_hashes_equal_after": true,
+  "source_context_scope": "Canonical source-quarantined release-bound test/Voila child paths; data receipts remain local observations, not hosted/student qualification."
+}

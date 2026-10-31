@@ -1,0 +1,43 @@
+{
+  "record_kind": "Documentary derivative; original execution receipts remain separately preserved",
+  "packaged_on": "2026-10-31",
+  "producer": "103dddf3da9c1c7e94f537c9e652ff692e671e04",
+  "scope": "Bounded local task/card/help/refusal/source-origin observations only; no broad student, hosted, scientific accuracy or full-SRS acceptance.",
+  "selections": {
+    "nonnative_pytest": 82,
+    "water_native_pytest": 2,
+    "ethanol_dom_lane": 1
+  },
+  "counts_are_separate_not_a_combined_suite": true,
+  "native_operations": {
+    "water": {
+      "single_points": 1,
+      "optimizations": 1,
+      "gradient_evaluations": 10,
+      "evidenced_payload_invocations": 11
+    },
+    "constructed_ethanol": {
+      "single_points": 1,
+      "optimizations": 0
+    }
+  },
+  "browser_release_accepted": false,
+  "root_reviews": [
+    {
+      "original_relative_path": "novice-task-nonnative-root-acceptance.json",
+      "sha256": "25a449d7b7c96bf5c056500201fccacc6cdb3b72d4e0129648991b7b1912032d",
+      "size_bytes": 1649
+    },
+    {
+      "original_relative_path": "novice-task-native-root-acceptance.json",
+      "sha256": "9a3ba914b9c92a639e5995af1d7bf8fb821e5e87e0b44c26fb929a05e46a4023",
+      "size_bytes": 1557
+    }
+  ],
+  "previous_producers": "4e8148 and a305 documentary packets remain separate; no old execution receipt relabelled.",
+  "remaining": [
+    "Actual student consent/account/billing/Codespaces-to-own-project Actions acceptance remains separate and unobserved here.",
+    "No experimental/accuracy/minimum/isomer/population qualification.",
+    "Displayed summary download is not a native result bundle, backup or durable reopen proof."
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "record_kind": "Documentary derivative; original execution receipts remain separately preserved",
+  "packaged_on": "2026-10-31",
+  "producer": "103dddf3da9c1c7e94f537c9e652ff692e671e04",
+  "attempts": [
+    {
+      "lane": "ethanol lane1",
+      "status": "FAILED observer only BEFORE native execution",
+      "actual_native_jobs": 0,
+      "root_cause": "Raw substring failed to match nonbreaking-space GitHub Actions option, unavailable branch remained on Setup, then looked for hidden Calculations task control. Not a product/native failure.",
+      "source_and_authority_unchanged": true,
+      "owned_boundary_empty": true,
+      "bounded_retry_parent_approved": true,
+      "original_terminal": {
+        "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane1/terminal-summary.json",
+        "sha256": "2064d0d9900914b9fa712a9df23cdbc5f8743c3c3bf2021c5f620604f511ec73",
+        "size_bytes": 1584
+      }
+    },
+    {
+      "lane": "ethanol lane2",
+      "status": "PASS \u2014 bounded actual canonical constructed-ethanol single-point DOM lane",
+      "actual_native_jobs": 1,
+      "original_terminal": {
+        "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/terminal-summary.json",
+        "sha256": "370a3193c07e2a4b19b04ea1861bbe76c3763847c1745cb775afcfc3e05f6258",
+        "size_bytes": 4250
+      }
+    }
+  ],
+  "no_failed_observer_relabelled_native_failure_or_pass": true
+}

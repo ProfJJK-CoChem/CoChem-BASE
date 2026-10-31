@@ -1,0 +1,137 @@
+{
+  "record_kind": "Documentary derivative; original execution receipts remain separately preserved",
+  "packaged_on": "2026-10-31",
+  "producer": "103dddf3da9c1c7e94f537c9e652ff692e671e04",
+  "status": "PASS \u2014 bounded actual canonical constructed-ethanol single-point DOM lane",
+  "release_accepted": false,
+  "actual_operation": "single_point",
+  "actual_native_jobs": 1,
+  "input_origin": "Explicit manually constructed plausible9atomethanol coordinates, not experimental/nativeoptimized/stereochemical/minimum evidence",
+  "input_sha256": "df68e4f87e4af5eb1a2c1befdb0dbce5d17f6529f5f95815d7312c880c4f764b",
+  "energy_hartree": -11.380514526253,
+  "saved_charge": 0,
+  "saved_multiplicity": 1,
+  "method": "GFN2-xTB",
+  "authority_cores": 1,
+  "authority_memory_mb": 6144,
+  "source_original_submitted_and_native_alignment_verified": true,
+  "native_frame_transform": "Recorded actual ingress alignment; original coordinates match declared constructed input, native input matches recorded aligned coordinates. No claim native XYZ byteequals original.",
+  "actual_task_disabled_and_stop_enabled_during_work": true,
+  "final_task_enabled_and_stop_disabled": true,
+  "saved_card_isolated_from_later_optimization_draft": true,
+  "actual_remote_sp_preserved_and_submission_blocked": true,
+  "offline_task_help_and_recovery_observed": true,
+  "stale_clear_notice_removed_after_actual_reselection": true,
+  "no_native_bundle_or_reopen_claim": true,
+  "no_stereochemistry_minimum_accuracy_population_claim": true,
+  "source_records": 34,
+  "source_startup_only": 0,
+  "source_errors": [],
+  "source_and_copy_unchanged": true,
+  "registry_and_binary_unchanged": true,
+  "original_and_native_bytes_unchanged": true,
+  "page_errors": [],
+  "request_failures": [],
+  "console_errors": [],
+  "raw_warning_count": 17,
+  "owned_boundary": {
+    "launcher_pid": 432101,
+    "launcher_returncode": 0,
+    "owned_work_stopped": true,
+    "ownership_scope": "posix-group",
+    "collection_observation": "owned-boundary-empty",
+    "launcher_create_time": 1793406949.95,
+    "admitted_before_exec": true,
+    "external_reaping_pending": []
+  },
+  "browser_report_sha256": "3229e71dbb340695d6ee933aff4ad3a95fbe87184b12bed0d83b4f563819c078",
+  "acceptance_sha256": "50c56167cb0b92fd484f82b78e7d4ceda6c51fed1addda41b88c5d56cd28ae62",
+  "screenshot_scope": "Viewport crops; some controls are verified in actual DOM/recorded kernel rather than all visible in one screenshot.",
+  "previous_failed_observer": "lane1 sealed zero-native observer whitespace/navigation failure; no product failure inferred; retry was explicitly approved.",
+  "actual_displayed_summary_download": {
+    "bytes": 10265,
+    "sha256": "eac3e4820085d96c4eaeb5e186bced49eee457bb0e08d3336666afb5001ef7c7",
+    "scope": "Actual displayed text only, not native result bundle/provenance backup",
+    "original": {
+      "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/browser/downloaded-displayed-result-summary.txt",
+      "sha256": "eac3e4820085d96c4eaeb5e186bced49eee457bb0e08d3336666afb5001ef7c7",
+      "size_bytes": 10265
+    }
+  },
+  "manually_constructed_input": {
+    "original": {
+      "original_relative_path": "local-calculation-export-design/ethanol-constructed-start.xyz",
+      "sha256": "df68e4f87e4af5eb1a2c1befdb0dbce5d17f6529f5f95815d7312c880c4f764b",
+      "size_bytes": 426
+    },
+    "bytes": 426,
+    "atoms": 9,
+    "achiral_ethanol_not_stereochemistry_validation": true
+  },
+  "checks": [
+    "Exact manually constructed ethanol upload retained and explicit frame/state saved",
+    "Actual supported GFN2 SP selector and remote refusal preserve task/draft; offline help describes recovery",
+    "One actual native single point, fixed-geometry saved card, complete saved provenance and real frame alignment",
+    "Later optimization draft leaves saved SP result unchanged; selection-clear notice disappears on actual reselection"
+  ],
+  "raw_native_artifact_files_rehashed": 28,
+  "original_terminal": {
+    "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/terminal-summary.json",
+    "sha256": "370a3193c07e2a4b19b04ea1861bbe76c3763847c1745cb775afcfc3e05f6258",
+    "size_bytes": 4250
+  },
+  "original_browser": {
+    "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/browser/browser-report.json",
+    "sha256": "3229e71dbb340695d6ee933aff4ad3a95fbe87184b12bed0d83b4f563819c078",
+    "size_bytes": 140496
+  },
+  "original_acceptance": {
+    "original_relative_path": "ethanol-task-browser-review/candidate-103dddf/lane2/acceptance.json",
+    "sha256": "50c56167cb0b92fd484f82b78e7d4ceda6c51fed1addda41b88c5d56cd28ae62",
+    "size_bytes": 625102
+  },
+  "root_independent_ethanol_readback": {
+    "source": {
+      "original_relative_path": "novice-task-ethanol-dom-root-acceptance.json",
+      "sha256": "c08bcdda44c6f55c0469c8a5a20bb88327755abe58ab570123740000367d9da3",
+      "size_bytes": 11048
+    },
+    "scope": "Bounded actual local GUI constructed-ethanol single-point/task/card/help/remote refusal/selection notice and displayed text download",
+    "accepted_for_this_scope": true,
+    "release_accepted": false,
+    "student_codespace_test": false,
+    "terminal_summary_sha256": "370a3193c07e2a4b19b04ea1861bbe76c3763847c1745cb775afcfc3e05f6258",
+    "acceptance_sha256": "50c56167cb0b92fd484f82b78e7d4ceda6c51fed1addda41b88c5d56cd28ae62",
+    "browser_report_sha256": "3229e71dbb340695d6ee933aff4ad3a95fbe87184b12bed0d83b4f563819c078",
+    "root_rehashed_tracked_source_members": 2479,
+    "root_rehashed_protected_authorities": 5,
+    "source_observation_count": 34,
+    "source_startup_only": 0,
+    "console_notices": 17,
+    "owned_cleanup": {
+      "launcher_pid": 432101,
+      "launcher_returncode": 0,
+      "owned_work_stopped": true,
+      "ownership_scope": "posix-group",
+      "collection_observation": "owned-boundary-empty",
+      "launcher_create_time": 1793406949.95,
+      "admitted_before_exec": true,
+      "external_reaping_pending": []
+    },
+    "prior_failure_preserved": "lane1 zero-native observer failure; retry lane2 observer-only correction",
+    "limits": [
+      "Manual plausible starting coordinates, not experiment or optimized geometry",
+      "No chirality, minimum, population or accuracy qualification",
+      "Displayed text download is not a native archive or trusted reopen",
+      "Screenshots are viewport crops; other assertions use recorded DOM and kernel observations",
+      "Optional engines/GitHub Actions/actual student identity and Codespace remain untested here"
+    ],
+    "root_rehashed_native_members": 28,
+    "root_rehashed_download": {
+      "bytes": 10265,
+      "sha256": "eac3e4820085d96c4eaeb5e186bced49eee457bb0e08d3336666afb5001ef7c7",
+      "scope": "Actual displayed text only, not native result bundle/provenance backup"
+    },
+    "root_visually_reviewed_screenshot_count": 2
+  }
+}

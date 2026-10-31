@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="2" time="24.897" timestamp="2026-10-31T00:31:12.989727+00:00"><testcase classname="tests.ui.test_voila_runtime_acceptance" name="test_gui_executes_real_xtb_single_point" time="8.028" /><testcase classname="tests.ui.test_voila_runtime_acceptance" name="test_gui_executes_real_xtb_optimization" time="11.319" /></testsuite></testsuites>

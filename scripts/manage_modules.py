@@ -743,9 +743,254 @@ def activate_installation(module_id: str, spec: dict, root: Path) -> dict:
     return receipt
 
 
+class _WorkflowPipWindowsJob:
+    """CLI-only owned kernel Job, adapted from the reviewed CI owner pattern."""
+
+    def __init__(self) -> None:
+        import ctypes
+        from ctypes import wintypes
+
+        class IO(ctypes.Structure):
+            _fields_ = [(name, ctypes.c_uint64) for name in (
+                "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
+
+        class Basic(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64),
+                        ("PerJobUserTimeLimit", ctypes.c_int64), ("LimitFlags", ctypes.c_uint32),
+                        ("MinimumWorkingSetSize", ctypes.c_size_t), ("MaximumWorkingSetSize", ctypes.c_size_t),
+                        ("ActiveProcessLimit", ctypes.c_uint32), ("Affinity", ctypes.c_size_t),
+                        ("PriorityClass", ctypes.c_uint32), ("SchedulingClass", ctypes.c_uint32)]
+
+        class Limits(ctypes.Structure):
+            _fields_ = [("BasicLimitInformation", Basic), ("IoInfo", IO),
+                        ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                        ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        class Accounting(ctypes.Structure):
+            _fields_ = [("TotalUserTime", ctypes.c_int64), ("TotalKernelTime", ctypes.c_int64),
+                        ("ThisPeriodTotalUserTime", ctypes.c_int64), ("ThisPeriodTotalKernelTime", ctypes.c_int64),
+                        ("TotalPageFaultCount", ctypes.c_uint32), ("TotalProcesses", ctypes.c_uint32),
+                        ("ActiveProcesses", ctypes.c_uint32), ("TotalTerminatedProcesses", ctypes.c_uint32)]
+
+        self.ctypes, self.accounting, self.handle = ctypes, Accounting, None
+        self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        signatures = {
+            "CreateJobObjectW": ([ctypes.c_void_p, wintypes.LPCWSTR], wintypes.HANDLE),
+            "SetInformationJobObject": ([wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD], wintypes.BOOL),
+            "AssignProcessToJobObject": ([wintypes.HANDLE, wintypes.HANDLE], wintypes.BOOL),
+            "TerminateJobObject": ([wintypes.HANDLE, wintypes.UINT], wintypes.BOOL),
+            "QueryInformationJobObject": ([wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                                           wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)], wintypes.BOOL),
+            "CloseHandle": ([wintypes.HANDLE], wintypes.BOOL),
+        }
+        for name, (arguments, result) in signatures.items():
+            function = getattr(self.kernel, name)
+            function.argtypes, function.restype = arguments, result
+        try:
+            self.handle = self.kernel.CreateJobObjectW(None, None)
+            if not self.handle:
+                raise ctypes.WinError(ctypes.get_last_error())
+            limits = Limits()
+            limits.BasicLimitInformation.LimitFlags = 0x2000  # KILL_ON_JOB_CLOSE
+            if not self.kernel.SetInformationJobObject(self.handle, 9, ctypes.byref(limits), ctypes.sizeof(limits)):
+                raise ctypes.WinError(ctypes.get_last_error())
+        except BaseException:
+            self.close()
+            raise
+
+    def assign_and_resume(self, process: subprocess.Popen) -> None:
+        if not self.kernel.AssignProcessToJobObject(self.handle, int(process._handle)):
+            raise self.ctypes.WinError(self.ctypes.get_last_error())
+        resume = self.ctypes.WinDLL("ntdll").NtResumeProcess
+        resume.argtypes, resume.restype = [self.ctypes.wintypes.HANDLE], self.ctypes.c_long
+        if resume(int(process._handle)) != 0:
+            raise RuntimeError("Owned workflow pip launcher could not be resumed")
+
+    def stop(self) -> bool:
+        if not self.kernel.TerminateJobObject(self.handle, 1):
+            raise self.ctypes.WinError(self.ctypes.get_last_error())
+        deadline = time.monotonic() + 3
+        while True:
+            status = self.accounting()
+            if not self.kernel.QueryInformationJobObject(self.handle, 1, self.ctypes.byref(status),
+                                                        self.ctypes.sizeof(status), None):
+                raise self.ctypes.WinError(self.ctypes.get_last_error())
+            if status.ActiveProcesses == 0:
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.01)
+
+    def close(self) -> None:
+        if self.handle:
+            if not self.kernel.CloseHandle(self.handle):
+                raise self.ctypes.WinError(self.ctypes.get_last_error())
+            self.handle = None
+
+
+def _run_workflow_pip(command: list[str], environment: dict[str, str], timeout: float) -> int:
+    """CLI-only group/Job ownership; inherited streams, bounded owned cleanup.
+
+    This is process-group/Job custody, not a sandbox against deliberate POSIX
+    session escape. No shared pip library executor changes its own contract.
+    """
+    import signal
+    import threading
+
+    if threading.current_thread() is not threading.main_thread() or threading.active_count() != 1:
+        raise ModuleInstallationError("Workflow pip requires a standalone single-threaded CLI")
+    if os.name not in {"posix", "nt"}:
+        raise ModuleInstallationError("Owned workflow pip launch is unavailable on this OS")
+    if os.name == "posix" and not all(hasattr(os, name) for name in (
+            "waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")):
+        raise ModuleInstallationError("Owned workflow pip requires non-reaping POSIX waitid support")
+    if os.name == "posix" and signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
+        raise ModuleInstallationError("Workflow pip requires the default SIGCHLD disposition; no caller handler was changed")
+    deadline = time.monotonic() + timeout
+    with contextlib.ExitStack() as lease:
+        if sys.platform.startswith("linux"):
+            # A CLI-local subreaper may adopt only this invocation's descendants.
+            # Census actual PPIDs; do not assume /proc/task/.../children exists.
+            if len(os.listdir("/proc/self/task")) != 1:
+                raise ModuleInstallationError("Workflow pip ownership requires a single-threaded launcher")
+            for name in os.listdir("/proc"):
+                if not name.isdigit():
+                    continue
+                try:
+                    fields = (Path("/proc") / name / "stat").read_bytes().rsplit(b")", 1)[1].split()
+                except FileNotFoundError:
+                    continue
+                if int(fields[1]) == os.getpid():
+                    raise ModuleInstallationError("Workflow pip ownership refuses pre-existing child processes")
+            import ctypes
+            libc = ctypes.CDLL(None, use_errno=True)
+            libc.prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong]
+            libc.prctl.restype = ctypes.c_int
+            previous = ctypes.c_int()
+            if libc.prctl(37, ctypes.addressof(previous), 0, 0, 0) != 0 or previous.value not in {0, 1}:
+                raise ModuleInstallationError("Cannot observe existing workflow child ownership")
+            def restore_subreaper() -> None:
+                if libc.prctl(36, previous.value, 0, 0, 0) != 0:
+                    raise ModuleInstallationError("Could not restore workflow child ownership state")
+            if libc.prctl(36, 1, 0, 0, 0) != 0:
+                raise ModuleInstallationError("Cannot establish workflow child ownership")
+            lease.callback(restore_subreaper)
+        pending_signal = None
+        def interrupted(signum, frame):
+            nonlocal pending_signal
+            # Never raise between OS spawn and admission or during cleanup.
+            if pending_signal is None:
+                pending_signal = signum
+        signals = [signal.SIGTERM, signal.SIGINT]
+        if os.name == "nt":
+            signals.append(signal.SIGBREAK)
+        for signum in signals:
+            previous_handler = signal.signal(signum, interrupted)
+            lease.callback(signal.signal, signum, previous_handler)
+        job = _WorkflowPipWindowsJob() if os.name == "nt" else None
+        if job is not None:
+            lease.callback(job.close)
+        process = None
+        admitted = False
+        timed_out = False
+        failure = None
+        confirmed = False
+        result = None
+        try:
+            if time.monotonic() >= deadline:
+                raise ModuleInstallationError("Workflow pip owner admission exhausted the budget before process launch")
+            options = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004}
+                       if job is not None else {"start_new_session": True})
+            process = subprocess.Popen(command, env=environment, stdin=subprocess.DEVNULL, **options)
+            if job is not None:
+                job.assign_and_resume(process)
+                admitted = True
+            else:
+                if process.pid == os.getpgrp() or os.getpgid(process.pid) != process.pid:
+                    raise ModuleInstallationError("Workflow pip did not create its owned session")
+                admitted = True
+            while True:
+                if pending_signal is not None:
+                    break
+                done = (process.poll() is not None if job is not None else
+                        os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None)
+                if done:
+                    break
+                if time.monotonic() >= deadline:
+                    timed_out = True
+                    break
+                time.sleep(min(0.02, max(0, deadline - time.monotonic())))
+        except BaseException as error:
+            failure = error
+        finally:
+            if process is not None:
+                try:
+                    if job is not None:
+                        if not admitted:
+                            process.kill()  # Still-owned suspended launcher; no PID lookup.
+                        confirmed = job.stop()
+                        result = process.wait(timeout=1)
+                    else:
+                        # Keep leader unreaped throughout TERM/KILL, pinning this
+                        # PGID generation even if pip has already exited.
+                        if admitted:
+                            try:
+                                os.killpg(process.pid, signal.SIGTERM)
+                            except ProcessLookupError:
+                                pass
+                            time.sleep(0.1)
+                            try:
+                                os.killpg(process.pid, signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
+                        else:
+                            process.kill()
+                        result = process.wait(timeout=1)  # Only our exact leader.
+                        cleanup_deadline = time.monotonic() + 3
+                        while True:
+                            if sys.platform.startswith("linux") and admitted:
+                                while True:
+                                    try:
+                                        child, _status = os.waitpid(-process.pid, os.WNOHANG)
+                                    except ChildProcessError:
+                                        break
+                                    if child == 0:
+                                        break
+                            try:
+                                os.killpg(process.pid, 0)  # Query only after leader reaped; no later signals.
+                            except ProcessLookupError:
+                                confirmed = True
+                                break
+                            if time.monotonic() >= cleanup_deadline:
+                                break
+                            time.sleep(0.01)
+                except BaseException as error:
+                    if failure is None:
+                        failure = error
+            else:
+                confirmed = True  # Popen did not create a child; no process result is asserted.
+        if not confirmed:
+            print("Owned workflow pip cleanup is UNCONFIRMED after bounded attempts; outer CI/profile custody remains required.",
+                  file=sys.stderr, flush=True)
+            raise ModuleInstallationError("Workflow pip cleanup could not be confirmed; no timeout-success or stopped-tree claim") from failure
+        if failure is not None:
+            raise failure
+        if pending_signal is not None:
+            raise KeyboardInterrupt(f"Workflow pip interrupted by signal {pending_signal} after confirmed owned cleanup")
+        if timed_out:
+            raise subprocess.TimeoutExpired(command, timeout)
+        if result is None:
+            raise ModuleInstallationError("Workflow pip has no launched-process result")
+        return result
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    pip = subparsers.add_parser("pip", help="Run the checksum-verified pip tool in this interpreter")
+    pip.add_argument("--timeout", type=float, default=1800, help="Total artifact/setup/process budget in seconds")
+    pip.add_argument("pip_arguments", nargs=argparse.REMAINDER, help="Use -- before pip's own command and flags")
     for command in ("list", "fetch", "install", "verify"):
         sub = subparsers.add_parser(command)
         sub.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
@@ -757,6 +1002,17 @@ def main(argv: list[str] | None = None) -> int:
             sub.add_argument("--ecosystem-kit", type=Path, help="Explicit historical BASE/TOPOS/TORQ kit")
     args = parser.parse_args(argv)
     try:
+        if args.command == "pip":
+            arguments = args.pip_arguments
+            if arguments and arguments[0] == "--":
+                arguments = arguments[1:]
+            if not arguments:
+                parser.error("pip requires a command after --")
+            # This branch is stdlib-only and needs no module catalog/provider.
+            # Keep the lexical interpreter path and genuine inherited streams.
+            with _pip_command(Path(sys.executable), arguments, env=dict(os.environ),
+                              timeout=args.timeout) as (command, environment, remaining):
+                return _run_workflow_pip(command, environment, remaining)
         catalog = load_manifest(args.manifest)["modules"]
         if args.command == "list":
             print(json.dumps({"schema_version": MANIFEST_SCHEMA, "modules": catalog}, indent=2, sort_keys=True))
@@ -783,6 +1039,11 @@ def main(argv: list[str] | None = None) -> int:
             if not receipts:
                 print("No installed modules selected.")
         return 0
+    except subprocess.TimeoutExpired:
+        if args.command != "pip":
+            raise
+        print(f"Verified pip process exceeded its {args.timeout:g}-second total setup budget.", file=sys.stderr)
+        return 124  # CLI budget failure, not a fabricated pip subprocess result.
     except (ValueError, OSError, ModuleInstallationError, json.JSONDecodeError) as error:
         print(_redact(f"Module {args.command} failed: {error}"), file=sys.stderr)
         return 1

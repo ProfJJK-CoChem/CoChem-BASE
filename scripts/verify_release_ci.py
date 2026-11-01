@@ -86,6 +86,7 @@ HOSTED_TESTS = (
     "tests/base/test_pinned_pip_runtime.py",
     "tests/base/test_release_isolated_build.py",
     "tests/base/test_pip_command_context.py",
+    "tests/base/test_workflow_pinned_pip.py",
     "tests/base/test_module_execution.py",
     "tests/base/test_module_adapter_topos.py",
     "tests/base/test_module_adapter_torq.py",

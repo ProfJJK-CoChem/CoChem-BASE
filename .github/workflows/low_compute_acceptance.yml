@@ -96,7 +96,7 @@ jobs:
         run: |
           test -x "$XTB_CMD"
           test -x "$COCHEM_PYSCF_PYTHON"
-          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -B -c 'import subprocess, sys, tomllib; from pathlib import Path; extras = tomllib.loads(Path("pyproject.toml").read_text())["project"]["optional-dependencies"]; requirements = extras["catalog"] + extras["scribe"]; subprocess.run([sys.executable, "-B", "-m", "pip", "install", *requirements], check=True)'
+          "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -B -c 'import runpy, tomllib; from pathlib import Path; extras = tomllib.loads(Path("pyproject.toml").read_text())["project"]["optional-dependencies"]; requirements = extras["catalog"] + extras["scribe"]; tool = runpy.run_path("scripts/manage_modules.py", run_name="reviewed_workflow_pip"); raise SystemExit(tool["main"](["pip", "--timeout", "1800", "--", "install", *requirements]))'
           "$COCHEM_ARTIFACT_DIR/ui-env/bin/python" -B -m scripts.verify_release_ci regressions --expected-revision "$COCHEM_EXPECTED_REVISION" --output "${{ runner.temp }}/cochem-evidence/bounded-regressions"
       - name: Verify rendered dashboard lifecycle with the audited registry
         run: |

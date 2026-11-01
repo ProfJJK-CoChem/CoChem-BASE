@@ -32,6 +32,7 @@ _HELP = {
         (
             "Codespaces is the computer that opens this interface in your browser or VS Code. GitHub Actions runs a calculation on a separate computer and returns its results. An engine available in one place is not necessarily available in the other.",
             "Choose GitHub Actions for the course's remote calculation route. Local uses the computer running BASE, which may itself be a Codespace rather than your laptop. HPC uses an institution's configured computing cluster, where jobs can wait in a queue before running.",
+            "A GPU can accelerate some calculations when the engine supports it. Google Colab is an optional remote GPU provider. Student Colab submission is currently unavailable while its connection is verified; use the prepared route in your assignment. Your instructor handles provider credentials. A GPU does not by itself improve the scientific method.",
             "ORCA and CFOUR are optional, strongly recommended engines. Check their availability in the selected calculation environment. A successful access check confirms access; only a completed calculation establishes that a particular method ran successfully.",
         ),
     ),

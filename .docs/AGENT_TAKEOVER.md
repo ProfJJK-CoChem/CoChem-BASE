@@ -4,6 +4,8 @@ Prepared 18 October 2026. This is the current entry point for a replacement
 agent/environment. It supplements the [completion backlog](WORKSTATION_COMPLETION_HANDOFF.md),
 not a declaration that BASE or the entire ecosystem is finished.
 
+1 November update: start with the [current deployment and security readback](DEPLOYMENT_PROGRESS_2026-10-31.md#current-readback--1-november-2026), its [selected evidence](evidence/security-progress-20261031/SELECTED_SECURITY_PROGRESS.json), and the [Tuesday–Friday class guide](BEGINNER_FIRE_TEST_2026-11-03.md). Source publication, completed platform checks and local browser acceptance remain separate from student enrollment, licensed Actions calculations and full SRS conformance. Read the private controller handoff for actual account/configuration blockers.
+
 31 October update: read [current deployment progress](DEPLOYMENT_PROGRESS_2026-10-31.md) and its [curated evidence](evidence/deployment-progress-20261031/EVIDENCE_MANIFEST.json) before relying on dated snapshots. Selected local qualification does not establish full SRS or student deployment.
 
 30 October update: read the [first-semester workspace progress and bounded

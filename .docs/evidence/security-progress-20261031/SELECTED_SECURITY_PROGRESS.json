@@ -148,5 +148,274 @@
       "GitHub alert discrepancy remains unresolved"
     ],
     "original_selected_qualification_sha256": "3ee409137aa08e83a2afdd6a758a61b3f995df20e44ac5ec5afb58fdb0f1a80f"
+  },
+  "ac404_hosted_ci": {
+    "prior_platform_controls": {
+      "failed_per_platform": 0,
+      "installed_wheel_checks_passed_each": true,
+      "original_readback_sha256": "ba2b5d6c8a49ed2869de2ce6e67c90085ae5c76acae9045e3b64d09015b22758",
+      "passed_per_platform": 241,
+      "platforms": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
+      "skipped_per_platform": 0
+    },
+    "regression": {
+      "original_acceptance_sha256": "a635bef5d3cc85771fcdfa624093676f0ee520f8d96be247197fbe01d99da2f0",
+      "parent_failed": 5,
+      "parent_passed": 2376,
+      "passed": false,
+      "release_accepted": false,
+      "separate_subtests_passed": 34,
+      "skipped": 0
+    },
+    "run_id": 41249233171,
+    "run_url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/41249233171",
+    "scope": "Distinct controls on ac404; platform passes do not override regression failure or skipped dashboard step",
+    "source_revision": "ac404f2353e821890968fd008d701f6f501dd827",
+    "dashboard_step": {
+      "acceptance_established": false,
+      "status": "SKIPPED",
+      "scope": "Skipped step within the bounded regression job; not a separate dashboard job"
+    }
+  },
+  "ac404_free_engine_artifact": {
+    "archive_sha256": "f168cd9d9e9c36f56781a118bb124a4b81bcfd40f15a2774b3fcdc5d78b7740b",
+    "artifact_id": 13062077334,
+    "methods": [
+      "xTB GFN-FF",
+      "xTB GFN2-xTB",
+      "PySCF HF/STO-3G",
+      "PySCF PBE-D4/def2-SVP",
+      "PySCF B3LYP-D4/def2-TZVP"
+    ],
+    "original_manifest_sha256": "2c34985e09051dfb16ce80d66c881bc1aa098631b6f3aea15d4ab24093567e93",
+    "original_member_bytes_rehashed": true,
+    "original_verification_sha256": "f2dd47bf52abd085a5c83386fe51821c5d212efbadb60e1b09c517bf52cd7e61",
+    "retained_members": 23,
+    "scope": "Bounded public maintainer controls, not minimum/accuracy/licensed/student acceptance; raw input/output stays outside this documentary projection",
+    "source_revision": "ac404f2353e821890968fd008d701f6f501dd827",
+    "verified_engine_statuses": {
+      "pyscf": "passed",
+      "xtb": "passed"
+    }
+  },
+  "fresh_ui_bootstrap": {
+    "elapsed_seconds": 107.45395302772522,
+    "independent_root_readback_sha256": "222eaed6db9197860e1ad1a622a7f99b49172007cedafa104e59b72b6e9720cb",
+    "independent_root_readback_status": "COMPLETED",
+    "old_ui_unchanged": true,
+    "original_epoch_receipt_sha256": "efa4a49465c400099431c5458cf820e3650f385635f4cc1f9a0484c55f88a2d1",
+    "original_origins_final_sha256": "66b2be80b6103feb03561cbac0d38751add187bfcd384c393d2e671992372467",
+    "original_terminal_sha256": "96a2af87b35430ac6d7ebde8898fe4420f89be2c66b98d3e36cc103b61eceaa0",
+    "owned_boundary_empty": true,
+    "passed": true,
+    "pip_check_passed": true,
+    "protected_files_and_controller_unchanged": true,
+    "readiness_after": true,
+    "retained_originals_manifest_sha256": "af6183ea933ccb4bb650cad8c03815c21b73cf71a924ebae4192f891f2fd4399",
+    "scope": "Fresh UI-only dependency epoch; no service/browser/native/scientific/student acceptance",
+    "source_authority_errors": 0,
+    "source_origin_failures": 0,
+    "source_origin_records": 20,
+    "source_revision": "f90e2629dffaf57fc19d71239df0583fd31eb991",
+    "startup_only_records": 0
+  },
+  "release_followups": {
+    "five_repaired_ci_cases": {
+      "actual_counts": {
+        "errors": 0,
+        "failures": 0,
+        "passed": 5,
+        "skipped": 0
+      },
+      "manifest_sha256": "f22d505e4926bb82c540a747df332ebfde8237c2e73af0b67c19dff9c33e822d",
+      "original_junit_sha256": "d9ded5cec0b850501b72a2cf413ba57e820466d29397af05d8e85dc7a9fedcf3",
+      "scope": "Only the five existing regressions that failed CIac404; original full CI remains failure; browser/science not covered",
+      "source_origin_records": 8,
+      "source_revision": "e1e1a56ebd5248b8cf6ca72e08fe188be72dc68d",
+      "state": "SELECTED_PASS",
+      "worker_receipt_sha256": "3adf74e2cf8dfe9a43c55d6237b9382252f27ac5aba860759d73b813f36e7e79"
+    },
+    "fresh_browser": {
+      "actual_result": "PASSED_LOCAL_OBSERVATION",
+      "receipt_sha256": "6acfd74fffe78bfce4555bf008e7184c5148edddd595cd5de514191ffb09c028",
+      "source_revision": "d8fc75842f23b166b40e04ffedbd62b8258c02ad",
+      "dependency_epoch_revision": "f90e2629dffaf57fc19d71239df0583fd31eb991",
+      "state": "COMPLETED",
+      "elapsed_seconds": 46.91667837500063,
+      "screenshots": 5,
+      "downloads": [
+        {
+          "sha256": "b72658f4f5610d21229be83259d29bb62f07ac808a4c895f550b6620bdb58dfb",
+          "bytes": 27498
+        },
+        {
+          "sha256": "cdd816db59a411d1f680b4d6fccaf02b4b4e9c1a5bf5a7814ec36412a251d793",
+          "bytes": 414012
+        }
+      ],
+      "comparison_csv_sha256": "b65348f3f9ed350e019c1e9804a8a396d65479dda6d4117becb4f3e1587bbdf7",
+      "original_files_preserved": 607,
+      "source_origin_records": 79,
+      "startup_only_records": 1,
+      "source_origin_errors": 0,
+      "all18_actual_reply_pairs": true,
+      "new_chemistry_requests": 0,
+      "owned_boundary_empty": true,
+      "assignment_restored": true,
+      "original_attempt1": "FAILED_OBSERVER_NAVIGATION; preserved separately",
+      "scope": "Actual local browser navigation, retained results/download/help/optional engine absence; zero new chemistry/hosted authorization; no full student/SRS/human-comprehension claim",
+      "source_origin_record_scope": "79 lifecycle events: 40 initial and 39 final; one service launcher has only a startup record",
+      "full_release_accepted": false
+    },
+    "no_complete_release_or_student_readiness_claim": true
+  },
+  "published_source_followup": {
+    "source_revision": "e1e1a56ebd5248b8cf6ca72e08fe188be72dc68d",
+    "ordinary_forward_push_and_remote_readback": true,
+    "publication_receipt_sha256": "bbb7ceff4d38a29527772d56e3f3d11186485eedc699b6dfbefc1866413980b0",
+    "full_ci": {
+      "run_id": 41254729978,
+      "state": "IN_PROGRESS_AT_ROOT_READBACK",
+      "outcome": null
+    },
+    "dependency_graph": {
+      "run_id": 41254731772,
+      "state": "IN_PROGRESS_AT_ROOT_READBACK",
+      "outcome": null
+    },
+    "server_notice_count": 42,
+    "notice_is_not_individual_alert_mapping": true,
+    "browser_pending": true,
+    "scope": "Historical e1 publication readback; later d8f platform and browser outcomes are recorded separately"
+  },
+  "windows_bootstrap_followup": {
+    "source_revision": "d8fc75842f23b166b40e04ffedbd62b8258c02ad",
+    "publication_receipt_sha256": "47c0c05ac878567a16b2c89cfa290e409361da94ddf4329d35e042f8b34600ae",
+    "original_e1_windows_job": 124695475265,
+    "original_e1_windows_status": "FAILURE",
+    "failure_manifest_sha256": "e85058898d64163791d18e8001ccea68354f5b6ba0b7bed65d6875517becd09a",
+    "fix": "Bootstrap the exact verified pip wheel using isolated module execution; Windows protection remains enabled",
+    "linux_selected_installer_cases": {
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0,
+      "manifest_sha256": "68198312f11239487faa6146b0a9feca14784f230882a4c974569840908fdd00"
+    },
+    "hosted_run": 41255280345,
+    "completed_jobs_readback_sha256": "bc1be5eece42cd0e2958c071c21075f5d74bfd9e7756c4e5507d53c9d757e23a",
+    "completed_artifacts": [
+      {
+        "name": "base-source-evidence",
+        "artifact_id": 13063010220,
+        "archive_bytes": 12354,
+        "archive_sha256": "cd606edc9d4bf930300f0464e1594014a7ef1af05cf26838074a8acc55039d82"
+      },
+      {
+        "name": "ci-controls-ubuntu-24.04",
+        "artifact_id": 13062895648,
+        "archive_bytes": 738286,
+        "archive_sha256": "b95cd28a4cf159326909cea1f32a92d674ae3fc531d16184a53a6e53e2e199bc",
+        "junit": [
+          {
+            "name": "pytest",
+            "errors": "0",
+            "failures": "0",
+            "skipped": "0",
+            "tests": "241",
+            "time": "44.513",
+            "timestamp": "2026-11-01T00:08:03.511975+00:00"
+          }
+        ]
+      },
+      {
+        "name": "ci-controls-windows-latest",
+        "artifact_id": 13062865865,
+        "archive_bytes": 733237,
+        "archive_sha256": "f21d9c34268b3bcfc580e92794e5380eceed2c407cef106f5898a5ee7e8aaed5",
+        "junit": [
+          {
+            "name": "pytest",
+            "errors": "0",
+            "failures": "0",
+            "skipped": "0",
+            "tests": "241",
+            "time": "98.289",
+            "timestamp": "2026-11-01T00:08:20.408842+00:00"
+          }
+        ]
+      },
+      {
+        "name": "installed-wheel-macos-latest",
+        "artifact_id": 13062773425,
+        "archive_bytes": 15583865,
+        "archive_sha256": "4ca6d4c7b505a6451e86765b6a0fadb69e8964de131a87be2531eac981daf936",
+        "acceptance": {
+          "passed": true,
+          "source_revision": "d8fc75842f23b166b40e04ffedbd62b8258c02ad",
+          "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution"
+        }
+      },
+      {
+        "name": "ci-controls-macos-latest",
+        "artifact_id": 13062733875,
+        "archive_bytes": 739513,
+        "archive_sha256": "ea5dbe96e84e90960409adb2118b006bdcb5139f66e4f3bbec149e4ed6af413e",
+        "junit": [
+          {
+            "name": "pytest",
+            "errors": "0",
+            "failures": "0",
+            "skipped": "0",
+            "tests": "241",
+            "time": "33.582",
+            "timestamp": "2026-11-01T00:07:47.049453+00:00"
+          }
+        ]
+      },
+      {
+        "name": "installed-wheel-ubuntu-24.04",
+        "artifact_id": 13062629477,
+        "archive_bytes": 15582924,
+        "archive_sha256": "026cd2d4f26e981f37a1be164c4ae48210e4ceb9c2925505cb3c66bc8d82a502",
+        "acceptance": {
+          "passed": true,
+          "source_revision": "d8fc75842f23b166b40e04ffedbd62b8258c02ad",
+          "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution"
+        }
+      },
+      {
+        "name": "installed-wheel-windows-latest",
+        "artifact_id": 13062044688,
+        "archive_bytes": 15579196,
+        "archive_sha256": "f11e1cc95bd720ecc5111b50a2b11fa3654bd8bf28385118d7fb9ee8bbdb78c1",
+        "acceptance": {
+          "passed": true,
+          "source_revision": "d8fc75842f23b166b40e04ffedbd62b8258c02ad",
+          "scope": "Clean wheel installation, CLI, isotope database and actual dry-run deck; no chemistry execution"
+        }
+      }
+    ],
+    "full_regression_status": "IN_PROGRESS_AT_READBACK; not a pass"
+  },
+  "fresh_ui_public_advisory_readback": {
+    "actual_distributions": 153,
+    "third_party_exact_version_snapshots": 152,
+    "reused_october31_snapshots": 133,
+    "fresh_november1_http200_responses": 19,
+    "fetch_errors": 0,
+    "reported_advisory_records": 0,
+    "local_base_unassessed": true,
+    "original_results_sha256": "0fff595815858ea8e0ab78527c4d8a41d56941405443aacb9efcc5d80000a07e",
+    "ready_sha256": "a061f116cd2428eabe4c9d1d4ee9776ea9ad98689e4db6ce3ff474e32b8b3c55",
+    "limits": [
+      "Empty public metadata is not security clearance",
+      "Retained snapshot dates differ from fresh response dates",
+      "GitHub 42 alert identities remain inaccessible/unmapped",
+      "No installed environment was modified by this readback"
+    ]
   }
 }

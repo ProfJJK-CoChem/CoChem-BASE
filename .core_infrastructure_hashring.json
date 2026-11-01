@@ -76,7 +76,7 @@
     "scripts/install_native_free_engines.py": "4d8c429baf329fa99e683dacfdd83ddd552be309e3c6c5c39831fc68192faebd",
     "scripts/install_openmpi.py": "c551c523cd89d77cd39b7cf9ac03f3415d484a9783b0ff1d0924026872ea6f04",
     "scripts/install_qe_paw_inputs.py": "74c477a57887c3c4d3d0905931912a106c49688e4ace55825b35d8d8c9a68d22",
-    "scripts/manage_modules.py": "b6deabcbc46293dc0d711bcb63bf3a3c8b5b0fdefe116a4f2f00956042e964f0",
+    "scripts/manage_modules.py": "5c75ae5180da16ec87486032a6d963bb6ebb676dffab89cb288971ffc635918f",
     "scripts/mandatory_ecosystem.py": "e567f7f56c0d284dc96d03a33689c0b97155cb07173482f1745953e9be2d8fb4",
     "scripts/module-distribution-expert-main-11c7399a.json": "0aed855ced49f37bd713c4b9cf8730385fde4cf1ceaa75d9a80b7c0274f99357",
     "scripts/module-distribution-expert-main-12f5475.json": "90f3b018bb436b37564bb73e2de7d9758e1fd76c11b2d1480fb51d8d1c8d955f",

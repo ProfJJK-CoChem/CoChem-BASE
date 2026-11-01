@@ -743,6 +743,72 @@ def activate_installation(module_id: str, spec: dict, root: Path) -> dict:
     return receipt
 
 
+def _darwin_workflow_pip_waitid():
+    """Bind Apple's LP64 waitid when CPython lacks its optional os wrapper.
+
+    Darwin sys/wait.h and sys/signal.h define this exact typed layout/options.
+    Do not substitute Linux WNOWAIT or observe a child through a reaping wait.
+    """
+    import ctypes
+    import errno
+    import platform
+    import signal
+
+    class Sigval(ctypes.Union):
+        _fields_ = [("sival_int", ctypes.c_int32), ("sival_ptr", ctypes.c_void_p)]
+
+    class Siginfo(ctypes.Structure):
+        _fields_ = [("si_signo", ctypes.c_int32), ("si_errno", ctypes.c_int32),
+                    ("si_code", ctypes.c_int32), ("si_pid", ctypes.c_int32),
+                    ("si_uid", ctypes.c_uint32), ("si_status", ctypes.c_int32),
+                    ("si_addr", ctypes.c_void_p), ("si_value", Sigval),
+                    ("si_band", ctypes.c_long), ("reserved", ctypes.c_ulong * 7)]
+
+    offsets = {"si_signo": 0, "si_errno": 4, "si_code": 8, "si_pid": 12,
+               "si_uid": 16, "si_status": 20, "si_addr": 24, "si_value": 32,
+               "si_band": 40, "reserved": 48}
+    if (sys.platform != "darwin" or platform.machine().lower() not in {"arm64", "x86_64"}
+            or ctypes.sizeof(ctypes.c_int) != 4 or ctypes.sizeof(ctypes.c_void_p) != 8
+            or ctypes.sizeof(ctypes.c_long) != 8 or ctypes.sizeof(ctypes.c_ulong) != 8
+            or ctypes.sizeof(Sigval) != 8 or ctypes.alignment(Sigval) != 8
+            or ctypes.sizeof(Siginfo) != 104 or ctypes.alignment(Siginfo) != 8
+            or any(getattr(Siginfo, name).offset != value for name, value in offsets.items())):
+        raise ModuleInstallationError("Owned workflow pip cannot verify this Darwin LP64 waitid ABI")
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        native = libc.waitid
+        native.argtypes = [ctypes.c_int, ctypes.c_uint32, ctypes.POINTER(Siginfo), ctypes.c_int]
+        native.restype = ctypes.c_int
+    except (OSError, AttributeError) as error:
+        raise ModuleInstallationError("Owned workflow pip cannot bind native Darwin waitid") from error
+
+    def observed(pid: int) -> bool:
+        if type(pid) is not int or not 0 < pid <= 2147483647:
+            raise ModuleInstallationError("Owned Darwin waitid requires its exact positive child PID")
+        info = Siginfo()  # Fresh zeroed typed storage, never stale data or a guessed byte buffer.
+        ctypes.set_errno(0)
+        result = native(1, pid, ctypes.byref(info), 0x1 | 0x4 | 0x20)
+        if result == -1:
+            number = ctypes.get_errno()
+            if number == errno.EINTR:
+                # Consult the existing owner's deadline and pending-signal latch
+                # again; never add an unbounded native retry or a reaping path.
+                return False
+            raise OSError(number, "Native Darwin non-reaping waitid failed")
+        if result != 0:
+            raise ModuleInstallationError("Native Darwin waitid returned an invalid result")
+        if info.si_pid == 0 and info.si_signo == 0:
+            return False
+        if (info.si_pid != pid or info.si_signo != signal.SIGCHLD or info.si_errno != 0
+                or info.si_code not in {1, 2, 3}
+                or (info.si_code == 1 and not 0 <= info.si_status <= 255)
+                or (info.si_code in {2, 3} and not 0 < info.si_status < signal.NSIG)):
+            raise ModuleInstallationError("Native Darwin waitid child identity or exit observation is inconsistent")
+        return True  # WNOWAIT leaves this exact leader waitable until owned cleanup.
+
+    return observed
+
+
 class _WorkflowPipWindowsJob:
     """CLI-only owned kernel Job, adapted from the reviewed CI owner pattern."""
 
@@ -842,12 +908,15 @@ def _run_workflow_pip(command: list[str], environment: dict[str, str], timeout: 
         raise ModuleInstallationError("Workflow pip requires a standalone single-threaded CLI")
     if os.name not in {"posix", "nt"}:
         raise ModuleInstallationError("Owned workflow pip launch is unavailable on this OS")
-    if os.name == "posix" and not all(hasattr(os, name) for name in (
-            "waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")):
+    python_waitid = all(hasattr(os, name) for name in (
+        "waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT"))
+    if os.name == "posix" and not python_waitid and sys.platform != "darwin":
         raise ModuleInstallationError("Owned workflow pip requires non-reaping POSIX waitid support")
     if os.name == "posix" and signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
         raise ModuleInstallationError("Workflow pip requires the default SIGCHLD disposition; no caller handler was changed")
     deadline = time.monotonic() + timeout
+    darwin_waitid = (_darwin_workflow_pip_waitid()
+                     if os.name == "posix" and not python_waitid else None)
     with contextlib.ExitStack() as lease:
         if sys.platform.startswith("linux"):
             # A CLI-local subreaper may adopt only this invocation's descendants.
@@ -896,6 +965,7 @@ def _run_workflow_pip(command: list[str], environment: dict[str, str], timeout: 
         timed_out = False
         failure = None
         confirmed = False
+        darwin_custody_lost = False
         result = None
         try:
             if time.monotonic() >= deadline:
@@ -913,8 +983,12 @@ def _run_workflow_pip(command: list[str], environment: dict[str, str], timeout: 
             while True:
                 if pending_signal is not None:
                     break
-                done = (process.poll() is not None if job is not None else
-                        os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None)
+                if job is not None:
+                    done = process.poll() is not None
+                elif darwin_waitid is not None:
+                    done = darwin_waitid(process.pid)
+                else:
+                    done = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None
                 if done:
                     break
                 if time.monotonic() >= deadline:
@@ -923,9 +997,14 @@ def _run_workflow_pip(command: list[str], environment: dict[str, str], timeout: 
                 time.sleep(min(0.02, max(0, deadline - time.monotonic())))
         except BaseException as error:
             failure = error
+            darwin_custody_lost = darwin_waitid is not None and isinstance(error, ChildProcessError)
         finally:
             if process is not None:
                 try:
+                    if darwin_custody_lost:
+                        # ECHILD cannot establish a still-pinned leader. Never
+                        # signal or reap a potentially reused PID/PGID here.
+                        raise ModuleInstallationError("Darwin waitable-child custody was lost; outer cleanup is required")
                     if job is not None:
                         if not admitted:
                             process.kill()  # Still-owned suspended launcher; no PID lookup.

@@ -6,7 +6,10 @@ and amnesty-bypass acceptance were retired with the duplicated workflow.
 """
 from __future__ import annotations
 
+import ast
+import hashlib
 import json
+import shlex
 from pathlib import Path
 
 import pytest
@@ -72,7 +75,18 @@ def test_canonical_workflow_and_reusable_physical_acceptance():
     assert python_setup["with"]["python-version"] == "3.12"
     control_commands = "\n".join(step.get("run", "") for step in control_steps)
     assert "base_ci.py controls" in control_commands
-    assert "pip install pytest psutil pyyaml" in control_commands
+    bootstrap = next(step for step in control_steps
+                     if step.get("name") == "Install only CI-control test dependencies")
+    assert shlex.split(bootstrap["run"]) == [
+        "python", "-B", "scripts/manage_modules.py", "pip", "--timeout", "300", "--",
+        "install", "pytest", "psutil", "pyyaml", "setuptools>=84.1.0", "wheel>=0.46.2",
+    ]
+    helper = ROOT / "scripts/manage_modules.py"
+    protected = json.loads((ROOT / ".core_infrastructure_hashring.json").read_text())["files"]
+    assert protected["scripts/manage_modules.py"] == hashlib.sha256(helper.read_bytes()).hexdigest()
+    helper_functions = {node.name for node in ast.parse(helper.read_text()).body
+                        if isinstance(node, ast.FunctionDef)}
+    assert {"main", "_pip_command", "_run_workflow_pip"} <= helper_functions
     assert not any(package in control_commands.lower() for package in ("torch", "pyscf", "openmpi", "orca"))
     assert jobs["bounded-physical-acceptance"]["uses"] == "./.github/workflows/low_compute_acceptance.yml"
     assert "base_ci.py audit" in data.decode()

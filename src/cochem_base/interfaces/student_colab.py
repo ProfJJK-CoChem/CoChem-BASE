@@ -1,4 +1,4 @@
-"""Student Google Colab offload dispatch & dynamic monthly CU quota enforcement.
+"""Student Google Colab request packaging and advisory local CU accounting.
 
 Provides credential-isolated dispatch token resolution (`COLAB_OFFLOAD_DISPATCH_TOKEN`
 bound via `COCHEM_COLAB_ACCESS_SECRET`), HMAC-SHA256 request signing so the
@@ -7,6 +7,10 @@ never leaves the instructor workstation, GitHub issue relay submission/polling,
 and the dynamic monthly Compute Unit (CU) quota ledger (`1,750.0 CUs / max(N_students, 1)`
 per `YYYY-MM` calendar month) for student repositories enrolled through
 `ProfJJK-CoChem/CoChem-Project-Access`.
+
+The local ledger is advisory accounting; authoritative admission and resource
+enforcement require a separately verified receiver. Packaging is not proof of
+engine availability, licensing, GPU execution or a scientific result.
 """
 from __future__ import annotations
 
@@ -23,7 +27,43 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from .course_access import BINDING_VARIABLES, CourseAccessError, GitHubAPI, repository_name
+if __package__:
+    from .course_access import BINDING_VARIABLES, CourseAccessError, GitHubAPI, repository_name
+    from .student_request import validate_xyz
+    from .student_research import _ATOMIC_NUMBERS
+else:
+    # The metadata-only CLI runs before BASE/scientific dependencies are installed.
+    # Load the same contracts beside this file without executing interfaces/__init__.
+    import importlib.util
+    import sys
+
+    def _source_local_contract(name: str):
+        path = Path(__file__).resolve().with_name(name + ".py")
+        key = "_cochem_colab_source_" + hashlib.sha256(str(path).encode()).hexdigest()
+        cached = sys.modules.get(key)
+        if cached is not None:
+            if Path(cached.__file__).resolve() != path:
+                raise ImportError("The Colab contract cache belongs to another source")
+            return cached
+        spec = importlib.util.spec_from_file_location(key, path)
+        if spec is None or spec.loader is None:
+            raise ImportError("The source-local Colab contract is unavailable")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[key] = module
+        try:
+            spec.loader.exec_module(module)
+        except BaseException:
+            sys.modules.pop(key, None)
+            raise
+        return module
+
+    _course_access = _source_local_contract("course_access")
+    BINDING_VARIABLES = _course_access.BINDING_VARIABLES
+    CourseAccessError = _course_access.CourseAccessError
+    GitHubAPI = _course_access.GitHubAPI
+    repository_name = _course_access.repository_name
+    validate_xyz = _source_local_contract("student_request").validate_xyz
+    _ATOMIC_NUMBERS = _source_local_contract("student_research")._ATOMIC_NUMBERS
 
 SCHEMA_LEDGER = "cochem.student-colab-cu-ledger.v1"
 SCHEMA_REQUEST = "cochem.student-colab-request.v1"
@@ -331,6 +371,60 @@ class MonthlyStudentCuQuotaManager:
         )
 
 
+def _validate_colab_scientific_inputs(
+    *, geometry_xyz: str, method: str, basis_set: str | None,
+    charge: int, multiplicity: int, is_opt: bool, is_freq: bool,
+    estimated_cu: float,
+) -> tuple[str, str, str | None, float]:
+    """Validate data before credential access or advisory ledger mutation.
+
+    This stdlib-only sender accepts canonical plain elements, not nuclear
+    isotope/ghost labels. It performs no mass resolution or engine-capability
+    inference. Electronic-state rules match the existing scientific job gate.
+    """
+    if type(charge) is not int:
+        raise CourseAccessError("Molecular charge must be an explicit integer, not a boolean or coerced value.")
+    if type(multiplicity) is not int or multiplicity < 1:
+        raise CourseAccessError("Spin multiplicity must be an explicit positive integer, not a boolean or coerced value.")
+    if type(is_opt) is not bool or type(is_freq) is not bool:
+        raise CourseAccessError("Optimization and frequency flags must be explicit booleans.")
+    specifications: list[str | None] = []
+    for label, value in (("method", method), ("basis_set", basis_set)):
+        if label == "basis_set" and value is None:
+            specifications.append(None)
+            continue
+        if (not isinstance(value, str) or not value.strip()
+                or not value.isprintable()):
+            raise CourseAccessError(f"{label} must be a nonempty single-line specification without control characters.")
+        specifications.append(value.strip())
+    if type(estimated_cu) not in (int, float):
+        raise CourseAccessError("Estimated CU must be a finite nonnegative number, not a boolean or coerced value.")
+    try:
+        clean_estimate = float(estimated_cu)
+    except (OverflowError, ValueError):
+        raise CourseAccessError("Estimated CU must be a finite nonnegative number.") from None
+    if not math.isfinite(clean_estimate) or clean_estimate < 0:
+        raise CourseAccessError("Estimated CU must be a finite nonnegative number.")
+    if not isinstance(geometry_xyz, str) or not geometry_xyz.strip():
+        raise CourseAccessError("A complete plain-element XYZ geometry is required for Colab offload.")
+    clean_xyz = geometry_xyz.strip()
+    try:
+        validate_xyz(clean_xyz.encode("utf-8"))
+    except (ValueError, OverflowError) as error:
+        raise CourseAccessError("Invalid Colab XYZ geometry: " + str(error)) from error
+    labels = [line.split()[0] for line in clean_xyz.removeprefix("\ufeff").splitlines()[2:]]
+    if any(label not in _ATOMIC_NUMBERS for label in labels):
+        raise CourseAccessError(
+            "Colab offload requires canonical plain element symbols; isotope, ghost and unknown labels "
+            "are unsupported by this route. Use the existing nuclear-identity calculation route for isotopes."
+        )
+    electrons = sum(_ATOMIC_NUMBERS[label] for label in labels) - charge
+    unpaired = multiplicity - 1
+    if electrons <= 0 or unpaired > electrons or (electrons - unpaired) % 2:
+        raise CourseAccessError("Molecular charge and spin multiplicity are incompatible with the electron count.")
+    return clean_xyz, specifications[0], specifications[1], clean_estimate
+
+
 def package_student_colab_request(
     *,
     student_id: str,
@@ -349,17 +443,26 @@ def package_student_colab_request(
     environ: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Validate, HMAC-sign, and package a student Colab GPU calculation request."""
+    if not isinstance(student_id, str) or not isinstance(job_id, str):
+        raise CourseAccessError("Student username and job_id must be strings.")
     clean_student = student_id.strip()
     clean_job = job_id.strip()
     if not _STUDENT_ID_RE.fullmatch(clean_student):
         raise CourseAccessError("Invalid student GitHub username for Colab offload.")
     if not _JOB_ID_RE.fullmatch(clean_job):
         raise CourseAccessError("Invalid job_id for Colab offload.")
+    if not isinstance(engine, str):
+        raise CourseAccessError("Calculation engine must be a string.")
     clean_engine = engine.strip().upper()
     if clean_engine not in {"ORCA", "CFOUR", "XTB", "PYSCF"}:
         raise CourseAccessError("Unsupported calculation engine for student Colab offload.")
-    if not isinstance(geometry_xyz, str) or not geometry_xyz.strip():
-        raise CourseAccessError("Cartesian geometry coordinates are required for Colab offload.")
+    clean_xyz, clean_method, clean_basis, clean_estimate = _validate_colab_scientific_inputs(
+        geometry_xyz=geometry_xyz, method=method, basis_set=basis_set,
+        charge=charge, multiplicity=multiplicity, is_opt=is_opt, is_freq=is_freq,
+        estimated_cu=estimated_cu,
+    )
+    if repository is not None and not isinstance(repository, str):
+        raise CourseAccessError("Repository must be a repository-name string or None.")
     clean_repo = repository_name(repository) if repository else None
     lowered = f"{clean_job}\n{method}\n{basis_set or ''}\n{geometry_xyz}".lower()
     if any(marker in lowered for marker in _FORBIDDEN_CREDENTIALS):
@@ -373,25 +476,24 @@ def package_student_colab_request(
         allowance = quota_manager.record_student_cu_usage(
             clean_student,
             clean_job,
-            estimated_cu,
+            clean_estimate,
             enforce_cap=True,
         )
         allowance_dict = allowance.to_dict()
 
-    clean_xyz = geometry_xyz.strip()
     payload: dict[str, Any] = {
         "schema": SCHEMA_REQUEST,
         "job_id": clean_job,
         "student_id": clean_student,
         "repository": clean_repo,
         "engine": clean_engine,
-        "method": method.strip(),
-        "basis_set": basis_set.strip() if isinstance(basis_set, str) and basis_set.strip() else None,
-        "charge": int(charge),
-        "multiplicity": int(multiplicity),
-        "is_opt": bool(is_opt),
-        "is_freq": bool(is_freq),
-        "estimated_cu": round(float(estimated_cu), 4),
+        "method": clean_method,
+        "basis_set": clean_basis,
+        "charge": charge,
+        "multiplicity": multiplicity,
+        "is_opt": is_opt,
+        "is_freq": is_freq,
+        "estimated_cu": round(clean_estimate, 4),
         "geometry_xyz": clean_xyz,
         "geometry_sha256": hashlib.sha256(clean_xyz.encode("utf-8")).hexdigest(),
         "dispatch_token_fingerprint": token_fingerprint,

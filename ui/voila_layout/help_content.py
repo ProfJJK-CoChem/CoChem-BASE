@@ -37,6 +37,17 @@ HELP_CONTENT = {
          "Local means the computer running BASE, which can itself be a Codespace. HPC requires an institution's configured cluster."),
         ("Access, billing, program availability and actual execution are separate checks.",
          "Do not create another project or enter credentials to work around an unexplained access error.")),
+    "gpu_colab": _topic(
+        "GPU calculations and Google Colab", ("GPU", "Colab", "Google Colab", "graphics processor", "remote GPU", "GPU calculation"),
+        "A GPU is a processor that can speed up certain calculations when the chosen engine supports it. Google Colab provides a remote computer that may have a GPU.",
+        "Codespaces displays your interface, Actions can coordinate work, and a supported Colab backend would perform the GPU calculation. These computers have separate availability and permissions.",
+        "Use a GPU route when your assignment and its supported engine require it. Student Colab submission is currently unavailable while its connection and returned results are verified.",
+        "1 · Setup shows the available calculation routes. Keep using the prepared route specified in your assignment.",
+        ("Keep your molecule, charge, spin and method settings when a provider is unavailable.",
+         "Show your instructor the status message if the assignment requires that provider.",
+         "Your instructor prepares access; you do not enter Google credentials, install modules or run terminal commands."),
+        ("A GPU does not make a method more accurate or establish that a structure is the correct isomer.",
+         "An ORCA, CFOUR or xTB job does not automatically use a GPU. An unavailable provider affects only operations that require it.")),
     "scientific_inputs": _topic(
         "Upload a structure or scientific dataset", ("upload", "what file", "XYZ", "MOL", "SDF", "MOL2", "PDB", "QCSchema", "CIF", "file contents"),
         "A structure file records atoms and their positions. Other scientific files can contain several structures, calculated properties, a Hessian or a periodic cell.",

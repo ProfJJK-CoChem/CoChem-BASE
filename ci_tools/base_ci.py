@@ -38,6 +38,7 @@ ROOT_INFRASTRUCTURE = {"pyproject.toml", "pytest.ini", "pytest-srs.ini", "pytest
 RUNTIME_INFRASTRUCTURE = ("src/cochem_base/orchestrator/", "src/cochem_base/core_engine/", "src/cochem_base/calc/")
 RUNTIME_RUNNERS = {"src/cochem_base/interfaces/module_execution.py", "src/cochem_base/interfaces/module_registry.py",
                    "src/cochem_base/interfaces/course_access.py",
+                   "src/cochem_base/interfaces/student_colab.py",
                    "src/cochem_base/cli.py",
                    "src/cochem_base/interfaces/student_setup.py", "src/cochem_base/interfaces/student_actions.py",
                    "src/cochem_base/interfaces/student_hpc.py", "src/cochem_base/interfaces/actions_jobs.py",

@@ -10,6 +10,8 @@ without ever exposing the instructor's Google Colab OAuth token (`token.json`).
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -20,15 +22,42 @@ from typing import Any
 
 sys.dont_write_bytecode = True
 
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+def _local_colab_contract():
+    root = Path(__file__).resolve().parents[1]
+    # Checkout and installed-wheel layouts, bound to this CLI's own location.
+    candidates = [path.resolve() for path in (
+        root / "src/cochem_base/interfaces/student_colab.py",
+        root / "cochem_base/interfaces/student_colab.py",
+    ) if path.is_file()]
+    if len(candidates) != 1:
+        raise ImportError("Exactly one Colab contract beside this CLI is required")
+    path = candidates[0]
+    key = "_cochem_colab_source_" + hashlib.sha256(str(path).encode()).hexdigest()
+    cached = sys.modules.get(key)
+    if cached is not None:
+        if Path(cached.__file__).resolve() != path:
+            raise ImportError("The Colab CLI contract cache belongs to another source")
+        return cached
+    spec = importlib.util.spec_from_file_location(key, path)
+    if spec is None or spec.loader is None:
+        raise ImportError("The reviewed Colab contract is unavailable")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[key] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(key, None)
+        raise
+    return module
 
-from cochem_base.interfaces.course_access import CourseAccessError, GitHubAPI, repository_name
-from cochem_base.interfaces.student_colab import (
-    SCHEMA_RESULT,
-    package_student_colab_request,
-    submit_student_colab_issue,
-)
+
+contract = _local_colab_contract()
+CourseAccessError = contract.CourseAccessError
+GitHubAPI = contract.GitHubAPI
+repository_name = contract.repository_name
+SCHEMA_RESULT = contract.SCHEMA_RESULT
+package_student_colab_request = contract.package_student_colab_request
+submit_student_colab_issue = contract.submit_student_colab_issue
 
 
 def _github_token() -> str:

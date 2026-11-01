@@ -50,6 +50,35 @@ def test_build_and_runtime_configuration_inputs_are_in_the_reviewed_ring(tmp_pat
         verify_source_binding(root, expected_revision=revision)
 
 
+@pytest.mark.parametrize("violation", ["changed", "omitted"])
+def test_colab_sender_integrity_refuses_before_execution(tmp_path, violation):
+    root, _ = repository(tmp_path, CONTROL_TEST)
+    name = "src/cochem_base/interfaces/student_colab.py"
+    target = root / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("# Engineering-only credential-boundary integrity control.\n")
+    review_ring(root)
+    revision = commit(root)
+    assert verify_source_binding(root, expected_revision=revision)["infrastructure_ring"]["passed"]
+    ring = root / INFRASTRUCTURE_RING
+    record = json.loads(ring.read_bytes())
+    assert name in record["files"]
+    if violation == "changed":
+        target.write_bytes(target.read_bytes() + b"# Unreviewed sender change.\n")
+    else:
+        record["files"].pop(name)
+        ring.write_text(json.dumps(record) + "\n")
+    revision = commit(root)
+    before = (target.read_bytes(), ring.read_bytes())
+    output = tmp_path / "evidence"
+    with pytest.raises(InfrastructureIntegrityError, match="Reviewed infrastructure ring"):
+        run_profile(root, output, expected_revision=revision)
+    report = json.loads((output / "test-acceptance.json").read_text())
+    assert not report["executed"] and not report["passed"]
+    assert not (output / "pytest-outcomes.json").exists()
+    assert (target.read_bytes(), ring.read_bytes()) == before
+
+
 def test_initial_comment_tampering_refused_before_test_with_unchanged_seals(tmp_path):
     root, revision = repository(tmp_path, CONTROL_TEST)
     target = root / "ci_tools/process_runner.py"

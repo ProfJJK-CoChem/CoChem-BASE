@@ -100,6 +100,7 @@ when finished.
 | Help with a missing button, unavailable engine or setup message | [Troubleshooting](.docs/GET_STARTED.md#understand-a-setup-message) |
 | Supported inputs, monomers/complexes, TOPOS/TORQ analyses and interpreting results | [Scientific research guide](.docs/Student_Research_No_Code.md) |
 | Instructor preparation for personal student projects | [Instructor access setup](.docs/GET_STARTED.md#instructor-prepare-student-access) |
+| Optional Colab GPU access, current limits and instructor secret setup | [Colab GPU setup](.docs/Google_Colab_GPU_Setup.md) |
 | Classroom50 assignment submission and collection | [Classroom50 guide](.docs/Classroom50_Assignment_Deployment.md) |
 
 Classroom50 provides your course instructions and submission route. Your private

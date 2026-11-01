@@ -1,0 +1,122 @@
+{
+  "cases": [
+    {
+      "browser_report_sha256": "b3d1466745cbda656f30ee8951bae54b3e31cbbbdc1ccd1d51f37af2da7caf1d",
+      "case": "empty",
+      "kernel_gone": true,
+      "ledger_unchanged": true,
+      "methods": [
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/ref/heads/cochem-student-admission-v1"
+        }
+      ],
+      "passed": true,
+      "science_dispatches": 0,
+      "service": {
+        "command": [
+          "/tmp/cochem-ui-epoch-f90-20261031/ui-env/bin/python",
+          "-B",
+          "/tmp/chd-a8-6/boundary/cochem_exec_176a978e-9ba8-4ce0-9e88-b17e6978aa6e/scripts/student_voila.py",
+          "/tmp/chd-a8-6/empty/actual-gui.ipynb",
+          "--no-browser",
+          "--port=53911",
+          "--Voila.ip=127.0.0.1",
+          "--Voila.port_retries=0"
+        ],
+        "created": 1793504305.8,
+        "pid": 153989,
+        "state": "running"
+      }
+    },
+    {
+      "browser_report_sha256": "8f1866c894d72d41a7ceaab2e40057fa22bb10e0959f06f106a34af5570104c3",
+      "case": "held",
+      "kernel_gone": true,
+      "ledger_unchanged": true,
+      "methods": [
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/ref/heads/cochem-student-admission-v1"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/commits/17a67efe7e943616683e6fbd5c29e4b652ffd3b2"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/trees/c192b7d10190e91b380492e79efbcd19dd73c7a6"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/blobs/79d10c1ae83d511ed8311ae7e13c76ed50ce1dac"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/blobs/445d760b725696ce1c6aef8fe6fe15a08ca25877"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/blobs/41e7d76c1ad56ac4daafbf5ffd4f8a2af835bf66"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/commits/958c9e6ecb4c72ba4ac57b81a4055c90af6153ad"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/trees/66de13170dcddf93b1a0329ccfcf1823671e77b5"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/blobs/977a911839e0b59563a8d1e7c68ac956faf8d118"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/ref/heads/cochem-student-admission-v1"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/ref/heads/cochem-student-admission-v1"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/actions/workflows/123/runs"
+        },
+        {
+          "method": "GET",
+          "path": "/repos/engineering/hosted-dom/git/ref/heads/cochem-student-admission-v1"
+        }
+      ],
+      "passed": true,
+      "science_dispatches": 0,
+      "service": {
+        "command": [
+          "/tmp/cochem-ui-epoch-f90-20261031/ui-env/bin/python",
+          "-B",
+          "/tmp/chd-a8-6/boundary/cochem_exec_176a978e-9ba8-4ce0-9e88-b17e6978aa6e/scripts/student_voila.py",
+          "/tmp/chd-a8-6/held/actual-gui.ipynb",
+          "--no-browser",
+          "--port=45731",
+          "--Voila.ip=127.0.0.1",
+          "--Voila.port_retries=0"
+        ],
+        "created": 1793504318.79,
+        "pid": 154335,
+        "state": "running"
+      }
+    }
+  ],
+  "native_or_external_denials": [],
+  "passed": true,
+  "payloads_started": 0,
+  "scope": "Two actual GUI DOM/owned Git-HTTP metadata engineering cases only; zero chemistry, live GitHub or student-platform acceptance"
+}

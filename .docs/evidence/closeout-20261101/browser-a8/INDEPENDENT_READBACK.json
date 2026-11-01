@@ -1,0 +1,67 @@
+{
+  "schema": "cochem.actual-dom-independent-readback/1",
+  "verdict": "CLEAR_TWO_REAL_ENGINEERING_DOM_CASES",
+  "source_revision": "a8c876240d493ef0b87220942edf5ee5056416f6",
+  "originals": {
+    "OWNER_TERMINAL.json": "c57592c1305c61c6bc0c934e7b2cd09ce88ab577d0a8a5be827327253e9e8be1",
+    "driver-terminal.json": "21784a31c72665e8151df03f0cf7e5384849c549f3afdc76b5cf0b3bb8e2ef47",
+    "source-origins.json": "d7c024dfd58c682421b5a42419eca89543507616f3a13fed418000c06485652d",
+    "empty/case-terminal.json": "1c8b06930bc76d3b1557b0b2f5b94348a4265760e3a55777ed1689a812f8461c",
+    "empty/browser-report.json": "b3d1466745cbda656f30ee8951bae54b3e31cbbbdc1ccd1d51f37af2da7caf1d",
+    "empty/kernel-bound.json": "b311fbec242d6d241caedf40fbba49d9741a5fc1771da27d0c776fcd323e43ff",
+    "empty/kernel-state.json": "6f9ad784696b315dbc772bbc460e6f0730446201ac595cc43cd8d48f122ad923",
+    "empty/actual-dom.png": "bc1f46cf6650e30c40c11f16a46f518f676bfbeb068f2aa81f3ea321b4079329",
+    "held/case-terminal.json": "a5933d01f9b034b688bf60f45c2ce1913334afa0ae3e37d55db87eb74749227a",
+    "held/browser-report.json": "8f1866c894d72d41a7ceaab2e40057fa22bb10e0959f06f106a34af5570104c3",
+    "held/kernel-bound.json": "9341b5aa78b3e6636762aa32747cd38f981d44f1cdd9f48083423da05e694369",
+    "held/kernel-state.json": "2748fb2244fb4dd078ef42154c19774eeff0a2cd40ff9597f50f8767c41d8008",
+    "held/actual-dom.png": "8cb3fab32900e1249cf0bfb1d145f35905d23501f63eb8f0ea1f6559756c90c5"
+  },
+  "cases": [
+    {
+      "case": "empty",
+      "passed": true,
+      "metadata_GETs": 2,
+      "check_clicks": 1,
+      "run_clicked": false,
+      "science_dispatches": 0,
+      "kernel_pid": 154125,
+      "source_instance": "a8e9bf4dd4ab4aceba099eedb7fc5adb",
+      "tracking_reopens": 0
+    },
+    {
+      "case": "held",
+      "passed": true,
+      "metadata_GETs": 14,
+      "check_clicks": 1,
+      "run_clicked": false,
+      "science_dispatches": 0,
+      "kernel_pid": 154468,
+      "source_instance": "fb0727a2e9cf4d6cae6249ef6f3efb20",
+      "tracking_reopens": 2
+    }
+  ],
+  "source_origin_records": 14,
+  "paired_instances": 7,
+  "startup_only": 0,
+  "authority_errors": 0,
+  "owner_elapsed_seconds": 56.03036651900038,
+  "owner_exit_code": 0,
+  "owned_boundary_empty": true,
+  "owner_verified_preservation": {
+    "protected_entries": 39055,
+    "ui_prefix_entries": 39139
+  },
+  "checks": [
+    "Root expected OWNERc57592c1 and driver21784a31 hashes match. Both actual case terminal/report hashes and all semantic pass fields checked.",
+    "Empty: one explicit Check, genuine empty ledger, lease released, Run enabled but never clicked, original draft/target preserved. Held: one Check, dispatch_intent/exact UUID/Run held, one genuine read-only Refresh, tracking disclosure opened twice from closed state with exact UUID and real visibility/open checkpoints.",
+    "Both actual metadata servers observed only GET, zero science dispatches/payloads, ledger unchanged, kernels gone, standard shutdown204, no page errors/unexpected external requests; both exact cosmetic styles aborted and never loaded.",
+    "Actual kernel PID/startticks/instance/lexical UI interpreter bound to matching initial and final source receipts. Fourteen genuine records, seven paired instances, zero startup-only or authority errors.",
+    "Owner real terminal0/owned empty and source/protected39055/UI39139 preservation fields inspected. Two final screenshots viewed."
+  ],
+  "screenshot_scope": "Final draft/method views; tracking cycles proved by retained actual DOM checkpoints/assertions, not inferred from screenshots.",
+  "scope": "Real local GUI and owned Git/HTTP metadata engineering only; no native, scientific Run/Submit, live GitHub, student-platform or full-platform qualification.",
+  "history": "Earlier five failures remain distinct; no receipts overwritten.",
+  "reviewer_new_runtime": false,
+  "readback_checker_note": "Initial metadata-only checker assumed escaped exists in initial records; corrected to check it only on actual final records. No original or source modification."
+}

@@ -1,0 +1,493 @@
+{
+  "actual_button_clicks": [
+    "3 \u00b7 Run assigned calculation",
+    "Show Advanced: choose another method family",
+    "Show Calculation resources and frequency guidance",
+    "Show Advanced: output location and reproducibility export",
+    "Show Edit XYZ coordinates directly",
+    "4 \u00b7 Read and save results",
+    "Show Saved calculations in this workspace",
+    "Check saved project request",
+    "1 \u00b7 Setup",
+    "4 \u00b7 Read and save results",
+    "Refresh calculation status",
+    "1 \u00b7 Setup",
+    "Show Project details (normally filled in automatically)",
+    "3 \u00b7 Run assigned calculation"
+  ],
+  "actual_state": {
+    "admission_phase": "dispatch_intent",
+    "catalog_idle": true,
+    "check_disabled": true,
+    "checked": [
+      "engineering/hosted-dom",
+      "main"
+    ],
+    "gui_source_sha256": "f36862c3b10a1f413dcbfb7cebc2543f3f945cd772088db1179e461db62ce5ec",
+    "native_or_external_denials": [],
+    "observed_monotonic": 19451.433691264,
+    "pid": 154468,
+    "pipeline_running": false,
+    "pipeline_worker_present": false,
+    "prefix": "/tmp/cochem-ui-epoch-f90-20261031/ui-env",
+    "python": "/tmp/cochem-ui-epoch-f90-20261031/ui-env/bin/python",
+    "recovery_worker_alive": false,
+    "refresh_disabled": false,
+    "refresh_label": "Refresh calculation status",
+    "request_id": "2b95b278-bc3c-42c0-8143-dd601350af96",
+    "run_disabled": true,
+    "source": "/tmp/chd-a8-6/boundary/cochem_exec_176a978e-9ba8-4ce0-9e88-b17e6978aa6e",
+    "source_instance": "fb0727a2e9cf4d6cae6249ef6f3efb20",
+    "source_revision": "a8c876240d493ef0b87220942edf5ee5056416f6",
+    "state_operation_none": true,
+    "target": [
+      "engineering/hosted-dom",
+      "main"
+    ],
+    "ticks": "1944428"
+  },
+  "case": "held",
+  "expected_blocked_ui_styles": [
+    {
+      "abort_acknowledged": true,
+      "loaded": false,
+      "method": "GET",
+      "resource_type": "stylesheet",
+      "url": "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/all.min.css"
+    },
+    {
+      "abort_acknowledged": true,
+      "loaded": false,
+      "method": "GET",
+      "resource_type": "stylesheet",
+      "url": "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@%5E5/css/v4-shims.min.css"
+    }
+  ],
+  "expected_held_assertion": true,
+  "external_requests": [],
+  "kernel_shutdown_http_status": 204,
+  "page_errors": [],
+  "passed": true,
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/templates/lab/static/voila-style.js"
+    },
+    {
+      "method": "GET",
+      "path": "/npm/@fortawesome/fontawesome-free@%5E5/css/all.min.css"
+    },
+    {
+      "method": "GET",
+      "path": "/npm/@fortawesome/fontawesome-free@%5E5/css/v4-shims.min.css"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/templates/lab/static/index.css"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/templates/lab/static/theme-light.css"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/5764.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/8135.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/3992.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/9582.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/8925.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/7883.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/7556.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/6049.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/1670.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/6573.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/3311.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/4135.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/1621.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/3916.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/3649.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/8487.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/9684.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/4041.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/143.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/7155.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/3144.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/1601.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/4972.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/9890.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/5312.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/6468.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/3459.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/630.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/5688.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/2930.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/73.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/1187.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/4173.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/7483.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/431.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/3989.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/8766.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/9151.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/4729.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/6382.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/5044.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/7598.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/9081.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/7770.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/3249.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/4653.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/8862.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/9981.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/5767.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/4222.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/8773.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/3307.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/6008.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/8017.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/457.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/9212.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/jupyterlab_pygments/static/remoteEntry.5cbb9d2323598fbda535.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/remoteEntry.c8c9eed2cdefdeac.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@voila-dashboards/widgets-manager8/static/remoteEntry.be18471aaf567c023b03.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/jupyterlab_pygments/static/568.1e2faa2ba0bbe59c4780.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/jupyterlab_pygments/static/747.67662283a5707eeb4d4c.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/7.2a0ce575775f5aad.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/704.6a820cc839aca480.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/170.3ff9ceddc3770116.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/84.09c61a35dce1705f.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/32.3281b05d23655ae8.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/452.1926530ab7f8e046.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/967.38afcd794ba10728.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/160.235911d8e26dc735.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@voila-dashboards/widgets-manager8/static/883.369fbd92285483263252.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@voila-dashboards/widgets-manager8/static/496.ad7666673ba278088e95.js"
+    },
+    {
+      "method": "GET",
+      "path": "/api/kernels/94609797-423f-4147-8f50-80928ae5e9a7"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/4371.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/2829.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/7259.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/6074.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/4875.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/4486.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/6305.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/7393.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/225.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/614.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/1996.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/2121.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/2772.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/2296.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/7245.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/5992.voila.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/718.a7a3f80ef4813fab.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/labextensions/@jupyter-widgets/jupyterlab-manager/static/121.5c5a442bc10a67ee.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/static/cochem-base/molecule-viewer/3Dmol-2.5.5-min.js"
+    },
+    {
+      "method": "GET",
+      "path": "/voila/templates/lab/static/9834b82ad26e2a37583d.woff2"
+    }
+  ],
+  "same_draft": true,
+  "same_target": true,
+  "tracking_checkpoints": [
+    {
+      "details_visible": true,
+      "disclosure_count": 1,
+      "open_after": "",
+      "open_before": null,
+      "phase": "after_results_navigation",
+      "summary_count": 1,
+      "summary_visible": true
+    },
+    {
+      "details_visible": true,
+      "disclosure_count": 1,
+      "open_after": "",
+      "open_before": null,
+      "phase": "after_refresh_rerender",
+      "summary_count": 1,
+      "summary_visible": true
+    }
+  ],
+  "tracking_reopens": 2,
+  "tracking_uuid": "2b95b278-bc3c-42c0-8143-dd601350af96"
+}

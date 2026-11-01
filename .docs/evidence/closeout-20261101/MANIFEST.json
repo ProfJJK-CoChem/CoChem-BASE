@@ -1,0 +1,152 @@
+{
+  "schema": "cochem-closeout-evidence/1",
+  "source_revision": "498eab152168e711c8b0a0411fdc6e6ba887581b",
+  "actual_selected_gate": {
+    "passed": 193,
+    "failed": 0,
+    "skipped": 0,
+    "pending": 0,
+    "selected_functions": 49
+  },
+  "scope": "Selected local engineering only. No hosted student, full SRS, platform-wide or GPU release claim.",
+  "browser": {
+    "source_revision": "a8c876240d493ef0b87220942edf5ee5056416f6",
+    "passed_cases": 2,
+    "scope": "Local real GUI plus owned Git/HTTP fixture. Run tab navigation occurred; actual calculation submission was not clicked. No native chemistry or student account/Codespace execution.",
+    "screenshots": "Final draft views; held tracking/reopen proof is in browser-report.json."
+  },
+  "files": [
+    {
+      "path": "OWNER_TERMINAL.json",
+      "bytes": 898,
+      "sha256": "b6a951dd35dcb779be9bcf88f951c71b6f08f45726e0de4b8b809972c9650fbf",
+      "original_source": "/tmp/cochem-safe-main-498eab1-20261101/actual/OWNER_TERMINAL.json",
+      "original_bytes": true
+    },
+    {
+      "path": "WORKER_RECEIPT.json",
+      "bytes": 8480,
+      "sha256": "13b19a546047c59359d228bde05077db476b7c3bebb7a8ef63256b09c3ca0395",
+      "original_source": "/tmp/cochem-safe-main-498eab1-20261101/actual/WORKER_RECEIPT.json",
+      "original_bytes": true
+    },
+    {
+      "path": "profile/source-audit.json",
+      "bytes": 161783,
+      "sha256": "3ab5f7438690f5e7daa2b6d03212c13bb88b8ba71debcbc267da789491e63934",
+      "original_source": "/tmp/cochem-safe-main-498eab1-20261101/actual/profile/source-audit.json",
+      "original_bytes": true
+    },
+    {
+      "path": "profile/test-acceptance.json",
+      "bytes": 8276,
+      "sha256": "cdd270d63e40bfd9213f56b13d2b92067aa1d1bd69626051be3cbd720c4c3c34",
+      "original_source": "/tmp/cochem-safe-main-498eab1-20261101/actual/profile/test-acceptance.json",
+      "original_bytes": true
+    },
+    {
+      "path": "profile/pytest.xml",
+      "bytes": 32589,
+      "sha256": "36503b104871e23872f0e468c52cb449787477101c3a29a158ae10472280b07c",
+      "original_source": "/tmp/cochem-safe-main-498eab1-20261101/actual/profile/pytest.xml",
+      "original_bytes": true
+    },
+    {
+      "path": "profile/pytest-outcomes.json",
+      "bytes": 151777,
+      "sha256": "57f838e031c482520daba61b57e9e69bb35eece2a2b445984fa55466f3deee1b",
+      "original_source": "/tmp/cochem-safe-main-498eab1-20261101/actual/profile/pytest-outcomes.json",
+      "original_bytes": true
+    },
+    {
+      "path": "source-composition.json",
+      "bytes": 3925,
+      "sha256": "05050dbb323aaba5ae1a05a401183a4f2c576f147130f44c1b789896f3c2f740",
+      "original_source": "/workspace/.completion/safe-main-close-20261101/MANIFEST.json",
+      "original_bytes": true
+    },
+    {
+      "path": "source-review.json",
+      "bytes": 2718,
+      "sha256": "d95a2983dfe62015c0bfe20126e4342aa16c6836712ac226844b92474682d020",
+      "original_source": "/workspace/.completion/safe-main-close-20261101/ASTRA_SAFE_COMPOSITION_REVIEW.json",
+      "original_bytes": true
+    },
+    {
+      "path": "browser-a8/OWNER_TERMINAL.json",
+      "bytes": 1627,
+      "sha256": "c57592c1305c61c6bc0c934e7b2cd09ce88ab577d0a8a5be827327253e9e8be1",
+      "original_source": "/tmp/chd-a8-6/OWNER_TERMINAL.json",
+      "original_bytes": true
+    },
+    {
+      "path": "browser-a8/driver-terminal.json",
+      "bytes": 4011,
+      "sha256": "21784a31c72665e8151df03f0cf7e5384849c549f3afdc76b5cf0b3bb8e2ef47",
+      "original_source": "/tmp/chd-a8-6/driver-terminal.json",
+      "original_bytes": true
+    },
+    {
+      "path": "browser-a8/empty/browser-report.json",
+      "bytes": 11645,
+      "sha256": "b3d1466745cbda656f30ee8951bae54b3e31cbbbdc1ccd1d51f37af2da7caf1d",
+      "original_source": "/tmp/chd-a8-6/empty/browser-report.json",
+      "original_bytes": true
+    },
+    {
+      "path": "browser-a8/held/browser-report.json",
+      "bytes": 12107,
+      "sha256": "8f1866c894d72d41a7ceaab2e40057fa22bb10e0959f06f106a34af5570104c3",
+      "original_source": "/tmp/chd-a8-6/held/browser-report.json",
+      "original_bytes": true
+    },
+    {
+      "path": "browser-a8/empty/actual-dom.png",
+      "bytes": 106434,
+      "sha256": "bc1f46cf6650e30c40c11f16a46f518f676bfbeb068f2aa81f3ea321b4079329",
+      "original_source": "/tmp/chd-a8-6/empty/actual-dom.png",
+      "original_bytes": true
+    },
+    {
+      "path": "browser-a8/held/actual-dom.png",
+      "bytes": 106435,
+      "sha256": "8cb3fab32900e1249cf0bfb1d145f35905d23501f63eb8f0ea1f6559756c90c5",
+      "original_source": "/tmp/chd-a8-6/held/actual-dom.png",
+      "original_bytes": true
+    },
+    {
+      "path": "browser-a8/INDEPENDENT_READBACK.json",
+      "bytes": 4066,
+      "sha256": "4478bb447656c4e81759e3da06bf126768572425d1cd2890ae8b96ff07fd3853",
+      "original_source": "/workspace/.completion/hosted-helper-dom-independent-review-20261101/ACTUAL_ATTEMPT6_READBACK.json",
+      "original_bytes": true
+    },
+    {
+      "path": "INDEPENDENT_READBACK.json",
+      "sha256": "466ffd67ced0cc0b326b6dd5f08acbca2709c048a2c0afc5fb360a6418790f2f",
+      "bytes": 1155,
+      "original_bytes": false,
+      "description": "Explicitly curated BASE-only projection"
+    },
+    {
+      "path": "ci-a8/ARTIFACT_MANIFEST.json",
+      "bytes": 1369,
+      "sha256": "387610c9d4df2aeae1c39af549722c40f400e1c489e225e5f4e25a58fb36e3af",
+      "original_source": "/tmp/cochem-a8-ci-first-failures-20261101/ARTIFACT_MANIFEST.json",
+      "original_bytes": true
+    },
+    {
+      "path": "ci-a8/run-terminal.json",
+      "bytes": 13179,
+      "sha256": "155cc0a2fd21f7b17637b99d264fc0499740b2224b7a6ef5177b4014bcb88e5c",
+      "original_source": "/tmp/cochem-a8-ci-first-failures-20261101/run-terminal.json",
+      "original_bytes": true
+    }
+  ],
+  "experimental_ci": {
+    "source_revision": "a8c876240d493ef0b87220942edf5ee5056416f6",
+    "url": "https://github.com/ProfJJK-CoChem/CoChem-BASE/actions/runs/41269156669",
+    "conclusion": "failure",
+    "limitation": "Both macOS jobs failed; dependent scientific/dashboard jobs skipped. Original metadata and five artifact digests retained; hosted artifacts are subject to GitHub retention."
+  }
+}

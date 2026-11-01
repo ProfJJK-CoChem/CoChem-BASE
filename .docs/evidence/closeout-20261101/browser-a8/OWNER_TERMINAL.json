@@ -1,0 +1,60 @@
+{
+  "child_cleanup": {
+    "admitted_before_exec": true,
+    "collection_observation": "owned-boundary-empty",
+    "external_reaping_pending": [],
+    "launcher_create_time": 1793504304.9,
+    "launcher_pid": 153984,
+    "launcher_returncode": 0,
+    "owned_work_stopped": true,
+    "ownership_scope": "posix-group"
+  },
+  "child_exit_code": 0,
+  "child_passed": true,
+  "child_timed_out": false,
+  "cleanup_observations": [
+    {
+      "admitted_before_exec": true,
+      "collection_observation": "owned-boundary-empty",
+      "external_reaping_pending": [],
+      "launcher_create_time": 1793504304.9,
+      "launcher_pid": 153984,
+      "launcher_returncode": 0,
+      "owned_work_stopped": true,
+      "ownership_scope": "posix-group"
+    }
+  ],
+  "elapsed_seconds": 56.03036651900038,
+  "owned_boundary_empty": true,
+  "owner_exit_code": 0,
+  "owner_pid": 153862,
+  "owner_ticks": "1940795",
+  "passed": true,
+  "protected_after": {
+    "protected_entries": 39055,
+    "ui_prefix_entries": 39139
+  },
+  "protected_before": {
+    "protected_entries": 39055,
+    "ui_prefix_entries": 39139
+  },
+  "resource_before": {
+    "cgroup_headroom_bytes": 17963659264,
+    "free_bytes": 12498276352,
+    "sample_not_quota": true
+  },
+  "scope": "Real GUI + owned Git/HTTP engineering only; no student platform/science proof",
+  "source_revision": "a8c876240d493ef0b87220942edf5ee5056416f6",
+  "source_unchanged": true,
+  "start_epoch": 1793504285.1183803,
+  "synthetic_credential_cleanup": [
+    {
+      "case": "empty",
+      "state": "already-absent"
+    },
+    {
+      "case": "held",
+      "state": "already-absent"
+    }
+  ]
+}

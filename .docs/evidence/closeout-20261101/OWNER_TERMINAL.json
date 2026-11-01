@@ -1,0 +1,26 @@
+{
+  "scope": "Selected immutable BASE local engineering; no hosted/App/chemistry/fullSRS claim",
+  "owner_pid": 158296,
+  "owner_start_ticks": "2002606",
+  "GO_sha256": "553c9c0141c566fb0c18f580125a71c02fcb1b6b46968a1661e0d9785b5d3b18",
+  "started_epoch": 1793504903.48016,
+  "passed": true,
+  "child_exit_code": 0,
+  "child_timed_out": false,
+  "worker_receipt_sha256": "13b19a546047c59359d228bde05077db476b7c3bebb7a8ef63256b09c3ca0395",
+  "actual_cleanup_observations": [
+    {
+      "launcher_pid": 158313,
+      "launcher_returncode": 0,
+      "owned_work_stopped": true,
+      "ownership_scope": "posix-group",
+      "collection_observation": "owned-boundary-empty",
+      "launcher_create_time": 1793504903.42,
+      "admitted_before_exec": true,
+      "external_reaping_pending": []
+    }
+  ],
+  "owned_boundary_empty": true,
+  "elapsed_seconds": 54.71435904502869,
+  "owner_exit_code": 0
+}

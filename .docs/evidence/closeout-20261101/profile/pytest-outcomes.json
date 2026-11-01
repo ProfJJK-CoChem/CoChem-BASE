@@ -1,0 +1,4644 @@
+{
+  "schema_version": 1,
+  "exit_code": 0,
+  "collected": 193,
+  "collected_nodeids": [
+    "tests/base/test_course_project_access.py::test_colab_binding_variable_and_sync_calculation_access",
+    "tests/base/test_course_project_access.py::test_sync_requires_authoritative_config_and_explicit_identity[raw-writer]",
+    "tests/base/test_course_project_access.py::test_sync_requires_authoritative_config_and_explicit_identity[missing-author]",
+    "tests/base/test_course_project_access.py::test_sync_requires_authoritative_config_and_explicit_identity[missing-controller]",
+    "tests/base/test_course_project_access.py::test_sync_requires_authoritative_config_and_explicit_identity[other-author]",
+    "tests/base/test_course_project_access.py::test_sync_requires_authoritative_config_and_explicit_identity[other-repository-id]",
+    "tests/base/test_course_project_access.py::test_sync_optional_colab_addition_preserves_exact_controller_fields",
+    "tests/base/test_course_project_access.py::test_sync_conflicting_or_alternate_secret_inputs_refuse_before_writes[conflicting-token]",
+    "tests/base/test_course_project_access.py::test_sync_conflicting_or_alternate_secret_inputs_refuse_before_writes[raw-reader]",
+    "tests/base/test_course_project_access.py::test_sync_conflicting_or_alternate_secret_inputs_refuse_before_writes[custom-label]",
+    "tests/base/test_course_project_access.py::test_sync_conflicting_or_alternate_secret_inputs_refuse_before_writes[empty-token]",
+    "tests/base/test_course_project_access.py::test_unowned_colab_actions_collision_is_preserved_before_writes",
+    "tests/base/test_course_project_access.py::test_absent_colab_keeps_unrelated_fixed_secrets_and_regular_enrollment",
+    "tests/base/test_course_project_access.py::test_signed_legacy_colab_rotation_preserves_old_values_until_switch",
+    "tests/base/test_course_project_access.py::test_signed_colab_without_replacement_config_holds_every_store",
+    "tests/base/test_course_project_access.py::test_unreadable_colab_ownership_cannot_authorize_mutation",
+    "tests/base/test_course_project_access.py::test_colab_secret_delivery_never_claims_provider_verification[False]",
+    "tests/base/test_course_project_access.py::test_colab_secret_delivery_never_claims_provider_verification[True]",
+    "tests/base/test_course_project_access.py::test_actual_http_provisions_encrypted_actions_and_codespaces_separately",
+    "tests/base/test_course_project_access.py::test_rotation_uses_new_private_labels_and_updates_existing_vars",
+    "tests/base/test_course_project_access.py::test_ownership_membership_and_private_boundaries_refuse_before_writes[peer0]",
+    "tests/base/test_course_project_access.py::test_ownership_membership_and_private_boundaries_refuse_before_writes[peer1]",
+    "tests/base/test_course_project_access.py::test_ownership_membership_and_private_boundaries_refuse_before_writes[peer2]",
+    "tests/base/test_course_project_access.py::test_ownership_membership_and_private_boundaries_refuse_before_writes[peer3]",
+    "tests/base/test_course_project_access.py::test_replacement_failure_preserves_previous_bindings_and_owned_retry_record",
+    "tests/base/test_course_project_access.py::test_binding_failure_restores_previous_settings_before_retiring_any_reader",
+    "tests/base/test_course_project_access.py::test_unsigned_existing_access_settings_are_preserved_for_instructor_migration",
+    "tests/base/test_course_project_access.py::test_unsigned_existing_codespaces_setting_is_never_overwritten",
+    "tests/base/test_course_project_access.py::test_corrupted_trusted_ownership_never_authorizes_deletion[labels]",
+    "tests/base/test_course_project_access.py::test_corrupted_trusted_ownership_never_authorizes_deletion[project_id]",
+    "tests/base/test_course_project_access.py::test_corrupted_trusted_ownership_never_authorizes_deletion[signature]",
+    "tests/base/test_course_project_access.py::test_corrupted_trusted_ownership_never_authorizes_deletion[duplicate]",
+    "tests/base/test_course_project_access.py::test_missing_requested_reader_preserves_interrupted_initial_generation",
+    "tests/base/test_student_colab_validation.py::test_plain_element_v1_payload_and_signing_bytes_are_unchanged",
+    "tests/base/test_student_colab_validation.py::test_valid_electronic_states_keep_their_explicit_coordinates[1\\nhydrogen atom\\nH 0 0 0-0-2]",
+    "tests/base/test_student_colab_validation.py::test_valid_electronic_states_keep_their_explicit_coordinates[2\\nhydrogen\\nH 0 0 0\\nH 0 0 0.74\\n-1-2]",
+    "tests/base/test_student_colab_validation.py::test_valid_electronic_states_keep_their_explicit_coordinates[2\\nhydrogen\\nH 0 0 0\\nH 0 0 0.74\\n-0-3]",
+    "tests/base/test_student_colab_validation.py::test_valid_electronic_states_keep_their_explicit_coordinates[2\\nsalt\\nNa 0 0 0\\nCl 0 0 2.3-0-1]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes0-charge must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes1-charge must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes2-charge must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes3-charge must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes4-charge must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes5-multiplicity must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes6-multiplicity must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes7-multiplicity must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes8-multiplicity must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes9-multiplicity must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes10-multiplicity must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes11-multiplicity must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes12-flags must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes13-flags must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes14-flags must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes15-flags must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes16-flags must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes17-flags must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes18-flags must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes19-flags must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes20-Estimated CU]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes21-Estimated CU]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes22-Estimated CU]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes23-Estimated CU]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes24-Estimated CU]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes25-Estimated CU]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes26-Estimated CU]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes27-Estimated CU]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes28-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes29-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes30-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes31-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes32-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes33-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes34-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes35-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes36-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes37-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes38-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes39-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes40-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes41-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes42-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes43-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes44-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes45-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes46-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes47-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes48-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes49-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes50-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes51-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes52-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes53-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes54-single-line]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes55-incompatible]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes56-incompatible]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes57-incompatible]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes58-incompatible]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes59-must be strings]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes60-must be strings]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes61-engine must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes62-Repository must]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes63-XYZ geometry]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes64-XYZ geometry]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes65-XYZ geometry]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes66-XYZ geometry]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes67-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes68-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes69-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes70-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes71-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes72-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes73-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes74-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes75-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes76-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes77-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes78-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes79-Invalid Colab XYZ]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes80-canonical plain element]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes81-canonical plain element]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes82-canonical plain element]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes83-canonical plain element]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes84-canonical plain element]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes85-canonical plain element]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes86-canonical plain element]",
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes87-canonical plain element]",
+    "tests/base/test_student_colab_validation.py::test_valid_local_accounting_is_advisory_and_canonical_optional_values_remain",
+    "tests/base/test_student_colab_validation.py::test_printable_greek_method_is_not_an_engine_whitelist",
+    "tests/base/test_student_colab_validation.py::test_standalone_colab_cli_in_fresh_stdlib_environment[help]",
+    "tests/base/test_student_colab_validation.py::test_standalone_colab_cli_in_fresh_stdlib_environment[invalid_physical_input]",
+    "tests/base/test_student_colab_validation.py::test_standalone_colab_cli_in_fresh_stdlib_environment[missing_dispatch_credential]",
+    "tests/base/test_course_project_access.py::test_student_colab_monthly_quota_and_request_packaging",
+    "tests/ci_tools/test_pre_execution_integrity.py::test_colab_sender_integrity_refuses_before_execution[changed]",
+    "tests/ci_tools/test_pre_execution_integrity.py::test_colab_sender_integrity_refuses_before_execution[omitted]",
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[chiralty-chirality]",
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[Why are mirror images different?-chirality]",
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[What does R/S mean?-chirality]",
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[What is the difference between isomers and resonance?-isomers]",
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[What does a negative frequency mean?-convergence_frequencies]",
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[What total charge should I enter?-charge_spin]",
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[How do I start my first calculation?-first_calculation]",
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[Did my calculation succeed?-read_results]",
+    "tests/ui/test_learning_search.py::test_deliberate_alias_and_case_variants_rank_chirality_first",
+    "tests/ui/test_learning_search.py::test_search_is_bounded_and_shorter_query_can_recover",
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[0]",
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[-1]",
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[13]",
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[True]",
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[2.5]",
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[6]",
+    "tests/ui/test_learning_search.py::test_help_is_compact_and_uses_labelled_native_input_and_button",
+    "tests/ui/test_learning_search.py::test_live_widget_search_clear_and_context_open_use_the_same_content",
+    "tests/ui/test_learning_search.py::test_repeated_search_does_not_allocate_an_output_model_per_keystroke",
+    "tests/ui/test_learning_search.py::test_empty_and_unknown_topic_states_are_explicit_escaped_and_recoverable",
+    "tests/ui/test_learning_search.py::test_authored_text_is_rendered_as_text_in_every_answer_field",
+    "tests/ui/test_learning_search.py::test_inline_and_search_answers_share_the_same_authored_content",
+    "tests/ui/test_learning_search.py::test_coverage_inventory_reports_unmapped_controls_without_claiming_all_coverage",
+    "tests/ui/test_learning_search.py::test_individual_control_instructions_are_searchable_and_visible[charge_input]",
+    "tests/ui/test_learning_search.py::test_individual_control_instructions_are_searchable_and_visible[matrix_method]",
+    "tests/ui/test_learning_search.py::test_individual_control_instructions_are_searchable_and_visible[btn_actions_retrieve]",
+    "tests/ui/test_learning_search.py::test_real_help_runs_without_credentials_network_or_provider_processes",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[workspace]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[scientific_inputs]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[charge_spin]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[method_basis]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[theory_tiers]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[solvent]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[calculation_types]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[convergence_frequencies]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[fragments_constraints]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[hessian]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[active_space]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[isotopes]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[periodic]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[compare_results]",
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[provenance]",
+    "tests/ui/test_learning_guidance.py::test_guidance_distinguishes_scientific_results_from_inputs_and_estimates",
+    "tests/ui/test_learning_guidance.py::test_input_guidance_covers_ensembles_native_outputs_and_periodic_data",
+    "tests/ui/test_learning_guidance.py::test_glossary_filters_real_terms_case_insensitively_and_can_be_cleared",
+    "tests/ui/test_learning_guidance.py::test_glossary_can_find_chemistry_abbreviations_and_explanations",
+    "tests/ui/test_learning_guidance.py::test_glossary_escapes_search_text_and_explains_empty_results",
+    "tests/ui/test_learning_guidance.py::test_unknown_help_topic_fails_instead_of_silently_displaying_unrelated_guidance",
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[prepared-request prepared]",
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[submitted-submission recorded]",
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[cancellation_requested-waiting for GitHub]",
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[awaiting_workflow-waiting for GitHub]",
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[dispatch_unconfirmed-confirm submission]",
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[dispatching-request received; waiting for the run]",
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[queued-queued; waiting to run]",
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[in_progress-running]",
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[updates_available-updates are available]",
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[rolled_back-previous version restored]",
+    "tests/ui/test_learning_guidance.py::test_unknown_progress_is_not_presented_as_success"
+  ],
+  "collection_errors": [],
+  "deselected": [],
+  "tests": {
+    "tests/base/test_course_project_access.py::test_colab_binding_variable_and_sync_calculation_access": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.1204995410007541
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5950267799998983
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.4917109950001759
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_sync_requires_authoritative_config_and_explicit_identity[raw-writer]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.10359102599977632
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0624302690011973
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.4379291570003261
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_sync_requires_authoritative_config_and_explicit_identity[missing-author]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.03099009300058242
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.07332813099856139
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.42692051099948003
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_sync_requires_authoritative_config_and_explicit_identity[missing-controller]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.07027468600063003
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0546046089984884
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.44597310999961337
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_sync_requires_authoritative_config_and_explicit_identity[other-author]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.04022958800123888
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.05523227600133396
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.44503396499931114
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_sync_requires_authoritative_config_and_explicit_identity[other-repository-id]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.034296317000553245
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.08430844900067314
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5001153009980044
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_sync_optional_colab_addition_preserves_exact_controller_fields": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.11748706900107209
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.2661791569989873
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5005010870008846
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_sync_conflicting_or_alternate_secret_inputs_refuse_before_writes[conflicting-token]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.06787735300167697
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.055883342000015546
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.44448328200087417
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_sync_conflicting_or_alternate_secret_inputs_refuse_before_writes[raw-reader]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.019240898996940814
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.05450606199883623
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.44664179300161777
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_sync_conflicting_or_alternate_secret_inputs_refuse_before_writes[custom-label]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.04747383500216529
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.06386020900026779
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.43655610299902037
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_sync_conflicting_or_alternate_secret_inputs_refuse_before_writes[empty-token]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.016337692002707627
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.05563084999812418
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.44465695200051414
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_unowned_colab_actions_collision_is_preserved_before_writes": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.018399368000245886
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.10213402799854521
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5005392780003604
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_absent_colab_keeps_unrelated_fixed_secrets_and_regular_enrollment": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.08817254899986438
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.27376215599724674
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5004361930004961
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_signed_legacy_colab_rotation_preserves_old_values_until_switch": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.01628582900229958
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.9376926599979925
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5005556780015468
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_signed_colab_without_replacement_config_holds_every_store": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.07317886599776102
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.4857876979986031
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.4659191770006146
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_unreadable_colab_ownership_cannot_authorize_mutation": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.044997011002124054
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.49188932700053556
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.4653649959982431
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_colab_secret_delivery_never_claims_provider_verification[False]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.028941639000549912
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.2638665049998963
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5004486390025704
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_colab_secret_delivery_never_claims_provider_verification[True]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.017306226000073366
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.26096828099980485
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5005550480018428
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_actual_http_provisions_encrypted_actions_and_codespaces_separately": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.017446456997276982
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.25184545400043135
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5004545810006675
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_rotation_uses_new_private_labels_and_updates_existing_vars": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.07098944000244956
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5596369049999339
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5034441460011294
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_ownership_membership_and_private_boundaries_refuse_before_writes[peer0]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.039458463001210475
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.08016756600045483
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5005002279976907
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_ownership_membership_and_private_boundaries_refuse_before_writes[peer1]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.026266307999321725
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.07428403600351885
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5004231729981257
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_ownership_membership_and_private_boundaries_refuse_before_writes[peer2]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.040276147999975365
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.06397567100066226
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5005356570000004
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_ownership_membership_and_private_boundaries_refuse_before_writes[peer3]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.03863397200257168
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0667994519972126
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.500400365999667
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_replacement_failure_preserves_previous_bindings_and_owned_retry_record": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.02587907699853531
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.8363245100008498
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5004084829997737
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_binding_failure_restores_previous_settings_before_retiring_any_reader": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.029409241000394104
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.7647644690005109
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.500559478001378
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_unsigned_existing_access_settings_are_preserved_for_instructor_migration": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.04304294900066452
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.09560060999865527
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.500538421998499
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_unsigned_existing_codespaces_setting_is_never_overwritten": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.039548049000586616
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.11042185800033621
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5004441659984877
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_corrupted_trusted_ownership_never_authorizes_deletion[labels]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.019907844998670043
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.3773377799989248
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.46318187400174793
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_corrupted_trusted_ownership_never_authorizes_deletion[project_id]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.03395564799939166
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.38260283400086337
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.46507503599787015
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_corrupted_trusted_ownership_never_authorizes_deletion[signature]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.05637942899920745
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.36313804000019445
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.46464146099970094
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_corrupted_trusted_ownership_never_authorizes_deletion[duplicate]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.04735155300295446
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.4276516999998421
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5004446560014912
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_missing_requested_reader_preserves_interrupted_initial_generation": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.1006318799991277
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5257775739992212
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.5002150289983547
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_plain_element_v1_payload_and_signing_bytes_are_unchanged": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00030471400168607943
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000587803002417786
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00020737999875564128
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_valid_electronic_states_keep_their_explicit_coordinates[1\\nhydrogen atom\\nH 0 0 0-0-2]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0002721500022744294
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00015719200018793344
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.59889992675744e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_valid_electronic_states_keep_their_explicit_coordinates[2\\nhydrogen\\nH 0 0 0\\nH 0 0 0.74\\n-1-2]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00021013699733885005
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013364799815462902
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.487800055765547e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_valid_electronic_states_keep_their_explicit_coordinates[2\\nhydrogen\\nH 0 0 0\\nH 0 0 0.74\\n-0-3]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00022786599947721697
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00012099399828002788
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.714999861083925e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_valid_electronic_states_keep_their_explicit_coordinates[2\\nsalt\\nNa 0 0 0\\nCl 0 0 2.3-0-1]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000188895999599481
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00012335399878793396
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.151700290502049e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes0-charge must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0019923680010833777
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000516733001859393
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00023812100334907882
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes1-charge must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0006623680019401945
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00043275799907860346
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00020306299848016351
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes2-charge must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004321569977037143
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005156160004844423
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.825799912097864e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes3-charge must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0015534910016867798
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00038113800110295415
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.609000022057444e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes4-charge must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004365920030977577
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003313729976071045
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.945700079086237e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes5-multiplicity must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0006865989998914301
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.001016580998111749
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.93330000306014e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes6-multiplicity must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004745539990835823
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000549339998542564
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.8471999586327e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes7-multiplicity must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005256779986666515
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00041679400237626396
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.202800043160096e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes8-multiplicity must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0046282999974209815
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004175770009169355
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.651099804206751e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes9-multiplicity must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005632030006381683
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00033905300006153993
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00011052499758079648
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes10-multiplicity must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004171330001554452
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00031784200109541416
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.114000254659913e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes11-multiplicity must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003417709995119367
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003451650009083096
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.755099821020849e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes12-flags must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00036725899917655624
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004060809988004621
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.24380006431602e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes13-flags must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00034621500162757
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00033478799741715193
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.38240014470648e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes14-flags must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00036034600270795636
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003556160008884035
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.966300134081393e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes15-flags must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003866199986077845
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00031226999999489635
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.114000254659913e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes16-flags must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00039834400013205595
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00032936199932009913
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.888799907756038e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes17-flags must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004002330024377443
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00031319600020651706
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.87790015945211e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes18-flags must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00040714500210015103
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00036669399923994206
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.796600064262748e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes19-flags must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00041502900057821535
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00042836700231418945
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.075000030454248e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes20-Estimated CU]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003960469985031523
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003506439970806241
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 9.214099918608554e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes21-Estimated CU]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003484459994069766
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00033706600152072497
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 9.278699872083962e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes22-Estimated CU]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00035987800220027566
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003335030014568474
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.783599746995606e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes23-Estimated CU]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003872519992000889
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00039452499913750216
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.94779992045369e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes24-Estimated CU]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003777860001719091
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004458899966266472
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00031707599919172935
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes25-Estimated CU]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004579229971568566
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004822529990633484
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.470300261047669e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes26-Estimated CU]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00039103800008888356
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003715740022016689
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.279600322362967e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes27-Estimated CU]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004105500011064578
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00035814100192510523
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.089399878168479e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes28-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005677310000464786
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003622490003181156
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.42109987186268e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes29-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004182330012554303
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00032513600308448076
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001275389986403752
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes30-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00039661800110479817
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0006232959967746865
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.329100091941655e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes31-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005275959993014112
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000389611999707995
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.510899740736932e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes32-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00039948899939190596
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003068469995923806
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.898599895066582e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes33-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005362900010368321
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00034982999932253733
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.21969990991056e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes34-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004003730027761776
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003374899970367551
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00010192199988523498
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes35-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00039531100264866836
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0002959500016004313
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.698200013488531e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes36-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003422800000407733
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00042068400216521695
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.039599950076081e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes37-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003681540001707617
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00037551800051005557
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.956400102353655e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes38-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000516200001584366
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00036910500057274476
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.305299732252024e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes39-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004146619976381771
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00031327500255429186
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.856300024082884e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes40-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005470709984365385
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00034311600029468536
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.001000267337076e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes41-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00039176499922177754
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004285629984224215
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.135100167943165e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes42-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003515089993015863
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000362848997610854
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.11069988028612e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes43-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004315570004109759
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00035918299909099005
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.914000186952762e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes44-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003643609998107422
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003680279987747781
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.973799827392213e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes45-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00038093100010883063
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00031947500247042626
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00017036999997799285
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes46-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00043017400093958713
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003288299994892441
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.975799962878227e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes47-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004025130001537036
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000608436999755213
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.077600068645552e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes48-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005153290003363509
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003889359977620188
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.271000140463002e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes49-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00038930500159040093
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00032506099887541495
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.814000153099187e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes50-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0007297989977814723
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00034029500238830224
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.681599890929647e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes51-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00048184299885178916
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00037652500031981617
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.163300324464217e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes52-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003904530021827668
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004462350007088389
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.109500074875541e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes53-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004755469999508932
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00031760300043970346
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.916500205988996e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes54-single-line]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00039741600267007016
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00031765300082042813
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.662400119239464e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes55-incompatible]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00042217100053676404
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00039996299892663956
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001160889987659175
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes56-incompatible]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00038930499795242213
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00042570100049488246
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.990999827394262e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes57-incompatible]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00038246899930527434
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00038355099968612194
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.865700197522528e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes58-incompatible]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00035769999885815196
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003737959996215068
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.975400174269453e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes59-must be strings]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004316529993957374
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003398420012672432
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.955200296943076e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes60-must be strings]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00044039600106771104
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0002957940014312044
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.819599730079062e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes61-engine must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003752630000235513
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003616190006141551
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.938300066394731e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes62-Repository must]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00041415599844185635
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00039507400288130157
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.910799856996164e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes63-XYZ geometry]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003938429981644731
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005611790002149064
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.335299960686825e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes64-XYZ geometry]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005139140012033749
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004195460023765918
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.324800026253797e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes65-XYZ geometry]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0006146859996079002
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003652239975053817
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.248800102388486e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes66-XYZ geometry]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00038247900010901503
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0006727859981765505
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 9.031599984155037e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes67-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00045075399975758046
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0006371980016410816
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.442499893135391e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes68-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004559939989121631
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003674429972306825
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.192799967015162e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes69-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005829360015923157
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004916549987683538
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001760220002324786
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes70-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005542380022234283
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00045607200081576593
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.873600043240003e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes71-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005050830004620366
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00040703999911784194
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.377099973382428e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes72-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005711609992431477
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00037846600025659427
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00010482699872227386
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes73-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005469919997267425
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004097759992873762
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.538300269516185e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes74-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00040729700049269013
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004404600003908854
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.780900002922863e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes75-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004810640020878054
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00034770700221997686
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.876599945826456e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes76-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004138449985475745
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004543449977063574
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 9.636599861551076e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes77-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005802289997518528
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0006688670000585262
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.843699859222397e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes78-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0007760970001982059
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0007568420005554799
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.706099859206006e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes79-Invalid Colab XYZ]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0006863489979878068
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004926950023218524
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00032756899963715114
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes80-canonical plain element]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005457380029838532
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0006079140002839267
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00018520899902796373
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes81-canonical plain element]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0006394250012817793
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004908410010102671
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001079259964171797
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes82-canonical plain element]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005805539985885844
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004195889996481128
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.517999983974732e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes83-canonical plain element]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0007586989995616022
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00038816099913674407
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.622599878231995e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes84-canonical plain element]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004382110018923413
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000441047999629518
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.834599819034338e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes85-canonical plain element]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00043170800199732184
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005950970007688738
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.658899994567037e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes86-canonical plain element]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0007678850015508942
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005167729977983981
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.139900091919117e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_malformed_input_precedes_token_and_preserves_real_quota_ledger[changes87-canonical plain element]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00047244100278476253
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0005481359985424206
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00010416900113341399
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_valid_local_accounting_is_advisory_and_canonical_optional_values_remain": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00012839100236305967
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00014069800090510398
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.151900015538558e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_printable_greek_method_is_not_an_engine_whitelist": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001502109989814926
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001524800027254969
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 4.448599793249741e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_standalone_colab_cli_in_fresh_stdlib_environment[help]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.14404497299983632
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.19858098000258906
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.41410001157783e-05
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_standalone_colab_cli_in_fresh_stdlib_environment[invalid_physical_input]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00023966200024005957
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.23695631900045555
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00010198699965258129
+      }
+    ],
+    "tests/base/test_student_colab_validation.py::test_standalone_colab_cli_in_fresh_stdlib_environment[missing_dispatch_credential]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0002462070006004069
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.167928116999974
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00011246299982303753
+      }
+    ],
+    "tests/base/test_course_project_access.py::test_student_colab_monthly_quota_and_request_packaging": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004621619991667103
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0017034920019796118
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.488299863529392e-05
+      }
+    ],
+    "tests/ci_tools/test_pre_execution_integrity.py::test_colab_sender_integrity_refuses_before_execution[changed]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00044129999878350645
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.14458006299901172
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.70180010679178e-05
+      }
+    ],
+    "tests/ci_tools/test_pre_execution_integrity.py::test_colab_sender_integrity_refuses_before_execution[omitted]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00040442599856760353
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.127723370998865
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.900700049707666e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[chiralty-chirality]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0004756899979838636
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.016120716998557327
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.234699998865835e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[Why are mirror images different?-chirality]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0002466160003677942
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.01673096800004714
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.885200102464296e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[What does R/S mean?-chirality]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00035168800241081044
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.015213957001833478
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.840399848646484e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[What is the difference between isomers and resonance?-isomers]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00020314400171628222
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.01546665500063682
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.816500146873295e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[What does a negative frequency mean?-convergence_frequencies]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00021032700169598684
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.01489271600075881
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00010125499829882756
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[What total charge should I enter?-charge_spin]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00020842100275331177
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.015184265997959301
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.904200174380094e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[How do I start my first calculation?-first_calculation]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00022969899873714894
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.01675873999920441
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.450499808532186e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_ordinary_questions_find_the_relevant_authored_explanation[Did my calculation succeed?-read_results]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00021378000019467436
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.015569827002764214
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.920699863461778e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_deliberate_alias_and_case_variants_rank_chirality_first": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001605239995114971
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.08076512899788213
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 9.763200068846345e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_search_is_bounded_and_shorter_query_can_recover": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013752700033364818
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.08942424199995003
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 9.98880022962112e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[0]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00018345100033911876
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.262600022135302e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.527499863295816e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[-1]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00018778900266624987
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.228100002976134e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.443099871627055e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[13]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0003493750009511132
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00011121099669253454
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.837000207975507e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[True]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00017283000124734826
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00024273399685625918
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001468800001021009
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[2.5]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001538399992568884
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.154799823183566e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.5691001762170345e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_unbounded_or_invalid_result_limit_is_rejected[6]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00018661699868971482
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.925199704710394e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.014700218453072e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_help_is_compact_and_uses_labelled_native_input_and_button": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0032998179995047394
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00020151799981249496
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00022594500114792027
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_live_widget_search_clear_and_context_open_use_the_same_content": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0027191730005142745
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.04622739600017667
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000134599999000784
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_repeated_search_does_not_allocate_an_output_model_per_keystroke": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0020018610011902638
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.11162821499965503
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0002134789974661544
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_empty_and_unknown_topic_states_are_explicit_escaped_and_recoverable": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0029939759988337755
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.031562898999254685
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013689399929717183
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_authored_text_is_rendered_as_text_in_every_answer_field": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00015412399807246402
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.017712162996758707
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.573900100192986e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_inline_and_search_answers_share_the_same_authored_content": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013622500046039931
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.015648476000933442
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.830799975432456e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_coverage_inventory_reports_unmapped_controls_without_claiming_all_coverage": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013720200149691664
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0007857139971747529
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.9893001889577135e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_individual_control_instructions_are_searchable_and_visible[charge_input]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00018119699961971492
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.015616819000570104
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.548699795734137e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_individual_control_instructions_are_searchable_and_visible[matrix_method]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00017842799934442155
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.015319419999286765
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.263199924840592e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_individual_control_instructions_are_searchable_and_visible[btn_actions_retrieve]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00017691999892122112
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.016185920998395886
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.295300019904971e-05
+      }
+    ],
+    "tests/ui/test_learning_search.py::test_real_help_runs_without_credentials_network_or_provider_processes": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00041266299740527757
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.2559391559989308
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001012719985737931
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[workspace]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0002358010024181567
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00021570399985648692
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.24290005362127e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[scientific_inputs]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001515340009063948
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001394989994878415
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.241899998509325e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[charge_spin]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00015271499796654098
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00019150899970554747
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.3417999879457057e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[method_basis]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00014059200111660175
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00029364799775066786
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 8.77900019986555e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[theory_tiers]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001719089996186085
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001547009997011628
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.328200131771155e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[solvent]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00015141699986997992
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00014486299915006384
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.220499951974489e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[calculation_types]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00014256700160331093
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001304869983869139
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.450100070447661e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[convergence_frequencies]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001523179998912383
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013460300033329986
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 4.957399869454093e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[fragments_constraints]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013659400065080263
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013919800039730035
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 7.732399899396114e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[hessian]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00014877200010232627
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000141764001455158
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00012928000069223344
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[active_space]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013861799743608572
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00014055200153961778
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.454599886434153e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[isotopes]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001503650019003544
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001760929990268778
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.057800080976449e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[periodic]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00014581999857909977
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013889600086258724
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.2963998314226046e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[compare_results]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013846599904354662
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001273419984499924
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.281999983708374e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_contextual_help_has_a_closed_keyboard_native_disclosure_and_visible_hint[provenance]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00015297999925678596
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013543499881052412
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.266299922368489e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_guidance_distinguishes_scientific_results_from_inputs_and_estimates": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00010234000001219101
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0002667990011104848
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 4.908600021735765e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_input_guidance_covers_ensembles_native_outputs_and_periodic_data": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001145999995060265
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00014562900105374865
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 4.335999983595684e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_glossary_filters_real_terms_case_insensitively_and_can_be_cleared": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0018792529990605544
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.000265607002802426
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00010030100020230748
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_glossary_can_find_chemistry_abbreviations_and_explanations": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0012906919982924592
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0002186860001529567
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0002444339988869615
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_glossary_escapes_search_text_and_explains_empty_results": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0015271190022758674
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00023328200040850788
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 9.846399916568771e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_unknown_help_topic_fails_instead_of_silently_displaying_unrelated_guidance": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013426199802779593
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00020217800192767754
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.1036000513704494e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[prepared-request prepared]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001994500016735401
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 6.625199966947548e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.6821001635398716e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[submitted-submission recorded]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00021978500080876984
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.742999928770587e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.248600064078346e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[cancellation_requested-waiting for GitHub]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00015586300287395716
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 9.145900185103528e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.4654003179166466e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[awaiting_workflow-waiting for GitHub]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00029110700052115135
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.998800043016672e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.501300256582908e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[dispatch_unconfirmed-confirm submission]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00017305299843428656
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.415900159277953e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.309700281941332e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[dispatching-request received; waiting for the run]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001607710000826046
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.3035000746604055e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 4.8379999498138204e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[queued-queued; waiting to run]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00017025800116243772
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.687199882231653e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.353400047169998e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[in_progress-running]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001622140007384587
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.3869000112172216e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.026099825045094e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[updates_available-updates are available]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00016064100054791197
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.8588000683812425e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.425099880085327e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_progress_labels_explain_protocol_states_without_changing_them[rolled_back-previous version restored]": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.0001592859989614226
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.2772000344702974e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.007700019632466e-05
+      }
+    ],
+    "tests/ui/test_learning_guidance.py::test_unknown_progress_is_not_presented_as_success": [
+      {
+        "phase": "setup",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00013872400086256675
+      },
+      {
+        "phase": "call",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 5.88570001127664e-05
+      },
+      {
+        "phase": "teardown",
+        "outcome": "passed",
+        "reason": null,
+        "xfail": null,
+        "duration_seconds": 0.00022429300224757753
+      }
+    ]
+  },
+  "subtests": {}
+}

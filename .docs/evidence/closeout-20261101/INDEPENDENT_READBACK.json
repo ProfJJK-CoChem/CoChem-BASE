@@ -1,0 +1,16 @@
+{
+  "scope": "Public BASE-only projection of independent readback; private review intentionally not reproduced",
+  "original_full_review_sha256": "47ed192ddf128f5ffa47f6d862b7b40ecf89dc3eff5adca1f332793ec92e1a2b",
+  "base": {
+    "verdict": "APPROVE safe498 publication with accurate selected qualification; no Mac/GPU/fullSRS claim",
+    "tests_passed": 193,
+    "complete_origins_reported": 12,
+    "evidence": {
+      "/tmp/cochem-safe-main-498eab1-20261101/actual/OWNER_TERMINAL.json": "b6a951dd35dcb779be9bcf88f951c71b6f08f45726e0de4b8b809972c9650fbf",
+      "/tmp/cochem-safe-main-498eab1-20261101/actual/WORKER_RECEIPT.json": "13b19a546047c59359d228bde05077db476b7c3bebb7a8ef63256b09c3ca0395",
+      "/tmp/cochem-safe-main-498eab1-20261101/actual/profile/source-audit.json": "3ab5f7438690f5e7daa2b6d03212c13bb88b8ba71debcbc267da789491e63934",
+      "/tmp/cochem-safe-main-498eab1-20261101/actual/profile/test-acceptance.json": "cdd270d63e40bfd9213f56b13d2b92067aa1d1bd69626051be3cbd720c4c3c34",
+      "/tmp/cochem-safe-main-498eab1-20261101/actual/profile/pytest.xml": "36503b104871e23872f0e468c52cb449787477101c3a29a158ae10472280b07c"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "status": "STATIC_INTEGRATED_CLEAR_RUNTIME_PENDING",
+  "baseline": "ebec93c394060253aedd9b2d113729f5ef931972",
+  "manifest_sha256": "05050dbb323aaba5ae1a05a401183a4f2c576f147130f44c1b789896f3c2f740",
+  "changed_paths": {
+    "src/cochem_base/interfaces/course_access.py": "7b5f50887fed432f361f02f13c324ff083ad4c76e37ae74c5645aaa0afede346",
+    "tests/base/test_course_project_access.py": "1e52d285343709a279eddb36658afe6aedbc4d78e01870718050859e2f3a68e1",
+    ".cochem/student-actions-admission.json": "b8165d79018921eb8af42228419232d5caa2aca5106007d741e0b2d42289ac7e",
+    "src/cochem_base/interfaces/student_colab.py": "560ac6504c46e7ce554fc3eb336a8c1c506a320876eae01f874d6fda5a058f4e",
+    "scripts/submit_colab_calculation.py": "ad5333dd1e4d0a4c00745c277447cf58a5b5e5670ef1c7281fb731eaa1e3a247",
+    "tests/base/test_student_colab_validation.py": "4b3338ed61732c03d4193eb806ae9ad511ce80778d2a349dd3521c4ea5b067d0",
+    "tests/ci_tools/test_pre_execution_integrity.py": "21a97ce2fa77396b394674a7bef3186b87ea6afbc72e3868ea526b25a6cf96d3",
+    ".docs/Google_Colab_GPU_Setup.md": "6b6547b07d26c7bb6ef20637c934a3b2a82255f67db79a6620519261a94ef3e1",
+    "README.md": "d319173cdce976cd3839d3631af9ffc27520ad764713d4d413635e2aa7d0a9d9",
+    "ui/voila_layout/help_content.py": "0a0820c70b225e98b8861fde5afa4b58f7b7db6698c693d89abfe64670236c65",
+    "ui/voila_layout/learning.py": "fe427584371ce72413f3908e022056bad34fe85d67870b1c88f392387c21f793",
+    "ci_tools/base_ci.py": "05e64597e580608e74f1d5501e86df879d741bc03a90f2223f6511b52c465a27",
+    "pytest.ini": "1f15f49d5b4d08d2962c3876a4beeecfe78fd4f07011c38f6046a0b9931c6ad9",
+    "pytest-srs.ini": "6efaf16a67d71cf9abde3593fa54882df63d08f25144502599f82fdcca41c337",
+    "scripts/verify_release_ci.py": "ccaf273ee2168af750f2e2c8c18a4956060457cc7210887bfc73f88030f9902e",
+    ".core_infrastructure_hashring.json": "1968fa9dd4f5c73ab19f2101ad8b3762e4e62e07fa6d604d57621c62c47dca9f"
+  },
+  "checks": [
+    "Exact16-path working change set and all manifest hashes",
+    "Seven qualified source/test/descriptor donors exactly a8",
+    "Four guidance donors exactly c075",
+    "CI policy and three registrations inverse-byte equal baseline after sole additions",
+    "All15 excluded helper/profile/workflow paths exact baseline",
+    "Ring235 old234 plus only student_colab and all hashes exact",
+    "Existing capability11 all exact current sources",
+    "Changed Python syntax valid"
+  ],
+  "scope": "Safe composition excludes new workflow pip/Darwin/build ownership changes. Prior donor tests remain producer-bound; root must qualify selected combined immutable candidate before publication. Colab runtime remains unavailable; no new GPU/platform/student acceptance."
+}

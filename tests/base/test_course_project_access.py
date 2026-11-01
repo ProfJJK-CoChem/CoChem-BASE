@@ -32,11 +32,11 @@ from cochem_base.interfaces.course_access import (
     EnrollmentRequest,
     GitHubAPI,
     app_jwt,
+    deprovision_project,
     encrypted_secret,
     enrollment_links,
     parse_enrollment,
     provision_project,
-    deprovision_project,
     reconcile_project,
     verify_calculation_project,
 )
@@ -1301,3 +1301,101 @@ def test_missing_requested_reader_preserves_interrupted_initial_generation(peer)
     assert (peer.variables, peer.controller_variables, peer.secret_values) == before
     assert peer.writes == []
     assert lifecycle(peer, "deprovision", absent)["status"] == "deprovisioned"
+
+
+def test_colab_binding_variable_and_sync_calculation_access(peer):
+    from cochem_base.interfaces.course_access import BINDING_VARIABLES, sync_calculation_access
+    assert BINDING_VARIABLES["colab"] == "COCHEM_COLAB_ACCESS_SECRET"
+    colab_token = secrets.token_urlsafe(32)
+    config = config_for(peer)
+    creds_with_colab = dict(config.credentials)
+    creds_with_colab["colab"] = colab_token
+    config_colab = replace(config, credentials=creds_with_colab)
+    receipt = provision(peer, config_colab)
+    assert receipt["status"] == "provisioned"
+    assert "colab" in receipt["available"]
+    assert peer.variables.get("COCHEM_COLAB_ACCESS_SECRET") == "COLAB_OFFLOAD_DISPATCH_TOKEN"
+    assert "COLAB_OFFLOAD_DISPATCH_TOKEN" in peer.secret_values
+    assert "COLAB_OFFLOAD_DISPATCH_TOKEN" in peer.codespaces_values
+    # Verify sync_calculation_access directly
+    api = GitHubAPI(peer.controller_token, api_url=peer.url, allow_loopback=True)
+    app_api = GitHubAPI(app_jwt(config_colab.app_id, config_colab.private_key), api_url=peer.url, allow_loopback=True)
+    sync_receipt = sync_calculation_access(
+        config_colab,
+        EnrollmentRequest("student/project", ("orca", "cfour")),
+        author="student",
+        controller_api=api,
+        app_api=app_api,
+        authority_api=GitHubAPI(api_url=peer.url, allow_loopback=True),
+    )
+    assert sync_receipt["status"] == "provisioned"
+    assert peer.variables.get("COCHEM_COLAB_ACCESS_SECRET") == "COLAB_OFFLOAD_DISPATCH_TOKEN"
+    # Also verify direct writer_api + repository mode
+    from cochem_base.interfaces.course_access import _project_writer
+    writer_api = _project_writer(app_api, {"id": 22}, {"id": peer.project_id, "full_name": "student/project"})
+    direct_sync = sync_calculation_access(
+        writer_api,
+        "student/project",
+        colab_dispatch_token=colab_token,
+        orca_token=config_colab.credentials["orca"],
+        cfour_token=config_colab.credentials["cfour"],
+    )
+    assert direct_sync["repository"] == "student/project"
+    assert direct_sync["bound_variables"]["COCHEM_COLAB_ACCESS_SECRET"] == "COLAB_OFFLOAD_DISPATCH_TOKEN"
+    assert "COLAB_OFFLOAD_DISPATCH_TOKEN" in direct_sync["provisioned_secrets"]
+
+
+def test_student_colab_monthly_quota_and_request_packaging(tmp_path):
+    from cochem_base.interfaces.student_colab import (
+        ColabQuotaExceededError,
+        MonthlyStudentCuQuotaManager,
+        package_student_colab_request,
+        parse_student_colab_request,
+        resolve_colab_dispatch_token,
+        verify_student_colab_request_signature,
+    )
+    workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/course_project_access.yml").read_text()
+    assert "COLAB_OFFLOAD_DISPATCH_TOKEN: ${{ secrets[vars.COCHEM_COLAB_ACCESS_SECRET] }}" in workflow
+
+    ledger_file = tmp_path / "student_colab_cu_ledger.json"
+    quota = MonthlyStudentCuQuotaManager(ledger_file, monthly_pool_cu=1750.0, allow_live_gh=False)
+    allowance_20 = quota.check_student_allowance("student-01", 10.0, month_key="2026-11", n_students_override=20)
+    assert allowance_20.per_student_cap_cu == 87.5
+    assert allowance_20.allowed is True
+
+    token = "cochem-colab-dispatch-" + secrets.token_urlsafe(24)
+    env = {
+        "COCHEM_COLAB_ACCESS_SECRET": "COLAB_OFFLOAD_DISPATCH_TOKEN",
+        "COLAB_OFFLOAD_DISPATCH_TOKEN": token,
+    }
+    assert resolve_colab_dispatch_token(env) == token
+
+    xyz = "4\nformaldehyde\nC 0.0 0.0 0.0\nO 0.0 0.0 1.203\nH 0.0 0.942 -0.587\nH 0.0 -0.942 -0.587\n"
+    packaged = package_student_colab_request(
+        student_id="student-01",
+        job_id="orgo1-formaldehyde-freq",
+        engine="ORCA",
+        method="r2SCAN-3c",
+        geometry_xyz=xyz,
+        estimated_cu=12.5,
+        quota_manager=quota,
+        environ=env,
+    )
+    assert packaged["schema"] == "cochem.student-colab-request.v1"
+    assert packaged["quota"]["used_cu"] == 12.5
+    assert packaged["quota"]["remaining_cu"] == 75.0
+    assert token not in json.dumps(packaged)
+    assert verify_student_colab_request_signature(packaged, token) is True
+    assert verify_student_colab_request_signature(packaged, "wrong-token") is False
+    parsed = parse_student_colab_request("```json\n" + json.dumps(packaged) + "\n```")
+    assert parsed["job_id"] == "orgo1-formaldehyde-freq"
+
+    with pytest.raises(ColabQuotaExceededError, match="Monthly student CU cap exceeded"):
+        quota.record_student_cu_usage("student-01", "orgo1-over-cap", 80.0, month_key="2026-11", n_students_override=20)
+
+    # Next calendar month auto-refreshes the student's quota to 0.0 used
+    allowance_dec = quota.check_student_allowance("student-01", 50.0, month_key="2026-12", n_students_override=20)
+    assert allowance_dec.used_cu == 0.0
+    assert allowance_dec.allowed is True
+
+

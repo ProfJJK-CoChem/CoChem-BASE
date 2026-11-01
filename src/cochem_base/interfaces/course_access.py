@@ -39,14 +39,16 @@ BINDING_VARIABLES = {
     "orca": "COCHEM_ORCA_ACCESS_SECRET",
     "cfour": "COCHEM_CFOUR_ACCESS_SECRET",
     "source": "COCHEM_SOURCE_ACCESS_SECRET",
+    "colab": "COCHEM_COLAB_ACCESS_SECRET",
 }
 _OWNERSHIP_PREFIX = "COCHEM_ACCESS_PROJECT_"
 _OWNERSHIP_SCHEMA = "cochem.controller-owned-access.v2"
-_OWNED_LABEL = re.compile(r"COCHEM_ACCESS_[A-F0-9]{32}\Z")
+_OWNED_LABEL = re.compile(r"(?:COCHEM_ACCESS_[A-F0-9]{32}|COLAB_OFFLOAD_DISPATCH_TOKEN)\Z")
 _PROJECT_VARIABLES = frozenset({"COCHEM_APPROVED_BASE_SHA", "COCHEM_COURSE_CHANNEL",
                                 *BINDING_VARIABLES.values()})
 _CODESPACES_NAMES = frozenset({"COCHEM_ACCESS_CONTROLLER_REPOSITORY",
-                              "COCHEM_ACCESS_APP_SLUG", "COCHEM_SOURCE_CREDENTIAL"})
+                              "COCHEM_ACCESS_APP_SLUG", "COCHEM_SOURCE_CREDENTIAL",
+                              "COLAB_OFFLOAD_DISPATCH_TOKEN"})
 
 
 class CourseAccessError(RuntimeError):
@@ -271,9 +273,9 @@ class ControllerConfig:
                 or not isinstance(self.allowed_starter_shas, tuple)
                 or len(self.allowed_starter_shas) > 8
                 or any(not _SHA.fullmatch(value) for value in self.allowed_starter_shas)
-                or set(self.credentials) - {"orca", "cfour", "source"}
+                or set(self.credentials) - {"orca", "cfour", "source", "colab"}
                 or not isinstance(self.credential_targets, dict)
-                or set(self.credential_targets) - {"orca", "cfour", "source"}):
+                or set(self.credential_targets) - {"orca", "cfour", "source", "colab"}):
             raise CourseAccessError("The private instructor controller configuration is incomplete.")
         if self.course_channel and (not re.fullmatch(r"\.cochem/course-channels/[A-Za-z0-9_./-]{1,160}\.json", self.course_channel)
                                     or any(part in {"", ".", ".."} for part in self.course_channel.split("/"))):
@@ -884,6 +886,11 @@ def _verify_reader_metadata(api: GitHubAPI, config: ControllerConfig,
     """
     verified = []
     for kind, token in selected.items():
+        if kind == "colab" and kind not in config.credential_targets:
+            if not isinstance(token, str) or not token.strip():
+                raise CourseAccessError("The Google Colab offload dispatch token is empty or invalid.")
+            verified.append(kind)
+            continue
         target = config.credential_targets.get(kind)
         if target is None:
             raise CourseAccessError("A replacement reader has no reviewed immutable readability target; existing credentials and bindings were preserved.")
@@ -946,17 +953,26 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
         if _secret_exists(writer_api, enrollment.repository, "codespaces", name):
             raise CourseAccessError("An existing Codespaces access setting has no authenticated controller ownership record; it was preserved.")
     selected = {kind: value for kind, value in config.credentials.items()
-                if kind == "source" or kind in enrollment.engines}
+                if kind in {"source", "colab"} or kind in enrollment.engines}
     for kind in enrollment.engines:
         if (kind not in selected and (kind in owned["bindings"]
                 or previous[BINDING_VARIABLES[kind]])):
             raise CourseAccessError("A still-requested engine has existing or staged access but no replacement controller reader; its credentials and settings were preserved. Restore the reader or explicitly withdraw that engine.")
     reader_metadata_verified = _verify_reader_metadata(app_api, config, selected)
-    binding = {BINDING_VARIABLES[kind]: "COCHEM_ACCESS_" + uuid.uuid4().hex.upper() for kind in selected}
+    binding = {
+        BINDING_VARIABLES[kind]: (
+            "COLAB_OFFLOAD_DISPATCH_TOKEN"
+            if kind == "colab"
+            else "COCHEM_ACCESS_" + uuid.uuid4().hex.upper()
+        )
+        for kind in selected
+    }
     codespaces_values = {"COCHEM_ACCESS_CONTROLLER_REPOSITORY": config.repository,
                          "COCHEM_ACCESS_APP_SLUG": config.app_slug}
     if "source" in selected:
         codespaces_values["COCHEM_SOURCE_CREDENTIAL"] = selected["source"]
+    if "colab" in selected:
+        codespaces_values["COLAB_OFFLOAD_DISPATCH_TOKEN"] = selected["colab"]
     if len(owned["actions"]) + len(binding) > 128:
         raise CourseAccessError("Too many controller credentials await cleanup; deprovision and reconcile before re-enrollment.")
     owned["actions"] = sorted(set(owned["actions"]) | set(binding.values()))
@@ -1039,6 +1055,92 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
             "module_installation_performed": False, **cleanup,
             "status": "cleanup_pending" if cleanup["cleanup_pending"] else "provisioned",
             "timestamp_utc": datetime.now(timezone.utc).isoformat()}
+
+
+def sync_calculation_access(
+    writer_api: GitHubAPI | ControllerConfig,
+    repository: str | EnrollmentRequest,
+    *,
+    author: str | None = None,
+    controller_api: GitHubAPI | None = None,
+    app_api: GitHubAPI | None = None,
+    authority_api: GitHubAPI | None = None,
+    expected_repository_id: int | None = None,
+    colab_dispatch_token: str | None = None,
+    orca_token: str | None = None,
+    cfour_token: str | None = None,
+    orca_secret_name: str = "ORCA_ASSET_READ_TOKEN",
+    cfour_secret_name: str = "CFOUR_ASSET_READ_TOKEN",
+    colab_secret_name: str = "COLAB_OFFLOAD_DISPATCH_TOKEN",
+) -> dict[str, Any]:
+    """Provision calculation secrets (Actions + Codespaces) and binding variables on a paired student repository."""
+    if isinstance(writer_api, ControllerConfig):
+        config = writer_api
+        if colab_dispatch_token and "colab" not in config.credentials:
+            creds = dict(config.credentials)
+            creds["colab"] = colab_dispatch_token.strip()
+            config = ControllerConfig(
+                repository=config.repository,
+                approved_base_sha=config.approved_base_sha,
+                app_id=config.app_id,
+                private_key=config.private_key,
+                credentials=creds,
+                organization=config.organization,
+                team_slug=config.team_slug,
+                course_channel=config.course_channel,
+                app_slug=config.app_slug,
+                base_repository=config.base_repository,
+                asset_repositories=config.asset_repositories,
+                starter_shas=config.starter_shas,
+            )
+        enrollment = (
+            repository
+            if isinstance(repository, EnrollmentRequest)
+            else EnrollmentRequest(str(repository), ("orca", "cfour"))
+        )
+        resolved_author = author or enrollment.repository.split("/")[0]
+        if controller_api is None:
+            raise CourseAccessError("controller_api is required when syncing calculation access via ControllerConfig.")
+        return provision_project(
+            config,
+            enrollment,
+            author=resolved_author,
+            controller_api=controller_api,
+            app_api=app_api,
+            authority_api=authority_api,
+            expected_repository_id=expected_repository_id,
+        )
+
+    repo_str = repository.repository if isinstance(repository, EnrollmentRequest) else str(repository)
+    repository_name(repo_str)
+    actions_pubkey: dict | None = None
+    codespaces_pubkey: dict | None = None
+    bound_variables: dict[str, str] = {}
+    provisioned_secrets: list[str] = []
+
+    for kind, token_val, sec_name in (
+        ("orca", orca_token, orca_secret_name),
+        ("cfour", cfour_token, cfour_secret_name),
+        ("colab", colab_dispatch_token, colab_secret_name),
+    ):
+        if token_val and isinstance(token_val, str) and token_val.strip():
+            clean_token = token_val.strip()
+            if actions_pubkey is None:
+                actions_pubkey = _public_key(writer_api, repo_str, "actions")
+            if codespaces_pubkey is None:
+                codespaces_pubkey = _public_key(writer_api, repo_str, "codespaces")
+            _put_secret(writer_api, repo_str, "actions", sec_name, clean_token, actions_pubkey)
+            _put_secret(writer_api, repo_str, "codespaces", sec_name, clean_token, codespaces_pubkey)
+            var_name = BINDING_VARIABLES[kind]
+            _write_variable(writer_api, repo_str, var_name, sec_name)
+            bound_variables[var_name] = sec_name
+            provisioned_secrets.append(sec_name)
+
+    return {
+        "repository": repo_str,
+        "bound_variables": bound_variables,
+        "provisioned_secrets": provisioned_secrets,
+    }
 
 
 def deprovision_project(config: ControllerConfig, repository: str, *,

@@ -1525,7 +1525,10 @@ def test_student_colab_monthly_quota_and_request_packaging(tmp_path):
 
     ledger_file = tmp_path / "student_colab_cu_ledger.json"
     quota = MonthlyStudentCuQuotaManager(ledger_file, monthly_pool_cu=1750.0, allow_live_gh=False)
-    allowance_20 = quota.check_student_allowance("student-01", 10.0, month_key="2026-11", n_students_override=20)
+    current_month = quota.current_month_key()
+    year, month = map(int, current_month.split("-"))
+    next_month = f"{year + (month == 12):04d}-{month % 12 + 1:02d}"
+    allowance_20 = quota.check_student_allowance("student-01", 10.0, month_key=current_month, n_students_override=20)
     assert allowance_20.per_student_cap_cu == 87.5
     assert allowance_20.allowed is True
 
@@ -1557,11 +1560,11 @@ def test_student_colab_monthly_quota_and_request_packaging(tmp_path):
     assert parsed["job_id"] == "orgo1-formaldehyde-freq"
 
     with pytest.raises(ColabQuotaExceededError, match="Monthly student CU cap exceeded"):
-        quota.record_student_cu_usage("student-01", "orgo1-over-cap", 80.0, month_key="2026-11", n_students_override=20)
+        quota.record_student_cu_usage("student-01", "orgo1-over-cap", 80.0, month_key=current_month, n_students_override=20)
 
     # Next calendar month auto-refreshes the student's quota to 0.0 used
-    allowance_dec = quota.check_student_allowance("student-01", 50.0, month_key="2026-12", n_students_override=20)
-    assert allowance_dec.used_cu == 0.0
-    assert allowance_dec.allowed is True
+    allowance_next = quota.check_student_allowance("student-01", 50.0, month_key=next_month, n_students_override=20)
+    assert allowance_next.used_cu == 0.0
+    assert allowance_next.allowed is True
 
 

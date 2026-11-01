@@ -1,0 +1,81 @@
+name: CoChem Google Colab GPU calculation
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: Unique student job ID (e.g., orgo1-formaldehyde-freq)
+        required: true
+        default: orgo1-formaldehyde-freq
+        type: string
+      engine:
+        description: Quantum chemistry engine
+        required: true
+        default: ORCA
+        type: choice
+        options:
+          - ORCA
+          - CFOUR
+          - XTB
+          - PYSCF
+      method:
+        description: Approved calculation method (e.g., r2SCAN-3c, HF-3c, B3LYP)
+        required: true
+        default: r2SCAN-3c
+        type: string
+      geometry_xyz:
+        description: Cartesian XYZ coordinates
+        required: true
+        type: string
+      charge:
+        description: Molecular charge
+        required: false
+        default: '0'
+        type: string
+      multiplicity:
+        description: Spin multiplicity (2S+1)
+        required: false
+        default: '1'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  submit_colab_gpu:
+    if: github.event.repository.private == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Submit HMAC-signed student request to Google Colab GPU pool
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_USER: ${{ github.actor }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          COCHEM_ACCESS_CONTROLLER_REPOSITORY: ProfJJK-CoChem/CoChem-Project-Access
+          COCHEM_COLAB_ACCESS_SECRET: ${{ vars.COCHEM_COLAB_ACCESS_SECRET }}
+          COLAB_OFFLOAD_DISPATCH_TOKEN: ${{ secrets[vars.COCHEM_COLAB_ACCESS_SECRET] }}
+          INPUT_JOB_ID: ${{ inputs.job_id }}
+          INPUT_ENGINE: ${{ inputs.engine }}
+          INPUT_METHOD: ${{ inputs.method }}
+          INPUT_XYZ: ${{ inputs.geometry_xyz }}
+          INPUT_CHARGE: ${{ inputs.charge }}
+          INPUT_MULT: ${{ inputs.multiplicity }}
+        run: >-
+          python -I -B scripts/submit_colab_calculation.py
+          --student-id "$GITHUB_USER"
+          --job-id "$INPUT_JOB_ID"
+          --engine "$INPUT_ENGINE"
+          --method "$INPUT_METHOD"
+          --xyz "$INPUT_XYZ"
+          --charge "$INPUT_CHARGE"
+          --multiplicity "$INPUT_MULT"
+          --repository "$GITHUB_REPOSITORY"
+          --controller-repository "$COCHEM_ACCESS_CONTROLLER_REPOSITORY"

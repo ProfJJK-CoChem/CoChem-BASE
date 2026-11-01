@@ -83,6 +83,7 @@ jobs:
           COCHEM_ORCA_ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_ORCA_ACCESS_SECRET] }}
           COCHEM_CFOUR_ASSET_CREDENTIAL: ${{ secrets[vars.COCHEM_CFOUR_ACCESS_SECRET] }}
           COCHEM_SOURCE_CREDENTIAL: ${{ secrets[vars.COCHEM_SOURCE_ACCESS_SECRET] }}
+          COLAB_OFFLOAD_DISPATCH_TOKEN: ${{ secrets[vars.COCHEM_COLAB_ACCESS_SECRET] }}
           COCHEM_ACCESS_SOURCE_REPOSITORY: ${{ vars.COCHEM_ACCESS_SOURCE_REPOSITORY }}
           COCHEM_ACCESS_SOURCE_REVISION: ${{ vars.COCHEM_ACCESS_SOURCE_REVISION }}
         run: python scripts/provision_student_project_access.py

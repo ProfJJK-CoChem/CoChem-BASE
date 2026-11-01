@@ -15,6 +15,7 @@ def pinned_pip_test_artifact(request, tmp_path_factory):
         "base/test_module_installer.py",
         "base/test_student_setup.py",
         "base/test_pinned_pip_runtime.py",
+        "base/test_release_isolated_build.py",
         "base/test_pip_command_context.py",
         "base/test_module_execution.py",
         "base/test_module_generation_compatibility.py",

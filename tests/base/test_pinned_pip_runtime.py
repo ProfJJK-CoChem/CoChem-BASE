@@ -280,3 +280,50 @@ def test_invalid_artifact_refuses_without_backend_or_runtime_mutation(
     assert not marker.exists()
     assert not (tmp_path / "wheels").exists()
     assert not (tmp_path / "cache").exists()
+
+
+def test_verified_pip_internal_build_installs_real_static_and_dynamic_backend_dependencies(
+        wheel, bare_python, offline_env, tmp_path):
+    from tests.base.test_release_isolated_build import _dependency_wheel
+
+    python, target = bare_python
+    caller, accepted = _caller_pip(), _tree(target)
+    project = tmp_path / "dependency-project"
+    marker = _project(project)
+    (project / "pyproject.toml").write_text(
+        '[build-system]\nrequires=["cochem-build-static==1.0"]\n'
+        'build-backend="backend"\nbackend-path=["."]\n')
+    backend = project / "backend.py"
+    original = backend.read_text()
+    signature = "def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):\n"
+    assert original.count(signature) == 1
+    proof = (
+        "    import dynamic_build_dependency, importlib.metadata, json, static_build_dependency\n"
+        "    assert static_build_dependency.VALUE == 'installed static dependency'\n"
+        "    assert dynamic_build_dependency.VALUE == 'installed dynamic dependency'\n"
+        "    pathlib.Path(__file__).with_name('dependencies-observed.json').write_text(json.dumps({\n"
+        "        'static_origin': static_build_dependency.__file__,\n"
+        "        'dynamic_origin': dynamic_build_dependency.__file__,\n"
+        "        'static_version': importlib.metadata.version('cochem-build-static'),\n"
+        "        'dynamic_version': importlib.metadata.version('cochem-build-dynamic')}))\n"
+    )
+    backend.write_text("import static_build_dependency\n" + original.replace(signature, signature + proof) +
+        "\ndef get_requires_for_build_wheel(config_settings=None):\n"
+        "    assert static_build_dependency.VALUE == 'installed static dependency'\n"
+        "    return ['cochem-build-dynamic==1.0']\n")
+    links = tmp_path / "actual-dependency-wheels"
+    _dependency_wheel(links, "cochem-build-static", "static_build_dependency", "installed static dependency")
+    _dependency_wheel(links, "cochem-build-dynamic", "dynamic_build_dependency", "installed dynamic dependency")
+    wheels = tmp_path / "built-wheels"
+    installer._run_pip(python, ["wheel", "--no-deps", "--no-index", "--wheel-dir", str(wheels), str(project)],
+        env=dict(offline_env, PIP_FIND_LINKS=str(links)), wheel=wheel,
+        label="Actual verified pip isolated backend-dependency installation", timeout=90)
+    observed = json.loads((project / "dependencies-observed.json").read_text())
+    assert observed['static_version'] == observed['dynamic_version'] == '1.0'
+    for name in ('static_origin', 'dynamic_origin'):
+        assert not Path(observed[name]).is_relative_to(target)
+        assert not Path(observed[name]).exists()
+    assert marker.read_text() == "real PEP 517 build"
+    assert len(list(wheels.glob("cochem_installer_fixture-1.2.3-py3-none-any.whl"))) == 1
+    assert _tree(target) == accepted and _inspect(python, offline_env)["distributions"] == {}
+    assert _caller_pip() == caller

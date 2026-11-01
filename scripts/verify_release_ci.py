@@ -15,6 +15,8 @@ import runpy
 import subprocess
 import sys
 import tarfile
+import tempfile
+import time
 import tomllib
 from pathlib import Path
 
@@ -82,6 +84,7 @@ HOSTED_TESTS = (
     "tests/torq/test_retired_legacy_potential_admission.py",
     "tests/base/test_module_installer.py",
     "tests/base/test_pinned_pip_runtime.py",
+    "tests/base/test_release_isolated_build.py",
     "tests/base/test_pip_command_context.py",
     "tests/base/test_module_execution.py",
     "tests/base/test_module_adapter_topos.py",
@@ -168,6 +171,99 @@ def regressions(output: Path, *, expected_revision: str | None = None) -> dict:
     return report
 
 
+class _VerifiedBuildEnvironment:
+    """The public build.env.IsolatedEnv protocol, with an owned interpreter."""
+
+    def __init__(self, path: Path, environment: dict[str, str]) -> None:
+        self.path = path
+        self.scripts = path / ("Scripts" if os.name == "nt" else "bin")
+        self.python_executable = str(self.scripts / ("python.exe" if os.name == "nt" else "python"))
+        self.environment = environment
+
+    def make_extra_environ(self) -> dict[str, str]:
+        return {"PATH": os.pathsep.join([str(self.scripts), self.environment.get("PATH", "")]),
+                "PYTHONPATH": ""}
+
+
+def _build_release_artifacts(source: Path, distribution: Path, output: Path,
+                             environment: dict[str, str], *, timeout: float = 1800) -> tuple[Path, Path]:
+    """Build the sdist, then its wheel, with verified-tool dependency installs.
+
+    Use only ProjectBuilder's public API. Each stage gets a fresh without-pip
+    interpreter and its own static and backend-reported dependencies. The
+    existing subprocess executor retains stdout/stderr and propagates failure.
+    """
+    from build import ProjectBuilder
+    from packaging.requirements import Requirement
+
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("Release build requires a finite positive whole-build budget")
+    deadline = time.monotonic() + timeout
+    contract = runpy.run_path(str(ROOT / "scripts/manage_modules.py"), run_name="reviewed_build_pip")
+    environment = contract["_build_env"](environment)
+    distribution.mkdir(exist_ok=True)
+
+    def remaining() -> float:
+        value = deadline - time.monotonic()
+        if value <= 0:
+            raise TimeoutError("Release build exhausted its whole-build budget")
+        return value
+
+    with tempfile.TemporaryDirectory(prefix="release-build-", dir=output) as temporary:
+        work = Path(temporary)
+
+        def stage(kind: str, stage_source: Path) -> Path:
+            prefix = (work / (kind + "-env")).absolute()
+            _run([sys.executable, "-I", "-B", "-m", "venv", "--without-pip", str(prefix)],
+                 output, environment, output / f"build-{kind}-venv.log", remaining())
+            isolated = _VerifiedBuildEnvironment(prefix, environment)
+            hook_index = 0
+
+            def runner(command, cwd=None, extra_environ=None):
+                nonlocal hook_index
+                hook_index += 1
+                prepared = dict(environment)
+                prepared.update(extra_environ or {})
+                _run(list(command), Path(cwd) if cwd is not None else stage_source, prepared,
+                     output / f"build-{kind}-hook-{hook_index}.log", remaining())
+
+            builder = ProjectBuilder.from_isolated_env(isolated, stage_source, runner=runner)
+
+            def install(requirements, phase):
+                if not requirements:
+                    return
+                for requirement in requirements:
+                    Requirement(requirement)
+                requirement_file = work / f"{kind}-{phase}-requirements.txt"
+                requirement_file.write_text("\n".join(sorted(requirements)) + "\n", encoding="utf-8")
+                # Explicit placement wins over pip environment/config values;
+                # the filesystem anchor is a no-op root for this absolute prefix.
+                arguments = ["install", "--root", prefix.anchor, "--prefix", str(prefix), "--target", "", "--no-user",
+                             "--no-compile", "--no-input", "-r", str(requirement_file)]
+                with contract["_pip_command"](Path(isolated.python_executable), arguments,
+                                               env=environment, timeout=remaining()) as (argv, prepared, budget):
+                    _run(argv, output, prepared, output / f"build-{kind}-{phase}.log", budget)
+
+            install(builder.build_system_requires, "static")
+            install(builder.get_requires_for_build(kind), "dynamic")
+            result = Path(builder.build(kind, str(distribution)))
+            remaining()
+            if result.is_symlink() or not result.is_file() or result.resolve().parent != distribution.resolve():
+                raise RuntimeError("Build backend returned an artifact outside the owned distribution directory")
+            return result
+
+        sdist = stage("sdist", source)
+        extracted = work / "sdist-source"
+        extracted.mkdir()
+        with tarfile.open(sdist) as bundle:
+            bundle.extractall(extracted, filter="data")
+        roots = list(extracted.iterdir())
+        if len(roots) != 1 or roots[0].is_symlink() or not roots[0].is_dir():
+            raise RuntimeError("Source distribution must contain exactly one project directory")
+        wheel = stage("wheel", roots[0])
+        return sdist, wheel
+
+
 def wheel(output: Path, *, expected_revision: str | None = None) -> dict:
     """Build committed source externally and use only a fresh wheel installation."""
     from ci_tools.base_ci import audit
@@ -189,8 +285,7 @@ def wheel(output: Path, *, expected_revision: str | None = None) -> dict:
         bundle.extractall(source, filter="data")
     expected_version = tomllib.loads((source / "pyproject.toml").read_text())["project"]["version"]
     distribution = output / "dist"
-    _run([sys.executable, "-m", "build", "--outdir", str(distribution), str(source)],
-         output, environment, output / "build.log")
+    _build_release_artifacts(source, distribution, output, environment)
     wheels = list(distribution.glob("*.whl"))
     if len(wheels) != 1:
         raise RuntimeError("Expected exactly one freshly built BASE wheel")

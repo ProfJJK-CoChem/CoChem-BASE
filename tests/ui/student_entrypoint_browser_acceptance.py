@@ -138,6 +138,76 @@ def show_project_details(page) -> None:
     expect(project).to_be_visible()
 
 
+
+def hosted_remaining_ms(deadline: float, phase: str) -> int:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise AssertionError(f"Hosted acceptance budget expired during {phase}; no retry was attempted")
+    return max(1, int(remaining * 1000))
+
+
+def hosted_draft(page) -> dict:
+    """Read the actual draft through visible controls, without changing values."""
+    values = {name: page.get_by_role("combobox", name=label, exact=True).input_value()
+              for name, label in (("engine", "Engine:"), ("method", "Method:"),
+                                  ("basis", "Basis Set:"), ("surroundings", "Surroundings:"),
+                                  ("task", "Calculate:"))}
+    values.update({name: page.get_by_role("spinbutton", name=label, exact=True).input_value()
+                   for name, label in (("charge", "Total charge:"),
+                                       ("multiplicity", "Spin multiplicity:"),
+                                       ("timeout", "Calculation timeout (s):"))})
+    values["label"] = page.get_by_role("textbox", name="Calculation label:", exact=True).input_value()
+    values["geometry"] = geometry_editor(page).input_value()
+    values["starting_geometry"] = page.get_by_label("Starting geometry:", exact=True).input_value()
+    page.get_by_role("tab", name="Method and settings", exact=True).click()
+    return values
+
+
+def check_fresh_hosted_admission(page, repository: str, branch: str, deadline: float) -> dict:
+    """Check once; existing/unknown requests remain held, never auto-submitted."""
+    started = time.monotonic()
+    phase_deadline = min(deadline, started + 120)
+    page.get_by_role("button", name="4 · Read and save results", exact=True).click()
+    show_section(page, "Saved calculations in this workspace")
+    # This witnesses only local-file idleness; it is not admission or authority.
+    expect(page.get_by_role("button", name="Refresh saved calculations", exact=True)).to_be_enabled(
+        timeout=hosted_remaining_ms(phase_deadline, "local saved-file idleness"))
+    check = page.get_by_role("button", name="Check saved project request", exact=True)
+    expect(check).to_be_enabled(timeout=hosted_remaining_ms(phase_deadline, "admission check readiness"))
+    empty = page.get_by_text("No active saved request was found. A new calculation will recheck project access and the approved workflow.", exact=True)
+    assert not empty.is_visible(), "A prior check result cannot stand in for this explicit check"
+    check.click()
+    held = page.get_by_text("This project request remains active until its exact outcome is confirmed. Do not submit it again.", exact=False)
+    attention = page.get_by_text("This saved project request needs attention.", exact=False)
+    review = page.get_by_role("heading", name="Review the saved calculation", exact=True)
+    expect(empty.or_(held).or_(attention).or_(review).first).to_be_visible(
+        timeout=hosted_remaining_ms(phase_deadline, "saved project recovery"))
+    if not empty.is_visible():
+        raise AssertionError("The saved project request is held or needs review; no new Run or Submit saved calculation was clicked")
+    # The message is published before finalization. Re-enabling this exact
+    # control witnesses completion of its own asynchronous admission lease.
+    expect(check).to_be_enabled(timeout=hosted_remaining_ms(phase_deadline, "admission lease release"))
+    expect(empty).to_be_visible()
+    page.get_by_role("button", name="1 · Setup", exact=True).click()
+    show_project_details(page)
+    assert page.get_by_label("GitHub project:", exact=True).input_value().strip() == repository
+    assert page.get_by_label("Project branch:", exact=True).input_value().strip() == branch
+    page.get_by_role("button", name="3 · Run assigned calculation", exact=True).click()
+    page.get_by_role("tab", name="Method and settings", exact=True).click()
+    return {"repository": repository, "branch": branch, "explicit_check_count": 1,
+            "no_active_request_observed": True, "check_lease_released": True,
+            "elapsed_seconds": time.monotonic() - started,
+            "automatic_saved_submission": False}
+
+
+def open_hosted_tracking_details(page) -> None:
+    """Use the real disclosure again after asynchronous status rerenders."""
+    details = page.locator("details").filter(
+        has=page.locator("summary").filter(has_text=re.compile(r"^Calculation tracking details$")))
+    if details.count() and details.is_visible() and details.get_attribute("open") is None:
+        details.locator("summary").click()
+
+
 def reload_with_kernel_cleanup(page, report: dict) -> None:
     """Exercise the real unload beacon and verify the previous kernel retires."""
     before = json.loads(page.locator("#jupyter-config-data").text_content())
@@ -846,6 +916,7 @@ def main() -> None:
             if args.native_hessian_calculation:
                 accept_native_hessian_calculation(page, report, artifact, args.calculation_timeout)
             if args.hosted:
+                hosted_deadline = time.monotonic() + args.hosted_timeout
                 page.get_by_role("button", name="1 · Setup", exact=True).click()
                 select_prefix(page.get_by_label("Run calculations on:", exact=True), "GitHub Actions")
                 show_project_details(page)
@@ -859,7 +930,7 @@ def main() -> None:
                 engine = page.get_by_label("Engine:", exact=True)
                 required_engine = "ORCA" if args.engine == "orca" else "CFOUR"
                 expect(engine.locator("option").filter(has_text=re.compile(r"^" + required_engine + r"\b"))).to_have_count(
-                    1, timeout=min(1200, args.hosted_timeout) * 1000)
+                    1, timeout=min(1200 * 1000, hosted_remaining_ms(hosted_deadline, "licensed-engine readiness")))
                 report["remote_engine_readiness"] = {"engine": args.engine,
                     "actual_archive_access_gated_choice": select_prefix(engine, required_engine),
                     "native_execution_established_by_readiness": False}
@@ -877,14 +948,20 @@ def main() -> None:
                 page.get_by_label("Calculation timeout (s):", exact=True).press("Tab")
                 show_section(page, "Advanced: output location and reproducibility export")
                 page.get_by_label("Calculation label:", exact=True).fill("student-browser-" + uuid.uuid4().hex[:8])
+                expect(page.get_by_role("button", name="Run on GitHub Actions", exact=True)).to_be_disabled()
+                draft = hosted_draft(page)
+                report["hosted_admission"] = check_fresh_hosted_admission(
+                    page, args.repository, args.branch, hosted_deadline)
+                assert hosted_draft(page) == draft, "Checking saved project state changed the intended calculation draft"
                 run = page.get_by_role("button", name="Run on GitHub Actions", exact=True)
-                expect(run).to_be_enabled(timeout=30000)
+                expect(run).to_be_enabled(timeout=min(30000, hosted_remaining_ms(hosted_deadline, "new calculation readiness")))
                 run.click()
                 page.get_by_role("button", name="4 · Read and save results", exact=True).click()
-                deadline = time.monotonic() + args.hosted_timeout
+                deadline = hosted_deadline
                 request_id = None
                 run_url = None
                 while time.monotonic() < deadline:
+                    open_hosted_tracking_details(page)
                     body = page.locator("body").inner_text()
                     if "Calculation was not submitted:" in body or "Actions submission failed" in body:
                         raise AssertionError("Actual GUI dispatch failed; see retained browser evidence")

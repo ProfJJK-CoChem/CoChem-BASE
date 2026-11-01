@@ -12,7 +12,7 @@ import json
 import re
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 from urllib import error, parse, request
@@ -886,10 +886,10 @@ def _verify_reader_metadata(api: GitHubAPI, config: ControllerConfig,
     """
     verified = []
     for kind, token in selected.items():
-        if kind == "colab" and kind not in config.credential_targets:
+        if kind == "colab":
             if not isinstance(token, str) or not token.strip():
                 raise CourseAccessError("The Google Colab offload dispatch token is empty or invalid.")
-            verified.append(kind)
+            # Secret delivery is not authenticated Colab/provider access.
             continue
         target = config.credential_targets.get(kind)
         if target is None:
@@ -944,12 +944,16 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
     writer_api = _project_writer(app_api, installation, project)
     ledger_api = _controller_ledger_api(app_api, config)
     owned = _ownership(ledger_api, config, project)
+    if "colab" in owned["bindings"] and "colab" not in config.credentials:
+        raise CourseAccessError("Existing signed Colab access has no configured replacement; all access was preserved. The instructor must restore the reviewed configuration or use an explicit reviewed withdrawal route.")
     previous = {name: _variable(writer_api, enrollment.repository, name) for name in _PROJECT_VARIABLES}
     # Never adopt an unsigned legacy selector or an unrelated existing fixed
     # Codespaces secret as deletion authority. Explicit migration is separate.
     if any(value is not None and name not in owned["variables"] for name, value in previous.items()):
         raise CourseAccessError("Existing project access settings have no authenticated controller ownership record; instructor reconciliation is required before replacement.")
     for name in _CODESPACES_NAMES - set(owned["codespaces"]):
+        if name == "COLAB_OFFLOAD_DISPATCH_TOKEN" and "colab" not in config.credentials:
+            continue  # Unrelated optional Colab data is neither adopted nor removed.
         if _secret_exists(writer_api, enrollment.repository, "codespaces", name):
             raise CourseAccessError("An existing Codespaces access setting has no authenticated controller ownership record; it was preserved.")
     selected = {kind: value for kind, value in config.credentials.items()
@@ -958,15 +962,14 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
         if (kind not in selected and (kind in owned["bindings"]
                 or previous[BINDING_VARIABLES[kind]])):
             raise CourseAccessError("A still-requested engine has existing or staged access but no replacement controller reader; its credentials and settings were preserved. Restore the reader or explicitly withdraw that engine.")
+    if ("colab" in selected and "COLAB_OFFLOAD_DISPATCH_TOKEN" not in owned["actions"]
+            and _secret_exists(writer_api, enrollment.repository, "actions", "COLAB_OFFLOAD_DISPATCH_TOKEN")):
+        raise CourseAccessError("An existing Colab Actions secret has no authenticated controller ownership record; it was preserved for instructor reconciliation.")
     reader_metadata_verified = _verify_reader_metadata(app_api, config, selected)
-    binding = {
-        BINDING_VARIABLES[kind]: (
-            "COLAB_OFFLOAD_DISPATCH_TOKEN"
-            if kind == "colab"
-            else "COCHEM_ACCESS_" + uuid.uuid4().hex.upper()
-        )
-        for kind in selected
-    }
+    # Actions replacements always stage a new signed owned generation. The
+    # fixed Colab label remains readable only for legacy authenticated ownership.
+    binding = {BINDING_VARIABLES[kind]: "COCHEM_ACCESS_" + uuid.uuid4().hex.upper()
+               for kind in selected}
     codespaces_values = {"COCHEM_ACCESS_CONTROLLER_REPOSITORY": config.repository,
                          "COCHEM_ACCESS_APP_SLUG": config.app_slug}
     if "source" in selected:
@@ -1051,6 +1054,7 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
             "codespaces_source": "available" if "source" in selected else "unavailable",
             "engine_access_verified": False, "engine_execution_performed": False,
             "reader_metadata_verified": reader_metadata_verified, "asset_download_verified": False,
+            "colab_access_verified": False,
             "secret_metadata_verified": True, "codespaces_secret_values_verified": False,
             "module_installation_performed": False, **cleanup,
             "status": "cleanup_pending" if cleanup["cleanup_pending"] else "provisioned",
@@ -1058,7 +1062,7 @@ def provision_project(config: ControllerConfig, enrollment: EnrollmentRequest, *
 
 
 def sync_calculation_access(
-    writer_api: GitHubAPI | ControllerConfig,
+    writer_api: ControllerConfig,
     repository: str | EnrollmentRequest,
     *,
     author: str | None = None,
@@ -1073,74 +1077,35 @@ def sync_calculation_access(
     cfour_secret_name: str = "CFOUR_ASSET_READ_TOKEN",
     colab_secret_name: str = "COLAB_OFFLOAD_DISPATCH_TOKEN",
 ) -> dict[str, Any]:
-    """Provision calculation secrets (Actions + Codespaces) and binding variables on a paired student repository."""
-    if isinstance(writer_api, ControllerConfig):
-        config = writer_api
-        if colab_dispatch_token and "colab" not in config.credentials:
-            creds = dict(config.credentials)
-            creds["colab"] = colab_dispatch_token.strip()
-            config = ControllerConfig(
-                repository=config.repository,
-                approved_base_sha=config.approved_base_sha,
-                app_id=config.app_id,
-                private_key=config.private_key,
-                credentials=creds,
-                organization=config.organization,
-                team_slug=config.team_slug,
-                course_channel=config.course_channel,
-                app_slug=config.app_slug,
-                base_repository=config.base_repository,
-                asset_repositories=config.asset_repositories,
-                starter_shas=config.starter_shas,
-            )
-        enrollment = (
-            repository
-            if isinstance(repository, EnrollmentRequest)
-            else EnrollmentRequest(str(repository), ("orca", "cfour"))
-        )
-        resolved_author = author or enrollment.repository.split("/")[0]
-        if controller_api is None:
-            raise CourseAccessError("controller_api is required when syncing calculation access via ControllerConfig.")
-        return provision_project(
-            config,
-            enrollment,
-            author=resolved_author,
-            controller_api=controller_api,
-            app_api=app_api,
-            authority_api=authority_api,
-            expected_repository_id=expected_repository_id,
-        )
+    """Use the authoritative controller transaction; a writer token is not admission.
 
-    repo_str = repository.repository if isinstance(repository, EnrollmentRequest) else str(repository)
-    repository_name(repo_str)
-    actions_pubkey: dict | None = None
-    codespaces_pubkey: dict | None = None
-    bound_variables: dict[str, str] = {}
-    provisioned_secrets: list[str] = []
-
-    for kind, token_val, sec_name in (
-        ("orca", orca_token, orca_secret_name),
-        ("cfour", cfour_token, cfour_secret_name),
-        ("colab", colab_dispatch_token, colab_secret_name),
-    ):
-        if token_val and isinstance(token_val, str) and token_val.strip():
-            clean_token = token_val.strip()
-            if actions_pubkey is None:
-                actions_pubkey = _public_key(writer_api, repo_str, "actions")
-            if codespaces_pubkey is None:
-                codespaces_pubkey = _public_key(writer_api, repo_str, "codespaces")
-            _put_secret(writer_api, repo_str, "actions", sec_name, clean_token, actions_pubkey)
-            _put_secret(writer_api, repo_str, "codespaces", sec_name, clean_token, codespaces_pubkey)
-            var_name = BINDING_VARIABLES[kind]
-            _write_variable(writer_api, repo_str, var_name, sec_name)
-            bound_variables[var_name] = sec_name
-            provisioned_secrets.append(sec_name)
-
-    return {
-        "repository": repo_str,
-        "bound_variables": bound_variables,
-        "provisioned_secrets": provisioned_secrets,
-    }
+    Retained legacy keyword parameters fail explicitly instead of providing an
+    alternate secret-writing path. Caller identity is never inferred from a name.
+    """
+    if not isinstance(writer_api, ControllerConfig):
+        raise CourseAccessError("Calculation access sync requires authoritative ControllerConfig; a raw writer API is not authorization.")
+    if author is None or controller_api is None:
+        raise CourseAccessError("An explicit enrollment author and controller_api are required for calculation access sync.")
+    if (orca_token is not None or cfour_token is not None
+            or orca_secret_name != "ORCA_ASSET_READ_TOKEN"
+            or cfour_secret_name != "CFOUR_ASSET_READ_TOKEN"
+            or colab_secret_name != "COLAB_OFFLOAD_DISPATCH_TOKEN"):
+        raise CourseAccessError("Use the authoritative controller configuration; raw readers and custom secret labels are not accepted.")
+    config = writer_api
+    if colab_dispatch_token is not None:
+        if not isinstance(colab_dispatch_token, str) or not colab_dispatch_token.strip():
+            raise CourseAccessError("The Google Colab offload dispatch token is empty or invalid.")
+        supplied = colab_dispatch_token.strip()
+        existing = config.credentials.get("colab")
+        if existing is not None and existing != supplied:
+            raise CourseAccessError("The supplied Colab token conflicts with the authoritative controller configuration; existing access was preserved.")
+        if existing is None:
+            config = replace(config, credentials={**config.credentials, "colab": supplied})
+    enrollment = (repository if isinstance(repository, EnrollmentRequest)
+                  else EnrollmentRequest(str(repository), ("orca", "cfour")))
+    return provision_project(config, enrollment, author=author,
+        controller_api=controller_api, app_api=app_api, authority_api=authority_api,
+        expected_repository_id=expected_repository_id)
 
 
 def deprovision_project(config: ControllerConfig, repository: str, *,

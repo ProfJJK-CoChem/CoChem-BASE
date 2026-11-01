@@ -1,7 +1,7 @@
 {
   "algorithm": "sha256",
   "files": {
-    ".cochem/student-actions-admission.json": "4ced67d04db31a2ec0e61b643fe25fa81221ced22255501fcd891ff6bbe019e6",
+    ".cochem/student-actions-admission.json": "b8165d79018921eb8af42228419232d5caa2aca5106007d741e0b2d42289ac7e",
     ".devcontainer/Dockerfile": "eeef7e14d1b5558dde1fd1dcb52dc4a4d4a116195db486aa625a3a522860a90f",
     ".devcontainer/devcontainer.json": "1920195e9d407ea8e13c9086ede6f1b5f7cb9bcff53c7c08927ffa6a091819d9",
     ".devcontainer/setup_tmpfs.sh": "6b0c13cf51ebd5bf719b8b8ecb0e6d10ad3892b5c2ae471b3bac7e15883610af",
@@ -192,7 +192,7 @@
     "src/cochem_base/core_engine/scientific_writer.py": "a6c25cf358f35086ea3890141a3e3da3916ccccd69bd54290cd90b10d6084edc",
     "src/cochem_base/core_engine/trajectory_telemetry.py": "f41854f0b559b71aa2489cd778ab6d9849edf6aeb1582aa360d198da44830264",
     "src/cochem_base/interfaces/actions_jobs.py": "20b982c1a9b74f8ff4036bf295bffdd470b4bc801b130228daf514b12ac68bd3",
-    "src/cochem_base/interfaces/course_access.py": "2984005a20679eace6099370ffd1346b0ee4e677d345b32adaf2952465ef8a27",
+    "src/cochem_base/interfaces/course_access.py": "7b5f50887fed432f361f02f13c324ff083ad4c76e37ae74c5645aaa0afede346",
     "src/cochem_base/interfaces/executors.py": "dc6cb038a604cac75840018ef05beb3de9abd4cd683040cdde906cb911df4696",
     "src/cochem_base/interfaces/module_execution.py": "6f92dc382f9c081ffa452358e07cd964d8b0933c0d69d43fc2c2e7d993bc162d",
     "src/cochem_base/interfaces/module_registry.py": "5e93821e21aa8e2266f46a41dc7781c0799afff751fe0d7658eeeb37e82bc713",

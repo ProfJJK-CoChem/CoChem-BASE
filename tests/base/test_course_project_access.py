@@ -1308,41 +1308,207 @@ def test_colab_binding_variable_and_sync_calculation_access(peer):
     assert BINDING_VARIABLES["colab"] == "COCHEM_COLAB_ACCESS_SECRET"
     colab_token = secrets.token_urlsafe(32)
     config = config_for(peer)
-    creds_with_colab = dict(config.credentials)
-    creds_with_colab["colab"] = colab_token
-    config_colab = replace(config, credentials=creds_with_colab)
+    config_colab = replace(config, credentials={**config.credentials, "colab": colab_token})
     receipt = provision(peer, config_colab)
-    assert receipt["status"] == "provisioned"
-    assert "colab" in receipt["available"]
-    assert peer.variables.get("COCHEM_COLAB_ACCESS_SECRET") == "COLAB_OFFLOAD_DISPATCH_TOKEN"
-    assert "COLAB_OFFLOAD_DISPATCH_TOKEN" in peer.secret_values
-    assert "COLAB_OFFLOAD_DISPATCH_TOKEN" in peer.codespaces_values
-    # Verify sync_calculation_access directly
+    assert receipt["status"] == "provisioned" and "colab" in receipt["available"]
+    label = peer.variables["COCHEM_COLAB_ACCESS_SECRET"]
+    assert label.startswith("COCHEM_ACCESS_") and label != "COLAB_OFFLOAD_DISPATCH_TOKEN"
+    assert peer.secret_values[label] == colab_token
+    assert peer.codespaces_values["COLAB_OFFLOAD_DISPATCH_TOKEN"] == colab_token
+    assert "colab" not in receipt["reader_metadata_verified"]
+    assert receipt["colab_access_verified"] is False
     api = GitHubAPI(peer.controller_token, api_url=peer.url, allow_loopback=True)
     app_api = GitHubAPI(app_jwt(config_colab.app_id, config_colab.private_key), api_url=peer.url, allow_loopback=True)
-    sync_receipt = sync_calculation_access(
-        config_colab,
-        EnrollmentRequest("student/project", ("orca", "cfour")),
-        author="student",
-        controller_api=api,
-        app_api=app_api,
-        authority_api=GitHubAPI(api_url=peer.url, allow_loopback=True),
-    )
+    sync_receipt = sync_calculation_access(config_colab,
+        EnrollmentRequest("student/project", ("orca", "cfour")), author="student",
+        controller_api=api, app_api=app_api,
+        authority_api=GitHubAPI(api_url=peer.url, allow_loopback=True))
     assert sync_receipt["status"] == "provisioned"
-    assert peer.variables.get("COCHEM_COLAB_ACCESS_SECRET") == "COLAB_OFFLOAD_DISPATCH_TOKEN"
-    # Also verify direct writer_api + repository mode
+    replacement = peer.variables["COCHEM_COLAB_ACCESS_SECRET"]
+    assert replacement != label and peer.secret_values[replacement] == colab_token
+    assert label not in peer.secret_values
     from cochem_base.interfaces.course_access import _project_writer
     writer_api = _project_writer(app_api, {"id": 22}, {"id": peer.project_id, "full_name": "student/project"})
-    direct_sync = sync_calculation_access(
-        writer_api,
-        "student/project",
-        colab_dispatch_token=colab_token,
-        orca_token=config_colab.credentials["orca"],
-        cfour_token=config_colab.credentials["cfour"],
-    )
-    assert direct_sync["repository"] == "student/project"
-    assert direct_sync["bound_variables"]["COCHEM_COLAB_ACCESS_SECRET"] == "COLAB_OFFLOAD_DISPATCH_TOKEN"
-    assert "COLAB_OFFLOAD_DISPATCH_TOKEN" in direct_sync["provisioned_secrets"]
+    before = _access_stores(peer)
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError, match="authoritative ControllerConfig"):
+        sync_calculation_access(writer_api, "student/project", colab_dispatch_token=colab_token,
+                                orca_token=config_colab.credentials["orca"],
+                                cfour_token=config_colab.credentials["cfour"])
+    assert _access_stores(peer) == before and peer.writes == []
+
+
+def _access_stores(peer):
+    return (dict(peer.variables), dict(peer.controller_variables),
+            dict(peer.secret_values), dict(peer.codespaces_values))
+
+
+def _sync_authority(peer, config):
+    return {"author": "student",
+        "controller_api": GitHubAPI(peer.controller_token, api_url=peer.url, allow_loopback=True),
+        "app_api": GitHubAPI(app_jwt(config.app_id, config.private_key), api_url=peer.url, allow_loopback=True),
+        "authority_api": GitHubAPI(api_url=peer.url, allow_loopback=True)}
+
+
+@pytest.mark.parametrize("boundary", ["raw-writer", "missing-author", "missing-controller", "other-author", "other-repository-id"])
+def test_sync_requires_authoritative_config_and_explicit_identity(peer, boundary):
+    from cochem_base.interfaces.course_access import sync_calculation_access
+    config = config_for(peer)
+    kwargs = _sync_authority(peer, config)
+    selected = config
+    if boundary == "raw-writer":
+        selected = kwargs["controller_api"]
+    elif boundary == "missing-author":
+        kwargs.pop("author")
+    elif boundary == "missing-controller":
+        kwargs.pop("controller_api")
+    elif boundary == "other-author":
+        kwargs["author"] = "another-student"
+    else:
+        kwargs["expected_repository_id"] = peer.project_id+1
+    before = _access_stores(peer)
+    with pytest.raises(CourseAccessError):
+        sync_calculation_access(selected, EnrollmentRequest("student/project"), **kwargs)
+    assert _access_stores(peer) == before and peer.writes == []
+
+
+def test_sync_optional_colab_addition_preserves_exact_controller_fields(peer):
+    from cochem_base.interfaces.course_access import sync_calculation_access
+    config = config_for(peer, allowed_starter_shas=("b"*40,))
+    credentials, targets = dict(config.credentials), dict(config.credential_targets)
+    token = secrets.token_urlsafe(32)
+    receipt = sync_calculation_access(config, EnrollmentRequest("student/project"),
+        colab_dispatch_token=token, **_sync_authority(peer, config))
+    assert receipt["status"] == "provisioned"
+    assert receipt["approved_base_sha"] == config.approved_base_sha
+    assert peer.secret_values[peer.variables["COCHEM_COLAB_ACCESS_SECRET"]] == token
+    assert config.credentials == credentials and config.credential_targets == targets
+    assert config.allowed_starter_shas == ("b"*40,)
+    assert receipt["reader_metadata_verified"] == ["cfour", "orca", "source"]
+    assert receipt["colab_access_verified"] is False
+
+
+@pytest.mark.parametrize("boundary", ["conflicting-token", "raw-reader", "custom-label", "empty-token"])
+def test_sync_conflicting_or_alternate_secret_inputs_refuse_before_writes(peer, boundary):
+    from cochem_base.interfaces.course_access import sync_calculation_access
+    config = config_for(peer)
+    config = replace(config, credentials={**config.credentials, "colab": secrets.token_urlsafe(32)})
+    kwargs = _sync_authority(peer, config)
+    if boundary == "conflicting-token":
+        kwargs["colab_dispatch_token"] = secrets.token_urlsafe(32)
+    elif boundary == "raw-reader":
+        kwargs["orca_token"] = config.credentials["orca"]
+    elif boundary == "custom-label":
+        kwargs["colab_secret_name"] = "UNOWNED_SECRET"
+    else:
+        kwargs["colab_dispatch_token"] = " "
+    before = _access_stores(peer)
+    with pytest.raises(CourseAccessError):
+        sync_calculation_access(config, EnrollmentRequest("student/project"), **kwargs)
+    assert _access_stores(peer) == before and peer.writes == []
+
+
+def test_unowned_colab_actions_collision_is_preserved_before_writes(peer):
+    config = config_for(peer)
+    config = replace(config, credentials={**config.credentials, "colab": secrets.token_urlsafe(32)})
+    peer.secret_values["COLAB_OFFLOAD_DISPATCH_TOKEN"] = secrets.token_urlsafe(32)
+    before = _access_stores(peer)
+    with pytest.raises(CourseAccessError, match="no authenticated controller ownership"):
+        provision(peer, config)
+    assert _access_stores(peer) == before and peer.writes == []
+
+
+def test_absent_colab_keeps_unrelated_fixed_secrets_and_regular_enrollment(peer):
+    peer.secret_values["COLAB_OFFLOAD_DISPATCH_TOKEN"] = secrets.token_urlsafe(32)
+    peer.codespaces_values["COLAB_OFFLOAD_DISPATCH_TOKEN"] = secrets.token_urlsafe(32)
+    original = (peer.secret_values["COLAB_OFFLOAD_DISPATCH_TOKEN"],
+                peer.codespaces_values["COLAB_OFFLOAD_DISPATCH_TOKEN"])
+    receipt = provision(peer, config_for(peer))
+    assert receipt["status"] == "provisioned"
+    assert receipt["available"] == ["cfour", "orca", "source"]
+    assert (peer.secret_values["COLAB_OFFLOAD_DISPATCH_TOKEN"],
+            peer.codespaces_values["COLAB_OFFLOAD_DISPATCH_TOKEN"]) == original
+    owned = json.loads(ownership_record(peer))["payload"]
+    assert "COLAB_OFFLOAD_DISPATCH_TOKEN" not in owned["actions"]
+    assert "COLAB_OFFLOAD_DISPATCH_TOKEN" not in owned["codespaces"]
+    assert "colab" not in owned["bindings"]
+
+
+def _legacy_signed_colab_generation(peer):
+    # A genuine signed controller record models the old fixed Actions generation.
+    # No old unsafe production source is loaded or executed.
+    from cochem_base.interfaces.course_access import _controller_ledger_api, _save_ownership
+    config = config_for(peer)
+    config = replace(config, credentials={**config.credentials, "colab": secrets.token_urlsafe(32)})
+    provision(peer, config)
+    label = peer.variables["COCHEM_COLAB_ACCESS_SECRET"]
+    fixed = "COLAB_OFFLOAD_DISPATCH_TOKEN"
+    peer.secret_values[fixed] = peer.secret_values.pop(label)
+    peer.variables["COCHEM_COLAB_ACCESS_SECRET"] = fixed
+    owned = json.loads(ownership_record(peer))["payload"]
+    owned["actions"] = sorted((set(owned["actions"])-{label}) | {fixed})
+    owned["bindings"]["colab"] = fixed
+    app_api = _sync_authority(peer, config)["app_api"]
+    _save_ownership(_controller_ledger_api(app_api, config), config, owned)
+    return config
+
+
+def test_signed_legacy_colab_rotation_preserves_old_values_until_switch(peer):
+    config = _legacy_signed_colab_generation(peer)
+    variables, _ledger, actions, codespaces = _access_stores(peer)
+    replacement_token = secrets.token_urlsafe(32)
+    replacement = replace(config, credentials={**config.credentials, "colab": replacement_token})
+    peer.fail_variable_name = "COCHEM_COLAB_ACCESS_SECRET"
+    with pytest.raises(CourseAccessError, match="incomplete"):
+        provision(peer, replacement)
+    assert peer.variables == variables
+    assert all(peer.secret_values[name] == value for name, value in actions.items())
+    assert peer.codespaces_values == codespaces
+    assert json.loads(ownership_record(peer))["payload"]["state"] == "staging"
+    peer.fail_variable_name = ""
+    receipt = provision(peer, replacement)
+    label = peer.variables["COCHEM_COLAB_ACCESS_SECRET"]
+    assert receipt["status"] == "provisioned"
+    assert label.startswith("COCHEM_ACCESS_") and label != "COLAB_OFFLOAD_DISPATCH_TOKEN"
+    assert peer.secret_values[label] == replacement_token
+    assert "COLAB_OFFLOAD_DISPATCH_TOKEN" not in peer.secret_values
+    assert peer.codespaces_values["COLAB_OFFLOAD_DISPATCH_TOKEN"] == replacement_token
+    assert not set(actions).intersection(peer.secret_values)
+
+
+def test_signed_colab_without_replacement_config_holds_every_store(peer):
+    config = _legacy_signed_colab_generation(peer)
+    absent = replace(config, credentials={k: v for k, v in config.credentials.items() if k != "colab"})
+    before = _access_stores(peer)
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError, match="restore the reviewed configuration"):
+        provision(peer, absent)
+    assert _access_stores(peer) == before and peer.writes == []
+
+
+def test_unreadable_colab_ownership_cannot_authorize_mutation(peer):
+    config = _legacy_signed_colab_generation(peer)
+    record = json.loads(ownership_record(peer))
+    record["signature"] = base64.b64encode(b"not an authentic signature").decode()
+    peer.controller_variables["COCHEM_ACCESS_PROJECT_42"] = json.dumps(record)
+    before = _access_stores(peer)
+    peer.writes.clear()
+    with pytest.raises(CourseAccessError, match="ownership metadata could not be authenticated"):
+        provision(peer, config)
+    assert _access_stores(peer) == before and peer.writes == []
+
+
+@pytest.mark.parametrize("with_target", [False, True])
+def test_colab_secret_delivery_never_claims_provider_verification(peer, with_target):
+    config = config_for(peer)
+    targets = dict(config.credential_targets)
+    if with_target:
+        targets["colab"] = dict(targets["orca"])
+    config = replace(config, credentials={**config.credentials, "colab": secrets.token_urlsafe(32)},
+                     credential_targets=targets)
+    receipt = provision(peer, config)
+    assert receipt["reader_metadata_verified"] == ["cfour", "orca", "source"]
+    assert receipt["colab_access_verified"] is False
 
 
 def test_student_colab_monthly_quota_and_request_packaging(tmp_path):

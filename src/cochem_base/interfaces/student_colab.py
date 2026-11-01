@@ -27,9 +27,43 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from .course_access import BINDING_VARIABLES, CourseAccessError, GitHubAPI, repository_name
-from .student_request import validate_xyz
-from .student_research import _ATOMIC_NUMBERS
+if __package__:
+    from .course_access import BINDING_VARIABLES, CourseAccessError, GitHubAPI, repository_name
+    from .student_request import validate_xyz
+    from .student_research import _ATOMIC_NUMBERS
+else:
+    # The metadata-only CLI runs before BASE/scientific dependencies are installed.
+    # Load the same contracts beside this file without executing interfaces/__init__.
+    import importlib.util
+    import sys
+
+    def _source_local_contract(name: str):
+        path = Path(__file__).resolve().with_name(name + ".py")
+        key = "_cochem_colab_source_" + hashlib.sha256(str(path).encode()).hexdigest()
+        cached = sys.modules.get(key)
+        if cached is not None:
+            if Path(cached.__file__).resolve() != path:
+                raise ImportError("The Colab contract cache belongs to another source")
+            return cached
+        spec = importlib.util.spec_from_file_location(key, path)
+        if spec is None or spec.loader is None:
+            raise ImportError("The source-local Colab contract is unavailable")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[key] = module
+        try:
+            spec.loader.exec_module(module)
+        except BaseException:
+            sys.modules.pop(key, None)
+            raise
+        return module
+
+    _course_access = _source_local_contract("course_access")
+    BINDING_VARIABLES = _course_access.BINDING_VARIABLES
+    CourseAccessError = _course_access.CourseAccessError
+    GitHubAPI = _course_access.GitHubAPI
+    repository_name = _course_access.repository_name
+    validate_xyz = _source_local_contract("student_request").validate_xyz
+    _ATOMIC_NUMBERS = _source_local_contract("student_research")._ATOMIC_NUMBERS
 
 SCHEMA_LEDGER = "cochem.student-colab-cu-ledger.v1"
 SCHEMA_REQUEST = "cochem.student-colab-request.v1"

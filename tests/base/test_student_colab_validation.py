@@ -135,3 +135,137 @@ def test_printable_greek_method_is_not_an_engine_whitelist():
     assert result["method"] == "ωB97X-D"
     assert result["basis_set"] == "def2-TZVP"
     assert verify_student_colab_request_signature(result, KEY)
+
+
+# Real standalone CLI controls. The parent can have scientific dependencies;
+# these children use one genuinely fresh venv with no pip or third-party stack.
+STDLIB_CLI_CHILD = r'''
+import importlib.util
+import json
+import os
+import runpy
+import site
+import sys
+from pathlib import Path
+from ci_tools import source_quarantine
+
+root, prefix, report = map(Path, sys.argv[1:4])
+arguments = json.loads(sys.argv[4])
+state = source_quarantine.activate_from_environment()
+if os.environ.get("COCHEM_SOURCE_QUARANTINE_ROOT"):
+    assert state is not None and state["copied"] == root
+assert Path(sys.prefix) == prefix
+assert sys.prefix != sys.base_prefix
+assert site.ENABLE_USER_SITE is False
+assert all(importlib.util.find_spec(name) is None for name in ("pip", "numpy", "pydantic"))
+script = root / "scripts/submit_colab_calculation.py"
+blocked = []
+def no_execution_or_network(event, args):
+    if event in {"subprocess.Popen", "os.system", "socket.connect", "socket.getaddrinfo"}:
+        blocked.append(event)
+        raise AssertionError("Standalone admission must not execute processes or contact a service")
+sys.addaudithook(no_execution_or_network)
+loaded = runpy.run_path(str(script), run_name="colab_cli_metadata_control")
+contract = loaded["contract"]
+course = contract._source_local_contract("course_access")
+assert loaded["CourseAccessError"] is contract.CourseAccessError is course.CourseAccessError
+assert loaded["GitHubAPI"] is contract.GitHubAPI is course.GitHubAPI
+assert loaded["repository_name"] is contract.repository_name is course.repository_name
+assert contract._source_local_contract("course_access") is course
+sys.argv = [str(script), *arguments]
+try:
+    runpy.run_path(str(script), run_name="__main__")
+finally:
+    expected = {
+        name: root / "src/cochem_base/interfaces" / (name + ".py")
+        for name in ("student_colab", "course_access", "student_request", "student_research")
+    }
+    observed = {}
+    for name, path in expected.items():
+        matches = [module for key, module in sys.modules.items()
+                   if key.startswith("_cochem_colab_source_")
+                   and Path(getattr(module, "__file__", "")).resolve() == path]
+        assert len(matches) == 1
+        observed[name] = str(Path(matches[0].__file__).resolve())
+    assert contract is loaded["contract"]
+    assert "cochem_base.interfaces" not in sys.modules
+    assert all(name not in sys.modules for name in ("numpy", "pydantic", "pip"))
+    assert not blocked
+    report.write_text(json.dumps({
+        "prefix": sys.prefix, "base_prefix": sys.base_prefix,
+        "executable": sys.executable, "source_files": observed,
+        "source_quarantine_active": state is not None,
+        "blocked_execution_or_network": blocked,
+        "one_error_and_api_identity": True,
+    }, sort_keys=True), encoding="utf-8")
+'''
+
+
+@pytest.fixture(scope="module")
+def stdlib_colab_cli(tmp_path_factory):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+    from ci_tools.source_quarantine import source_child_environment, source_paths
+
+    root = Path(__file__).resolve().parents[2]
+    work = tmp_path_factory.mktemp("colab-stdlib-cli")
+    prefix = work / "venv"
+    environment = dict(os.environ)
+    for name in ("GH_TOKEN", "GITHUB_TOKEN", "COCHEM_COLAB_ACCESS_SECRET",
+                 "COLAB_OFFLOAD_DISPATCH_TOKEN"):
+        environment.pop(name, None)
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    environment["PYTHONNOUSERSITE"] = "1"
+    environment["PYTHONPATH"] = os.pathsep.join(source_paths(root))
+    environment = source_child_environment(environment, selected_source=root)
+    subprocess.run([sys.executable, "-B", "-m", "venv", "--without-pip", str(prefix)],
+                   env=environment, capture_output=True, text=True, check=True, timeout=45)
+    python = prefix / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    assert python.is_file()
+    assert "include-system-site-packages = false" in (prefix / "pyvenv.cfg").read_text()
+    return root, work, prefix, python, environment
+
+
+@pytest.mark.parametrize("case", ["help", "invalid_physical_input", "missing_dispatch_credential"])
+def test_standalone_colab_cli_in_fresh_stdlib_environment(stdlib_colab_cli, case):
+    import os
+    import subprocess
+
+    root, work, prefix, python, environment = stdlib_colab_cli
+    arguments = ["--help"] if case == "help" else [
+        "--student-id", "student-01", "--job-id", "hydrogen-sp", "--engine", "PYSCF",
+        "--method", "HF", "--basis-set", "sto-3g", "--xyz", H2,
+        "--charge", "0", "--multiplicity", "2" if case == "invalid_physical_input" else "1",
+        "--no-opt", "--no-freq", "--repository", "student-01/CoChem-hydrogen",
+    ]
+    report = work / (case + ".json")
+    result = subprocess.run(
+        [str(python), "-B", "-c", STDLIB_CLI_CHILD, str(root), str(prefix), str(report),
+         json.dumps(arguments)], env=environment, cwd=work, capture_output=True,
+        text=True, timeout=20, check=False,
+    )
+    actual = json.loads(report.read_text())
+    assert actual["prefix"] == str(prefix)
+    assert actual["executable"] == str(python)
+    assert actual["one_error_and_api_identity"]
+    assert not actual["blocked_execution_or_network"]
+    if os.environ.get("COCHEM_SOURCE_QUARANTINE_ROOT"):
+        assert actual["source_quarantine_active"]
+    assert set(actual["source_files"]) == {"student_colab", "course_access", "student_request", "student_research"}
+    if case == "help":
+        assert result.returncode == 0, result.stderr
+        assert "--xyz-file" in result.stdout and "--multiplicity" in result.stdout
+        assert not result.stderr
+    else:
+        assert result.returncode != 0
+        assert not result.stdout
+        assert "ModuleNotFoundError" not in result.stderr
+        if case == "invalid_physical_input":
+            assert "Molecular charge and spin multiplicity are incompatible" in result.stderr
+            assert "dispatch token is not configured" not in result.stderr
+        else:
+            assert "Google Colab dispatch token is not configured" in result.stderr
+            assert "Confirm project enrollment in Connect using an instructor invitation" in result.stderr
+            assert "GH_TOKEN or GITHUB_TOKEN is required" not in result.stderr

@@ -895,6 +895,35 @@ class _WorkflowPipWindowsJob:
             self.handle = None
 
 
+def _workflow_pip_diagnostics(primary_phase: str, primary_error: BaseException | None,
+                              cleanup_phase: str, cleanup_error: BaseException | None) -> dict:
+    """Only fixed phase/type labels and integer errno; never error messages/data."""
+    phases = {
+        "launch_budget", "launch", "windows_admission", "posix_admission",
+        "observe_windows", "observe_darwin", "observe_posix", "observe_sleep",
+        "no_process", "custody_check", "windows_kill_unadmitted", "windows_stop_job",
+        "windows_wait_leader", "posix_term", "posix_term_grace", "posix_kill",
+        "posix_kill_unadmitted", "posix_wait_leader", "posix_reap_owned",
+        "posix_probe_group", "posix_probe_sleep",
+    }
+    types = {
+        "ModuleInstallationError", "OSError", "FileNotFoundError", "PermissionError",
+        "ProcessLookupError", "ChildProcessError", "InterruptedError", "IsADirectoryError",
+        "NotADirectoryError", "TimeoutExpired", "ValueError", "TypeError", "RuntimeError",
+        "AttributeError", "OverflowError", "ArgumentError", "KeyboardInterrupt", "SystemExit",
+    }
+    def details(phase: str, error: BaseException | None) -> dict:
+        name = type(error).__name__ if error is not None else None
+        number = getattr(error, "errno", None) if isinstance(error, OSError) else None
+        return {
+            "phase": phase if phase in phases else "unclassified_phase",
+            "exception_type": name if name in types or name is None else "UnclassifiedException",
+            "errno": number if type(number) is int else None,
+        }
+    return {"primary": details(primary_phase, primary_error),
+            "cleanup": details(cleanup_phase, cleanup_error)}
+
+
 def _run_workflow_pip(command: list[str], environment: dict[str, str], timeout: float) -> int:
     """CLI-only group/Job ownership; inherited streams, bounded owned cleanup.
 
@@ -964,6 +993,10 @@ def _run_workflow_pip(command: list[str], environment: dict[str, str], timeout: 
         admitted = False
         timed_out = False
         failure = None
+        primary_error = None
+        cleanup_error = None
+        primary_phase = "launch_budget"
+        cleanup_phase = "no_process"
         confirmed = False
         darwin_custody_lost = False
         result = None
@@ -972,11 +1005,14 @@ def _run_workflow_pip(command: list[str], environment: dict[str, str], timeout: 
                 raise ModuleInstallationError("Workflow pip owner admission exhausted the budget before process launch")
             options = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004}
                        if job is not None else {"start_new_session": True})
+            primary_phase = "launch"
             process = subprocess.Popen(command, env=environment, stdin=subprocess.DEVNULL, **options)
             if job is not None:
+                primary_phase = "windows_admission"
                 job.assign_and_resume(process)
                 admitted = True
             else:
+                primary_phase = "posix_admission"
                 if process.pid == os.getpgrp() or os.getpgid(process.pid) != process.pid:
                     raise ModuleInstallationError("Workflow pip did not create its owned session")
                 admitted = True
@@ -984,58 +1020,74 @@ def _run_workflow_pip(command: list[str], environment: dict[str, str], timeout: 
                 if pending_signal is not None:
                     break
                 if job is not None:
+                    primary_phase = "observe_windows"
                     done = process.poll() is not None
                 elif darwin_waitid is not None:
+                    primary_phase = "observe_darwin"
                     done = darwin_waitid(process.pid)
                 else:
+                    primary_phase = "observe_posix"
                     done = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None
                 if done:
                     break
                 if time.monotonic() >= deadline:
                     timed_out = True
                     break
+                primary_phase = "observe_sleep"
                 time.sleep(min(0.02, max(0, deadline - time.monotonic())))
         except BaseException as error:
+            primary_error = error
             failure = error
             darwin_custody_lost = darwin_waitid is not None and isinstance(error, ChildProcessError)
         finally:
             if process is not None:
                 try:
+                    cleanup_phase = "custody_check"
                     if darwin_custody_lost:
                         # ECHILD cannot establish a still-pinned leader. Never
                         # signal or reap a potentially reused PID/PGID here.
                         raise ModuleInstallationError("Darwin waitable-child custody was lost; outer cleanup is required")
                     if job is not None:
                         if not admitted:
+                            cleanup_phase = "windows_kill_unadmitted"
                             process.kill()  # Still-owned suspended launcher; no PID lookup.
+                        cleanup_phase = "windows_stop_job"
                         confirmed = job.stop()
+                        cleanup_phase = "windows_wait_leader"
                         result = process.wait(timeout=1)
                     else:
                         # Keep leader unreaped throughout TERM/KILL, pinning this
                         # PGID generation even if pip has already exited.
                         if admitted:
+                            cleanup_phase = "posix_term"
                             try:
                                 os.killpg(process.pid, signal.SIGTERM)
                             except ProcessLookupError:
                                 pass
+                            cleanup_phase = "posix_term_grace"
                             time.sleep(0.1)
+                            cleanup_phase = "posix_kill"
                             try:
                                 os.killpg(process.pid, signal.SIGKILL)
                             except ProcessLookupError:
                                 pass
                         else:
+                            cleanup_phase = "posix_kill_unadmitted"
                             process.kill()
+                        cleanup_phase = "posix_wait_leader"
                         result = process.wait(timeout=1)  # Only our exact leader.
                         cleanup_deadline = time.monotonic() + 3
                         while True:
                             if sys.platform.startswith("linux") and admitted:
                                 while True:
+                                    cleanup_phase = "posix_reap_owned"
                                     try:
                                         child, _status = os.waitpid(-process.pid, os.WNOHANG)
                                     except ChildProcessError:
                                         break
                                     if child == 0:
                                         break
+                            cleanup_phase = "posix_probe_group"
                             try:
                                 os.killpg(process.pid, 0)  # Query only after leader reaped; no later signals.
                             except ProcessLookupError:
@@ -1043,12 +1095,18 @@ def _run_workflow_pip(command: list[str], environment: dict[str, str], timeout: 
                                 break
                             if time.monotonic() >= cleanup_deadline:
                                 break
+                            cleanup_phase = "posix_probe_sleep"
                             time.sleep(0.01)
                 except BaseException as error:
+                    cleanup_error = error
                     if failure is None:
                         failure = error
             else:
                 confirmed = True  # Popen did not create a child; no process result is asserted.
+        if failure is not None or not confirmed:
+            print("Owned workflow pip diagnostics: " + json.dumps(
+                _workflow_pip_diagnostics(primary_phase, primary_error, cleanup_phase, cleanup_error),
+                sort_keys=True, separators=(",", ":")), file=sys.stderr, flush=True)
         if not confirmed:
             print("Owned workflow pip cleanup is UNCONFIRMED after bounded attempts; outer CI/profile custody remains required.",
                   file=sys.stderr, flush=True)

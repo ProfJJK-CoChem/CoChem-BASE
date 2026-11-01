@@ -138,8 +138,25 @@ def test_real_without_pip_bootstrap_build_install_and_record(
     python, target = bare_python
     assert wheel == pinned_pip_test_artifact
     caller = _caller_pip()
-    installer._run_pip(python, [], env=offline_env, label="Pinned pip bootstrap",
-                       wheel=wheel, bootstrap=True, timeout=45)
+    with installer._pip_command(python, [], env=offline_env, wheel=wheel,
+                                bootstrap=True, timeout=45) as (command, environment, remaining):
+        # A directory entry named "pip" triggers pip's genuine Windows
+        # self-modification guard. The isolated module launcher must instead
+        # load the exact private wheel, even when the target has no pip.
+        assert command[:4] == [str(python), "-I", "-B", "-c"]
+        private = Path(command[5])
+        assert private.name == wheel.name and private != wheel
+        assert private.is_file() and not private.is_symlink()
+        assert hashlib.sha256(private.read_bytes()).hexdigest() == PIP_SHA256
+        if os.name == "posix":
+            assert stat.S_IMODE(private.stat().st_mode) == 0o400
+        else:
+            assert not stat.S_IMODE(private.stat().st_mode) & 0o222
+        result = subprocess.run(command, env=environment, capture_output=True,
+                                text=True, timeout=remaining, check=False)
+        assert result.returncode == 0, result.stderr
+        assert private.is_file()
+    assert not private.exists() and not private.parent.exists()
     bootstrapped = _inspect(python, offline_env)
     assert Path(bootstrapped["prefix"]).resolve() == target.resolve()
     assert bootstrapped["distributions"]["pip"]["version"] == "26.2"

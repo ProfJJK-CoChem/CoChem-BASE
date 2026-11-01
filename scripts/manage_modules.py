@@ -275,7 +275,15 @@ def _pip_command(python: Path, arguments: list[str], *, env: dict[str, str],
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise ModuleInstallationError("Pinned pip setup budget expired before execution.")
-            command = [str(python), "-I", "-B", str(verified) + "/pip", *selected]
+            if bootstrap:
+                # Module semantics keep pip's Windows self-modification guard
+                # enabled while loading only this exact verified wheel.
+                launcher = ("import runpy,sys; sys.path.insert(0,sys.argv.pop(1)); "
+                            "runpy.run_module('pip',run_name='__main__',alter_sys=True)")
+                command = [str(python), "-I", "-B", "-c", launcher,
+                           str(verified), *selected]
+            else:
+                command = [str(python), "-I", "-B", str(verified) + "/pip", *selected]
         except ModuleInstallationError:
             raise
         except (OSError, ValueError) as error:

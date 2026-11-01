@@ -417,5 +417,59 @@
       "GitHub 42 alert identities remain inaccessible/unmapped",
       "No installed environment was modified by this readback"
     ]
+  },
+  "d8f_final_bounded_workflow_readback": {
+    "source_revision": "d8fc75842f23b166b40e04ffedbd62b8258c02ad",
+    "run_id": 41255280345,
+    "workflow_conclusion": "success",
+    "completion_utc": "2026-11-01T00:48:19Z",
+    "bounded_acceptance": {
+      "passed": true,
+      "release_accepted": true,
+      "parent_passed": 2392,
+      "parent_collected": 2392,
+      "failed": 0,
+      "skipped": 0,
+      "separate_subtests_passed": 34,
+      "original_acceptance_sha256": "375eed69a5830bc242b5fd3fff908180d8e7ab13264f27ed22a518a250c8cf31",
+      "owned_boundary_empty": true,
+      "original_junit_sha256": "44578581c86bfc183c439a7ffca2d3565f47b5896fb64d5d154f19d7051a28c1"
+    },
+    "rendered_dashboard_lifecycle_step": "success",
+    "optional_native_lifetime_tracing": {
+      "job_id": 124697188486,
+      "conclusion": "skipped",
+      "execution_established": false
+    },
+    "source_lifecycle_events": {
+      "total": 977,
+      "initial": 509,
+      "final": 468,
+      "startup_only_observations": 41,
+      "reported_source_failures": 0,
+      "reported_authority_errors": 0,
+      "all_process_finalizers_observed": false
+    },
+    "setup_validation_status": "DEGRADED_OPERATIONAL",
+    "optional_engine_GPU_readiness_established": false,
+    "original_final_artifact": {
+      "artifact_id": 13063929119,
+      "bytes": 2705452,
+      "sha256": "7b14834bdf8fd6bb4229573a3aa41a4f83773cedb333e7a84453939ea23de43f"
+    },
+    "independent_artifact_readback_sha256": "cab353df443d82f3b905b7ac0161fe320e29b9934c9d56684bb52491ec597c55",
+    "scope": "Bounded hosted workflow; no full SRS/security/licensed/student identity or Codespace acceptance",
+    "native_calculations": {
+      "methods": [
+        "xTB GFN-FF water",
+        "xTB GFN2-xTB water",
+        "PySCF HF/STO-3G water",
+        "PySCF PBE-D4/def2-SVP water",
+        "PySCF B3LYP-D4/def2-TZVP water"
+      ],
+      "original_logs_matched": true,
+      "original_verification_sha256": "22019f91125fa12930b8df7497a3211218e9581139d33b7f37222aac5fcc6ba2",
+      "scope": "Converged bounded water calculations; no general accuracy or all-engine qualification"
+    }
   }
 }

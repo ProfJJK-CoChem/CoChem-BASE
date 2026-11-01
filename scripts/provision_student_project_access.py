@@ -1,8 +1,8 @@
 """Instructor-only GitHub Actions entry point for private project enrollment."""
 from __future__ import annotations
 
-import importlib.util
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -30,6 +30,7 @@ deprovision_project = _module.deprovision_project
 reconcile_project = _module.reconcile_project
 repository_name = _module.repository_name
 ControllerInboxStore = _module.ControllerInboxStore
+sync_calculation_access = _module.sync_calculation_access
 
 
 def validate_controller(event: dict, environment: dict[str, str], config: ControllerConfig,
@@ -328,7 +329,10 @@ def main() -> int:
         environment = os.environ
         credentials = {kind: environment.get(name, "") for kind, name in {
             "orca": "COCHEM_ORCA_ASSET_CREDENTIAL", "cfour": "COCHEM_CFOUR_ASSET_CREDENTIAL",
-            "source": "COCHEM_SOURCE_CREDENTIAL"}.items() if environment.get(name)}
+            "source": "COCHEM_SOURCE_CREDENTIAL",
+            "colab": "COLAB_OFFLOAD_DISPATCH_TOKEN"}.items() if environment.get(name)}
+        if not credentials.get("colab") and environment.get("COCHEM_COLAB_ASSET_CREDENTIAL"):
+            credentials["colab"] = environment.get("COCHEM_COLAB_ASSET_CREDENTIAL", "")
         config = ControllerConfig(
             repository=environment.get("COCHEM_ACCESS_CONTROLLER_REPOSITORY", ""),
             organization=environment.get("COCHEM_ACCESS_ORGANIZATION", ""),

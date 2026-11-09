@@ -16,35 +16,26 @@ for the one-time account, access and Codespace setup.
 
 ## Before you begin
 
-Use a laptop or desktop browser so there is room for the controls. Have your
-instructor's three links ready:
+Use a laptop or desktop browser so there is room for the controls. You only need:
 
-| Link | What it is for |
+| Item | What it is for |
 | --- | --- |
-| **CoChem-BASE template** | The starting copy used to make your private project. |
-| **Instructor's setup link** | A lab page where you request access for your project. |
-| **Instructor's App installation link** | A GitHub page where you allow the lab to prepare that project. |
+| **Your GitHub account** | Stores your `CoChem-` project and runs your Codespace. |
+| **[ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE)** | The template repository you copy into your own GitHub account. |
 
-These are ordinary web addresses. You do not need a password or access token
-from your instructor. If a link is missing, ask your instructor for it before
-attempting enrollment; do not guess a repository name or App name.
-
-A **GitHub App** here is the lab's permission-based setup service. It is not a
-chemistry program you install on your laptop. Your instructor must have prepared
-it before these enrollment steps can succeed.
+You do **not** need an organization invitation, an App installation link, an
+access-request issue, or a second Codespace. `CoChem-BASE` automatically sets up
+**`PySCF`**, **`xTB`**, **`CREST`**, **`TOPOS`**, and **`TORQ`** inside your
+Codespace, and supports **`GPU4PySCF`** on Google Colab GPU.
 
 ## Student personal project
 
-Follow these steps in order the first time. Keep this guide open in one browser
-tab and your project in another. Clicking a link may open another tab; return
-to the CoChem tab when the instructions say to return to CoChem.
+Follow these steps in order:
 
 [1. Account](#1-sign-in-to-your-own-github-account) →
-[2. Private project](#2-create-your-private-project) →
-[3. First Codespace](#3-open-your-first-codespace) →
-[4. Lab access](#4-connect-your-project-to-the-lab) →
-[5. Research Codespace](#5-open-the-new-codespace-for-your-research) →
-[6. Files](#6-upload-your-own-scientific-files) →
+[2. Copy CoChem-BASE](#2-create-your-private-project) →
+[3. Open Codespace](#3-open-your-first-codespace) →
+[6. Upload files](#6-upload-your-own-scientific-files) →
 [7. Settings](#7-choose-your-calculation-settings) →
 [8. Calculate](#8-run-and-retrieve-your-calculation) →
 [9. Save and submit](#9-save-and-submit-your-work) →
@@ -57,143 +48,48 @@ to the CoChem tab when the instructions say to return to CoChem.
    If you already have an account, choose **Sign in**.
 2. Check your profile picture/menu near the top right and note your **username**.
    This is your GitHub account name, not your email address.
-3. Accept the lab's organization/team invitation sent by your instructor.
-   Complete any separate Classroom50 enrollment the course requires.
-4. Use this same GitHub account for all remaining steps.
-
-**Check before continuing:** you know your username and have the three links
-listed above. A Google sign-in alone does not tell you which GitHub username
-is active.
 
 ### 2. Create your private project
 
 A **repository** means an online project folder on GitHub. A **template** is a
 prepared starting copy of that folder.
 
-1. Open the instructor's CoChem-BASE template link. The standard template is
-   [ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE).
-2. Near the top of the page, choose **Use this template → Create a new repository**.
-   Do not choose **Fork**; this course uses an independent private copy.
-3. In **Owner**, select **your own GitHub username**, rather than the lab's
-   organization name.
+1. Open [ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE).
+2. Near the top of the page, choose **Use this template → Create a new repository**
+   (or **Fork**).
+3. In **Owner**, select **your own GitHub username**.
 4. In **Repository name**, enter **`CoChem-[target molecule name]`**, replacing
-   the bracketed words with your molecule or complex name. Examples:
-   **`CoChem-benzene`**, **`CoChem-benzene-water`** or
-   **`CoChem-formic-acid-dimer`**. Use hyphens instead of spaces; do not type
-   the square brackets. If your intended name already exists in your account,
-   open that project and check with your instructor before creating another.
-5. Select **Private**. Leave the other options at their defaults, then choose
-   **Create repository**.
-6. Bookmark the new project's page. A bookmark is your browser's saved link
-   to a page, usually made with the star beside the address bar.
-
-**Check before continuing:** the page shows
-**your-username / CoChem-your-molecule** and a **Private** label. Its address
-belongs to your account, not `ProfJJK-CoChem`. You need only this one research
-repository; BASE obtains its other modules for you.
+   the bracketed words with your molecule or complex name (for example,
+   **`CoChem-benzene`**, **`CoChem-benzene-water`**, or
+   **`CoChem-formic-acid-dimer`**).
+5. Choose **Create repository** and bookmark the new page.
 
 ### 3. Open your first Codespace
 
-A **Codespace** is a computer workspace provided by GitHub. It opens **VS Code**
-in your browser. VS Code is the workspace window; the **CoChem dashboard** is
-the page where you use chemistry buttons. You need not install VS Code locally.
+A **Codespace** is a cloud computer workspace provided by GitHub. It opens
+**VS Code** in your browser and automatically launches the **CoChem dashboard**
+on port **8866**.
 
-1. On **your private project's page**, choose the green **Code** button above
-   the file list. Choose the **Codespaces** tab.
-2. Choose **Create codespace on main**. Here, `main` is the name of the project's
-   primary version; keep it selected. Review the account that GitHub will bill
-   and the machine choice. If GitHub asks you to agree to a charge you do not
-   understand, ask your instructor before accepting it.
-3. GitHub may request permissions. The original template can list instructor
-   repositories that your account cannot authorize. If this happens, choose
-   **Continue without authorizing**, if offered, to open the initial workspace
-   with its own project access. You do not need permission to edit the
-   instructor's source. If that choice is absent or creation fails, send the
-   visible message to your instructor. This is
-   [GitHub's documented permission flow](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-repository-access-for-your-codespaces#authorizing-requested-permissions).
-4. Wait while the browser workspace builds and CoChem installs. The first
-   setup downloads programs and can take several minutes. A window of setup
-   messages is normal; you do not need to type into it.
-5. CoChem may open automatically in another tab. If it does not, find
-   **Ports** at the bottom of VS Code. If Ports is hidden, use
-   **View → Open View…**, type **Ports** and select it. The main menu may be
-   behind the three-line menu button at the upper left.
-6. In Ports, find **8866 — CoChem Voilà dashboard**. Use its **Open in Browser**
-   globe icon or forwarded address to open CoChem. Keep **Port Visibility**
-   set to **Private**. If there is no 8866 entry after setup finishes, save the
-   setup error and ask your instructor; do not create repeated workspaces.
-
-**Check before continuing:** you see four buttons at the top: **1 · Setup**,
-**2 · Add your molecule**, **3 · Run assigned calculation** and
-**4 · Read and save results**. These open the **Start here**, **Your files**,
-**Calculations** and **Results** pages respectively.
-This first Codespace is for enrollment. Wait until step 5 before uploading
-research files, because a new Codespace does not copy this one's local data.
+1. On **your project's page**, choose the green **Code** button above the file
+   list and select the **Codespaces** tab.
+2. Choose **Create codespace on main**.
+3. Wait 2–4 minutes while the browser workspace builds and installs `PySCF`,
+   `xTB`, `CREST`, `TOPOS`, and `TORQ`. During first-time setup, port **8866**
+   displays an auto-refreshing setup progress page and automatically switches to
+   the **CoChem Voilà dashboard** as soon as setup finishes.
+4. If the CoChem dashboard tab does not open automatically, click **Ports** at
+   the bottom of VS Code, find **8866 — CoChem Voilà dashboard**, and click its
+   **Open in Browser** globe icon. Keep **Port Visibility** set to **Private**.
 
 ### 4. Connect your project to the lab
 
-1. In CoChem, choose **Start here** and set **Run calculations on → GitHub
-   Actions**. Open **Connect using an instructor
-   invitation (personal projects)**; its button may start with **Show**.
-2. Paste the complete **setup link** from your instructor into
-   **Instructor's setup link**.
-3. Paste the complete **App installation link** into
-   **Instructor's App installation link**. Select the optional ORCA/CFOUR
-   access requests that your course needs, then choose **Save invitation**.
-   If you made a mistake, choose **Clear invitation** and enter the links again.
-4. Choose **Authorize lab app**. On the GitHub page that opens, select your
-   personal account and **Only select repositories**. Select **only your
-   `CoChem-` project**, review the requested permissions and choose **Install**
-   or the installation-confirmation button GitHub displays.
-5. Return to the CoChem tab. Choose **Request project access**. GitHub opens
-   a request page with its text already filled in. Choose **Submit new issue**.
-   An **issue** here is a setup request, not a chemistry error or an assignment.
-6. Wait for the lab service to post a **success comment** beneath the request.
-   Read which components it enabled. If it reports a failure or no response
-   arrives, send that request page's link to your instructor. Do not repeatedly
-   submit the same request.
-
-**Check before continuing:** the request has a success comment for **your
-project**. Simply installing the App is not the whole enrollment process.
-Organization/team membership alone does not give a personal project the lab's
-calculation access. Students do not create or paste access tokens.
+*(Optional — not needed for `PySCF`, `GPU4PySCF`, `xTB`, `CREST`, `TOPOS`, or `TORQ`.)*
+Your first Codespace is already complete and ready for research! Skip directly
+to [Step 6: Upload your own scientific files](#6-upload-your-own-scientific-files).
 
 ### 5. Open the new Codespace for your research
 
-The lab setup gives the project permission to submit calculations. GitHub
-applies the changed permissions to a **new Codespace**. Reopening or rebuilding
-the first Codespace does not apply them.
-
-1. If you uploaded anything in the initial workspace, download the original
-   files and completed calculation bundles to your own computer before leaving.
-2. Open [Your codespaces](https://github.com/codespaces). Find the initial
-   Codespace by the **your-username/CoChem-your-molecule** repository shown
-   beside it. Its generated workspace name may be different from your molecule.
-3. Open its **…** menu and choose **Stop codespace**. Keep it; do not delete it.
-4. Open [Create a new Codespace](https://github.com/codespaces/new). Select
-   **your private `CoChem-` repository**, branch **main**, and the machine
-   recommended by your instructor. Review the payer/usage information, then
-   choose **Create codespace**. Authorize the requested access to your project.
-   If required access is denied, send the message to your instructor.
-5. Wait for automatic setup, then open the CoChem dashboard as in step 3.
-   BASE installs the approved TOPOS/TORQ components itself. If setup reports
-   a failure, use the nearby explanation or give the message to your instructor;
-   do not install another CoChem repository manually.
-6. In **Start here**, set **Run calculations on → GitHub Actions**.
-   Check the displayed project is **your-username/CoChem-your-molecule**.
-7. Choose **Check ORCA & CFOUR** and wait for the result beside each engine.
-   A linked check opens on GitHub if you need to see its progress.
-
-**Check before continuing:** setup has finished, the correct project is selected,
-and the engine required by your study is available. The engine access check
-confirms whether the program can be obtained; each calculation still installs
-and verifies its engine before running chemistry.
-
-ORCA and CFOUR are **optional and strongly recommended**. If one is unavailable,
-its dependent methods cannot be selected. Other available features remain
-usable. Your instructor handles engine access; you do not download licensed
-archives into your project. A failed check is not a reason to change the
-scientific method without your instructor's guidance.
+*(Not needed — stay in the Codespace you opened in Step 3.)*
 
 ### 6. Upload your own scientific files
 

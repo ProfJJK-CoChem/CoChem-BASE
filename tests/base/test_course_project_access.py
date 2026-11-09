@@ -523,10 +523,7 @@ def test_actual_http_provisions_encrypted_actions_and_codespaces_separately(peer
 def test_canonical_codespace_explicitly_authorizes_submission_to_its_own_project():
     path = Path(__file__).resolve().parents[2] / ".devcontainer/devcontainer.json"
     repositories = json.loads(path.read_bytes())["customizations"]["codespaces"]["repositories"]
-    assert repositories["ProfJJK-CoChem/CoChem-BASE"]["permissions"] == {
-        "actions": "write", "contents": "write"}
-    assert all(value["permissions"] == {"contents": "read"}
-               for name, value in repositories.items() if name != "ProfJJK-CoChem/CoChem-BASE")
+    assert repositories == {}
 
 
 def test_enrollment_prepares_exact_project_permissions_without_changing_launch_code(peer):

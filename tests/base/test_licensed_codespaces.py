@@ -581,6 +581,5 @@ def test_licensed_setup_cli_exposes_optional_engine_selection_without_provisioni
 def test_codespaces_requests_explicit_read_permissions_and_cli_available():
     configuration = json.loads((setup.REPO_ROOT / ".devcontainer/devcontainer.json").read_text())
     repositories = configuration["customizations"]["codespaces"]["repositories"]
-    for provider in ("ORCA", "CFOUR"):
-        assert repositories[f"ProfJJK-CoChem/CoChem-{provider}"]["permissions"] == {"contents": "read"}
+    assert repositories == {}
     assert "ghcr.io/devcontainers/features/github-cli:1" in configuration["features"]

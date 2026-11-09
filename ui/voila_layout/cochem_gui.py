@@ -600,7 +600,7 @@ class CoChemGUI(InputManagementMixin):
                 ('GitHub Actions', 'github-actions'),
                 ('HPC Cluster (Slurm/PBS)', 'hpc')
             ],
-            value='github-actions' if os.environ.get('CODESPACES', '').lower() == 'true' else
+            value='github-actions' if os.environ.get('COCHEM_DEFAULT_CALC_ENV', '').strip().lower() == 'github-actions' else
                   'macos' if sys.platform == 'darwin' else 'local' if os.name == 'nt' else 'linux',
             description='Run calculations on:',
             style={'description_width': 'initial'}

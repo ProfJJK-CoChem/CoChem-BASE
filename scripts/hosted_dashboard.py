@@ -7,6 +7,9 @@ The forwarded port remains private; production calculations use configured engin
 from __future__ import annotations
 
 import argparse
+import contextlib
+import html
+import http.server
 import json
 import os
 import re
@@ -16,6 +19,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -344,16 +348,108 @@ def requested_silos(artifact_dir: Path) -> list[str]:
     return sorted(set(selected) | {"cochem_core_silo", "cochem_ui_silo"})
 
 
-def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) -> None:
-    """Install the bounded CPU dashboard and publish genuine execution authority."""
-    env = runtime_environment(artifact_dir)
+def _write_setup_progress(artifact_dir: Path, message: str) -> None:
+    progress = artifact_dir / "dashboard" / "setup-progress.txt"
+    progress.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    progress.write_text(message.strip() + "\n", encoding="utf-8")
+
+
+@contextlib.contextmanager
+def _setup_lock(artifact_dir: Path):
+    lock_path = artifact_dir / "dashboard" / "setup.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        try:
+            import fcntl
+        except ImportError:
+            fcntl = None
+        if fcntl is not None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if fcntl is not None:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+@contextlib.contextmanager
+def _setup_status_server(artifact_dir: Path, port: int):
+    """Serve an HTTP 200 auto-refreshing setup status page on port 8866 while setup runs."""
+    if port <= 0 or page_ready(port):
+        yield
+        return
+    progress_path = artifact_dir / "dashboard" / "setup-progress.txt"
+
+    class _ThreadingServer(http.server.ThreadingHTTPServer):
+        allow_reuse_address = True
+        daemon_threads = True
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            step = "Preparing Python environments, PySCF, xTB, CREST, TOPOS, and TORQ..."
+            if progress_path.is_file():
+                try:
+                    text = progress_path.read_text(encoding="utf-8").strip()
+                    if text:
+                        step = text
+                except OSError:
+                    pass
+            body = (
+                "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
+                "<meta http-equiv='refresh' content='4'>"
+                "<title>CoChem-BASE — Preparing Workspace</title>"
+                "<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:680px;"
+                "margin:4rem auto;padding:2rem;line-height:1.5;color:#1f2937;background:#f8fafc}"
+                ".card{background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:1.75rem;"
+                "box-shadow:0 2px 8px rgba(0,0,0,0.05)}h1{margin-top:0;font-size:1.4rem;color:#0f172a}"
+                ".step{background:#f1f5f9;border-left:4px solid #2563eb;padding:0.75rem 1rem;"
+                "border-radius:4px;font-weight:600;margin:1rem 0}</style></head><body>"
+                "<div class='card'><h1>CoChem-BASE is preparing your workspace</h1>"
+                "<p>First-time setup installs the scientific Python environments (<strong>PySCF</strong>, "
+                "<strong>xTB</strong>, <strong>CREST</strong>, <strong>TOPOS</strong>, <strong>TORQ</strong>) "
+                "and completes the 11-phase Stage 0 verification. This usually takes 2–4 minutes.</p>"
+                f"<div class='step' role='status'>{html.escape(step)}</div>"
+                "<p>This page refreshes automatically every 4 seconds and will open the CoChem Voilà "
+                "dashboard as soon as setup finishes.</p></div></body></html>"
+            ).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = None
+    thread = None
+    try:
+        server = _ThreadingServer(("127.0.0.1", port), _Handler)
+        thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.2}, daemon=True)
+        thread.start()
+    except OSError:
+        server = None
+    try:
+        yield
+    finally:
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+        if thread is not None:
+            thread.join(timeout=3)
+
+
+def _run_setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float, env: dict[str, str]) -> None:
     build_env = setup_build_environment(env)
+    _write_setup_progress(artifact_dir, "Step 1/5: Bootstrapping CoChem UI Python environment...")
     subprocess.run([
         sys.executable, str(REPO_ROOT / "scripts/bootstrap_environment.py"),
         "--venv", str(python.parent.parent),
     ], cwd=REPO_ROOT, env=build_env, check=True)
     # Explicitly refresh the entire UI contract, including newly added plotting
     # dependencies, even when the bootstrap import probe succeeds on an old venv.
+    _write_setup_progress(artifact_dir, "Step 2/5: Installing scientific and Voilà dashboard packages...")
     installer = runpy.run_path(str(REPO_ROOT / "scripts/manage_modules.py"))
     refresh_output = installer["_run_pip"](python, [
         "install", "-e", ".[dev,symmetry]",
@@ -365,6 +461,7 @@ def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) 
         visible = installer["_redact"](refresh_output, build_env)
         print(re.sub(r"(https?://)[^/\s]*@", r"\1[redacted]@", visible), flush=True)
     subprocess.run([str(python), "-m", "pip", "check"], env=build_env, check=True)
+    _write_setup_progress(artifact_dir, "Step 3/5: Preparing PAW pseudopotentials and free engines (xTB, CREST)...")
     paw_inputs = prepare_paw_inputs(python, artifact_dir)
     if paw_inputs["status"] == "failed":
         print(paw_inputs["message"])
@@ -379,6 +476,7 @@ def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float) 
     if automatic and not requested_modules:
         requested_modules = ["topos", "torq"]
     if requested_modules:
+        _write_setup_progress(artifact_dir, "Step 4/5: Installing TOPOS and TORQ ecosystem modules...")
         catalog = json.loads((REPO_ROOT / "scripts/module-distribution.json").read_text(encoding="utf-8"))["modules"]
         if any(name not in catalog for name in requested_modules):
             raise ValueError("COCHEM_MODULES must contain module IDs from scripts/module-distribution.json")
@@ -413,7 +511,16 @@ print(json.dumps(result))
         print("Optional module setup completed; unavailable modules can be retried in the interface.")
     manifest.write_text(json.dumps({"selected_repositories": selected_repositories,
         "requested_silos": requested_silos(artifact_dir)}) + "\n", encoding="utf-8")
+    _write_setup_progress(artifact_dir, "Step 5/5: Running 11-phase Stage 0 verification (PySCF & silos)...")
     refresh_stage0_authority(python, artifact_dir, min_disk_space_gb)
+    _write_setup_progress(artifact_dir, "Setup complete — starting CoChem Voilà dashboard...")
+
+
+def setup_dashboard(python: Path, artifact_dir: Path, min_disk_space_gb: float, port: int = 8866) -> None:
+    """Install the bounded CPU dashboard and publish genuine execution authority."""
+    env = runtime_environment(artifact_dir)
+    with _setup_status_server(artifact_dir, port), _setup_lock(artifact_dir):
+        _run_setup_dashboard(python, artifact_dir, min_disk_space_gb, env)
 
 
 def refresh_stage0_authority(python: Path, artifact_dir: Path, min_disk_space_gb: float = 1.0) -> dict:
@@ -708,6 +815,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8866)
     parser.add_argument("--timeout", type=float, default=120)
     parser.add_argument("--restart-delay", type=float, default=0, help=argparse.SUPPRESS)
+    parser.add_argument("--ensure-setup", action="store_true",
+                        help="Wait for or complete initial setup while serving a status page on the dashboard port")
     parser.add_argument("--min-disk-space-gb", type=float, default=50.0,
                         help="Minimum free workspace storage; use 1 only for bounded small-molecule acceptance")
     args = parser.parse_args(argv)
@@ -733,7 +842,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "setup":
         if args.min_disk_space_gb <= 0:
             parser.error("The minimum workload storage must be positive")
-        setup_dashboard(python, artifacts, args.min_disk_space_gb)
+        setup_dashboard(python, artifacts, args.min_disk_space_gb, port=args.port)
     elif args.command in {"restart", "stop"}:
         if args.command == "restart":
             # Reject an unusable target while the current interface and its
@@ -743,9 +852,24 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "restart":
             start_dashboard(python, artifacts, args.port, args.timeout)
     elif args.command == "start":
-        if not python.is_file():
-            parser.error("Dashboard environment is missing; run the setup command first")
-        validate_setup(python, artifacts)
+        ensure_setup = args.ensure_setup or os.environ.get("CODESPACES", "").lower() == "true"
+        if ensure_setup:
+            min_disk = 1.0 if args.min_disk_space_gb == 50.0 else args.min_disk_space_gb
+            with _setup_status_server(artifacts, args.port), _setup_lock(artifacts):
+                ready = False
+                if python.is_file():
+                    try:
+                        validate_setup(python, artifacts)
+                        ready = True
+                    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                        ready = False
+                if not ready:
+                    _run_setup_dashboard(python, artifacts, min_disk, env)
+                    validate_setup(python, artifacts)
+        else:
+            if not python.is_file():
+                parser.error("Dashboard environment is missing; run the setup command first")
+            validate_setup(python, artifacts)
         start_dashboard(python, artifacts, args.port, args.timeout)
     elif not page_ready(args.port):
         print("Dashboard has not rendered successfully", file=sys.stderr)

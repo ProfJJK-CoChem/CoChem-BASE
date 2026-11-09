@@ -7,73 +7,44 @@ computer calculations. **CoChem-BASE is the one project you start with.** Its
 browser interface prepares the CoChem tools, including TOPOS and TORQ, and
 brings your files, calculations and results together.
 
-## Students: start your project here
+## Students: start your project here (4 clicks — no secrets or enrollment needed)
 
 **[Open the step-by-step student guide](.docs/GET_STARTED.md#student-personal-project)**
 
 You use buttons and menus in your web browser. You do not need to install Python,
-type computer commands or obtain separate TOPOS/TORQ repositories. You supply
-your own scientific files; your instructor supplies course access and the
-calculation settings for your study.
+type computer commands, request organization invites, or install a GitHub App.
+`CoChem-BASE` automatically provisions **`PySCF`**, **`xTB`**, **`CREST`**,
+**`TOPOS`**, and **`TORQ`** inside your GitHub Codespace, and connects to
+**`GPU4PySCF`** on Google Colab GPU.
 
-### Before you click anything
+### 1. Create your GitHub account and copy `CoChem-BASE`
 
-Have these ready:
+1. Sign in to your [GitHub account](https://github.com/signup) (or create one).
+2. Open [ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE).
+3. Click **Use this template → Create a new repository** (or **Fork**) near the top right.
+4. Under **Owner**, select **your own GitHub username** and name your repository
+   **`CoChem-[target-molecule]`** (for example `CoChem-benzene-water`), then click
+   **Create repository**.
 
-- Your own [GitHub account](https://github.com/signup). GitHub is the website
-  that stores your project. Use the same account throughout the course.
-- Your instructor's BASE template link, **setup link** and **App installation
-  link**. The last two let the lab prepare access for your project. Ask your
-  instructor if a link is missing; you do not create these links yourself.
-- Your target molecule's name. Your project must be named
-  **`CoChem-[target molecule name]`**. Replace the bracketed words with the name,
-  for example **`CoChem-benzene`** or **`CoChem-benzene-water`**. Use hyphens
-  instead of spaces and leave out the brackets.
+### 2. Open CoChem in GitHub Codespaces
 
-### 1. Make your private project folder
-
-A **repository** is GitHub's name for an online project folder. A **template**
-is the prepared starting copy of CoChem that you use to create that folder.
-
-1. Sign in to GitHub and open the BASE template your instructor supplied.
-   The standard template is [CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE).
-2. Near the top of that page, choose **Use this template**, then
-   **Create a new repository**. Use this button rather than **Fork**.
-3. Under **Owner**, choose **your own GitHub username**.
-4. Under **Repository name**, enter your `CoChem-` molecule name, such as
-   `CoChem-benzene-water`.
-5. Choose **Private**, then **Create repository**.
-6. Check the new page: it should show **your username / CoChem-your-molecule**
-   and a **Private** label. Bookmark this page; it is your project.
-
-### 2. Open CoChem in your browser
-
-1. On **your new project's page**, choose the green **Code** button.
-2. Choose the **Codespaces** tab, then **Create codespace on main**.
-   A Codespace is a computer workspace that opens in your browser. It displays
-   **VS Code**, where CoChem starts automatically; you need not install VS Code.
-3. Follow [the guide's permission and first-start steps](.docs/GET_STARTED.md#3-open-your-first-codespace).
-   Wait for setup. If the CoChem page does not open, use VS Code's **Ports**
-   panel to open **8866 — CoChem Voilà dashboard**. Keep the port **Private**.
-
-**The first Codespace is for connecting your project to the lab.** Complete
-[Connect your project to the lab](.docs/GET_STARTED.md#4-connect-your-project-to-the-lab),
-then create the new Codespace described there before uploading research work.
-You only do this enrollment sequence when first setting up access or when your
-instructor tells you permissions have changed.
+1. On **your new repository's page**, click the green **Code** button.
+2. Select the **Codespaces** tab, then click **Create codespace on main**.
+3. Wait 2–4 minutes while your Codespace prepares `PySCF`, `xTB`, `CREST`,
+   `TOPOS`, and `TORQ`. Port **8866 (`CoChem Voilà dashboard`)** displays a live
+   auto-refreshing setup progress page and automatically opens the CoChem
+   dashboard as soon as setup finishes. (If the browser tab did not open
+   automatically, open VS Code's **Ports** panel at the bottom and click the
+   globe icon next to **8866 — CoChem Voilà dashboard**.)
 
 ### 3. Work through the CoChem dashboard
 
-The **dashboard** is the CoChem page with buttons for your research.
-**GitHub Actions** is the separate computer service that runs your calculation.
-Selecting Actions does not run chemistry on your laptop.
-
 | In CoChem, open… | What you do |
 | --- | --- |
-| **Start here** | Choose **GitHub Actions** under **Run calculations on**. Complete the access check for the engines your study needs. |
-| **Your files** | Upload your own scientific inputs and select the starting structure. Avogadro 2 XYZ files are one supported route. |
-| **Calculations** | Inspect **Starting structure**, enter your study's settings and submit the task. Use the controls below the tabs to retrieve results and download the calculation bundle. |
-| **Results** | Inspect the available values, structures, tables and figures from your retrieved calculation. |
+| **Start here** | Confirm **Run calculations on** is set to **Linux** (your Codespace, where `PySCF`, `xTB`, `CREST`, `TOPOS`, and `TORQ` are ready immediately) or use the Google Colab GPU notebook for **`GPU4PySCF`**. |
+| **Your files** | Upload your own scientific inputs (such as Avogadro 2 `.xyz` files) and select the starting structure. |
+| **Calculations** | Inspect **Starting structure**, choose **`PySCF`** or **`xTB`**, enter your study's charge, multiplicity, method, and basis set, and run the calculation. |
+| **Results** | Inspect the available values, structures, tables, and figures, and click **Download calculation bundle** to save a copy to your computer. |
 
 **[Continue with the full instructions: upload, calculate, save and submit](.docs/GET_STARTED.md#6-upload-your-own-scientific-files)**
 

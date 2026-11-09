@@ -11,6 +11,7 @@
     "OMP_NUM_THREADS": "2",
     "OPENBLAS_NUM_THREADS": "2",
     "COCHEM_STUDENT_AUTO_SETUP": "true",
+    "COCHEM_STUDENT_AUTO_REMOTE_CHECK": "false",
     "COCHEM_MODULES": "topos torq",
     "COCHEM_UPDATE_CHANNEL": "canonical-default-branch"
   },
@@ -18,7 +19,7 @@
     "source=cochem-base-artifacts,target=/home/vscode/CoChem_Artifacts,type=volume"
   ],
   "postCreateCommand": "bash scripts/setup_devcontainer.sh",
-  "postStartCommand": "python3 scripts/hosted_dashboard.py start",
+  "postStartCommand": "python3 scripts/hosted_dashboard.py start --ensure-setup",
   "postAttachCommand": "python3 scripts/hosted_dashboard.py workspace",
   "forwardPorts": [
     8866
@@ -48,34 +49,7 @@
       }
     },
     "codespaces": {
-      "repositories": {
-        "ProfJJK-CoChem/CoChem-ORCA": {
-          "permissions": {
-            "contents": "read"
-          }
-        },
-        "ProfJJK-CoChem/CoChem-CFOUR": {
-          "permissions": {
-            "contents": "read"
-          }
-        },
-        "ProfJJK-CoChem/CoChem-TOPOS": {
-          "permissions": {
-            "contents": "read"
-          }
-        },
-        "ProfJJK-CoChem/CoChem-TORQ": {
-          "permissions": {
-            "contents": "read"
-          }
-        },
-        "ProfJJK-CoChem/CoChem-BASE": {
-          "permissions": {
-            "actions": "write",
-            "contents": "write"
-          }
-        }
-      }
+      "repositories": {}
     }
   }
 }

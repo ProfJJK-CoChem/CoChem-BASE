@@ -184,3 +184,24 @@ def test_failed_server_cleanup_stops_its_group_and_preserves_unrelated_process(t
         stop_owned_server(server)
         unrelated.terminate()
         unrelated.wait(timeout=5)
+
+
+def test_setup_status_server_serves_http_200_progress_and_releases_port(tmp_path):
+    from urllib.request import ProxyHandler, build_opener
+
+    from scripts.hosted_dashboard import _setup_status_server, _write_setup_progress, page_ready
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    _write_setup_progress(tmp_path, "Step 3/5: Preparing PAW pseudopotentials and free engines (xTB, CREST)...")
+    with _setup_status_server(tmp_path, port):
+        assert not page_ready(port)
+        with build_opener(ProxyHandler({})).open(f"http://127.0.0.1:{port}/", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert "CoChem-BASE is preparing your workspace" in body
+            assert "Step 3/5" in body
+    with socket.socket() as rebound:
+        rebound.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        rebound.bind(("127.0.0.1", port))

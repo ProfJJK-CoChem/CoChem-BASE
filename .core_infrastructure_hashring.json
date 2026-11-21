@@ -19,6 +19,7 @@
     ".github/workflows/orca_acceptance.yml": "94a176f0c408a5d91bc01575e3676f3b484fbbf306bec0f6bf9fab8d6a314272",
     ".github/workflows/orca_asset_access.yml": "f2cbb9faf39eb39fe1b840c6b3aecf29dc61804c55be006561ede1ffb77c0fdc",
     ".github/workflows/orca_calculation.yml": "5d744c367c088a1faa13c8fe98f5d851161db23492fb48d52098c4576733b45c",
+    ".github/workflows/student_conformers.yml": "9e2e106900bb885458f20bbf3afbb8f521c0b96e0fee37ce6bfec4d40a843651",
     ".github/workflows/student_entrypoint_acceptance.yml": "f1267695ff33ceb97476b86f00b2f1304aab62722771fbc2e69f42b7a779b995",
     ".github/workflows/student_project_setup.yml": "479ffcd3ae399e41f8d43451adc98905c8d825703fd506ec99b1718a908a2e75",
     ".github/workflows/student_research.yml": "5753cb3ce233d65acf40cd5a0c838affc7496577521e387f5a41e2d85a5a90a1",

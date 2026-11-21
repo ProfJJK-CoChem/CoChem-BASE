@@ -9,6 +9,8 @@ brings your files, calculations and results together.
 
 ## Students: start your project here (4 clicks — no secrets or enrollment needed)
 
+For a public fork exercise, follow [XYZ conformer search, CPU refinement and instructor handoff](student/README.md). This route runs on GitHub Actions and produces separate isomer geometries and a downloadable research bundle.
+
 **[Open the step-by-step student guide](.docs/GET_STARTED.md#student-personal-project)**
 
 You use buttons and menus in your web browser. You do not need to install Python,

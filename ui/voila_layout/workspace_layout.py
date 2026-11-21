@@ -121,13 +121,14 @@ def _navigate(gui: Any, view: str, title: str, tab: int | None = None) -> widget
 
 
 def _setup(gui: Any) -> None:
-    gui.btn_remote_engine_check.button_style = "primary"
+    from ui.voila_layout.student_conformer_panel import StudentConformerPanel
+    gui.public_lab = StudentConformerPanel(gui)
+    gui.btn_remote_engine_check.button_style = ""
     gui.btn_setup_retry.button_style = ""
     gui.gh_setup_box.layout.border = ""
     gui.gh_setup_box.layout.padding = "0"
     gui.gh_setup_box.children = (
-        _text("<h3>Check calculation access</h3><p>Check which licensed programs this project can download. "
-              "ORCA and CFOUR are optional and strongly recommended; free methods remain available without them.</p>"),
+        _text("<h3>Optional licensed calculations</h3><p>Use this check only for an assignment that specifically names ORCA or CFOUR. The public conformer lab uses CREST, MACE and CPU PySCF.</p>"),
         *gui.gh_setup_box.children[1:],
     )
     gui.local_setup_box.layout.border = ""
@@ -148,13 +149,14 @@ def _setup(gui: Any) -> None:
     )
     gui.btn_continue_inputs = _navigate(gui, "inputs", "Continue to Your files")
     gui.view_install.children = (
-        _heading("Start here", "Prepare your workspace, then bring in your own structures and research data."),
+        _heading("Start here", "New to CoChem? Start with the practice molecule below. You can complete this exercise using buttons in your browser."),
+        gui.public_lab.start,
         _next_instruction("Step 1 · Set up your workspace", "Follow your instructor’s choice of calculation computer below. "
             "Read any setup message. You can add your molecule while setup runs; calculations that need unavailable programs stay disabled."),
         _teach(gui, "workspace", "Help · Where does my calculation run?"),
         _section("Where will calculations run?", gui.calc_env_dropdown, _help("workspace"),
                  Disclosure("Where this interface runs", gui.interact_env_dropdown)),
-        gui.dynamic_setup_container, gui.local_install_options, gui.run_install_btn,
+        Disclosure("Set up other calculation programs", gui.dynamic_setup_container, gui.local_install_options, gui.run_install_btn),
         gui.student_setup_panel, _actions(gui.btn_continue_inputs),
     )
     gui.student_setup_panel.layout.border = ""
@@ -193,7 +195,8 @@ def _inputs(gui: Any) -> None:
         gui.btn_sieve_inputs, gui.input_pool_status, gui.input_unique_conformer, gui.btn_use_unique_conformer)
     gui.btn_continue_calculation_settings = _navigate(gui, "matrix", "Continue to calculation settings", tab=1)
     gui.view_inputs.children = (
-        _heading("Your files", "Upload a file, choose a structure/frame, then Use selected starting geometry."),
+        _heading("Your files", "Click Upload scientific inputs. In the window that opens, choose your file and click Open. When its name appears below, choose the structure you want and click Use selected starting geometry."),
+        _text("<p>Doing the public conformer lab? Its own file picker is on <b>1 · Setup → Run your first molecule → Use my XYZ file</b>. Files added on this page stay in the dashboard until you choose a calculation.</p>"),
         gui.input_upload_section, gui.input_library_rejections,
         _section("2 · Choose a structure or dataset", gui.input_library_choice,
                  gui.input_record_choice, gui.input_management_controls, gui.btn_use_input_geometry,
@@ -366,7 +369,7 @@ def _calculations(gui: Any) -> None:
                  _navigate(gui, "matrix", "Monomer constraints", tab=4)))
     gui.config_tabs.add_class("cochem-guided-tabs")
     gui.view_matrix.children = (
-        _heading("Calculations", "Follow the settings in your assignment. Ask your instructor before guessing a method, charge or spin state."),
+        _heading("Calculations", "This page is for assignments that name a particular method. For the public CREST, MACE and CPU PySCF lab, go to 1 · Setup and click Run in CoChem. The regular PySCF control here calculates the energy of a fixed shape."),
         _next_instruction("Step 3 · Choose and run your assigned calculation", "Check your starting molecule in <b>Starting structure</b>. "
             "In <b>Method and settings</b>, choose the assigned calculation program, method and basis set. "
             "Then read the status beside the Run button. A disabled button means something still needs attention."),
@@ -414,12 +417,12 @@ def _inspection(gui: Any) -> None:
         "<p>Select an uploaded HDF5 or NPZ file, then choose <b>Inspect HDF5 / NPZ data</b>. "
         "The preview shows up to 100 datasets and 500 values per dataset; your original file stays intact.</p>")
     gui.view_inspector.children = (
-        _heading("Spectra and properties", "Read quantities from completed calculations or examine isotope effects using a matching Hessian."),
+        _heading("Spectra and properties", "Choose the original output file from your finished calculation and click Read calculated properties. For isotope effects you also need the matching Hessian, a file describing how the energy changes when atoms move. An empty field means the value is unavailable."),
         _section("Read a calculation output", gui.telemetry_input_upload, gui._input_selectors["telemetry"], gui.btn_parse_inspector),
         gui.inspector_tabs,
     )
     gui.view_periodic.children = (
-        _heading("Periodic structures", "Inspect a repeating crystal structure and prepare a supported Quantum ESPRESSO calculation."),
+        _heading("Periodic structures", "Use this page for a crystal made of repeating units. Start with the crystal file named in your assignment. After the structure loads, check the unit cell and elements. Ask for the assigned element files before submitting."),
         _help("periodic"), *gui.view_periodic.children[1:],
     )
 
@@ -487,7 +490,7 @@ def _guided_shell(gui: Any) -> None:
             }[ProductClass(selected_goal)]
         gui.guided_goal_status.value = (
             "<p><b>Selected scientific goal:</b> " + html.escape(goal_label)
-            + ". Goal selection is not validation.</p>")
+            + ". Goal selection is not validation. This setting applies to the advanced calculation form. The public first lab uses its own fixed method.</p>")
         task_summary = ""
         if program == "XTB":
             task = dict((value, label) for label, value in gui.xtb_task.options)[gui.xtb_task.value]
@@ -524,8 +527,9 @@ def _guided_shell(gui: Any) -> None:
     gui.header.children = (gui.header_title, gui.header_status, gui.header_env, gui.guided_cancel, gui.more_scientific_tools)
     for field in (gui.header_title, gui.header_status, gui.header_env):
         field.layout.margin = "0"
+    from .learning import build_control_guide
     gui.app.header = widgets.VBox([gui.header, gui.guided_journey, gui.guided_current,
-                                   gui.learning_help.widget]).add_class("cochem-guided-header")
+                                   gui.learning_help.widget, build_control_guide()]).add_class("cochem-guided-header")
     results = gui.view_modules.children
     gui.result_summary_download = _text("")
 
@@ -541,7 +545,8 @@ def _guided_shell(gui: Any) -> None:
     refresh_summary()
     gui.view_modules.children = (
         _heading("Read and save results", "Check what actually finished before interpreting a number or figure."),
-        _next_instruction("Step 4 · Read, check and save", "For a remote job, click <b>Refresh calculation status</b>, then "
+        gui.public_lab.results,
+        _next_instruction("Step 4 · Read, check and save", "For another assigned dashboard job, click <b>Refresh calculation status</b>, then "
             "<b>Retrieve and inspect results</b> when available. Read convergence messages and units. "
             "Save the available data and calculation record alongside any figure you use."),
         _teach(gui, "read_results", "Help · How do I know what this result means?"),

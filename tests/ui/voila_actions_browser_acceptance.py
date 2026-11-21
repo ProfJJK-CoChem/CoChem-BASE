@@ -49,6 +49,7 @@ def main():
             environment = page.get_by_label("Run calculations on:", exact=True)
             expect(environment).to_be_visible(timeout=90000)
             select_label(environment, "GitHub Actions")
+            page.get_by_role("button", name="Show Set up other calculation programs", exact=True).click()
             page.get_by_role("button", name="Show Project details (normally filled in automatically)", exact=True).click()
             project = page.get_by_label("GitHub project:", exact=True)
             if args.repository:

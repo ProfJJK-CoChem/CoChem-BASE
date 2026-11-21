@@ -1,5 +1,16 @@
 # From an XYZ file to an instructor handoff
 
+## Start inside CoChem
+
+1. Sign in to GitHub. Open the course repository, click **Fork**, choose your own account under **Owner**, and click **Create fork**. A fork is your own public copy. Use a public fork for every course research project. The two names at the top of its page are your GitHub account and your project name. Open **Actions** in that copy and enable workflows if GitHub asks.
+2. To open the dashboard from your fork, click **Code → Codespaces → Create codespace on main**. Wait for setup to finish. If CoChem does not open, click **Ports** at the bottom of the workspace, find **8866**, then click its globe icon. In the CoChem dashboard open **1 · Setup → Run your first molecule**. Check that **GitHub project** shows those two names separated by a slash. Leave **Practice with ethanol** selected and click **Run in CoChem** once. For your research file, select **Use my XYZ file**, click **Choose XYZ file**, choose the file and confirm that you understand the file will be public. Check that the comment line contains only information intended for publication.
+3. Copy the run link CoChem displays. Click **Check run and get files**. **Queued** means GitHub is waiting for a computer. **In progress** means the calculation is running. You can close the page and paste the same link into **4 · Read and save results** later.
+4. When **Results verified** appears, click **Save results ZIP**, then **Save checksum**. Find both in your computer's **Downloads** folder. In your assignment's Google Drive folder choose **New → File upload** and select both files. Keep the ZIP closed for submission and include the run link in your write-up.
+
+The public lab runs independently of local program setup. If **Run in CoChem** is grey, check the project name and, for your own molecule, the file and public-sharing box. If GitHub denies access, use the browser steps below in your own fork. For a failed calculation, open the run link, choose the failed step and share its message with your instructor.
+
+## Run directly on GitHub
+
 In your public CoChem-BASE fork, open **Actions** and enable workflows if GitHub asks. Open **Student conformers (CREST, MACE, CPU PySCF)** and select **Run workflow** on the default branch. Leave **ethanol.xyz** selected for the first exercise. To study your own molecule, upload a single ASCII XYZ file to `examples/student_inputs/` on the default branch, then enter its filename in the workflow. Use only structures approved for public sharing. A public fork exposes committed molecules and workflow logs.
 
 Each input contains 2–16 H, C, N or O atoms, coordinates in angstrom, and one neutral, closed-shell molecule. Supply a conventional XYZ atom count, comment line and one element and three coordinates per atom. Use letters, digits, hyphens or underscores in the filename. The workflow uses a GitHub-hosted CPU. Students need a GitHub account with write access to their fork and Actions enabled.

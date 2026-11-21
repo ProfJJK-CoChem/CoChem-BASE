@@ -7,9 +7,11 @@ computer calculations. **CoChem-BASE is the one project you start with.** Its
 browser interface prepares the CoChem tools, including TOPOS and TORQ, and
 brings your files, calculations and results together.
 
-## Students: start your project here (4 clicks — no secrets or enrollment needed)
+## Start the student conformer lab
 
-For a public fork exercise, follow [XYZ conformer search, CPU refinement and instructor handoff](student/README.md). This route runs on GitHub Actions and produces separate isomer geometries and a downloadable research bundle.
+Fork this repository into your own account. Open **Actions → Student conformers (CREST, MACE, CPU PySCF)** in your fork to run the ethanol example. The workflow exports your conformers and the optimized geometry for your instructor. [Run and submit a calculation](student/README.md) · [Ethanol lab and worked comparison](student/ETHANOL_LAB.md)
+
+## Start a Codespaces project
 
 **[Open the step-by-step student guide](.docs/GET_STARTED.md#student-personal-project)**
 

@@ -6,6 +6,8 @@ Each input contains 2–16 H, C, N or O atoms, coordinates in angstrom, and one 
 
 ## Read the result
 
+Use the [ethanol lab and worked comparison](ETHANOL_LAB.md) to calculate relative energies and interpret a bond-length change.
+
 CREST uses the external xTB 6.7.1 binary and omits genetic crossing in this small-molecule classroom profile. The native log records that choice.
 
 CREST 3.0.2 performs a bounded GFN2-xTB quick conformer search. The workflow retains the native ensemble, every separate candidate XYZ and the engine log. MACE-OFF24 medium evaluates energies and forces on those geometries using its pinned CPU checkpoint. It ranks by MACE single-point energy and sends the lowest candidate to CPU PySCF for an RHF/STO-3G geometry optimization with geomeTRIC. This small-basis result is a starting structure for further research. A local minimum requires a separate vibrational check. A quick search can miss conformers. The 32-frame limit fails visibly if more candidates are found.

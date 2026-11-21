@@ -6,6 +6,8 @@ Each input contains 2–16 H, C, N or O atoms, coordinates in angstrom, and one 
 
 ## Read the result
 
+CREST uses the external xTB 6.7.1 binary and omits genetic crossing in this small-molecule classroom profile. The native log records that choice.
+
 CREST 3.0.2 performs a bounded GFN2-xTB quick conformer search. The workflow retains the native ensemble, every separate candidate XYZ and the engine log. MACE-OFF24 medium evaluates energies and forces on those geometries using its pinned CPU checkpoint. It ranks by MACE single-point energy and sends the lowest candidate to CPU PySCF for an RHF/STO-3G geometry optimization with geomeTRIC. This small-basis result is a starting structure for further research. A local minimum requires a separate vibrational check. A quick search can miss conformers. The 32-frame limit fails visibly if more candidates are found.
 
 Compare the CREST and MACE rankings in `ranking.json`. In `pyscf.json`, check SCF and optimizer convergence, energy in hartree and gradient in hartree/bohr. Compare the selected CREST geometry with `refined.xyz`. Which bonds or angles changed? Both candidate and refined geometries preserve atom order. The checkpoint is fetched from the [official academic model distribution](https://github.com/ACEsuit/mace-off) and its SHA-256 is checked before use.

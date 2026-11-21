@@ -1,5 +1,7 @@
 # CoChem-BASE
 
+[Run the public XYZ conformer workflow and export your instructor handoff](student/README.md).
+
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 

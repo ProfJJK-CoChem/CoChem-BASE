@@ -183,7 +183,7 @@ class CourseAccessWidget(widgets.VBox):
                 "The first link opens your lab's access-request repository; the second installs the lab's GitHub App. "
                 "These are not the ORCA or CFOUR download repositories. Ask your instructor for these links; do not enter a token.</p>"),
             self.project, self.controller, self.app_slug, self.orca, self.cfour,
-            widgets.HTML("<p>ORCA and CFOUR are optional and strongly recommended. You can request module access without either licensed engine. "
+            widgets.HTML("<p>Use ORCA or CFOUR only for assignments that request them. You can request module access without either licensed engine. "
                 "Your instructor must authorize the applicable license access.</p>"),
             self.links, self.status, widgets.HBox([self.btn_save, self.btn_clear, self.btn_refresh],
                 layout=widgets.Layout(flex_flow='row wrap')),
@@ -539,7 +539,7 @@ class CoChemGUI(InputManagementMixin):
         self.gh_setup_box = widgets.VBox([
             widgets.HTML("<h3>ORCA and CFOUR on GitHub Actions</h3><p>If your instructor already enabled access for this project, "
                 "select <b>Check ORCA &amp; CFOUR</b>. You do not need the invitation form below. "
-                "Both programs are optional and strongly recommended; unavailable programs disable only calculations that need them.</p>"),
+                "Both programs are optional for separate research assignments; unavailable programs disable only calculations that need them.</p>"),
             widgets.HBox([self.btn_remote_engine_check, self.btn_remote_engine_cancel], layout=widgets.Layout(flex_flow='row wrap')),
             self.remote_engine_status, self.gh_guidance, self.course_access_panel,
             _collapsed_section("Project details (normally filled in automatically)", widgets.HTML("<p>Use the GitHub project box at the top of Setup to select your project.</p>"), self.gh_branch_input),
@@ -756,7 +756,7 @@ class CoChemGUI(InputManagementMixin):
             widgets.HTML("<p>Required disk space defaults to 50 GB. Choose the measured needs of your workload.</p>"))
         self.local_install_options = widgets.VBox([
             self.license_mode,
-            widgets.HTML("<p>ORCA and CFOUR are optional and strongly recommended. Free dependencies are installed or audited; "
+            widgets.HTML("<p>Use ORCA or CFOUR only for assignments that request them. Free dependencies are installed or audited; "
                          "licensed engines are discovered when separately provisioned. An unavailable licensed engine does not fail BASE setup. "
                          "Its dependent methods remain unavailable until that engine passes its execution audit.</p>"),
             self.licensed_engine_status,
@@ -3638,7 +3638,7 @@ class CoChemGUI(InputManagementMixin):
         self.matrix_engine.value = selected if selected in values else None
         if remote:
             self.licensed_engine_status.value = (
-                "<p>ORCA and CFOUR are optional and strongly recommended. A genuine Actions check must verify archive access before each dependent choice is enabled. "
+                "<p>Use ORCA or CFOUR only for assignments that request them. A genuine Actions check must verify archive access before each dependent choice is enabled. "
                 "Archive access does not establish installation or scientific acceptance; the calculation worker verifies its actual runtime before executing. "
                 "Local engine availability does not establish GitHub Actions availability.</p>"
             )

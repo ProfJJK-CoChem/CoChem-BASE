@@ -59,7 +59,8 @@ def _exercise(case: str) -> None:
     assert gui.matrix_method.disabled and gui.matrix_basis.disabled
     assert gui.matrix_tier.disabled and gui.cfour_operation.disabled
     assert gui.btn_execute.disabled
-    assert 'optional and strongly recommended' in gui.licensed_engine_status.value
+    assert 'assignments that specifically request them' in gui.licensed_engine_status.value
+    assert 'public conformer lab runs independently on GitHub' in gui.licensed_engine_status.value
     assert 'Installation Error' != gui.state.system_status
     for engine in ('ORCA', 'CFOUR'):
         with pytest.raises(TraitError):

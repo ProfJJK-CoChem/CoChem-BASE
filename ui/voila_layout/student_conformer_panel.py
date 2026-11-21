@@ -156,26 +156,26 @@ class StudentConformerPanel:
         if valid:
             try:
                 saved = json.loads(self._record_path().read_text(encoding="utf-8"))
-                if (
-                    saved["repository"].lower() == repository.lower()
-                    and type(saved["id"]) is int
-                    and saved["id"] > 0
+                if saved["repository"].lower() == repository.lower() and (
+                    saved.get("pending") or (type(saved.get("id")) is int and saved["id"] > 0)
                 ):
                     self.record = saved
             except (OSError, ValueError, KeyError, TypeError):
                 pass
-        self.address.value = self._url(self.record["id"]) if self.record else ""
+        self.address.value = (
+            self._url(self.record["id"]) if self.record and self.record.get("id") else ""
+        )
         self.locked = bool(self.record)
         self.downloads.value = ""
-        self.status.value = (
-            "<p role='status'>"
-            + (
-                "Your last submitted run is ready to check."
-                if self.record
-                else "Choose your public fork and molecule, then click Run in CoChem once."
+        message = "Choose your public fork and molecule, then click Run in CoChem once."
+        if self.record:
+            message = (
+                "This workspace started a request and has no confirmed run link yet. Open Actions in your fork. "
+                "If the run is listed, paste its link here. Choose Start another calculation only when you intend to submit again."
+                if self.record.get("pending")
+                else "Your last submitted run is ready to check."
             )
-            + "</p>"
-        )
+        self.status.value = "<p role='status'>" + message + "</p>"
         self._inputs_changed()
 
     def _url(self, number):
@@ -204,6 +204,16 @@ class StudentConformerPanel:
             widget.disabled = self.busy
 
     def _reset(self, _):
+        try:
+            path = self._record_path()
+            if path.exists() and json.loads(path.read_text(encoding="utf-8")) != self.record:
+                self._project_changed()
+                self.status.value += "<p>Another tab updated this project. Check its latest run before starting another calculation.</p>"
+                return
+            path.unlink(missing_ok=True)
+        except (OSError, ValueError):
+            self.status.value = "<p role='alert'>This workspace could not clear the previous run. Use its Actions page to review your calculations.</p>"
+            return
         self.record = None
         self.address.value = ""
         self.downloads.value = ""
@@ -233,8 +243,8 @@ class StudentConformerPanel:
                     if err is None:
                         publish(value)
                     else:
-                        if getattr(err, "uncertain", False):
-                            self.locked = True
+                        if self.record and self.record.get("pending"):
+                            self._project_changed()
                         self.status.value = (
                             "<p role='alert'>"
                             + html.escape(str(err))
@@ -260,6 +270,33 @@ class StudentConformerPanel:
                 return
             data = bytes(selected["content"])
 
+        path = self._record_path()
+        pending = {"repository": repo, "pending": uuid.uuid4().hex}
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("x", encoding="utf-8") as marker:
+                json.dump(pending, marker)
+        except FileExistsError:
+            self._project_changed()
+            self.status.value += (
+                "<p>Review the saved request before starting another calculation.</p>"
+            )
+            return
+        except OSError:
+            self.status.value = "<p role='alert'>This workspace could not save your request. Open your fork’s Actions page to start it there.</p>"
+            return
+        self.record = pending
+        self.locked = True
+
+        def submit():
+            try:
+                return ConformerActions(repo).submit_conformer(data)
+            except Exception as err:
+                if not getattr(err, "uncertain", False):
+                    if path.exists() and json.loads(path.read_text(encoding="utf-8")) == pending:
+                        path.unlink()
+                raise
+
         def publish(record):
             self.record = record
             self.locked = True
@@ -270,8 +307,11 @@ class StudentConformerPanel:
                 + ". Click Check run and get files to see progress. To stop this public workflow, open its run link and choose Cancel workflow.</p>"
             )
             try:
-                path = self._record_path()
-                path.parent.mkdir(parents=True, exist_ok=True)
+                if not path.exists() or json.loads(path.read_text(encoding="utf-8")) != pending:
+                    self.status.value += (
+                        "<p>Another tab changed this project's saved run. Copy the link above.</p>"
+                    )
+                    return
                 temp = path.with_suffix("." + uuid.uuid4().hex + ".tmp")
                 temp.write_text(json.dumps(record), encoding="utf-8")
                 os.replace(temp, path)
@@ -281,7 +321,7 @@ class StudentConformerPanel:
                 )
 
         self._work(
-            lambda: ConformerActions(repo).submit_conformer(data),
+            submit,
             publish,
             "Asking GitHub to start one calculation. Please wait.",
         )
@@ -299,7 +339,7 @@ class StudentConformerPanel:
         repo, number = match[1], int(match[2])
         expected = self.record
         if expected and (
-            expected["id"] != number or expected["repository"].lower() != repo.lower()
+            expected.get("id") != number or expected["repository"].lower() != repo.lower()
         ):
             expected = None
 

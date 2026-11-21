@@ -2,6 +2,13 @@
   "schema_version": 1,
   "fixtures": [
     {
+      "path": "examples/student_inputs/ethanol.xyz",
+      "sha256": "c0bfe882dc6e34fe75c2094b601acce614d643e380ce6925b1416c9ea0178c2f",
+      "purpose": "Starting coordinates for the public student conformer exercise and the real Actions acceptance run.",
+      "provenance_status": "repository_teaching_input",
+      "provenance": "Starting coordinates from ETHANOL in scripts/verify_free_engines.py. CREST, MACE and PySCF generate the results during the workflow."
+    },
+    {
       "path": "tests/data/h2co_eq.xyz",
       "sha256": "fa55aace2bb062798e6a3302aab9c79f3bfcf370221205322f7e47d6988c3a10",
       "purpose": "Legacy mathematical/parser regression input; not an ab initio accuracy reference",

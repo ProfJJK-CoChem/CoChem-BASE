@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       xyz:
-        description: Filename under examples/student_inputs (neutral closed-shell H/C/N/O)
+        description: For your first run leave ethanol.xyz here. For your own molecule, enter its filename from examples/student_inputs.
         required: true
         default: ethanol.xyz
         type: string

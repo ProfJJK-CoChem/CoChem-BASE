@@ -13,13 +13,58 @@ def _topic(title, aliases, what, why, when, where, how, limitations, controls=()
 
 
 HELP_CONTENT = {
+    "public_conformers": _topic(
+        "Run the public ethanol or XYZ lab in CoChem",
+        ("public fork", "run in cochem", "practice with ethanol", "run my xyz", "where do I click", "CREST MACE PySCF", "github actions buttons"),
+        "A fork is your own public copy of the course project on GitHub. The dashboard can start a calculation there using the account already connected to your workspace.",
+        "CREST finds possible shapes. MACE compares those shapes using one energy model. CPU PySCF adjusts the shape MACE ranked lowest.",
+        "Start with ethanol. For your next molecule, use an instructor-approved XYZ file and check the atoms, charge and spin.",
+        "Open 1 · Setup and find Run your first molecule.",
+        ("Create your fork and open its Actions tab. Enable workflows if GitHub asks. Return to CoChem and check that GitHub project starts with your username.",
+         "Choose Practice with ethanol. Click Run in CoChem once. Copy the run link as soon as it appears. A queued job is waiting for a computer.",
+         "For your own structure choose Use my XYZ file, select the file from your computer and confirm it is approved for your public fork. CoChem publishes the file when you click Run.",
+         "If the dashboard cannot get permission, open Run using the GitHub buttons instead. Open Actions in your own fork and choose Student conformers (CREST, MACE, CPU PySCF)."),
+        ("This classroom profile uses neutral closed-shell H/C/N/O molecules with 2–16 atoms. A quick search can miss structures. A vibration calculation is needed to test for a minimum.",)),
+    "course_handoff": _topic(
+        "Download my ZIP and turn it in on Google Drive",
+        ("where is my zip", "where do I click to download my zip", "how do I turn it in", "submit to instructor", "download my zip", "Drive", "checksum", "unzip", "downloads folder"),
+        "The results ZIP is a compressed folder with the molecule files, energies and original calculation logs. Its .sha256 file is a checksum that lets your instructor verify the copy.",
+        "The run link identifies the exact calculation that produced your files.",
+        "Use this after your public course job finishes successfully.",
+        "Open 4 · Read and save results and find Your public course run.",
+        ("Paste the run link if it is missing. Choose Check run and get files. When Results verified appears, click Save results ZIP and Save checksum.",
+         "Open Downloads on your computer. Upload the two files to the Google Drive folder linked in your assignment using New → File upload. Check both names appear. Give your instructor the run link.",
+         "If you downloaded through GitHub, sign in and open the run summary. Under Artifacts download CoChem-student-handoff. Open that outer ZIP once. Submit the inner CoChem ZIP and its .sha256 file."),
+        ("Use the checksum for the inner CoChem ZIP. GitHub also shows a digest for its outer download. Keep the original files and work with a separate copy when examining the contents.",)),
+    "course_guides": _topic(
+        "Find my course or research group's guide",
+        ("CHEM 490", "graduate research", "physical chemistry I", "physical chemistry II", "CHEM 312", "CURE", "weekly guide", "group roles"),
+        "Everyone uses one start page. Each course guide explains what evidence to keep and how the work fits the assignment.",
+        "Your instructor sets the research question, weekly tasks and group roles.",
+        "Read this before choosing a molecule or interpreting a result.",
+        "Open 1 · Setup → Guidance for my course or research group.",
+        ("Select your course or graduate research. Read the note and return to the same controls.",
+         "Check your current assignment for the molecule, due date, role and shared Drive folder. Save the file, unit, method and run link beside each scientific claim."),
+        ("Physical chemistry course sequences and CURE schedules are being planned. The shared dashboard gives general guidance. Your instructor supplies the current course plan.",)),
+    "computer_basics": _topic(
+        "Find a file, copy a link, or get help with a grey button",
+        ("grey button", "gray button", "can't click", "file picker", "save as", "copy link", "where is my file", "keyboard", "browser tab"),
+        "A browser tab is one open page. A file picker is the window that opens when you choose a file.",
+        "CoChem asks you to choose specific files and save the address of each calculation.",
+        "Use this when a computer instruction is unfamiliar.",
+        "Help search is at the top of each page.",
+        ("To choose a file, click Choose XYZ file, open Downloads or the folder where you saved it, click the filename once, then click Open.",
+         "To copy the run link, select the address at the top of the run page. Press Ctrl+C on Windows or Command+C on Mac. Click Run link and press Ctrl+V or Command+V.",
+         "A grey button is unavailable. For Run in CoChem, check the project name. For your own XYZ, select the file and confirm public sharing. For results, paste a run link first.",
+         "Tab moves keyboard focus to the next control. Shift+Tab goes back. Enter activates a focused button. If a run fails, open its link and give your instructor the failed step and its message."),
+        ("Never paste passwords, access tokens, grades or student records into the project or Help search.",)),
     "first_calculation": _topic(
         "Run your first assigned calculation", ("getting started", "beginner", "what do I do", "first run", "homework"),
         "A calculation applies a scientific model to the particular structure and settings you supply. Start with the task and settings your instructor assigned.",
         "A program can finish successfully while answering a different question. Checking the molecule, electronic state and requested task prevents that mistake.",
         "Use this route for an assigned molecular calculation after your project has been connected to the course.",
         "Follow the four primary buttons: 1 · Setup, 2 · Add your molecule, 3 · Run assigned calculation, then 4 · Read and save results.",
-        ("In Setup, confirm the calculation computer and required program are available.",
+        ("For the public course lab, open Run your first molecule in Setup. Use Run in CoChem and keep its run link. For another assigned method, follow the remaining dashboard steps.",
          "Add your file, select the intended structure or frame, and use it as the starting geometry. Check the atoms, charge and spin.",
          "In Calculations, check the assigned operation, method, basis and surroundings. For GitHub Actions, choose Check saved project request first. Submit once and follow the original request's recorded status.",
          "Open Read and save results. For a completed GitHub Actions job, choose Retrieve and inspect results, read the saved task, warnings and units, then Download calculation bundle.",
@@ -33,7 +78,7 @@ HELP_CONTENT = {
         "Check this before setup or submission, and whenever the selected calculation environment changes.",
         "1 · Setup / Start here → Run calculations on. Where this interface runs explains the separate interface setting.",
         ("Use the calculation route specified for the course; the remote course route uses GitHub Actions.",
-         "Confirm the displayed GitHub project is your private research project. Check access in that environment.",
+         "For the course conformer lab, confirm the public fork belongs to your account. Check access in the environment your assignment uses.",
          "Local means the computer running BASE, which can itself be a Codespace. HPC requires an institution's configured cluster."),
         ("Access, billing, program availability and actual execution are separate checks.",
          "Do not create another project or enter credentials to work around an unexplained access error.")),
@@ -298,7 +343,7 @@ HELP_CONTENT = {
         ("Read the availability message for the selected calculation environment.",
          "Use the assigned supported program. If a required program is unavailable, give the message to your instructor; do not silently substitute another method.",
          "For local use, Find installed engines and Use these executable paths are for already installed, approved executables."),
-        ("ORCA and CFOUR are optional and strongly recommended. Their absence disables dependent operations while unrelated supported functions remain usable.",
+        ("ORCA and CFOUR serve assignments that specifically require them. Their absence disables dependent operations while unrelated supported functions remain usable.",
          "Checking archive access is not installing an engine in every environment or completing a chemistry calculation. Students do not supply tokens or licensed archives here.")),
     "lab_access": _topic(
         "Connect your personal project to the lab", ("invitation", "lab app", "permission", "enrollment", "connect project", "403", "access denied"),
@@ -555,7 +600,7 @@ _controls("workspace", "Start here", False, {
     "btn_install": "Open setup and check where this project's calculations will run.",
     "calc_env_dropdown": "Choose the calculation computer specified for the course; it can differ from the computer showing this page.",
     "interact_env_dropdown": "Describe where this interface runs; this does not move a calculation to another computer.",
-    "gh_repo_input": "Confirm your intended private project as owner/repository before checking access or submitting.",
+    "gh_repo_input": "Enter the two names at the top of your public fork, separated by a slash. The first is your GitHub account and the second is your project.",
     "gh_branch_input": "Keep the instructor-approved project branch; a branch name selects project files, not a scientific method.",
 })
 _controls("first_calculation", "Header and navigation", False, {
@@ -1123,6 +1168,20 @@ def _extra_guidance(topic, location, kind, entries):
 _extra_guidance("help_navigation", "Navigation / Help", "navigation", {
     "btn_terms": ("Scientific terms", "Open local help; no engine, account or calculation submission is required."),
     "build_glossary.search": ("Scientific-terms search", "Filter the local terminology explanations; this does not change a calculation or contact an online model."),
+})
+_extra_guidance("public_conformers", "1 · Setup → Run your first molecule", "interactive_attribute", {
+    "public_lab.source": ("Molecule", "Choose the supplied ethanol structure for practice or choose your own file."),
+    "public_lab.upload": ("Choose XYZ file", "Open the folder containing your file, select the XYZ filename, then click Open."),
+    "public_lab.consent": ("Confirm public sharing", "Check the box after verifying the file is approved for your public project. Review the comment line as well as the atoms."),
+    "public_lab.run": ("Run in CoChem", "Start one calculation. Save the run link and follow its progress."),
+    "public_lab.reset": ("Start another calculation", "Start a separate run with a new input after saving the previous run link."),
+})
+_extra_guidance("course_handoff", "1 · Setup or 4 · Read and save results → Your public course run", "interactive_attribute", {
+    "public_lab.address": ("Run link", "Paste the address of the GitHub run you want to reopen."),
+    "public_lab.refresh": ("Check run and get files", "Check this run. When it succeeds, click Save results ZIP and Save checksum."),
+})
+_extra_guidance("course_guides", "1 · Setup → Guidance for my course or research group", "interactive_attribute", {
+    "public_lab.course": ("Course guide", "Choose your course to read its guidance. This changes only the explanation."),
 })
 _extra_guidance("first_calculation", "Task navigation", "navigation", {
     "btn_goal_periodic": ("Open periodic-structure calculations", "Open the separate periodic tools for an assigned unit-cell question; this navigation does not execute a material calculation."),

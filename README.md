@@ -1,7 +1,5 @@
 # CoChem-BASE
 
-[Run the public XYZ conformer workflow and export your instructor handoff](student/README.md).
-
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 
@@ -9,7 +7,13 @@ CoChem-BASE is the place to upload your scientific files, choose a calculation
 and inspect its results. It prepares the other CoChem components, including
 TOPOS and TORQ, for you.
 
-**[Start here: open CoChem and run your first calculation](.docs/GET_STARTED.md)**
+## Start the student conformer lab
+
+Fork this repository into your own account. Open **Actions → Student conformers (CREST, MACE, CPU PySCF)** in your fork to run the ethanol example. The workflow exports your conformers and the optimized geometry for your instructor. [Run and submit a calculation](student/README.md) · [Ethanol lab and worked comparison](student/ETHANOL_LAB.md)
+
+## Use the BASE dashboard
+
+**[Open CoChem and run a dashboard calculation](.docs/GET_STARTED.md)**
 
 Already viewing the CoChem dashboard in your browser?
 

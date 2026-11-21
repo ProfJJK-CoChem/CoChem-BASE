@@ -1,10 +1,14 @@
 # Start using CoChem
 
+## First lab in a public fork
+
+Choose **Student conformers (CREST, MACE, CPU PySCF)** in your fork’s Actions tab. You can start with ethanol or supply an approved XYZ structure. [Student workflow and instructor handoff](../student/README.md) · [Worked ethanol lab](../student/ETHANOL_LAB.md)
+
 **CoChem-BASE is the only CoChem project you open.** It sets up TOPOS and TORQ
 and shows their tools in the same interface. You provide your own scientific
 files, including starting structures made in Avogadro 2.
 
-## Your first calculation
+## Calculate using the BASE dashboard
 
 1. **Start here.** Under **Run calculations on**, choose **GitHub Actions**.
    Check that your project is selected, then choose **Check ORCA & CFOUR**.

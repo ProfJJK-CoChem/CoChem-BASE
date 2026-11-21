@@ -288,26 +288,20 @@ class StudentConformerPanel:
 
     def _refresh(self, _):
         address = self.address.value.strip()
-        repo = self.repo.value.strip()
-        if not repo:
-            pasted = re.fullmatch(
-                r"https://github\.com/([\w.-]+/[\w.-]+)/actions/runs/[1-9][0-9]*/?",
-                address,
-                re.ASCII | re.IGNORECASE,
-            )
-            if pasted and REPOSITORY_PATTERN.fullmatch(pasted[1]):
-                self.repo.value = repo = pasted[1]
-                self.address.value = address
         match = re.fullmatch(
-            r"https://github\.com/" + re.escape(repo) + r"/actions/runs/([1-9][0-9]*)/?",
-            self.address.value.strip(),
-            re.IGNORECASE,
+            r"https://github\.com/([\w.-]+/[\w.-]+)/actions/runs/([1-9][0-9]{0,19})/?",
+            address,
+            re.ASCII | re.IGNORECASE,
         )
-        if not REPOSITORY_PATTERN.fullmatch(repo) or not match:
-            self.status.value = "<p role='alert'>On 1 · Setup, check that GitHub project names your public fork. Copy the address of one run from that fork. It ends in /actions/runs/ followed by a number.</p>"
+        if not match or not REPOSITORY_PATTERN.fullmatch(match[1]):
+            self.status.value = "<p role='alert'>Open the calculation in your fork's Actions tab. Copy its full GitHub address, ending in /actions/runs/ and a number, and paste it here.</p>"
             return
-        number = int(match[1])
-        expected = self.record if self.record and self.record["id"] == number else None
+        repo, number = match[1], int(match[2])
+        expected = self.record
+        if expected and (
+            expected["id"] != number or expected["repository"].lower() != repo.lower()
+        ):
+            expected = None
 
         def publish(value):
             run, bundle = value
@@ -322,13 +316,13 @@ class StudentConformerPanel:
                     "<p role='status'>GitHub reports <b>"
                     + html.escape(str(status).replace("_", " "))
                     + "</b>. "
-                    + _link(self._url(number), "Open this run")
+                    + _link(address, "Open this run")
                     + next_step
                     + "</p>"
                 )
                 return
             name, data, checksum, receipt = bundle
-            self.status.value = f"<p role='status'>Results verified. CREST found {receipt['candidate_count']} candidate shapes. MACE selected {html.escape(receipt['selected'])}. CPU PySCF optimized that shape.</p>"
+            self.status.value = f"<p role='status'>Results verified for {html.escape(repo)}. CREST found {receipt['candidate_count']} candidate shapes. MACE selected {html.escape(receipt['selected'])}. CPU PySCF optimized that shape.</p>"
             self.downloads.value = (
                 "<p>"
                 + _file(name, data, "Save results ZIP", "application/zip")

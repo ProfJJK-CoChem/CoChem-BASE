@@ -1,5 +1,9 @@
 # Start your CoChem project: a guide for students
 
+## First lab in a public fork
+
+Choose **Student conformers (CREST, MACE, CPU PySCF)** in your fork’s Actions tab. You can start with ethanol or supply an approved XYZ structure. [Student workflow and instructor handoff](../student/README.md) · [Worked ethanol lab](../student/ETHANOL_LAB.md)
+
 You can follow this guide with a web browser. No programming experience is
 needed. **CoChem-BASE is the only CoChem repository you create.** BASE prepares
 TOPOS and TORQ and presents their tools on the same CoChem page.

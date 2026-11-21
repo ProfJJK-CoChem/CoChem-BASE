@@ -56,10 +56,10 @@ def refine(frame, destination):
 
 def input_file(filename):
     if not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}\.xyz", filename):
-        raise ValueError("Select an XYZ filename from student/inputs")
-    source = ROOT / "student" / "inputs" / filename
-    if source.is_symlink() or source.resolve().parent != ROOT / "student" / "inputs":
-        raise ValueError("XYZ must be an ordinary file in student/inputs")
+        raise ValueError("Select an XYZ filename from examples/student_inputs")
+    source = ROOT / "examples" / "student_inputs" / filename
+    if source.is_symlink() or source.resolve().parent != ROOT / "examples" / "student_inputs":
+        raise ValueError("XYZ must be an ordinary file in examples/student_inputs")
     return source
 
 

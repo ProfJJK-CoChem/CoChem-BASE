@@ -3,13 +3,13 @@ on:
   workflow_dispatch:
     inputs:
       xyz:
-        description: Filename under student/inputs (neutral closed-shell H/C/N/O)
+        description: Filename under examples/student_inputs (neutral closed-shell H/C/N/O)
         required: true
         default: ethanol.xyz
         type: string
   push:
     branches: ['student-pilot/**']
-    paths: ['student/**', '.github/workflows/student_conformers.yml']
+    paths: ['examples/student_inputs/**', 'student/**', '.github/workflows/student_conformers.yml']
 
 permissions:
   contents: read

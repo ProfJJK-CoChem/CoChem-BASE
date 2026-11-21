@@ -52,6 +52,10 @@ def help_panel():
     ("What total charge should I enter?", "charge_spin"),
     ("How do I start my first calculation?", "first_calculation"),
     ("Did my calculation succeed?", "read_results"),
+    ("where do I click to download my zip", "course_handoff"),
+    ("public fork", "public_conformers"),
+    ("CHEM 312", "course_guides"),
+    ("grey button", "computer_basics"),
 ])
 def test_ordinary_questions_find_the_relevant_authored_explanation(query, expected):
     matches = search_topics(query)

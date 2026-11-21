@@ -542,7 +542,7 @@ class CoChemGUI(InputManagementMixin):
                 "Both programs are optional and strongly recommended; unavailable programs disable only calculations that need them.</p>"),
             widgets.HBox([self.btn_remote_engine_check, self.btn_remote_engine_cancel], layout=widgets.Layout(flex_flow='row wrap')),
             self.remote_engine_status, self.gh_guidance, self.course_access_panel,
-            _collapsed_section("Project details (normally filled in automatically)", self.gh_repo_input, self.gh_branch_input),
+            _collapsed_section("Project details (normally filled in automatically)", widgets.HTML("<p>Use the GitHub project box at the top of Setup to select your project.</p>"), self.gh_branch_input),
         ], layout=widgets.Layout(border='1px solid #0056b3', padding='15px', margin='10px 0'))
         self.gh_repo_input.observe(self._refresh_actions_guidance, names='value')
         self.gh_repo_input.observe(lambda change: self.course_access_panel.set_project(change['new']), names='value')

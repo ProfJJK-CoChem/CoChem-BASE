@@ -3,8 +3,7 @@
 ## Start your workspace
 
 **New to CoChem? [Follow the step-by-step student guide](GET_STARTED.md#student-personal-project).**
-It starts with your GitHub account and private **`CoChem-[target molecule name]`**
-project, then explains opening CoChem, lab access and your first saved calculation.
+Use your own public fork for all course research. For the first calculation, follow the [dashboard and handoff guide](../student/README.md). The sections below cover other assigned research tools.
 
 This page is a reference: open only the section you need. You supply your own
 starting structures and scientific files. CoChem-BASE prepares its analysis
@@ -249,7 +248,7 @@ a minimum. Your own Avogadro 2 structures remain the usual course inputs.
    evidence together. GitHub artifacts expire; retrieve them promptly.
 
 A selected licensed engine must be available on the calculation worker. ORCA
-and CFOUR are optional, strongly recommended components of CoChem. Their
+and CFOUR are optional tools for separately assigned methods. Their
 absence does not prevent geometry upload or independent supported analysis;
 methods that require the unavailable engine cannot be run.
 
@@ -379,10 +378,7 @@ VS Code, or use GitHub **Add file → Upload files**. Use VS Code **Source Contr
 to commit the course files you intend to submit: select the files, enter a
 descriptive message, choose **Commit**, then
 **Sync Changes**. These are ordinary buttons, not terminal commands. Confirm
-that the intended report appears in your private project on GitHub. Submit the
-project/report URL through your instructor's Classroom50 instructions and confirm
-the instructor can access the intended report; enrollment alone does not grant
-collection access to a private personal repository. Follow the course policy for
+that any material you intend to publish appears in your public fork. Submit your report through the course assignment site and upload your calculation ZIP and checksum to the instructor's shared Drive folder. Follow the course policy for
 large files rather than committing an entire runtime or binary archive.
 
 </details>

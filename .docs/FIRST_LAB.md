@@ -1,13 +1,8 @@
 # Your first CoChem calculation
 
-Use this page once your instructor has connected your project and you can open
-CoChem. If you are still creating your project or opening a Codespace, follow
-the [account and setup guide](GET_STARTED.md) first.
+Start on **1 · Setup → Run your first molecule**. All course research uses your own public fork. For ethanol or your own small XYZ file, follow the [four dashboard steps and Google Drive submission directions](../student/README.md). The same guide shows how to use the GitHub buttons. You can finish the first lab from Setup. Select **Guidance for my course or research group** to see what evidence to keep.
 
-Have your assignment and the molecular file supplied or approved by your
-instructor beside you. You do not need to write code or install another CoChem
-module. Your first goal is to follow one molecule from its starting structure
-to a result you can explain.
+If you need to create your fork or open the dashboard, follow the [account and setup guide](GET_STARTED.md). The remaining sections cover other calculations assigned through the four dashboard pages.
 
 ## Find your way around
 
@@ -41,8 +36,7 @@ the calculation and sends the results back to CoChem. The page you are looking
 at and the computer doing the calculation can be different computers.
 
 Check the displayed setup and engine status before continuing. An engine is a
-program that performs the calculation. ORCA and CFOUR are optional and strongly
-recommended; an unavailable engine affects the operations that need it.
+program that performs the calculation. The public conformer lab uses CREST, MACE and CPU PySCF. ORCA and CFOUR are optional programs for separately assigned methods.
 If the engine required by your assignment is unavailable, keep your work and
 give your instructor the visible message. Do not silently choose a different
 method to make the error disappear.
@@ -195,8 +189,7 @@ change an accepted calculation's recorded outcome.
 If **Save displayed result summary** is shown, it saves only the text in that
 panel. That summary is useful for reading, but does not replace the retained
 calculation files or their record of how the calculation was made.
-Follow your instructor's submission link; a private project link alone may not
-give the instructor access to your work.
+Use the instructor's Drive folder to submit the public lab ZIP and checksum. Include the exact GitHub run link with your report.
 
 Before stopping a Codespace or moving to a new one, save the files you need.
 Use the [stop and reopen instructions](GET_STARTED.md#10-stop-and-reopen-your-workspace).

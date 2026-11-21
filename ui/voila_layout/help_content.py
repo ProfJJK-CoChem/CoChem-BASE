@@ -18,11 +18,11 @@ HELP_CONTENT = {
         ("public fork", "run in cochem", "practice with ethanol", "run my xyz", "where do I click", "CREST MACE PySCF", "github actions buttons"),
         "A fork is your own public copy of the course project on GitHub. The dashboard can start a calculation there using the account already connected to your workspace.",
         "CREST finds possible shapes. MACE compares those shapes using one energy model. CPU PySCF adjusts the shape MACE ranked lowest.",
-        "Start with ethanol. For your next molecule, use an instructor-approved XYZ file and check the atoms, charge and spin.",
+        "Start with ethanol. For your next molecule, use your course XYZ file and check the atoms, charge and spin. All course research uses public forks.",
         "Open 1 · Setup and find Run your first molecule.",
         ("Create your fork and open its Actions tab. Enable workflows if GitHub asks. Return to CoChem and check that GitHub project starts with your username.",
          "Choose Practice with ethanol. Click Run in CoChem once. Copy the run link as soon as it appears. A queued job is waiting for a computer.",
-         "For your own structure choose Use my XYZ file, select the file from your computer and confirm it is approved for your public fork. CoChem publishes the file when you click Run.",
+         "For your own structure choose Use my XYZ file, select the file from your computer and confirm you understand that the file will be public. CoChem publishes the file when you click Run.",
          "If the dashboard cannot get permission, open Run using the GitHub buttons instead. Open Actions in your own fork and choose Student conformers (CREST, MACE, CPU PySCF)."),
         ("This classroom profile uses neutral closed-shell H/C/N/O molecules with 2–16 atoms. A quick search can miss structures. A vibration calculation is needed to test for a minimum.",)),
     "course_handoff": _topic(
@@ -422,7 +422,7 @@ HELP_CONTENT = {
     "result_files": _topic(
         "Where results are saved and how to submit them", ("where my results", "file location", "output directory", "Classroom50", "submit report", "collection", "export"),
         "BASE keeps managed results outside application source. Download controls let you save selected bundles and report exports into your own storage.",
-        "A private project link or successful download does not ensure your instructor can collect and read the assignment.",
+        "Your run link identifies the calculation. Upload the requested files to the shared Drive folder so your instructor can collect them.",
         "Save a durable copy after completing important work and before changing or deleting a workspace.",
         "For retrieved remote calculations, Calculations offers the matching calculation-bundle link when available. Results offers available report/figure/table downloads. Save displayed result summary saves only the current text, not the complete native output or provenance archive.",
         ("Use the available calculation-bundle and report-data links for the result you intend to discuss. A displayed-summary download alone is not a raw-result backup.",
@@ -1172,7 +1172,7 @@ _extra_guidance("help_navigation", "Navigation / Help", "navigation", {
 _extra_guidance("public_conformers", "1 · Setup → Run your first molecule", "interactive_attribute", {
     "public_lab.source": ("Molecule", "Choose the supplied ethanol structure for practice or choose your own file."),
     "public_lab.upload": ("Choose XYZ file", "Open the folder containing your file, select the XYZ filename, then click Open."),
-    "public_lab.consent": ("Confirm public sharing", "Check the box after verifying the file is approved for your public project. Review the comment line as well as the atoms."),
+    "public_lab.consent": ("Confirm public sharing", "Check the box to confirm that this file will appear in your public project. Review the comment line as well as the atoms."),
     "public_lab.run": ("Run in CoChem", "Start one calculation. Save the run link and follow its progress."),
     "public_lab.reset": ("Start another calculation", "Start a separate run with a new input after saving the previous run link."),
 })

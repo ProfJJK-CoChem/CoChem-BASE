@@ -520,6 +520,37 @@ def build_topic_answer(topic_id: str) -> widgets.HTML:
     return answer
 
 
+def build_control_guide() -> widgets.Widget:
+    """Look up a visible control label without knowing a search term."""
+    from .disclosure import Disclosure
+    by_topic = {}
+    for key, item in CONTROL_HELP.items():
+        if item.get("visibility") != "source_retained_not_displayed":
+            by_topic.setdefault(item["topic"], []).append((item["label"], key))
+    topics = sorted((HELP_CONTENT[key]["title"], key) for key in by_topic)
+    area = widgets.Dropdown(options=[("Choose a topic", "")]+topics, description="Topic:",
+                            layout=widgets.Layout(width="95%"))
+    control = widgets.Dropdown(options=[("Choose a topic first", "")], description="Button or field:",
+                               style={"description_width":"initial"}, layout=widgets.Layout(width="95%"))
+    note = widgets.HTML("<p>Choose a topic, then the label written beside the button or box on your screen.</p>")
+    def show_field(change=None):
+        if control.value:
+            item = CONTROL_HELP[control.value]
+            note.value = ("<p role='status'><b>"+escape(item["label"])+"</b> "+escape(item["hint"])
+                          +"</p><p><b>Find it here.</b> "+escape(item["location"])+"</p>")
+        else:
+            note.value = "<p>Choose the label written beside the button or box on your screen.</p>"
+    def show_area(change):
+        options = sorted(by_topic.get(area.value, ()))
+        control.options = [("Choose a button or field", "")]+options
+        control.disabled = not options
+        show_field()
+    area.observe(show_area, names="value")
+    control.observe(show_field, names="value")
+    control.disabled = True
+    return Disclosure("Explain a button or field", area, control, note)
+
+
 class LearningHelp:
     """Independent widget controller with no calculation or account bindings."""
 

@@ -132,8 +132,9 @@ def browser_source_paths():
 
 
 def show_project_details(page) -> None:
+    show_section(page, "Set up other calculation programs")
     project = page.get_by_label("GitHub project:", exact=True)
-    if not project.is_visible():
+    if page.get_by_role("button", name="Show Project details (normally filled in automatically)", exact=True).is_visible():
         page.get_by_role("button", name="Show Project details (normally filled in automatically)", exact=True).click()
     expect(project).to_be_visible()
 

@@ -490,7 +490,7 @@ def _guided_shell(gui: Any) -> None:
             }[ProductClass(selected_goal)]
         gui.guided_goal_status.value = (
             "<p><b>Selected scientific goal:</b> " + html.escape(goal_label)
-            + ". This setting applies to the advanced calculation form. The public first lab uses its own fixed method.</p>")
+            + ". Goal selection is not validation. This setting applies to the advanced calculation form. The public first lab uses its own fixed method.</p>")
         task_summary = ""
         if program == "XTB":
             task = dict((value, label) for label, value in gui.xtb_task.options)[gui.xtb_task.value]
@@ -527,8 +527,9 @@ def _guided_shell(gui: Any) -> None:
     gui.header.children = (gui.header_title, gui.header_status, gui.header_env, gui.guided_cancel, gui.more_scientific_tools)
     for field in (gui.header_title, gui.header_status, gui.header_env):
         field.layout.margin = "0"
+    from .learning import build_control_guide
     gui.app.header = widgets.VBox([gui.header, gui.guided_journey, gui.guided_current,
-                                   gui.learning_help.widget]).add_class("cochem-guided-header")
+                                   gui.learning_help.widget, build_control_guide()]).add_class("cochem-guided-header")
     results = gui.view_modules.children
     gui.result_summary_download = _text("")
 

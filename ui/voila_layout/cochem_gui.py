@@ -1619,7 +1619,7 @@ class CoChemGUI(InputManagementMixin):
         self.guided_jobs_status.value = ('<ul>' + ''.join(
             '<li>' + html.escape(label) + ': ' + html.escape(message) + '</li>'
             for label, message in jobs) + '</ul>' if jobs else
-            '<p>No running jobs are currently tracked here.</p>')
+            '<p>For the public lab, use <b>Check run and get files</b>. No other jobs are tracked here.</p>')
         self._refresh_local_file_controls()
 
     def _new_remote_stop(self, kind: str) -> dict[str, Any]:
@@ -4197,11 +4197,15 @@ class CoChemGUI(InputManagementMixin):
 
     def _on_status_change(self, change: Any) -> None:
         safe_val = html.escape(str(change['new']))
+        if change['new'] == "Uninitialized":
+            safe_val = "Local programs await setup"
         self.header_status.value = f"<span role='status' aria-live='polite'>Workspace status: <strong>{safe_val}</strong></span>"
 
     def _on_environment_change(self, change: Any) -> None:
         safe_val = html.escape(str(change['new']))
         host = html.escape(str(change['new']).split(' [', 1)[0])
+        if host == "Not Initialized":
+            host, safe_val = "Browser dashboard", "The public course calculation runs on GitHub."
         self.header_env.value = (f"<details><summary>Interface: {host}</summary>"
                                  f"<p>{safe_val}</p><p>Choose where calculations run in Start here.</p></details>")
 

@@ -32,4 +32,3 @@ def test_pending_dispatch_survives_reopening_and_requires_an_explicit_reset(tmp_
     assert reopened.run.disabled
     reopened.reset.click()
     assert not reopened.run.disabled and not path.exists()
-

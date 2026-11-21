@@ -20,12 +20,12 @@ Compare the CREST and MACE rankings in `ranking.json`. In `pyscf.json`, check SC
 
 ## Receive for Pipeline 5.0.0
 
-Download the pair from the course folder. Check the ZIP against the hash in the original Actions summary. In a BASE checkout use Python 3.12:
+Download the pair from the course folder. Open the submitted run in the student's fork and copy the 64-character ZIP hash from the run summary. In a BASE checkout with Python 3.12, substitute that hash and your local paths in this command.
 
 ```sh
-python student/handoff.py /path/to/CoChem-example.zip --stage /path/to/research-inbox
+python student/handoff.py /path/to/CoChem-example.zip --expected-sha256 HASH_FROM_ACTIONS --stage /path/to/research-inbox
 ```
 
 The receiver validates file membership, byte digests, atom order, the native CREST ensemble, the MACE selection and the converged PySCF result. It stages into a directory named for the ZIP SHA-256. The manifest records the producing repository, commit, run and attempt. `isomers/crest-NNN.xyz` supplies individual candidates. `refined.xyz` supplies the optimized candidate. `crest_conformers.xyz` is the native pool with energies in hartree. Retain the original ZIP alongside the run URL.
 
-For an instructor-approved continuation, stage these files where the chosen worker can read them and use the desired XYZ as an input to the normal Pipeline 5.0.0 SRS and manager queue step. Specify the scientific method, charge, multiplicity, resources and completion test for that research job. Downloading, uploading or receiving a package does not enqueue a Colab, GCP or workstation calculation.
+For a Pipeline 5.0.0 continuation, copy the received directory to storage accessible to the chosen Colab, GCP or workstation worker. Keep the ZIP digest with the research record. Point each research step at its selected `isomers/crest-NNN.xyz` or `refined.xyz` and record charge 0 and multiplicity 1 for this route. Choose the research method, resources and completion test, then submit through the instructor's normal SRS and manager queue. The instructor controls when the larger jobs start.

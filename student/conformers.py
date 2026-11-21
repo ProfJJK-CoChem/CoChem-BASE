@@ -83,10 +83,12 @@ def calculate(filename, work, out):
     shutil.copyfile(engine_root / "engines.json", payload / "engines.json")
     env = dict(os.environ, XTBPATH=str(engine_root / "xtb/xtb-dist/share/xtb"))
     env["PATH"] = str(engine_root / "xtb/xtb-dist/bin") + os.pathsep + env["PATH"]
-    argv = [str(engine_root / "crest/crest/crest"), "input.xyz", "--gfn2", "--quick", "--T", "1"]
+    xtb = str(engine_root / "xtb/xtb-dist/bin/xtb")
+    argv = [str(engine_root / "crest/crest/crest"), "input.xyz", "--gfn2", "--legacy",
+            "--xnam", xtb, "--quick", "--nocross", "--chrg", "0", "--uhf", "0", "--T", "1"]
     log = execute(argv, native, "crest.log", env, timeout=600)
-    if "CREST terminated normally" not in log:
-        raise RuntimeError("Native CREST normal termination missing")
+    if "CREST terminated normally" not in log or xtb not in log or "Use of GFN2-xTB requested" not in log:
+        raise RuntimeError("CREST did not confirm external GFN2-xTB and normal termination")
     for name in ("crest.log", "crest_conformers.xyz"):
         shutil.copyfile(native / name, payload / name)
     ensemble = frames((payload / "crest_conformers.xyz").read_text(), energy=True)

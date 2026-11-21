@@ -1,0 +1,78 @@
+name: Student conformers (CREST, MACE, CPU PySCF)
+on:
+  workflow_dispatch:
+    inputs:
+      xyz:
+        description: Filename under student/inputs (neutral closed-shell H/C/N/O)
+        required: true
+        default: ethanol.xyz
+        type: string
+  push:
+    branches: ['student-pilot/**']
+    paths: ['student/**', '.github/workflows/student_conformers.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  calculate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      XYZ: ${{ inputs.xyz || 'ethanol.xyz' }}
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      OMP_STACKSIZE: 512M
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Verify input before installing engines
+        run: python -c 'import os,sys; from pathlib import Path; sys.path.insert(0,"student"); from conformers import input_file; from handoff import read_input; read_input(input_file(os.environ["XYZ"]))'
+      - name: Install pinned native CREST and xTB
+        run: |
+          python scripts/install_free_engines.py --engines crest xtb --root "$RUNNER_TEMP/free" --output "$RUNNER_TEMP/free/engines.json"
+          echo "COCHEM_FREE_ROOT=$RUNNER_TEMP/free" >> "$GITHUB_ENV"
+      - name: Install CPU model and PySCF tools
+        run: |
+          python -m venv "$RUNNER_TEMP/chem"
+          py="$RUNNER_TEMP/chem/bin/python"
+          "$py" -m pip install 'https://download-r2.pytorch.org/whl/cpu/torch-2.8.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl#sha256=cb9a8ba8137ab24e36bf1742cb79a1294bd374db570f09fc15a5e1318160db4e'
+          "$py" -m pip install 'mace-torch==0.3.16' 'e3nn==0.4.4' 'ase==3.29.0' 'pyscf==2.14.0' 'geometric==1.1.1'
+          "$py" -m pip check
+          "$py" -c 'import torch; assert torch.version.cuda is None'
+      - name: Search, score every candidate, optimize and seal the result
+        run: |
+          "$RUNNER_TEMP/chem/bin/python" student/conformers.py "$XYZ" "$RUNNER_TEMP/student-calc" "$RUNNER_TEMP/handoff"
+      - name: Verify portable handoff independently of chemistry packages
+        run: |
+          python student/handoff.py "$RUNNER_TEMP"/handoff/*.zip --stage "$RUNNER_TEMP/received"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        id: bundle
+        with:
+          name: CoChem-student-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/handoff/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Show student download and submission instructions
+        env:
+          ARTIFACT_URL: ${{ steps.bundle.outputs.artifact-url }}
+        run: |
+          echo "### Student conformer handoff" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download the results artifact]($ARTIFACT_URL). Open the outer ZIP, then upload the inner CoChem ZIP and its .sha256 file to the instructor's Drive folder from your assignment." >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP"/handoff/*.sha256 >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: incomplete-calculation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/student-calc/native/crest.log
+            ${{ runner.temp }}/student-calc/bundle/pyscf.log
+            ${{ runner.temp }}/free/engines.json
+          if-no-files-found: ignore

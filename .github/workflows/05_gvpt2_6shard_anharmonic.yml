@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       xyz:
-        description: Optimized equilibrium XYZ filename from examples/student_inputs/
+        description: Starting or equilibrium XYZ filename from examples/student_inputs/
         required: true
         default: ethanol.xyz
         type: string
@@ -43,8 +43,13 @@ on:
         required: false
         default: water
         type: string
+      pre_optimize:
+        description: Pre-optimize input geometry with geomeTRIC at the requested (method, basis, solvation) before GVPT2 sharding
+        required: false
+        default: true
+        type: boolean
       step_size:
-        description: Finite-difference normal-coordinate displacement step size
+        description: Finite-difference dimensionless normal-coordinate displacement step size (dq)
         required: true
         default: '0.01'
         type: string
@@ -76,6 +81,7 @@ jobs:
       BASIS: ${{ inputs.basis }}
       SOLVATION: ${{ inputs.solvation }}
       SOLVENT_NAME: ${{ inputs.solvent_name }}
+      PRE_OPTIMIZE: ${{ inputs.pre_optimize }}
       STEP_SIZE: ${{ inputs.step_size }}
       OMP_NUM_THREADS: '2'
       OPENBLAS_NUM_THREADS: '2'
@@ -88,19 +94,20 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Install CPU PySCF and dispersion dependencies
+      - name: Install CPU PySCF, geomeTRIC, and dispersion dependencies
         run: |
           python -m venv "$RUNNER_TEMP/gvpt2"
           py="$RUNNER_TEMP/gvpt2/bin/python"
           "$py" -m pip install --upgrade pip
-          "$py" -m pip install 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0' 'numpy>=1.26' 'scipy>=1.11'
-      - name: Compute equilibrium Hessian and build deterministic K=6 shard plan
+          "$py" -m pip install 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0' 'geometric==1.1.1' 'numpy>=1.26' 'scipy>=1.11'
+      - name: Pre-optimize equilibrium minimum, verify positive modes, and build K=6 shard plan
         run: |
           "$RUNNER_TEMP/gvpt2/bin/python" - <<'PY'
-          import json, os, shutil, sys
+          import json, os, sys
           from pathlib import Path
           import numpy as np
           from pyscf import gto, lib
+          from pyscf.data import nist
           from pyscf.hessian import thermo
 
           sys.path.insert(0, "student")
@@ -110,35 +117,98 @@ jobs:
           charge = int(os.environ["CHARGE"])
           mult = int(os.environ["MULTIPLICITY"])
           step_size = float(os.environ["STEP_SIZE"])
+          pre_optimize = os.environ.get("PRE_OPTIMIZE", "true").strip().lower() == "true"
           source = conformers.input_file(os.environ["XYZ"])
           parsed = handoff.read_input(source, charge=charge, multiplicity=mult)
 
           plan_dir = Path(os.environ["RUNNER_TEMP"]) / "gvpt2_plan"
           plan_dir.mkdir(parents=True, exist_ok=True)
           eq_xyz = plan_dir / "input.xyz"
-          shutil.copyfile(source, eq_xyz)
 
           method_spec, basis_label = conformers.normalize_method_and_basis(os.environ["METHOD"], os.environ["BASIS"])
           solv = os.environ["SOLVATION"]
           solvent_name = os.environ["SOLVENT_NAME"] if solv != "gas" else None
           lib.num_threads(2)
 
-          atoms = list(zip(parsed["symbols"], parsed["coords"]))
-          mol = gto.M(atom=atoms, unit="Angstrom", basis=basis_label, charge=charge, spin=mult - 1, verbose=2)
-          mf = conformers._build_pyscf_mf(mol, method_spec, solvation=solv, solvent_name=solvent_name)
-          e_eq = float(mf.kernel())
-          if not mf.converged:
-              raise RuntimeError("Equilibrium PySCF SCF failed to converge before GVPT2 sharding")
-          hess_raw = mf.Hessian().kernel()
-          harm = thermo.harmonic_analysis(mol, hess_raw)
-          freqs = [float(f) for f in np.real(harm["freq_wavenumber"])]
-          n_imag = sum(1 for f in freqs if f < -1e-3)
-          if n_imag > 0:
-              raise RuntimeError(f"Equilibrium geometry has {n_imag} imaginary modes; GVPT2 requires a true minimum.")
+          symbols = list(parsed["symbols"])
 
-          # Dimensionless normal-mode displacement vectors in Angstrom
-          norm_modes = np.asarray(harm["norm_mode"], dtype=np.float64)
-          eq_hess_q = np.diag(freqs).tolist()
+          def run_opt_and_hess(coords_ang, do_opt: bool):
+              mol_in = gto.M(
+                  atom=list(zip(symbols, coords_ang)),
+                  unit="Angstrom",
+                  basis=basis_label,
+                  charge=charge,
+                  spin=mult - 1,
+                  verbose=2,
+              )
+              mf_in = conformers._build_pyscf_mf(mol_in, method_spec, solvation=solv, solvent_name=solvent_name)
+              if do_opt:
+                  opt = mf_in.Gradients().optimizer(solver="geomeTRIC")
+                  opt.maxsteps = 100
+                  mol_eq = opt.kernel()
+                  if not opt.converged:
+                      raise RuntimeError("geomeTRIC equilibrium pre-optimization did not converge before GVPT2 sharding")
+              else:
+                  mol_eq = mol_in
+              mf_eq = conformers._build_pyscf_mf(mol_eq, method_spec, solvation=solv, solvent_name=solvent_name)
+              e_val = float(mf_eq.kernel())
+              if not mf_eq.converged:
+                  raise RuntimeError("Equilibrium PySCF SCF failed to converge before GVPT2 sharding")
+              h_raw = mf_eq.Hessian().kernel()
+              h_info = thermo.harmonic_analysis(mol_eq, h_raw)
+              f_cm1 = gvpt2_shard_runner.parse_harmonic_frequencies_cm1(h_info["freq_wavenumber"])
+              return mol_eq, e_val, h_raw, h_info, f_cm1
+
+          mol, e_eq, hess_raw, harm, freqs = run_opt_and_hess(parsed["coords"], do_opt=pre_optimize)
+
+          # If pre-optimization converged on a symmetry-trapped saddle point (e.g., planar Cs ethanol at STO-3G),
+          # perform one symmetry-breaking nudge along the lowest imaginary mode and re-optimize.
+          if pre_optimize and freqs and min(freqs) <= 1.0:
+              imag_idx = int(np.argmin(freqs))
+              imag_mode = np.asarray(harm["norm_mode"][imag_idx], dtype=np.float64)
+              norm = float(np.linalg.norm(imag_mode))
+              if norm > 1e-12:
+                  nudged_coords = mol.atom_coords(unit="Angstrom") + 0.15 * (imag_mode / norm)
+                  mol, e_eq, hess_raw, harm, freqs = run_opt_and_hess(nudged_coords.tolist(), do_opt=True)
+
+          n_imag = sum(1 for f in freqs if f <= 1.0)
+          if not freqs or min(freqs) <= 1.0:
+              raise RuntimeError(
+                  f"Equilibrium geometry has {n_imag} non-positive harmonic mode(s) "
+                  f"(min={min(freqs) if freqs else 'none'} cm^-1); GVPT2 requires a true minimum with all modes > 1.0 cm^-1."
+              )
+
+          eq_coords_ang = mol.atom_coords(unit="Angstrom")
+          eq_xyz.write_text(
+              gvpt2_shard_runner.format_xyz(
+                  symbols,
+                  eq_coords_ang,
+                  f"{e_eq:.12f} {method_spec['label']}/{basis_label} ({solv}) pre_optimize={pre_optimize}",
+              ),
+              encoding="utf-8",
+          )
+
+          # Build exact dimensionless reduced normal-coordinate displacement vectors:
+          #   dx_bohr[k] = M_au^(-1/2) L_mw[k] / sqrt(omega_k_au)
+          # so that H_q^(0) = (dx_bohr @ H_cart @ dx_bohr.T) * HARTREE2WAVENUMBER == diag(freqs_cm1)
+          amu_to_me = float(nist.ATOMIC_MASS / nist.E_MASS)
+          ha_to_cm1 = float(nist.HARTREE2WAVENUMBER)
+          bohr_to_ang = float(nist.BOHR)
+          n_at = len(symbols)
+          n_modes = len(freqs)
+          masses_amu = np.asarray(mol.atom_mass_list(isotope_avg=True), dtype=np.float64)
+          nm_cart = np.asarray(harm["norm_mode"], dtype=np.float64).reshape(n_modes, 3 * n_at)
+          sqrt_m_amu = np.repeat(np.sqrt(masses_amu), 3)
+          l_mw = nm_cart * sqrt_m_amu[None, :]
+          l_mw /= np.linalg.norm(l_mw, axis=1, keepdims=True)
+          sqrt_m_me = np.repeat(np.sqrt(masses_amu * amu_to_me), 3)
+          omega_au = np.asarray(freqs, dtype=np.float64) / ha_to_cm1
+          dx_bohr = (l_mw / sqrt_m_me[None, :]) / np.sqrt(omega_au)[:, None]
+          disp_ang = (dx_bohr * bohr_to_ang).reshape(n_modes, n_at, 3)
+
+          h_cart = np.asarray(hess_raw, dtype=np.float64).transpose(0, 2, 1, 3).reshape(3 * n_at, 3 * n_at)
+          eq_hess_q = ((dx_bohr @ h_cart @ dx_bohr.T) * ha_to_cm1).tolist()
+
           nm_json = plan_dir / "normal_modes.json"
           nm_json.write_text(
               json.dumps(
@@ -146,9 +216,11 @@ jobs:
                       "energy_hartree": e_eq,
                       "method": method_spec["label"],
                       "basis": basis_label,
-                      "n_imaginary_modes": n_imag,
+                      "pre_optimized": pre_optimize,
+                      "n_imaginary_modes": 0,
                       "harmonic_cm1": freqs,
-                      "displacement_vectors": norm_modes.tolist(),
+                      "displacement_vectors": disp_ang.tolist(),
+                      "dx_bohr": dx_bohr.tolist(),
                       "eq_hessian_q": eq_hess_q,
                   },
                   indent=2,

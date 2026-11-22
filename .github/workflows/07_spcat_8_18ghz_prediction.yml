@@ -151,14 +151,36 @@ jobs:
           py="$RUNNER_TEMP/spcat_env/bin/python"
           "$py" -m pip install --upgrade pip
           "$py" -m pip install 'numpy>=1.26' 'pandas>=2.1' 'pyarrow>=15.0' 'pydantic>=2.4'
-      - name: Locate or compile JPL calpgm spcat binary (optional native path)
+      - name: Locate or compile pinned JPL calpgm spcat binary (SHA-256 verified)
         continue-on-error: true
         run: |
           if command -v spcat >/dev/null 2>&1; then
             echo "SPCAT_BIN=$(command -v spcat)" >> "$GITHUB_ENV"
-          elif command -v gcc >/dev/null 2>&1 && [ -d "$RUNNER_TEMP/calpgm" ]; then
+          elif command -v gcc >/dev/null 2>&1 && command -v make >/dev/null 2>&1; then
+            CALPGM_SHA="f5af2ff0f1acb1eb11ecffe7ef3b55d457801f7b"
+            CALPGM_SRC_DIGEST="479840d1bd19dc2e45612e49a950aee3b72256ef6748d80117c856ab4084c361"
+            mkdir -p "$RUNNER_TEMP/calpgm"
+            git -C "$RUNNER_TEMP/calpgm" init -q
+            git -C "$RUNNER_TEMP/calpgm" fetch -q --depth 1 https://github.com/laserkelvin/Pickett.git "$CALPGM_SHA"
+            git -C "$RUNNER_TEMP/calpgm" checkout -q --detach FETCH_HEAD
+            test "$(git -C "$RUNNER_TEMP/calpgm" rev-parse HEAD)" = "$CALPGM_SHA"
+            python - "$RUNNER_TEMP/calpgm" "$CALPGM_SRC_DIGEST" <<'PY'
+          import hashlib, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          expected = sys.argv[2]
+          c_files = ['calcat.c', 'sortsub.c', 'spinv.c', 'spinit.c', 'ulib.c', 'cnjj.c', 'slibgcc.c', 'catutil.c', 'lsqfit.c', 'dblas.c']
+          h = hashlib.sha256()
+          for name in c_files:
+              h.update(f"{name}:{hashlib.sha256((root / name).read_bytes()).hexdigest()}\n".encode("ascii"))
+          actual = h.hexdigest()
+          if actual != expected:
+              raise RuntimeError(f"calpgm C source digest mismatch: expected {expected}, got {actual}")
+          print(f"Verified calpgm C sources SHA-256: {actual}")
+          PY
             make -C "$RUNNER_TEMP/calpgm" spcat
+            test -x "$RUNNER_TEMP/calpgm/spcat"
             echo "SPCAT_BIN=$RUNNER_TEMP/calpgm/spcat" >> "$GITHUB_ENV"
+            echo "SPCAT_BIN_SHA256=$(sha256sum "$RUNNER_TEMP/calpgm/spcat" | awk '{print $1}')" >> "$GITHUB_ENV"
           fi
       - name: Generate Watson A-reduction 8-18 GHz Pickett decks, FactLedger, and sealed handoff
         run: |
@@ -204,8 +226,8 @@ jobs:
 
           var_lines = [
               f"Tennessee Tech University {course_id} M4 Watson A-reduction ({const_type})",
-              "   8   100   0   0.0000E+000   1.0000E+000   1.0000E+000",
-              "a   1   1   0  30   0   1   1   1  -1   0",
+              "   8  100    0    0     0.0000E+00     1.0000E+05     1.0000E+00 1.0000000000",
+              "a    1  1   0   30   0   1   1   1   0   0   0",
               f"       10000  {a_mhz:16.6f} 1.000000E-04",
               f"       20000  {b_mhz:16.6f} 1.000000E-04",
               f"       30000  {c_mhz:16.6f} 1.000000E-04",

@@ -308,6 +308,62 @@
       "purpose": "Immutable historical public worker flag-presence compatibility input; byte inspection only, not live workflow or science acceptance",
       "provenance_status": "immutable_public_git_source_blob",
       "provenance": "Verbatim public ProfJJK-CoChem/CoChem-BASE commit 388088281b8c23951f191edb88f3e865eaa8146d:scripts/run_student_research.py; original Git blob a00d9bec098f163518fe4b32a1ddf27eba37d706. Retained as non-executable text only. Never imported or executed; the test checks the complete SHA-256 before historical CLI token assertions."
+    },
+    {
+      "path": "examples/student_inputs/water_dimer.xyz",
+      "sha256": "85aada4f5d2eae64daa991bbbf583bd8dea9ea1dbf8571993b2d5bc23cba0644",
+      "purpose": "Starting coordinates for the CHEM 312 Week 10/11 NCI dimer and counterpoise BSSE workflow (04_crest_nci_dimer_bsse.yml).",
+      "provenance_status": "repository_teaching_input",
+      "provenance": "Constructed Cs trans-linear hydrogen-bonded water dimer (monomer A: atoms 1-3 donor, monomer B: atoms 4-6 acceptor, r(O...O)=2.910 A). CREST --nci and PySCF wB97X-D3/def2-TZVP compute all energies live."
+    },
+    {
+      "path": "examples/student_inputs/chem312_team4_rxn/R.xyz",
+      "sha256": "d2e36cf3c102b03c78f0f3de90465db6158a447b8949127e05a7ff6f011093d5",
+      "purpose": "CHEM 312 Team 4 anionic cyclization (C4H7O4-, Q=-1, M=1) reactant state R starting coordinates for 06_aimnet2_neb_pyscf_rxn_profile.yml.",
+      "provenance_status": "repository_teaching_input",
+      "provenance": "Copied verbatim from ProfJJK-CoChem/CoChem-KINETIC@bd83c8c530a4241ada9fc02229bc19d7c46095c8 benchmarks/chem312_t_kin_01/case_b_team4_ec_cyclization/inputs/ (reactant state R). AIMNet2 and PySCF compute all energies live."
+    },
+    {
+      "path": "examples/student_inputs/chem312_team4_rxn/Int_tet.xyz",
+      "sha256": "e0f2630f699fdb6118caec4d5fd58f0a53cfbc150512ff32e62157b141ece185",
+      "purpose": "CHEM 312 Team 4 anionic cyclization (C4H7O4-, Q=-1, M=1) tetrahedral intermediate state Int_tet starting coordinates for 06_aimnet2_neb_pyscf_rxn_profile.yml.",
+      "provenance_status": "repository_teaching_input",
+      "provenance": "Copied verbatim from ProfJJK-CoChem/CoChem-KINETIC@bd83c8c530a4241ada9fc02229bc19d7c46095c8 benchmarks/chem312_t_kin_01/case_b_team4_ec_cyclization/inputs/ (tetrahedral intermediate state Int_tet). AIMNet2 and PySCF compute all energies live."
+    },
+    {
+      "path": "examples/student_inputs/chem312_team4_rxn/P.xyz",
+      "sha256": "2a5d34823ccfcefdb706be720e741a41b19d300ccdf82e5b48ecfd93479d9338",
+      "purpose": "CHEM 312 Team 4 anionic cyclization (C4H7O4-, Q=-1, M=1) product state P starting coordinates for 06_aimnet2_neb_pyscf_rxn_profile.yml.",
+      "provenance_status": "repository_teaching_input",
+      "provenance": "Copied verbatim from ProfJJK-CoChem/CoChem-KINETIC@bd83c8c530a4241ada9fc02229bc19d7c46095c8 benchmarks/chem312_t_kin_01/case_b_team4_ec_cyclization/inputs/ (product state P). AIMNet2 and PySCF compute all energies live."
+    },
+    {
+      "path": "examples/student_inputs/chem312_team4_rxn/TS1.xyz",
+      "sha256": "1772d337613282b198f9b0efea476e7317001bc8c9c87934df3e706a5015613f",
+      "purpose": "CHEM 312 Team 4 anionic cyclization (C4H7O4-, Q=-1, M=1) transition state guess TS1 starting coordinates for 06_aimnet2_neb_pyscf_rxn_profile.yml.",
+      "provenance_status": "repository_teaching_input",
+      "provenance": "Copied verbatim from ProfJJK-CoChem/CoChem-KINETIC@bd83c8c530a4241ada9fc02229bc19d7c46095c8 benchmarks/chem312_t_kin_01/case_b_team4_ec_cyclization/inputs/ (transition state guess TS1). AIMNet2 and PySCF compute all energies live."
+    },
+    {
+      "path": "examples/student_inputs/chem312_team4_rxn/TS2.xyz",
+      "sha256": "35ebf081482ff8a37be0953b6a2b45e159c364de7870477e1e50b6aa7acf6ed2",
+      "purpose": "CHEM 312 Team 4 anionic cyclization (C4H7O4-, Q=-1, M=1) transition state guess TS2 starting coordinates for 06_aimnet2_neb_pyscf_rxn_profile.yml.",
+      "provenance_status": "repository_teaching_input",
+      "provenance": "Copied verbatim from ProfJJK-CoChem/CoChem-KINETIC@bd83c8c530a4241ada9fc02229bc19d7c46095c8 benchmarks/chem312_t_kin_01/case_b_team4_ec_cyclization/inputs/ (transition state guess TS2). AIMNet2 and PySCF compute all energies live."
+    },
+    {
+      "path": "examples/student_inputs/chem312_team4_rxn/reactant.xyz",
+      "sha256": "d2e36cf3c102b03c78f0f3de90465db6158a447b8949127e05a7ff6f011093d5",
+      "purpose": "CHEM 312 Team 4 anionic cyclization (C4H7O4-, Q=-1, M=1) reactant state R (alias) starting coordinates for 06_aimnet2_neb_pyscf_rxn_profile.yml.",
+      "provenance_status": "repository_teaching_input",
+      "provenance": "Copied verbatim from ProfJJK-CoChem/CoChem-KINETIC@bd83c8c530a4241ada9fc02229bc19d7c46095c8 benchmarks/chem312_t_kin_01/case_b_team4_ec_cyclization/inputs/ (reactant state R (alias)). AIMNet2 and PySCF compute all energies live."
+    },
+    {
+      "path": "examples/student_inputs/chem312_team4_rxn/product.xyz",
+      "sha256": "2a5d34823ccfcefdb706be720e741a41b19d300ccdf82e5b48ecfd93479d9338",
+      "purpose": "CHEM 312 Team 4 anionic cyclization (C4H7O4-, Q=-1, M=1) product state P (alias) starting coordinates for 06_aimnet2_neb_pyscf_rxn_profile.yml.",
+      "provenance_status": "repository_teaching_input",
+      "provenance": "Copied verbatim from ProfJJK-CoChem/CoChem-KINETIC@bd83c8c530a4241ada9fc02229bc19d7c46095c8 benchmarks/chem312_t_kin_01/case_b_team4_ec_cyclization/inputs/ (product state P (alias)). AIMNet2 and PySCF compute all energies live."
     }
   ]
 }

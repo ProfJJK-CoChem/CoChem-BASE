@@ -624,10 +624,30 @@ def test_new_m3_m4_workflows_yaml_zero_push_zero_cron(workflow_name: str) -> Non
     if workflow_name == "05_gvpt2_6shard_anharmonic.yml":
         assert data["jobs"]["gvpt2_shard"]["strategy"]["matrix"]["shard"] == [0, 1, 2, 3, 4, 5]
         assert "vpt2_anharmonic" in raw_text
+        inputs = triggers["workflow_dispatch"]["inputs"]
+        assert inputs["pre_optimize"]["type"] == "boolean"
+        assert inputs["pre_optimize"]["default"] is True
+        assert "geometric==1.1.1" in raw_text
+        assert "parse_harmonic_frequencies_cm1" in raw_text
+        assert "dx_bohr" in raw_text
     if workflow_name == "07_spcat_8_18ghz_prediction.yml":
         assert "2.0" in raw_text
         assert "8.0" in raw_text and "18.0" in raw_text
         assert "FactLedger" in raw_text
+        assert "f5af2ff0f1acb1eb11ecffe7ef3b55d457801f7b" in raw_text
+        assert "479840d1bd19dc2e45612e49a950aee3b72256ef6748d80117c856ab4084c361" in raw_text
+        assert "a    1  1   0   30   0   1   1   1   0   0   0" in raw_text
+
+
+def test_gvpt2_parse_harmonic_frequencies_preserves_complex_imaginary_modes() -> None:
+    """Verify PySCF complex imaginary modes (1j * w) become negative cm^-1 instead of 0.0."""
+    raw = [0.0 + 996.856j, 0.0 + 286.411j, 274.259 + 0.0j, 914.828]
+    parsed = gvpt2_shard_runner.parse_harmonic_frequencies_cm1(raw)
+    assert parsed[0] == pytest.approx(-996.856, abs=1e-6)
+    assert parsed[1] == pytest.approx(-286.411, abs=1e-6)
+    assert parsed[2] == pytest.approx(274.259, abs=1e-6)
+    assert parsed[3] == pytest.approx(914.828, abs=1e-6)
+    assert min(parsed) < 0.0
 
 
 def test_module_distribution_scribe_live_operations_and_zero_texas_tech() -> None:

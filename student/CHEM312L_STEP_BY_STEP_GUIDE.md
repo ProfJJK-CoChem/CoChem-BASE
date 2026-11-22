@@ -137,20 +137,19 @@ python scripts/fermi_deperturb.py \
 
 ### 3. M3 — 1:1 Complexation Shift & Counterpoise BSSE Analyzer (`scripts/vdw_titration_diff.py`)
 
-Combines monomer/dimer harmonic IR JSONs, `bsse_counterpoise.json` from `04_crest_nci_dimer_bsse.yml`, and optional experimental ATR CSVs (unmeasured experimental slots are honestly marked `PENDING`):
+Combines monomer harmonic IR JSON, `bsse_counterpoise.json` from `04_crest_nci_dimer_bsse.yml`, and optional dimer harmonic IR JSON or experimental ATR CSVs (unmeasured or omitted slots are honestly marked `PENDING`):
 
 ```bash
 python scripts/vdw_titration_diff.py \
   --complex-label "HCOOH...H2O" \
   --monomer-json results/monomer_ir.json \
-  --dimer-json results/dimer_ir.json \
   --bsse-json results/bsse_counterpoise.json \
   --output-csv results/vdw_diff.csv \
   --output-md results/vdw_diff.md \
   --output-json results/vdw_diff.json
 ```
 
-*(Add `--exp-monomer-csv data/monomer_atr.csv --exp-complex-csv data/complex_atr.csv --kk-correct` once experimental titration spectra are collected.)*
+*(Note: `--dimer-json results/dimer_ir.json` is optional if you also run a separate dimer frequency calculation—`04_crest_nci_dimer_bsse.yml` emits `bsse_counterpoise.json` without a dimer Hessian. Add `--exp-monomer-csv data/monomer_atr.csv --exp-complex-csv data/complex_atr.csv --kk-correct` once experimental titration spectra are collected.)*
 
 ### 4. M3 — 6-Shard Barone GVPT2 Planner, Shard Runner & Aggregator (`scripts/gvpt2_shard_runner.py`)
 

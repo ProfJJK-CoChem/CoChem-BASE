@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       input_dir:
-        description: Relative folder containing R.xyz, Int_tet.xyz, P.xyz (or reactant.xyz/product.xyz)
+        description: Relative folder containing reactant.xyz + product.xyz (or R.xyz, Int_tet.xyz, P.xyz)
         required: true
         default: examples/student_inputs/chem312_team4_rxn
         type: string
@@ -56,9 +56,9 @@ on:
       target_continuation:
         description: Pipeline 5.0.0 continuation lane
         required: true
-        default: colab_gpu
+        default: workstation
         type: choice
-        options: [colab_gpu, workstation, gcp_spot]
+        options: [workstation, colab_gpu, gcp_spot]
 
 permissions:
   contents: read
@@ -99,7 +99,7 @@ jobs:
           "$py" -m pip install -c "$RUNNER_TEMP/cpu-constraints.txt" --extra-index-url https://download.pytorch.org/whl/cpu \
             'aimnet>=0.2.0' 'ase>=3.22.0' 'sella>=2.3.0' 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0'
           "$py" -m pip install -c "$RUNNER_TEMP/cpu-constraints.txt" --extra-index-url https://download.pytorch.org/whl/cpu \
-            'git+https://github.com/ProfJJK-CoChem/CoChem-KINETIC.git@bd83c8c530a4241ada9fc02229bc19d7c46095c8'
+            'git+https://github.com/ProfJJK-CoChem/CoChem-KINETIC.git@ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2'
           "$py" -c 'import torch; assert torch.version.cuda is None'
           "$RUNNER_TEMP/kinetic/bin/cochem-kinetic" rxn-profile --help > /dev/null
       - name: Stage normalized reaction-profile inputs
@@ -114,17 +114,29 @@ jobs:
           if not src.is_dir():
               raise FileNotFoundError(f"Reaction input directory not found: {src}")
 
-          for xyz in sorted(src.glob("*.xyz")):
-              shutil.copyfile(xyz, dst / xyz.name)
-          if not (dst / "R.xyz").is_file() and (dst / "reactant.xyz").is_file():
-              shutil.copyfile(dst / "reactant.xyz", dst / "R.xyz")
-          if not (dst / "P.xyz").is_file() and (dst / "product.xyz").is_file():
-              shutil.copyfile(dst / "product.xyz", dst / "P.xyz")
-          for required in ("R.xyz", "Int_tet.xyz", "P.xyz"):
-              if not (dst / required).is_file():
+          def _stage_first(canonical: str, aliases: tuple[str, ...]) -> bool:
+              for name in aliases:
+                  cand = src / name
+                  if cand.is_file():
+                      shutil.copyfile(cand, dst / canonical)
+                      return True
+              return False
+
+          has_r = _stage_first("R.xyz", ("R.xyz", "reactant.xyz", "Reactant.xyz"))
+          has_p = _stage_first("P.xyz", ("P.xyz", "product.xyz", "Product.xyz"))
+          for required, present in (("R.xyz", has_r), ("P.xyz", has_p)):
+              if not present:
                   raise FileNotFoundError(
-                      f"cochem-kinetic rxn-profile requires {required} in {src}; found {sorted(p.name for p in dst.glob('*.xyz'))}"
+                      f"cochem-kinetic rxn-profile requires {required} (or reactant.xyz/product.xyz) in {src}; "
+                      f"found {sorted(p.name for p in src.glob('*.xyz'))}"
                   )
+
+          # Optional stationary guesses: stage only when present so cochem-kinetic auto-discovers stepwise_5pt vs elementary_3pt
+          _stage_first("Int_tet.xyz", ("Int_tet.xyz", "intermediate.xyz", "int_tet.xyz"))
+          for opt_name in ("TS1.xyz", "TS2.xyz", "TS.xyz"):
+              cand = src / opt_name
+              if cand.is_file():
+                  shutil.copyfile(cand, dst / opt_name)
           print("Staged inputs:", sorted(p.name for p in dst.glob("*.xyz")))
           PY
       - name: Execute AIMNet2 CI-NEB, TS polish, IRC, and PySCF DF-wB97X-D3 + PCM
@@ -163,29 +175,60 @@ jobs:
               raise FileNotFoundError(f"Expected starting geometry R.xyz or reactant.xyz in {rxn_in}")
           shutil.copyfile(starting, stage / "input.xyz")
 
+          results_path = rxn_out / "results.json"
+          mlff_path = rxn_out / "mlff_stage.json"
+          results_data = json.loads(results_path.read_text(encoding="utf-8")) if results_path.is_file() else {}
+          mlff_data = json.loads(mlff_path.read_text(encoding="utf-8")) if mlff_path.is_file() else {}
+
           # Locate converged stationary-state geometries produced by cochem-kinetic
           geom_dir = rxn_out / "geometries"
           if not geom_dir.is_dir():
               geom_dir = rxn_out / "mlff_geometries"
 
-          ts_state = None
+          pathway_mode = results_data.get("pathway_mode") or mlff_data.get("pathway_mode")
+          input_mode = results_data.get("input_mode") or mlff_data.get("input_mode")
+          sp_list = results_data.get("stationary_points") or mlff_data.get("stationary_points")
+          if sp_list:
+              state_order = tuple(str(s) for s in sp_list)
+          elif geom_dir.is_dir() and (geom_dir / "TS.xyz").is_file() and not (geom_dir / "Int_tet.xyz").is_file():
+              state_order = ("R", "TS", "P")
+              pathway_mode = pathway_mode or "elementary_3pt"
+          else:
+              state_order = ("R", "TS1", "Int_tet", "TS2", "P")
+              if pathway_mode is None and geom_dir.is_dir() and (geom_dir / "Int_tet.xyz").is_file():
+                  pathway_mode = "stepwise_5pt"
+
+          ts_state = results_data.get("primary_ts_state")
           ts_xyz = None
-          for candidate_state in ("TS2", "TS1"):
-              cand = geom_dir / f"{candidate_state}.xyz" if geom_dir.is_dir() else None
-              if cand is not None and cand.is_file():
-                  ts_state = candidate_state
-                  ts_xyz = cand
-                  break
+          if (rxn_out / "ts_polished.xyz").is_file():
+              ts_xyz = rxn_out / "ts_polished.xyz"
+              if not ts_state:
+                  for candidate_state in ("TS", "TS2", "TS1"):
+                      if geom_dir.is_dir() and (geom_dir / f"{candidate_state}.xyz").is_file():
+                          ts_state = candidate_state
+                          break
+          if ts_xyz is None and ts_state and geom_dir.is_dir() and (geom_dir / f"{ts_state}.xyz").is_file():
+              ts_xyz = geom_dir / f"{ts_state}.xyz"
           if ts_xyz is None:
-              for fallback in (rxn_in / "TS2.xyz", rxn_in / "TS1.xyz", starting):
+              for candidate_state in ("TS", "TS2", "TS1"):
+                  cand = geom_dir / f"{candidate_state}.xyz" if geom_dir.is_dir() else None
+                  if cand is not None and cand.is_file():
+                      ts_state = candidate_state
+                      ts_xyz = cand
+                      break
+          if ts_xyz is None:
+              for fallback in (rxn_in / "TS.xyz", rxn_in / "TS2.xyz", rxn_in / "TS1.xyz", starting):
                   if fallback.is_file():
                       ts_xyz = fallback
                       ts_state = fallback.stem
                       break
           shutil.copyfile(ts_xyz, stage / "ts_guess.xyz")
+          for polished in ("ts_polished.xyz", "TS1_polished.xyz", "TS2_polished.xyz"):
+              p_src = rxn_out / polished
+              if p_src.is_file():
+                  shutil.copyfile(p_src, stage / polished)
 
           # Copy individual stationary geometries and assemble ordered multi-frame reaction profile XYZ
-          state_order = ("R", "TS1", "Int_tet", "TS2", "P")
           profile_frames: list[str] = []
           if geom_dir.is_dir():
               (stage / "geometries").mkdir(exist_ok=True)
@@ -220,21 +263,58 @@ jobs:
               if src.is_file():
                   shutil.copyfile(src, stage / extra)
 
+          def _split_xyz_blocks(text: str) -> list[str]:
+              lines = text.strip().splitlines()
+              blocks: list[str] = []
+              idx = 0
+              while idx < len(lines):
+                  n_at = int(lines[idx].strip())
+                  end = idx + n_at + 2
+                  blocks.append("\n".join(lines[idx:end]))
+                  idx = end
+              return blocks
+
+          traj_meta: dict[str, object] = {}
+          for traj_name in ("neb_path.xyz", "irc_path.xyz"):
+              traj_src = rxn_out / traj_name
+              if traj_src.is_file():
+                  stem = traj_src.stem
+                  full_sha = handoff.sha256_file(traj_src)
+                  blocks = _split_xyz_blocks(traj_src.read_text(encoding="utf-8"))
+                  total_n = len(blocks)
+                  if total_n <= handoff.V2_MAX_FRAMES:
+                      shutil.copyfile(traj_src, stage / traj_name)
+                      staged_n = total_n
+                  else:
+                      limit = handoff.V2_MAX_FRAMES
+                      indices = sorted({round(i * (total_n - 1) / (limit - 1)) for i in range(limit)})
+                      sampled = [blocks[i] for i in indices]
+                      (stage / traj_name).write_text("\n".join(sampled) + "\n", encoding="utf-8")
+                      staged_n = len(sampled)
+                  traj_meta[f"{stem}_total_frames"] = total_n
+                  traj_meta[f"{stem}_staged_frames"] = staged_n
+                  traj_meta[f"{stem}_full_sha256"] = full_sha
+
+          def _valid_n_imag(val):
+              return val if (isinstance(val, int) and not isinstance(val, bool) and val >= 0) else None
+
           n_imag = None
-          results_path = rxn_out / "results.json"
-          mlff_path = rxn_out / "mlff_stage.json"
-          if results_path.is_file():
-              results = json.loads(results_path.read_text(encoding="utf-8"))
-              st_info = results.get("states", {}).get(ts_state or "TS2", {})
-              cand_imag = st_info.get("hessian", {}).get("thermo", {}).get("n_imag")
-              if isinstance(cand_imag, int) and not isinstance(cand_imag, bool) and cand_imag >= 0:
-                  n_imag = cand_imag
-          elif mlff_path.is_file():
-              mlff_data = json.loads(mlff_path.read_text(encoding="utf-8"))
-              st_info = mlff_data.get("hessians", {}).get(ts_state or "TS2", {})
-              cand_imag = st_info.get("thermo", {}).get("n_imag")
-              if isinstance(cand_imag, int) and not isinstance(cand_imag, bool) and cand_imag >= 0:
-                  n_imag = cand_imag
+          results_ts_n_imag = results_data.get("ts_n_imaginary_modes")
+          if _valid_n_imag(results_ts_n_imag) is not None:
+              n_imag = results_ts_n_imag
+          elif isinstance(results_ts_n_imag, dict):
+              n_imag = _valid_n_imag(results_ts_n_imag.get(ts_state or "TS2"))
+              if n_imag is None:
+                  for v in results_ts_n_imag.values():
+                      if _valid_n_imag(v) is not None:
+                          n_imag = v
+                          break
+          if n_imag is None and results_data:
+              st_info = results_data.get("states", {}).get(ts_state or "TS", {}) or results_data.get("states", {}).get("TS2", {})
+              n_imag = _valid_n_imag(st_info.get("hessian", {}).get("thermo", {}).get("n_imag"))
+          if n_imag is None and mlff_data:
+              st_info = mlff_data.get("hessians", {}).get(ts_state or "TS", {}) or mlff_data.get("hessians", {}).get("TS2", {})
+              n_imag = _valid_n_imag(st_info.get("thermo", {}).get("n_imag"))
           hessian_done = n_imag is not None
 
           if run_stage == "all":
@@ -252,6 +332,19 @@ jobs:
               basis_label = "none"
               solv_label = "gas"
               solvent_label = None
+
+          metadata_block: dict[str, object] = {
+              "temp_k": float(os.environ["TEMP_K"]),
+              "stage": run_stage,
+              "pathway_mode": pathway_mode,
+              "input_mode": input_mode,
+              "primary_ts_state": ts_state,
+              "dft_basis": os.environ["DFT_BASIS"],
+              "kinetic_revision": "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2",
+              **traj_meta,
+          }
+          if results_ts_n_imag is not None:
+              metadata_block["ts_n_imaginary_modes"] = results_ts_n_imag
 
           manifest = {
               "workflow_type": "rxn_profile",
@@ -278,13 +371,7 @@ jobs:
               "commit": os.environ["GITHUB_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"],
               "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "metadata": {
-                  "temp_k": float(os.environ["TEMP_K"]),
-                  "stage": run_stage,
-                  "primary_ts_state": ts_state,
-                  "dft_basis": os.environ["DFT_BASIS"],
-                  "kinetic_revision": "bd83c8c530a4241ada9fc02229bc19d7c46095c8",
-              },
+              "metadata": metadata_block,
           }
           zip_path, sha_path, _, _ = handoff.seal(stage, Path(os.environ["RUNNER_TEMP"]) / "handoff", manifest)
           handoff.verify(zip_path, sidecar_path=sha_path, destination=Path(os.environ["RUNNER_TEMP"]) / "received")

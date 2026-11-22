@@ -1,0 +1,334 @@
+name: CHEM 312 M3 6-Shard Barone GVPT2 Anharmonic Vibrational Analysis
+
+on:
+  workflow_dispatch:
+    inputs:
+      xyz:
+        description: Optimized equilibrium XYZ filename from examples/student_inputs/
+        required: true
+        default: ethanol.xyz
+        type: string
+      charge:
+        description: Total molecular charge (-2, -1, 0, 1, 2)
+        required: true
+        default: '0'
+        type: choice
+        options: ['-2', '-1', '0', '1', '2']
+      multiplicity:
+        description: Spin multiplicity (1, 2, 3)
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '2', '3']
+      method:
+        description: CPU PySCF DFT method for equilibrium and displaced Hessians
+        required: true
+        default: B3LYP-D3BJ
+        type: choice
+        options: [B3LYP-D3BJ, wB97X-D3]
+      basis:
+        description: CPU PySCF basis set
+        required: true
+        default: def2-SVP
+        type: choice
+        options: [STO-3G, def2-SVP, def2-TZVP]
+      solvation:
+        description: Implicit solvation model
+        required: true
+        default: gas
+        type: choice
+        options: [gas, pcm, ddcosmo]
+      solvent_name:
+        description: Solvent name when solvation is pcm or ddcosmo
+        required: false
+        default: water
+        type: string
+      step_size:
+        description: Finite-difference normal-coordinate displacement step size
+        required: true
+        default: '0.01'
+        type: string
+      course_id:
+        description: Course identifier (Tennessee Tech University)
+        required: true
+        default: CHEM312
+        type: choice
+        options: [CHEM312, CHEM490, CHEM410, CHEM411]
+      target_continuation:
+        description: Pipeline 5.0.0 continuation lane
+        required: true
+        default: workstation
+        type: choice
+        options: [workstation, colab_gpu, gcp_spot]
+
+permissions:
+  contents: read
+
+jobs:
+  plan_eq_hessian:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      XYZ: ${{ inputs.xyz }}
+      CHARGE: ${{ inputs.charge }}
+      MULTIPLICITY: ${{ inputs.multiplicity }}
+      METHOD: ${{ inputs.method }}
+      BASIS: ${{ inputs.basis }}
+      SOLVATION: ${{ inputs.solvation }}
+      SOLVENT_NAME: ${{ inputs.solvent_name }}
+      STEP_SIZE: ${{ inputs.step_size }}
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Install CPU PySCF and dispersion dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/gvpt2"
+          py="$RUNNER_TEMP/gvpt2/bin/python"
+          "$py" -m pip install --upgrade pip
+          "$py" -m pip install 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0' 'numpy>=1.26' 'scipy>=1.11'
+      - name: Compute equilibrium Hessian and build deterministic K=6 shard plan
+        run: |
+          "$RUNNER_TEMP/gvpt2/bin/python" - <<'PY'
+          import json, os, shutil, sys
+          from pathlib import Path
+          import numpy as np
+          from pyscf import gto, lib
+          from pyscf.hessian import thermo
+
+          sys.path.insert(0, "student")
+          sys.path.insert(0, "scripts")
+          import conformers, handoff, gvpt2_shard_runner
+
+          charge = int(os.environ["CHARGE"])
+          mult = int(os.environ["MULTIPLICITY"])
+          step_size = float(os.environ["STEP_SIZE"])
+          source = conformers.input_file(os.environ["XYZ"])
+          parsed = handoff.read_input(source, charge=charge, multiplicity=mult)
+
+          plan_dir = Path(os.environ["RUNNER_TEMP"]) / "gvpt2_plan"
+          plan_dir.mkdir(parents=True, exist_ok=True)
+          eq_xyz = plan_dir / "input.xyz"
+          shutil.copyfile(source, eq_xyz)
+
+          method_spec, basis_label = conformers.normalize_method_and_basis(os.environ["METHOD"], os.environ["BASIS"])
+          solv = os.environ["SOLVATION"]
+          solvent_name = os.environ["SOLVENT_NAME"] if solv != "gas" else None
+          lib.num_threads(2)
+
+          atoms = list(zip(parsed["symbols"], parsed["coords"]))
+          mol = gto.M(atom=atoms, unit="Angstrom", basis=basis_label, charge=charge, spin=mult - 1, verbose=2)
+          mf = conformers._build_pyscf_mf(mol, method_spec, solvation=solv, solvent_name=solvent_name)
+          e_eq = float(mf.kernel())
+          if not mf.converged:
+              raise RuntimeError("Equilibrium PySCF SCF failed to converge before GVPT2 sharding")
+          hess_raw = mf.Hessian().kernel()
+          harm = thermo.harmonic_analysis(mol, hess_raw)
+          freqs = [float(f) for f in np.real(harm["freq_wavenumber"])]
+          n_imag = sum(1 for f in freqs if f < -1e-3)
+          if n_imag > 0:
+              raise RuntimeError(f"Equilibrium geometry has {n_imag} imaginary modes; GVPT2 requires a true minimum.")
+
+          # Dimensionless normal-mode displacement vectors in Angstrom
+          norm_modes = np.asarray(harm["norm_mode"], dtype=np.float64)
+          eq_hess_q = np.diag(freqs).tolist()
+          nm_json = plan_dir / "normal_modes.json"
+          nm_json.write_text(
+              json.dumps(
+                  {
+                      "energy_hartree": e_eq,
+                      "method": method_spec["label"],
+                      "basis": basis_label,
+                      "n_imaginary_modes": n_imag,
+                      "harmonic_cm1": freqs,
+                      "displacement_vectors": norm_modes.tolist(),
+                      "eq_hessian_q": eq_hess_q,
+                  },
+                  indent=2,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          gvpt2_shard_runner.build_gvpt2_plan(
+              xyz_path=eq_xyz,
+              output_dir=plan_dir,
+              n_shards=6,
+              step_size=step_size,
+              normal_modes_json=nm_json,
+              write_xyz_files=True,
+          )
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gvpt2-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gvpt2_plan/
+          if-no-files-found: error
+          retention-days: 7
+
+  gvpt2_shard:
+    needs: plan_eq_hessian
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    env:
+      SHARD_ID: ${{ matrix.shard }}
+      CHARGE: ${{ inputs.charge }}
+      MULTIPLICITY: ${{ inputs.multiplicity }}
+      METHOD: ${{ inputs.method }}
+      BASIS: ${{ inputs.basis }}
+      SOLVATION: ${{ inputs.solvation }}
+      SOLVENT_NAME: ${{ inputs.solvent_name }}
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: gvpt2-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gvpt2_plan
+      - name: Install CPU PySCF for shard ${{ matrix.shard }}
+        run: |
+          python -m venv "$RUNNER_TEMP/gvpt2"
+          py="$RUNNER_TEMP/gvpt2/bin/python"
+          "$py" -m pip install --upgrade pip
+          "$py" -m pip install 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0' 'numpy>=1.26' 'scipy>=1.11'
+      - name: Run displaced Hessians for GVPT2 shard ${{ matrix.shard }}
+        run: |
+          "$RUNNER_TEMP/gvpt2/bin/python" scripts/gvpt2_shard_runner.py run-shard \
+            --plan "$RUNNER_TEMP/gvpt2_plan/gvpt2_plan.json" \
+            --shard-id "$SHARD_ID" \
+            --output-dir "$RUNNER_TEMP/shard_out" \
+            --method "$METHOD" \
+            --basis "$BASIS" \
+            --charge "$CHARGE" \
+            --multiplicity "$MULTIPLICITY" \
+            --solvation "$SOLVATION" \
+            --solvent-name "$SOLVENT_NAME"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gvpt2-shard-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shard_out/shard_${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  aggregate_and_seal:
+    needs: [plan_eq_hessian, gvpt2_shard]
+    if: always() && needs.plan_eq_hessian.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      XYZ: ${{ inputs.xyz }}
+      CHARGE: ${{ inputs.charge }}
+      MULTIPLICITY: ${{ inputs.multiplicity }}
+      METHOD: ${{ inputs.method }}
+      BASIS: ${{ inputs.basis }}
+      SOLVATION: ${{ inputs.solvation }}
+      SOLVENT_NAME: ${{ inputs.solvent_name }}
+      COURSE_ID: ${{ inputs.course_id }}
+      TARGET_CONTINUATION: ${{ inputs.target_continuation }}
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Install numpy and scipy for GVPT2 aggregation
+        run: python -m pip install 'numpy>=1.26' 'scipy>=1.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: gvpt2-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gvpt2_plan
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: gvpt2-shard-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shards
+          merge-multiple: true
+      - name: Aggregate 6 GVPT2 shards and seal cochem.student-handoff/2 bundle
+        run: |
+          python - <<'PY'
+          import json, os, shutil, sys
+          from pathlib import Path
+
+          sys.path.insert(0, "student")
+          sys.path.insert(0, "scripts")
+          import handoff, gvpt2_shard_runner
+
+          plan_dir = Path(os.environ["RUNNER_TEMP"]) / "gvpt2_plan"
+          shards_dir = Path(os.environ["RUNNER_TEMP"]) / "shards"
+          bundle = Path(os.environ["RUNNER_TEMP"]) / "bundle"
+          bundle.mkdir(parents=True, exist_ok=True)
+
+          agg = gvpt2_shard_runner.aggregate_shards(
+              plan_path=plan_dir / "gvpt2_plan.json",
+              shards_dir=shards_dir,
+              output_dir=bundle,
+          )
+          shutil.copyfile(plan_dir / "input.xyz", bundle / "input.xyz")
+          shutil.copyfile(plan_dir / "input.xyz", bundle / "refined.xyz")
+          for fname in ("gvpt2_plan.json", "normal_modes.json"):
+              src = plan_dir / fname
+              if src.is_file():
+                  shutil.copyfile(src, bundle / fname)
+
+          nm = json.loads((plan_dir / "normal_modes.json").read_text(encoding="utf-8"))
+          solv = os.environ["SOLVATION"]
+          manifest = {
+              "workflow_type": "vpt2_anharmonic",
+              "input_name": Path(os.environ["XYZ"]).name,
+              "charge": int(os.environ["CHARGE"]),
+              "multiplicity": int(os.environ["MULTIPLICITY"]),
+              "length_unit": "angstrom",
+              "method": f"GVPT2-6Shard + {nm.get('method', os.environ['METHOD'])}",
+              "basis": nm.get("basis", os.environ["BASIS"]),
+              "solvation": solv,
+              "solvent_name": os.environ["SOLVENT_NAME"] if solv != "gas" else None,
+              "hessian_calculated": True,
+              "n_imaginary_modes": int(nm.get("n_imaginary_modes", 0)),
+              "course_id": os.environ["COURSE_ID"],
+              "collaborator_institution": "Tennessee Tech University",
+              "target_continuation": os.environ["TARGET_CONTINUATION"],
+              "starting_xyz": "input.xyz",
+              "primary_xyz": "refined.xyz",
+              "ensemble_xyz": None,
+              "candidate_count": 1,
+              "selected": "refined.xyz",
+              "student_id": f"{os.environ['COURSE_ID'].lower()}_gvpt2_student",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "commit": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "metadata": {
+                  "gvpt2_status": agg["status"],
+                  "n_shards": 6,
+                  "completed_shards": agg["completed_shards"],
+                  "missing_shards": agg["missing_shards"],
+              },
+          }
+          zip_path, sha_path, _, _ = handoff.seal(bundle, Path(os.environ["RUNNER_TEMP"]) / "handoff", manifest)
+          handoff.verify(zip_path, sidecar_path=sha_path, destination=Path(os.environ["RUNNER_TEMP"]) / "received")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: CoChem-gvpt2-6shard-handoff-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/handoff/
+          if-no-files-found: error
+          retention-days: 30

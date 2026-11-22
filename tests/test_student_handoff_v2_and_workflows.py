@@ -405,8 +405,8 @@ def test_module_distribution_manifest_has_verified_adapters_and_passes_loader() 
         "torq": ("torq_provider", "cochem_torq.ecosystem:module_provider", "cb908f393949a2e880ad1a33641fec70d74b5aff"),
         "geom": ("geom_provider", "cochem_geom.provider:geom_provider", "ae8f1e7d56a4030e377d36ca7c9516cd0da16851"),
         "spycfit": ("spycfit_provider", "cochem_spycfit.module_provider:spycfit_provider", "aebe6fd8d5939ed617dad72e1392230e3979faf9"),
-        "kinetic": ("kinetic_provider", "cochem_kinetic.provider:kinetic_provider", "6eade693af7c3e7ca4f43a62582625b8e2903ea5"),
-        "scribe": ("scribe_provider", "cochem_scribe.provider:scribe_provider", "ac07a05c361a1fedf1f2ef1860733cb52d5c0922"),
+        "kinetic": ("kinetic_provider", "cochem_kinetic.provider:kinetic_provider", "3f3ac20b2b65dcdef7c142dfb709d4d024c04ed4"),
+        "scribe": ("scribe_provider", "cochem_scribe.provider:scribe_provider", "85216dd12c998c1f879b6bb73ab74a44fc98f4bc"),
     }
     for mod_id, (adapter, ep, rev) in expected.items():
         spec = modules[mod_id]

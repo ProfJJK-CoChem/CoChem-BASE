@@ -54,7 +54,7 @@
     },
     "kinetic": {
       "repository": "ProfJJK-CoChem/CoChem-KINETIC",
-      "revision": "6eade693af7c3e7ca4f43a62582625b8e2903ea5",
+      "revision": "3f3ac20b2b65dcdef7c142dfb709d4d024c04ed4",
       "distribution": "cochem-kinetic",
       "adapter": "kinetic_provider",
       "entry_point": "cochem_kinetic.provider:kinetic_provider",
@@ -146,7 +146,7 @@
     },
     "scribe": {
       "repository": "ProfJJK-CoChem/CoChem-SCRIBE",
-      "revision": "ac07a05c361a1fedf1f2ef1860733cb52d5c0922",
+      "revision": "85216dd12c998c1f879b6bb73ab74a44fc98f4bc",
       "distribution": "cochem-scribe",
       "adapter": "scribe_provider",
       "entry_point": "cochem_scribe.provider:scribe_provider",

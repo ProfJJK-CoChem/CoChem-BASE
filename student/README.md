@@ -1,44 +1,48 @@
-# From an XYZ file to an instructor handoff
+# CoChem Student CURE Workflows & Pipeline 5.0.0 Handoff (`student/`)
 
-## Start inside CoChem
+CoChem supports **both** private/template research repositories (such as CHEM 490
+ORCA 6.1.1 / CFOUR / SPFIT / SPCAT projects) and **public-fork CURE workflows**
+(`XYZ -> CREST 3.0.2 -> MLFF -> CPU PySCF -> cochem.student-handoff/2`) developed
+for **Tennessee Tech University** courses (`CHEM312`, `CHEM490`, `CHEM410`, `CHEM411`).
 
-1. Sign in to GitHub. Open the course repository, click **Fork**, choose your own account under **Owner**, and click **Create fork**. A fork is your own public copy. Use a public fork for every course research project. The two names at the top of its page are your GitHub account and your project name. Open **Actions** in that copy and enable workflows if GitHub asks.
-2. To open the dashboard from your fork, click **Code → Codespaces → Create codespace on main**. Wait for setup to finish. If CoChem does not open, click **Ports** at the bottom of the workspace, find **8866**, then click its globe icon. In the CoChem dashboard open **1 · Setup → Run your first molecule**. Check that **GitHub project** shows those two names separated by a slash. Leave **Practice with ethanol** selected and click **Run in CoChem** once. For your research file, select **Use my XYZ file**, click **Choose XYZ file**, choose the file and confirm that you understand the file will be public. Check that the comment line contains only information intended for publication.
-3. Copy the run link CoChem displays. Click **Check run and get files**. **Queued** means GitHub is waiting for a computer. **In progress** means the calculation is running. You can close the page and paste the same link into **4 · Read and save results** later.
-4. When **Results verified** appears, click **Save results ZIP**, then **Save checksum**. Find both in your computer's **Downloads** folder. In your assignment's Google Drive folder choose **New → File upload** and select both files. Keep the ZIP closed for submission and include the run link in your write-up.
+## 1. Dashboard-First Start (Recommended)
 
-The public lab runs independently of local program setup. If **Run in CoChem** is grey, check the project name and, for your own molecule, the file and public-sharing box. If GitHub denies access, use the browser steps below in your own fork. For a failed calculation, open the run link, choose the failed step and share its message with your instructor.
+1. Copy or fork `ProfJJK-CoChem/CoChem-BASE` into your own GitHub account.
+2. Open a GitHub Codespace on `main` and wait for port **8866 (`CoChem Voilà dashboard`)**
+   to launch automatically with `PySCF`, `xTB`, `CREST`, `TOPOS`, and `TORQ`.
+3. Upload your `.xyz` structure, verify total **charge** and **spin multiplicity**,
+   run your assigned calculation, and download your verified ZIP bundle.
 
-## Run directly on GitHub
+## 2. Manual GitHub Actions Fallback (`workflow_dispatch` Only)
 
-In your public CoChem-BASE fork, open **Actions** and enable workflows if GitHub asks. Open **Student conformers (CREST, MACE, CPU PySCF)** and select **Run workflow** on the default branch. Leave **ethanol.xyz** selected for the first exercise. To study your own molecule, upload a single ASCII XYZ file to `examples/student_inputs/` on the default branch, then enter its filename in the workflow. Use only structures approved for public sharing. A public fork exposes committed molecules and workflow logs.
+When working from a public fork without a live Codespace, run one of the manual
+course workflows from the **Actions** tab (all course workflows are strictly
+`workflow_dispatch`-only — zero automatic `push:` triggers and zero `schedule:` crons):
 
-Each input contains 2–16 H, C, N or O atoms, coordinates in angstrom, and one neutral, closed-shell molecule. Supply a conventional XYZ atom count, comment line and one element and three coordinates per atom. Use letters, digits, hyphens or underscores in the filename. The workflow uses a GitHub-hosted CPU. Students need a GitHub account with write access to their fork and Actions enabled.
+| Workflow | Purpose | Course Track |
+| --- | --- | --- |
+| `.github/workflows/student_conformers.yml` | Generalized `XYZ -> CREST 3.0.2 -> AIMNet2/MACE -> CPU PySCF` conformer search and optimization | `CHEM312`, `CHEM490`, `CHEM410`, `CHEM411` |
+| `.github/workflows/06_aimnet2_neb_pyscf_rxn_profile.yml` | Charge-aware `AIMNet2` 11-image CI-NEB + TS polish + IRC + PySCF `DF-wB97X-D3/def2-TZVPP + PCM` via `cochem-kinetic rxn-profile` | `CHEM312` Week 10 |
+| `.github/workflows/04_crest_nci_dimer_bsse.yml` | `CREST --nci` ellipsoidal wall sampling + PySCF counterpoise BSSE | `CHEM312` Week 10/11 |
 
-## Read the result
+## 3. Generalized Scientific Domain (`cochem.student-handoff/2`)
 
-Use the [ethanol lab and worked comparison](ETHANOL_LAB.md) to calculate relative energies and interpret a bond-length change.
+- **Elements (11):** `H`, `B`, `C`, `N`, `O`, `F`, `Si`, `P`, `S`, `Cl`, `Br`
+- **Electronic state:** `charge` in `{-2, -1, 0, +1, +2}`, `multiplicity` in `{1, 2, 3}` (checked for electron-spin parity)
+- **Size budgets:** `1..64` atoms per frame, `1..256` frames per trajectory
+- **MLFF routing rule:** Charge-aware **`AIMNet2`** is mandatory whenever `charge != 0`, `multiplicity != 1`, or any heteroatom (`F`, `S`, `Cl`, `Br`, `P`, `Si`, `B`) is present. Neutral-only `MACE-OFF24` is permitted only for neutral singlet `H/C/N/O` molecules.
+- **CPU PySCF refinement:** `RHF`/`UHF`, `B3LYP-D3BJ`, or `(DF-)wB97X-D3` with `STO-3G`, `def2-SVP`, `def2-TZVP`, or `def2-TZVPP`, optional `gas` / `pcm` / `ddcosmo` solvation, and optional harmonic frequency check (`hessian_calculated`, `n_imaginary_modes`).
+- **Collaborator institution:** `"Tennessee Tech University"`.
 
-CREST uses the external xTB 6.7.1 binary and omits genetic crossing in this small-molecule classroom profile. The native log records that choice.
+## 4. Portable Verification & Pipeline 5.0.0 Handoff
 
-CREST 3.0.2 performs a bounded GFN2-xTB quick conformer search. The workflow retains the native ensemble, every separate candidate XYZ and the engine log. MACE-OFF24 medium evaluates energies and forces on those geometries using its pinned CPU checkpoint. It ranks by MACE single-point energy and sends the lowest candidate to CPU PySCF for an RHF/STO-3G geometry optimization with geomeTRIC. This small-basis result is a starting structure for further research. A local minimum requires a separate vibrational check. A quick search can miss conformers. The 32-frame limit fails visibly if more candidates are found.
+Every workflow seals a `cochem.student-handoff/2` ZIP archive together with a
+`.zip.sha256` sidecar. Verify any `v1` (`cochem.student-conformer-handoff/1`) or
+`v2` (`cochem.student-handoff/2`) bundle using only the Python standard library:
 
-Compare the CREST and MACE rankings in `ranking.json`. In `pyscf.json`, check SCF and optimizer convergence, energy in hartree and gradient in hartree/bohr. Compare the selected CREST geometry with `refined.xyz`. Which bonds or angles changed? Both candidate and refined geometries preserve atom order. The checkpoint is fetched from the [official academic model distribution](https://github.com/ACEsuit/mace-off) and its SHA-256 is checked before use.
-
-## Submit to the instructor
-
-1. Open the successful run summary and download **CoChem-student-handoff** under **Artifacts**.
-2. Unzip the GitHub download once. It contains a `CoChem-…zip` and its matching `.sha256` file. Preserve the inner ZIP intact.
-3. Open the shared Google Drive folder provided by your instructor, using your course Google account. Choose **New → File upload** and select both files. Check that both names appear, then provide the run URL with your submission. GitHub does not need access to your Drive.
-
-## Receive for Pipeline 5.0.0
-
-Download the pair from the course folder. Open the submitted run in the student's fork and copy the 64-character ZIP hash from the run summary. In a BASE checkout with Python 3.12, substitute that hash and your local paths in this command.
-
-```sh
-python student/handoff.py /path/to/CoChem-example.zip --expected-sha256 HASH_FROM_ACTIONS --stage /path/to/research-inbox
+```bash
+python student/handoff.py path/to/CoChem-bundle.zip --sidecar path/to/CoChem-bundle.zip.sha256 --stage ./received
 ```
 
-The receiver validates file membership, byte digests, atom order, the native CREST ensemble, the MACE selection and the converged PySCF result. It stages into a directory named for the ZIP SHA-256. The manifest records the producing repository, commit, run and attempt. `isomers/crest-NNN.xyz` supplies individual candidates. `refined.xyz` supplies the optimized candidate. `crest_conformers.xyz` is the native pool with energies in hartree. Retain the original ZIP alongside the run URL.
-
-For a Pipeline 5.0.0 continuation, copy the received directory to storage accessible to the chosen Colab, GCP or workstation worker. Keep the ZIP digest with the research record. Point each research step at its selected `isomers/crest-NNN.xyz` or `refined.xyz` and record charge 0 and multiplicity 1 for this route. Choose the research method, resources and completion test, then submit through the instructor's normal SRS and manager queue. The instructor controls when the larger jobs start.
+Upload both the inner `.zip` and `.zip.sha256` file to your course's Pipeline 5.0.0
+handoff folder for automated workstation, Colab GPU, or GCP Spot continuation.

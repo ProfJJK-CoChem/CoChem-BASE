@@ -1,1 +1,0 @@
-Perform a parallel adversarial static analysis on D:\__CoChem\GitHub-Repo\CoChem-BASE. Check for Zero-Mock mandate violations, faked jobs, and logical integrity.

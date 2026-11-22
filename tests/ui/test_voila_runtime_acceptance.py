@@ -697,7 +697,7 @@ def test_actions_guidance_has_course_links_and_no_secret_widgets():
         assert (Path(__file__).resolve().parents[2] / ".docs" / guide).is_file()
     for obsolete in ("gh_pat_input", "gh_orca_url_input", "gh_cfour_url_input", "btn_provision_secrets"):
         assert not hasattr(gui, obsolete)
-    pending, text_controls = [gui.gh_setup_box, gui.public_lab.repo], []
+    pending, text_controls = [gui.gh_setup_box], []
     while pending:
         control = pending.pop()
         assert not isinstance(control, widgets.Password)

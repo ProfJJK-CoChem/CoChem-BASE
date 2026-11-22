@@ -1,0 +1,253 @@
+name: CHEM 312 Week 10/11 NCI Dimer & Counterpoise BSSE (CREST --nci + PySCF)
+
+on:
+  workflow_dispatch:
+    inputs:
+      xyz:
+        description: Dimer starting XYZ filename from examples/student_inputs/
+        required: true
+        default: ethanol.xyz
+        type: string
+      monomer_a_atoms:
+        description: Number of leading atoms belonging to monomer A (remainder forms monomer B)
+        required: true
+        default: '3'
+        type: string
+      charge:
+        description: Total dimer charge (-2, -1, 0, 1, 2)
+        required: true
+        default: '0'
+        type: choice
+        options: ['-2', '-1', '0', '1', '2']
+      multiplicity:
+        description: Total dimer spin multiplicity (1, 2, 3)
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '2', '3']
+      monomer_a_charge:
+        description: Formal charge of monomer A
+        required: true
+        default: '0'
+        type: choice
+        options: ['-2', '-1', '0', '1', '2']
+      monomer_b_charge:
+        description: Formal charge of monomer B
+        required: true
+        default: '0'
+        type: choice
+        options: ['-2', '-1', '0', '1', '2']
+      method:
+        description: CPU PySCF DFT method for counterpoise BSSE
+        required: true
+        default: wB97X-D3
+        type: choice
+        options: [wB97X-D3, B3LYP-D3BJ]
+      basis:
+        description: CPU PySCF basis set
+        required: true
+        default: def2-TZVP
+        type: choice
+        options: [def2-SVP, def2-TZVP, def2-TZVPP]
+      solvation:
+        description: Implicit solvation model
+        required: true
+        default: gas
+        type: choice
+        options: [gas, pcm, ddcosmo]
+      solvent_name:
+        description: Solvent name when solvation is pcm or ddcosmo
+        required: false
+        default: water
+        type: string
+      course_id:
+        description: Course identifier (Tennessee Tech University)
+        required: true
+        default: CHEM312
+        type: choice
+        options: [CHEM312, CHEM490, CHEM410, CHEM411]
+      target_continuation:
+        description: Pipeline 5.0.0 continuation lane
+        required: true
+        default: workstation
+        type: choice
+        options: [workstation, colab_gpu, gcp_spot]
+
+permissions:
+  contents: read
+
+jobs:
+  nci_dimer_bsse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      XYZ: ${{ inputs.xyz }}
+      MONOMER_A_ATOMS: ${{ inputs.monomer_a_atoms }}
+      CHARGE: ${{ inputs.charge }}
+      MULTIPLICITY: ${{ inputs.multiplicity }}
+      MONOMER_A_CHARGE: ${{ inputs.monomer_a_charge }}
+      MONOMER_B_CHARGE: ${{ inputs.monomer_b_charge }}
+      METHOD: ${{ inputs.method }}
+      BASIS: ${{ inputs.basis }}
+      SOLVATION: ${{ inputs.solvation }}
+      SOLVENT_NAME: ${{ inputs.solvent_name }}
+      COURSE_ID: ${{ inputs.course_id }}
+      TARGET_CONTINUATION: ${{ inputs.target_continuation }}
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Install pinned native CREST 3.0.2 and xTB
+        run: |
+          python scripts/install_free_engines.py --engines crest xtb --root "$RUNNER_TEMP/free" --output "$RUNNER_TEMP/free/engines.json"
+          echo "COCHEM_FREE_ROOT=$RUNNER_TEMP/free" >> "$GITHUB_ENV"
+      - name: Install CPU PySCF with D3 dispersion
+        run: |
+          python -m venv "$RUNNER_TEMP/nci"
+          py="$RUNNER_TEMP/nci/bin/python"
+          "$py" -m pip install --upgrade pip
+          "$py" -m pip install 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0' 'geometric==1.1.1'
+      - name: Run CREST --nci ellipsoidal sampling and PySCF Boys-Bernardi counterpoise BSSE
+        run: |
+          "$RUNNER_TEMP/nci/bin/python" - <<'PY'
+          import json, os, shutil, sys
+          from pathlib import Path
+          from pyscf import gto, lib
+
+          sys.path.insert(0, "student")
+          sys.path.insert(0, "scripts")
+          import conformers, handoff
+          from verify_free_engines import execute
+
+          charge = int(os.environ["CHARGE"])
+          mult = int(os.environ["MULTIPLICITY"])
+          na = int(os.environ["MONOMER_A_ATOMS"])
+          qa = int(os.environ["MONOMER_A_CHARGE"])
+          qb = int(os.environ["MONOMER_B_CHARGE"])
+          if qa + qb != charge:
+              raise ValueError(f"monomer_a_charge ({qa}) + monomer_b_charge ({qb}) must equal total charge ({charge})")
+
+          source = conformers.input_file(os.environ["XYZ"])
+          original = handoff.read_input(source, charge=charge, multiplicity=mult)
+          if not (1 <= na < len(original["symbols"])):
+              raise ValueError(f"monomer_a_atoms ({na}) must be between 1 and {len(original['symbols']) - 1}")
+
+          work = Path(os.environ["RUNNER_TEMP"]) / "nci_work"
+          native = work / "native"
+          bundle = work / "bundle"
+          native.mkdir(parents=True, exist_ok=True)
+          bundle.mkdir(parents=True, exist_ok=True)
+          shutil.copyfile(source, native / "input.xyz")
+          shutil.copyfile(source, bundle / "input.xyz")
+
+          engine_root = Path(os.environ["COCHEM_FREE_ROOT"])
+          shutil.copyfile(engine_root / "engines.json", bundle / "engines.json")
+          env = dict(os.environ, XTBPATH=str(engine_root / "xtb/xtb-dist/share/xtb"))
+          env["PATH"] = str(engine_root / "xtb/xtb-dist/bin") + os.pathsep + env["PATH"]
+          xtb = str(engine_root / "xtb/xtb-dist/bin/xtb")
+          crest = str(engine_root / "crest/crest/crest")
+
+          argv = conformers.build_crest_argv(crest, xtb, charge=charge, multiplicity=mult, cores=2, nci=True, quick=True)
+          log = execute(argv, native, "crest.log", env, timeout=900)
+          if "CREST terminated normally" not in log or xtb not in log:
+              raise RuntimeError("CREST --nci did not terminate normally with external xTB")
+          for fname in ("crest.log", "crest_conformers.xyz"):
+              shutil.copyfile(native / fname, bundle / fname)
+
+          ens = handoff.frames((bundle / "crest_conformers.xyz").read_text(encoding="utf-8"), energy=True, charge=charge, multiplicity=mult)
+          best = ens[0]
+          (bundle / "refined.xyz").write_text(best["text"], encoding="utf-8")
+
+          method_spec, basis_label = conformers.normalize_method_and_basis(os.environ["METHOD"], os.environ["BASIS"])
+          solv = os.environ["SOLVATION"]
+          solvent_name = os.environ["SOLVENT_NAME"] if solv != "gas" else None
+          lib.num_threads(2)
+
+          atoms_all = list(zip(best["symbols"], best["coords"]))
+          atoms_a = atoms_all[:na]
+          atoms_b = atoms_all[na:]
+          ghost_b = [(f"X-{s}", c) for s, c in atoms_b]
+          ghost_a = [(f"X-{s}", c) for s, c in atoms_a]
+
+          def sp_energy(atom_list, q, spin=0):
+              mol = gto.M(atom=atom_list, unit="Angstrom", basis=basis_label, charge=q, spin=spin, verbose=2)
+              mf = conformers._build_pyscf_mf(mol, method_spec, solvation=solv, solvent_name=solvent_name)
+              e = float(mf.kernel())
+              if not mf.converged:
+                  raise RuntimeError("PySCF SCF failed to converge during counterpoise BSSE")
+              return e
+
+          e_ab = sp_energy(atoms_all, charge, spin=mult - 1)
+          e_a_mon = sp_energy(atoms_a, qa, spin=0)
+          e_b_mon = sp_energy(atoms_b, qb, spin=0)
+          e_a_dcbs = sp_energy(atoms_a + ghost_b, qa, spin=0)
+          e_b_dcbs = sp_energy(ghost_a + atoms_b, qb, spin=0)
+
+          e_int_raw_eh = e_ab - (e_a_mon + e_b_mon)
+          e_int_cp_eh = e_ab - (e_a_dcbs + e_b_dcbs)
+          bsse_eh = e_int_cp_eh - e_int_raw_eh
+          eh_to_kcal = 627.5094740631
+
+          bsse_report = {
+              "method": method_spec["label"],
+              "basis": basis_label,
+              "solvation": solv,
+              "solvent_name": solvent_name,
+              "e_dimer_hartree": e_ab,
+              "e_monomer_a_hartree": e_a_mon,
+              "e_monomer_b_hartree": e_b_mon,
+              "e_monomer_a_dcbs_hartree": e_a_dcbs,
+              "e_monomer_b_dcbs_hartree": e_b_dcbs,
+              "e_int_raw_kcal_mol": e_int_raw_eh * eh_to_kcal,
+              "e_int_counterpoise_kcal_mol": e_int_cp_eh * eh_to_kcal,
+              "bsse_correction_kcal_mol": bsse_eh * eh_to_kcal,
+          }
+          conformers.save_json(bundle / "bsse_counterpoise.json", bsse_report)
+
+          manifest = {
+              "workflow_type": "nci_dimer",
+              "input_name": Path(os.environ["XYZ"]).name,
+              "charge": charge,
+              "multiplicity": mult,
+              "length_unit": "angstrom",
+              "method": f"CREST-NCI + {method_spec['label']}",
+              "basis": basis_label,
+              "solvation": solv,
+              "solvent_name": solvent_name,
+              "hessian_calculated": False,
+              "n_imaginary_modes": None,
+              "course_id": os.environ["COURSE_ID"],
+              "collaborator_institution": "Tennessee Tech University",
+              "target_continuation": os.environ["TARGET_CONTINUATION"],
+              "starting_xyz": "input.xyz",
+              "primary_xyz": "refined.xyz",
+              "ensemble_xyz": "crest_conformers.xyz",
+              "candidate_count": len(ens),
+              "selected": "refined.xyz",
+              "student_id": f"{os.environ['COURSE_ID'].lower()}_nci_student",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "commit": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "metadata": {
+                  "energy_hartree": e_ab,
+                  "e_int_counterpoise_kcal_mol": bsse_report["e_int_counterpoise_kcal_mol"],
+                  "bsse_correction_kcal_mol": bsse_report["bsse_correction_kcal_mol"],
+              },
+          }
+          zip_path, sha_path, _, _ = handoff.seal(bundle, Path(os.environ["RUNNER_TEMP"]) / "handoff", manifest)
+          handoff.verify(zip_path, sidecar_path=sha_path, destination=Path(os.environ["RUNNER_TEMP"]) / "received")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: CoChem-nci-dimer-bsse-handoff-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/handoff/
+          if-no-files-found: error
+          retention-days: 30

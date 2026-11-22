@@ -74,7 +74,7 @@ scripts = "scripts"
 
 [tool.setuptools.packages.find]
 where = [".", "src"]
-include = ["cochem", "cochem.*", "cochem_base*", "cochem_geom*", "cochem_ml*", "cochem_mobile*", "frontend", "frontend.*", "ui", "ui.*", "scripts", "scripts.*", "student"]
+include = ["cochem", "cochem.*", "cochem_base*", "cochem_geom*", "cochem_ml*", "cochem_mobile*", "frontend", "frontend.*", "ui", "ui.*", "scripts", "scripts.*"]
 exclude = ["Libraries", "Libraries.*", "*.egg-info*", "cochem.topos", "cochem.topos.*", "cochem.torq", "cochem.torq.*", "cochem_topos", "cochem_topos.*", "cochem_torq", "cochem_torq.*"]
 
 [tool.pytest.ini_options]

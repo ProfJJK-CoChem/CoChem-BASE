@@ -7,6 +7,7 @@ and synchronized LaTeX/Markdown preview rendering.
 from __future__ import annotations
 
 import json
+import math
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -294,8 +295,30 @@ class ScribeDashboardGUI:
         self.status_label.value = "<b>Status:</b> Compiling SI..."
         self.render_si_package()
 
+    @staticmethod
+    def _finite_float_or_none(value: Any) -> Optional[float]:
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        return numeric if math.isfinite(numeric) else None
+
+    @staticmethod
+    def _non_empty_str_or_none(value: Any) -> Optional[str]:
+        if not isinstance(value, str):
+            return None
+        cleaned = value.strip()
+        return cleaned if cleaned else None
+
     def export_qcschema(self, output_path: Union[str, Path] = "qcschema_record.json") -> Path:
-        """Packages calculation telemetry into standardized MolSSI QCSchema v1 JSON."""
+        """Packages calculation telemetry into standardized MolSSI QCSchema v1 JSON.
+
+        Missing telemetry is preserved honestly as ``None`` with ``status="PENDING"``
+        and ``success=False`` rather than fabricating default methods, basis sets,
+        zeroed observables, or unconditional success flags.
+        """
         out = Path(output_path).resolve()
         out.parent.mkdir(parents=True, exist_ok=True)
 
@@ -307,59 +330,94 @@ class ScribeDashboardGUI:
         for line in coords_str.splitlines():
             parts = line.strip().split()
             if len(parts) >= 4 and parts[0].isalpha():
+                coords = [self._finite_float_or_none(v) for v in parts[1:4]]
+                if any(v is None for v in coords):
+                    continue
                 sym = parts[0]
                 symbols.append(sym)
-                flat_coords.extend([float(parts[1]), float(parts[2]), float(parts[3])])
+                flat_coords.extend([coords[0], coords[1], coords[2]])  # type: ignore[list-item]
                 if get_element is not None:
                     try:
                         atomic_numbers.append(int(get_element(sym).atomic_number))
                     except Exception:
                         pass
 
+        method = self._non_empty_str_or_none(self.telemetry_data.get("method"))
+        basis = self._non_empty_str_or_none(
+            self.telemetry_data.get("basis_set")
+            if self.telemetry_data.get("basis_set") is not None
+            else self.telemetry_data.get("basis")
+        )
+
+        def _triple_or_none(keys: tuple[str, str, str]) -> Optional[List[Optional[float]]]:
+            vals = [self._finite_float_or_none(self.telemetry_data.get(k)) for k in keys]
+            return vals if any(v is not None for v in vals) else None
+
+        rot_eq = _triple_or_none(("a_e", "b_e", "c_e"))
+        rot_eff = _triple_or_none(("a_0", "b_0", "c_0"))
+        vib_corr = _triple_or_none(("delta_a", "delta_b", "delta_c"))
+
+        dipole_vec: Optional[List[Optional[float]]] = None
+        raw_vec = self.telemetry_data.get("dipole_vector")
+        if isinstance(raw_vec, (list, tuple)) and len(raw_vec) == 3:
+            parsed_vec = [self._finite_float_or_none(v) for v in raw_vec]
+            if any(v is not None for v in parsed_vec):
+                dipole_vec = parsed_vec
+        else:
+            dipole_vec = _triple_or_none(("mu_a", "mu_b", "mu_c"))
+
+        total_dipole = self._finite_float_or_none(self.telemetry_data.get("total_dipole"))
+
+        properties: Dict[str, Any] = {
+            "calcinfo_natom": len(symbols) if symbols else None,
+            "rotational_constants": rot_eq,
+            "rotational_constants_effective": rot_eff,
+            "vibrational_corrections": vib_corr,
+            "scf_dipole_moment": dipole_vec,
+            "scf_dipole_moment_magnitude": total_dipole,
+        }
+
+        missing_required: List[str] = []
+        if not symbols:
+            missing_required.append("molecule.geometry")
+        if method is None:
+            missing_required.append("model.method")
+        if basis is None:
+            missing_required.append("model.basis")
+
+        explicit_success = self.telemetry_data.get("success")
+        is_complete = (not missing_required) and (explicit_success is not False)
+        record_status = "COMPLETE" if is_complete else "PENDING"
+
         qcschema_record: Dict[str, Any] = {
             "schema_name": "qcschema_output",
             "schema_version": 1,
+            "status": record_status,
             "molecule": {
                 "symbols": symbols,
                 "geometry": flat_coords,
                 "atomic_numbers": atomic_numbers,
             },
-            "driver": "energy",
+            "driver": self._non_empty_str_or_none(self.telemetry_data.get("driver")) or "energy",
             "model": {
-                "method": self.telemetry_data.get("method", "wB97M-V"),
-                "basis": self.telemetry_data.get("basis_set", "def2-TZVP"),
+                "method": method,
+                "basis": basis,
             },
-            "properties": {
-                "calcinfo_natom": len(symbols),
-                "rotational_constants": [
-                    float(self.telemetry_data.get("a_e", 0.0)),
-                    float(self.telemetry_data.get("b_e", 0.0)),
-                    float(self.telemetry_data.get("c_e", 0.0)),
-                ],
-                "rotational_constants_effective": [
-                    float(self.telemetry_data.get("a_0", 0.0)),
-                    float(self.telemetry_data.get("b_0", 0.0)),
-                    float(self.telemetry_data.get("c_0", 0.0)),
-                ],
-                "vibrational_corrections": [
-                    float(self.telemetry_data.get("delta_a", 0.0)),
-                    float(self.telemetry_data.get("delta_b", 0.0)),
-                    float(self.telemetry_data.get("delta_c", 0.0)),
-                ],
-                "scf_dipole_moment": [0.0, 0.0, float(self.telemetry_data.get("total_dipole", 0.0))],
-            },
+            "properties": properties,
             "provenance": {
                 "creator": "CoChem-SCRIBE",
                 "version": "0.1.0",
                 "routine": "export_qcschema",
             },
-            "success": True,
+            "success": bool(is_complete),
         }
+        if missing_required:
+            qcschema_record["missing_fields"] = missing_required
 
         with open(out, "w", encoding="utf-8") as f:
-            json.dump(qcschema_record, f, indent=2)
+            json.dump(qcschema_record, f, indent=2, allow_nan=False)
 
-        self.status_label.value = f"<b>Status:</b> QCSchema exported to {out.name} [M]."
+        self.status_label.value = f"<b>Status:</b> QCSchema exported to {out.name} [{record_status}]."
         return out
 
     def sync_bibtex(self, output_path: Union[str, Path] = "cochem_references.bib") -> Path:

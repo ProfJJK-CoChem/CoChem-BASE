@@ -519,11 +519,11 @@ def test_manual_sweep_requires_instructor_permission_and_no_project(cohort):
         controller.validate_event(event, env, config, api)
 
 
-def test_workflow_keeps_single_writer_and_scheduled_durable_recovery():
+def test_workflow_keeps_single_writer_and_zero_cron_durable_recovery():
     workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/course_project_access.yml").read_text()
     assert "group: cochem-project-access-${{ github.repository }}" in workflow
     assert "cancel-in-progress: false" in workflow
-    assert "schedule:" in workflow and "cron: '7,22,37,52 * * * *'" in workflow
+    assert "\n  schedule:\n" not in workflow and "cron:" not in workflow
     assert "- sweep" in workflow and "default: sweep" in workflow
     assert "timeout-minutes: 10" in workflow
     assert "${{ github.event.issue.body }}" not in workflow

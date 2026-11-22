@@ -183,7 +183,7 @@ class CourseAccessWidget(widgets.VBox):
                 "The first link opens your lab's access-request repository; the second installs the lab's GitHub App. "
                 "These are not the ORCA or CFOUR download repositories. Ask your instructor for these links; do not enter a token.</p>"),
             self.project, self.controller, self.app_slug, self.orca, self.cfour,
-            widgets.HTML("<p>Use ORCA or CFOUR only for assignments that request them. You can request module access without either licensed engine. "
+            widgets.HTML("<p>ORCA and CFOUR are optional and strongly recommended. You can request module access without either licensed engine. "
                 "Your instructor must authorize the applicable license access.</p>"),
             self.links, self.status, widgets.HBox([self.btn_save, self.btn_clear, self.btn_refresh],
                 layout=widgets.Layout(flex_flow='row wrap')),
@@ -460,7 +460,7 @@ class CoChemGUI(InputManagementMixin):
         is_init, env_str, is_hpc, is_slurm = self._detect_environment()
         self.state.environment = env_str
         if not is_init:
-            self.state.error_message = "Local calculation programs still need setup. You can use the public conformer lab on GitHub now."
+            self.state.error_message = "Environment Not Initialized. Please complete setup."
             self.state.system_status = "Uninitialized"
 
         # --- UI Components ---
@@ -539,10 +539,10 @@ class CoChemGUI(InputManagementMixin):
         self.gh_setup_box = widgets.VBox([
             widgets.HTML("<h3>ORCA and CFOUR on GitHub Actions</h3><p>If your instructor already enabled access for this project, "
                 "select <b>Check ORCA &amp; CFOUR</b>. You do not need the invitation form below. "
-                "Both programs are optional for separate research assignments; unavailable programs disable only calculations that need them.</p>"),
+                "Both programs are optional and strongly recommended; unavailable programs disable only calculations that need them.</p>"),
             widgets.HBox([self.btn_remote_engine_check, self.btn_remote_engine_cancel], layout=widgets.Layout(flex_flow='row wrap')),
             self.remote_engine_status, self.gh_guidance, self.course_access_panel,
-            _collapsed_section("Project details (normally filled in automatically)", widgets.HTML("<p>Use the GitHub project box at the top of Setup to select your project.</p>"), self.gh_branch_input),
+            _collapsed_section("Project details (normally filled in automatically)", self.gh_repo_input, self.gh_branch_input),
         ], layout=widgets.Layout(border='1px solid #0056b3', padding='15px', margin='10px 0'))
         self.gh_repo_input.observe(self._refresh_actions_guidance, names='value')
         self.gh_repo_input.observe(lambda change: self.course_access_panel.set_project(change['new']), names='value')
@@ -709,7 +709,7 @@ class CoChemGUI(InputManagementMixin):
         local_guidance_html = """
         <h4>Local Binary Setup (ORCA / CFOUR)</h4>
         <div style='background-color:#e2e3e5; padding:10px; border-left:4px solid #6c757d; margin-bottom:10px;'>
-        <b>Open Source Binaries:</b> The public conformer workflow installs CREST. For a spectroscopy assignment, check the listed availability of SPFIT and SPCAT with your instructor.<br/>
+        <b>Open Source Binaries:</b> CREST, SPFIT, and SPCAT will be downloaded and compiled automatically by CoChem during the installation phases. You do not need to provide them.<br/>
         <b>Optional, strongly recommended licensed engines:</b> ORCA and CFOUR broaden the available calculations. BASE works without either engine. If already installed, click 'Auto-Detect' or provide their executable paths. An unavailable engine disables only its dependent calculations.
         </div>
         """
@@ -756,7 +756,7 @@ class CoChemGUI(InputManagementMixin):
             widgets.HTML("<p>Required disk space defaults to 50 GB. Choose the measured needs of your workload.</p>"))
         self.local_install_options = widgets.VBox([
             self.license_mode,
-            widgets.HTML("<p>Use ORCA or CFOUR only for assignments that request them. Free dependencies are installed or audited; "
+            widgets.HTML("<p>ORCA and CFOUR are optional and strongly recommended. Free dependencies are installed or audited; "
                          "licensed engines are discovered when separately provisioned. An unavailable licensed engine does not fail BASE setup. "
                          "Its dependent methods remain unavailable until that engine passes its execution audit.</p>"),
             self.licensed_engine_status,
@@ -800,7 +800,7 @@ class CoChemGUI(InputManagementMixin):
             m = self.multiplicity_input.value
             # Method Matrix v4: MACE-OFF limited to neutral, non-radical systems
             if c != 0 or m != 1:
-                self.mlff_warning.value = "<b style='color:red;'>⚠️ The classroom MACE-OFF route requires a neutral, closed-shell molecule (charge 0, multiplicity 1). Check a different model’s supported charge and spin before using it.</b>"
+                self.mlff_warning.value = "<b style='color:red;'>⚠️ MLFF (MACE/AIMNet2) disabled: Molecule must be neutral (charge=0) and non-radical (mult=1).</b>"
                 # If currently selected, revert
                 if hasattr(self, 'matrix_tier') and 'Tier 0' in self.matrix_tier.value:
                     self.matrix_tier.value = 'Tier 1: Modern Dispersion DFT'
@@ -1106,7 +1106,7 @@ class CoChemGUI(InputManagementMixin):
 
         self.tab_torq = widgets.VBox([
             widgets.HTML("<b>TORQ: Torsional Optimization</b>"),
-            widgets.HTML("<p>Open the TORQ tab under Calculations to see which distance scans and bonding analyses are available for your structure.</p>"),
+            widgets.HTML("<p>CoChem-TORQ is a future module. Prepare validated input in Module handoff; torsional jobs are not submitted by this BASE panel.</p>"),
             self.torq_dihedrals,
             self.torq_resolution,
             self.torq_qrrho
@@ -1340,8 +1340,8 @@ class CoChemGUI(InputManagementMixin):
 
         self.inspector_banner = widgets.HTML(
             "<div style='background-color:#d1ecf1; color:#0c5460; padding:8px; border-radius:4px; margin-bottom:8px;'>"
-            "<b>Method Matrix §3.0:</b> The equilibrium constant $B_e$ describes the calculated equilibrium geometry. "
-            "The effective ground-state constant $B_0$ can be inferred from ground-state rotational spectra. Compare the same state and units."
+            "<b>Method Matrix §3.0:</b> Equilibrium $B_e$ is purely theoretical at the PES minimum; "
+            "effective ground-state $B_0$ is the actual observable measured in rotational spectroscopy."
             "</div>"
         )
         self.inspector_rot_table = widgets.HTML("<i>No output parsed yet. Provide file path and click 'Parse Observables'.</i>")
@@ -1404,7 +1404,7 @@ class CoChemGUI(InputManagementMixin):
 
         self.data_inspector_widget = DataInspectorWidget([
             widgets.HTML("<h3>Spectra and properties</h3>"),
-            widgets.HTML("<p>Inspect supported properties from completed calculations and estimate harmonic isotope shifts with a matching Hessian.</p>"),
+            widgets.HTML("<p>Rigorous extraction of rotational constants, vibrational corrections, dipole moments, and dynamic isotopic shifts.</p>"),
             widgets.HBox([self.inspector_file_input, self.btn_parse_inspector]),
             self.inspector_tabs
         ], layout=widgets.Layout(padding='20px'))
@@ -1437,7 +1437,7 @@ class CoChemGUI(InputManagementMixin):
         self.btn_module_run.on_click(self._run_module_geometry)
         self.module_install_status = widgets.HTML("<p role='status'>Select a module to install or inspect.</p>")
         self.view_modules = widgets.VBox([
-            widgets.HTML("<h3>Module installation and execution</h3><p>Install approved modules in separate environments. The installed TOPOS and TORQ tools list the operations available for your inputs. Installation does not certify scientific accuracy.</p>"),
+            widgets.HTML("<h3>Module installation and execution</h3><p>Install approved modules in separate environments. TOPOS and TORQ expose geometry analysis; other operations require a reviewed adapter. Installation does not certify scientific accuracy.</p>"),
             self.btn_module_refresh, self.module_capabilities,
             widgets.HTML("<p>Select a single XYZ geometry, geometry-bound Hessian (.npz/.h5/.hess), or converged result JSON. The package preserves its source and verifies its contents when loaded by a recipient.</p>"),
             self.module_recipient, self.module_root, self.btn_module_install, self.module_install_status,
@@ -1619,7 +1619,7 @@ class CoChemGUI(InputManagementMixin):
         self.guided_jobs_status.value = ('<ul>' + ''.join(
             '<li>' + html.escape(label) + ': ' + html.escape(message) + '</li>'
             for label, message in jobs) + '</ul>' if jobs else
-            '<p>For the public lab, use <b>Check run and get files</b>. No other jobs are tracked here.</p>')
+            '<p>No running jobs are currently tracked here.</p>')
         self._refresh_local_file_controls()
 
     def _new_remote_stop(self, kind: str) -> dict[str, Any]:
@@ -3593,11 +3593,11 @@ class CoChemGUI(InputManagementMixin):
                 descriptions.append(
                     f"<li><b>{engine.upper()}:</b> "
                     + ("available for audited calculations" if observation['available'] else
-                       "unavailable for this assignment. <details><summary>Technical details for your instructor</summary>" + html.escape(observation['reason']) + "</details>")
+                       "unavailable; dependent calculations disabled. " + html.escape(observation['reason']))
                     + "</li>"
                 )
             self.licensed_engine_status.value = (
-                "<p>These programs are for assignments that specifically request them. The public conformer lab runs independently on GitHub.</p>"
+                "<p>Licensed engines are optional and strongly recommended. BASE ingestion, inspection and free-engine setup remain available.</p>"
                 "<ul>" + "".join(descriptions) + "</ul>"
             )
         choices = [("Choose an available calculation engine", None)]
@@ -3638,7 +3638,7 @@ class CoChemGUI(InputManagementMixin):
         self.matrix_engine.value = selected if selected in values else None
         if remote:
             self.licensed_engine_status.value = (
-                "<p>Use ORCA or CFOUR only for assignments that request them. A genuine Actions check must verify archive access before each dependent choice is enabled. "
+                "<p>ORCA and CFOUR are optional and strongly recommended. A genuine Actions check must verify archive access before each dependent choice is enabled. "
                 "Archive access does not establish installation or scientific acceptance; the calculation worker verifies its actual runtime before executing. "
                 "Local engine availability does not establish GitHub Actions availability.</p>"
             )
@@ -4197,15 +4197,11 @@ class CoChemGUI(InputManagementMixin):
 
     def _on_status_change(self, change: Any) -> None:
         safe_val = html.escape(str(change['new']))
-        if change['new'] == "Uninitialized":
-            safe_val = "Local programs await setup"
         self.header_status.value = f"<span role='status' aria-live='polite'>Workspace status: <strong>{safe_val}</strong></span>"
 
     def _on_environment_change(self, change: Any) -> None:
         safe_val = html.escape(str(change['new']))
         host = html.escape(str(change['new']).split(' [', 1)[0])
-        if host == "Not Initialized":
-            host, safe_val = "Browser dashboard", "The public course calculation runs on GitHub."
         self.header_env.value = (f"<details><summary>Interface: {host}</summary>"
                                  f"<p>{safe_val}</p><p>Choose where calculations run in Start here.</p></details>")
 

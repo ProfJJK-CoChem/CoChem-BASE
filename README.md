@@ -63,6 +63,34 @@ the repository does not back them all up. Follow the guide's
 [stop your Codespace](.docs/GET_STARTED.md#10-stop-and-reopen-your-workspace)
 when finished.
 
+## Public-Fork CURE Route (`XYZ -> CREST -> MLFF -> CPU PySCF`)
+
+In addition to private/template research repositories (such as CHEM 490 ORCA 6.1.1,
+CFOUR, SPFIT, and SPCAT studies), **Tennessee Tech University** courses (`CHEM312`,
+`CHEM490`, `CHEM410`, `CHEM411`) support an open-engine public-fork CURE route covering
+`H, B, C, N, O, F, Si, P, S, Cl, Br`, charges `-2..+2`, multiplicities `1..3`, up to
+64 atoms, and 256 conformer/trajectory frames:
+
+1. **Dashboard-first (recommended):** Use the 4-click Codespaces Voilà dashboard
+   above (port **8866**) to upload your `.xyz` structure, verify charge and spin
+   multiplicity, run `CREST`, `xTB`, `PySCF`, `TOPOS`, or `TORQ`, and download your
+   sealed results bundle.
+2. **Manual GitHub Actions fallback (`workflow_dispatch` only):** Open your fork's
+   **Actions** tab and dispatch one of the manual course workflows (zero automatic
+   `push:` triggers and zero `schedule:` crons):
+   - **[Student conformers](.github/workflows/student_conformers.yml):** `XYZ -> CREST 3.0.2 (--legacy --xnam --nocross --chrg --uhf) -> charge-aware AIMNet2 (mandatory for Q != 0, open-shell, or F/S/Cl/Br/P/Si/B; optional MACE-OFF24 for neutral H/C/N/O) -> CPU PySCF (RHF/B3LYP-D3BJ/wB97X-D3, optional PCM/ddCOSMO & frequencies)`.
+   - **[CHEM 312 Reaction Profile](.github/workflows/06_aimnet2_neb_pyscf_rxn_profile.yml):** Charge-aware `AIMNet2` 11-image CI-NEB + TS polish + IRC + PySCF `DF-wB97X-D3/def2-TZVPP + PCM` via `cochem-kinetic rxn-profile`.
+   - **[CHEM 312 NCI Dimer & BSSE](.github/workflows/04_crest_nci_dimer_bsse.yml):** `CREST --nci` ellipsoidal wall sampling + PySCF Boys-Bernardi counterpoise BSSE.
+3. **Pipeline 5.0.0 ZIP handoff (`cochem.student-handoff/2`):** Every workflow seals a
+   portable ZIP archive with a `.sha256` sidecar (backward-compatible with `v1` bundles).
+   Verify locally with pure Python stdlib before uploading to your course handoff folder:
+
+   ```bash
+   python student/handoff.py path/to/CoChem-bundle.zip --sidecar path/to/CoChem-bundle.zip.sha256 --stage ./received
+   ```
+
+   See [`student/README.md`](student/README.md) for full details.
+
 ## Find the right guide
 
 | You need… | Open… |

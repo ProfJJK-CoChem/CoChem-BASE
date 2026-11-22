@@ -35,19 +35,41 @@
     },
     "geom": {
       "repository": "ProfJJK-CoChem/CoChem-GEOM",
-      "revision": "84d5af4408f92ca5844e387c93e760116aa87aaf",
-      "distribution": null,
-      "adapter": null,
-      "adapter_requirements": [],
-      "operations": []
+      "revision": "ae8f1e7d56a4030e377d36ca7c9516cd0da16851",
+      "distribution": "CoChem-GEOM",
+      "adapter": "geom_provider",
+      "entry_point": "cochem_geom.provider:geom_provider",
+      "adapter_requirements": [
+        "numpy>=1.24",
+        "scipy>=1.11",
+        "pydantic>=2.4"
+      ],
+      "operations": [
+        "parse_pickett",
+        "fit_kraitchman_rs",
+        "fit_weighted_r0",
+        "optimize_ccsd",
+        "compare_structures"
+      ]
     },
     "kinetic": {
       "repository": "ProfJJK-CoChem/CoChem-KINETIC",
       "revision": "6eade693af7c3e7ca4f43a62582625b8e2903ea5",
       "distribution": "cochem-kinetic",
-      "adapter": null,
-      "adapter_requirements": [],
-      "operations": []
+      "adapter": "kinetic_provider",
+      "entry_point": "cochem_kinetic.provider:kinetic_provider",
+      "adapter_requirements": [
+        "numpy>=1.20.0",
+        "scipy>=1.7.0",
+        "h5py>=3.0.0"
+      ],
+      "operations": [
+        "rxn_profile",
+        "validate_stoichiometry",
+        "eyring_rate",
+        "rrkm_rate",
+        "thermochemistry"
+      ]
     },
     "labs": {
       "repository": "ProfJJK-CoChem/CoChem-LABS",
@@ -125,10 +147,12 @@
     "scribe": {
       "repository": "ProfJJK-CoChem/CoChem-SCRIBE",
       "revision": "ac07a05c361a1fedf1f2ef1860733cb52d5c0922",
-      "distribution": null,
-      "adapter": null,
+      "distribution": "cochem-scribe",
+      "adapter": "scribe_provider",
+      "entry_point": "cochem_scribe.provider:scribe_provider",
       "adapter_requirements": [],
-      "operations": []
+      "operations": [],
+      "phase_reservation": "phase_4_scribe_provider"
     },
     "seed": {
       "repository": "ProfJJK-CoChem/CoChem-SEED",
@@ -148,17 +172,24 @@
     },
     "spycfit": {
       "repository": "ProfJJK-CoChem/CoChem-SpycFit",
-      "revision": "7e42507e4668751da393241294ffbb9dd4f0c259",
+      "revision": "aebe6fd8d5939ed617dad72e1392230e3979faf9",
       "distribution": "CoChem-SpycFit",
-      "adapter": null,
+      "adapter": "spycfit_provider",
+      "entry_point": "cochem_spycfit.module_provider:spycfit_provider",
       "adapter_requirements": [],
-      "operations": []
+      "operations": [
+        "predict_spectrum",
+        "fit_pickett",
+        "parse_pickett",
+        "audit_fit"
+      ]
     },
     "topos": {
       "repository": "ProfJJK-CoChem/CoChem-TOPOS",
-      "revision": "91509add838819ad57e3e4df67890a88ec4552b0",
+      "revision": "734aae0a1ef1f08e0faa2912780aefe25d576eb0",
       "distribution": "cochem-topos",
       "adapter": "topos_provider",
+      "entry_point": "topos.base_provider:provider",
       "adapter_requirements": [
         "ase==3.29.0",
         "networkx==3.7"
@@ -179,9 +210,10 @@
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "aa22bb6df25d7509120a91c927cba621d8a02879",
+      "revision": "cb908f393949a2e880ad1a33641fec70d74b5aff",
       "distribution": "CoChem-TORQ",
       "adapter": "torq_provider",
+      "entry_point": "cochem_torq.ecosystem:module_provider",
       "adapter_requirements": [
         "mendeleev>=1.2,<2",
         "pyscf==2.14.0",

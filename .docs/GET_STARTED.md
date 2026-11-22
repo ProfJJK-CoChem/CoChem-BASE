@@ -423,6 +423,22 @@ expired download access. Students do not enter credentials in CoChem.
 </details>
 
 
+## Public-Fork CURE Route (`XYZ -> CREST -> MLFF -> CPU PySCF`)
+
+Both private/template research projects (including CHEM 490 ORCA 6.1.1, CFOUR,
+SPFIT, and SPCAT studies) and public-fork CURE workflows (**Tennessee Tech University**
+`CHEM312`, `CHEM490`, `CHEM410`, `CHEM411`) are supported:
+
+- **Dashboard-first:** Follow Steps 1–3 above to launch the Codespaces Voilà
+  dashboard on port **8866** with zero secrets.
+- **GitHub Actions manual fallback:** Dispatch `.github/workflows/student_conformers.yml`,
+  `.github/workflows/06_aimnet2_neb_pyscf_rxn_profile.yml`, or
+  `.github/workflows/04_crest_nci_dimer_bsse.yml` manually from the **Actions** tab
+  (all are strictly `workflow_dispatch`-only with zero automatic cron triggers).
+- **Pipeline 5.0.0 ZIP handoff:** Download the sealed `cochem.student-handoff/2`
+  `.zip` and `.zip.sha256` pair, verify with `python student/handoff.py <bundle.zip> --sidecar <bundle.zip.sha256>`,
+  and upload both files to your course's handoff folder. See [`student/README.md`](../student/README.md).
+
 ## Instructor: prepare student access
 
 <details>

@@ -1,0 +1,166 @@
+name: CHEM 312 Week 10 Reaction Profile (AIMNet2 CI-NEB + TS + IRC + PySCF PCM)
+
+on:
+  workflow_dispatch:
+    inputs:
+      input_dir:
+        description: Relative folder containing reactant.xyz and product.xyz (and optional ts_guess.xyz)
+        required: true
+        default: examples/student_inputs
+        type: string
+      input_name:
+        description: Logical input filename stem for the sealed handoff receipt
+        required: true
+        default: chem312_rxn_profile.xyz
+        type: string
+      charge:
+        description: Total molecular charge (-2, -1, 0, 1, 2)
+        required: true
+        default: '-1'
+        type: choice
+        options: ['-2', '-1', '0', '1', '2']
+      multiplicity:
+        description: Spin multiplicity (1, 2, 3)
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '2', '3']
+      solvent_name:
+        description: Implicit PCM solvent name (e.g., acetonitrile, water)
+        required: true
+        default: acetonitrile
+        type: string
+      temp_k:
+        description: Temperature in Kelvin for RRHO thermochemistry
+        required: true
+        default: '298.15'
+        type: string
+      course_id:
+        description: Course identifier (Tennessee Tech University)
+        required: true
+        default: CHEM312
+        type: choice
+        options: [CHEM312, CHEM490, CHEM410, CHEM411]
+      target_continuation:
+        description: Pipeline 5.0.0 continuation lane
+        required: true
+        default: colab_gpu
+        type: choice
+        options: [colab_gpu, workstation, gcp_spot]
+
+permissions:
+  contents: read
+
+jobs:
+  rxn_profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      INPUT_DIR: ${{ inputs.input_dir }}
+      INPUT_NAME: ${{ inputs.input_name }}
+      CHARGE: ${{ inputs.charge }}
+      MULTIPLICITY: ${{ inputs.multiplicity }}
+      SOLVENT_NAME: ${{ inputs.solvent_name }}
+      TEMP_K: ${{ inputs.temp_k }}
+      COURSE_ID: ${{ inputs.course_id }}
+      TARGET_CONTINUATION: ${{ inputs.target_continuation }}
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Install charge-aware AIMNet2, Sella, PySCF, and CoChem-KINETIC
+        run: |
+          python -m venv "$RUNNER_TEMP/kinetic"
+          py="$RUNNER_TEMP/kinetic/bin/python"
+          "$py" -m pip install --upgrade pip
+          "$py" -m pip install 'torch==2.8.0+cpu' --index-url https://download.pytorch.org/whl/cpu
+          "$py" -m pip install 'aimnet>=0.2.0' 'ase>=3.22.0' 'sella>=2.3.0' 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0'
+          "$py" -m pip install 'git+https://github.com/ProfJJK-CoChem/CoChem-KINETIC.git@6eade693af7c3e7ca4f43a62582625b8e2903ea5'
+      - name: Execute 11-image AIMNet2 CI-NEB, TS polish, IRC, and PySCF DF-wB97X-D3/def2-TZVPP + PCM
+        run: |
+          "$RUNNER_TEMP/kinetic/bin/cochem-kinetic" rxn-profile \
+            --input-dir "$INPUT_DIR" \
+            --output-dir "$RUNNER_TEMP/rxn_out" \
+            --charge "$CHARGE" \
+            --multiplicity "$MULTIPLICITY" \
+            --solvent "$SOLVENT_NAME" \
+            --temp-k "$TEMP_K" \
+            --dft-engine cpu \
+            --stage all
+      - name: Seal and verify cochem.student-handoff/2 reaction profile bundle
+        run: |
+          python - <<'PY'
+          import json, os, shutil, sys
+          from pathlib import Path
+          sys.path.insert(0, "student")
+          import handoff
+
+          rxn_out = Path(os.environ["RUNNER_TEMP"]) / "rxn_out"
+          stage = Path(os.environ["RUNNER_TEMP"]) / "bundle"
+          stage.mkdir(parents=True, exist_ok=True)
+
+          input_dir = Path(os.environ["INPUT_DIR"])
+          starting = input_dir / "reactant.xyz"
+          if not starting.is_file():
+              raise FileNotFoundError(f"Expected starting geometry at {starting}")
+          shutil.copyfile(starting, stage / "input.xyz")
+
+          ts_xyz = rxn_out / "ts_polished.xyz"
+          if not ts_xyz.is_file():
+              ts_xyz = rxn_out / "ts_guess.xyz"
+          shutil.copyfile(ts_xyz, stage / "ts_guess.xyz")
+
+          for extra in ("results.json", "manifest_sha256.json", "neb_path.xyz", "irc_path.xyz"):
+              src = rxn_out / extra
+              if src.is_file():
+                  shutil.copyfile(src, stage / extra)
+
+          results = json.loads((rxn_out / "results.json").read_text(encoding="utf-8")) if (rxn_out / "results.json").is_file() else {}
+          n_imag = results.get("ts_n_imaginary_modes")
+          hessian_done = isinstance(n_imag, int) and not isinstance(n_imag, bool)
+          ensemble_rel = "neb_path.xyz" if (stage / "neb_path.xyz").is_file() else None
+          cand_count = len(handoff.frames((stage / ensemble_rel).read_text(encoding="utf-8"), charge=int(os.environ["CHARGE"]), multiplicity=int(os.environ["MULTIPLICITY"]))) if ensemble_rel else 1
+
+          manifest = {
+              "workflow_type": "rxn_profile",
+              "input_name": os.environ["INPUT_NAME"],
+              "charge": int(os.environ["CHARGE"]),
+              "multiplicity": int(os.environ["MULTIPLICITY"]),
+              "length_unit": "angstrom",
+              "method": "AIMNet2 + DF-wB97X-D3",
+              "basis": "def2-TZVPP",
+              "solvation": "pcm",
+              "solvent_name": os.environ["SOLVENT_NAME"],
+              "hessian_calculated": hessian_done,
+              "n_imaginary_modes": n_imag if hessian_done else None,
+              "course_id": os.environ["COURSE_ID"],
+              "collaborator_institution": "Tennessee Tech University",
+              "target_continuation": os.environ["TARGET_CONTINUATION"],
+              "starting_xyz": "input.xyz",
+              "primary_xyz": "ts_guess.xyz",
+              "ensemble_xyz": ensemble_rel,
+              "candidate_count": cand_count,
+              "selected": "ts_guess.xyz",
+              "student_id": f"{os.environ['COURSE_ID'].lower()}_rxn_student",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "commit": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "metadata": {"temp_k": float(os.environ["TEMP_K"])},
+          }
+          zip_path, sha_path, _, _ = handoff.seal(stage, Path(os.environ["RUNNER_TEMP"]) / "handoff", manifest)
+          handoff.verify(zip_path, sidecar_path=sha_path, destination=Path(os.environ["RUNNER_TEMP"]) / "received")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: CoChem-rxn-profile-handoff-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/handoff/
+          if-no-files-found: error
+          retention-days: 30

@@ -3,10 +3,8 @@ name: CoChem private project access controller
 on:
   issues:
     types: [opened, reopened, edited]
-  schedule:
-    # Issue data survives canceled pending runs. This is a recovery wake-up,
-    # subject to GitHub scheduler availability and controller Actions billing.
-    - cron: '7,22,37,52 * * * *'
+  # Automatic schedule/cron triggers are disabled under the 0 paid Actions minutes policy.
+  # Use manual workflow_dispatch (operation: sweep) for durable inbox recovery.
   workflow_dispatch:
     inputs:
       project_repository:

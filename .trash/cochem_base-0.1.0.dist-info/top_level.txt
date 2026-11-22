@@ -1,2 +1,0 @@
-cochem_base
-cochem_topos

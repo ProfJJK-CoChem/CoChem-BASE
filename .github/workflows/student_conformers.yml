@@ -1,0 +1,175 @@
+name: Student conformers (CREST 3.0.2, AIMNet2/MACE, CPU PySCF)
+
+on:
+  workflow_dispatch:
+    inputs:
+      xyz:
+        description: Starting XYZ filename from examples/student_inputs/ (e.g., ethanol.xyz)
+        required: true
+        default: ethanol.xyz
+        type: string
+      charge:
+        description: Total molecular charge (-2, -1, 0, 1, 2)
+        required: true
+        default: '0'
+        type: choice
+        options: ['-2', '-1', '0', '1', '2']
+      multiplicity:
+        description: Spin multiplicity (1, 2, 3)
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '2', '3']
+      mlff:
+        description: MLFF scorer (auto routes charged/heteroatom species to charge-aware AIMNet2)
+        required: true
+        default: auto
+        type: choice
+        options: [auto, aimnet2, mace]
+      method:
+        description: CPU PySCF electronic-structure method
+        required: true
+        default: B3LYP-D3BJ
+        type: choice
+        options: [B3LYP-D3BJ, wB97X-D3, RHF]
+      basis:
+        description: CPU PySCF basis set
+        required: true
+        default: def2-SVP
+        type: choice
+        options: [def2-SVP, def2-TZVP, def2-TZVPP, STO-3G]
+      solvation:
+        description: Implicit solvation model
+        required: true
+        default: gas
+        type: choice
+        options: [gas, pcm, ddcosmo]
+      solvent_name:
+        description: Solvent name when solvation is pcm or ddcosmo (e.g., water, acetonitrile)
+        required: false
+        default: water
+        type: string
+      frequencies:
+        description: Compute harmonic frequencies (hessian_calculated + n_imaginary_modes)
+        required: false
+        default: false
+        type: boolean
+      course_id:
+        description: Course identifier (Tennessee Tech University)
+        required: true
+        default: CHEM312
+        type: choice
+        options: [CHEM312, CHEM490, CHEM410, CHEM411]
+      target_continuation:
+        description: Pipeline 5.0.0 continuation lane
+        required: true
+        default: workstation
+        type: choice
+        options: [workstation, colab_gpu, gcp_spot]
+
+permissions:
+  contents: read
+
+jobs:
+  calculate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      XYZ: ${{ inputs.xyz }}
+      CHARGE: ${{ inputs.charge }}
+      MULTIPLICITY: ${{ inputs.multiplicity }}
+      MLFF: ${{ inputs.mlff }}
+      METHOD: ${{ inputs.method }}
+      BASIS: ${{ inputs.basis }}
+      SOLVATION: ${{ inputs.solvation }}
+      SOLVENT_NAME: ${{ inputs.solvent_name }}
+      RUN_FREQUENCIES: ${{ inputs.frequencies }}
+      COURSE_ID: ${{ inputs.course_id }}
+      TARGET_CONTINUATION: ${{ inputs.target_continuation }}
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      OMP_STACKSIZE: 512M
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Validate input geometry and charge-aware MLFF routing before engine install
+        run: |
+          python - <<'PY'
+          import os, sys
+          sys.path.insert(0, "student")
+          import conformers, handoff
+          charge = int(os.environ["CHARGE"])
+          mult = int(os.environ["MULTIPLICITY"])
+          src = conformers.input_file(os.environ["XYZ"])
+          frame = handoff.read_input(src, charge=charge, multiplicity=mult)
+          backend = conformers.select_mlff_backend(
+              frame["symbols"], charge=charge, multiplicity=mult, requested=os.environ["MLFF"]
+          )
+          conformers.normalize_method_and_basis(os.environ["METHOD"], os.environ["BASIS"])
+          print(f"Validated {src.name} ({frame['formula']}, Q={charge}, mult={mult}) -> MLFF={backend}")
+          PY
+      - name: Install pinned native CREST 3.0.2 and xTB
+        run: |
+          python scripts/install_free_engines.py --engines crest xtb --root "$RUNNER_TEMP/free" --output "$RUNNER_TEMP/free/engines.json"
+          echo "COCHEM_FREE_ROOT=$RUNNER_TEMP/free" >> "$GITHUB_ENV"
+      - name: Install CPU MLFF and PySCF runtime
+        run: |
+          python -m venv "$RUNNER_TEMP/chem"
+          py="$RUNNER_TEMP/chem/bin/python"
+          "$py" -m pip install --upgrade pip
+          "$py" -m pip install 'torch==2.8.0+cpu' --index-url https://download.pytorch.org/whl/cpu
+          "$py" -m pip install 'aimnet>=0.2.0' 'mace-torch==0.3.16' 'e3nn==0.4.4' 'ase==3.29.0' 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0' 'geometric==1.1.1'
+          "$py" -c 'import torch; assert torch.version.cuda is None'
+      - name: Run CREST 3.0.2, MLFF ranking, CPU PySCF refinement and seal v2 handoff
+        run: |
+          freq_flag=""
+          if [ "$RUN_FREQUENCIES" = "true" ]; then
+            freq_flag="--frequencies"
+          fi
+          "$RUNNER_TEMP/chem/bin/python" student/conformers.py \
+            "$XYZ" "$RUNNER_TEMP/student-calc" "$RUNNER_TEMP/handoff" \
+            --charge "$CHARGE" \
+            --multiplicity "$MULTIPLICITY" \
+            --mlff "$MLFF" \
+            --method "$METHOD" \
+            --basis "$BASIS" \
+            --solvation "$SOLVATION" \
+            --solvent-name "$SOLVENT_NAME" \
+            --course-id "$COURSE_ID" \
+            --target-continuation "$TARGET_CONTINUATION" \
+            --cores 2 \
+            $freq_flag
+      - name: Verify sealed cochem.student-handoff/2 archive with pure stdlib CLI
+        run: |
+          zip_file="$(ls "$RUNNER_TEMP"/handoff/*.zip | head -n 1)"
+          python student/handoff.py "$zip_file" --sidecar "${zip_file}.sha256" --stage "$RUNNER_TEMP/received"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        id: bundle
+        with:
+          name: CoChem-student-handoff-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/handoff/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Summarize Pipeline 5.0.0 handoff artifact
+        env:
+          ARTIFACT_URL: ${{ steps.bundle.outputs.artifact-url }}
+        run: |
+          echo "### CoChem Pipeline 5.0.0 Student Handoff (v2 — Tennessee Tech University)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download the verified handoff artifact]($ARTIFACT_URL) and upload both the inner \`.zip\` and \`.zip.sha256\` to your course handoff folder." >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP"/handoff/*.sha256 >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: incomplete-student-conformers-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/student-calc/native/crest.log
+            ${{ runner.temp }}/student-calc/bundle/pyscf.log
+            ${{ runner.temp }}/free/engines.json
+          if-no-files-found: ignore

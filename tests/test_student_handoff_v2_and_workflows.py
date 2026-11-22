@@ -401,11 +401,12 @@ def test_module_distribution_manifest_has_verified_adapters_and_passes_loader() 
     manifest = manage_modules.load_manifest()
     modules = manifest["modules"]
     expected = {
+        "bench": ("bench_provider", "cochem_bench.provider:bench_provider", "cb874d8f20723c70b26b805329cb873ebe1c463f"),
         "topos": ("topos_provider", "topos.base_provider:provider", "734aae0a1ef1f08e0faa2912780aefe25d576eb0"),
-        "torq": ("torq_provider", "cochem_torq.ecosystem:module_provider", "cb908f393949a2e880ad1a33641fec70d74b5aff"),
+        "torq": ("torq_provider", "cochem_torq.ecosystem:module_provider", "1c4087bd33aa43b75f6fe4cdf1c38cf8d8d6f24b"),
         "geom": ("geom_provider", "cochem_geom.provider:geom_provider", "ae8f1e7d56a4030e377d36ca7c9516cd0da16851"),
         "spycfit": ("spycfit_provider", "cochem_spycfit.module_provider:spycfit_provider", "aebe6fd8d5939ed617dad72e1392230e3979faf9"),
-        "kinetic": ("kinetic_provider", "cochem_kinetic.provider:kinetic_provider", "3f3ac20b2b65dcdef7c142dfb709d4d024c04ed4"),
+        "kinetic": ("kinetic_provider", "cochem_kinetic.provider:kinetic_provider", "bd83c8c530a4241ada9fc02229bc19d7c46095c8"),
         "scribe": ("scribe_provider", "cochem_scribe.provider:scribe_provider", "85216dd12c998c1f879b6bb73ab74a44fc98f4bc"),
     }
     for mod_id, (adapter, ep, rev) in expected.items():
@@ -413,6 +414,7 @@ def test_module_distribution_manifest_has_verified_adapters_and_passes_loader() 
         assert spec["adapter"] == adapter
         assert spec["entry_point"] == ep
         assert spec["revision"] == rev
+    assert len(modules["bench"]["operations"]) == 4
     assert len(modules["topos"]["operations"]) == 9
     assert len(modules["torq"]["operations"]) == 5
     assert len(modules["spycfit"]["operations"]) == 4

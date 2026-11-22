@@ -3,11 +3,21 @@
   "modules": {
     "bench": {
       "repository": "ProfJJK-CoChem/CoChem-BENCH",
-      "revision": "9d255cbd9c842a271b55e4223b92c6e437b9a401",
+      "revision": "cb874d8f20723c70b26b805329cb873ebe1c463f",
       "distribution": "cochem-bench",
-      "adapter": null,
-      "adapter_requirements": [],
-      "operations": []
+      "adapter": "bench_provider",
+      "entry_point": "cochem_bench.provider:bench_provider",
+      "adapter_requirements": [
+        "numpy>=1.24",
+        "scipy>=1.11",
+        "pydantic>=2.4"
+      ],
+      "operations": [
+        "cbs_extrapolate",
+        "relative_energies",
+        "parse_orca_energy",
+        "audit_diagnostics"
+      ]
     },
     "cure": {
       "repository": "ProfJJK-CoChem/CoChem-CURE",
@@ -54,7 +64,7 @@
     },
     "kinetic": {
       "repository": "ProfJJK-CoChem/CoChem-KINETIC",
-      "revision": "3f3ac20b2b65dcdef7c142dfb709d4d024c04ed4",
+      "revision": "bd83c8c530a4241ada9fc02229bc19d7c46095c8",
       "distribution": "cochem-kinetic",
       "adapter": "kinetic_provider",
       "entry_point": "cochem_kinetic.provider:kinetic_provider",
@@ -214,7 +224,7 @@
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "cb908f393949a2e880ad1a33641fec70d74b5aff",
+      "revision": "1c4087bd33aa43b75f6fe4cdf1c38cf8d8d6f24b",
       "distribution": "CoChem-TORQ",
       "adapter": "torq_provider",
       "entry_point": "cochem_torq.ecosystem:module_provider",

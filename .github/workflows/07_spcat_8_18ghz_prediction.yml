@@ -1,0 +1,377 @@
+name: CHEM 312 M4 SPCAT 8-18 GHz Rotational Prediction & Dossier (T_rot = 2.0 K)
+
+on:
+  workflow_dispatch:
+    inputs:
+      xyz:
+        description: Equilibrium/optimized XYZ filename from examples/student_inputs/
+        required: true
+        default: ethanol.xyz
+        type: string
+      charge:
+        description: Total molecular charge (-2, -1, 0, 1, 2)
+        required: true
+        default: '0'
+        type: choice
+        options: ['-2', '-1', '0', '1', '2']
+      multiplicity:
+        description: Spin multiplicity (1, 2, 3)
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '2', '3']
+      a_mhz:
+        description: Ground-state rotational constant A (MHz)
+        required: true
+        default: '34891.800'
+        type: string
+      b_mhz:
+        description: Ground-state rotational constant B (MHz)
+        required: true
+        default: '9350.700'
+        type: string
+      c_mhz:
+        description: Ground-state rotational constant C (MHz)
+        required: true
+        default: '8135.200'
+        type: string
+      dj_khz:
+        description: Watson A-reduction quartic distortion Delta_J (kHz)
+        required: false
+        default: '0.0'
+        type: string
+      djk_khz:
+        description: Watson A-reduction quartic distortion Delta_JK (kHz)
+        required: false
+        default: '0.0'
+        type: string
+      dk_khz:
+        description: Watson A-reduction quartic distortion Delta_K (kHz)
+        required: false
+        default: '0.0'
+        type: string
+      d1_khz:
+        description: Watson A-reduction quartic distortion delta_J (kHz)
+        required: false
+        default: '0.0'
+        type: string
+      d2_khz:
+        description: Watson A-reduction quartic distortion delta_K (kHz)
+        required: false
+        default: '0.0'
+        type: string
+      mu_a:
+        description: Principal-axis dipole component mu_a (Debye)
+        required: true
+        default: '0.046'
+        type: string
+      mu_b:
+        description: Principal-axis dipole component mu_b (Debye)
+        required: true
+        default: '1.438'
+        type: string
+      mu_c:
+        description: Principal-axis dipole component mu_c (Debye)
+        required: true
+        default: '0.000'
+        type: string
+      t_rot_k:
+        description: Supersonic jet rotational temperature T_rot in Kelvin
+        required: true
+        default: '2.0'
+        type: string
+      freq_min_ghz:
+        description: Lower CP-FTMW prediction band edge in GHz
+        required: true
+        default: '8.0'
+        type: string
+      freq_max_ghz:
+        description: Upper CP-FTMW prediction band edge in GHz
+        required: true
+        default: '18.0'
+        type: string
+      constant_type:
+        description: Rotational constant provenance (B0 ground state recommended; Be requires vibrational delta)
+        required: true
+        default: B0
+        type: choice
+        options: [B0, Be]
+      course_id:
+        description: Course identifier (Tennessee Tech University)
+        required: true
+        default: CHEM312
+        type: choice
+        options: [CHEM312, CHEM490, CHEM410, CHEM411]
+      target_continuation:
+        description: Pipeline 5.0.0 continuation lane
+        required: true
+        default: workstation
+        type: choice
+        options: [workstation, colab_gpu, gcp_spot]
+
+permissions:
+  contents: read
+
+jobs:
+  spcat_8_18ghz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      XYZ: ${{ inputs.xyz }}
+      CHARGE: ${{ inputs.charge }}
+      MULTIPLICITY: ${{ inputs.multiplicity }}
+      A_MHZ: ${{ inputs.a_mhz }}
+      B_MHZ: ${{ inputs.b_mhz }}
+      C_MHZ: ${{ inputs.c_mhz }}
+      DJ_KHZ: ${{ inputs.dj_khz }}
+      DJK_KHZ: ${{ inputs.djk_khz }}
+      DK_KHZ: ${{ inputs.dk_khz }}
+      D1_KHZ: ${{ inputs.d1_khz }}
+      D2_KHZ: ${{ inputs.d2_khz }}
+      MU_A: ${{ inputs.mu_a }}
+      MU_B: ${{ inputs.mu_b }}
+      MU_C: ${{ inputs.mu_c }}
+      T_ROT_K: ${{ inputs.t_rot_k }}
+      FREQ_MIN_GHZ: ${{ inputs.freq_min_ghz }}
+      FREQ_MAX_GHZ: ${{ inputs.freq_max_ghz }}
+      CONSTANT_TYPE: ${{ inputs.constant_type }}
+      COURSE_ID: ${{ inputs.course_id }}
+      TARGET_CONTINUATION: ${{ inputs.target_continuation }}
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Install Python dependencies for SPCAT runner and FactLedger
+        run: |
+          python -m venv "$RUNNER_TEMP/spcat_env"
+          py="$RUNNER_TEMP/spcat_env/bin/python"
+          "$py" -m pip install --upgrade pip
+          "$py" -m pip install 'numpy>=1.26' 'pandas>=2.1' 'pyarrow>=15.0' 'pydantic>=2.4'
+      - name: Locate or compile JPL calpgm spcat binary (optional native path)
+        continue-on-error: true
+        run: |
+          if command -v spcat >/dev/null 2>&1; then
+            echo "SPCAT_BIN=$(command -v spcat)" >> "$GITHUB_ENV"
+          elif command -v gcc >/dev/null 2>&1 && [ -d "$RUNNER_TEMP/calpgm" ]; then
+            make -C "$RUNNER_TEMP/calpgm" spcat
+            echo "SPCAT_BIN=$RUNNER_TEMP/calpgm/spcat" >> "$GITHUB_ENV"
+          fi
+      - name: Generate Watson A-reduction 8-18 GHz Pickett decks, FactLedger, and sealed handoff
+        run: |
+          "$RUNNER_TEMP/spcat_env/bin/python" - <<'PY'
+          import json, os, shutil, subprocess, sys
+          from pathlib import Path
+
+          sys.path.insert(0, "student")
+          sys.path.insert(0, "scripts")
+          import conformers, handoff, fact_ledger
+
+          charge = int(os.environ["CHARGE"])
+          mult = int(os.environ["MULTIPLICITY"])
+          source = conformers.input_file(os.environ["XYZ"])
+          handoff.read_input(source, charge=charge, multiplicity=mult)
+
+          a_mhz = float(os.environ["A_MHZ"])
+          b_mhz = float(os.environ["B_MHZ"])
+          c_mhz = float(os.environ["C_MHZ"])
+          dj_khz = float(os.environ["DJ_KHZ"])
+          djk_khz = float(os.environ["DJK_KHZ"])
+          dk_khz = float(os.environ["DK_KHZ"])
+          d1_khz = float(os.environ["D1_KHZ"])
+          d2_khz = float(os.environ["D2_KHZ"])
+          mu_a = float(os.environ["MU_A"])
+          mu_b = float(os.environ["MU_B"])
+          mu_c = float(os.environ["MU_C"])
+          t_rot_k = float(os.environ["T_ROT_K"])
+          f_min_ghz = float(os.environ["FREQ_MIN_GHZ"])
+          f_max_ghz = float(os.environ["FREQ_MAX_GHZ"])
+          const_type = os.environ["CONSTANT_TYPE"]
+          course_id = os.environ["COURSE_ID"]
+
+          bundle = Path(os.environ["RUNNER_TEMP"]) / "bundle"
+          bundle.mkdir(parents=True, exist_ok=True)
+          shutil.copyfile(source, bundle / "input.xyz")
+          shutil.copyfile(source, bundle / "optimized.xyz")
+
+          stem = "spcat_8_18ghz"
+          var_path = bundle / f"{stem}.var"
+          int_path = bundle / f"{stem}.int"
+          cat_path = bundle / f"{stem}.cat"
+
+          var_lines = [
+              f"Tennessee Tech University {course_id} M4 Watson A-reduction ({const_type})",
+              "   8   100   0   0.0000E+000   1.0000E+000   1.0000E+000",
+              "a   1   1   0  30   0   1   1   1  -1   0",
+              f"       10000  {a_mhz:16.6f} 1.000000E-04",
+              f"       20000  {b_mhz:16.6f} 1.000000E-04",
+              f"       30000  {c_mhz:16.6f} 1.000000E-04",
+              f"         200  {-dj_khz / 1000.0:16.9f} 1.000000E-08",
+              f"        1100  {-djk_khz / 1000.0:16.9f} 1.000000E-08",
+              f"        2000  {-dk_khz / 1000.0:16.9f} 1.000000E-08",
+              f"       40100  {-d1_khz / 1000.0:16.9f} 1.000000E-08",
+              f"       41000  {-d2_khz / 1000.0:16.9f} 1.000000E-08",
+          ]
+          var_path.write_text("\n".join(var_lines) + "\n", encoding="utf-8")
+
+          int_lines = [
+              f"Tennessee Tech University {course_id} M4 CP-FTMW 8-18 GHz T_rot={t_rot_k:.2f} K",
+              f"   0   91   100.0000   0   30  -10.0  -10.0  {f_max_ghz:.3f}  {t_rot_k:.3f}",
+              f"   1   {mu_a:.4f}",
+              f"   2   {mu_b:.4f}",
+              f"   3   {mu_c:.4f}",
+          ]
+          int_path.write_text("\n".join(int_lines) + "\n", encoding="utf-8")
+
+          spcat_bin = os.environ.get("SPCAT_BIN") or shutil.which("spcat")
+          engine_used = "PENDING"
+          n_lines_in_band = 0
+          if spcat_bin and Path(spcat_bin).is_file():
+              subprocess.run([spcat_bin, stem], cwd=str(bundle), check=True, timeout=60)
+              if cat_path.is_file():
+                  engine_used = "calpgm_spcat"
+                  f_lo_mhz, f_hi_mhz = f_min_ghz * 1000.0, f_max_ghz * 1000.0
+                  for line in cat_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                      if len(line) >= 13:
+                          try:
+                              fmhz = float(line[0:13].strip())
+                              if f_lo_mhz <= fmhz <= f_hi_mhz:
+                                  n_lines_in_band += 1
+                          except ValueError:
+                              continue
+          else:
+              try:
+                  from spcat_runner import SPCATDeckConfig, SPCATRunner
+
+                  cfg = SPCATDeckConfig(
+                      a_mhz=a_mhz,
+                      b_mhz=b_mhz,
+                      c_mhz=c_mhz,
+                      dj_khz=dj_khz,
+                      djk_khz=djk_khz,
+                      dk_khz=dk_khz,
+                      d1_khz=d1_khz,
+                      d2_khz=d2_khz,
+                      mu_a=mu_a,
+                      mu_b=mu_b,
+                      mu_c=mu_c,
+                      temperature_k=t_rot_k,
+                      constant_type=const_type,
+                  )
+                  runner = SPCATRunner()
+                  pq_path = runner.generate_parquet_catalog(
+                      cfg,
+                      bundle / f"{stem}.parquet",
+                      allow_unvibrated_be=(const_type == "Be"),
+                      scratch_dir=Path(os.environ["RUNNER_TEMP"]) / "spcat_scratch",
+                  )
+                  import pyarrow.parquet as pq
+
+                  tbl = pq.read_table(str(pq_path)).to_pylist()
+                  f_lo_mhz, f_hi_mhz = f_min_ghz * 1000.0, f_max_ghz * 1000.0
+                  cat_rows = []
+                  for row in tbl:
+                      fmhz = float(row.get("frequency_mhz", 0.0))
+                      if f_lo_mhz <= fmhz <= f_hi_mhz:
+                          n_lines_in_band += 1
+                          cat_rows.append(f"{fmhz:13.4f}  0.0050  -5.0000 3    0.0000  1  10001")
+                  cat_path.write_text("\n".join(cat_rows) + ("\n" if cat_rows else ""), encoding="utf-8")
+                  engine_used = "scripts/spcat_runner.py"
+              except Exception as exc:
+                  cat_path.write_text(f"# PENDING: native spcat/torq unavailable ({exc})\n", encoding="utf-8")
+                  engine_used = "PENDING"
+
+          kappa_ray = (2.0 * b_mhz - a_mhz - c_mhz) / (a_mhz - c_mhz) if abs(a_mhz - c_mhz) > 1e-12 else 0.0
+          dossier_summary = {
+              "schema": "cochem.spcat-8-18ghz-summary/1",
+              "collaborator_institution": "Tennessee Tech University",
+              "course_id": course_id,
+              "engine": engine_used,
+              "constant_type": const_type,
+              "watson_reduction": "A-reduction",
+              "t_rot_k": t_rot_k,
+              "band_ghz": [f_min_ghz, f_max_ghz],
+              "rotational_constants_mhz": [a_mhz, b_mhz, c_mhz],
+              "ray_kappa": kappa_ray,
+              "dipole_debye": [mu_a, mu_b, mu_c],
+              "lines_in_8_18ghz_band": n_lines_in_band,
+          }
+          (bundle / "spcat_8_18ghz_summary.json").write_text(json.dumps(dossier_summary, indent=2) + "\n", encoding="utf-8")
+
+          dossier_md = [
+              f"# {course_id} M4 CP-FTMW 8-18 GHz Rotational Prediction Dossier",
+              "",
+              "- **Institution:** Tennessee Tech University",
+              f"- **Engine:** `{engine_used}`",
+              f"- **Hamiltonian:** Watson A-reduction (`{const_type}`)",
+              f"- **Rotational Temperature:** `T_rot = {t_rot_k:.2f} K`",
+              f"- **Frequency Window:** `{f_min_ghz:.1f} - {f_max_ghz:.1f} GHz`",
+              f"- **Rotational Constants (MHz):** `A = {a_mhz:.4f}`, `B = {b_mhz:.4f}`, `C = {c_mhz:.4f}` (`kappa = {kappa_ray:.4f}`)",
+              f"- **Dipole Components (Debye):** `mu_a = {mu_a:.4f}`, `mu_b = {mu_b:.4f}`, `mu_c = {mu_c:.4f}`",
+              f"- **Predicted Lines in Window:** `{n_lines_in_band}`",
+              "",
+          ]
+          (bundle / "spcat_dossier.md").write_text("\n".join(dossier_md), encoding="utf-8")
+
+          ledger = fact_ledger.build_fact_ledger(
+              artifact_paths=[
+                  bundle / "input.xyz",
+                  var_path,
+                  int_path,
+                  cat_path,
+                  bundle / "spcat_8_18ghz_summary.json",
+              ],
+              base_dir=bundle,
+              project_label=f"{course_id}_M4_SPCAT_8_18GHz",
+              course_id=course_id,
+          )
+          (bundle / "FactLedger.json").write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+          (bundle / "FactLedger.md").write_text(fact_ledger.render_fact_ledger_markdown(ledger), encoding="utf-8")
+          fact_ledger.verify_fact_ledger(bundle / "FactLedger.json", base_dir=bundle)
+
+          manifest = {
+              "workflow_type": "geom_comparison",
+              "input_name": Path(os.environ["XYZ"]).name,
+              "charge": charge,
+              "multiplicity": mult,
+              "length_unit": "angstrom",
+              "method": f"SPCAT Watson A-reduction ({const_type})",
+              "basis": "rotational_pickett",
+              "solvation": "gas",
+              "solvent_name": None,
+              "hessian_calculated": False,
+              "n_imaginary_modes": None,
+              "course_id": course_id,
+              "collaborator_institution": "Tennessee Tech University",
+              "target_continuation": os.environ["TARGET_CONTINUATION"],
+              "starting_xyz": "input.xyz",
+              "primary_xyz": "optimized.xyz",
+              "ensemble_xyz": None,
+              "candidate_count": 1,
+              "selected": "optimized.xyz",
+              "student_id": f"{course_id.lower()}_spcat_student",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "commit": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "metadata": {
+                  "dossier_kind": "spcat_8_18ghz_prediction",
+                  "t_rot_k": t_rot_k,
+                  "band_ghz": [f_min_ghz, f_max_ghz],
+                  "rotational_constants_mhz": [a_mhz, b_mhz, c_mhz],
+                  "engine": engine_used,
+                  "fact_ledger_sha256": ledger["ledger_content_sha256"],
+              },
+          }
+          zip_path, sha_path, _, _ = handoff.seal(bundle, Path(os.environ["RUNNER_TEMP"]) / "handoff", manifest)
+          handoff.verify(zip_path, sidecar_path=sha_path, destination=Path(os.environ["RUNNER_TEMP"]) / "received")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: CoChem-spcat-8-18ghz-handoff-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/handoff/
+          if-no-files-found: error
+          retention-days: 30

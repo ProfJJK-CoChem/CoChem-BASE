@@ -151,8 +151,12 @@
       "adapter": "scribe_provider",
       "entry_point": "cochem_scribe.provider:scribe_provider",
       "adapter_requirements": [],
-      "operations": [],
-      "phase_reservation": "phase_4_scribe_provider"
+      "operations": [
+        "render_geom_comparison",
+        "render_kinetic_rxn_profile",
+        "verify_source_register",
+        "audit_farir_exclusion"
+      ]
     },
     "seed": {
       "repository": "ProfJJK-CoChem/CoChem-SEED",

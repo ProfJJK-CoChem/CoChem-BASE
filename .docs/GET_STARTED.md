@@ -431,10 +431,13 @@ SPFIT, and SPCAT studies) and public-fork CURE workflows (**Tennessee Tech Unive
 
 - **Dashboard-first:** Follow Steps 1–3 above to launch the Codespaces Voilà
   dashboard on port **8866** with zero secrets.
-- **GitHub Actions manual fallback:** Dispatch `.github/workflows/student_conformers.yml`,
-  `.github/workflows/06_aimnet2_neb_pyscf_rxn_profile.yml`, or
-  `.github/workflows/04_crest_nci_dimer_bsse.yml` manually from the **Actions** tab
-  (all are strictly `workflow_dispatch`-only with zero automatic cron triggers).
+- **GitHub Actions manual fallback:** Dispatch any CHEM 312 M1–M4 workflow manually from the **Actions** tab (all are strictly `workflow_dispatch`-only with zero automatic `push:` or `schedule:` cron triggers):
+  - `.github/workflows/student_conformers.yml` (M1 conformer ensemble & CPU PySCF)
+  - `.github/workflows/04_crest_nci_dimer_bsse.yml` (M3 NCI dimer & counterpoise BSSE)
+  - `.github/workflows/05_gvpt2_6shard_anharmonic.yml` (M3 6-shard Barone GVPT2 anharmonic frequencies)
+  - `.github/workflows/06_aimnet2_neb_pyscf_rxn_profile.yml` (M3 AIMNet2 CI-NEB + TS + IRC + PySCF PCM)
+  - `.github/workflows/07_spcat_8_18ghz_prediction.yml` (M4 SPCAT 8–18 GHz `T_rot = 2.0 K` rotational prediction & FactLedger)
+- **CHEM 312 M2–M4 local CLI analysis tools:** `scripts/kk_atr_correct.py` (Kramers-Kronig diamond ATR correction), `scripts/vdw_titration_diff.py` (1:1 complexation & BSSE diff), `scripts/fermi_deperturb.py` (2×2 Martin Fermi dyad deperturbation), `scripts/gvpt2_shard_runner.py` (6-shard GVPT2 planner/aggregator), and `scripts/fact_ledger.py` (L1–L3 SHA-256 `FactLedger`).
 - **Pipeline 5.0.0 ZIP handoff:** Download the sealed `cochem.student-handoff/2`
   `.zip` and `.zip.sha256` pair, verify with `python student/handoff.py <bundle.zip> --sidecar <bundle.zip.sha256>`,
   and upload both files to your course's handoff folder. See [`student/README.md`](../student/README.md).

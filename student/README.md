@@ -21,9 +21,21 @@ course workflows from the **Actions** tab (all course workflows are strictly
 
 | Workflow | Purpose | Course Track |
 | --- | --- | --- |
-| `.github/workflows/student_conformers.yml` | Generalized `XYZ -> CREST 3.0.2 -> AIMNet2/MACE -> CPU PySCF` conformer search and optimization | `CHEM312`, `CHEM490`, `CHEM410`, `CHEM411` |
-| `.github/workflows/06_aimnet2_neb_pyscf_rxn_profile.yml` | Charge-aware `AIMNet2` 11-image CI-NEB + TS polish + IRC + PySCF `DF-wB97X-D3/def2-TZVPP + PCM` via `cochem-kinetic rxn-profile` | `CHEM312` Week 10 |
-| `.github/workflows/04_crest_nci_dimer_bsse.yml` | `CREST --nci` ellipsoidal wall sampling + PySCF counterpoise BSSE | `CHEM312` Week 10/11 |
+| `.github/workflows/student_conformers.yml` | Generalized `XYZ -> CREST 3.0.2 -> AIMNet2/MACE -> CPU PySCF` conformer search and optimization | `CHEM312` M1, `CHEM490`, `CHEM410`, `CHEM411` |
+| `.github/workflows/04_crest_nci_dimer_bsse.yml` | `CREST --nci` ellipsoidal wall sampling + PySCF Boys-Bernardi counterpoise BSSE | `CHEM312` M3 (Week 10/11) |
+| `.github/workflows/05_gvpt2_6shard_anharmonic.yml` | Deterministic 6-shard (`shard: 0..5`) Barone GVPT2 displaced-Hessian anharmonic workflow (`vpt2_anharmonic`) | `CHEM312` M3 |
+| `.github/workflows/06_aimnet2_neb_pyscf_rxn_profile.yml` | Charge-aware `AIMNet2` 11-image CI-NEB + TS polish + IRC + PySCF `DF-wB97X-D3/def2-TZVPP + PCM` via `cochem-kinetic rxn-profile` | `CHEM312` M3 (Week 10) |
+| `.github/workflows/07_spcat_8_18ghz_prediction.yml` | Watson A-reduction SPCAT 8–18 GHz CP-FTMW prediction (`T_rot = 2.0 K`) + L1–L3 `FactLedger` dossier | `CHEM312` M4, `CHEM490` |
+
+### CHEM 312 M2–M4 Analysis CLI Tools (`scripts/`)
+
+| Script | Module | Purpose |
+| --- | --- | --- |
+| `scripts/kk_atr_correct.py` | M2 | Single-bounce diamond ATR-FTIR (`n_1 = 2.417`, `45 deg`) Kramers-Kronig phase retrieval and Fresnel inversion (`n(nu)`, `kappa(nu)`, `Delta_nu` blue-shift) |
+| `scripts/vdw_titration_diff.py` | M3 | 1:1 `monomer...H2O` / `monomer...CO2` C=O vibrational shift + counterpoise BSSE report (`PENDING` for unmeasured ATR spectra) |
+| `scripts/fermi_deperturb.py` | M3 | Exact 2x2 secular matrix Martin Fermi resonance deperturbation (`nu_1^0`, `2*nu_2^0`, `|W|`, mixing angle `theta`) |
+| `scripts/gvpt2_shard_runner.py` | M3 | Deterministic 6-shard (`0..5`) GVPT2 displacement planner, shard runner, and incomplete-shard-safe aggregator |
+| `scripts/fact_ledger.py` | M4 | Cryptographic L1–L3 SHA-256 `FactLedger.json` / `FactLedger.md` builder and fail-closed tamper verifier |
 
 ## 3. Generalized Scientific Domain (`cochem.student-handoff/2`)
 

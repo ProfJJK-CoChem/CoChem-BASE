@@ -378,19 +378,68 @@ def write_corrected_csv(path: Path, result: dict[str, Any]) -> None:
             )
 
 
+ATR_CRYSTAL_INDICES: dict[str, float] = {
+    "diamond": 2.417,
+    "znse": 2.40,
+    "ge": 4.00,
+    "germanium": 4.00,
+}
+
+
+def parse_crystal_refractive_index(value: str) -> float:
+    """Resolve an ATR crystal name (diamond, znse, ge) or numeric refractive index."""
+    cleaned = str(value).strip()
+    key = cleaned.lower()
+    if key in ATR_CRYSTAL_INDICES:
+        return ATR_CRYSTAL_INDICES[key]
+    try:
+        parsed = float(cleaned)
+    except ValueError as exc:
+        supported = ", ".join(sorted(ATR_CRYSTAL_INDICES))
+        raise argparse.ArgumentTypeError(
+            f"Invalid crystal refractive index {value!r}; expected a float or one of: {supported}."
+        ) from exc
+    if not math.isfinite(parsed) or parsed <= 1.0:
+        raise argparse.ArgumentTypeError(
+            f"Crystal refractive index must be finite and > 1.0, got {parsed}."
+        )
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Kramers-Kronig phase correction for single-bounce diamond ATR-FTIR spectra (CHEM 312 M2)."
     )
-    p.add_argument("--input", required=True, type=Path, help="Input 2-column CSV or XY ATR-FTIR file.")
+    p.add_argument(
+        "--input",
+        "--csv",
+        dest="input",
+        required=True,
+        type=Path,
+        help="Input 2-column CSV or XY ATR-FTIR file (alias: --csv).",
+    )
     p.add_argument(
         "--input-mode",
         choices=("auto", "absorbance", "reflectance"),
         default="auto",
         help="Input y-column interpretation (default: auto).",
     )
-    p.add_argument("--n-crystal", type=float, default=2.417, help="ATR crystal refractive index (default: 2.417 diamond).")
-    p.add_argument("--angle-deg", type=float, default=45.0, help="Incidence angle in degrees (default: 45.0).")
+    p.add_argument(
+        "--n-crystal",
+        "--crystal",
+        dest="n_crystal",
+        type=parse_crystal_refractive_index,
+        default=2.417,
+        help="ATR crystal refractive index or name (diamond=2.417, znse=2.40, ge=4.00; default: 2.417).",
+    )
+    p.add_argument(
+        "--angle-deg",
+        "--angle",
+        dest="angle_deg",
+        type=float,
+        default=45.0,
+        help="Incidence angle in degrees (default: 45.0; alias: --angle).",
+    )
     p.add_argument("--n-inf", type=float, default=1.40, help="High-frequency sample refractive index n_inf (default: 1.40).")
     p.add_argument(
         "--kk-method",
@@ -398,7 +447,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="fft",
         help="Kramers-Kronig Hilbert transform method (default: fft).",
     )
-    p.add_argument("--output-csv", type=Path, default=None, help="Optional output CSV path for corrected n(nu), kappa(nu).")
+    p.add_argument(
+        "--output-csv",
+        "--out",
+        dest="output_csv",
+        type=Path,
+        default=None,
+        help="Optional output CSV path for corrected n(nu), kappa(nu) (alias: --out).",
+    )
     p.add_argument("--output-json", type=Path, default=None, help="Optional output JSON summary & peak table path.")
     return p
 

@@ -1,23 +1,25 @@
-"""Pickett SPCAT Runner & Asymmetric Top Microwave Parquet Catalog Engine.
+#!/usr/bin/env python3
+"""Pickett SPCAT Runner & Asymmetric Top Microwave Catalog Engine.
 
 Method Matrix v4 §3.0, §15, Suggestion #124.
 Generates authentic Pickett decks, executes spcat binary in an air-gapped
 scratch sandbox (with authentic Watson Hamiltonian FP64 diagonalization fallback),
-parses .cat outputs, enforces strict B_e vs B_0 separation, and exports to Parquet.
+parses .cat outputs, enforces strict B_e vs B_0 separation, and exports to
+CSV, JSON, or optional Apache Parquet (lazy-importing pyarrow only when requested).
 """
 
 from __future__ import annotations
 
+import argparse
+import csv
+import json
 import os
 import shutil
 import subprocess
 import uuid
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
-import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 from pydantic import BaseModel, Field
 
 # Ensure 64-bit JAX initialization per Quick Start §QS-3
@@ -29,11 +31,6 @@ try:
     HAS_JAX = True
 except Exception:
     HAS_JAX = False
-
-from cochem_torq_asymmetric_rotor import (  # noqa: E402
-    AsymmetricTopDiagonalizer,
-    RotationalConstants,
-)
 
 
 class MethodologyViolationError(ValueError):
@@ -72,6 +69,38 @@ def compute_ray_asymmetry_parameter(a: float, b: float, c: float) -> float:
     if abs(a - c) < 1e-12:
         return 0.0
     return (2.0 * b - a - c) / (a - c)
+
+
+def _write_parquet_records(records: list[dict[str, Any]], out_p: Path) -> Path:
+    """Lazy-import pandas/pyarrow only when Apache Parquet output is requested."""
+    try:
+        import pandas as pd
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+    except ImportError as exc:
+        raise ImportError(
+            "Apache Parquet export requires optional 'pandas' and 'pyarrow' packages. "
+            "Use CSV/JSON export (--output-csv / --output-json) or install pyarrow."
+        ) from exc
+    df = pd.DataFrame(records)
+    table = pa.Table.from_pandas(df)
+    pq.write_table(table, str(out_p))
+    return out_p
+
+
+def _write_csv_records(records: list[dict[str, Any]], out_p: Path) -> Path:
+    out_p.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames: list[str] = []
+    for row in records:
+        for key in row:
+            if key not in fieldnames:
+                fieldnames.append(key)
+    with out_p.open("w", encoding="utf-8", newline="\n") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        if fieldnames:
+            writer.writeheader()
+            writer.writerows(records)
+    return out_p
 
 
 class SPCATRunner:
@@ -113,18 +142,15 @@ class SPCATRunner:
                     "allow_unvibrated_be=True (Method Matrix §3.0)."
                 )
 
-    def generate_parquet_catalog(
+    def generate_transitions(
         self,
         config: SPCATDeckConfig,
-        output_parquet_path: Path | str,
+        *,
         allow_unvibrated_be: bool = False,
         scratch_dir: Path | str | None = None,
-    ) -> Path:
-        """Generates authentic microwave line catalog Parquet file."""
+    ) -> list[dict[str, Any]]:
+        """Compute authentic rotational transitions via Pickett spcat or FP64 Watson diagonalizer."""
         self.validate_rotor_parameters(config, allow_unvibrated_be=allow_unvibrated_be)
-
-        out_p = Path(output_parquet_path).resolve()
-        out_p.parent.mkdir(parents=True, exist_ok=True)
 
         scr_root = Path(os.environ.get("COCH_SCRATCH", "scratch"))
         scr = (
@@ -133,20 +159,6 @@ class SPCATRunner:
             else scr_root / f"spcat_{uuid.uuid4().hex[:8]}"
         )
         scr.mkdir(parents=True, exist_ok=True)
-
-        rot_consts = RotationalConstants(
-            A=config.a_mhz,
-            B=config.b_mhz,
-            C=config.c_mhz,
-            D_J=config.dj_khz / 1000.0,
-            D_JK=config.djk_khz / 1000.0,
-            D_K=config.dk_khz / 1000.0,
-            d_1=config.d1_khz / 1000.0,
-            d_2=config.d2_khz / 1000.0,
-            mu_a=config.mu_a,
-            mu_b=config.mu_b,
-            mu_c=config.mu_c,
-        )
 
         cat_path = None
         if self.spcat_bin and self.spcat_bin.is_file():
@@ -232,22 +244,132 @@ class SPCATRunner:
                     continue
 
             if transitions:
-                df = pd.DataFrame(transitions)
-                table = pa.Table.from_pandas(df)
-                pq.write_table(table, str(out_p))
-                return out_p
+                return transitions
 
         # Authentic pure-Python / JAX Watson Hamiltonian fallback
+        from cochem_torq_asymmetric_rotor import (
+            AsymmetricTopDiagonalizer,
+            RotationalConstants,
+        )
+
+        rot_consts = RotationalConstants(
+            A=config.a_mhz,
+            B=config.b_mhz,
+            C=config.c_mhz,
+            D_J=config.dj_khz / 1000.0,
+            D_JK=config.djk_khz / 1000.0,
+            D_K=config.dk_khz / 1000.0,
+            d_1=config.d1_khz / 1000.0,
+            d_2=config.d2_khz / 1000.0,
+            mu_a=config.mu_a,
+            mu_b=config.mu_b,
+            mu_c=config.mu_c,
+        )
         diag = AsymmetricTopDiagonalizer(constants=rot_consts, j_max=5)
         trans_records = diag.compute_transitions()
-        records_dicts = []
+        records_dicts: list[dict[str, Any]] = []
         for r in trans_records:
             d = dict(r.__dict__)
             d["frequency_mhz"] = d.get("freq_mhz", 0.0)
             d["constant_type"] = config.constant_type
             records_dicts.append(d)
+        return records_dicts
 
-        df = pd.DataFrame(records_dicts)
-        table = pa.Table.from_pandas(df)
-        pq.write_table(table, str(out_p))
-        return out_p
+    def generate_parquet_catalog(
+        self,
+        config: SPCATDeckConfig,
+        output_parquet_path: Path | str,
+        allow_unvibrated_be: bool = False,
+        scratch_dir: Path | str | None = None,
+    ) -> Path:
+        """Generates authentic microwave line catalog Parquet file."""
+        out_p = Path(output_parquet_path).resolve()
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        records = self.generate_transitions(
+            config,
+            allow_unvibrated_be=allow_unvibrated_be,
+            scratch_dir=scratch_dir,
+        )
+        return _write_parquet_records(records, out_p)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        description=(
+            "Pickett SPCAT / Watson Hamiltonian asymmetric-top rotational catalog runner "
+            "(CSV/JSON work with zero pyarrow dependency; Parquet requires optional pyarrow)."
+        )
+    )
+    p.add_argument("--a-mhz", required=True, type=float, help="Rotational constant A (MHz).")
+    p.add_argument("--b-mhz", required=True, type=float, help="Rotational constant B (MHz).")
+    p.add_argument("--c-mhz", required=True, type=float, help="Rotational constant C (MHz).")
+    p.add_argument("--dj-khz", type=float, default=0.0, help="Quartic distortion D_J (kHz).")
+    p.add_argument("--djk-khz", type=float, default=0.0, help="Quartic distortion D_JK (kHz).")
+    p.add_argument("--dk-khz", type=float, default=0.0, help="Quartic distortion D_K (kHz).")
+    p.add_argument("--d1-khz", type=float, default=0.0, help="Quartic distortion d_1 (kHz).")
+    p.add_argument("--d2-khz", type=float, default=0.0, help="Quartic distortion d_2 (kHz).")
+    p.add_argument("--mu-a", type=float, default=0.0, help="Dipole component mu_a (Debye).")
+    p.add_argument("--mu-b", type=float, default=0.0, help="Dipole component mu_b (Debye).")
+    p.add_argument("--mu-c", type=float, default=0.0, help="Dipole component mu_c (Debye).")
+    p.add_argument("--temperature-k", type=float, default=2.0, help="Rotational temperature T_rot (K, default: 2.0).")
+    p.add_argument("--constant-type", choices=("B0", "Be"), default="B0", help="Constant provenance (B0 or Be).")
+    p.add_argument("--delta-b-vib-mhz", type=float, default=None, help="Vibrational correction Delta B_vib (MHz).")
+    p.add_argument("--allow-unvibrated-be", action="store_true", help="Explicitly permit pure equilibrium B_e simulation.")
+    p.add_argument("--spcat-bin", type=Path, default=None, help="Optional explicit path to Pickett spcat executable.")
+    p.add_argument("--scratch-dir", type=Path, default=None, help="Optional scratch directory for Pickett decks.")
+    p.add_argument("--output-csv", type=Path, default=None, help="Optional output CSV path (zero pyarrow required).")
+    p.add_argument("--output-json", type=Path, default=None, help="Optional output JSON path (zero pyarrow required).")
+    p.add_argument("--output-parquet", type=Path, default=None, help="Optional output Parquet path (requires pyarrow).")
+    return p
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    cfg = SPCATDeckConfig(
+        a_mhz=args.a_mhz,
+        b_mhz=args.b_mhz,
+        c_mhz=args.c_mhz,
+        dj_khz=args.dj_khz,
+        djk_khz=args.djk_khz,
+        dk_khz=args.dk_khz,
+        d1_khz=args.d1_khz,
+        d2_khz=args.d2_khz,
+        mu_a=args.mu_a,
+        mu_b=args.mu_b,
+        mu_c=args.mu_c,
+        temperature_k=args.temperature_k,
+        constant_type=args.constant_type,
+        delta_b_vib_mhz=args.delta_b_vib_mhz,
+    )
+    runner = SPCATRunner(spcat_bin_path=args.spcat_bin)
+    records = runner.generate_transitions(
+        cfg,
+        allow_unvibrated_be=args.allow_unvibrated_be,
+        scratch_dir=args.scratch_dir,
+    )
+    summary: dict[str, Any] = {
+        "schema": "cochem.spcat-catalog/1",
+        "collaborator_institution": "Tennessee Tech University",
+        "constant_type": cfg.constant_type,
+        "temperature_k": cfg.temperature_k,
+        "ray_asymmetry_kappa": compute_ray_asymmetry_parameter(cfg.a_mhz, cfg.b_mhz, cfg.c_mhz),
+        "n_transitions": len(records),
+    }
+    if args.output_csv is not None:
+        _write_csv_records(records, args.output_csv)
+        summary["output_csv"] = str(args.output_csv.resolve())
+    if args.output_json is not None:
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        payload = {**summary, "transitions": records}
+        args.output_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        summary["output_json"] = str(args.output_json.resolve())
+    if args.output_parquet is not None:
+        _write_parquet_records(records, args.output_parquet.resolve())
+        summary["output_parquet"] = str(args.output_parquet.resolve())
+
+    print(json.dumps(summary, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

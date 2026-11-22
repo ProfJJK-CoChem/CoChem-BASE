@@ -1,5 +1,9 @@
 # Start your CoChem project: a guide for students
 
+> **Choose Your Course Track First:**
+> - **CHEM 312L Organic Chemistry II Lab (Cumberland University):** Click **Fork** on `ProfJJK-CoChem/CoChem-BASE`, keep visibility **Public**, keep repository name **`CoChem-BASE`** (unlimited free GitHub Actions minutes; required by M1 Rubric C4), and follow **[`../student/CHEM312L_STEP_BY_STEP_GUIDE.md`](../student/CHEM312L_STEP_BY_STEP_GUIDE.md)**. **CHEM 312L students do NOT use Google Colab, ORCA, CFOUR, or Classroom50, and never enter API tokens.** All CHEM 312L work is submitted on **Canvas**.
+> - **CHEM 490 Research (Instructor-Invited Private Track):** Continue below to create a private `CoChem-[target molecule name]` template repository.
+
 You can follow this guide with a web browser. No programming experience is
 needed. **CoChem-BASE is the only CoChem repository you create.** BASE prepares
 TOPOS and TORQ and presents their tools on the same CoChem page.
@@ -10,7 +14,8 @@ study. A calculation uses a mathematical model of your molecule; its answer
 needs to be interpreted using that model's assumptions and limitations.
 
 **Already connected and ready for your first lab?** Use the shorter
-[first-calculation guide](FIRST_LAB.md). It follows the four steps on the
+[first-calculation guide](FIRST_LAB.md) (or for CHEM 312L, the complete
+[CHEM 312L Step-by-Step Guide](../student/CHEM312L_STEP_BY_STEP_GUIDE.md)). It follows the four steps on the
 dashboard and explains where to find **Help search** and **Teach me more**. Keep this page
 for the one-time account, access and Codespace setup.
 
@@ -20,13 +25,13 @@ Use a laptop or desktop browser so there is room for the controls. You only need
 
 | Item | What it is for |
 | --- | --- |
-| **Your GitHub account** | Stores your `CoChem-` project and runs your Codespace. |
-| **[ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE)** | The template repository you copy into your own GitHub account. |
+| **Your GitHub account** | Stores your public `CoChem-BASE` fork (CHEM 312L) or private `CoChem-` project (CHEM 490) and runs your Codespace. |
+| **[ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE)** | The repository you fork (CHEM 312L) or copy from template (CHEM 490) into your own GitHub account. |
 
 You do **not** need an organization invitation, an App installation link, an
 access-request issue, or a second Codespace. `CoChem-BASE` automatically sets up
 **`PySCF`**, **`xTB`**, **`CREST`**, **`TOPOS`**, and **`TORQ`** inside your
-Codespace, and supports **`GPU4PySCF`** on Google Colab GPU.
+Codespace (and automatically puts the scientific `ui-env` Python environment first on `PATH`).
 
 ## Student personal project
 
@@ -51,12 +56,17 @@ Follow these steps in order:
 
 ### 2. Create your private project
 
+*(**CHEM 312L Organic Chemistry II Lab students:** Do **not** create a private
+template repository! Click **Fork** on `ProfJJK-CoChem/CoChem-BASE`, keep
+visibility **Public**, and keep the name **`CoChem-BASE`**, then follow
+[`../student/CHEM312L_STEP_BY_STEP_GUIDE.md`](../student/CHEM312L_STEP_BY_STEP_GUIDE.md). The private template steps below apply only to instructor-invited CHEM 490 research projects.)*
+
 A **repository** means an online project folder on GitHub. A **template** is a
 prepared starting copy of that folder.
 
 1. Open [ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE).
 2. Near the top of the page, choose **Use this template → Create a new repository**
-   (or **Fork**).
+   (CHEM 490 private track only).
 3. In **Owner**, select **your own GitHub username**.
 4. In **Repository name**, enter **`CoChem-[target molecule name]`**, replacing
    the bracketed words with your molecule or complex name (for example,
@@ -73,7 +83,8 @@ on port **8866**.
 1. On **your project's page**, choose the green **Code** button above the file
    list and select the **Codespaces** tab.
 2. Choose **Create codespace on main**.
-3. Wait 2–4 minutes while the browser workspace builds and installs `PySCF`,
+3. Wait **5–10 minutes on a fresh Codespace (or ~30 seconds when Prebuilds are
+   enabled)** while the browser workspace builds and installs `PySCF`,
    `xTB`, `CREST`, `TOPOS`, and `TORQ`. During first-time setup, port **8866**
    displays an auto-refreshing setup progress page and automatically switches to
    the **CoChem Voilà dashboard** as soon as setup finishes.
@@ -83,7 +94,7 @@ on port **8866**.
 
 ### 4. Connect your project to the lab
 
-*(Optional — not needed for `PySCF`, `GPU4PySCF`, `xTB`, `CREST`, `TOPOS`, or `TORQ`.)*
+*(Optional — not needed for `PySCF`, `xTB`, `CREST`, `TOPOS`, or `TORQ`, and not used in CHEM 312L.)*
 Your first Codespace is already complete and ready for research! Skip directly
 to [Step 6: Upload your own scientific files](#6-upload-your-own-scientific-files).
 
@@ -202,6 +213,14 @@ use the analyses required by your study before drawing that conclusion.
 
 ### 9. Save and submit your work
 
+#### CHEM 312L Organic Chemistry II Lab (Cumberland University — Canvas Submission)
+
+- **What you submit to your professor:** Upload your Milestone PDF (with your clickable public-fork GitHub Actions Run URL, Commit SHA, `FactLedger` SHA-256, and `AI_Usage_Log.md`) **and** your verified `cochem.student-handoff/2` `.zip` + `.zip.sha256` bundle to the **Canvas assignment**.
+- **What your professor does with it (in Organic Chemistry 2 terms):** Verifies your SHA-256 hashes, grades your rubric, and runs high-precision quantum chemistry calculations (coupled-cluster theory) on Cumberland's department research computers using your verified 3D structures to pin down subtle hydrogen-bond strengths, exact transition-state barrier heights, and microwave rotational constants too demanding for free classroom runners.
+- **What your professor hands back to you:** Graded Canvas rubric feedback, the unblinded Week 12 research-grade reference key (so you can compare your DFT energies, carbonyl shifts, and barriers against high-accuracy theory), and the Tennessee Tech University CP-FTMW spectroscopy collaborator's experimental rotational comparison for your M3/M4 report and poster.
+
+#### CHEM 490 Instructor-Invited Private Research Track Only
+
 1. On your own computer or course-approved storage, keep a folder named after
    your project. Save your original inputs, downloaded calculation bundles
    and final report there. GitHub's temporary result downloads expire, so
@@ -216,14 +235,13 @@ use the analyses required by your study before drawing that conclusion.
    there. Use the course-approved data storage for large calculation bundles
    and original research data, rather than uploading entire runtime folders
    or engine distributions to GitHub.
-4. Submit the requested report/project links through your Classroom50
-   assignment. **Classroom50 is the course submission and feedback site**;
-   it does not automatically copy everything from this private project.
-5. Confirm your instructor can open the submission. If repository access is
-   needed, use your project's **Settings → Collaborators → Add people** and
-   invite the instructor's GitHub username supplied by the course. The
-   instructor must accept the invitation. Do not make the project public just
-   to submit an assignment.
+4. Submit your report/project links through your instructor's designated course
+   submission portal (Canvas for CHEM 312L; private-project portal if assigned
+   for CHEM 490).
+5. For private CHEM 490 repositories only: if repository access is needed, use
+   your project's **Settings → Collaborators → Add people** and invite the
+   instructor's GitHub username supplied by the course. Do not make a private
+   CHEM 490 repository public just to submit an assignment.
 
 **Check before continuing:** your saved files exist outside the Codespace and
 are accessible through the course's submission route.
@@ -248,8 +266,9 @@ do not rely on the Codespace as your only copy.
    Codespace does not automatically inherit the old one's local research data.
 
 Your personal project's **Actions** and **Codespaces** usage have separate
-allowances. Check the usage/payer shown by GitHub; do not assume the lab or
-Classroom50 pays for either service.
+allowances. Public forks (required for CHEM 312L) receive unlimited free GitHub
+Actions minutes; check the usage/payer shown by GitHub before agreeing to any
+paid use.
 
 ## Get updates and help
 
@@ -425,22 +444,25 @@ expired download access. Students do not enter credentials in CoChem.
 
 ## Public-Fork CURE Route (`XYZ -> CREST -> MLFF -> CPU PySCF`)
 
-Both private/template research projects (including CHEM 490 ORCA 6.1.1, CFOUR,
-SPFIT, and SPCAT studies) and public-fork CURE workflows (**Tennessee Tech University**
-`CHEM312`, `CHEM490`, `CHEM410`, `CHEM411`) are supported:
+**Cumberland University** (`CHEM 312 / 312L` Organic Chemistry II Lab) partnering
+with **Tennessee Tech University** (external CP-FTMW microwave spectroscopy
+collaborator) uses the public-fork CURE route documented in full in
+[`../student/CHEM312L_STEP_BY_STEP_GUIDE.md`](../student/CHEM312L_STEP_BY_STEP_GUIDE.md)
+(separate private/template research projects remain available for CHEM 490):
 
 - **Dashboard-first:** Follow Steps 1–3 above to launch the Codespaces Voilà
   dashboard on port **8866** with zero secrets.
-- **GitHub Actions manual fallback:** Dispatch any CHEM 312 M1–M4 workflow manually from the **Actions** tab (all are strictly `workflow_dispatch`-only with zero automatic `push:` or `schedule:` cron triggers):
-  - `.github/workflows/student_conformers.yml` (M1 conformer ensemble & CPU PySCF)
-  - `.github/workflows/04_crest_nci_dimer_bsse.yml` (M3 NCI dimer & counterpoise BSSE)
-  - `.github/workflows/05_gvpt2_6shard_anharmonic.yml` (M3 6-shard Barone GVPT2 anharmonic frequencies)
-  - `.github/workflows/06_aimnet2_neb_pyscf_rxn_profile.yml` (M3 AIMNet2 CI-NEB + TS + IRC + PySCF PCM)
+- **GitHub Actions manual workflows (`workflow_dispatch`-only — zero automatic `push:` or `schedule:` cron triggers):**
+  - `.github/workflows/student_project_setup.yml` (optional private-track setup check; skipped on public forks)
+  - `.github/workflows/student_conformers.yml` (M1 conformer ensemble & CPU PySCF, `frequencies: true`)
+  - `.github/workflows/04_crest_nci_dimer_bsse.yml` (M3 NCI dimer & Boys–Bernardi counterpoise BSSE; `xyz`, `monomer_a_atoms`)
+  - `.github/workflows/05_gvpt2_6shard_anharmonic.yml` (M3 6-shard Barone GVPT2 anharmonic IR; `xyz`, `pre_optimize: true`)
+  - `.github/workflows/06_aimnet2_neb_pyscf_rxn_profile.yml` (Week 10 NAS reaction profile — M3 draft / M4 synthesis; `input_dir`, `charge`, `multiplicity`, `solvent_name`, `dft_basis`, `stage`)
   - `.github/workflows/07_spcat_8_18ghz_prediction.yml` (M4 SPCAT 8–18 GHz `T_rot = 2.0 K` rotational prediction & FactLedger)
-- **CHEM 312 M2–M4 local CLI analysis tools:** `scripts/kk_atr_correct.py` (Kramers-Kronig diamond ATR correction), `scripts/vdw_titration_diff.py` (1:1 complexation & BSSE diff), `scripts/fermi_deperturb.py` (2×2 Martin Fermi dyad deperturbation), `scripts/gvpt2_shard_runner.py` (6-shard GVPT2 planner/aggregator), and `scripts/fact_ledger.py` (L1–L3 SHA-256 `FactLedger`).
-- **Pipeline 5.0.0 ZIP handoff:** Download the sealed `cochem.student-handoff/2`
-  `.zip` and `.zip.sha256` pair, verify with `python student/handoff.py <bundle.zip> --sidecar <bundle.zip.sha256>`,
-  and upload both files to your course's handoff folder. See [`student/README.md`](../student/README.md).
+- **Local Codespace CLI analysis tools (`scripts/`):** `scripts/kk_atr_correct.py` (M2 `0.5 cm^-1` diamond ATR Kramers–Kronig), `scripts/fermi_deperturb.py` (M3 2×2 Martin Fermi dyad deperturbation), `scripts/vdw_titration_diff.py` (M3 1:1 complexation & BSSE diff), `scripts/gvpt2_shard_runner.py` (M3 6-shard GVPT2 planner/aggregator), `scripts/kraitchman_rs.py` (M4 Kraitchman $|r_s|$ coordinates), and `scripts/fact_ledger.py` (M4 L1–L3 SHA-256 `FactLedger`).
+- **Canvas Handoff:** Download the sealed `cochem.student-handoff/2`
+  `.zip` and `.zip.sha256` pair, verify with `python student/handoff.py <bundle.zip> --sidecar <bundle.zip.sha256> --stage ./received`,
+  and upload your Milestone PDF + verified bundle to **Canvas**. See [`../student/CHEM312L_STEP_BY_STEP_GUIDE.md`](../student/CHEM312L_STEP_BY_STEP_GUIDE.md) and [`../student/README.md`](../student/README.md).
 
 ## Instructor: prepare student access
 

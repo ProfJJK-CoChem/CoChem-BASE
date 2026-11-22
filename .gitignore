@@ -67,6 +67,7 @@ cochem_*_silo/
 *.pdb
 *.cif
 !tests/**/*.xyz
+!examples/student_inputs/**/*.xyz
 *.egg-info/
 build/
 dist/

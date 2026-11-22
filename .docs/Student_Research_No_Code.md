@@ -2,9 +2,13 @@
 
 ## Start your workspace
 
-**New to CoChem? [Follow the step-by-step student guide](GET_STARTED.md#student-personal-project).**
-It starts with your GitHub account and private **`CoChem-[target molecule name]`**
-project, then explains opening CoChem, lab access and your first saved calculation.
+**CHEM 312L Organic Chemistry II Lab (Cumberland University):** Start with
+**[the CHEM 312L Step-by-Step Guide](../student/CHEM312L_STEP_BY_STEP_GUIDE.md)**
+using your **public fork** named **`CoChem-BASE`** and **Canvas** submission.
+
+**CHEM 490 Instructor-Invited Private Research Track:** [Follow the step-by-step student guide](GET_STARTED.md#student-personal-project)
+starting from your GitHub account and private **`CoChem-[target molecule name]`**
+template project.
 
 This page is a reference: open only the section you need. You supply your own
 starting structures and scientific files. CoChem-BASE prepares its analysis
@@ -378,11 +382,13 @@ drag its course-approved files into your project's **Explorer** folder in
 VS Code, or use GitHub **Add file → Upload files**. Use VS Code **Source Control**
 to commit the course files you intend to submit: select the files, enter a
 descriptive message, choose **Commit**, then
-**Sync Changes**. These are ordinary buttons, not terminal commands. Confirm
-that the intended report appears in your private project on GitHub. Submit the
-project/report URL through your instructor's Classroom50 instructions and confirm
-the instructor can access the intended report; enrollment alone does not grant
-collection access to a private personal repository. Follow the course policy for
+**Sync Changes**. These are ordinary buttons, not terminal commands. For CHEM
+312L (Cumberland University), submit your Milestone PDF (with your public-fork
+Run URL, Commit SHA, `FactLedger` SHA-256, and `AI_Usage_Log.md`) and your
+verified `cochem.student-handoff/2` `.zip` + `.zip.sha256` bundle on **Canvas**.
+For instructor-invited private CHEM 490 repositories, confirm that the intended
+report appears in your repository on GitHub and submit the project/report URL
+through your instructor's course instructions. Follow the course policy for
 large files rather than committing an entire runtime or binary archive.
 
 </details>

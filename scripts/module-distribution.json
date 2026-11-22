@@ -64,7 +64,7 @@
     },
     "kinetic": {
       "repository": "ProfJJK-CoChem/CoChem-KINETIC",
-      "revision": "bd83c8c530a4241ada9fc02229bc19d7c46095c8",
+      "revision": "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2",
       "distribution": "cochem-kinetic",
       "adapter": "kinetic_provider",
       "entry_point": "cochem_kinetic.provider:kinetic_provider",

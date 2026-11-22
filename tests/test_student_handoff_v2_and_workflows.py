@@ -406,7 +406,7 @@ def test_module_distribution_manifest_has_verified_adapters_and_passes_loader() 
         "torq": ("torq_provider", "cochem_torq.ecosystem:module_provider", "1f4359d125a7951dc36e62fb6476a9a002205ed3"),
         "geom": ("geom_provider", "cochem_geom.provider:geom_provider", "ae8f1e7d56a4030e377d36ca7c9516cd0da16851"),
         "spycfit": ("spycfit_provider", "cochem_spycfit.module_provider:spycfit_provider", "aebe6fd8d5939ed617dad72e1392230e3979faf9"),
-        "kinetic": ("kinetic_provider", "cochem_kinetic.provider:kinetic_provider", "bd83c8c530a4241ada9fc02229bc19d7c46095c8"),
+        "kinetic": ("kinetic_provider", "cochem_kinetic.provider:kinetic_provider", "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2"),
         "scribe": ("scribe_provider", "cochem_scribe.provider:scribe_provider", "85216dd12c998c1f879b6bb73ab74a44fc98f4bc"),
     }
     for mod_id, (adapter, ep, rev) in expected.items():
@@ -453,11 +453,12 @@ def test_p8_student_qualification_fixes_devcontainer_workflows_and_examples() ->
     wf06_raw = (REPO_ROOT / ".github" / "workflows" / "06_aimnet2_neb_pyscf_rxn_profile.yml").read_text(encoding="utf-8")
     wf06 = yaml.safe_load(wf06_raw)
     wf06_inputs = wf06.get("on", wf06.get(True))["workflow_dispatch"]["inputs"]
-    assert "bd83c8c530a4241ada9fc02229bc19d7c46095c8" in wf06_raw
+    assert "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2" in wf06_raw
     assert "6eade693af" not in wf06_raw
     assert wf06_inputs["input_dir"]["default"] == "examples/student_inputs/chem312_team4_rxn"
     assert wf06_inputs["dft_basis"]["default"] == "def2-TZVPP"
     assert wf06_inputs["stage"]["default"] == "all"
+    assert wf06_inputs["target_continuation"]["default"] == "workstation"
     team4_dir = REPO_ROOT / "examples" / "student_inputs" / "chem312_team4_rxn"
     for fname in ("R.xyz", "Int_tet.xyz", "P.xyz", "TS1.xyz", "TS2.xyz", "reactant.xyz", "product.xyz"):
         parsed = handoff.read_input(team4_dir / fname, charge=-1, multiplicity=1)
@@ -472,3 +473,185 @@ def test_p8_student_qualification_fixes_devcontainer_workflows_and_examples() ->
     dimer = handoff.read_input(REPO_ROOT / "examples" / "student_inputs" / "water_dimer.xyz", charge=0, multiplicity=1)
     assert dimer["symbols"] == ["O", "H", "H", "O", "H", "H"]
     assert dimer["formula"] == "H4O2"
+
+
+def _extract_heredoc_py(step_run: str) -> str:
+    marker = "python - <<'PY'\n"
+    assert marker in step_run
+    body = step_run.split(marker, 1)[1]
+    assert "\nPY" in body
+    return body.split("\nPY", 1)[0] + "\n"
+
+
+def test_qa_r2_rxn_profile_2endpoint_workstation_default_seal_and_vdw_guide(tmp_path: Path) -> None:
+    """Verify SB-R2-01 (2-endpoint rxn staging + 3pt/5pt seal), SB-R2-02 (workstation default), and SB-R2-03 (--dimer-json note)."""
+    import os
+
+    wf06_path = REPO_ROOT / ".github" / "workflows" / "06_aimnet2_neb_pyscf_rxn_profile.yml"
+    wf06_raw = wf06_path.read_text(encoding="utf-8")
+    wf06 = yaml.safe_load(wf06_raw)
+    wf06_inputs = wf06.get("on", wf06.get(True))["workflow_dispatch"]["inputs"]
+    assert wf06_inputs["target_continuation"]["default"] == "workstation"
+    assert "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2" in wf06_raw
+    assert 'for required in ("R.xyz", "Int_tet.xyz", "P.xyz")' not in wf06_raw
+
+    steps = {step.get("name"): step.get("run", "") for step in wf06["jobs"]["rxn_profile"]["steps"]}
+    stage_script = _extract_heredoc_py(steps["Stage normalized reaction-profile inputs"])
+    seal_script = _extract_heredoc_py(steps["Seal and verify cochem.student-handoff/2 reaction profile bundle"])
+
+    # Real 5-atom anionic CHF2O- (HCOF + F-, Q=-1, M=1, 34e even) 2-endpoint folder (NO Int_tet.xyz)
+    chf2o_r = (
+        "5\n"
+        "HCOF + F- reactant\n"
+        "C  0.000000  0.000000  0.000000\n"
+        "O  1.180000  0.000000  0.000000\n"
+        "H -0.600000  0.920000  0.000000\n"
+        "F -0.650000 -1.120000  0.000000\n"
+        "F  0.000000  0.000000  2.650000\n"
+    )
+    chf2o_ts = (
+        "5\n"
+        "CHF2O- TS\n"
+        "C  0.000000  0.000000  0.000000\n"
+        "O  1.220000  0.000000  0.000000\n"
+        "H -0.580000  0.940000  0.000000\n"
+        "F -0.620000 -1.140000 -0.400000\n"
+        "F -0.620000 -1.140000  1.450000\n"
+    )
+    chf2o_p = (
+        "5\n"
+        "HCOF + F- product\n"
+        "C  0.000000  0.000000  0.000000\n"
+        "O  1.180000  0.000000  0.000000\n"
+        "H -0.600000  0.920000  0.000000\n"
+        "F  0.000000  0.000000 -2.650000\n"
+        "F -0.650000 -1.120000  0.000000\n"
+    )
+
+    two_pt_dir = tmp_path / "hcof_fluoride_rxn"
+    two_pt_dir.mkdir()
+    (two_pt_dir / "reactant.xyz").write_text(chf2o_r, encoding="utf-8")
+    (two_pt_dir / "product.xyz").write_text(chf2o_p, encoding="utf-8")
+
+    # 1. Stage step succeeds on 2-endpoint folder without Int_tet.xyz
+    rt_2pt = tmp_path / "runner_2pt"
+    env_stage = dict(os.environ, INPUT_DIR=str(two_pt_dir), RUNNER_TEMP=str(rt_2pt))
+    proc_stage = subprocess.run([sys.executable, "-B", "-c", stage_script], env=env_stage, capture_output=True, text=True, check=False)
+    assert proc_stage.returncode == 0, proc_stage.stderr
+    staged_names = sorted(p.name for p in (rt_2pt / "rxn_input").glob("*.xyz"))
+    assert staged_names == ["P.xyz", "R.xyz"]
+
+    # 2. Seal step handles elementary_3pt cleanly (TS.xyz, ts_polished.xyz, int ts_n_imaginary_modes, neb/irc)
+    out_3pt = rt_2pt / "rxn_out"
+    (out_3pt / "geometries").mkdir(parents=True)
+    (out_3pt / "geometries" / "R.xyz").write_text(chf2o_r, encoding="utf-8")
+    (out_3pt / "geometries" / "TS.xyz").write_text(chf2o_ts, encoding="utf-8")
+    (out_3pt / "geometries" / "P.xyz").write_text(chf2o_p, encoding="utf-8")
+    (out_3pt / "ts_polished.xyz").write_text(chf2o_ts, encoding="utf-8")
+    (out_3pt / "neb_path.xyz").write_text(chf2o_r + chf2o_ts + chf2o_p, encoding="utf-8")
+    (out_3pt / "irc_path.xyz").write_text(chf2o_r + chf2o_ts + chf2o_p, encoding="utf-8")
+    (out_3pt / "stationary_table.md").write_text("# 3-pt table\n", encoding="utf-8")
+    (out_3pt / "manifest_sha256.json").write_text('{"schema_version":"cochem.provenance-manifest/1","files_sha256":{}}\n', encoding="utf-8")
+    (out_3pt / "results.json").write_text(
+        json.dumps(
+            {
+                "pathway_mode": "elementary_3pt",
+                "input_mode": "2pt_elementary",
+                "stationary_points": ["R", "TS", "P"],
+                "primary_ts_state": "TS",
+                "ts_n_imaginary_modes": 1,
+                "states": {"TS": {"hessian": {"thermo": {"n_imag": 1}}}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    env_seal_3pt = dict(
+        os.environ,
+        RUNNER_TEMP=str(rt_2pt),
+        STAGE="all",
+        CHARGE="-1",
+        MULTIPLICITY="1",
+        DFT_BASIS="def2-SVP",
+        SOLVENT_NAME="acetonitrile",
+        TEMP_K="298.15",
+        INPUT_NAME="hcof_fluoride_rxn.xyz",
+        COURSE_ID="CHEM312",
+        TARGET_CONTINUATION="workstation",
+        GITHUB_REPOSITORY="ProfJJK-CoChem/CoChem-BASE",
+        GITHUB_SHA="24ff8360d27233f0153541987ec310f4c1b41b7c",
+        GITHUB_RUN_ID="990001",
+        GITHUB_RUN_ATTEMPT="1",
+    )
+    proc_seal_3pt = subprocess.run(
+        [sys.executable, "-B", "-c", seal_script],
+        cwd=str(REPO_ROOT),
+        env=env_seal_3pt,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc_seal_3pt.returncode == 0, proc_seal_3pt.stderr
+    zips_3pt = list((rt_2pt / "handoff").glob("*.zip"))
+    assert len(zips_3pt) == 1
+    rec_3pt = handoff.verify(zips_3pt[0], sidecar_path=zips_3pt[0].with_suffix(".zip.sha256"))
+    assert rec_3pt["target_continuation"] == "workstation"
+    assert rec_3pt["hessian_calculated"] is True
+    assert rec_3pt["n_imaginary_modes"] == 1
+    assert rec_3pt["candidate_count"] == 3
+    assert rec_3pt["metadata"]["pathway_mode"] == "elementary_3pt"
+    assert rec_3pt["metadata"]["kinetic_revision"] == "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2"
+    for member in ("ts_polished.xyz", "results.json", "stationary_table.md", "neb_path.xyz", "irc_path.xyz", "manifest_sha256.json"):
+        assert member in rec_3pt["files_sha256"]
+
+    # 3. Seal step handles stepwise_5pt + long (>256-frame) irc_path.xyz cleanly
+    rt_5pt = tmp_path / "runner_5pt"
+    (rt_5pt / "rxn_input").mkdir(parents=True)
+    (rt_5pt / "rxn_input" / "R.xyz").write_text(chf2o_r, encoding="utf-8")
+    out_5pt = rt_5pt / "rxn_out"
+    (out_5pt / "geometries").mkdir(parents=True)
+    for st, txt in (("R", chf2o_r), ("TS1", chf2o_ts), ("Int_tet", chf2o_ts), ("TS2", chf2o_ts), ("P", chf2o_p)):
+        (out_5pt / "geometries" / f"{st}.xyz").write_text(txt, encoding="utf-8")
+    (out_5pt / "ts_polished.xyz").write_text(chf2o_ts, encoding="utf-8")
+    (out_5pt / "neb_path.xyz").write_text(chf2o_r * 11 + chf2o_p * 11, encoding="utf-8")
+    (out_5pt / "irc_path.xyz").write_text(chf2o_ts * 400, encoding="utf-8")
+    (out_5pt / "stationary_table.md").write_text("# 5-pt table\n", encoding="utf-8")
+    (out_5pt / "manifest_sha256.json").write_text('{"schema_version":"cochem.provenance-manifest/1","files_sha256":{}}\n', encoding="utf-8")
+    (out_5pt / "results.json").write_text(
+        json.dumps(
+            {
+                "pathway_mode": "stepwise_5pt",
+                "input_mode": "2pt_auto_discovered_intermediate",
+                "stationary_points": ["R", "TS1", "Int_tet", "TS2", "P"],
+                "primary_ts_state": "TS1",
+                "ts_n_imaginary_modes": {"TS1": 1, "TS2": 1},
+                "states": {"TS1": {"hessian": {"thermo": {"n_imag": 1}}}, "TS2": {"hessian": {"thermo": {"n_imag": 1}}}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    env_seal_5pt = dict(env_seal_3pt, RUNNER_TEMP=str(rt_5pt), GITHUB_RUN_ID="990002")
+    proc_seal_5pt = subprocess.run(
+        [sys.executable, "-B", "-c", seal_script],
+        cwd=str(REPO_ROOT),
+        env=env_seal_5pt,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc_seal_5pt.returncode == 0, proc_seal_5pt.stderr
+    zips_5pt = list((rt_5pt / "handoff").glob("*.zip"))
+    assert len(zips_5pt) == 1
+    rec_5pt = handoff.verify(zips_5pt[0], sidecar_path=zips_5pt[0].with_suffix(".zip.sha256"))
+    assert rec_5pt["candidate_count"] == 5
+    assert rec_5pt["n_imaginary_modes"] == 1
+    assert rec_5pt["metadata"]["pathway_mode"] == "stepwise_5pt"
+    assert rec_5pt["metadata"]["irc_path_total_frames"] == 400
+    assert rec_5pt["metadata"]["irc_path_staged_frames"] <= handoff.V2_MAX_FRAMES
+
+    # 4. SB-R2-03: Guide omits --dimer-json from default copy-paste command and notes it is optional
+    guide = (REPO_ROOT / "student" / "CHEM312L_STEP_BY_STEP_GUIDE.md").read_text(encoding="utf-8")
+    sec3 = guide.split("### 3. M3", 1)[1].split("### 4. M3", 1)[0]
+    code_block = sec3.split("```bash", 1)[1].split("```", 1)[0]
+    assert "--dimer-json" not in code_block
+    assert "--bsse-json results/bsse_counterpoise.json" in code_block
+    assert "--dimer-json" in sec3 and "optional" in sec3.lower()

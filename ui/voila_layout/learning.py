@@ -33,7 +33,7 @@ _HELP = {
             "Codespaces is the computer that opens this interface in your browser or VS Code. GitHub Actions runs a calculation on a separate computer and returns its results. An engine available in one place is not necessarily available in the other.",
             "Choose GitHub Actions for the course's remote calculation route. Local uses the computer running BASE, which may itself be a Codespace rather than your laptop. HPC uses an institution's configured computing cluster, where jobs can wait in a queue before running.",
             "A GPU can accelerate some calculations when the engine supports it. Google Colab is an optional remote GPU provider. Student Colab submission is currently unavailable while its connection is verified; use the prepared route in your assignment. Your instructor handles provider credentials. A GPU does not by itself improve the scientific method.",
-            "Use ORCA or CFOUR only for an assignment that names one of them. Check their availability in the selected calculation environment. A successful access check confirms access; only a completed calculation establishes that a particular method ran successfully.",
+            "ORCA and CFOUR are optional, strongly recommended engines. Check their availability in the selected calculation environment. A successful access check confirms access; only a completed calculation establishes that a particular method ran successfully.",
         ),
     ),
     "scientific_inputs": _Guidance(
@@ -323,7 +323,7 @@ _SEARCH_WORDS = {
     "files": "file", "charges": "charge", "isotopes": "isotope",
 }
 _SUGGESTED_TOPICS = (
-    "first_calculation", "public_conformers", "course_handoff", "computer_basics", "course_guides", "spectroscopy",
+    "first_calculation", "isomers", "chirality", "spectroscopy", "charge_spin", "read_results",
 )
 
 
@@ -518,37 +518,6 @@ def build_topic_answer(topic_id: str) -> widgets.HTML:
     answer = widgets.HTML(topic_html(topic_id, opened=True))
     answer.add_class("cochem-context-answer")
     return answer
-
-
-def build_control_guide() -> widgets.Widget:
-    """Look up a visible control label without knowing a search term."""
-    from .disclosure import Disclosure
-    by_topic = {}
-    for key, item in CONTROL_HELP.items():
-        if item.get("visibility") != "source_retained_not_displayed":
-            by_topic.setdefault(item["topic"], []).append((item["label"], key))
-    topics = sorted((HELP_CONTENT[key]["title"], key) for key in by_topic)
-    area = widgets.Dropdown(options=[("Choose a topic", "")]+topics, description="Topic:",
-                            layout=widgets.Layout(width="95%"))
-    control = widgets.Dropdown(options=[("Choose a topic first", "")], description="Button or field:",
-                               style={"description_width":"initial"}, layout=widgets.Layout(width="95%"))
-    note = widgets.HTML("<p>Choose a topic, then the label written beside the button or box on your screen.</p>")
-    def show_field(change=None):
-        if control.value:
-            item = CONTROL_HELP[control.value]
-            note.value = ("<p role='status'><b>"+escape(item["label"])+"</b> "+escape(item["hint"])
-                          +"</p><p><b>Find it here.</b> "+escape(item["location"])+"</p>")
-        else:
-            note.value = "<p>Choose the label written beside the button or box on your screen.</p>"
-    def show_area(change):
-        options = sorted(by_topic.get(area.value, ()))
-        control.options = [("Choose a button or field", "")]+options
-        control.disabled = not options
-        show_field()
-    area.observe(show_area, names="value")
-    control.observe(show_field, names="value")
-    control.disabled = True
-    return Disclosure("Explain a button or field", area, control, note)
 
 
 class LearningHelp:

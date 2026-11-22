@@ -1,9 +1,5 @@
 # Start your CoChem project: a guide for students
 
-## First lab in a public fork
-
-Open **1 · Setup → Run your first molecule** in CoChem, or use **Actions → Student conformers (CREST, MACE, CPU PySCF)** in your own public fork. Start with ethanol. The same buttons accept your course research XYZ and return its ZIP and checksum. [Dashboard and GitHub instructions](../student/README.md) · [Worked ethanol lab](../student/ETHANOL_LAB.md)
-
 You can follow this guide with a web browser. No programming experience is
 needed. **CoChem-BASE is the only CoChem repository you create.** BASE prepares
 TOPOS and TORQ and presents their tools on the same CoChem page.
@@ -25,7 +21,7 @@ Use a laptop or desktop browser so there is room for the controls. You only need
 | Item | What it is for |
 | --- | --- |
 | **Your GitHub account** | Stores your `CoChem-` project and runs your Codespace. |
-| **[ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE)** | The course project you fork into your own GitHub account. |
+| **[ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE)** | The template repository you copy into your own GitHub account. |
 
 You do **not** need an organization invitation, an App installation link, an
 access-request issue, or a second Codespace. `CoChem-BASE` automatically sets up
@@ -37,7 +33,7 @@ Codespace, and supports **`GPU4PySCF`** on Google Colab GPU.
 Follow these steps in order:
 
 [1. Account](#1-sign-in-to-your-own-github-account) →
-[2. Copy CoChem-BASE](#2-create-your-public-course-fork) →
+[2. Copy CoChem-BASE](#2-create-your-private-project) →
 [3. Open Codespace](#3-open-your-first-codespace) →
 [6. Upload files](#6-upload-your-own-scientific-files) →
 [7. Settings](#7-choose-your-calculation-settings) →
@@ -53,13 +49,20 @@ Follow these steps in order:
 2. Check your profile picture/menu near the top right and note your **username**.
    This is your GitHub account name, not your email address.
 
-### 2. Create your public course fork
+### 2. Create your private project
 
-A **repository** is an online project folder. A **fork** is your own copy linked to the original project. All course research uses public forks.
+A **repository** means an online project folder on GitHub. A **template** is a
+prepared starting copy of that folder.
 
-1. Open [ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE). Click **Fork** at the top of the page.
-2. Under **Owner**, choose your own GitHub username. You can leave **Repository name** as **CoChem-BASE**. Click **Create fork**.
-3. Check that the name at the top of the new page starts with your username. Bookmark this page. Click **Actions** and enable workflows if GitHub asks.
+1. Open [ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE).
+2. Near the top of the page, choose **Use this template → Create a new repository**
+   (or **Fork**).
+3. In **Owner**, select **your own GitHub username**.
+4. In **Repository name**, enter **`CoChem-[target molecule name]`**, replacing
+   the bracketed words with your molecule or complex name (for example,
+   **`CoChem-benzene`**, **`CoChem-benzene-water`**, or
+   **`CoChem-formic-acid-dimer`**).
+5. Choose **Create repository** and bookmark the new page.
 
 ### 3. Open your first Codespace
 
@@ -70,7 +73,7 @@ on port **8866**.
 1. On **your project's page**, choose the green **Code** button above the file
    list and select the **Codespaces** tab.
 2. Choose **Create codespace on main**.
-3. Wait while the browser workspace builds and installs `PySCF`,
+3. Wait 2–4 minutes while the browser workspace builds and installs `PySCF`,
    `xTB`, `CREST`, `TOPOS`, and `TORQ`. During first-time setup, port **8866**
    displays an auto-refreshing setup progress page and automatically switches to
    the **CoChem Voilà dashboard** as soon as setup finishes.
@@ -81,7 +84,8 @@ on port **8866**.
 ### 4. Connect your project to the lab
 
 *(Optional — not needed for `PySCF`, `GPU4PySCF`, `xTB`, `CREST`, `TOPOS`, or `TORQ`.)*
-For the public lab, open **1 · Setup → Run your first molecule** and follow the [dashboard steps](../student/README.md). The remaining dashboard pages support additional methods your instructor may assign.
+Your first Codespace is already complete and ready for research! Skip directly
+to [Step 6: Upload your own scientific files](#6-upload-your-own-scientific-files).
 
 ### 5. Open the new Codespace for your research
 
@@ -202,10 +206,32 @@ use the analyses required by your study before drawing that conclusion.
    your project. Save your original inputs, downloaded calculation bundles
    and final report there. GitHub's temporary result downloads expire, so
    retrieve and save them promptly.
-2. For the public conformer lab, select **Check run and get files** and then **Save results ZIP** and **Save checksum**. If you used the GitHub website, open its download once to find these two files. Keep the inner CoChem ZIP closed.
-3. Open the shared Google Drive folder named in your assignment. Click **New → File upload**. Choose the two files from **Downloads**. Wait until both names appear in Drive.
-4. Submit your run link and the report requested on the course assignment site. Store grades, personal details and feedback there. Anyone can read files committed to your public fork.
-5. For a different calculation routed through the matrix, use its **Download calculation bundle** button. Keep a copy of your original scientific inputs and results before closing the workspace.
+2. Follow the instructor's instructions for the report and data to submit.
+   To put a small finished report in your private GitHub project, return to
+   its web page and choose **Add file → Upload files**. Select the course-approved
+   report, such as a PDF, then choose **Commit changes** and confirm the save
+   on the screen GitHub presents. Here, **commit** means save a recorded version
+   of that file on GitHub.
+3. Open the saved report from your repository's file list to confirm it is
+   there. Use the course-approved data storage for large calculation bundles
+   and original research data, rather than uploading entire runtime folders
+   or engine distributions to GitHub.
+4. Submit the requested report/project links through your Classroom50
+   assignment. **Classroom50 is the course submission and feedback site**;
+   it does not automatically copy everything from this private project.
+5. Confirm your instructor can open the submission. If repository access is
+   needed, use your project's **Settings → Collaborators → Add people** and
+   invite the instructor's GitHub username supplied by the course. The
+   instructor must accept the invitation. Do not make the project public just
+   to submit an assignment.
+
+**Check before continuing:** your saved files exist outside the Codespace and
+are accessible through the course's submission route.
+
+**Important:** CoChem keeps uploaded inputs and calculation data separately
+from the program's repository. **Commit** or **Sync Changes** does not save all
+of those files. Keep the original files and use **Download calculation bundle**;
+do not rely on the Codespace as your only copy.
 
 ### 10. Stop and reopen your workspace
 
@@ -292,7 +318,7 @@ and updates. Molecular starting geometries are one route; BASE also accepts
 conformer pools, periodic structures, Hessians and supported numerical or native
 calculation outputs.
 
-The public conformer lab runs without ORCA or CFOUR. Your instructor may separately assign either program. An unavailable engine
+ORCA and CFOUR are optional and strongly recommended. An unavailable engine
 leaves its dependent methods unavailable; ingestion and independent supported
 features remain usable.
 

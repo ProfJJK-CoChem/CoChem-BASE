@@ -242,13 +242,13 @@ class StudentActionsClient:
         self._admission_immutable_objects = admission_git.ImmutableGitObjects()
 
     def _request(self, path: str, *, method: str = "GET", body: dict | None = None,
-                 binary: bool = False, maximum_bytes: int | None = None, api_version: str = "2022-11-28"):
+                 binary: bool = False, maximum_bytes: int | None = None):
         if not path.startswith("/") or path.startswith("//"):
             raise ValueError("GitHub API paths must be relative to api.github.com")
         request = urllib.request.Request(self._api_url + path,
             data=canonical_json(body) if body is not None else None, method=method,
             headers={"Authorization": "Bearer " + self._token, "Accept": "application/vnd.github+json",
-                     "X-GitHub-Api-Version": api_version, "User-Agent": "CoChem-BASE-student-actions",
+                     "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "CoChem-BASE-student-actions",
                      "Content-Type": "application/json"})
         limit = maximum_bytes if maximum_bytes is not None else (MAX_ARCHIVE_BYTES if binary else 4 * 1024 * 1024)
         try:

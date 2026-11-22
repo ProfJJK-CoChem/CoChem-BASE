@@ -1,0 +1,91 @@
+# CHEM 312L Team Card Starter Template (Cumberland University)
+# Fill in your team's assigned molecule, 1:1 complex, and Week 10 NAS reaction
+# parameters so your inputs match the exact GitHub Actions workflow fields.
+# Keep your fork PUBLIC and named CoChem-BASE (required by M1 Rubric C4).
+
+course:
+  institution: "Cumberland University"
+  course_code: "CHEM 312L"
+  collaborator_institution: "Tennessee Tech University"
+  lms_submission: "Canvas"
+  atr_resolution_cm1: 0.5
+  ai_usage_log: "AI_Usage_Log.md"
+
+team:
+  team_id: "Team0"
+  github_username: "<your-github-username>"
+  public_fork_url: "https://github.com/<your-github-username>/CoChem-BASE"
+
+# Milestone M1: Monomer conformers + DFT optimization & harmonic frequencies
+# Workflow: .github/workflows/student_conformers.yml
+m1_monomer:
+  xyz: "ethanol.xyz"          # Filename inside examples/student_inputs/
+  charge: "0"                 # -2, -1, 0, 1, 2
+  multiplicity: "1"           # 1, 2, 3
+  mlff: "auto"                # auto routes charged/heteroatom species to AIMNet2
+  method: "B3LYP-D3BJ"        # B3LYP-D3BJ, wB97X-D3, RHF
+  basis: "def2-SVP"           # def2-SVP, def2-TZVP, def2-TZVPP
+  solvation: "gas"            # gas, pcm, ddcosmo
+  solvent_name: "water"       # Used when solvation != gas
+  frequencies: true           # Check frequencies=true to verify 0 imaginary modes
+  course_id: "CHEM312"
+
+# Milestone M2: Local single-bounce diamond ATR-FTIR Kramers-Kronig correction
+# Script: scripts/kk_atr_correct.py
+m2_atr_ftir:
+  input_csv: "data/team_raw_atr.csv"
+  n_inf: 1.40
+  angle_deg: 45.0
+  n_crystal: 2.417            # diamond=2.417, znse=2.40, ge=4.00
+  output_csv: "results/team_kk_corrected.csv"
+  output_json: "results/team_kk_summary.json"
+
+# Milestone M3: 1:1 NCI dimer BSSE + 6-shard Barone GVPT2 anharmonic IR
+# Workflows: 04_crest_nci_dimer_bsse.yml, 05_gvpt2_6shard_anharmonic.yml
+m3_dimer_bsse:
+  xyz: "water_dimer.xyz"      # Filename inside examples/student_inputs/
+  monomer_a_atoms: "3"        # Leading atom count belonging to monomer A
+  charge: "0"
+  multiplicity: "1"
+  monomer_a_charge: "0"
+  monomer_b_charge: "0"
+  method: "wB97X-D3"
+  basis: "def2-TZVP"
+  solvation: "gas"
+
+m3_gvpt2:
+  xyz: "ethanol.xyz"          # Filename inside examples/student_inputs/
+  charge: "0"
+  multiplicity: "1"
+  method: "B3LYP-D3BJ"
+  basis: "def2-SVP"
+  solvation: "gas"
+  pre_optimize: true
+  step_size: "0.01"
+
+# Week 10 NAS Reaction Profile (dispatched Week 10 for M3 draft; synthesized in M4)
+# Workflow: 06_aimnet2_neb_pyscf_rxn_profile.yml
+wk10_nas_rxn:
+  input_dir: "examples/student_inputs/chem312_team4_rxn"
+  input_name: "chem312_team4_rxn.xyz"
+  charge: "-1"
+  multiplicity: "1"
+  solvent_name: "acetonitrile"
+  temp_k: "298.15"
+  dft_basis: "def2-TZVPP"
+  stage: "all"
+
+# Milestone M4: 8-18 GHz CP-FTMW SPCAT prediction (T_rot = 2.0 K) & FactLedger
+# Workflow: 07_spcat_8_18ghz_prediction.yml
+m4_spcat:
+  xyz: "ethanol.xyz"
+  a_mhz: "34891.800"
+  b_mhz: "9350.700"
+  c_mhz: "8135.200"
+  mu_a: "0.046"
+  mu_b: "1.438"
+  mu_c: "0.000"
+  t_rot_k: "2.0"
+  freq_min_ghz: "8.0"
+  freq_max_ghz: "18.0"
+  constant_type: "B0"

@@ -1,8 +1,14 @@
 # Your first CoChem calculation
 
-Use this page once your instructor has connected your project and you can open
-CoChem. If you are still creating your project or opening a Codespace, follow
-the [account and setup guide](GET_STARTED.md) first.
+> **CHEM 312L Organic Chemistry II Lab (Cumberland University):** Use the
+> complete **[CHEM 312L Step-by-Step Guide](../student/CHEM312L_STEP_BY_STEP_GUIDE.md)**
+> for your public `CoChem-BASE` fork, exact M1–M4 GitHub Actions workflows, local
+> Codespace scripts, and Canvas submission instructions. **CHEM 312L students do
+> NOT use Google Colab, ORCA, CFOUR, or Classroom50, and never enter API tokens.**
+
+Use this page once your Codespace is open and you are working inside the CoChem
+browser dashboard. If you are still creating your project or opening a Codespace,
+follow the [account and setup guide](GET_STARTED.md) first.
 
 Have your assignment and the molecular file supplied or approved by your
 instructor beside you. You do not need to write code or install another CoChem

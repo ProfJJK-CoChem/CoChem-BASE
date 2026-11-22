@@ -19,6 +19,7 @@ from scripts import (
     fermi_deperturb,
     gvpt2_shard_runner,
     kk_atr_correct,
+    kraitchman_rs,
     manage_modules,
     vdw_titration_diff,
 )
@@ -666,8 +667,10 @@ def test_module_distribution_scribe_live_operations_and_zero_texas_tech() -> Non
         REPO_ROOT / "scripts" / "vdw_titration_diff.py",
         REPO_ROOT / "scripts" / "fermi_deperturb.py",
         REPO_ROOT / "scripts" / "gvpt2_shard_runner.py",
+        REPO_ROOT / "scripts" / "kraitchman_rs.py",
         REPO_ROOT / "scripts" / "fact_ledger.py",
         REPO_ROOT / "student" / "README.md",
+        REPO_ROOT / "student" / "CHEM312L_STEP_BY_STEP_GUIDE.md",
         REPO_ROOT / ".docs" / "GET_STARTED.md",
     ]
     for path in new_files:
@@ -675,3 +678,299 @@ def test_module_distribution_scribe_live_operations_and_zero_texas_tech() -> Non
         assert "texas tech" not in text.lower(), f"Forbidden 'Texas Tech' in {path}"
         for leak in ("FarIR_v16", "MRW_Permission"):
             assert leak not in text, f"Forbidden FarIR leak {leak!r} in {path}"
+
+
+# ---------------------------------------------------------------------------
+# 7. QA-R1 Student UX Fixes: Kraitchman |r_s|, KK Aliases, SPCAT CLI & Hygiene
+# ---------------------------------------------------------------------------
+
+
+def _rigid_rotor_abc_and_pas(masses: np.ndarray, coords: np.ndarray) -> tuple[tuple[float, float, float], np.ndarray]:
+    """Compute exact rigid-rotor rotational constants (A, B, C in MHz) and principal-axis coordinates."""
+    com = np.sum(masses[:, None] * coords, axis=0) / np.sum(masses)
+    rc = coords - com
+    inertia = np.zeros((3, 3), dtype=np.float64)
+    for mi, (x, y, z) in zip(masses, rc):
+        inertia[0, 0] += mi * (y * y + z * z)
+        inertia[1, 1] += mi * (x * x + z * z)
+        inertia[2, 2] += mi * (x * x + y * y)
+        inertia[0, 1] -= mi * x * y
+        inertia[0, 2] -= mi * x * z
+        inertia[1, 2] -= mi * y * z
+    inertia[1, 0] = inertia[0, 1]
+    inertia[2, 0] = inertia[0, 2]
+    inertia[2, 1] = inertia[1, 2]
+    evals, evecs = np.linalg.eigh(inertia)
+    abc_mhz = tuple(float(kraitchman_rs.ROT_CONST_CONVERSION_MHZ_AMU_A2 / val) for val in evals)
+    return abc_mhz, rc @ evecs  # type: ignore[return-value]
+
+
+def test_kraitchman_rs_3d_planar_and_honest_costain_imaginary(tmp_path: Path) -> None:
+    """Verify exact 3D & planar Kraitchman |r_s| recovery plus honest r_s^2 < 0 imaginary flagging."""
+    # Case A: Non-planar 3D rigid asymmetric rotor -> exact recovery to < 1e-10 A
+    masses_3d = np.array([12.0, 15.994915, 15.994915, 1.007825, 1.007825, 18.998403], dtype=np.float64)
+    coords_3d = np.array(
+        [
+            [0.00, 0.10, 0.05],
+            [1.20, 0.20, -0.10],
+            [-0.80, -0.90, 0.30],
+            [-0.30, 1.15, 0.40],
+            [-1.60, -0.60, -0.25],
+            [0.50, -0.40, -1.10],
+        ],
+        dtype=np.float64,
+    )
+    abc0_3d, pas0_3d = _rigid_rotor_abc_and_pas(masses_3d, coords_3d)
+    dm = 1.006277
+    masses_3d_iso = masses_3d.copy()
+    masses_3d_iso[3] += dm
+    abc1_3d, _ = _rigid_rotor_abc_and_pas(masses_3d_iso, coords_3d)
+
+    res_3d = kraitchman_rs.compute_kraitchman_rs(
+        parent_abc_mhz=abc0_3d,
+        iso_abc_mhz=abc1_3d,
+        delta_mass_amu=dm,
+        parent_mass_amu=float(np.sum(masses_3d)),
+        mode="nonplanar",
+        label="test_3d_atom3",
+    )
+    assert res_3d["course_institution"] == "Cumberland University"
+    assert res_3d["collaborator_institution"] == "Tennessee Tech University"
+    assert res_3d["any_imaginary_coordinate"] is False
+    for idx, ax in enumerate(("a", "b", "c")):
+        assert res_3d["coordinates"][ax]["imaginary"] is False
+        assert res_3d["coordinates"][ax]["abs_rs_angstrom"] == pytest.approx(abs(float(pas0_3d[3, idx])), abs=1e-9)
+
+    # Case B: Planar rigid asymmetric rotor (z = 0, trans-HCOOH-like) via CLI with JSON inputs
+    masses_pl = np.array([12.0, 15.994915, 15.994915, 1.007825, 1.007825], dtype=np.float64)
+    coords_pl = np.array(
+        [
+            [0.00, 0.00, 0.0],
+            [1.20, 0.05, 0.0],
+            [-0.65, 1.15, 0.0],
+            [-0.55, -0.95, 0.0],
+            [-1.60, 0.98, 0.0],
+        ],
+        dtype=np.float64,
+    )
+    abc0_pl, pas0_pl = _rigid_rotor_abc_and_pas(masses_pl, coords_pl)
+    masses_pl_iso = masses_pl.copy()
+    masses_pl_iso[4] += dm
+    abc1_pl, _ = _rigid_rotor_abc_and_pas(masses_pl_iso, coords_pl)
+
+    parent_json = tmp_path / "parent.json"
+    iso_json = tmp_path / "iso.json"
+    out_json = tmp_path / "rs.json"
+    out_md = tmp_path / "rs.md"
+    parent_json.write_text(
+        json.dumps(
+            {
+                "a_mhz": abc0_pl[0],
+                "b_mhz": abc0_pl[1],
+                "c_mhz": abc0_pl[2],
+                "molecular_mass_amu": float(np.sum(masses_pl)),
+            }
+        ),
+        encoding="utf-8",
+    )
+    iso_json.write_text(
+        json.dumps(
+            {
+                "a_mhz": abc1_pl[0],
+                "b_mhz": abc1_pl[1],
+                "c_mhz": abc1_pl[2],
+                "molecular_mass_amu": float(np.sum(masses_pl_iso)),
+            }
+        ),
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(REPO_ROOT / "scripts" / "kraitchman_rs.py"),
+            "--parent",
+            str(parent_json),
+            "--iso",
+            str(iso_json),
+            "--delta-mass-amu",
+            str(dm),
+            "--mode",
+            "planar",
+            "--output-json",
+            str(out_json),
+            "--output-md",
+            str(out_md),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert proc.returncode == 0, f"kraitchman_rs.py CLI failed:\n{proc.stderr}"
+    cli_res = json.loads(out_json.read_text(encoding="utf-8"))
+    assert cli_res["effective_mode"] == "planar"
+    assert cli_res["coordinates"]["a"]["abs_rs_angstrom"] == pytest.approx(abs(float(pas0_pl[4, 0])), abs=1e-9)
+    assert cli_res["coordinates"]["b"]["abs_rs_angstrom"] == pytest.approx(abs(float(pas0_pl[4, 1])), abs=1e-9)
+    assert cli_res["coordinates"]["c"]["in_plane_fixed"] is True
+    assert "Cumberland University" in out_md.read_text(encoding="utf-8")
+    assert "Tennessee Tech University" in out_md.read_text(encoding="utf-8")
+
+    # Case C: Costain imaginary coordinate (r_s^2 < 0) due to positive inertial defect on a planar atom
+    # Slightly larger I_c' (lower C') -> positive inertial defect Delta_0' > 0 -> Delta_P_c < 0 -> c^2 < 0
+    abc1_vib = (abc1_pl[0], abc1_pl[1], abc1_pl[2] * 0.998)
+    res_imag = kraitchman_rs.compute_kraitchman_rs(
+        parent_abc_mhz=abc0_pl,
+        iso_abc_mhz=abc1_vib,
+        delta_mass_amu=dm,
+        parent_mass_amu=float(np.sum(masses_pl)),
+        mode="nonplanar",
+    )
+    assert res_imag["coordinates"]["c"]["rs_squared_angstrom2"] < 0.0
+    assert res_imag["coordinates"]["c"]["imaginary"] is True
+    assert res_imag["coordinates"]["c"]["abs_rs_angstrom"] is None
+    assert res_imag["coordinates"]["c"]["costain_uncertainty_angstrom"] is None
+    assert res_imag["any_imaginary_coordinate"] is True
+    assert res_imag["distance_from_com_angstrom"] is None
+
+
+def test_kk_atr_correct_backward_compatible_cli_aliases(tmp_path: Path) -> None:
+    """Verify --csv, --out, --angle, and --crystal diamond/znse/ge match canonical flags identically."""
+    nu = np.linspace(400.0, 4000.0, 3601)
+    n_complex = kk_atr_correct.damped_lorentzian_refractive_index(
+        nu, oscillators=[(1725.0, 18.0, 62000.0)], n_inf=1.3714
+    )
+    atr_abs = kk_atr_correct.fresnel_atr_forward(n_complex, n_crystal=2.417, angle_deg=45.0)["atr_absorbance"]
+    in_csv = tmp_path / "hcooh_atr.csv"
+    with in_csv.open("w", encoding="utf-8", newline="\n") as fh:
+        w = csv.writer(fh)
+        w.writerow(["wavenumber_cm-1", "absorbance"])
+        for x, y in zip(nu, atr_abs):
+            w.writerow([f"{x:.4f}", f"{y:.8f}"])
+
+    canon_csv = tmp_path / "canon.csv"
+    canon_json = tmp_path / "canon.json"
+    alias_csv = tmp_path / "alias.csv"
+    alias_json = tmp_path / "alias.json"
+
+    p_canon = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(REPO_ROOT / "scripts" / "kk_atr_correct.py"),
+            "--input",
+            str(in_csv),
+            "--n-inf",
+            "1.3714",
+            "--angle-deg",
+            "45.0",
+            "--n-crystal",
+            "2.417",
+            "--output-csv",
+            str(canon_csv),
+            "--output-json",
+            str(canon_json),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert p_canon.returncode == 0, p_canon.stderr
+
+    p_alias = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(REPO_ROOT / "scripts" / "kk_atr_correct.py"),
+            "--csv",
+            str(in_csv),
+            "--n-inf",
+            "1.3714",
+            "--angle",
+            "45.0",
+            "--crystal",
+            "diamond",
+            "--out",
+            str(alias_csv),
+            "--output-json",
+            str(alias_json),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert p_alias.returncode == 0, f"Alias CLI failed:\n{p_alias.stderr}"
+
+    j_canon = json.loads(canon_json.read_text(encoding="utf-8"))
+    j_alias = json.loads(alias_json.read_text(encoding="utf-8"))
+    assert j_alias["n_crystal"] == pytest.approx(2.417)
+    assert j_alias["angle_deg"] == pytest.approx(45.0)
+    assert j_alias["nu_max_atr_cm1"] == j_canon["nu_max_atr_cm1"]
+    assert j_alias["nu_max_kappa_cm1"] == j_canon["nu_max_kappa_cm1"]
+    assert j_alias["delta_nu_cm1"] == j_canon["delta_nu_cm1"]
+    assert alias_csv.is_file()
+    assert kk_atr_correct.parse_crystal_refractive_index("znse") == pytest.approx(2.40)
+    assert kk_atr_correct.parse_crystal_refractive_index("ge") == pytest.approx(4.00)
+    assert kk_atr_correct.parse_crystal_refractive_index("2.417") == pytest.approx(2.417)
+
+
+def test_spcat_runner_help_succeeds_without_pyarrow() -> None:
+    """Verify scripts/spcat_runner.py --help exits 0 even when pyarrow and pandas are absent."""
+    probe = (
+        "import sys, runpy; "
+        "sys.modules['pyarrow'] = None; "
+        "sys.modules['pyarrow.parquet'] = None; "
+        "sys.modules['pandas'] = None; "
+        "sys.argv = ['scripts/spcat_runner.py', '--help']; "
+        "runpy.run_path('scripts/spcat_runner.py', run_name='__main__')"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-B", "-c", probe],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert proc.returncode == 0, f"spcat_runner.py --help failed without pyarrow:\n{proc.stderr}"
+    assert "--a-mhz" in proc.stdout
+    assert "--output-csv" in proc.stdout
+
+
+def test_student_guides_hygiene_devcontainer_path_and_starter_templates() -> None:
+    """Verify SB-01..SB-10 student docs hygiene, devcontainer PATH wiring, and starter templates."""
+    required_workflows = (
+        "student_conformers.yml",
+        "04_crest_nci_dimer_bsse.yml",
+        "05_gvpt2_6shard_anharmonic.yml",
+        "06_aimnet2_neb_pyscf_rxn_profile.yml",
+        "07_spcat_8_18ghz_prediction.yml",
+    )
+    for guide_rel in ("student/CHEM312L_STEP_BY_STEP_GUIDE.md", "student/README.md"):
+        guide_path = REPO_ROOT / guide_rel
+        assert guide_path.is_file(), f"Missing student guide: {guide_rel}"
+        text = guide_path.read_text(encoding="utf-8")
+        assert "Google Colab" not in text, f"Forbidden 'Google Colab' in {guide_rel}"
+        assert "Classroom50" not in text, f"Forbidden 'Classroom50' in {guide_rel}"
+        assert "texas tech" not in text.lower(), f"Forbidden 'Texas Tech' in {guide_rel}"
+        assert "Cumberland University" in text
+        assert "Tennessee Tech University" in text
+        for wf in required_workflows:
+            assert wf in text, f"Missing canonical workflow {wf} in {guide_rel}"
+
+    # Verify devcontainer remoteEnv.PATH and setup_devcontainer.sh profile.d + bashrc wiring (SB-02)
+    dev_cfg = json.loads((REPO_ROOT / ".devcontainer" / "devcontainer.json").read_text(encoding="utf-8"))
+    assert dev_cfg["remoteEnv"]["PATH"].startswith("/home/vscode/CoChem_Artifacts/ui-env/bin:")
+    setup_sh = (REPO_ROOT / "scripts" / "setup_devcontainer.sh").read_text(encoding="utf-8")
+    assert "/etc/profile.d/cochem-ui-env.sh" in setup_sh
+    assert "/home/vscode/.bashrc" in setup_sh
+
+    # Verify honest Codespace setup wait time & starter templates (SB-05)
+    hosted_text = (REPO_ROOT / "scripts" / "hosted_dashboard.py").read_text(encoding="utf-8")
+    assert "5–10 minutes on a fresh Codespace" in hosted_text
+    assert "2–4 minutes" not in hosted_text
+    for starter in ("AI_Usage_Log.md", "targets/team_card.yaml", "data/.gitkeep", "results/.gitkeep"):
+        assert (REPO_ROOT / starter).is_file(), f"Missing student starter template: {starter}"
+    assert "!examples/student_inputs/**/*.xyz" in (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")

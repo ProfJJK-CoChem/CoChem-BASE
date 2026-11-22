@@ -50,7 +50,7 @@
     "ci_tools/pytest_evidence.py": "dcaad8b5b52a781ed94d08a318d7e507193fd8aaca2d1c795d5a4c1d9d1c0f3c",
     "ci_tools/quarantine_startup/sitecustomize.py": "86c71861a0a9c6b8fda659c9c6509fb725e0752e724dc5bb24e8d04681c4259e",
     "ci_tools/run_owned_cleanup_diagnostic.py": "688f6ef8a354046472adc486e022c29a3a7f4e001e69b5306570456973ac4f8c",
-    "ci_tools/source_fixtures.json": "8be8aa0d0590558f0360f8cdf9534bce6bf94c90d066cea716d45df92dcff6ba",
+    "ci_tools/source_fixtures.json": "9075b42bfa7d27f2928aca6cd8d1079fef2bc48eee46cbd3156ed7bd69b8d2e4",
     "ci_tools/source_fixtures.py": "26168892e51384e8cdd6625b37983f1949fe5666218920ecdb4aeeca208597f6",
     "ci_tools/source_quarantine.py": "c004a2fa3ccbcc0f66d039effec6c58ec4c067d58709e1303ffc5b8469b6b5f5",
     "ci_tools/verify_anti_patching.py": "9cb181c9d4072213b39ff04cafefd96c88e9c75c746dc5bcf24769c60cd651e4",

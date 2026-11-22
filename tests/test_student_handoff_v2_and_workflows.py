@@ -403,7 +403,7 @@ def test_module_distribution_manifest_has_verified_adapters_and_passes_loader() 
     expected = {
         "bench": ("bench_provider", "cochem_bench.provider:bench_provider", "cb874d8f20723c70b26b805329cb873ebe1c463f"),
         "topos": ("topos_provider", "topos.base_provider:provider", "734aae0a1ef1f08e0faa2912780aefe25d576eb0"),
-        "torq": ("torq_provider", "cochem_torq.ecosystem:module_provider", "1c4087bd33aa43b75f6fe4cdf1c38cf8d8d6f24b"),
+        "torq": ("torq_provider", "cochem_torq.ecosystem:module_provider", "1f4359d125a7951dc36e62fb6476a9a002205ed3"),
         "geom": ("geom_provider", "cochem_geom.provider:geom_provider", "ae8f1e7d56a4030e377d36ca7c9516cd0da16851"),
         "spycfit": ("spycfit_provider", "cochem_spycfit.module_provider:spycfit_provider", "aebe6fd8d5939ed617dad72e1392230e3979faf9"),
         "kinetic": ("kinetic_provider", "cochem_kinetic.provider:kinetic_provider", "bd83c8c530a4241ada9fc02229bc19d7c46095c8"),

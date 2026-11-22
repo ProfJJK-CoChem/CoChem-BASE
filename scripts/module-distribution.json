@@ -224,7 +224,7 @@
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "1c4087bd33aa43b75f6fe4cdf1c38cf8d8d6f24b",
+      "revision": "1f4359d125a7951dc36e62fb6476a9a002205ed3",
       "distribution": "CoChem-TORQ",
       "adapter": "torq_provider",
       "entry_point": "cochem_torq.ecosystem:module_provider",

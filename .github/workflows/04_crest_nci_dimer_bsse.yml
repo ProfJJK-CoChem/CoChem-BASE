@@ -6,7 +6,7 @@ on:
       xyz:
         description: Dimer starting XYZ filename from examples/student_inputs/
         required: true
-        default: ethanol.xyz
+        default: water_dimer.xyz
         type: string
       monomer_a_atoms:
         description: Number of leading atoms belonging to monomer A (remainder forms monomer B)

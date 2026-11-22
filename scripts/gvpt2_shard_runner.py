@@ -29,6 +29,24 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 DEFAULT_N_SHARDS = 6
+HARTREE_TO_CM1 = 219474.63136320
+
+
+def parse_harmonic_frequencies_cm1(raw_freqs: Sequence[Any]) -> list[float]:
+    """Convert PySCF thermo.harmonic_analysis frequencies (complex for imaginary modes) to signed cm^-1.
+
+    PySCF represents imaginary modes as purely imaginary complex numbers ``1j * w``;
+    taking ``np.real()`` silently zeroes them out. Any entry with ``|imag| > 1e-6``
+    is returned as ``-abs(imag)`` so imaginary-mode guards fail fast.
+    """
+    parsed: list[float] = []
+    for item in raw_freqs:
+        val = complex(item)
+        if abs(val.imag) > 1e-6:
+            parsed.append(-abs(float(val.imag)))
+        else:
+            parsed.append(float(val.real))
+    return parsed
 
 
 def _utc_now() -> str:
@@ -122,6 +140,7 @@ def build_gvpt2_plan(
     coord_basis = "cartesian"
     harmonic_cm1: list[float] | None = None
     eq_hessian_q: list[list[float]] | None = None
+    dx_bohr: list[list[float]] | None = None
     disp_vectors: list[np.ndarray] = []
 
     if normal_modes_json is not None:
@@ -136,6 +155,13 @@ def build_gvpt2_plan(
         disp_vectors = [raw_vecs[i] for i in range(len(harmonic_cm1))]
         if "eq_hessian_q" in nm_data:
             eq_hessian_q = [[float(v) for v in row] for row in nm_data["eq_hessian_q"]]
+        if "dx_bohr" in nm_data and nm_data["dx_bohr"] is not None:
+            dx_arr = np.asarray(nm_data["dx_bohr"], dtype=np.float64)
+            if dx_arr.shape != (len(harmonic_cm1), 3 * n_atoms):
+                raise ValueError(
+                    f"Expected dx_bohr shape {(len(harmonic_cm1), 3 * n_atoms)}, got {dx_arr.shape}."
+                )
+            dx_bohr = dx_arr.tolist()
         coord_basis = "normal_mode"
     else:
         for atom_idx in range(n_atoms):
@@ -193,6 +219,7 @@ def build_gvpt2_plan(
         "step_size": float(step_size),
         "harmonic_cm1": harmonic_cm1,
         "eq_hessian_q": eq_hessian_q,
+        "dx_bohr": dx_bohr,
         "shards": shards_payload,
     }
     plan_path = out_dir / "gvpt2_plan.json"
@@ -508,6 +535,8 @@ def run_pyscf_shard(
     out_dir = output_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     plan_dir = plan_path.resolve().parent
+    dx_bohr_raw = plan.get("dx_bohr")
+    dx_bohr_mat = np.asarray(dx_bohr_raw, dtype=np.float64) if dx_bohr_raw is not None else None
 
     displacements_out: dict[str, Any] = {}
     for entry in plan["shards"][key]:
@@ -528,12 +557,19 @@ def run_pyscf_shard(
         hess_raw = mf.Hessian().kernel()
         n_at = len(symbols)
         hess_2d = np.asarray(hess_raw, dtype=np.float64).transpose(0, 2, 1, 3).reshape(3 * n_at, 3 * n_at)
+        if dx_bohr_mat is not None:
+            hess_out = (dx_bohr_mat @ hess_2d @ dx_bohr_mat.T) * HARTREE_TO_CM1
+            hess_basis = "reduced_normal_mode_cm1"
+        else:
+            hess_out = hess_2d
+            hess_basis = "cartesian_hartree_bohr2"
         displacements_out[did] = {
             "mode_index": int(entry["mode_index"]),
             "sign": int(entry["sign"]),
             "energy_hartree": e_tot,
-            "hessian_shape": [3 * n_at, 3 * n_at],
-            "hessian": hess_2d.tolist(),
+            "hessian_basis": hess_basis,
+            "hessian_shape": [int(hess_out.shape[0]), int(hess_out.shape[1])],
+            "hessian": hess_out.tolist(),
             "xyz_sha256": sha256_file(xyz_file),
         }
 

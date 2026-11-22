@@ -425,7 +425,7 @@ def _setup_status_server(artifact_dir: Path, port: int):
     server = None
     thread = None
     try:
-        server = _ThreadingServer(("127.0.0.1", port), _Handler)
+        server = _ThreadingServer(("0.0.0.0", port), _Handler)
         thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.2}, daemon=True)
         thread.start()
     except OSError:

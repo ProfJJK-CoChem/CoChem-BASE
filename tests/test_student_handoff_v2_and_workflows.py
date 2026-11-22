@@ -432,3 +432,43 @@ def test_readme_preserves_nov8_onboarding_and_adds_public_fork_cure_route() -> N
     assert "Tennessee Tech University" in text
     assert "student_conformers.yml" in text
     assert "cochem.student-handoff/2" in text
+
+
+def test_p8_student_qualification_fixes_devcontainer_workflows_and_examples() -> None:
+    """Verify all 6 P8 student-qualification fixes cleanly without mocks."""
+    # Fix 1: devcontainer enables sshd:1 alongside github-cli:1
+    devcontainer = json.loads((REPO_ROOT / ".devcontainer" / "devcontainer.json").read_text(encoding="utf-8"))
+    assert "ghcr.io/devcontainers/features/github-cli:1" in devcontainer["features"]
+    assert "ghcr.io/devcontainers/features/sshd:1" in devcontainer["features"]
+
+    # Fix 2: CPU PyTorch constraint file + --extra-index-url + assert torch.version.cuda is None
+    for wf_name in ("student_conformers.yml", "06_aimnet2_neb_pyscf_rxn_profile.yml"):
+        raw = (REPO_ROOT / ".github" / "workflows" / wf_name).read_text(encoding="utf-8")
+        assert "cpu-constraints.txt" in raw
+        assert "torch==2.8.0+cpu" in raw
+        assert "--extra-index-url https://download.pytorch.org/whl/cpu" in raw
+        assert "assert torch.version.cuda is None" in raw
+
+    # Fix 3: CoChem-KINETIC pinned SHA + Team 4 balanced C4H7O4- example geometries
+    wf06_raw = (REPO_ROOT / ".github" / "workflows" / "06_aimnet2_neb_pyscf_rxn_profile.yml").read_text(encoding="utf-8")
+    wf06 = yaml.safe_load(wf06_raw)
+    wf06_inputs = wf06.get("on", wf06.get(True))["workflow_dispatch"]["inputs"]
+    assert "bd83c8c530a4241ada9fc02229bc19d7c46095c8" in wf06_raw
+    assert "6eade693af" not in wf06_raw
+    assert wf06_inputs["input_dir"]["default"] == "examples/student_inputs/chem312_team4_rxn"
+    assert wf06_inputs["dft_basis"]["default"] == "def2-TZVPP"
+    assert wf06_inputs["stage"]["default"] == "all"
+    team4_dir = REPO_ROOT / "examples" / "student_inputs" / "chem312_team4_rxn"
+    for fname in ("R.xyz", "Int_tet.xyz", "P.xyz", "TS1.xyz", "TS2.xyz", "reactant.xyz", "product.xyz"):
+        parsed = handoff.read_input(team4_dir / fname, charge=-1, multiplicity=1)
+        assert len(parsed["symbols"]) == 15
+        assert parsed["formula"] == "C4H7O4-"
+
+    # Fix 5: Real 6-atom hydrogen-bonded water dimer default for 04_crest_nci_dimer_bsse.yml
+    wf04 = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "04_crest_nci_dimer_bsse.yml").read_text(encoding="utf-8"))
+    wf04_inputs = wf04.get("on", wf04.get(True))["workflow_dispatch"]["inputs"]
+    assert wf04_inputs["xyz"]["default"] == "water_dimer.xyz"
+    assert wf04_inputs["monomer_a_atoms"]["default"] == "3"
+    dimer = handoff.read_input(REPO_ROOT / "examples" / "student_inputs" / "water_dimer.xyz", charge=0, multiplicity=1)
+    assert dimer["symbols"] == ["O", "H", "H", "O", "H", "H"]
+    assert dimer["formula"] == "H4O2"

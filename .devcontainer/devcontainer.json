@@ -2,7 +2,8 @@
   "name": "CoChem-BASE dashboard",
   "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
   "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/sshd:1": {}
   },
   "containerEnv": {
     "COCHEM_ARTIFACT_DIR": "/home/vscode/CoChem_Artifacts",

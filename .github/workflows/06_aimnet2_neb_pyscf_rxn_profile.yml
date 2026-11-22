@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       input_dir:
-        description: Relative folder containing reactant.xyz and product.xyz (and optional ts_guess.xyz)
+        description: Relative folder containing R.xyz, Int_tet.xyz, P.xyz (or reactant.xyz/product.xyz)
         required: true
-        default: examples/student_inputs
+        default: examples/student_inputs/chem312_team4_rxn
         type: string
       input_name:
         description: Logical input filename stem for the sealed handoff receipt
         required: true
-        default: chem312_rxn_profile.xyz
+        default: chem312_team4_rxn.xyz
         type: string
       charge:
         description: Total molecular charge (-2, -1, 0, 1, 2)
@@ -35,6 +35,18 @@ on:
         required: true
         default: '298.15'
         type: string
+      dft_basis:
+        description: CPU PySCF DFT basis set (def2-TZVPP for production CHEM 312; def2-SVP for fast checks)
+        required: true
+        default: def2-TZVPP
+        type: choice
+        options: [def2-TZVPP, def2-TZVP, def2-SVP, STO-3G]
+      stage:
+        description: Execution stage (all = full AIMNet2 + PySCF/PCM; mlff = AIMNet2 CI-NEB/TS/IRC only; validate = stoichiometry check)
+        required: true
+        default: all
+        type: choice
+        options: [all, mlff, validate]
       course_id:
         description: Course identifier (Tennessee Tech University)
         required: true
@@ -62,6 +74,8 @@ jobs:
       MULTIPLICITY: ${{ inputs.multiplicity }}
       SOLVENT_NAME: ${{ inputs.solvent_name }}
       TEMP_K: ${{ inputs.temp_k }}
+      DFT_BASIS: ${{ inputs.dft_basis }}
+      STAGE: ${{ inputs.stage }}
       COURSE_ID: ${{ inputs.course_id }}
       TARGET_CONTINUATION: ${{ inputs.target_continuation }}
       OMP_NUM_THREADS: '2'
@@ -75,69 +89,180 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Install charge-aware AIMNet2, Sella, PySCF, and CoChem-KINETIC
+      - name: Install charge-aware AIMNet2, Sella, PySCF, and CoChem-KINETIC (CPU PyTorch constrained)
         run: |
           python -m venv "$RUNNER_TEMP/kinetic"
           py="$RUNNER_TEMP/kinetic/bin/python"
+          printf 'torch==2.8.0+cpu\n' > "$RUNNER_TEMP/cpu-constraints.txt"
           "$py" -m pip install --upgrade pip
           "$py" -m pip install 'torch==2.8.0+cpu' --index-url https://download.pytorch.org/whl/cpu
-          "$py" -m pip install 'aimnet>=0.2.0' 'ase>=3.22.0' 'sella>=2.3.0' 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0'
-          "$py" -m pip install 'git+https://github.com/ProfJJK-CoChem/CoChem-KINETIC.git@6eade693af7c3e7ca4f43a62582625b8e2903ea5'
-      - name: Execute 11-image AIMNet2 CI-NEB, TS polish, IRC, and PySCF DF-wB97X-D3/def2-TZVPP + PCM
+          "$py" -m pip install -c "$RUNNER_TEMP/cpu-constraints.txt" --extra-index-url https://download.pytorch.org/whl/cpu \
+            'aimnet>=0.2.0' 'ase>=3.22.0' 'sella>=2.3.0' 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0'
+          "$py" -m pip install -c "$RUNNER_TEMP/cpu-constraints.txt" --extra-index-url https://download.pytorch.org/whl/cpu \
+            'git+https://github.com/ProfJJK-CoChem/CoChem-KINETIC.git@bd83c8c530a4241ada9fc02229bc19d7c46095c8'
+          "$py" -c 'import torch; assert torch.version.cuda is None'
+          "$RUNNER_TEMP/kinetic/bin/cochem-kinetic" rxn-profile --help > /dev/null
+      - name: Stage normalized reaction-profile inputs
+        run: |
+          python - <<'PY'
+          import os, shutil
+          from pathlib import Path
+
+          src = Path(os.environ["INPUT_DIR"])
+          dst = Path(os.environ["RUNNER_TEMP"]) / "rxn_input"
+          dst.mkdir(parents=True, exist_ok=True)
+          if not src.is_dir():
+              raise FileNotFoundError(f"Reaction input directory not found: {src}")
+
+          for xyz in sorted(src.glob("*.xyz")):
+              shutil.copyfile(xyz, dst / xyz.name)
+          if not (dst / "R.xyz").is_file() and (dst / "reactant.xyz").is_file():
+              shutil.copyfile(dst / "reactant.xyz", dst / "R.xyz")
+          if not (dst / "P.xyz").is_file() and (dst / "product.xyz").is_file():
+              shutil.copyfile(dst / "product.xyz", dst / "P.xyz")
+          for required in ("R.xyz", "Int_tet.xyz", "P.xyz"):
+              if not (dst / required).is_file():
+                  raise FileNotFoundError(
+                      f"cochem-kinetic rxn-profile requires {required} in {src}; found {sorted(p.name for p in dst.glob('*.xyz'))}"
+                  )
+          print("Staged inputs:", sorted(p.name for p in dst.glob("*.xyz")))
+          PY
+      - name: Execute AIMNet2 CI-NEB, TS polish, IRC, and PySCF DF-wB97X-D3 + PCM
         run: |
           "$RUNNER_TEMP/kinetic/bin/cochem-kinetic" rxn-profile \
-            --input-dir "$INPUT_DIR" \
+            --input-dir "$RUNNER_TEMP/rxn_input" \
             --output-dir "$RUNNER_TEMP/rxn_out" \
             --charge "$CHARGE" \
             --multiplicity "$MULTIPLICITY" \
             --solvent "$SOLVENT_NAME" \
             --temp-k "$TEMP_K" \
+            --basis "$DFT_BASIS" \
             --dft-engine cpu \
-            --stage all
+            --stage "$STAGE"
       - name: Seal and verify cochem.student-handoff/2 reaction profile bundle
         run: |
           python - <<'PY'
           import json, os, shutil, sys
           from pathlib import Path
+
           sys.path.insert(0, "student")
           import handoff
 
+          rxn_in = Path(os.environ["RUNNER_TEMP"]) / "rxn_input"
           rxn_out = Path(os.environ["RUNNER_TEMP"]) / "rxn_out"
           stage = Path(os.environ["RUNNER_TEMP"]) / "bundle"
           stage.mkdir(parents=True, exist_ok=True)
+          run_stage = os.environ["STAGE"]
+          charge = int(os.environ["CHARGE"])
+          mult = int(os.environ["MULTIPLICITY"])
 
-          input_dir = Path(os.environ["INPUT_DIR"])
-          starting = input_dir / "reactant.xyz"
+          starting = rxn_in / "R.xyz"
           if not starting.is_file():
-              raise FileNotFoundError(f"Expected starting geometry at {starting}")
+              starting = rxn_in / "reactant.xyz"
+          if not starting.is_file():
+              raise FileNotFoundError(f"Expected starting geometry R.xyz or reactant.xyz in {rxn_in}")
           shutil.copyfile(starting, stage / "input.xyz")
 
-          ts_xyz = rxn_out / "ts_polished.xyz"
-          if not ts_xyz.is_file():
-              ts_xyz = rxn_out / "ts_guess.xyz"
+          # Locate converged stationary-state geometries produced by cochem-kinetic
+          geom_dir = rxn_out / "geometries"
+          if not geom_dir.is_dir():
+              geom_dir = rxn_out / "mlff_geometries"
+
+          ts_state = None
+          ts_xyz = None
+          for candidate_state in ("TS2", "TS1"):
+              cand = geom_dir / f"{candidate_state}.xyz" if geom_dir.is_dir() else None
+              if cand is not None and cand.is_file():
+                  ts_state = candidate_state
+                  ts_xyz = cand
+                  break
+          if ts_xyz is None:
+              for fallback in (rxn_in / "TS2.xyz", rxn_in / "TS1.xyz", starting):
+                  if fallback.is_file():
+                      ts_xyz = fallback
+                      ts_state = fallback.stem
+                      break
           shutil.copyfile(ts_xyz, stage / "ts_guess.xyz")
 
-          for extra in ("results.json", "manifest_sha256.json", "neb_path.xyz", "irc_path.xyz"):
+          # Copy individual stationary geometries and assemble ordered multi-frame reaction profile XYZ
+          state_order = ("R", "TS1", "Int_tet", "TS2", "P")
+          profile_frames: list[str] = []
+          if geom_dir.is_dir():
+              (stage / "geometries").mkdir(exist_ok=True)
+              for st in state_order:
+                  p = geom_dir / f"{st}.xyz"
+                  if p.is_file():
+                      shutil.copyfile(p, stage / "geometries" / f"{st}.xyz")
+                      profile_frames.append(p.read_text(encoding="utf-8").strip())
+
+          ensemble_rel = None
+          cand_count = 1
+          if profile_frames:
+              ensemble_rel = "rxn_profile.xyz"
+              (stage / ensemble_rel).write_text("\n".join(profile_frames) + "\n", encoding="utf-8")
+              cand_count = len(
+                  handoff.frames(
+                      (stage / ensemble_rel).read_text(encoding="utf-8"),
+                      charge=charge,
+                      multiplicity=mult,
+                  )
+              )
+
+          for extra in (
+              "results.json",
+              "manifest_sha256.json",
+              "stationary_table.csv",
+              "stationary_table.md",
+              "mlff_stage.json",
+              "dft_stage.json",
+          ):
               src = rxn_out / extra
               if src.is_file():
                   shutil.copyfile(src, stage / extra)
 
-          results = json.loads((rxn_out / "results.json").read_text(encoding="utf-8")) if (rxn_out / "results.json").is_file() else {}
-          n_imag = results.get("ts_n_imaginary_modes")
-          hessian_done = isinstance(n_imag, int) and not isinstance(n_imag, bool)
-          ensemble_rel = "neb_path.xyz" if (stage / "neb_path.xyz").is_file() else None
-          cand_count = len(handoff.frames((stage / ensemble_rel).read_text(encoding="utf-8"), charge=int(os.environ["CHARGE"]), multiplicity=int(os.environ["MULTIPLICITY"]))) if ensemble_rel else 1
+          n_imag = None
+          results_path = rxn_out / "results.json"
+          mlff_path = rxn_out / "mlff_stage.json"
+          if results_path.is_file():
+              results = json.loads(results_path.read_text(encoding="utf-8"))
+              st_info = results.get("states", {}).get(ts_state or "TS2", {})
+              cand_imag = st_info.get("hessian", {}).get("thermo", {}).get("n_imag")
+              if isinstance(cand_imag, int) and not isinstance(cand_imag, bool) and cand_imag >= 0:
+                  n_imag = cand_imag
+          elif mlff_path.is_file():
+              mlff_data = json.loads(mlff_path.read_text(encoding="utf-8"))
+              st_info = mlff_data.get("hessians", {}).get(ts_state or "TS2", {})
+              cand_imag = st_info.get("thermo", {}).get("n_imag")
+              if isinstance(cand_imag, int) and not isinstance(cand_imag, bool) and cand_imag >= 0:
+                  n_imag = cand_imag
+          hessian_done = n_imag is not None
+
+          if run_stage == "all":
+              method_label = "AIMNet2 + DF-wB97X-D3"
+              basis_label = os.environ["DFT_BASIS"]
+              solv_label = "pcm"
+              solvent_label = os.environ["SOLVENT_NAME"]
+          elif run_stage == "mlff":
+              method_label = "AIMNet2"
+              basis_label = "AIMNet2-MLFF"
+              solv_label = "gas"
+              solvent_label = None
+          else:
+              method_label = "CoChem-KINETIC-Validate"
+              basis_label = "none"
+              solv_label = "gas"
+              solvent_label = None
 
           manifest = {
               "workflow_type": "rxn_profile",
               "input_name": os.environ["INPUT_NAME"],
-              "charge": int(os.environ["CHARGE"]),
-              "multiplicity": int(os.environ["MULTIPLICITY"]),
+              "charge": charge,
+              "multiplicity": mult,
               "length_unit": "angstrom",
-              "method": "AIMNet2 + DF-wB97X-D3",
-              "basis": "def2-TZVPP",
-              "solvation": "pcm",
-              "solvent_name": os.environ["SOLVENT_NAME"],
+              "method": method_label,
+              "basis": basis_label,
+              "solvation": solv_label,
+              "solvent_name": solvent_label,
               "hessian_calculated": hessian_done,
               "n_imaginary_modes": n_imag if hessian_done else None,
               "course_id": os.environ["COURSE_ID"],
@@ -153,7 +278,13 @@ jobs:
               "commit": os.environ["GITHUB_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"],
               "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "metadata": {"temp_k": float(os.environ["TEMP_K"])},
+              "metadata": {
+                  "temp_k": float(os.environ["TEMP_K"]),
+                  "stage": run_stage,
+                  "primary_ts_state": ts_state,
+                  "dft_basis": os.environ["DFT_BASIS"],
+                  "kinetic_revision": "bd83c8c530a4241ada9fc02229bc19d7c46095c8",
+              },
           }
           zip_path, sha_path, _, _ = handoff.seal(stage, Path(os.environ["RUNNER_TEMP"]) / "handoff", manifest)
           handoff.verify(zip_path, sidecar_path=sha_path, destination=Path(os.environ["RUNNER_TEMP"]) / "received")

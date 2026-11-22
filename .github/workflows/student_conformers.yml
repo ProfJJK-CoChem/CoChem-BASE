@@ -122,9 +122,11 @@ jobs:
         run: |
           python -m venv "$RUNNER_TEMP/chem"
           py="$RUNNER_TEMP/chem/bin/python"
+          printf 'torch==2.8.0+cpu\n' > "$RUNNER_TEMP/cpu-constraints.txt"
           "$py" -m pip install --upgrade pip
           "$py" -m pip install 'torch==2.8.0+cpu' --index-url https://download.pytorch.org/whl/cpu
-          "$py" -m pip install 'aimnet>=0.2.0' 'mace-torch==0.3.16' 'e3nn==0.4.4' 'ase==3.29.0' 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0' 'geometric==1.1.1'
+          "$py" -m pip install -c "$RUNNER_TEMP/cpu-constraints.txt" --extra-index-url https://download.pytorch.org/whl/cpu \
+            'aimnet>=0.2.0' 'mace-torch==0.3.16' 'e3nn==0.4.4' 'ase==3.29.0' 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0' 'geometric==1.1.1'
           "$py" -c 'import torch; assert torch.version.cuda is None'
       - name: Run CREST 3.0.2, MLFF ranking, CPU PySCF refinement and seal v2 handoff
         run: |

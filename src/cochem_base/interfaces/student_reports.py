@@ -160,11 +160,12 @@ def observation_from_completed_local_calculation(execution_receipt: dict, *, res
         return data
 
     execution = read("execution.json", document=True)
+    engine = execution.get("engine")
     if (not isinstance(execution_receipt, dict)
             or json.dumps(execution_receipt, sort_keys=True, separators=(",", ":"), allow_nan=False)
             != json.dumps(execution, sort_keys=True, separators=(",", ":"), allow_nan=False)
             or execution.get("status") != "EXECUTION_VERIFIED" or execution.get("dry_run") is not False
-            or execution.get("engine") != "xtb" or execution.get("output_dir") != str(directory)):
+            or engine not in {"xtb", "pyscf"} or execution.get("output_dir") != str(directory)):
         raise ValueError("The actual completed local execution receipt does not match this final directory.")
     config = read("matrix_config.validated.json", document=True)
     required = {"engine", "method", "basis_set", "charge", "multiplicity", "geometry", "is_opt", "is_freq", "is_vpt2"}
@@ -175,6 +176,66 @@ def observation_from_completed_local_calculation(execution_receipt: dict, *, res
         raise ValueError("The recorded local operation flags must be booleans.")
     configuration = CalculationMatrixConfig.model_validate(config)
     identity = parse_geometry_identity(config["geometry"])
+    if engine == "pyscf":
+        if (config["engine"] != "pyscf" or config["is_opt"] or config["is_freq"] or config["is_vpt2"]
+                or execution.get("method") != config["method"] or execution.get("basis_set") != config["basis_set"]
+                or execution.get("operation") != "single_point"):
+            raise ValueError("Local PySCF registration requires a matching single-point RHF protocol.")
+        native = read("result.json", document=True)
+        energy = _finite(native.get("energy_hartree"), "local native energy")
+        if (native.get("converged") is not True or native.get("scf_converged") is not True
+                or native.get("engine") != "pyscf" or native.get("method") != "RHF"
+                or native.get("basis") != config["basis_set"]
+                or any(type(native.get(key)) is not int or native[key] != config[key] for key in ("charge", "multiplicity"))):
+            raise ValueError("The final PySCF method, convergence or electronic state does not match its recorded request.")
+        nuclear = validate_nuclear_identity_metadata(native.get("nuclides"), native.get("nuclear_identity"), allow_historical=True)
+        if (any(value is not None and type(value) is not int for value in nuclear["mass_numbers"])
+                or any(_finite(value, "recorded nuclear mass") <= 0 for value in nuclear["masses_u"])):
+            raise ValueError("Recorded nuclear masses and isotope numbers must retain their declared numeric types.")
+        if tuple(nuclear["nuclides"]) != identity.nuclides or native.get("elements") != list(identity.elements):
+            raise ValueError("The final local nuclear identities differ from the recorded ordered input.")
+        recorded_coordinates = native.get("coordinates_angstrom")
+        if (not isinstance(recorded_coordinates, list) or len(recorded_coordinates) != len(identity.elements)
+                or any(not isinstance(row, list) or len(row) != 3 for row in recorded_coordinates)):
+            raise ValueError("The final local result requires its complete finite ordered geometry.")
+        coordinates = np.asarray([[_finite(value, "recorded Cartesian coordinate") for value in row]
+                                  for row in recorded_coordinates], dtype=float)
+        if coordinates.shape != (len(identity.elements), 3) or not np.isfinite(coordinates).all():
+            raise ValueError("The final local result requires its complete finite ordered geometry.")
+        authority = read("execution_authority.json", document=True)
+        if authority.get("engine") != "pyscf" or not re.fullmatch(r"[a-f0-9]{64}", authority.get("binary_sha256", "")):
+            raise ValueError("The final local execution lacks recorded PySCF executable identity.")
+        alignment = read("ingress_alignment.json", document=True)
+        if (alignment.get("elements") != list(identity.elements) or alignment.get("nuclear_identity") != nuclear
+                or not np.array_equal(np.asarray(alignment.get("original_coordinates_angstrom")), identity.coordinates_angstrom)
+                or not np.allclose(coordinates, alignment.get("coordinates_angstrom"), rtol=0, atol=1e-9)):
+            raise ValueError("The retained native PySCF result does not match its recorded nuclear/frame context.")
+        read("pyscf.out")
+        read("stderr.log")
+        run_id = execution.get("run_id")
+        if isinstance(run_id, str) and re.fullmatch(r"job_[a-f0-9]{32}", run_id):
+            deck_name = f"{run_id}_pyscf.py"
+            deck_text = read(deck_name)
+            if native.get("input_sha256") != hashlib.sha256(deck_text.encode("utf-8")).hexdigest():
+                raise ValueError("The retained PySCF input deck digest does not match result.json.")
+            worker_result = read(f"{run_id}_pyscf.result.json", document=True)
+            if (worker_result.get("scf_converged") is not True
+                    or _finite(worker_result.get("energy_hartree"), "PySCF worker energy") != energy):
+                raise ValueError("The retained PySCF worker result disagrees with result.json.")
+        for source in sources:
+            verify_source(source)
+        return {"label": directory.parent.name, "energy_hartree": energy,
+            "energy_kind": "electronic_energy", "validation_status": "computed", "degeneracy": 1,
+            "minimum_verified": False,
+            "source": {**next(source for source in sources if source["path"] == str(directory / "result.json")), "pointer": "/energy_hartree"},
+            "provenance_sources": sources,
+            "method": {"engine": "pyscf", "method": native["method"], "basis": native["basis"],
+                "comparison_protocol": {"kind": "BASE local screening electronic energy", "binary_sha256": authority["binary_sha256"],
+                                        "mass_convention": nuclear["mass_convention"], "implicit_solvation": config.get("implicit_solvation")}},
+            "electronic_state": {"charge": native["charge"], "multiplicity": native["multiplicity"]},
+            "composition": json.dumps(dict(sorted(Counter(nuclear["nuclides"]).items())), sort_keys=True),
+            "scope": "One final local PySCF RHF single-point calculation; no product accuracy certification or minimum qualification is claimed."}
+
     validate_xtb_config(configuration, identity.elements)
     operation = "optimization" if config["is_opt"] else "single_point"
     if (config["engine"] != "xtb" or config["method"].strip().upper() != "GFN2-XTB"

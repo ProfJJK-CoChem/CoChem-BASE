@@ -203,13 +203,16 @@ def _inputs(gui: Any) -> None:
               "<b>Use selected starting geometry</b>. Check charge and spin in Calculations. "
               "For spectra, Hessians or periodic data, choose the corresponding tool in the navigation.</p>"),
         gui.btn_continue_calculation_settings,
-    ], layout=widgets.Layout(width="58%"))
+    ], layout=widgets.Layout(width="56%", min_width="0"))
     inputs_preview_column = widgets.VBox([
         _text("<h4>Structure preview</h4><p class='cochem-hint'>Drag to rotate; scroll to zoom. "
               "Drawn bonds help inspect geometry; they are not calculated bond orders.</p>"),
         gui.inputs_viewer_output,
-    ], layout=widgets.Layout(width="40%"))
-    gui.inputs_preview_columns = widgets.HBox([inputs_selector_column, inputs_preview_column]).add_class("cochem-structure-columns")
+    ], layout=widgets.Layout(width="40%", min_width="0", overflow="hidden"))
+    gui.inputs_preview_columns = widgets.HBox(
+        [inputs_selector_column, inputs_preview_column],
+        layout=widgets.Layout(width="100%", overflow="hidden"),
+    ).add_class("cochem-structure-columns")
     gui.view_inputs.children = (
         _heading("Your files", "Upload a file, choose a structure/frame, then Use selected starting geometry."),
         gui.input_upload_section, gui.input_library_rejections,

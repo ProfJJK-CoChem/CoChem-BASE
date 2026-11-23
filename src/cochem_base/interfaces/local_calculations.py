@@ -97,6 +97,13 @@ def _record_id(value: str) -> str:
     return value
 
 
+def _saved_label(ordinal: int, receipt: dict) -> str:
+    if receipt.get("engine") == "pyscf":
+        return f"Saved calculation {ordinal} · PySCF · RHF single point"
+    task = "Energy at supplied geometry" if receipt.get("operation") == "single_point" else "Geometry optimization"
+    return f"Saved calculation {ordinal} · GFN2-xTB · {task}"
+
+
 def _bind_observation_sources(observation: dict, contents: dict[str, bytes], directory: Path) -> None:
     """Bind adapter rereads to the exact earlier archive/native byte snapshot."""
     sources = observation.get("provenance_sources")
@@ -225,9 +232,17 @@ class LocalCalculationStore:
         receipt = strict_json(raw)
         if canonical_json(receipt) != canonical_json(supplied):
             raise LocalFilesError("Actual completion receipt differs from its published native envelope")
+        is_xtb = (
+            receipt.get("engine") == "xtb"
+            and str(receipt.get("method", "")).upper() == "GFN2-XTB"
+            and receipt.get("operation") in {"single_point", "optimization"}
+        )
+        is_pyscf = (
+            receipt.get("engine") == "pyscf"
+            and receipt.get("operation") == "single_point"
+        )
         if (receipt.get("status") != "EXECUTION_VERIFIED" or receipt.get("dry_run") is not False
-                or receipt.get("engine") != "xtb" or str(receipt.get("method", "")).upper() != "GFN2-XTB"
-                or receipt.get("operation") not in {"single_point", "optimization"}
+                or not (is_xtb or is_pyscf)
                 or receipt.get("output_dir") != str(directory)
                 or receipt.get("config_file") != str(directory.parent / "matrix_config.json")):
             raise LocalFilesError("Retained files require the exact supported local completion")
@@ -309,7 +324,8 @@ class LocalCalculationStore:
                 or not isinstance(record["label"], str)
                 or record["label"] not in {
                     f"Saved calculation {ordinal} · GFN2-xTB · Energy at supplied geometry",
-                    f"Saved calculation {ordinal} · GFN2-xTB · Geometry optimization"}):
+                    f"Saved calculation {ordinal} · GFN2-xTB · Geometry optimization",
+                    f"Saved calculation {ordinal} · PySCF · RHF single point"}):
             raise LocalFilesError("Saved local record identity is invalid")
         return record, raw
 
@@ -340,8 +356,7 @@ class LocalCalculationStore:
                 return self._summary(previous)
             if len(index["records"]) >= INDEX_LIMIT:
                 raise LocalFilesError("Saved-calculation history is full (256 records); no records were evicted and this calculation remains usable")
-            task = "Energy at supplied geometry" if execution_receipt["operation"] == "single_point" else "Geometry optimization"
-            record["label"] = f"Saved calculation {len(index['records']) + 1} · GFN2-xTB · {task}"
+            record["label"] = _saved_label(len(index["records"]) + 1, execution_receipt)
             raw = canonical_json(record)
             path = "records/" + identifier + ".json"
             orphan = self.directory / path
@@ -382,10 +397,9 @@ class LocalCalculationStore:
         inventory, observation, contents = self._validate_completed(receipt, directory)
         _bind_record_execution(record, contents)
         context = strict_json(contents[PREFIX + "/input-context.json"])
-        task = "Energy at supplied geometry" if receipt["operation"] == "single_point" else "Geometry optimization"
         ordinal = index["order"].index(identifier) + 1
         if (record["exclusions"] != list(EXCLUSIONS) + list(context.get("exclusions", []))
-                or record["label"] != f"Saved calculation {ordinal} · GFN2-xTB · {task}"):
+                or record["label"] != _saved_label(ordinal, receipt)):
             raise LocalFilesError("Saved label or file scope differs from its actual recorded operation/context")
         if (receipt["run_id"] != identifier or digest(contents[INVENTORY]) != record["inventory_sha256"]
                 or inventory["input_context_sha256"] != record["input_context_sha256"]):

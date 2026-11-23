@@ -114,14 +114,24 @@ PY
 fi
 
 # Provision CHEM 490 research modules and PySCF in Codespace ui-env (never modifying CoChem-BASE pyproject.toml or cochem_calc_silo).
+# Each module is installed in its own fail-soft pip call so an unreachable/private repo never blocks the rest.
 ui_python="$ui_env_bin/python"
 if [ -x "$ui_python" ]; then
+  echo "Installing PySCF and geomeTRIC into ui-env..."
   "$ui_python" -m pip install --no-input --quiet "pyscf==2.14.0" "geometric==1.1.1" \
     || echo "Warning: PySCF/geomeTRIC install into ui-env skipped." >&2
+
+  echo "Installing CoChem-BENCH into ui-env..."
   "$ui_python" -m pip install --no-input --quiet \
     "git+https://github.com/ProfJJK-CoChem/CoChem-BENCH.git@cb874d8f20723c70b26b805329cb873ebe1c463f" \
+    || echo "Warning: CoChem-BENCH install into ui-env skipped." >&2
+
+  echo "Installing CoChem-SCRIBE into ui-env..."
+  "$ui_python" -m pip install --no-input --quiet \
     "git+https://github.com/ProfJJK-CoChem/CoChem-SCRIBE.git@85216dd12c998c1f879b6bb73ab74a44fc98f4bc" \
-    || echo "Warning: CoChem-BENCH/SCRIBE install into ui-env skipped." >&2
+    || echo "Warning: CoChem-SCRIBE install into ui-env skipped." >&2
+
+  echo "Installing CoChem-SpycFit (CPU-only) into ui-env..."
   "$ui_python" -m pip install --no-input --quiet "jax[cpu]" \
     "git+https://github.com/ProfJJK-CoChem/CoChem-SpycFit.git@aebe6fd8d5939ed617dad72e1392230e3979faf9" \
     || echo "Warning: CoChem-SpycFit (CPU-only) install into ui-env skipped." >&2
@@ -132,6 +142,7 @@ geom_env="$artifact_root/Modules/geom-env"
 if [ ! -x "$geom_env/bin/cochem-geom" ]; then
   (
     set -euo pipefail
+    echo "Installing CoChem-GEOM into isolated geom-env..."
     python3 -m venv "$geom_env"
     "$geom_env/bin/python" -m pip install --no-input --quiet --upgrade pip
     "$geom_env/bin/python" -m pip install --no-input --quiet \
@@ -144,21 +155,128 @@ fi
 [ -x "$ui_env_bin/cochem-scribe" ] && ln -sf "$ui_env_bin/cochem-scribe" "$artifact_bin/cochem-scribe"
 [ -x "$geom_env/bin/cochem-geom" ] && ln -sf "$geom_env/bin/cochem-geom" "$artifact_bin/cochem-geom"
 if [ -x "$ui_python" ]; then
-  cat > "$artifact_bin/cochem-spycfit" <<EOF
-#!/usr/bin/env bash
-exec "$ui_python" -m cochem_spycfit "\$@"
-EOF
+  {
+    printf '#!%s\n' "$ui_python"
+    cat <<'PY'
+"""Standalone CLI wrapper for CoChem-SpycFit provider operations."""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+def _emit(payload: object, out_path: Path | None) -> None:
+    rendered = json.dumps(payload, indent=2, allow_nan=False)
+    if out_path is not None:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(rendered + "\n", encoding="utf-8")
+    print(rendered)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="cochem-spycfit",
+        description="CoChem-SpycFit CLI wrapper dispatching to cochem_spycfit.module_provider.",
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    p_info = sub.add_parser("info", help="Print CoChem-SpycFit provider capabilities and operations.")
+    p_info.add_argument("--out", type=Path, default=None, help="Optional JSON output path.")
+
+    p_parse = sub.add_parser("parse", help="Parse a Pickett .var, .par, .fit, or .cat file.")
+    p_parse.add_argument("input_file", type=Path, help="Path to Pickett .var/.par/.fit/.cat file.")
+    p_parse.add_argument("--kind", choices=("var", "par", "fit", "cat"), default=None, help="Explicit file kind.")
+    p_parse.add_argument("--out", type=Path, default=None, help="Optional JSON output path.")
+
+    p_pred = sub.add_parser("predict", help="Predict rotational spectrum via Pickett SPCAT.")
+    p_pred.add_argument("--var", dest="var_file", type=Path, required=True, help="Path to Pickett .var file.")
+    p_pred.add_argument("--int", dest="int_file", type=Path, required=True, help="Path to Pickett .int file.")
+    p_pred.add_argument("--stem", default="cochem_spcat", help="Run stem name.")
+    p_pred.add_argument("--out", type=Path, default=None, help="Optional JSON output path.")
+
+    p_fit = sub.add_parser("fit", help="Fit rotational constants via Pickett SPFIT.")
+    p_fit.add_argument("--par", dest="par_file", type=Path, required=True, help="Path to Pickett .par file.")
+    p_fit.add_argument("--lin", dest="lin_file", type=Path, required=True, help="Path to Pickett .lin file.")
+    p_fit.add_argument("--stem", default="cochem_spfit", help="Run stem name.")
+    p_fit.add_argument("--out", type=Path, default=None, help="Optional JSON output path.")
+
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if not args.command:
+        parser.print_help()
+        return 0
+    try:
+        from cochem_spycfit import module_provider as spycfit_mod
+    except ImportError as exc:
+        print(f"cochem-spycfit error: cochem_spycfit is not installed ({exc})", file=sys.stderr)
+        return 1
+    if args.command == "info":
+        _emit(spycfit_mod.spycfit_provider(), args.out)
+        return 0
+    if args.command == "parse":
+        kind = args.kind or args.input_file.suffix.lstrip(".").lower()
+        if kind not in {"var", "par", "fit", "cat"}:
+            print(f"cochem-spycfit error: unsupported kind {kind!r}; specify --kind var|par|fit|cat", file=sys.stderr)
+            return 2
+        text = args.input_file.read_text(encoding="utf-8")
+        _emit(spycfit_mod.parse_pickett(kind, text), args.out)
+        return 0
+    if args.command == "predict":
+        var_text = args.var_file.read_text(encoding="utf-8")
+        int_text = args.int_file.read_text(encoding="utf-8")
+        _emit(spycfit_mod.predict_spectrum(var_text, int_text, stem=args.stem), args.out)
+        return 0
+    if args.command == "fit":
+        par_text = args.par_file.read_text(encoding="utf-8")
+        lin_text = args.lin_file.read_text(encoding="utf-8")
+        _emit(spycfit_mod.fit_pickett(par_text, lin_text, stem=args.stem), args.out)
+        return 0
+    parser.print_help()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+PY
+  } > "$artifact_bin/cochem-spycfit"
   chmod 0755 "$artifact_bin/cochem-spycfit"
 fi
 
-topos_cli="$(find "$artifact_root/Modules/topos" -maxdepth 4 -type f -path '*/bin/cochem-topos' 2>/dev/null | head -n 1 || true)"
+# Module venvs live at $artifact_root/Modules/<module>/<revision>/policies/<policy_sha256>/env/bin/* (depth 6).
+topos_cli="$(find "$artifact_root/Modules/topos" -maxdepth 8 -type f \( -path '*/bin/cochem-topos' -o -path '*/bin/topos' \) 2>/dev/null | head -n 1 || true)"
 if [ -n "$topos_cli" ] && [ -x "$topos_cli" ]; then
   ln -sf "$topos_cli" "$artifact_bin/cochem-topos"
   ln -sf "$topos_cli" "$artifact_bin/topos"
+else
+  topos_py="$(find "$artifact_root/Modules/topos" -maxdepth 8 -type f -path '*/env/bin/python' 2>/dev/null | head -n 1 || true)"
+  if [ -n "$topos_py" ] && [ -x "$topos_py" ]; then
+    cat > "$artifact_bin/cochem-topos" <<EOF
+#!/usr/bin/env bash
+exec "$topos_py" -B -c "import sys; from topos.cli import main; sys.argv[0] = 'cochem-topos'; raise SystemExit(main())" "\$@"
+EOF
+    chmod 0755 "$artifact_bin/cochem-topos"
+    ln -sf "$artifact_bin/cochem-topos" "$artifact_bin/topos"
+  fi
 fi
-torq_cli="$(find "$artifact_root/Modules/torq" -maxdepth 4 -type f -path '*/bin/cochem-torq' 2>/dev/null | head -n 1 || true)"
+
+torq_cli="$(find "$artifact_root/Modules/torq" -maxdepth 8 -type f \( -path '*/bin/cochem-torq' -o -path '*/bin/torq' \) 2>/dev/null | head -n 1 || true)"
 if [ -n "$torq_cli" ] && [ -x "$torq_cli" ]; then
   ln -sf "$torq_cli" "$artifact_bin/cochem-torq"
+else
+  torq_py="$(find "$artifact_root/Modules/torq" -maxdepth 8 -type f -path '*/env/bin/python' 2>/dev/null | head -n 1 || true)"
+  if [ -n "$torq_py" ] && [ -x "$torq_py" ]; then
+    cat > "$artifact_bin/cochem-torq" <<EOF
+#!/usr/bin/env bash
+exec "$torq_py" -B -c "import sys; from cochem_torq.cli import main; sys.argv[0] = 'cochem-torq'; raise SystemExit(main())" "\$@"
+EOF
+    chmod 0755 "$artifact_bin/cochem-torq"
+  fi
 fi
 
 python3 scripts/hosted_dashboard.py start --ensure-setup

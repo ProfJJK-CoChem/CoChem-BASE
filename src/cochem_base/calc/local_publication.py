@@ -202,7 +202,7 @@ def sidecar(name: str, data: bytes) -> bytes:
 _ROOT_ROLES = {
     "matrix_config.validated.json": "validated-scientific-request", "ingress_alignment.json": "native-frame-provenance",
     "execution_authority.json": "recorded-execution-authority", "input.xyz": "native-input",
-    "result.json": "final-electronic-result", "xtb.out": "native-output", "stderr.log": "native-diagnostics",
+    "result.json": "final-electronic-result", "xtb.out": "native-output", "pyscf.out": "native-output", "stderr.log": "native-diagnostics",
     "gradient": "native-gradient", "input.engrad": "native-gradient", "xtbopt.xyz": "final-geometry",
     "xtbopt.log": "optimization-trajectory", "optimization_evidence.json": "optimization-evidence",
     "optimization_evaluations.json": "optimization-history", "charges": "native-scientific-data",
@@ -222,7 +222,13 @@ def _role(name: str, evaluations: set[str], context_members: set[str]) -> str:
         return "submission-context"
     parts = name.split("/")
     if len(parts) == 1:
-        return _ROOT_ROLES.get(name, "unknown")
+        if name in _ROOT_ROLES:
+            return _ROOT_ROLES[name]
+        if re.fullmatch(r"job_[a-f0-9]{32}_pyscf\.py", name):
+            return "native-input"
+        if re.fullmatch(r"job_[a-f0-9]{32}_pyscf\.result\.json", name):
+            return "native-scientific-data"
+        return "unknown"
     if len(parts) == 2 and parts[0] in evaluations:
         return _EVALUATION_ROLES.get(parts[1], "unknown")
     return "unknown"
@@ -261,11 +267,19 @@ def finalize_publication(*, staging: Path, sandbox: Path, native_members: set[st
     payload = dict(receipt)
     created_prefix = False
     try:
-        if (payload.get("status") != "EXECUTION_VERIFIED" or payload.get("engine") != "xtb"
-                or str(payload.get("method", "")).upper() != "GFN2-XTB"
-                or payload.get("operation") not in {"single_point", "optimization"}
+        is_xtb = (
+            payload.get("engine") == "xtb"
+            and str(payload.get("method", "")).upper() == "GFN2-XTB"
+            and payload.get("operation") in {"single_point", "optimization"}
+        )
+        is_pyscf = (
+            payload.get("engine") == "pyscf"
+            and payload.get("operation") == "single_point"
+        )
+        if (payload.get("status") != "EXECUTION_VERIFIED"
+                or not (is_xtb or is_pyscf)
                 or re.fullmatch(r"job_[a-f0-9]{32}", payload.get("run_id", "")) is None):
-            raise LocalFilesError("Only accepted supported local GFN2 jobs can declare retained files")
+            raise LocalFilesError("Only accepted supported local GFN2 or PySCF jobs can declare retained files")
         stage_binding.verify()
         try:
             os.stat(PREFIX, dir_fd=stage_binding.fd, follow_symlinks=False)
@@ -330,7 +344,7 @@ def finalize_publication(*, staging: Path, sandbox: Path, native_members: set[st
                     if base not in contents or data != sidecar(base, contents[base]):
                         reasons.append("Published checksum relationship is inconsistent: " + name)
             inventory = {"schema_version": "cochem.local-native-inventory/1", "run_id": payload["run_id"],
-                "operation": payload["operation"], "engine": "xtb", "method": payload["method"],
+                "operation": payload["operation"], "engine": payload["engine"], "method": payload["method"],
                 "submitted_config_sha256": digest(submitted_config),
                 "validated_config_sha256": files["matrix_config.validated.json"]["sha256"],
                 "input_context_sha256": digest(snapshot.metadata_bytes), "scope": SCOPE,

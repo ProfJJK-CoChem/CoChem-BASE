@@ -68,7 +68,7 @@ Use the four numbered buttons across the top of the dashboard:
 
 Your Codespace terminal automatically puts `/home/vscode/CoChem_Artifacts/bin` and `/home/vscode/CoChem_Artifacts/ui-env/bin` first on `PATH`. In the default terminal:
 - **Direct Python imports (`python`):** `cochem_base`, `pyscf`, `cochem_bench`, `cochem_spycfit`, `cochem_scribe`
-- **Direct binaries & module CLIs on `PATH`:** `cochem-cli`, `xtb`, `crest`, `spfit`, `spcat`, `topos` (`cochem-topos`), `cochem-bench`, `cochem-torq`, `cochem-geom`, `cochem-spycfit` (or `python -m cochem_spycfit`), `cochem-scribe`
+- **Direct binaries & module CLIs on `PATH`:** `cochem-cli`, `xtb`, `crest`, `spfit`, `spcat`, `topos` (`cochem-topos`), `cochem-bench`, `cochem-torq`, `cochem-geom`, `cochem-spycfit`, `cochem-scribe`
 
 ### Environment Health Check (Week 4 — `CoChem-BASE`)
 ```bash

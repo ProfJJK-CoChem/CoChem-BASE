@@ -77,11 +77,11 @@ def molecule_viewer_html(xyz_data: str, *, base_url: str | None = None) -> str:
         {"id": identifier, "xyz": xyz, "url": source_url, "integrity": _SRI, "digest": _SHA256},
         allow_nan=False,
     )
-    return f"""<div class="cochem-molecule-preview" style="width:100%;max-width:100%;overflow:hidden;">
-<p id="{identifier}-status" role="status" aria-live="polite">Loading structure preview…</p>
+    return f"""<div class="cochem-molecule-preview" style="width:100%;max-width:100%;box-sizing:border-box;overflow:hidden;overflow-x:hidden !important;">
+<p id="{identifier}-status" role="status" aria-live="polite" style="margin:4px 0;">Loading structure preview…</p>
 <div id="{identifier}" data-cochem-viewer-state="loading" role="img"
  aria-label="Molecular structure preview of {len(identity.elements)} atoms; visual bonds are not calculated bond orders."
- style="position:relative;width:100%;max-width:100%;height:260px;overflow:hidden;"></div>
+ style="position:relative;width:100%;max-width:100%;box-sizing:border-box;height:260px;overflow:hidden;overflow-x:hidden !important;"></div>
 </div><script>
 (function() {{
   const config = {config};
@@ -132,7 +132,27 @@ def molecule_viewer_html(xyz_data: str, *, base_url: str | None = None) -> str:
     viewer.rotate(25, 'y');
     viewer.rotate(15, 'x');
     viewer.render();
-    if (!container.querySelector('canvas')) throw new Error('Renderer created no canvas.');
+    const canvas = container.querySelector('canvas');
+    if (!canvas) throw new Error('Renderer created no canvas.');
+    canvas.style.display = 'block';
+    canvas.style.width = '100%';
+    canvas.style.maxWidth = '100%';
+    canvas.style.boxSizing = 'border-box';
+    if (typeof ResizeObserver === 'function') {{
+      const ro = new ResizeObserver(function() {{
+        if (!container.isConnected) {{ ro.disconnect(); return; }}
+        if (container.clientWidth > 0 && container.clientHeight > 0) {{
+          viewer.resize();
+          viewer.render();
+          const c = container.querySelector('canvas');
+          if (c) {{
+            c.style.width = '100%';
+            c.style.maxWidth = '100%';
+          }}
+        }}
+      }});
+      ro.observe(container);
+    }}
     container._cochemMoleculeViewer = viewer;
     container.dataset.cochemAtomCount = String(model.selectedAtoms({{}}).length);
     container.dataset.cochemViewerState = 'rendered';

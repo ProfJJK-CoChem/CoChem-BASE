@@ -464,9 +464,14 @@ def run_calculation(
         output_arg = output
         output_requested_lexical = Path(output_arg).expanduser().absolute() if output_arg else None
         output = _external_run_path(Path(output_arg)) if output_arg else None
-        retained_output_eligible = (output is not None and not dry_run and not pending
-            and config.engine == "xtb" and config.method.upper() == "GFN2-XTB"
-            and capability.operation in {"single_point", "optimization"} and config.t9_fallback is None)
+        retained_output_eligible = (
+            output is not None and not dry_run and not pending and config.t9_fallback is None
+            and (
+                (config.engine == "xtb" and config.method.upper() == "GFN2-XTB"
+                 and capability.operation in {"single_point", "optimization"})
+                or (config.engine == "pyscf" and capability.operation == "single_point")
+            )
+        )
         if retained_output_eligible and hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY"):
             output = _retained_output_path(output_requested_lexical, authorized=output)
         scratch_root.mkdir(parents=True, exist_ok=True)

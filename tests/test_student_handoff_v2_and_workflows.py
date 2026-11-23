@@ -655,3 +655,109 @@ def test_qa_r2_rxn_profile_2endpoint_workstation_default_seal_and_vdw_guide(tmp_
     assert "--dimer-json" not in code_block
     assert "--bsse-json results/bsse_counterpoise.json" in code_block
     assert "--dimer-json" in sec3 and "optional" in sec3.lower()
+
+
+def test_qa_r3_rxn_profile_auto_input_name_derivation_and_override(tmp_path: Path) -> None:
+    """Verify SB-R3-01: 06_aimnet2 auto-derives input_name from input_dir basename and honors explicit override."""
+    import os
+
+    wf06_path = REPO_ROOT / ".github" / "workflows" / "06_aimnet2_neb_pyscf_rxn_profile.yml"
+    wf06 = yaml.safe_load(wf06_path.read_text(encoding="utf-8"))
+    triggers = wf06.get("on", wf06.get(True))
+    assert set(triggers.keys()) == {"workflow_dispatch"}
+    wf06_inputs = triggers["workflow_dispatch"]["inputs"]
+    assert wf06_inputs["input_name"]["default"] == "auto"
+    assert wf06_inputs["input_name"]["required"] is False
+    assert wf06_inputs["target_continuation"]["default"] == "workstation"
+
+    steps = {step.get("name"): step.get("run", "") for step in wf06["jobs"]["rxn_profile"]["steps"]}
+    seal_script = _extract_heredoc_py(steps["Seal and verify cochem.student-handoff/2 reaction profile bundle"])
+
+    chf2o_r = (
+        "5\n"
+        "HCOF + F- reactant\n"
+        "C  0.000000  0.000000  0.000000\n"
+        "O  1.180000  0.000000  0.000000\n"
+        "H -0.600000  0.920000  0.000000\n"
+        "F -0.650000 -1.120000  0.000000\n"
+        "F  0.000000  0.000000  2.650000\n"
+    )
+    chf2o_ts = (
+        "5\n"
+        "CHF2O- TS\n"
+        "C  0.000000  0.000000  0.000000\n"
+        "O  1.220000  0.000000  0.000000\n"
+        "H -0.580000  0.940000  0.000000\n"
+        "F -0.620000 -1.140000 -0.400000\n"
+        "F -0.620000 -1.140000  1.450000\n"
+    )
+    chf2o_p = (
+        "5\n"
+        "HCOF + F- product\n"
+        "C  0.000000  0.000000  0.000000\n"
+        "O  1.180000  0.000000  0.000000\n"
+        "H -0.600000  0.920000  0.000000\n"
+        "F  0.000000  0.000000 -2.650000\n"
+        "F -0.650000 -1.120000  0.000000\n"
+    )
+
+    cases = [
+        ("auto", "990101", "hcof_fluoride_rxn.xyz", "CoChem-chem312-hcof_fluoride_rxn-990101-1.zip"),
+        ("", "990102", "hcof_fluoride_rxn.xyz", "CoChem-chem312-hcof_fluoride_rxn-990102-1.zip"),
+        ("chem312_team4_rxn.xyz", "990103", "hcof_fluoride_rxn.xyz", "CoChem-chem312-hcof_fluoride_rxn-990103-1.zip"),
+        ("my_custom_nas_ts.xyz", "990104", "my_custom_nas_ts.xyz", "CoChem-chem312-my_custom_nas_ts-990104-1.zip"),
+    ]
+    for raw_input_name, run_id, expected_input_name, expected_zip_name in cases:
+        rt = tmp_path / f"rt_{run_id}"
+        (rt / "rxn_input").mkdir(parents=True)
+        (rt / "rxn_input" / "R.xyz").write_text(chf2o_r, encoding="utf-8")
+        out_dir = rt / "rxn_out"
+        (out_dir / "geometries").mkdir(parents=True)
+        (out_dir / "geometries" / "R.xyz").write_text(chf2o_r, encoding="utf-8")
+        (out_dir / "geometries" / "TS.xyz").write_text(chf2o_ts, encoding="utf-8")
+        (out_dir / "geometries" / "P.xyz").write_text(chf2o_p, encoding="utf-8")
+        (out_dir / "ts_polished.xyz").write_text(chf2o_ts, encoding="utf-8")
+        (out_dir / "results.json").write_text(
+            json.dumps(
+                {
+                    "pathway_mode": "elementary_3pt",
+                    "input_mode": "2pt_elementary",
+                    "stationary_points": ["R", "TS", "P"],
+                    "primary_ts_state": "TS",
+                    "ts_n_imaginary_modes": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+        env = dict(
+            os.environ,
+            RUNNER_TEMP=str(rt),
+            INPUT_DIR="examples/student_inputs/hcof_fluoride_rxn",
+            INPUT_NAME=raw_input_name,
+            STAGE="all",
+            CHARGE="-1",
+            MULTIPLICITY="1",
+            DFT_BASIS="def2-SVP",
+            SOLVENT_NAME="acetonitrile",
+            TEMP_K="298.15",
+            COURSE_ID="CHEM312",
+            TARGET_CONTINUATION="workstation",
+            GITHUB_REPOSITORY="ProfJJK-CoChem/CoChem-BASE",
+            GITHUB_SHA="3dccd6c9f4bd0000000000000000000000000000",
+            GITHUB_RUN_ID=run_id,
+            GITHUB_RUN_ATTEMPT="1",
+        )
+        proc = subprocess.run(
+            [sys.executable, "-B", "-c", seal_script],
+            cwd=str(REPO_ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert proc.returncode == 0, proc.stderr
+        zips = list((rt / "handoff").glob("*.zip"))
+        assert len(zips) == 1
+        assert zips[0].name == expected_zip_name
+        rec = handoff.verify(zips[0], sidecar_path=zips[0].with_suffix(".zip.sha256"))
+        assert rec["input_name"] == expected_input_name

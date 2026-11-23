@@ -974,3 +974,182 @@ def test_student_guides_hygiene_devcontainer_path_and_starter_templates() -> Non
     for starter in ("AI_Usage_Log.md", "targets/team_card.yaml", "data/.gitkeep", "results/.gitkeep"):
         assert (REPO_ROOT / starter).is_file(), f"Missing student starter template: {starter}"
     assert "!examples/student_inputs/**/*.xyz" in (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
+
+
+def test_fact_ledger_classifies_handoff_zips_distinctly_and_rejects_tampered_zip(tmp_path: Path) -> None:
+    """Verify SB-R3-02: raw student handoff ZIPs get distinct milestones & tampered ZIPs fail closed."""
+    import zipfile
+    from student import handoff
+
+    h2o_xyz = "3\nwater\nO 0.0 0.0 0.117\nH 0.0 0.757 -0.469\nH 0.0 -0.757 -0.469\n"
+    commit_sha = "3dccd6c9f4bd0000000000000000000000000000"
+
+    specs = [
+        (
+            "conformer",
+            "hcooh_start.xyz",
+            "M1_conformers",
+            {"input.xyz": h2o_xyz, "refined.xyz": h2o_xyz, "crest_conformers.xyz": h2o_xyz},
+            {"energy_hartree": -76.43},
+            "refined.xyz",
+            "crest_conformers.xyz",
+        ),
+        (
+            "nci_dimer",
+            "hcooh_water_dimer.xyz",
+            "M3_nci_bsse",
+            {
+                "input.xyz": h2o_xyz,
+                "refined.xyz": h2o_xyz,
+                "bsse_counterpoise.json": json.dumps({"bsse_kcal_mol": 0.42}),
+            },
+            {"bsse_correction_kcal_mol": 0.42},
+            "refined.xyz",
+            None,
+        ),
+        (
+            "vpt2_anharmonic",
+            "hcooh_start.xyz",
+            "M3_gvpt2",
+            {
+                "input.xyz": h2o_xyz,
+                "refined.xyz": h2o_xyz,
+                "gvpt2_plan.json": json.dumps({"n_shards": 6}),
+                "gvpt2_shard_manifest.json": json.dumps({"status": "COMPLETE"}),
+            },
+            {"n_shards": 6, "gvpt2_status": "COMPLETE"},
+            "refined.xyz",
+            None,
+        ),
+        (
+            "rxn_profile",
+            "hcof_fluoride_rxn.xyz",
+            "M4_rxn_profile",
+            {
+                "input.xyz": h2o_xyz,
+                "ts_guess.xyz": h2o_xyz,
+                "rxn_profile.xyz": h2o_xyz,
+                "results.json": json.dumps({"pathway_mode": "elementary_3pt"}),
+            },
+            {"pathway_mode": "elementary_3pt"},
+            "ts_guess.xyz",
+            "rxn_profile.xyz",
+        ),
+        (
+            "geom_comparison",
+            "hcooh_start.xyz",
+            "M4_spcat_8_18ghz",
+            {
+                "input.xyz": h2o_xyz,
+                "optimized.xyz": h2o_xyz,
+                "spcat_8_18ghz_summary.json": json.dumps({"band_ghz": [8.0, 18.0]}),
+                "spcat_8_18ghz.cat": "  10456.1234  0.0050  -4.2000 3    0.1200  3  10001\n",
+            },
+            {"dossier_kind": "spcat_8_18ghz", "rotational_constants_mhz": [27858.1, 14520.4, 9540.7]},
+            "optimized.xyz",
+            None,
+        ),
+    ]
+
+    zip_paths: list[Path] = []
+    expected_by_name: dict[str, str] = {}
+    for idx, (wtype, in_name, expected_ms, files_map, meta, primary_xyz, ensemble_xyz) in enumerate(specs, start=1):
+        manifest = handoff.StudentHandoffV2Manifest(
+            workflow_type=wtype,
+            input_name=in_name,
+            charge=0,
+            multiplicity=1,
+            method="wB97X-D3",
+            basis="def2-SVP",
+            solvation="gas",
+            solvent_name=None,
+            hessian_calculated=True,
+            n_imaginary_modes=1 if wtype == "rxn_profile" else 0,
+            course_id="CHEM312",
+            collaborator_institution="Tennessee Tech University",
+            target_continuation="workstation",
+            starting_xyz="input.xyz",
+            primary_xyz=primary_xyz,
+            ensemble_xyz=ensemble_xyz,
+            candidate_count=1,
+            selected=primary_xyz,
+            student_id=f"chem312_s{idx}",
+            repository="ProfJJK-CoChem/CoChem-BASE",
+            commit=commit_sha,
+            run_id=f"88000{idx}",
+            attempt="1",
+            metadata=meta,
+        )
+        zpath, _, _, _ = handoff.build_student_handoff_v2_zip(files_map, manifest, tmp_path / f"z{idx}")
+        zip_paths.append(zpath)
+        expected_by_name[zpath.name] = expected_ms
+
+    out_json = tmp_path / "FactLedger.json"
+    out_md = tmp_path / "FactLedger.md"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(REPO_ROOT / "scripts" / "fact_ledger.py"),
+            "--artifacts",
+            *[str(p) for p in zip_paths],
+            "--base-dir",
+            str(tmp_path),
+            "--output-json",
+            str(out_json),
+            "--output-md",
+            str(out_md),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert proc.returncode == 0, f"fact_ledger.py failed on ZIP bundles:\n{proc.stderr}"
+    ledger = json.loads(out_json.read_text(encoding="utf-8"))
+    l1_items = ledger["levels"]["L1_primary_artifacts"]
+    assert len(l1_items) == 5
+
+    got_by_name = {Path(item["path"]).name: item["milestone"] for item in l1_items}
+    assert got_by_name == expected_by_name
+    assert len(set(got_by_name.values())) == 5
+    for item in l1_items:
+        assert item.get("handoff_members_verified"), f"Expected verified embedded members for {item['path']}"
+
+    ms_status = {m["milestone"]: m["status"] for m in ledger["levels"]["L3_milestones"]}
+    assert ms_status["M1_conformers"] == "VERIFIED"
+    assert ms_status["M2_kk_atr"] == "PENDING"
+    assert ms_status["M3_nci_gvpt2_fermi"] == "VERIFIED"
+    assert ms_status["M3_nci_bsse"] == "VERIFIED"
+    assert ms_status["M3_gvpt2"] == "VERIFIED"
+    assert ms_status["M4_rxn_profile"] == "VERIFIED"
+    assert ms_status["M4_spcat_8_18ghz"] == "VERIFIED"
+
+    ver_ok = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(REPO_ROOT / "scripts" / "fact_ledger.py"),
+            "--verify",
+            str(out_json),
+            "--base-dir",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert ver_ok.returncode == 0, ver_ok.stderr
+    ver_rec = json.loads(ver_ok.stdout)
+    assert ver_rec["verified"] is True
+    assert ver_rec["verified_artifact_count"] == 5
+
+    # Tamper an embedded member inside a ZIP without updating its handoff.json -> must fail closed!
+    tampered_zip = tmp_path / "tampered_bundle.zip"
+    with zipfile.ZipFile(zip_paths[0], "r") as zin, zipfile.ZipFile(tampered_zip, "w") as zout:
+        for info in zin.infolist():
+            payload = b"3\ntampered\nO 0 0 0\nH 0 1 0\nH 0 -1 0\n" if info.filename == "input.xyz" else zin.read(info.filename)
+            zout.writestr(info.filename, payload)
+    with pytest.raises(fact_ledger.FactLedgerIntegrityError, match="Tampered ZIP member"):
+        fact_ledger.build_fact_ledger(artifact_paths=[tampered_zip], base_dir=tmp_path)

@@ -343,18 +343,32 @@ class _LocalSubmission:
 def _saved_xtb_result_markup(execution_receipt: dict, observation: dict, details: dict) -> str:
     """Format already validated immutable values; never reopen their source paths."""
     state = observation["electronic_state"]
-    explanation = (
-        "Energy calculated at the supplied geometry. No geometry optimization was requested."
-        if execution_receipt["operation"] == "single_point" else
-        "Geometry optimization finished. The optimizer’s stopping checks passed. "
-        "This does not prove that the structure is a minimum.")
+    method_info = observation["method"]
+    is_pyscf = execution_receipt.get("engine") == "pyscf" or method_info.get("engine") == "pyscf"
+    if is_pyscf:
+        heading = "Saved PySCF RHF single-point result"
+        explanation = (
+            "Restricted Hartree-Fock (RHF) single-point energy calculated at the supplied geometry "
+            "(no product accuracy certification). Nuclear gradient recorded in the result artifact."
+        )
+        basis = method_info.get("basis")
+        method_display = f"{method_info['method']} / {basis}" if basis else str(method_info["method"])
+    else:
+        heading = "Saved xTB screening result"
+        explanation = (
+            "Energy calculated at the supplied geometry. No geometry optimization was requested."
+            if execution_receipt["operation"] == "single_point" else
+            "Geometry optimization finished. The optimizer’s stopping checks passed. "
+            "This does not prove that the structure is a minimum.")
+        method_display = str(method_info["method"])
     return (
-        "<section class='cochem-saved-result'><h3>Saved xTB screening result</h3>"
+        "<section class='cochem-saved-result'><h3>" + html.escape(heading) + "</h3>"
         "<p>" + html.escape(explanation) + "</p>"
-        "<p><b>Method:</b> " + html.escape(observation["method"]["method"])
+        "<p><b>Method:</b> " + html.escape(method_display)
         + "<br><b>Electronic energy:</b> " + f"{observation['energy_hartree']:.12f} Hartree"
         + "<br><b>Total charge:</b> " + str(state["charge"])
-        + " · <b>Spin multiplicity:</b> " + str(state["multiplicity"]) + "</p>"
+        + " · <b>Spin multiplicity:</b> " + str(state["multiplicity"])
+        + ("<br><b>SCF converged:</b> True" if is_pyscf else "") + "</p>"
         "<p>These are the saved calculation’s settings. Changes to your current draft do not change this result. "
         "These are calculated estimates. Their accuracy for your goal has not been established. They do not show which structures are in a real sample or how much of each is present.</p>"
         "<details class='cochem-calculation-details'><summary>Calculation details and provenance</summary><pre>"
@@ -7248,8 +7262,9 @@ class CoChemGUI(InputManagementMixin):
             self.calculation_result.value = card
             self._expected_local_card_update = None
         except Exception as exc:
+            engine_label = "PySCF" if execution_receipt.get("engine") == "pyscf" else "xTB"
             self.calculation_result.value = (
-                "<p role='status'>xTB execution completed. The saved result details are unavailable: "
+                f"<p role='status'>{engine_label} execution completed. The saved result details are unavailable: "
                 + html.escape(str(exc)) + ". The native calculation files remain retained.</p>")
 
     def _pipeline_thread(self, config_path: Path, submission: _LocalSubmission | None = None, view_generation: object = None) -> None:
@@ -7282,7 +7297,7 @@ class CoChemGUI(InputManagementMixin):
                          else "harmonic frequencies" if configuration['is_freq']
                          else "optimization" if configuration['is_opt'] else "single point")
             self.telemetry_output.append_stdout(f"Running the saved {engine} {operation} configuration.\nFull logs and results: {work_dir}\n")
-            input_snapshot = self._build_local_input_snapshot(submission) if submission is not None and engine == "XTB" else None
+            input_snapshot = self._build_local_input_snapshot(submission) if submission is not None and engine in {"XTB", "PYSCF"} else None
             result = run_calculation(
                 config_path, input_snapshot=input_snapshot, scratch=work_dir / "Scratch", output=work_dir / "Results", device="cpu",
                 on_event=on_event,
@@ -7304,20 +7319,9 @@ class CoChemGUI(InputManagementMixin):
             self.telemetry_output.append_stdout(f"\n{engine} execution and scientific output checks passed. Results: {work_dir / 'Results'}\n")
             hessians = self._prepare_calculation_hessians(work_dir / "Results")
             self._ui_call(lambda: self._publish_calculation_hessians(hessians))
-            if engine == "XTB":
+            if engine in {"XTB", "PYSCF"}:
                 receipt, directory = dict(result), work_dir / "Results"
                 self._ui_call(lambda: self._publish_completed_xtb_result(receipt, directory, view_generation))
-            elif engine == "PYSCF":
-                result_path = work_dir / "Results" / "result.json"
-                payload = json.loads(result_path.read_text(encoding="utf-8"))
-                self.calculation_result.value = (
-                    "<b>PySCF RHF single-point result</b> (no product accuracy certification)<br/>"
-                    f"Method: {html.escape(payload['method'])}<br/>"
-                    f"Energy: {float(payload['energy_hartree']):.12f} Hartree<br/>"
-                    + f"SCF converged: {payload['scf_converged'] is True}<br/>Nuclear gradient: recorded in the result artifact.<br/>"
-                    +
-                    f"Artifact: <code>{html.escape(str(result_path))}</code>"
-                )
             elif engine == "QE":
                 # The service publishes one canonical result at this boundary;
                 # engine-private evidence may also contain its own result file.
@@ -7341,7 +7345,7 @@ class CoChemGUI(InputManagementMixin):
                 )
             else:
                 self.calculation_result.value = f"<b>ORCA {html.escape(operation)} accepted.</b> Results: <code>{html.escape(str(work_dir / 'Results'))}</code>"
-            if engine == "XTB":
+            if engine in {"XTB", "PYSCF"}:
                 completed_local = (dict(result), work_dir / "Results")
         except SubprocessCancelledError:
             self.state.system_status = "Calculation Cancelled"

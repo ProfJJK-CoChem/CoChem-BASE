@@ -1124,6 +1124,7 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose debug telemetry")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress informational logging output")
+    parser.add_argument("--json", dest="global_json", action="store_true", help="Output command results in structured JSON format")
     parser.add_argument("--version", action="version", version=f"CoChem-BASE {__version__} (Method Matrix v4)")
 
     subparsers = parser.add_subparsers(dest="subcommand", title="Subcommands", description="Available actions")
@@ -1261,6 +1262,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """Master entrypoint function for the CoChem-BASE CLI."""
     parser = build_cli_parser()
     args = parser.parse_args(argv)
+    if getattr(args, "global_json", False):
+        args.json = True
+    elif not hasattr(args, "json"):
+        args.json = False
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)

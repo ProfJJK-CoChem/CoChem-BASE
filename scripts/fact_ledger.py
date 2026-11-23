@@ -224,12 +224,13 @@ def build_fact_ledger(
     *,
     artifact_paths: Sequence[Path],
     base_dir: Path | None = None,
-    project_label: str = "CHEM312_Dossier",
+    project_label: str | None = None,
     course_id: str = "CHEM312",
     claims: Sequence[Mapping[str, Any]] | None = None,
     explicit_tiers: Mapping[str, tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Build a cryptographically hashed L1-L3 FactLedger from real files on disk."""
+    resolved_project_label = project_label if project_label else f"{course_id}_Dossier"
     root = base_dir.resolve() if base_dir is not None else None
     l1_entries: list[dict[str, Any]] = []
     l2_entries: list[dict[str, Any]] = []
@@ -364,7 +365,7 @@ def build_fact_ledger(
         "schema": "cochem.fact-ledger/1",
         "collaborator_institution": "Tennessee Tech University",
         "course_id": course_id,
-        "project_label": project_label,
+        "project_label": resolved_project_label,
         "created_at_utc": _utc_now(),
         "base_dir": root.as_posix() if root is not None else None,
         "levels": {
@@ -537,7 +538,11 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--artifacts", nargs="+", type=Path, help="Upstream artifact file paths to hash into FactLedger.")
     mode.add_argument("--verify", type=Path, help="Existing FactLedger.json path to verify fail-closed against disk.")
     p.add_argument("--base-dir", type=Path, default=None, help="Base directory for relative artifact paths.")
-    p.add_argument("--project-label", default="CHEM312_Dossier", help="Project/team label.")
+    p.add_argument(
+        "--project-label",
+        default=None,
+        help="Project/team label (defaults to '<course_id>_Dossier', e.g., CHEM312_Dossier or CHEM490_Dossier).",
+    )
     p.add_argument("--course-id", default="CHEM312", choices=("CHEM312", "CHEM490", "CHEM410", "CHEM411"))
     p.add_argument("--claims-json", type=Path, default=None, help="Optional JSON array of L3 claims referencing artifact_ids.")
     p.add_argument("--output-json", type=Path, default=None, help="Output FactLedger.json path.")

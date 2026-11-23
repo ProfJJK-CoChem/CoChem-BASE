@@ -140,7 +140,7 @@ or workstation/HPC deployments:
 - [ORCA setup](.docs/ORCA_Actions_Setup.md) ·
   [CFOUR setup](.docs/CFOUR_Actions_Setup.md) ·
   [Ecosystem module setup](.docs/Ecosystem_Modules_Setup.md) ·
-  [Optional cloud GPU notes (CHEM 490 / instructor only)](.docs/Google_Colab_GPU_Setup.md) ·
+  [Optional cloud GPU notes (Instructor backend only — never used directly by students)](.docs/Google_Colab_GPU_Setup.md) ·
   [Legacy private-project assignment deployment](.docs/Classroom50_Assignment_Deployment.md)
 
 The interface and calculation location are separate choices. BASE also supports

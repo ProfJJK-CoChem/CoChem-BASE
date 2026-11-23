@@ -377,3 +377,322 @@ def test_codespace_setup_voila_hygiene_and_chem490_guide() -> None:
     first_lab = (REPO_ROOT / ".docs" / "FIRST_LAB.md").read_text(encoding="utf-8")
     assert "November 2026" not in first_lab
     assert "BEGINNER_FIRE_TEST_2026-11-03.md" not in first_lab
+
+
+# ---------------------------------------------------------------------------
+# 6. QA490-R2 Fixes: SB490-R2-01..05, GUI-R2-01, GUI-R2-02
+# ---------------------------------------------------------------------------
+
+
+def test_qa490_r2_setup_devcontainer_isolation_depth_and_spycfit_cli(tmp_path: Path) -> None:
+    """Verify SB490-R2-01 (3 separate pip installs), SB490-R2-02 (-maxdepth 8), and SB490-R2-03 (cochem-spycfit CLI)."""
+    import ast
+    import re
+
+    setup_path = REPO_ROOT / "scripts" / "setup_devcontainer.sh"
+    raw_bytes = setup_path.read_bytes()
+    assert b"\r\n" not in raw_bytes, "setup_devcontainer.sh must use pure LF line endings"
+    setup_sh = raw_bytes.decode("utf-8")
+
+    # SB490-R2-01: CoChem-BENCH, CoChem-SCRIBE, and CoChem-SpycFit must be in 3 separate pip install calls
+    pip_blocks = re.findall(r'"\$ui_python"\s+-m\s+pip\s+install[\s\S]*?\|\|[^\n]+', setup_sh)
+    bench_blocks = [b for b in pip_blocks if "CoChem-BENCH.git@cb874d8f20723c70b26b805329cb873ebe1c463f" in b]
+    scribe_blocks = [b for b in pip_blocks if "CoChem-SCRIBE.git@85216dd12c998c1f879b6bb73ab74a44fc98f4bc" in b]
+    spycfit_blocks = [b for b in pip_blocks if "CoChem-SpycFit.git@aebe6fd8d5939ed617dad72e1392230e3979faf9" in b]
+    assert len(bench_blocks) == 1
+    assert len(scribe_blocks) == 1
+    assert len(spycfit_blocks) == 1
+    assert "CoChem-SCRIBE" not in bench_blocks[0]
+    assert "CoChem-SpycFit" not in bench_blocks[0]
+    assert "CoChem-BENCH" not in scribe_blocks[0]
+    assert "CoChem-SpycFit" not in scribe_blocks[0]
+    assert "CoChem-BENCH" not in spycfit_blocks[0]
+    assert "CoChem-SCRIBE" not in spycfit_blocks[0]
+    assert "CoChem-GEOM.git@ae8f1e7d56a4030e377d36ca7c9516cd0da16851" in setup_sh
+
+    # SB490-R2-02: -maxdepth 8 (never -maxdepth 4) and clean fallback wrappers for topos and torq
+    assert "-maxdepth 4" not in setup_sh
+    assert setup_sh.count("-maxdepth 8") >= 4
+    assert "*/bin/cochem-topos" in setup_sh and "*/bin/topos" in setup_sh
+    assert "*/bin/cochem-torq" in setup_sh and "*/bin/torq" in setup_sh
+    assert "from topos.cli import main" in setup_sh
+    assert "from cochem_torq.cli import main" in setup_sh
+
+    # SB490-R2-03: Standalone Python cochem-spycfit CLI wrapper dispatching to cochem_spycfit.module_provider
+    assert '-m cochem_spycfit' not in setup_sh
+    match = re.search(r"cat <<'PY'\n([\s\S]*?)\nPY\n  \} > \"\$artifact_bin/cochem-spycfit\"", setup_sh)
+    assert match is not None, "Embedded cochem-spycfit Python wrapper not found"
+    wrapper_src = match.group(1)
+    ast.parse(wrapper_src)
+    wrapper_file = tmp_path / "cochem_spycfit_wrapper.py"
+    wrapper_file.write_text(wrapper_src, encoding="utf-8")
+
+    help_res = subprocess.run(
+        [sys.executable, "-B", str(wrapper_file), "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=20,
+    )
+    assert help_res.returncode == 0, help_res.stderr
+    for subcmd in ("info", "parse", "predict", "fit"):
+        assert subcmd in help_res.stdout
+
+
+def test_qa490_r2_cli_status_json_and_human_default(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Verify SB490-R2-04: cochem-cli status --json and --json status emit valid JSON while preserving human default."""
+    from cochem_base import cli as base_cli
+
+    art = tmp_path / "artifacts"
+    art.mkdir()
+
+    # Subcommand --json form
+    rc = base_cli.main(["status", "--artifact-dir", str(art), "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["artifact_directory"] == str(art.resolve())
+    assert payload["registry_exists"] is False
+    assert "phase_1" in payload["phase_artifacts"]
+
+    # Global --json before subcommand form
+    rc_global = base_cli.main(["--json", "status", "--artifact-dir", str(art)])
+    assert rc_global == 0
+    payload_global = json.loads(capsys.readouterr().out)
+    assert payload_global["artifact_directory"] == str(art.resolve())
+
+    # Default human-readable form preserved
+    rc_human = base_cli.main(["status", "--artifact-dir", str(art)])
+    assert rc_human == 0
+    human_out = capsys.readouterr().out
+    assert "Golden Master Registry & Ecosystem Status" in human_out
+
+
+def test_qa490_r2_fact_ledger_chem490_default_label_and_readme_footer(tmp_path: Path) -> None:
+    """Verify SB490-R2-05: fact_ledger defaults project_label to '<course_id>_Dossier' and README Colab footer."""
+    sample = tmp_path / "h2o_hf.xyz"
+    sample.write_text("3\nwater\nO 0 0 0\nH 0 0.757 0.586\nH 0 -0.757 0.586\n", encoding="utf-8")
+
+    # CHEM490 default project_label -> CHEM490_Dossier
+    out_json_490 = tmp_path / "FactLedger_490.json"
+    out_md_490 = tmp_path / "FactLedger_490.md"
+    res_490 = subprocess.run(
+        [
+            sys.executable, "-B", str(REPO_ROOT / "scripts" / "fact_ledger.py"),
+            "--artifacts", str(sample),
+            "--base-dir", str(tmp_path),
+            "--course-id", "CHEM490",
+            "--output-json", str(out_json_490),
+            "--output-md", str(out_md_490),
+        ],
+        capture_output=True, text=True, check=False, timeout=20,
+    )
+    assert res_490.returncode == 0, res_490.stderr
+    ledger_490 = json.loads(out_json_490.read_text(encoding="utf-8"))
+    assert ledger_490["course_id"] == "CHEM490"
+    assert ledger_490["project_label"] == "CHEM490_Dossier"
+    md_490 = out_md_490.read_text(encoding="utf-8")
+    assert "CHEM490_Dossier" in md_490
+    assert "CHEM312_Dossier" not in md_490
+
+    # Fail-closed --verify still passes
+    verify_490 = subprocess.run(
+        [sys.executable, "-B", str(REPO_ROOT / "scripts" / "fact_ledger.py"), "--verify", str(out_json_490)],
+        capture_output=True, text=True, check=False, timeout=20,
+    )
+    assert verify_490.returncode == 0, verify_490.stderr
+    assert json.loads(verify_490.stdout)["verified"] is True
+
+    # Default CHEM312 keeps CHEM312_Dossier; explicit --project-label still overrides
+    from scripts.fact_ledger import build_fact_ledger
+    ledger_312 = build_fact_ledger(artifact_paths=[sample], base_dir=tmp_path)
+    assert ledger_312["course_id"] == "CHEM312"
+    assert ledger_312["project_label"] == "CHEM312_Dossier"
+    ledger_custom = build_fact_ledger(artifact_paths=[sample], base_dir=tmp_path, course_id="CHEM490", project_label="H2O_HF_Capstone")
+    assert ledger_custom["project_label"] == "H2O_HF_Capstone"
+
+    # README footer wording updated
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    assert "(CHEM 490 / instructor only)" not in readme
+    assert "(Instructor backend only — never used directly by students)" in readme
+
+
+def test_qa490_r2_gui_pyscf_local_registration_and_3d_viewer_overflow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify GUI-R2-01 (PySCF Step 4 registration & Prepare calculation download) and GUI-R2-02 (zero 3D scrollbar)."""
+    import hashlib
+    import io
+    import zipfile
+
+    from cochem_base.calc.calculation_service import CalculationMatrixConfig
+    from cochem_base.calc.local_publication import _role, sidecar
+    from cochem_base.geometry.nuclide_geometry import parse_geometry_identity
+    from cochem_base.interfaces.local_calculations import SavedLocalCalculation, _saved_label
+    from cochem_base.interfaces.molecule_viewer import molecule_viewer_html
+    from cochem_base.interfaces.student_reports import observation_from_completed_local_calculation
+
+    run_id = "job_" + "a" * 32
+    assert _role("pyscf.out", set(), set()) == "native-output"
+    assert _role(f"{run_id}_pyscf.py", set(), set()) == "native-input"
+    assert _role(f"{run_id}_pyscf.result.json", set(), set()) == "native-scientific-data"
+    assert _saved_label(1, {"engine": "xtb", "operation": "optimization"}) == "Saved calculation 1 · GFN2-xTB · Geometry optimization"
+    assert _saved_label(2, {"engine": "pyscf", "operation": "single_point"}) == "Saved calculation 2 · PySCF · RHF single point"
+
+    # Construct a complete checksummed PySCF Results/ directory and verify real observation + HTML rendering
+    art = tmp_path / "artifacts"
+    run_dir = art / "GUI" / ("run_" + "b" * 32)
+    res_dir = run_dir / "Results"
+    res_dir.mkdir(parents=True)
+
+    water_xyz = "3\nwater\nO 0.0 0.0 0.0\nH 0.0 0.757 0.586\nH 0.0 -0.757 0.586\n"
+    identity = parse_geometry_identity(water_xyz)
+    coords = [list(row) for row in identity.coordinates_angstrom]
+    config = CalculationMatrixConfig(
+        engine="pyscf",
+        method="HF/STO-3G",
+        basis_set="STO-3G",
+        charge=0,
+        multiplicity=1,
+        geometry=water_xyz,
+        is_opt=False,
+        is_freq=False,
+        is_vpt2=False,
+    )
+    config_bytes = config.model_dump_json(indent=2).encode("utf-8")
+    (run_dir / "matrix_config.json").write_bytes(config_bytes)
+
+    def _write_checked(name: str, data: bytes) -> None:
+        (res_dir / name).write_bytes(data)
+        (res_dir / f"{name}.sha256").write_bytes(sidecar(name, data))
+
+    deck_bytes = b"# PySCF RHF STO-3G deck\n"
+    deck_sha = hashlib.sha256(deck_bytes).hexdigest()
+    worker_result = {
+        "engine": "PySCF",
+        "version": "2.14.0",
+        "method": "RHF",
+        "basis": "STO-3G",
+        "scf_converged": True,
+        "energy_hartree": -74.963905001272,
+        "gradients_hartree_per_bohr": [[0.0, 0.0, 0.0]] * 3,
+        "input_sha256": deck_sha,
+    }
+    final_result = {
+        **worker_result,
+        "engine": "pyscf",
+        "elements": list(identity.elements),
+        "coordinates_angstrom": coords,
+        "charge": 0,
+        "multiplicity": 1,
+        "converged": True,
+        "nuclides": list(identity.nuclides),
+        "nuclear_identity": identity.metadata,
+    }
+    receipt = {
+        "status": "EXECUTION_VERIFIED",
+        "config_file": str(run_dir / "matrix_config.json"),
+        "engine": "pyscf",
+        "method": "HF/STO-3G",
+        "basis_set": "STO-3G",
+        "dry_run": False,
+        "scratch_dir": str(run_dir / "Scratch" / run_id),
+        "operation": "single_point",
+        "output_dir": str(res_dir),
+        "run_id": run_id,
+        "timestamp": "2026-11-23T20:00:00",
+    }
+    _write_checked("matrix_config.validated.json", config_bytes)
+    _write_checked("ingress_alignment.json", json.dumps({
+        "method": "mass_weighted_COM_and_Eckart_SVD",
+        "elements": list(identity.elements),
+        "nuclear_identity": identity.metadata,
+        "original_coordinates_angstrom": coords,
+        "coordinates_angstrom": coords,
+    }).encode("utf-8"))
+    _write_checked("execution_authority.json", json.dumps({
+        "engine": "pyscf",
+        "binary_sha256": "c" * 64,
+    }).encode("utf-8"))
+    _write_checked(f"{run_id}_pyscf.py", deck_bytes)
+    _write_checked(f"{run_id}_pyscf.result.json", json.dumps(worker_result).encode("utf-8"))
+    _write_checked("pyscf.out", b"converged SCF energy = -74.963905001272\n")
+    _write_checked("stderr.log", b"")
+    _write_checked("result.json", json.dumps(final_result).encode("utf-8"))
+    _write_checked("execution.json", json.dumps(receipt).encode("utf-8"))
+
+    obs = observation_from_completed_local_calculation(receipt, results_directory=res_dir)
+    assert obs["method"]["engine"] == "pyscf"
+    assert obs["method"]["method"] == "RHF"
+    assert obs["method"]["basis"] == "STO-3G"
+    assert obs["energy_hartree"] == pytest.approx(-74.963905001272)
+
+    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(art))
+    monkeypatch.setenv("COCHEM_CONFIG", str(tmp_path / "absent-registry.json"))
+    monkeypatch.setenv("COCHEM_STUDENT_AUTO_REMOTE_CHECK", "0")
+
+    from ui.voila_layout.cochem_gui import CoChemGUI, completed_xtb_result_html
+    from ui.voila_layout.workspace_layout import apply_workspace_layout
+    from ui.voila_layout.workspace_style import WORKSPACE_CSS
+
+    card_html = completed_xtb_result_html(receipt, res_dir)
+    assert "Saved PySCF RHF single-point result" in card_html
+    assert "RHF / STO-3G" in card_html
+    assert "-74.963905001272 Hartree" in card_html
+
+    gui = CoChemGUI()
+    apply_workspace_layout(gui)
+    gui._local_file_operation = None
+    view_gen = gui._local_view_generation
+    gui._publish_completed_xtb_result(receipt, res_dir, view_gen)
+    assert "Saved PySCF RHF single-point result" in gui.calculation_result.value
+
+    xtb_summary = SavedLocalCalculation("job_" + "1" * 32, "Saved calculation 1 · GFN2-xTB · Geometry optimization", "retained-native-files-and-submission-context", ())
+    pyscf_summary = SavedLocalCalculation(run_id, "Saved calculation 2 · PySCF · RHF single point", "retained-native-files-and-submission-context", ())
+    gui._apply_saved_local_catalog((xtb_summary, pyscf_summary))
+    gui._viewed_local_record_id = pyscf_summary.record_id
+    gui.viewed_local_calculation.value = f"<p><b>Viewing:</b> {pyscf_summary.label}</p>"
+    gui._refresh_local_file_controls()
+
+    option_labels = [label for label, _ in gui.saved_local_calculation.options]
+    assert "Saved calculation 1 · GFN2-xTB · Geometry optimization" in option_labels
+    assert "Saved calculation 2 · PySCF · RHF single point" in option_labels
+    assert "No registered local result is being viewed" not in gui.viewed_local_calculation.value
+    assert gui.btn_save_local_files.disabled is False
+
+    # On POSIX (Linux/Codespaces/WSL2), also exercise full LocalCalculationStore + retained_files_zip end-to-end
+    if os.name == "posix" and hasattr(os, "O_NOFOLLOW"):
+        from cochem_base.calc.local_publication import finalize_publication
+        from cochem_base.core.managed_files import open_directory_chain
+        from cochem_base.interfaces.local_calculations import LocalCalculationStore
+
+        sandbox_dir = run_dir / "Scratch" / run_id
+        sandbox_dir.mkdir(parents=True)
+        native_members = {p.name for p in res_dir.iterdir() if p.name not in {"execution.json", "execution.json.sha256"}}
+        with open_directory_chain(res_dir) as stage_b, open_directory_chain(sandbox_dir) as sb_b:
+            published_receipt = finalize_publication(
+                staging=res_dir, sandbox=sandbox_dir, native_members=native_members,
+                receipt=receipt, submitted_config=config_bytes, input_snapshot=None,
+                stage_binding=stage_b, sandbox_binding=sb_b,
+            )
+        assert published_receipt["retained_files"]["available"] is True
+        store = LocalCalculationStore(art)
+        saved = store.register_completed(published_receipt, results_directory=res_dir)
+        assert saved.label == "Saved calculation 1 · PySCF · RHF single point"
+        archive = store.retained_files_zip(saved.record_id)
+        with zipfile.ZipFile(io.BytesIO(archive.content), "r") as zf:
+            names = set(zf.namelist())
+            assert "manifest.json" in names
+            assert "native/result.json" in names
+            assert f"native/{run_id}_pyscf.py" in names
+
+    # GUI-R2-02: Zero horizontal scrollbar on 2 · Add your molecule 3D Structure preview
+    assert gui.inputs_viewer_output.layout.overflow == "hidden"
+    assert gui.viewer_output.layout.overflow == "hidden"
+    assert gui.inputs_preview_columns.layout.overflow == "hidden"
+    assert ".jp-OutputArea-output" in WORKSPACE_CSS
+    assert "overflow-x: hidden !important" in WORKSPACE_CSS
+    viewer_html = molecule_viewer_html(water_xyz)
+    assert "box-sizing:border-box" in viewer_html
+    assert "overflow-x:hidden !important" in viewer_html
+    assert "canvas.style.maxWidth = '100%'" in viewer_html
+    assert "ResizeObserver" in viewer_html

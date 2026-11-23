@@ -121,8 +121,22 @@ WORKSPACE_CSS = """
 .cochem-accessible .jupyter-button.mod-warning:focus:enabled {color: var(--cc-ink); background: #f3e4b2; border-color: #b7952b;}
 .cochem-accessible .jupyter-button:disabled {color: #5b6b71; background: #edf1f2; border-color: #ccd6d9; opacity: 1;}
 .cochem-accessible .cochem-molecule-preview,
-.cochem-accessible .cochem-viewer-box {width: 100%; max-width: 100%; overflow: hidden !important;}
-.cochem-accessible .cochem-molecule-preview canvas {max-width: 100% !important;}
+.cochem-accessible .cochem-viewer-box,
+.cochem-accessible .cochem-viewer-box > *,
+.cochem-accessible .cochem-viewer-box .jp-OutputArea,
+.cochem-accessible .cochem-viewer-box .jp-OutputArea-child,
+.cochem-accessible .cochem-viewer-box .jp-OutputArea-output,
+.cochem-accessible .cochem-viewer-box .jp-RenderedHTMLCommon,
+.cochem-accessible .cochem-viewer-box .output_area,
+.cochem-accessible .cochem-viewer-box .output_subarea,
+.cochem-accessible .cochem-viewer-box .jupyter-widgets-output-area {
+  width: 100%; max-width: 100%; box-sizing: border-box;
+  overflow: hidden !important; overflow-x: hidden !important;
+}
+.cochem-accessible .cochem-molecule-preview canvas,
+.cochem-accessible .cochem-viewer-box canvas {
+  display: block; width: 100% !important; max-width: 100% !important; box-sizing: border-box;
+}
 .cochem-accessible .cochem-disclosure {border-top: 1px solid var(--cc-line); padding: 4px 0;}
 .cochem-accessible .cochem-disclosure-toggle.jupyter-button {border: 0; text-align: left;
   color: var(--cc-accent); background: transparent; font-weight: 600; padding: 8px 0;}

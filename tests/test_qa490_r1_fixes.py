@@ -1,0 +1,379 @@
+"""Zero-mock regression tests for QA490-R1 CHEM 490 & live Voilà GUI fixes (GUI-01..06, SB490-01..11)."""
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+
+import pytest
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+# ---------------------------------------------------------------------------
+# 1. GUI-01..GUI-06 (Live Voilà Dashboard Widgets, CSS, and Guidance)
+# ---------------------------------------------------------------------------
+
+
+def test_gui_01_to_06_voila_state_sync_contrast_preview_and_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify GUI-01..GUI-06 directly on real CoChemGUI + apply_workspace_layout widgets."""
+    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path / "artifacts"))
+    monkeypatch.setenv("COCHEM_CONFIG", str(tmp_path / "absent-registry.json"))
+    monkeypatch.setenv("COCHEM_STUDENT_AUTO_REMOTE_CHECK", "0")
+
+    from ui.voila_layout.cochem_gui import CoChemGUI
+    from ui.voila_layout.learning import help_html
+    from ui.voila_layout.workspace_layout import apply_workspace_layout
+    from ui.voila_layout.workspace_style import WORKSPACE_CSS
+
+    gui = CoChemGUI()
+    apply_workspace_layout(gui)
+
+    water_xyz = "3\nwater\nO 0.0 0.0 0.0\nH 0.0 0.757 0.586\nH 0.0 -0.757 0.586\n"
+    gui.matrix_geometry.value = water_xyz
+
+    # GUI-01: Selecting PySCF directly under default Product A cleanly configures RHF single point
+    gui.matrix_engine.value = "PYSCF"
+    assert gui.matrix_tier.value == "T2"
+    assert gui.matrix_method.value == "HF/STO-3G"
+    assert gui.matrix_basis.value == "STO-3G"
+    assert not gui.matrix_basis.disabled
+    assert gui.matrix_solvation.value is None
+    assert gui.product_class_selector.value == "Screening (no product accuracy claim)"
+    assert not gui.product_class_selector.disabled
+    assert gui.dispersion_warning.value == ""
+    assert gui.btn_execute.description == "Run PySCF single point"
+    assert "program PYSCF; method HF/STO-3G; basis STO-3G" in gui.guided_draft_status.value
+
+    # GUI-01: Switching XTB -> PYSCF updates basis & Current settings (never stuck on XTB/built-in)
+    gui.matrix_engine.value = "XTB"
+    assert gui.matrix_basis.value == "built-in"
+    gui.matrix_engine.value = "PYSCF"
+    assert gui.matrix_tier.value == "T2"
+    assert gui.matrix_method.value == "HF/STO-3G"
+    assert gui.matrix_basis.value == "STO-3G"
+    assert not gui.matrix_basis.disabled
+    assert "program PYSCF; method HF/STO-3G; basis STO-3G" in gui.guided_draft_status.value
+    assert "program XTB" not in gui.guided_draft_status.value
+    assert "built-in" not in gui.guided_draft_status.value
+
+    # GUI-02: High-contrast hover/focus/active CSS rules for danger/primary buttons
+    assert ".jupyter-button.mod-danger:hover:enabled" in WORKSPACE_CSS
+    assert ".jupyter-button.mod-danger:focus:enabled" in WORKSPACE_CSS
+    assert "#732125" in WORKSPACE_CSS
+
+    # GUI-03: 3D preview mounted directly on 2 · Add your molecule without horizontal overflow
+    assert hasattr(gui, "inputs_viewer_output")
+    assert hasattr(gui, "inputs_preview_columns")
+    assert gui.inputs_viewer_output.layout.overflow == "hidden"
+    assert gui.viewer_output.layout.overflow == "hidden"
+    assert ".cochem-molecule-preview" in WORKSPACE_CSS
+    from cochem_base.interfaces.molecule_viewer import molecule_viewer_html
+    rendered_html = molecule_viewer_html(water_xyz)
+    assert "overflow:hidden" in rendered_html
+
+    # GUI-04: Wider select controls, nowrap Status column CSS, and PySCF in CoChem components
+    assert gui.matrix_engine.layout.width == "480px"
+    assert gui.matrix_solvation.layout.width == "480px"
+    assert "cochem-components-table" in WORKSPACE_CSS
+    assert "white-space: nowrap" in WORKSPACE_CSS
+    gui._render_student_setup_status(
+        {
+            "ready": True,
+            "base": {"revision": "0b3af3e1e7ee"},
+            "modules": {"topos": {"status": "installed", "revision": "abc", "message": "ok"}},
+            "free_engines": {
+                "status": "ready",
+                "message": "Pinned free-engine installations verified.",
+                "engines": {"xtb": {"status": "installed", "version": "6.7.1", "message": "ok"}},
+            },
+        }
+    )
+    assert "class='cochem-components-table'" in gui.student_setup_status.value
+    assert "<td>PySCF</td>" in gui.student_setup_status.value
+
+    # GUI-05: No Google Colab in workspace guidance; no raw DEGRADED_OPERATIONAL or registry path
+    assert "Google Colab" not in help_html("workspace")
+    assert "department research computers" in help_html("workspace")
+    gui._on_environment_change({"new": "Codespaces [DEGRADED_OPERATIONAL]"})
+    assert "DEGRADED_OPERATIONAL" not in gui.header_env.value
+    assert "Codespaces · Open-source engines ready" in gui.header_env.value
+    assert "cochem_system_config.json" not in gui.licensed_engine_status.value
+    assert "ORCA is optional" in gui.licensed_engine_status.value
+
+    # GUI-06: Upload counter sync & unambiguous canonical-frame SHA-256 vs original upload SHA-256
+    from cochem_base.interfaces.student_ingestion import ingest_uploaded_file
+    receipt = ingest_uploaded_file("h2o_start.xyz", water_xyz.encode("utf-8"), artifact_dir=tmp_path / "artifacts")
+    gui._input_library = {receipt["input_id"]: receipt}
+    gui.input_library_choice.options = [("Choose", ""), ("h2o_start.xyz", receipt["input_id"])]
+    gui.input_library_choice.value = receipt["input_id"]
+    gui._use_library_geometry()
+    assert "1 structure loaded" in gui.xyz_upload.description
+    assert "Canonical frame SHA-256" in gui.student_upload_status.value
+    assert receipt["sha256"] in gui.student_upload_status.value
+    assert "Original bytes preserved" in gui.student_upload_status.value
+
+
+# ---------------------------------------------------------------------------
+# 2. SB490-02: scripts/spcat_runner.py Decks, Parsing & Honest PENDING Gate
+# ---------------------------------------------------------------------------
+
+
+def test_spcat_runner_decks_cat_parsing_and_honest_pending_when_absent(tmp_path: Path) -> None:
+    """Verify valid Pickett .var/.int decks, .cat parsing/filtering, and zero-crash PENDING fallback."""
+    from scripts.spcat_runner import (
+        SPCATDeckConfig,
+        SPCATRunner,
+        parse_cat_file,
+        write_pickett_decks,
+    )
+
+    cfg = SPCATDeckConfig(
+        a_mhz=410000.0,
+        b_mhz=7260.0,
+        c_mhz=7140.0,
+        dj_khz=5.0,
+        mu_a=4.07,
+        temperature_k=2.0,
+        constant_type="Be",
+    )
+    var_p, int_p = write_pickett_decks(cfg, tmp_path / "decks", stem="h2o_hf", freq_max_ghz=18.0)
+    var_text = var_p.read_text(encoding="utf-8")
+    int_text = int_p.read_text(encoding="utf-8")
+    assert "a    1  1   0   30" in var_text
+    assert "10000" in var_text and "410000.000000" in var_text
+    assert "-0.005000000" in var_text  # -5.0 kHz converted to MHz
+    assert "18.000  2.000" in int_text
+    assert "4.0700" in int_text
+
+    # Real Pickett .cat format parsing + 8-18 GHz band filtering
+    sample_cat = tmp_path / "sample.cat"
+    sample_cat.write_text(
+        "   7200.0000  0.0001 -2.1000 3    0.0000  3     91 303 1 0 1       0 0 0      \n"
+        "  14400.0000  0.0001 -1.5375 3    0.0000  3     91 303 1 0 1       0 0 0      \n"
+        "  28800.0000  0.0001 -0.9500 3    0.4803  5     91 303 2 0 2       1 0 1      \n",
+        encoding="utf-8",
+    )
+    in_band = parse_cat_file(sample_cat, constant_type="Be", freq_min_ghz=8.0, freq_max_ghz=18.0)
+    assert len(in_band) == 1
+    assert in_band[0]["frequency_mhz"] == pytest.approx(14400.0)
+    assert (in_band[0]["j_upper"], in_band[0]["ka_upper"], in_band[0]["kc_upper"]) == (1, 0, 1)
+    assert (in_band[0]["j_lower"], in_band[0]["ka_lower"], in_band[0]["kc_lower"]) == (0, 0, 0)
+
+    # Absent spcat binary must fail closed honestly with PENDING (never ModuleNotFoundError)
+    runner = SPCATRunner(spcat_bin_path=tmp_path / "nonexistent_spcat")
+    runner.spcat_bin = None
+    transitions = runner.generate_transitions(
+        cfg,
+        allow_unvibrated_be=True,
+        scratch_dir=tmp_path / "pending_scr",
+        freq_min_ghz=8.0,
+        freq_max_ghz=18.0,
+    )
+    assert transitions == []
+    assert runner.last_status == "PENDING"
+    assert runner.last_engine == "PENDING"
+    assert Path(runner.last_deck_paths["var"]).is_file()
+    assert Path(runner.last_deck_paths["int"]).is_file()
+
+
+# ---------------------------------------------------------------------------
+# 3. SB490-06: scripts/kraitchman_rs.py --course-id CHEM490
+# ---------------------------------------------------------------------------
+
+
+def test_kraitchman_rs_supports_chem490_course_id(tmp_path: Path) -> None:
+    """Verify --course-id CHEM490 tags JSON and Markdown while preserving honest imaginary flags."""
+    out_json = tmp_path / "h2o_hdo.json"
+    out_md = tmp_path / "h2o_hdo.md"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(REPO_ROOT / "scripts" / "kraitchman_rs.py"),
+            "--parent-abc", "835840.3", "435351.7", "278139.8",
+            "--iso-abc", "701931.5", "272912.6", "192055.2",
+            "--parent-mass-amu", "18.010565",
+            "--delta-mass-amu", "1.006277",
+            "--course-id", "CHEM490",
+            "--label", "H2O_HDO",
+            "--output-json", str(out_json),
+            "--output-md", str(out_md),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(out_json.read_text(encoding="utf-8"))
+    assert payload["course_id"] == "CHEM490"
+    assert payload["coordinates"]["c"]["imaginary"] is True
+    assert payload["coordinates"]["c"]["abs_rs_angstrom"] is None
+    md = out_md.read_text(encoding="utf-8")
+    assert "# CHEM490 Kraitchman Single-Substitution Coordinates" in md
+
+
+# ---------------------------------------------------------------------------
+# 4. SB490-04: student_project_setup.yml Open-Engine Student Mode
+# ---------------------------------------------------------------------------
+
+
+def test_student_project_setup_open_engine_fallback_and_strict_licensed_mode(tmp_path: Path) -> None:
+    """Verify optional request_id, green open-engine mode, and preserved strict licensed checks."""
+    wf = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "student_project_setup.yml").read_text(encoding="utf-8"))
+    on_block = wf.get("on") or wf[True]
+    req_input = on_block["workflow_dispatch"]["inputs"]["request_id"]
+    assert req_input["required"] is False
+    assert req_input["default"] == "self-check"
+
+    base_env = {
+        **os.environ,
+        "GITHUB_REPOSITORY": "student/CoChem-h2o-hf",
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "DEFAULT_BRANCH": "main",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_RUN_ID": "901",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "COCHEM_APPROVED_BASE_SHA": "",
+        "COCHEM_COURSE_CHANNEL": "",
+        "COCHEM_SOURCE_AVAILABLE": "false",
+        "COCHEM_ORCA_AVAILABLE": "false",
+        "COCHEM_CFOUR_AVAILABLE": "false",
+    }
+
+    # Open-engine personal template repo with default self-check or custom label succeeds
+    for req_id in ("self-check", "chem490-qa-r1"):
+        out = tmp_path / f"open_{req_id}.json"
+        res = subprocess.run(
+            [sys.executable, "-B", "-I", "-S", str(REPO_ROOT / "scripts" / "check_student_project_setup.py"), "--output", str(out)],
+            env={**base_env, "SETUP_REQUEST_ID": req_id},
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=20,
+        )
+        assert res.returncode == 0, res.stderr
+        data = json.loads(out.read_text(encoding="utf-8"))
+        assert data["mode"] == "open_engine_student"
+        assert data["open_engine_ready"] is True
+        assert "Dr. Klaassen" in data["student_summary"]
+        assert "Open-source Codespace research setup ready" in res.stdout
+
+    # Licensed/approved mode MUST still reject non-UUID request_id
+    out_strict = tmp_path / "strict_fail.json"
+    res_fail = subprocess.run(
+        [sys.executable, "-B", "-I", "-S", str(REPO_ROOT / "scripts" / "check_student_project_setup.py"), "--output", str(out_strict)],
+        env={**base_env, "SETUP_REQUEST_ID": "not-a-uuid", "COCHEM_APPROVED_BASE_SHA": "b" * 40},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=20,
+    )
+    assert res_fail.returncode != 0
+    assert not out_strict.exists()
+
+    # Licensed/approved mode with valid UUID passes cleanly
+    out_ok = tmp_path / "strict_ok.json"
+    res_ok = subprocess.run(
+        [sys.executable, "-B", "-I", "-S", str(REPO_ROOT / "scripts" / "check_student_project_setup.py"), "--output", str(out_ok)],
+        env={**base_env, "SETUP_REQUEST_ID": str(uuid.uuid4()), "COCHEM_APPROVED_BASE_SHA": "b" * 40, "COCHEM_ORCA_AVAILABLE": "true"},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=20,
+    )
+    assert res_ok.returncode == 0, res_ok.stderr
+    assert json.loads(out_ok.read_text(encoding="utf-8"))["mode"] == "licensed_course_project"
+
+
+# ---------------------------------------------------------------------------
+# 5. SB490-11, SB490-08, SB490-01..03, SB490-06..10: CLI Audit, Setup & Docs
+# ---------------------------------------------------------------------------
+
+
+def test_cli_audit_meminfo_and_engine_probe(tmp_path: Path) -> None:
+    """Verify Linux /proc/meminfo RAM parsing and artifact_dir/bin engine probing."""
+    from cochem_base.cli import _probe_additional_engines, _read_linux_meminfo_gb
+
+    fake_meminfo = tmp_path / "meminfo"
+    fake_meminfo.write_text("MemTotal:        8136940 kB\nMemFree:         4000000 kB\n", encoding="utf-8")
+    assert _read_linux_meminfo_gb(fake_meminfo) == pytest.approx(7.76, abs=0.01)
+
+    art = tmp_path / "CoChem_Artifacts"
+    (art / "bin").mkdir(parents=True)
+    (art / "Silos" / "cochem_calc_silo" / "bin").mkdir(parents=True)
+    for name in ("xtb", "crest", "spfit", "spcat"):
+        (art / "bin" / name).write_text("#!/bin/sh\n", encoding="utf-8")
+    (art / "Silos" / "cochem_calc_silo" / "bin" / "python").write_text("#!/bin/sh\n", encoding="utf-8")
+
+    probed = _probe_additional_engines(art)
+    for name in ("xtb", "crest", "spfit", "spcat", "pyscf"):
+        assert probed[name]["is_available"] is True
+        assert probed[name]["path"]
+
+
+def test_codespace_setup_voila_hygiene_and_chem490_guide() -> None:
+    """Verify Codespace PATH/pins, Voilà idle culling, CHEM 490 guide, and doc hygiene."""
+    dev = json.loads((REPO_ROOT / ".devcontainer" / "devcontainer.json").read_text(encoding="utf-8"))
+    assert dev["remoteEnv"]["PATH"].startswith("/home/vscode/CoChem_Artifacts/bin:/home/vscode/CoChem_Artifacts/ui-env/bin:")
+
+    setup_sh = (REPO_ROOT / "scripts" / "setup_devcontainer.sh").read_text(encoding="utf-8")
+    for token in (
+        "f5af2ff0f1acb1eb11ecffe7ef3b55d457801f7b",
+        "cb874d8f20723c70b26b805329cb873ebe1c463f",
+        "aebe6fd8d5939ed617dad72e1392230e3979faf9",
+        "85216dd12c998c1f879b6bb73ab74a44fc98f4bc",
+        "ae8f1e7d56a4030e377d36ca7c9516cd0da16851",
+        "pyscf==2.14.0",
+        "geometric==1.1.1",
+        "cochem-geom",
+        "cochem-bench",
+        "cochem-spycfit",
+        "cochem-scribe",
+        "cochem-torq",
+        "$artifact_bin/topos",
+        "$artifact_bin/spfit",
+        "$artifact_bin/spcat",
+    ):
+        assert token in setup_sh, f"Missing expected Codespace setup token: {token}"
+
+    from scripts.hosted_dashboard import server_command
+    cmd = server_command(Path("/usr/bin/python3"), 8866)
+    assert "--MappingKernelManager.cull_idle_timeout=300" in cmd
+
+    guide = (REPO_ROOT / "student" / "CHEM490_STEP_BY_STEP_GUIDE.md").read_text(encoding="utf-8")
+    for cmd_tok in (
+        "cochem-bench",
+        "cochem-geom",
+        "cochem-spycfit",
+        "cochem-scribe",
+        "cochem-torq",
+        "topos",
+        "spfit",
+        "spcat",
+        "scripts/spcat_runner.py",
+        "scripts/kraitchman_rs.py",
+        "--course-id CHEM490",
+        "professor_orca_return_h2o_ccsd.out",
+        "Tennessee Tech University",
+        "~10–15 minutes",
+    ):
+        assert cmd_tok in guide, f"CHEM490 guide missing {cmd_tok}"
+
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    assert "student/CHEM490_STEP_BY_STEP_GUIDE.md" in readme
+
+    for doc_name in ("ORCA_Actions_Setup.md", "Ecosystem_Modules_Setup.md"):
+        doc_text = (REPO_ROOT / ".docs" / doc_name).read_text(encoding="utf-8")
+        assert "Classroom50" not in doc_text
+        assert "Google_Colab" not in doc_text
+
+    first_lab = (REPO_ROOT / ".docs" / "FIRST_LAB.md").read_text(encoding="utf-8")
+    assert "November 2026" not in first_lab
+    assert "BEGINNER_FIRE_TEST_2026-11-03.md" not in first_lab

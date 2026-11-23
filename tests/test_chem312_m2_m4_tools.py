@@ -960,16 +960,18 @@ def test_student_guides_hygiene_devcontainer_path_and_starter_templates() -> Non
         for wf in required_workflows:
             assert wf in text, f"Missing canonical workflow {wf} in {guide_rel}"
 
-    # Verify devcontainer remoteEnv.PATH and setup_devcontainer.sh profile.d + bashrc wiring (SB-02)
+    # Verify devcontainer remoteEnv.PATH and setup_devcontainer.sh profile.d + bashrc wiring (SB-02, SB490-02)
     dev_cfg = json.loads((REPO_ROOT / ".devcontainer" / "devcontainer.json").read_text(encoding="utf-8"))
-    assert dev_cfg["remoteEnv"]["PATH"].startswith("/home/vscode/CoChem_Artifacts/ui-env/bin:")
+    assert dev_cfg["remoteEnv"]["PATH"].startswith(
+        "/home/vscode/CoChem_Artifacts/bin:/home/vscode/CoChem_Artifacts/ui-env/bin:"
+    )
     setup_sh = (REPO_ROOT / "scripts" / "setup_devcontainer.sh").read_text(encoding="utf-8")
     assert "/etc/profile.d/cochem-ui-env.sh" in setup_sh
     assert "/home/vscode/.bashrc" in setup_sh
 
-    # Verify honest Codespace setup wait time & starter templates (SB-05)
+    # Verify honest Codespace setup wait time & starter templates (SB-05, SB490-08)
     hosted_text = (REPO_ROOT / "scripts" / "hosted_dashboard.py").read_text(encoding="utf-8")
-    assert "5–10 minutes on a fresh Codespace" in hosted_text
+    assert "~10–15 minutes on a fresh Codespace" in hosted_text
     assert "2–4 minutes" not in hosted_text
     for starter in ("AI_Usage_Log.md", "targets/team_card.yaml", "data/.gitkeep", "results/.gitkeep"):
         assert (REPO_ROOT / starter).is_file(), f"Missing student starter template: {starter}"

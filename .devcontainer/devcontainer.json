@@ -17,7 +17,7 @@
     "COCHEM_UPDATE_CHANNEL": "canonical-default-branch"
   },
   "remoteEnv": {
-    "PATH": "/home/vscode/CoChem_Artifacts/ui-env/bin:${containerEnv:PATH}"
+    "PATH": "/home/vscode/CoChem_Artifacts/bin:/home/vscode/CoChem_Artifacts/ui-env/bin:${containerEnv:PATH}"
   },
   "mounts": [
     "source=cochem-base-artifacts,target=/home/vscode/CoChem_Artifacts,type=volume"

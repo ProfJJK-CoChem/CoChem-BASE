@@ -1,11 +1,12 @@
-# BASE-managed ecosystem setup for a Classroom50 course
+# BASE-managed ecosystem setup for private research courses
 
 CoChem-BASE is the **only application repository students receive**. BASE
 installs its required analysis components automatically, keeps them in isolated
 managed environments and exposes their supported operations through its own
-interface. Students do not clone TOPOS/TORQ, run package installers or enter
-credentials. Their normal procedure is in the
-[student research guide](Student_Research_No_Code.md).
+interface and Codespace `PATH`. Students do not clone TOPOS/TORQ, configure
+Google Colab, or enter credentials. For CHEM 490 Directed Research, follow
+[`student/CHEM490_STEP_BY_STEP_GUIDE.md`](../student/CHEM490_STEP_BY_STEP_GUIDE.md)
+(or the general [student research guide](Student_Research_No_Code.md)).
 
 This page is for the instructor/administrator. Source access, package
 installation and successful scientific execution are separate checks. A
@@ -22,8 +23,8 @@ in its scientific plan.
 
 Actions secrets do not automatically enter Codespaces. Read access granted to
 a student team is not a replacement for a cross-repository Actions credential.
-The classroom management credential, `CLASSROOM50_SERVICE_TOKEN`, serves
-Classroom50 itself and must not be reused for CoChem source or engine downloads.
+Course administration credentials must remain strictly separate and must not be
+reused for CoChem source or engine downloads.
 
 ## Instructor: authorize private student projects
 
@@ -57,8 +58,8 @@ A same-name repository secret overrides an organization value.
 Team Read access gives permitted users access to private repositories. It does
 not reveal stored secret values or extend an assignment's scoped `GITHUB_TOKEN`.
 Readers require narrowly scoped **Contents: Read-only**, appropriate expiry and
-any required organization approval. Classroom50's management credential remains
-separate from source and engine access.
+any required organization approval. Separate course administration credentials
+remain distinct from source and engine access.
 
 Keep **Send secrets and variables to workflows from fork pull requests** and
 **Send write tokens to workflows from pull requests** disabled. Public BASE
@@ -258,8 +259,8 @@ The acceptance record must identify which exact operations actually ran.
 ## Allowances
 
 Student-owned Codespaces and chemistry workflows in personal-owned private
-projects use the student's own applicable allowances. The instructor-private
-App-enrollment and Classroom50 administration workflows use organization minutes.
+projects use the student's own applicable allowances. Instructor-private
+App-enrollment administration workflows use organization minutes.
 An alternate organization-owned assignment's chemistry also uses organization
 minutes, even when a student submits it. Verify current Education benefits,
 entitlement and displayed payer; personal Codespaces core-hours do not transfer

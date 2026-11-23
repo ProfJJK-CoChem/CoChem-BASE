@@ -34,10 +34,15 @@ def _research_admission(source: Path) -> dict:
             "descriptor_sha256": hashlib.sha256(raw).hexdigest()}
 
 
+OPEN_ENGINE_STUDENT_SUMMARY = (
+    "Open-source Codespace research setup ready (PySCF, xTB, CREST, TOPOS, BENCH, TORQ, GEOM, "
+    "SpycFit, SCRIBE, spfit/spcat). Optional ORCA/CFOUR access is not configured yet -- submit "
+    "your verified bundle to Dr. Klaassen for department-computer ORCA/CCSD(T)/VPT2 calculations."
+)
+
+
 def project_setup_report(environment: dict[str, str], *, source: Path | None = None) -> dict:
-    request_id = environment.get("SETUP_REQUEST_ID", "")
-    if str(uuid.UUID(request_id)) != request_id:
-        raise ValueError("The setup check needs its original request identifier.")
+    raw_request_id = (environment.get("SETUP_REQUEST_ID") or "").strip()
     repository = environment.get("GITHUB_REPOSITORY", "")
     source_sha = environment.get("GITHUB_SHA", "")
     revision = environment.get("COCHEM_APPROVED_BASE_SHA", "")
@@ -62,11 +67,36 @@ def project_setup_report(environment: dict[str, str], *, source: Path | None = N
         if value not in {"true", "false"}:
             raise ValueError("The setup check needs a yes/no access status for each optional component.")
         access[kind] = value == "true"
-    return {"schema_version": "cochem.project-setup/2",
-            "research_admission": _research_admission(source or Path(__file__).resolve().parents[1]), "request_id": request_id,
-            "repository": repository, "source_sha": source_sha,
-            "run_id": run_id, "run_attempt": run_attempt,
-            "approved_base_sha": revision, "course_channel": channel, "access": access}
+
+    licensed_or_approved = bool(revision) or any(access.values())
+    if licensed_or_approved:
+        if str(uuid.UUID(raw_request_id)) != raw_request_id:
+            raise ValueError("The setup check needs its original request identifier.")
+        request_id = raw_request_id
+        mode = "licensed_course_project"
+    else:
+        request_id = raw_request_id or "self-check"
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", request_id):
+            raise ValueError("The self-check request identifier contains unsupported characters.")
+        mode = "open_engine_student"
+
+    report = {
+        "schema_version": "cochem.project-setup/2",
+        "research_admission": _research_admission(source or Path(__file__).resolve().parents[1]),
+        "request_id": request_id,
+        "repository": repository,
+        "source_sha": source_sha,
+        "run_id": run_id,
+        "run_attempt": run_attempt,
+        "approved_base_sha": revision,
+        "course_channel": channel,
+        "access": access,
+        "mode": mode,
+        "open_engine_ready": True,
+    }
+    if mode == "open_engine_student":
+        report["student_summary"] = OPEN_ENGINE_STUDENT_SUMMARY
+    return report
 
 
 def main() -> int:
@@ -81,6 +111,13 @@ def main() -> int:
     with args.output.open("x", encoding="utf-8") as stream:
         json.dump(report, stream, sort_keys=True, separators=(",", ":"))
         stream.write("\n")
+    if report.get("mode") == "open_engine_student":
+        summary = report["student_summary"]
+        print(summary)
+        step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+        if step_summary:
+            with Path(step_summary).open("a", encoding="utf-8") as handle:
+                handle.write(f"### CoChem Project Setup Check\n\n{summary}\n")
     return 0
 
 

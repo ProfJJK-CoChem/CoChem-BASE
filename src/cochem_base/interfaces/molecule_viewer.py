@@ -77,11 +77,11 @@ def molecule_viewer_html(xyz_data: str, *, base_url: str | None = None) -> str:
         {"id": identifier, "xyz": xyz, "url": source_url, "integrity": _SRI, "digest": _SHA256},
         allow_nan=False,
     )
-    return f"""<div class="cochem-molecule-preview">
+    return f"""<div class="cochem-molecule-preview" style="width:100%;max-width:100%;overflow:hidden;">
 <p id="{identifier}-status" role="status" aria-live="polite">Loading structure preview…</p>
 <div id="{identifier}" data-cochem-viewer-state="loading" role="img"
  aria-label="Molecular structure preview of {len(identity.elements)} atoms; visual bonds are not calculated bond orders."
- style="position:relative;width:100%;height:260px;"></div>
+ style="position:relative;width:100%;max-width:100%;height:260px;overflow:hidden;"></div>
 </div><script>
 (function() {{
   const config = {config};

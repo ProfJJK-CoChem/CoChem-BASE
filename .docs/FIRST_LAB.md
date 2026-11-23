@@ -3,8 +3,15 @@
 > **CHEM 312L Organic Chemistry II Lab (Cumberland University):** Use the
 > complete **[CHEM 312L Step-by-Step Guide](../student/CHEM312L_STEP_BY_STEP_GUIDE.md)**
 > for your public `CoChem-BASE` fork, exact M1–M4 GitHub Actions workflows, local
-> Codespace scripts, and Canvas submission instructions. **CHEM 312L students do
-> NOT use Google Colab, ORCA, CFOUR, or Classroom50, and never enter API tokens.**
+> Codespace scripts, and Canvas submission instructions.
+>
+> **CHEM 490 Directed Research (Cumberland University):** Use the complete
+> **[CHEM 490 Step-by-Step Guide](../student/CHEM490_STEP_BY_STEP_GUIDE.md)**
+> for your private `CoChem-[target]` template repository, Voilà GUI (`xTB` & `PySCF`),
+> Weeks 4–11 CLI reference, and Student ↔ Professor Handoff.
+>
+> **Course Policy:** Students do **not** use Google Colab directly, Classroom50,
+> or personal ORCA Forum licenses, and never enter API tokens.
 
 Use this page once your Codespace is open and you are working inside the CoChem
 browser dashboard. If you are still creating your project or opening a Codespace,
@@ -216,6 +223,6 @@ step you were on and the run link when one is shown. Keep the original input
 and failed result record. You do not need to send passwords, access tokens or
 terminal commands.
 
-For the Tuesday 3–Friday 6 November 2026 class tryout, use the
-[short daily guide and reporting instructions](BEGINNER_FIRE_TEST_2026-11-03.md).
 Use your instructor’s private reporting route for private project or coursework details.
+For CHEM 312L, see [`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](../student/CHEM312L_STEP_BY_STEP_GUIDE.md);
+for CHEM 490 Directed Research, see [`student/CHEM490_STEP_BY_STEP_GUIDE.md`](../student/CHEM490_STEP_BY_STEP_GUIDE.md).

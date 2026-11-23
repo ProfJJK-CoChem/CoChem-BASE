@@ -103,19 +103,128 @@ def _write_csv_records(records: list[dict[str, Any]], out_p: Path) -> Path:
     return out_p
 
 
+def write_pickett_decks(
+    config: SPCATDeckConfig,
+    scratch_dir: Path,
+    *,
+    stem: str = "mol",
+    freq_max_ghz: float = 200.0,
+) -> tuple[Path, Path]:
+    """Write valid JPL Pickett Watson A-reduction .var and .int decks."""
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    var_path = scratch_dir / f"{stem}.var"
+    int_path = scratch_dir / f"{stem}.int"
+
+    var_lines = [
+        f"CoChem Watson A-reduction ({config.constant_type})",
+        "   8  100    0    0     0.0000E+00     1.0000E+05     1.0000E+00 1.0000000000",
+        "a    1  1   0   30   0   1   1   1   0   0   0",
+        f"       10000  {config.a_mhz:16.6f} 1.000000E-04",
+        f"       20000  {config.b_mhz:16.6f} 1.000000E-04",
+        f"       30000  {config.c_mhz:16.6f} 1.000000E-04",
+        f"         200  {-config.dj_khz / 1000.0:16.9f} 1.000000E-08",
+        f"        1100  {-config.djk_khz / 1000.0:16.9f} 1.000000E-08",
+        f"        2000  {-config.dk_khz / 1000.0:16.9f} 1.000000E-08",
+        f"       40100  {-config.d1_khz / 1000.0:16.9f} 1.000000E-08",
+        f"       41000  {-config.d2_khz / 1000.0:16.9f} 1.000000E-08",
+    ]
+    var_path.write_text("\n".join(var_lines) + "\n", encoding="utf-8")
+
+    int_lines = [
+        f"CoChem Dipole Setup T_rot={config.temperature_k:.2f} K",
+        f"   0   91   100.0000   0   30  -10.0  -10.0  {freq_max_ghz:.3f}  {config.temperature_k:.3f}",
+        f"   1   {config.mu_a:.4f}",
+        f"   2   {config.mu_b:.4f}",
+        f"   3   {config.mu_c:.4f}",
+    ]
+    int_path.write_text("\n".join(int_lines) + "\n", encoding="utf-8")
+    return var_path, int_path
+
+
+def parse_cat_file(
+    cat_path: Path,
+    *,
+    constant_type: str = "B0",
+    freq_min_ghz: float | None = None,
+    freq_max_ghz: float | None = None,
+) -> list[dict[str, Any]]:
+    """Parse JPL Pickett .cat fixed-width lines with optional GHz band filtering."""
+    transitions: list[dict[str, Any]] = []
+    f_lo_mhz = (freq_min_ghz * 1000.0) if freq_min_ghz is not None else None
+    f_hi_mhz = (freq_max_ghz * 1000.0) if freq_max_ghz is not None else None
+    content = cat_path.read_text(encoding="utf-8", errors="ignore")
+    for line in content.splitlines():
+        if len(line) < 55:
+            continue
+        try:
+            freq = float(line[0:13].strip())
+            if f_lo_mhz is not None and freq < f_lo_mhz:
+                continue
+            if f_hi_mhz is not None and freq > f_hi_mhz:
+                continue
+            err = float(line[13:21].strip())
+            lgint = float(line[21:29].strip())
+            dr = int(line[29:31].strip())
+            elo = float(line[31:41].strip())
+            gup = int(line[41:44].strip())
+            tag = int(line[44:51].strip())
+            qn_tail = line[55:].rstrip("\r\n")
+            qn_chunks = [qn_tail[i : i + 2].strip() for i in range(0, min(len(qn_tail), 24), 2)]
+            qn_ints = [int(tok) for tok in qn_chunks if tok]
+            if len(qn_ints) >= 6:
+                j_u, ka_u, kc_u = qn_ints[0], qn_ints[1], qn_ints[2]
+                j_l, ka_l, kc_l = qn_ints[3], qn_ints[4], qn_ints[5]
+            else:
+                parts = line[51:].strip().split()
+                j_u, ka_u, kc_u = int(parts[-6]), int(parts[-5]), int(parts[-4])
+                j_l, ka_l, kc_l = int(parts[-3]), int(parts[-2]), int(parts[-1])
+            transitions.append(
+                {
+                    "frequency_mhz": freq,
+                    "uncertainty_mhz": err,
+                    "log10_intensity": lgint,
+                    "degrees_of_freedom": dr,
+                    "lower_energy_cm1": elo,
+                    "upper_state_degeneracy": gup,
+                    "species_tag": tag,
+                    "j_upper": j_u,
+                    "ka_upper": ka_u,
+                    "kc_upper": kc_u,
+                    "j_lower": j_l,
+                    "ka_lower": ka_l,
+                    "kc_lower": kc_l,
+                    "constant_type": constant_type,
+                }
+            )
+        except Exception:
+            continue
+    return transitions
+
+
 class SPCATRunner:
-    """Executes Pickett SPCAT binary or FP64 Watson Hamiltonian diagonalization."""
+    """Executes compiled JPL Pickett spcat binary; fails closed with PENDING when absent."""
 
     def __init__(self, spcat_bin_path: Path | str | None = None) -> None:
         self.spcat_bin: Path | None = None
+        self.last_status: str = "PENDING"
+        self.last_engine: str = "PENDING"
+        self.last_reason: str | None = None
+        self.last_deck_paths: dict[str, str] = {}
+        candidates: list[Path] = []
         if spcat_bin_path:
-            p = Path(spcat_bin_path)
-            if p.is_file():
-                self.spcat_bin = p
-        if not self.spcat_bin:
-            resolved = shutil.which("spcat") or shutil.which("spcat.exe")
-            if resolved:
-                self.spcat_bin = Path(resolved)
+            candidates.append(Path(spcat_bin_path))
+        env_bin = os.environ.get("SPCAT_BIN")
+        if env_bin:
+            candidates.append(Path(env_bin))
+        for found in (shutil.which("spcat"), shutil.which("spcat.exe")):
+            if found:
+                candidates.append(Path(found))
+        artifact_dir = Path(os.environ.get("COCHEM_ARTIFACT_DIR", "~/CoChem_Artifacts")).expanduser()
+        candidates.append(artifact_dir / "bin" / "spcat")
+        for cand in candidates:
+            if cand.is_file():
+                self.spcat_bin = cand
+                break
 
     @classmethod
     def validate_rotor_parameters(
@@ -148,8 +257,10 @@ class SPCATRunner:
         *,
         allow_unvibrated_be: bool = False,
         scratch_dir: Path | str | None = None,
+        freq_min_ghz: float | None = None,
+        freq_max_ghz: float | None = None,
     ) -> list[dict[str, Any]]:
-        """Compute authentic rotational transitions via Pickett spcat or FP64 Watson diagonalizer."""
+        """Compute authentic rotational transitions via compiled Pickett spcat, or fail closed with PENDING."""
         self.validate_rotor_parameters(config, allow_unvibrated_be=allow_unvibrated_be)
 
         scr_root = Path(os.environ.get("COCH_SCRATCH", "scratch"))
@@ -160,120 +271,50 @@ class SPCATRunner:
         )
         scr.mkdir(parents=True, exist_ok=True)
 
-        cat_path = None
-        if self.spcat_bin and self.spcat_bin.is_file():
-            base_name = "mol"
-            var_path = scr / f"{base_name}.var"
-            int_path = scr / f"{base_name}.int"
-
-            var_lines = [
-                "CoChem-TORQ Watson A-reduced parameters",
-                "   5   100   0   0.0000E+000   1.0000E+000   1.0000E+000",
-                f"       10000  {config.a_mhz:16.6f} 1.000000E-04",
-                f"       20000  {config.b_mhz:16.6f} 1.000000E-04",
-                f"       30000  {config.c_mhz:16.6f} 1.000000E-04",
-                f"         200  {-config.dj_khz:16.6f} 1.000000E-06",
-                f"        1100  {-config.djk_khz:16.6f} 1.000000E-06",
-                f"        2000  {-config.dk_khz:16.6f} 1.000000E-06",
-                f"       40100  {-config.d1_khz:16.6f} 1.000000E-06",
-                f"       41000  {-config.d2_khz:16.6f} 1.000000E-06",
-            ]
-            var_path.write_text("\n".join(var_lines) + "\n", encoding="utf-8")
-
-            int_lines = [
-                "CoChem-TORQ Dipole Setup",
-                "   0    1    0.0    0.0000    200000.0   -10.0   1.0000",
-                f"   {config.temperature_k:.2f}    1000.000",
-                f"   1   {config.mu_a:.4f}",
-                f"   2   {config.mu_b:.4f}",
-                f"   3   {config.mu_c:.4f}",
-            ]
-            int_path.write_text("\n".join(int_lines) + "\n", encoding="utf-8")
-
-            try:
-                subprocess.run(
-                    [str(self.spcat_bin), base_name],
-                    cwd=str(scr),
-                    check=True,
-                    timeout=30.0,
-                    capture_output=True,
-                )
-                generated_cat = scr / f"{base_name}.cat"
-                if generated_cat.is_file():
-                    cat_path = generated_cat
-            except Exception:
-                cat_path = None
-
-        if cat_path and cat_path.is_file():
-            transitions: list[dict[str, Any]] = []
-            content = cat_path.read_text(encoding="utf-8", errors="ignore")
-            for line in content.splitlines():
-                if len(line) < 50:
-                    continue
-                try:
-                    freq = float(line[0:13].strip())
-                    err = float(line[13:21].strip())
-                    lgint = float(line[21:29].strip())
-                    dr = int(line[29:31].strip())
-                    elo = float(line[31:41].strip())
-                    gup = int(line[41:44].strip())
-                    tag = int(line[44:51].strip())
-                    qn_str = line[51:].strip()
-                    parts = qn_str.split()
-                    j_u, ka_u, kc_u = int(parts[-6]), int(parts[-5]), int(parts[-4])
-                    j_l, ka_l, kc_l = int(parts[-3]), int(parts[-2]), int(parts[-1])
-                    transitions.append(
-                        {
-                            "frequency_mhz": freq,
-                            "uncertainty_mhz": err,
-                            "log10_intensity": lgint,
-                            "degrees_of_freedom": dr,
-                            "lower_energy_cm1": elo,
-                            "upper_state_degeneracy": gup,
-                            "species_tag": tag,
-                            "j_upper": j_u,
-                            "ka_upper": ka_u,
-                            "kc_upper": kc_u,
-                            "j_lower": j_l,
-                            "ka_lower": ka_l,
-                            "kc_lower": kc_l,
-                            "constant_type": config.constant_type,
-                        }
-                    )
-                except Exception:
-                    continue
-
-            if transitions:
-                return transitions
-
-        # Authentic pure-Python / JAX Watson Hamiltonian fallback
-        from cochem_torq_asymmetric_rotor import (
-            AsymmetricTopDiagonalizer,
-            RotationalConstants,
+        base_name = "mol"
+        deck_max_ghz = float(freq_max_ghz) if freq_max_ghz is not None else 200.0
+        var_path, int_path = write_pickett_decks(
+            config, scr, stem=base_name, freq_max_ghz=deck_max_ghz
         )
+        self.last_deck_paths = {"var": str(var_path), "int": str(int_path)}
 
-        rot_consts = RotationalConstants(
-            A=config.a_mhz,
-            B=config.b_mhz,
-            C=config.c_mhz,
-            D_J=config.dj_khz / 1000.0,
-            D_JK=config.djk_khz / 1000.0,
-            D_K=config.dk_khz / 1000.0,
-            d_1=config.d1_khz / 1000.0,
-            d_2=config.d2_khz / 1000.0,
-            mu_a=config.mu_a,
-            mu_b=config.mu_b,
-            mu_c=config.mu_c,
+        if not (self.spcat_bin and self.spcat_bin.is_file()):
+            self.last_status = "PENDING"
+            self.last_engine = "PENDING"
+            self.last_reason = (
+                "Pickett spcat binary not found on PATH. Valid .var/.int decks were written; "
+                "install or compile JPL calpgm spcat onto PATH to compute rotational transitions."
+            )
+            return []
+
+        completed = subprocess.run(
+            [str(self.spcat_bin), base_name],
+            cwd=str(scr),
+            check=False,
+            timeout=30.0,
+            capture_output=True,
+            text=True,
         )
-        diag = AsymmetricTopDiagonalizer(constants=rot_consts, j_max=5)
-        trans_records = diag.compute_transitions()
-        records_dicts: list[dict[str, Any]] = []
-        for r in trans_records:
-            d = dict(r.__dict__)
-            d["frequency_mhz"] = d.get("freq_mhz", 0.0)
-            d["constant_type"] = config.constant_type
-            records_dicts.append(d)
-        return records_dicts
+        generated_cat = scr / f"{base_name}.cat"
+        if completed.returncode != 0 or not generated_cat.is_file():
+            self.last_status = "PENDING"
+            self.last_engine = "PENDING"
+            self.last_reason = (
+                f"Pickett spcat exited with code {completed.returncode} without producing {generated_cat.name}."
+            )
+            return []
+
+        self.last_deck_paths["cat"] = str(generated_cat)
+        transitions = parse_cat_file(
+            generated_cat,
+            constant_type=config.constant_type,
+            freq_min_ghz=freq_min_ghz,
+            freq_max_ghz=freq_max_ghz,
+        )
+        self.last_status = "COMPLETE"
+        self.last_engine = "calpgm_spcat"
+        self.last_reason = None
+        return transitions
 
     def generate_parquet_catalog(
         self,
@@ -281,6 +322,8 @@ class SPCATRunner:
         output_parquet_path: Path | str,
         allow_unvibrated_be: bool = False,
         scratch_dir: Path | str | None = None,
+        freq_min_ghz: float | None = None,
+        freq_max_ghz: float | None = None,
     ) -> Path:
         """Generates authentic microwave line catalog Parquet file."""
         out_p = Path(output_parquet_path).resolve()
@@ -289,6 +332,8 @@ class SPCATRunner:
             config,
             allow_unvibrated_be=allow_unvibrated_be,
             scratch_dir=scratch_dir,
+            freq_min_ghz=freq_min_ghz,
+            freq_max_ghz=freq_max_ghz,
         )
         return _write_parquet_records(records, out_p)
 
@@ -296,8 +341,9 @@ class SPCATRunner:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description=(
-            "Pickett SPCAT / Watson Hamiltonian asymmetric-top rotational catalog runner "
-            "(CSV/JSON work with zero pyarrow dependency; Parquet requires optional pyarrow)."
+            "Pickett SPCAT asymmetric-top rotational catalog runner "
+            "(uses compiled JPL calpgm spcat on PATH; fails closed with honest PENDING when absent; "
+            "CSV/JSON work with zero pyarrow dependency)."
         )
     )
     p.add_argument("--a-mhz", required=True, type=float, help="Rotational constant A (MHz).")
@@ -312,6 +358,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--mu-b", type=float, default=0.0, help="Dipole component mu_b (Debye).")
     p.add_argument("--mu-c", type=float, default=0.0, help="Dipole component mu_c (Debye).")
     p.add_argument("--temperature-k", type=float, default=2.0, help="Rotational temperature T_rot (K, default: 2.0).")
+    p.add_argument("--freq-min-ghz", type=float, default=None, help="Optional minimum frequency filter (GHz, e.g. 8.0).")
+    p.add_argument("--freq-max-ghz", type=float, default=None, help="Optional maximum frequency filter (GHz, e.g. 18.0).")
     p.add_argument("--constant-type", choices=("B0", "Be"), default="B0", help="Constant provenance (B0 or Be).")
     p.add_argument("--delta-b-vib-mhz", type=float, default=None, help="Vibrational correction Delta B_vib (MHz).")
     p.add_argument("--allow-unvibrated-be", action="store_true", help="Explicitly permit pure equilibrium B_e simulation.")
@@ -346,15 +394,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         cfg,
         allow_unvibrated_be=args.allow_unvibrated_be,
         scratch_dir=args.scratch_dir,
+        freq_min_ghz=args.freq_min_ghz,
+        freq_max_ghz=args.freq_max_ghz,
     )
     summary: dict[str, Any] = {
         "schema": "cochem.spcat-catalog/1",
+        "status": runner.last_status,
+        "engine": runner.last_engine,
         "collaborator_institution": "Tennessee Tech University",
         "constant_type": cfg.constant_type,
         "temperature_k": cfg.temperature_k,
+        "freq_min_ghz": args.freq_min_ghz,
+        "freq_max_ghz": args.freq_max_ghz,
         "ray_asymmetry_kappa": compute_ray_asymmetry_parameter(cfg.a_mhz, cfg.b_mhz, cfg.c_mhz),
         "n_transitions": len(records),
+        "decks": runner.last_deck_paths,
     }
+    if runner.last_reason:
+        summary["reason"] = runner.last_reason
     if args.output_csv is not None:
         _write_csv_records(records, args.output_csv)
         summary["output_csv"] = str(args.output_csv.resolve())

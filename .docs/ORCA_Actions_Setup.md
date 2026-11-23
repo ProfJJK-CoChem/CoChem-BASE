@@ -1,11 +1,10 @@
 # ORCA 6.1.1 Actions provisioning and acceptance
 
-For the complete instructor and student walkthrough, start with
-[Classroom50 and ORCA on GitHub Actions: instructor and student setup](GitHub_Classroom_ORCA_Setup.md).
-It covers Classroom50 in an instructor-managed GitHub organization, Windows PowerShell
-checksums, private Release uploads, the current token permission controls,
-secret access for each course repository, and the actual acceptance run.
-This page records technical behavior and execution evidence.
+> **Student Notice (CHEM 312L & CHEM 490):** Students do **not** register on the ORCA Forum, configure ORCA Actions credentials, or use Google Colab directly. Run open-source calculations (`PySCF`, `xTB`, `CREST`, `TOPOS`, `TORQ`) in your GitHub Codespace, and use the Student ↔ Professor Handoff in [`student/CHEM490_STEP_BY_STEP_GUIDE.md`](../student/CHEM490_STEP_BY_STEP_GUIDE.md) whenever high-level `ORCA 6.1.1` / `CCSD(T)` / `VPT2` runs are needed on Cumberland University's department research computers.
+
+For instructor-managed private project deployment, see
+[GitHub App deployment for personal student projects](Personal_Project_App_Deployment.md).
+This page records instructor-side technical behavior and execution evidence.
 
 The reviewed distribution is pinned in `scripts/orca-distribution.json`:
 
@@ -129,7 +128,7 @@ system runtime libraries. The action installs outside the checkout and exports
 `COCHEM_ORCA_BIN`, `ORCA_CMD`, `ORCA_PATH`, MPI paths and provenance for this job.
 
 Direct acceptance runs use the current course repository and selected commit,
-so a Classroom50 copy does not try to check out its own commit from the upstream
+so a student private template copy does not try to check out its own commit from the upstream
 BASE repository. The full workflow also supports `workflow_call`; callers must
 pass a full 40-character BASE commit as `base_ref` and explicitly pass the
 generic `engine_asset_credential` input using their private binding. `base_repository` defaults to
@@ -138,7 +137,7 @@ caller's default token cannot read that private source repository, the caller
 can pass the separate optional `base_source_credential` with Contents read
 access to the source. Private action/workflow reuse also depends on GitHub's
 repository sharing rules. The ORCA-only token is not source access to another
-private repository, and Classroom50's service token is not an ORCA credential.
+private repository, and separate course management tokens are not ORCA credentials.
 
 This downloader does not replace platform-neutral engine discovery. Local Linux
 and WSL use their configured compatible installation; macOS needs its matching

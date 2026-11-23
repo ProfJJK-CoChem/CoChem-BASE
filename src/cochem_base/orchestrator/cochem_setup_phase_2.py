@@ -512,6 +512,19 @@ def get_absolute_physical_ram() -> int:
         except (ValueError, OSError, AttributeError) as _e:
             logger.debug(f"Ignored exception: {_e}")
 
+    meminfo_path = Path("/proc/meminfo")
+    if meminfo_path.is_file():
+        try:
+            for line in meminfo_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                if line.startswith("MemTotal:"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        kb = int(parts[1])
+                        if kb > 0:
+                            return kb * 1024
+        except (OSError, ValueError) as _e:
+            logger.debug(f"Ignored /proc/meminfo read error: {_e}")
+
     vmem = psutil.virtual_memory()
     return int(vmem.total)
 

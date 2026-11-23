@@ -134,6 +134,7 @@ def compute_kraitchman_rs(
     reduced_mass_amu: float | None = None,
     mode: str = "nonplanar",
     label: str = "single_substitution",
+    course_id: str = "CHEM312",
 ) -> dict[str, Any]:
     """Compute exact Kraitchman single-substitution |r_s| coordinates for planar or 3D rotors."""
     if len(parent_abc_mhz) != 3 or len(iso_abc_mhz) != 3:
@@ -247,7 +248,7 @@ def compute_kraitchman_rs(
         "schema": "cochem.kraitchman-rs/1",
         "course_institution": "Cumberland University",
         "collaborator_institution": "Tennessee Tech University",
-        "course_id": "CHEM312",
+        "course_id": course_id,
         "created_at_utc": _utc_now(),
         "label": label,
         "requested_mode": requested_mode,
@@ -335,8 +336,13 @@ def render_markdown(result: Mapping[str, Any]) -> str:
     mass = result["mass"]
     coords = result["coordinates"]
 
+    heading = (
+        f"# CHEM 312 M4 Kraitchman Single-Substitution Coordinates — `{result['label']}`"
+        if result.get("course_id", "CHEM312") == "CHEM312"
+        else f"# {result['course_id']} Kraitchman Single-Substitution Coordinates — `{result['label']}`"
+    )
     lines = [
-        f"# CHEM 312 M4 Kraitchman Single-Substitution Coordinates — `{result['label']}`",
+        heading,
         "",
         f"- **Course Institution:** {result['course_institution']} (`{result['course_id']}`)",
         f"- **Spectroscopy Collaborator:** {result['collaborator_institution']}",
@@ -414,6 +420,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Kraitchman equation set: nonplanar (3D, default), planar (2D ab-plane), or auto.",
     )
     p.add_argument("--label", default="single_substitution", help="Substitution site label (e.g., HCOOH_H_acid_D).")
+    p.add_argument(
+        "--course-id",
+        choices=("CHEM312", "CHEM490", "CHEM410", "CHEM411"),
+        default="CHEM312",
+        help="Course provenance identifier (default: CHEM312; use CHEM490 for Directed Research).",
+    )
     p.add_argument("--output-json", type=Path, default=None, help="Optional output JSON path.")
     p.add_argument("--output-md", "--out", dest="output_md", type=Path, default=None, help="Optional output Markdown table path (alias: --out).")
     return p
@@ -469,6 +481,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         reduced_mass_amu=args.reduced_mass_amu,
         mode=args.mode,
         label=args.label,
+        course_id=args.course_id,
     )
     if inputs_sha256:
         result["inputs_sha256"] = inputs_sha256

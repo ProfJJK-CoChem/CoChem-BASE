@@ -192,15 +192,28 @@ def _inputs(gui: Any) -> None:
         gui.input_pool_choices, gui.input_pool_declare_context, gui.input_pool_context_box,
         gui.btn_sieve_inputs, gui.input_pool_status, gui.input_unique_conformer, gui.btn_use_unique_conformer)
     gui.btn_continue_calculation_settings = _navigate(gui, "matrix", "Continue to calculation settings", tab=1)
+    gui.inputs_viewer_output.layout.width = "100%"
+    gui.inputs_viewer_output.layout.max_width = "100%"
+    gui.inputs_viewer_output.layout.overflow = "hidden"
+    gui.inputs_viewer_output.add_class("cochem-viewer-box")
+    inputs_selector_column = widgets.VBox([
+        gui.input_library_choice,
+        gui.input_record_choice, gui.input_management_controls, gui.btn_use_input_geometry,
+        _text("<p class='cochem-hint'>For a molecular calculation, select a structure and choose "
+              "<b>Use selected starting geometry</b>. Check charge and spin in Calculations. "
+              "For spectra, Hessians or periodic data, choose the corresponding tool in the navigation.</p>"),
+        gui.btn_continue_calculation_settings,
+    ], layout=widgets.Layout(width="58%"))
+    inputs_preview_column = widgets.VBox([
+        _text("<h4>Structure preview</h4><p class='cochem-hint'>Drag to rotate; scroll to zoom. "
+              "Drawn bonds help inspect geometry; they are not calculated bond orders.</p>"),
+        gui.inputs_viewer_output,
+    ], layout=widgets.Layout(width="40%"))
+    gui.inputs_preview_columns = widgets.HBox([inputs_selector_column, inputs_preview_column]).add_class("cochem-structure-columns")
     gui.view_inputs.children = (
         _heading("Your files", "Upload a file, choose a structure/frame, then Use selected starting geometry."),
         gui.input_upload_section, gui.input_library_rejections,
-        _section("2 · Choose a structure or dataset", gui.input_library_choice,
-                 gui.input_record_choice, gui.input_management_controls, gui.btn_use_input_geometry,
-                 _text("<p class='cochem-hint'>For a molecular calculation, select a structure and choose "
-                       "<b>Use selected starting geometry</b>. Check charge and spin in Calculations. "
-                       "For spectra, Hessians or periodic data, choose the corresponding tool in the navigation.</p>"),
-                 gui.btn_continue_calculation_settings),
+        _section("2 · Choose a structure or dataset", gui.inputs_preview_columns),
         Disclosure("File details and provenance", _text(help_html("provenance")), gui.input_library_table, gui.btn_input_refresh),
         gui.input_inbox_disclosure, gui.input_pool_disclosure,
     )
@@ -215,8 +228,13 @@ def _molecular_settings(gui: Any) -> None:
     gui.matrix_solvation.options = [("Gas phase (no solvent model)", None), ("Water (CPCM)", "CPCM(Water)"),
         ("Acetone (CPCM)", "CPCM(Acetone)"), ("Ethanol (CPCM)", "CPCM(Ethanol)")]
     gui.matrix_solvation.value = selected_solvent
-    for field in (gui.charge_input, gui.multiplicity_input, gui.matrix_tier, gui.matrix_solvation):
+    for field in (gui.charge_input, gui.multiplicity_input, gui.matrix_tier, gui.matrix_solvation,
+                  gui.matrix_engine, gui.matrix_method, gui.matrix_basis, gui.matrix_cbs_pair):
         field.style.description_width = "initial"
+    for dropdown in (gui.matrix_engine, gui.matrix_method, gui.matrix_basis, gui.matrix_solvation,
+                     gui.matrix_tier, gui.matrix_cbs_pair):
+        dropdown.layout.width = "480px"
+        dropdown.layout.max_width = "100%"
     _keep_none_option_visible(gui.matrix_engine)
     _keep_none_option_visible(gui.matrix_solvation)
     gui.t9_disclosure = Disclosure("Advanced: multireference spin recovery (T9)",
@@ -255,6 +273,8 @@ def _molecular_settings(gui: Any) -> None:
         gui.student_monomer_choices, gui.student_seed_separation, gui.btn_assemble_monomers)
     gui.viewer_output.layout.width = "100%"
     gui.viewer_output.layout.max_width = "100%"
+    gui.viewer_output.layout.overflow = "hidden"
+    gui.viewer_output.add_class("cochem-viewer-box")
     gui.geometry_charge = widgets.IntText(description="Structure charge:", style={"description_width": "initial"})
     gui.geometry_multiplicity = widgets.IntText(description="Structure multiplicity:", style={"description_width": "initial"})
     gui._geometry_state_links = (
@@ -509,6 +529,7 @@ def _guided_shell(gui: Any) -> None:
                   gui.matrix_geometry, gui.student_geometry_choice, gui.charge_input, gui.multiplicity_input,
                   gui.xtb_task, gui.calc_env_dropdown):
         field.observe(update_current, names="value")
+    gui._sync_guided_status = update_current
     update_current()
     gui.guided_journey = widgets.VBox([
         widgets.HBox(list(gui.guided_step_buttons.values())).add_class("cochem-journey-buttons"),

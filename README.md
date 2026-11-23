@@ -15,16 +15,17 @@ without local installation.
 | Course Track | How to Copy `CoChem-BASE` | Visibility & Repo Name | Where to Start |
 | --- | --- | --- | --- |
 | **CHEM 312L Organic Chemistry II Lab (Cumberland University)** | Click **Fork** near the top right | Keep visibility **Public** · Keep name **`CoChem-BASE`** *(gives unlimited free GitHub Actions minutes; required by M1 Rubric C4)* | **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** |
-| **CHEM 490 Research (Instructor-Invited)** | Click **Use this template → Create a new repository** | **Private** · Name `CoChem-[target-molecule]` | **[`.docs/GET_STARTED.md`](.docs/GET_STARTED.md#student-personal-project)** |
+| **CHEM 490 Directed Research (Cumberland University)** | Click **Use this template → Create a new repository** | **Private** · Name `CoChem-[target-molecule]` | **[`student/CHEM490_STEP_BY_STEP_GUIDE.md`](student/CHEM490_STEP_BY_STEP_GUIDE.md)** |
 
-> **CHEM 312L Course Rule:** **CHEM 312L students do NOT use Google Colab, ORCA, CFOUR, or Classroom50, and never enter API tokens.** All CHEM 312L calculations run on your public fork's free GitHub Actions and GitHub Codespace, and all submissions go to **Canvas**.
+> **Course Rule (CHEM 312L & CHEM 490):** **Students do NOT use Google Colab directly, Classroom50, or personal ORCA Forum licenses, and never enter API tokens.** Open-source engines (`PySCF`, `xTB`, `CREST`, `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SpycFit`, `SCRIBE`, `spfit`/`spcat`) run in your GitHub Codespace/Actions; optional ORCA 6.1.1 / CCSD(T) / VPT2 jobs for CHEM 490 are run by Dr. Klaassen on Cumberland University's department research computers via the Student ↔ Professor Handoff.
 
 ---
 
 ## Students: start your project here (4 clicks — no secrets or enrollment needed)
 
 - **CHEM 312L (Cumberland University, partnering with Tennessee Tech University CP-FTMW collaborators):** Follow **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** for the complete Day-1 through Milestone 4 (`M1`–`M4`) walkthrough.
-- **CHEM 490 / general browser dashboard guide:** **[Open the step-by-step student guide](.docs/GET_STARTED.md#student-personal-project)**.
+- **CHEM 490 Directed Research (Cumberland University, partnering with Tennessee Tech University CP-FTMW collaborators):** Follow **[`student/CHEM490_STEP_BY_STEP_GUIDE.md`](student/CHEM490_STEP_BY_STEP_GUIDE.md)** for private template setup, Voilà GUI (`xTB` & `PySCF`), Weeks 4–11 CLI tools (`TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SpycFit`, `SCRIBE`, `spfit`/`spcat`), and the Student ↔ Professor Handoff.
+- **General browser dashboard reference:** **[Open the account and workspace guide](.docs/GET_STARTED.md#student-personal-project)**.
 
 You use buttons and menus in your web browser. You do not need to install Python,
 request organization invites, or install a GitHub App. `CoChem-BASE` automatically
@@ -46,16 +47,17 @@ your GitHub Codespace and runs your assigned calculations cleanly on CPU.
 
 1. On **your fork's page**, click the green **Code** button.
 2. Select the **Codespaces** tab, then click **Create codespace on main**.
-3. Wait **5–10 minutes on a fresh Codespace (or ~30 seconds when Prebuilds are
+3. Wait **~10–15 minutes on a fresh Codespace (or ~30 seconds when Prebuilds are
    enabled)** while your Codespace prepares `PySCF`, `xTB`, `CREST`, `TOPOS`,
-   and `TORQ`. Port **8866 (`CoChem Voilà dashboard`)** displays a live
+   `BENCH`, `TORQ`, `GEOM`, `SpycFit`, `SCRIBE`, and `spfit`/`spcat`. Port **8866 (`CoChem Voilà dashboard`)** displays a live
    auto-refreshing setup progress page and automatically opens the CoChem
    dashboard as soon as setup finishes. (If the browser tab did not open
    automatically, open VS Code's **Ports** panel at the bottom and click the
    globe icon next to **8866 — CoChem Voilà dashboard**.)
-4. Your Codespace terminal automatically puts `/home/vscode/CoChem_Artifacts/ui-env/bin`
-   first on `PATH`, so `python` and `python3` have all scientific analysis
-   dependencies ready immediately. Starter templates (`AI_Usage_Log.md`,
+4. Your Codespace terminal automatically puts `/home/vscode/CoChem_Artifacts/bin`
+   and `/home/vscode/CoChem_Artifacts/ui-env/bin` first on `PATH`, so `python`,
+   `python3`, `xtb`, `crest`, `spfit`, `spcat`, and all CoChem CLI commands are
+   ready immediately. Starter templates (`AI_Usage_Log.md`,
    `targets/team_card.yaml`, `data/`, and `results/`) are included on Day 1.
 
 ### 3. Work through the CoChem dashboard

@@ -538,6 +538,82 @@ def action_setup(args: argparse.Namespace, on_event: Optional[Callable[[Dict[str
     return 0 if overall_success else 1
 
 
+def _read_linux_meminfo_gb(meminfo_path: Path = Path("/proc/meminfo")) -> Optional[float]:
+    """Read real physical RAM in GiB from Linux /proc/meminfo when available."""
+    if not meminfo_path.is_file():
+        return None
+    try:
+        for line in meminfo_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.startswith("MemTotal:"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    kb = int(parts[1])
+                    if kb > 0:
+                        return round(kb / (1024.0 * 1024.0), 2)
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def _probe_additional_engines(artifact_dir: Path) -> Dict[str, Dict[str, Any]]:
+    """Probe PATH, artifact_dir/bin, free-engines, free, and Silos for open-source chemistry & spectroscopy tools."""
+    import shutil
+    discovered: Dict[str, Dict[str, Any]] = {}
+    search_roots = [
+        artifact_dir / "bin",
+        Path("/home/vscode/CoChem_Artifacts/bin"),
+    ]
+    binary_specs = {
+        "xtb": [
+            artifact_dir / "free-engines" / "xtb" / "xtb-dist" / "bin" / "xtb",
+            artifact_dir / "free-engines" / "native" / "bin" / "xtb",
+            artifact_dir / "free" / "xtb" / "bin" / "xtb",
+        ],
+        "crest": [
+            artifact_dir / "free-engines" / "crest" / "crest" / "crest",
+            artifact_dir / "free-engines" / "native" / "bin" / "crest",
+            artifact_dir / "free" / "crest" / "crest",
+        ],
+        "spfit": [],
+        "spcat": [],
+    }
+    for name, extra_paths in binary_specs.items():
+        found_path: Optional[str] = shutil.which(name) or shutil.which(f"{name}.exe")
+        if not found_path:
+            for cand in [*(root / name for root in search_roots), *extra_paths]:
+                if cand.is_file():
+                    found_path = str(cand)
+                    break
+        discovered[name] = {
+            "is_available": bool(found_path),
+            "path": found_path,
+        }
+
+    # Probe PySCF in current Python interpreter or audited cochem_calc_silo
+    pyscf_path: Optional[str] = None
+    try:
+        import importlib.util as _ilu
+        spec = _ilu.find_spec("pyscf")
+        if spec is not None and spec.origin:
+            pyscf_path = str(spec.origin)
+    except Exception:
+        pyscf_path = None
+    if not pyscf_path:
+        for silo_py in (
+            artifact_dir / "Silos" / "cochem_calc_silo" / "bin" / "python",
+            artifact_dir / "Silos" / "cochem_calc_silo" / "Scripts" / "python.exe",
+            Path("/home/vscode/CoChem_Artifacts/Silos/cochem_calc_silo/bin/python"),
+        ):
+            if silo_py.is_file():
+                pyscf_path = str(silo_py)
+                break
+    discovered["pyscf"] = {
+        "is_available": bool(pyscf_path),
+        "path": pyscf_path,
+    }
+    return discovered
+
+
 def action_audit(args: argparse.Namespace) -> int:
     """Executes non-mutating environment, hardware, precision, and toolchain audit (Phases 1, 2, 3)."""
     artifact_dir = Path(args.artifact_dir).resolve() if args.artifact_dir else get_artifact_dir()
@@ -576,6 +652,39 @@ def action_audit(args: argparse.Namespace) -> int:
         if not success:
             all_passed = False
 
+    # Compute real physical RAM in GiB (Phase 2 total_gb -> total_bytes -> /proc/meminfo)
+    p2_rep = results["audits"].get("phase_2_hardware,_simd_&_vram_profiling", {}).get("report", {})
+    mem_rep = p2_rep.get("memory", {}) if isinstance(p2_rep, dict) else {}
+    ram_gb: Optional[float] = None
+    if isinstance(mem_rep.get("total_gb"), (int, float)) and mem_rep["total_gb"] > 0:
+        ram_gb = round(float(mem_rep["total_gb"]), 2)
+    elif isinstance(mem_rep.get("total_bytes"), (int, float)) and mem_rep["total_bytes"] > 0:
+        ram_gb = round(float(mem_rep["total_bytes"]) / (1024.0 ** 3), 2)
+    else:
+        ram_gb = _read_linux_meminfo_gb()
+    if isinstance(mem_rep, dict) and ram_gb is not None:
+        mem_rep["total_gb"] = ram_gb
+
+    # Merge Phase 3 engines with PATH / artifact_dir/bin / free-engines / Silos discovery
+    p3_rep = results["audits"].get("phase_3_quantum_engine_discovery_&_integrity_hashing", {}).get("report", {})
+    merged_engines: Dict[str, Dict[str, Any]] = {}
+    if isinstance(p3_rep, dict) and isinstance(p3_rep.get("engines"), dict):
+        for k, v in p3_rep["engines"].items():
+            merged_engines[k] = dict(v) if isinstance(v, dict) else {"is_available": False, "path": None}
+    extra_engines = _probe_additional_engines(artifact_dir)
+    for eng_name, probe_info in extra_engines.items():
+        existing = merged_engines.get(eng_name)
+        if existing is None or (not existing.get("is_available") and probe_info.get("is_available")):
+            merged_engines[eng_name] = {**(existing or {}), **probe_info}
+    if isinstance(p3_rep, dict):
+        p3_rep["engines"] = merged_engines
+
+    discovered_count = sum(1 for item in merged_engines.values() if item.get("is_available"))
+    audit_ready = all_passed and discovered_count > 0
+    results["discovered_engines_count"] = discovered_count
+    results["physical_ram_gb"] = ram_gb
+    results["audit_status"] = "Ready" if audit_ready else ("Degraded (no engines)" if discovered_count == 0 else "Warning / Degraded")
+
     if args.json:
         print(json.dumps(results, indent=2))
     else:
@@ -591,11 +700,11 @@ def action_audit(args: argparse.Namespace) -> int:
             print(f"     - {t_name:10s}: {avail} {t_val.get('version', '')}")
 
         # Phase 2 Summary
-        p2_rep = results["audits"].get("phase_2_hardware,_simd_&_vram_profiling", {}).get("report", {})
         print(f"\n{TermColor.BOLD}2. Hardware & Precision Profiling:{TermColor.RESET}")
         print(f"   CPU Physical: {p2_rep.get('cpu', {}).get('physical_cores', 'Unknown')} cores (Logical: {p2_rep.get('cpu', {}).get('logical_cores', 'Unknown')})")
         print(f"   SIMD Support: AVX2={p2_rep.get('cpu', {}).get('has_avx2', False)}, AVX512={p2_rep.get('cpu', {}).get('has_avx512', False)}")
-        print(f"   Physical RAM: {p2_rep.get('memory', {}).get('total_gb', 'Unknown')} GB")
+        ram_display = f"{ram_gb:.2f} GB" if ram_gb is not None else "Unknown GB"
+        print(f"   Physical RAM: {ram_display}")
         print(f"   IEEE-754:     {p2_rep.get('ieee754_precision', {}).get('verdict', 'Unknown')}")
         gpus = p2_rep.get("gpu", {}).get("devices", [])
         print(f"   GPUs Found:   {len(gpus)}")
@@ -603,18 +712,22 @@ def action_audit(args: argparse.Namespace) -> int:
             print(f"     - {g.get('name', 'GPU')}: {g.get('vram_gb', 0.0)} GB VRAM (FP64 Capable: {g.get('fp64_capable', False)})")
 
         # Phase 3 Summary
-        p3_rep = results["audits"].get("phase_3_quantum_engine_discovery_&_integrity_hashing", {}).get("report", {})
         print(f"\n{TermColor.BOLD}3. Quantum Chemistry Engines Discovery:{TermColor.RESET}")
-        for eng_name, eng_val in p3_rep.get("engines", {}).items():
+        for eng_name, eng_val in merged_engines.items():
             avail = TermColor.ok("Discovered") if eng_val.get("is_available") else TermColor.warn("Not Found")
             print(f"     - {eng_name:12s}: {avail} (Path: {eng_val.get('path', 'N/A')})")
 
         print("\n" + "=" * 78)
-        status_msg = TermColor.ok("Host Environment Audit: Ready") if all_passed else TermColor.warn("Host Environment Audit: Warning / Degraded")
+        if audit_ready:
+            status_msg = TermColor.ok("Host Environment Audit: Ready")
+        elif discovered_count == 0:
+            status_msg = TermColor.warn("Host Environment Audit: Degraded (no engines)")
+        else:
+            status_msg = TermColor.warn("Host Environment Audit: Warning / Degraded")
         print(f"{status_msg}")
         print("=" * 78)
 
-    return 0 if all_passed else 1
+    return 0 if audit_ready else 1
 
 
 def action_preflight(args: argparse.Namespace) -> int:

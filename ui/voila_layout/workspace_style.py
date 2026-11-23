@@ -93,21 +93,36 @@ WORKSPACE_CSS = """
   color: var(--cc-ink); background: #fff; border: 1px solid #82999e; border-radius: 4px;
   font-family: inherit; font-size: 14px; min-width: 0; line-height: 1.5;}
 .cochem-accessible select, .cochem-accessible input:not([type=checkbox]):not([type=radio]) {min-height: 36px;}
+.cochem-accessible .widget-dropdown {width: auto; max-width: 100%;}
+.cochem-accessible .widget-dropdown > select {min-width: 280px; max-width: 100%; padding: 4px 32px 4px 10px; text-overflow: ellipsis;}
 .cochem-accessible select:disabled, .cochem-accessible input:disabled {color: #5c6a70; background: #f0f3f3;}
 .cochem-accessible .jupyter-button {color: var(--cc-ink); background: #fff; border: 1px solid #9aafb3;
   border-radius: 4px; box-shadow: none; font: 600 14px/1.5 system-ui, sans-serif;
   width: auto; min-height: 38px; height: auto; white-space: normal; overflow-wrap: anywhere; padding: 8px 14px;}
-.cochem-accessible .jupyter-button:hover:enabled {background: #eaf1f1;}
+.cochem-accessible .jupyter-button:hover:enabled,
+.cochem-accessible .jupyter-button:focus:enabled {color: var(--cc-ink); background: #eaf1f1;}
 .cochem-accessible .jupyter-button.mod-primary, .cochem-accessible .jupyter-button.mod-success,
 .cochem-accessible .jupyter-button.mod-info {color: #fff; background: var(--cc-accent); border-color: var(--cc-accent);}
 .cochem-accessible .jupyter-button.mod-primary:hover:enabled,
+.cochem-accessible .jupyter-button.mod-primary:focus:enabled,
 .cochem-accessible .jupyter-button.mod-success:hover:enabled,
-.cochem-accessible .jupyter-button.mod-info:hover:enabled {background: #005551;}
-.cochem-accessible .cochem-navigation .jupyter-button.mod-primary:hover:enabled {
+.cochem-accessible .jupyter-button.mod-success:focus:enabled,
+.cochem-accessible .jupyter-button.mod-info:hover:enabled,
+.cochem-accessible .jupyter-button.mod-info:focus:enabled {color: #fff; background: #005551; border-color: #005551;}
+.cochem-accessible .cochem-navigation .jupyter-button.mod-primary:hover:enabled,
+.cochem-accessible .cochem-navigation .jupyter-button.mod-primary:focus:enabled {
   color: #005551; background: #dcecea;}
 .cochem-accessible .jupyter-button.mod-danger {color: #fff; background: var(--cc-error); border-color: var(--cc-error);}
-.cochem-accessible .jupyter-button.mod-warning {color: var(--cc-ink); background: #fff6da;}
+.cochem-accessible .jupyter-button.mod-danger:hover:enabled,
+.cochem-accessible .jupyter-button.mod-danger:focus:enabled,
+.cochem-accessible .jupyter-button.mod-danger:active:enabled {color: #fff; background: #732125; border-color: #732125;}
+.cochem-accessible .jupyter-button.mod-warning {color: var(--cc-ink); background: #fff6da; border-color: #c8a94a;}
+.cochem-accessible .jupyter-button.mod-warning:hover:enabled,
+.cochem-accessible .jupyter-button.mod-warning:focus:enabled {color: var(--cc-ink); background: #f3e4b2; border-color: #b7952b;}
 .cochem-accessible .jupyter-button:disabled {color: #5b6b71; background: #edf1f2; border-color: #ccd6d9; opacity: 1;}
+.cochem-accessible .cochem-molecule-preview,
+.cochem-accessible .cochem-viewer-box {width: 100%; max-width: 100%; overflow: hidden !important;}
+.cochem-accessible .cochem-molecule-preview canvas {max-width: 100% !important;}
 .cochem-accessible .cochem-disclosure {border-top: 1px solid var(--cc-line); padding: 4px 0;}
 .cochem-accessible .cochem-disclosure-toggle.jupyter-button {border: 0; text-align: left;
   color: var(--cc-accent); background: transparent; font-weight: 600; padding: 8px 0;}
@@ -132,8 +147,12 @@ WORKSPACE_CSS = """
 .cochem-accessible .jupyter-widgets.jupyter-widget-tab > .widget-tab-bar :is(.p-TabBar-tab.p-mod-current, .lm-TabBar-tab.lm-mod-current) {
   color: #005551; border-top: 3px solid var(--cc-accent); background: #fff; font-weight: 650;}
 .cochem-accessible .widget-tab-contents {padding: 20px 16px; border-color: var(--cc-line);}
-.cochem-accessible table {border-collapse: collapse; font-size: 14px; max-width: 100%;}
-.cochem-accessible th, .cochem-accessible td {padding: 8px 12px; text-align: left; border: 1px solid var(--cc-line);}
+.cochem-accessible table {border-collapse: collapse; font-size: 14px; width: 100%; max-width: 100%;}
+.cochem-accessible th, .cochem-accessible td {padding: 8px 12px; text-align: left; border: 1px solid var(--cc-line); overflow-wrap: break-word; word-break: normal;}
+.cochem-accessible table.cochem-components-table th:nth-child(1),
+.cochem-accessible table.cochem-components-table td:nth-child(1),
+.cochem-accessible table.cochem-components-table th:nth-child(2),
+.cochem-accessible table.cochem-components-table td:nth-child(2) {white-space: nowrap;}
 .cochem-accessible th {background: #eef4f4; font-weight: 650;}
 .cochem-accessible caption {text-align: left; font-weight: 650; margin-bottom: 8px;}
 .cochem-accessible pre {white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px;}

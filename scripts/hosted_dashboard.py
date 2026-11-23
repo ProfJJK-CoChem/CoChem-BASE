@@ -408,7 +408,7 @@ def _setup_status_server(artifact_dir: Path, port: int):
                 "<p>First-time setup installs the scientific Python environments (<strong>PySCF</strong>, "
                 "<strong>xTB</strong>, <strong>CREST</strong>, <strong>TOPOS</strong>, <strong>TORQ</strong>) "
                 "and completes the 11-phase Stage 0 verification. "
-                "This usually takes 5–10 minutes on a fresh Codespace "
+                "This usually takes ~10–15 minutes on a fresh Codespace "
                 "(or ~30 seconds when Prebuilds are enabled).</p>"
                 f"<div class='step' role='status'>{html.escape(step)}</div>"
                 "<p>This page refreshes automatically every 4 seconds and will open the CoChem Voilà "
@@ -593,6 +593,9 @@ def server_command(python: Path, port: int, source_root: Path | None = None) -> 
         str(python), "-B", str(source / "scripts/student_voila.py"), str(source / "Start_Here.ipynb"),
         "--no-browser", f"--port={port}", "--Voila.ip=0.0.0.0",
         "--Voila.port_retries=0",
+        "--MappingKernelManager.cull_idle_timeout=300",
+        "--MappingKernelManager.cull_interval=60",
+        "--MappingKernelManager.cull_connected=False",
     ]
 
 

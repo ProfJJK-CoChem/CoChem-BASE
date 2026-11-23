@@ -455,6 +455,8 @@ class CoChemGUI(InputManagementMixin):
         self._remote_engine_target = None
         self._remote_engine_availability = {engine: {"status": "unknown", "provisionable": False,
             "reason": "Remote engine access has not been checked."} for engine in ("orca", "cfour")}
+        self._syncing_engine_state = False
+        self._engine_auth_cache: dict[tuple[str, str, int], tuple[bool, str]] = {}
 
         # --- Environment Auto-Detection ---
         is_init, env_str, is_hpc, is_slurm = self._detect_environment()
@@ -882,9 +884,9 @@ class CoChemGUI(InputManagementMixin):
             layout=widgets.Layout(margin='10px 0'),
         )
 
+        self.matrix_engine.observe(self._on_engine_changed, 'value')
         self.matrix_method.observe(self._check_dispersion_gate, 'value')
         self.matrix_engine.observe(self._check_dispersion_gate, 'value')
-        self.matrix_engine.observe(self._on_engine_changed, 'value')
         self.charge_input.observe(self._check_dispersion_gate, 'value')
         self.multiplicity_input.observe(self._check_dispersion_gate, 'value')
         self.matrix_solvation.observe(self._check_dispersion_gate, 'value')
@@ -1153,25 +1155,34 @@ class CoChemGUI(InputManagementMixin):
         self.btn_assemble_monomers = widgets.Button(description="Prepare complex starting seed")
         self.btn_assemble_monomers.on_click(self._assemble_student_monomers)
         
-        # 3D Viewer Output
-        self.viewer_output = widgets.Output(layout=widgets.Layout(width='400px', height='300px', border='1px solid #ccc'))
-        
-        def _update_3d_viewer(*args):
-            self.viewer_output.clear_output()
-            xyz_data = self.matrix_geometry.value.strip()
-            if not xyz_data:
+        # 3D Viewer Outputs (Starting structure & 2 · Add your molecule preview)
+        self.viewer_output = widgets.Output(layout=widgets.Layout(width='100%', max_width='100%', height='310px', overflow='hidden', border='1px solid #cedbdc'))
+        self.inputs_viewer_output = widgets.Output(layout=widgets.Layout(width='100%', max_width='100%', height='310px', overflow='hidden', border='1px solid #cedbdc'))
+
+        def _render_xyz_to_output(output_widget: widgets.Output, xyz_data: str) -> None:
+            output_widget.clear_output()
+            cleaned = xyz_data.strip()
+            if not cleaned:
                 return
-            with self.viewer_output:
+            with output_widget:
                 try:
                     from IPython.display import display
                     from cochem_base.interfaces.molecule_viewer import molecule_viewer_html
 
-                    rendered = molecule_viewer_html(xyz_data)
+                    rendered = molecule_viewer_html(cleaned)
                     display({'application/3dmoljs_load.v0': rendered, 'text/html': rendered}, raw=True)
                 except ImportError:
                     print("The 3D viewer is unavailable. Open CoChem setup and choose Retry setup.")
                 except Exception as e:
                     print(f"Viewer Error: {e}")
+
+        self._render_xyz_to_output = _render_xyz_to_output
+
+        def _update_3d_viewer(*args):
+            xyz_data = self.matrix_geometry.value.strip()
+            _render_xyz_to_output(self.viewer_output, xyz_data)
+            if xyz_data:
+                _render_xyz_to_output(self.inputs_viewer_output, xyz_data)
 
         def _on_smiles_build(b):
             self._build_student_molecule()
@@ -1810,6 +1821,7 @@ class CoChemGUI(InputManagementMixin):
         self.input_library_choice.observe(self._select_library_input, names="value")
         self.input_record_choice = widgets.Dropdown(options=[], description="Structure / frame:",
             style={'description_width': 'initial'}, layout=widgets.Layout(width='95%'))
+        self.input_record_choice.observe(lambda change: self._preview_selected_library_frame(), names="value")
         self.btn_use_input_geometry = widgets.Button(description="Use selected starting geometry", disabled=True)
         self.btn_use_input_geometry.on_click(self._use_library_geometry)
         self.input_upload.observe(lambda change: self._upload_input_files(self.input_upload, self.input_kind.value), names="value")
@@ -2041,6 +2053,47 @@ class CoChemGUI(InputManagementMixin):
             self._ingestion_busy or type(frame_index) is not int
             or not 0 <= frame_index < len(receipt.get('records', [])))
 
+    def _preview_selected_library_frame(self) -> None:
+        """Render the selected library structure directly on 2 · Add your molecule."""
+        if not hasattr(self, "inputs_viewer_output") or not hasattr(self, "_render_xyz_to_output"):
+            return
+        receipt = self._input_library.get(self.input_library_choice.value, {})
+        records = receipt.get("records", [])
+        frame_index = self.input_record_choice.value
+        if type(frame_index) is not int or not 0 <= frame_index < len(records):
+            return
+        frame = records[frame_index]
+        symbols = frame.get("nuclides") or frame.get("symbols")
+        coordinates = frame.get("coordinates_angstrom", frame.get("coords"))
+        if not symbols or not coordinates:
+            return
+        try:
+            xyz = (
+                str(len(symbols))
+                + "\nPreview frame from "
+                + str(receipt.get("filename", "Input"))
+                + "\n"
+                + "\n".join(
+                    str(token) + " " + " ".join(format(float(value), ".17g") for value in row)
+                    for token, row in zip(symbols, coordinates, strict=True)
+                )
+                + "\n"
+            )
+            self._render_xyz_to_output(self.inputs_viewer_output, xyz)
+        except (ValueError, TypeError):
+            return
+
+    def _sync_starting_upload_label(self) -> None:
+        """Keep the Starting structure upload label in sync with loaded files from Your files."""
+        if not hasattr(self, "xyz_upload"):
+            return
+        loaded_count = len(getattr(self, "_student_uploads", {}))
+        if loaded_count > 0 and not self.xyz_upload.value:
+            noun = "structure" if loaded_count == 1 else "structures"
+            self.xyz_upload.description = f"Upload .xyz ({loaded_count} {noun} loaded)"
+        else:
+            self.xyz_upload.description = "Upload .xyz"
+
     def _select_library_input(self, change: Any) -> None:
         receipt = self._input_library.get(change['new'], {})
         records = receipt.get('records', [])
@@ -2049,6 +2102,7 @@ class CoChemGUI(InputManagementMixin):
         if records:
             self.input_record_choice.value = 0
         self._sync_library_geometry_use()
+        self._preview_selected_library_frame()
 
     def _use_library_geometry(self, b: Any = None) -> None:
         """Use a canonical parsed frame without modifying its uploaded source."""
@@ -2101,6 +2155,7 @@ class CoChemGUI(InputManagementMixin):
             self.student_geometry_choice.options = [(item['label'], key) for key, item in self._student_uploads.items()]
             self.student_geometry_choice.value = key
             self._refresh_student_monomer_choices()
+            self._sync_starting_upload_label()
             self.input_library_status.value = (
                 f"<p role='status'>Starting geometry selected from frame {frame_index + 1}. "
                 "Your original file is retained. Choose <b>Continue to calculation settings</b> to check the charge, "
@@ -2391,6 +2446,30 @@ class CoChemGUI(InputManagementMixin):
         self._ingestion_worker = threading.Thread(target=build, daemon=True)
         self._ingestion_worker.start()
 
+    def _observe_pyscf_component_row(self) -> tuple[str, str, str, str]:
+        """Inspect actual audited or installed PySCF status for the CoChem components table."""
+        try:
+            from cochem_base.config_loader import resolve_config_path
+            from cochem_base.cochem_core_registry_schema import CoChemSystemConfig
+
+            reg_path = resolve_config_path()
+            if reg_path.is_file():
+                cfg = CoChemSystemConfig.model_validate_json(reg_path.read_text(encoding="utf-8"))
+                raw = cfg.model_dump(mode="json")
+                rec = raw.get("engines", {}).get("pyscf", {})
+                if isinstance(rec, dict) and rec.get("status") in {"found", "ready"}:
+                    silo = cfg.stage0.micro_silos.get("cochem_calc_silo") if cfg.stage0 is not None else None
+                    ver = str(silo.packages.get("pyscf", "")) if silo and getattr(silo, "packages", None) else str(rec.get("version") or "")
+                    return ("PySCF", "installed", ver, "Audited restricted Hartree-Fock (RHF) single-point engine ready.")
+        except Exception:
+            pass
+        try:
+            import importlib.metadata as _ilm
+            ver = _ilm.version("pyscf")
+            return ("PySCF", "installed", ver, "Open-source Hartree-Fock engine installed in Python environment.")
+        except Exception:
+            return ("PySCF", "unavailable", "", "Open-source Hartree-Fock engine not yet verified by Stage 0 setup.")
+
     def _build_student_setup_panel(self) -> None:
         self.student_setup_status = widgets.HTML("<p role='status'>Checking CoChem setup…</p>")
         self.btn_setup_retry = widgets.Button(description="Retry setup", icon="refresh")
@@ -2424,6 +2503,9 @@ class CoChemGUI(InputManagementMixin):
             for name, observed in free_engines.get('engines', {}).items():
                 rows.append('<tr>' + ''.join('<td>' + html.escape(str(value)) + '</td>' for value in
                     (name.upper(), observed.get('status', 'unavailable'), observed.get('version', ''), observed.get('message', observed.get('reason', '')))) + '</tr>')
+        if not any(name.lower() == 'pyscf' for name in free_engines.get('engines', {})):
+            pyscf_row = self._observe_pyscf_component_row()
+            rows.append('<tr>' + ''.join('<td>' + html.escape(str(value)) + '</td>' for value in pyscf_row) + '</tr>')
         base = status.get("base", {})
         operation = status.get("operation", {})
         message = str(operation.get('message') or '').strip()
@@ -2434,7 +2516,7 @@ class CoChemGUI(InputManagementMixin):
             f"{html.escape(message) if message else 'Choose Retry setup to check installation.' if not status.get('ready') else ''}</p>"
             "<details><summary>Installation details and software versions</summary>"
             f"<p>BASE version: {html.escape(str(base.get('revision') or 'not yet checked'))}</p>"
-            "<table><caption>CoChem components</caption><thead><tr><th>Component</th><th>Status</th><th>Revision</th><th>Details</th></tr></thead><tbody>"
+            "<table class='cochem-components-table'><caption>CoChem components</caption><thead><tr><th>Component</th><th>Status</th><th>Revision</th><th>Details</th></tr></thead><tbody>"
             + "".join(rows) + "</tbody></table></details>"
         )
         self.btn_setup_restart.disabled = self._student_setup_busy or not base.get("restart_required", False)
@@ -2513,6 +2595,7 @@ class CoChemGUI(InputManagementMixin):
                     status["update_plan"] = receipt
                 def success() -> None:
                     self._student_setup_busy = False
+                    self._engine_auth_cache.clear()
                     self._render_student_setup_status(status)
                     self.btn_setup_retry.disabled = False
                     self.btn_setup_updates.disabled = False
@@ -2619,13 +2702,25 @@ class CoChemGUI(InputManagementMixin):
             self.student_fragment_atoms.value = ";".join(",".join(str(index + 1) for index in fragment)
                 for fragment in record.get("fragments") or [])
             self.module_artifact.value = str(path) if hasattr(self, "module_artifact") else ""
+            if record.get("origin") == "canonical_ingestion" and record.get("source_sha256"):
+                hash_line = (
+                    f"<b>{html.escape(record['label'])}</b> (<code>{html.escape(record['filename'])}</code>): {record['atom_count']} atoms. "
+                    "Original bytes preserved unchanged in Your files; atom order and isotope labels preserved in this canonical frame. "
+                    f"Canonical frame SHA-256: <code>{record['sha256']}</code> "
+                    f"(original upload SHA-256: <code>{record['source_sha256']}</code>)."
+                )
+            else:
+                hash_line = (
+                    f"<b>{html.escape(record['filename'])}</b>: {record['atom_count']} atoms. "
+                    "Original bytes, atom order and isotope labels preserved. "
+                    f"SHA-256: <code>{record['sha256']}</code>."
+                )
             self.student_upload_status.value = (
-                f"<p role='status' data-cochem-input-id='{html.escape(record['id'], quote=True)}'><b>{html.escape(record['filename'])}</b>: {record['atom_count']} atoms. "
-                "Original bytes, atom order and isotope labels preserved. "
-                f"SHA-256: <code>{record['sha256']}</code>.</p>"
+                f"<p role='status' data-cochem-input-id='{html.escape(record['id'], quote=True)}'>{hash_line}</p>"
                 "<p>Confirm this geometry's input type, charge and multiplicity, then choose Save geometry details. "
                 "Fragment groups use one-based atom indices. Editing coordinates creates a distinct calculation request; the uploaded original remains unchanged.</p>"
             )
+            self._sync_starting_upload_label()
         except (ValueError, OSError, UnicodeError) as exc:
             self.student_upload_status.value = f"<p role='alert'>Geometry could not be loaded: {html.escape(str(exc))}</p>"
         finally:
@@ -3590,14 +3685,17 @@ class CoChemGUI(InputManagementMixin):
         if hasattr(self, 'licensed_engine_status'):
             descriptions = []
             for engine, observation in available.items():
-                descriptions.append(
-                    f"<li><b>{engine.upper()}:</b> "
-                    + ("available for audited calculations" if observation['available'] else
-                       "unavailable; dependent calculations disabled. " + html.escape(observation['reason']))
-                    + "</li>"
-                )
+                if observation['available']:
+                    detail = "available for audited calculations"
+                else:
+                    detail = (
+                        f"{engine.upper()} is optional — use free local engines (PySCF, xTB, CREST) here "
+                        "or hand off your verified bundle to your professor."
+                    )
+                descriptions.append(f"<li><b>{engine.upper()}:</b> {html.escape(detail)}</li>")
             self.licensed_engine_status.value = (
-                "<p>Licensed engines are optional and strongly recommended. BASE ingestion, inspection and free-engine setup remain available.</p>"
+                "<p>Licensed engines (ORCA, CFOUR) are optional and strongly recommended. "
+                "Free local engines (PySCF, xTB, CREST), BASE ingestion, and inspection remain available.</p>"
                 "<ul>" + "".join(descriptions) + "</ul>"
             )
         choices = [("Choose an available calculation engine", None)]
@@ -4200,10 +4298,23 @@ class CoChemGUI(InputManagementMixin):
         self.header_status.value = f"<span role='status' aria-live='polite'>Workspace status: <strong>{safe_val}</strong></span>"
 
     def _on_environment_change(self, change: Any) -> None:
-        safe_val = html.escape(str(change['new']))
-        host = html.escape(str(change['new']).split(' [', 1)[0])
-        self.header_env.value = (f"<details><summary>Interface: {host}</summary>"
-                                 f"<p>{safe_val}</p><p>Choose where calculations run in Start here.</p></details>")
+        raw_val = str(change['new'])
+        host_raw = raw_val.split(' [', 1)[0].strip() or "Workspace"
+        host = html.escape(host_raw)
+        if "DEGRADED_OPERATIONAL" in raw_val:
+            friendly = f"{host_raw} · Open-source engines ready"
+            body = (
+                f"<p>{html.escape(friendly)} (PySCF, xTB, CREST). "
+                "ORCA is optional — use free local engines here or hand off your verified bundle to your professor.</p>"
+            )
+            summary = friendly
+        else:
+            summary = host_raw
+            body = f"<p>{html.escape(raw_val)}</p>"
+        self.header_env.value = (
+            f"<details><summary>Interface: {html.escape(summary)}</summary>"
+            f"{body}<p>Choose where calculations run in Start here.</p></details>"
+        )
 
     def _update_footer(self, err: Any) -> None:
         self.footer.layout.display = '' if err else 'none'
@@ -4352,6 +4463,7 @@ class CoChemGUI(InputManagementMixin):
             self.state.system_status = f"Setup {summary['overall_status']}"
             self.state.error_message = ''
             self.install_output.append_stdout(f"Complete setup evidence: {artifact_dir / 'Registry' / 'setup_summary.json'}\n")
+            self._engine_auth_cache.clear()
             self._refresh_engine_choices()
             self._refresh_topos_capabilities()
             self._on_engine_changed({"new": self.matrix_engine.value})
@@ -4379,6 +4491,8 @@ class CoChemGUI(InputManagementMixin):
     def _on_product_class_changed(self, change: Any) -> None:
         pc_val = change["new"]
         self.product_class_card.value = self._format_product_class_card(pc_val)
+        if self._syncing_engine_state:
+            return
         if "Product A" in pc_val and "T4" in self.matrix_tier.options:
             self.matrix_tier.value = "T4"
         # Choosing a scientific goal must not silently navigate to another
@@ -4386,46 +4500,58 @@ class CoChemGUI(InputManagementMixin):
         self._check_dispersion_gate()
 
     def _on_engine_changed(self, change: Any) -> None:
-        if change['new'] != 'ORCA' and hasattr(self, 't9_enable'):
-            self.t9_enable.value = False
-            self.scientific_initial_hessian.value = 'XTB2'
-        if change["new"] == "XTB":
-            self.product_class_selector.value = "Screening (no product accuracy claim)"
-            self.matrix_tier.value = "T1"
-            self._on_tier_changed({'new': 'T1'})
-            self.matrix_method.value = "GFN2-xTB"
-            self.matrix_basis.value = "built-in"
-            self.matrix_solvation.value = None
-            self.matrix_cbs_pair.value = None
-            self.cb_recipe_r1.value = False
-            self.cb_recipe_r2.value = False
-        elif change["new"] == "PYSCF":
-            self.product_class_selector.value = "Screening (no product accuracy claim)"
-            self.matrix_tier.value = "T2"
-            self._on_tier_changed({'new': 'T2'})
-            self.matrix_method.value = "HF/STO-3G"
-            self.matrix_basis.value = "STO-3G"
-            self.matrix_solvation.value = None
-            self.matrix_cbs_pair.value = None
-            self.cb_recipe_r1.value = False
-            self.cb_recipe_r2.value = False
-        elif change["new"] == "CFOUR":
-            self.product_class_selector.value = "Screening (no product accuracy claim)"
-            self.matrix_tier.value = "T2"
-            self._on_tier_changed({'new': 'T2'})
-            self.matrix_method.value = "HF"
-            self.matrix_basis.value = "cc-pVDZ"
-            self.matrix_solvation.value = None
-            self.matrix_cbs_pair.value = None
-            self.cb_recipe_r1.value = False
-            self.cb_recipe_r2.value = False
-        else:
-            # Changing the engine can retain the same tier. Refresh its method
-            # and basis catalogs even when the tier trait emits no change.
-            self._on_tier_changed({'new': self.matrix_tier.value})
-        self.btn_execute.description = {"XTB": "Run xTB optimization", "PYSCF": "Run PySCF single point",
-                                        "CFOUR": "Run CFOUR calculation", None: "Select a calculation engine"}.get(change["new"], "Run ORCA optimization")
+        new_engine = change["new"]
+        self._syncing_engine_state = True
+        try:
+            if new_engine != 'ORCA' and hasattr(self, 't9_enable'):
+                self.t9_enable.value = False
+                self.scientific_initial_hessian.value = 'XTB2'
+            tiers = {'XTB': ['T1'], 'PYSCF': ['T2'], 'CFOUR': ['T2', 'T6', 'T8']}.get(new_engine, list(METHOD_MATRIX_TIERS))
+            if tuple(self.matrix_tier.options) != tuple(tiers):
+                self.matrix_tier.options = tiers
+            if new_engine == "XTB":
+                self.product_class_selector.value = "Screening (no product accuracy claim)"
+                self.matrix_tier.value = "T1"
+                self._on_tier_changed({'new': 'T1'})
+                self.matrix_method.value = "GFN2-xTB"
+                self.matrix_basis.value = "built-in"
+                self.matrix_solvation.value = None
+                self.matrix_cbs_pair.value = None
+                self.cb_recipe_r1.value = False
+                self.cb_recipe_r2.value = False
+            elif new_engine == "PYSCF":
+                self.product_class_selector.value = "Screening (no product accuracy claim)"
+                self.matrix_tier.value = "T2"
+                self._on_tier_changed({'new': 'T2'})
+                self.matrix_method.value = "HF/STO-3G"
+                self.matrix_basis.value = "STO-3G"
+                self.matrix_solvation.value = None
+                self.matrix_cbs_pair.value = None
+                self.cb_recipe_r1.value = False
+                self.cb_recipe_r2.value = False
+            elif new_engine == "CFOUR":
+                self.product_class_selector.value = "Screening (no product accuracy claim)"
+                self.matrix_tier.value = "T2"
+                self._on_tier_changed({'new': 'T2'})
+                self.matrix_method.value = "HF"
+                self.matrix_basis.value = "cc-pVDZ"
+                self.matrix_solvation.value = None
+                self.matrix_cbs_pair.value = None
+                self.cb_recipe_r1.value = False
+                self.cb_recipe_r2.value = False
+            else:
+                if self.matrix_tier.value not in tiers:
+                    self.matrix_tier.value = "T4" if "T4" in tiers else tiers[0]
+                # Changing the engine can retain the same tier. Refresh its method
+                # and basis catalogs even when the tier trait emits no change.
+                self._on_tier_changed({'new': self.matrix_tier.value})
+            self.btn_execute.description = {"XTB": "Run xTB optimization", "PYSCF": "Run PySCF single point",
+                                            "CFOUR": "Run CFOUR calculation", None: "Select a calculation engine"}.get(new_engine, "Run ORCA optimization")
+        finally:
+            self._syncing_engine_state = False
         self._check_dispersion_gate()
+        if hasattr(self, "_sync_guided_status"):
+            self._sync_guided_status()
 
     def _on_tier_changed(self, change: Any) -> None:
         tier = change["new"]
@@ -4434,17 +4560,46 @@ class CoChemGUI(InputManagementMixin):
             if self.matrix_engine.value == 'CFOUR':
                 methods = {"T2": ["HF"], "T6": ["MP2"], "T8": ["CCSD", "CCSD(T)"]}[tier]
             bases = METHOD_MATRIX_TIERS[tier]["allowed_basis_sets"]
-            if self.matrix_engine.value == 'CFOUR':
+            if self.matrix_engine.value == 'PYSCF' and 'STO-3G' in bases:
+                bases = ['STO-3G', *(basis for basis in bases if basis != 'STO-3G')]
+            elif self.matrix_engine.value == 'CFOUR':
                 from cochem_base.calc.cfour_execution import SUPPORTED_CFOUR_BASIS_LABELS
                 bases = ['cc-pVDZ', *(basis for basis in SUPPORTED_CFOUR_BASIS_LABELS if basis != 'cc-pVDZ')]
             self.matrix_method.options = methods
             self.matrix_method.value = methods[0]
             self.matrix_basis.options = bases
             self.matrix_basis.value = bases[0]
-            self._check_dispersion_gate()
+            if not self._syncing_engine_state:
+                self._check_dispersion_gate()
+
+    def _check_local_engine_authority(self, engine: str) -> str:
+        """Check audited local engine authority, caching per Golden Registry file revision for responsive UI."""
+        from cochem_base.config_loader import resolve_config_path
+        from cochem_base.core_engine.execution_authority import authorize_engine_execution
+
+        reg_path = resolve_config_path()
+        try:
+            mtime_ns = reg_path.stat().st_mtime_ns
+        except OSError:
+            mtime_ns = -1
+        cache_key = (engine.lower(), str(reg_path), mtime_ns)
+        cached = self._engine_auth_cache.get(cache_key)
+        if cached is not None:
+            ok, reason = cached
+            return "" if ok else reason
+        try:
+            authorize_engine_execution(engine.lower(), cores=1)
+        except (ValueError, RuntimeError, OSError) as exc:
+            reason = f"{engine.upper()} execution is unavailable: {exc}"
+            self._engine_auth_cache[cache_key] = (False, reason)
+            return reason
+        self._engine_auth_cache[cache_key] = (True, "")
+        return ""
 
     def _check_dispersion_gate(self, *args: Any) -> None:
         """Use the same mandatory methodology guard as calculation dispatch."""
+        if self._syncing_engine_state:
+            return
         try:
             if self.product_class_selector.value == ProductClass.PRODUCT_B.value:
                 raise MethodologyViolationError(
@@ -4526,10 +4681,9 @@ class CoChemGUI(InputManagementMixin):
             reason = "This engine requires its dedicated scientific adapter."
         else:
             engine = self.matrix_engine.value.lower()
-            try:
-                authorize_engine_execution(engine, cores=1)
-            except (ValueError, RuntimeError, OSError) as exc:
-                reason = f"{self.matrix_engine.value} execution is unavailable: {exc}"
+            auth_reason = self._check_local_engine_authority(engine)
+            if auth_reason:
+                reason = auth_reason
                 if self.matrix_engine.value in {'ORCA', 'CFOUR'}:
                     # A once-authorized engine can lose its binary or its audit.
                     # Remove it immediately rather than leaving dependent
@@ -4594,7 +4748,7 @@ class CoChemGUI(InputManagementMixin):
             previous = self.actions_operation.value
             self.actions_operation.options = actions_operations
             self.actions_operation.value = previous if previous in {value for _, value in actions_operations} else actions_operations[0][1]
-        self.product_class_selector.disabled = selected in {'XTB', 'PYSCF', 'CFOUR'}
+        self.product_class_selector.disabled = False
         t9_reason = self._t9_admission_reason()
         reason = reason or t9_reason
         hpc_reason = self._student_hpc_admission_reason() if self.calc_env_dropdown.value == 'hpc' else ''
@@ -4604,6 +4758,8 @@ class CoChemGUI(InputManagementMixin):
         self.engine_warning.value = f"<b>{html.escape(reason)}</b>" if reason else ""
         self.btn_execute.disabled = bool(reason or self.dispersion_warning.value or self._pipeline_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._actions_state_operation is not None
                                          or self._topos_running or self._installation_running)
+        if hasattr(self, "_sync_guided_status"):
+            self._sync_guided_status()
         self.btn_slurm_submit.disabled = self.calc_env_dropdown.value != 'hpc' or self.btn_execute.disabled
         if hasattr(self, 'btn_periodic_run'):
             self.btn_periodic_run.disabled = bool(hpc_reason or admission_reason or self._pipeline_running or self._hpc_running or self._hpc_retrieving or self._actions_running or self._actions_state_operation is not None or self._topos_running or self._installation_running)

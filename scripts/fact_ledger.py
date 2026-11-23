@@ -25,6 +25,7 @@ import argparse
 import hashlib
 import json
 import re
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -37,6 +38,18 @@ DEFAULT_MILESTONES: tuple[tuple[str, str], ...] = (
     ("M3_nci_gvpt2_fermi", "M3 1:1 NCI/BSSE, 6-Shard GVPT2 & Fermi Deperturbation"),
     ("M4_spcat_8_18ghz", "M4 SPCAT 8-18 GHz Rotational Prediction & Dossier"),
 )
+
+EXTRA_MILESTONE_TITLES: dict[str, str] = {
+    "M2_geom_comparison": "M2 Geometry Comparison Handoff",
+    "M3_nci_bsse": "M3 1:1 NCI Dimer & Counterpoise BSSE Handoff",
+    "M3_gvpt2": "M3 6-Shard Barone GVPT2 Anharmonic Handoff",
+    "M4_rxn_profile": "M4 AIMNet2 + PySCF/PCM Reaction Profile Handoff",
+}
+
+PARENT_MILESTONE_CHILDREN: dict[str, tuple[str, ...]] = {
+    "M2_kk_atr": ("M2_geom_comparison",),
+    "M3_nci_gvpt2_fermi": ("M3_nci_bsse", "M3_gvpt2"),
+}
 
 
 class FactLedgerIntegrityError(ValueError):
@@ -60,9 +73,57 @@ def _canonical_json_sha256(payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def _classify_handoff_zip(path: Path) -> tuple[str, str]:
+    """Read-only inspection of a student handoff `.zip` archive to classify its milestone."""
+    try:
+        with zipfile.ZipFile(path, "r") as zf:
+            names_lower = [n.lower() for n in zf.namelist()]
+            handoff_data: Mapping[str, Any] = {}
+            if "handoff.json" in zf.namelist():
+                raw = json.loads(zf.read("handoff.json").decode("utf-8"))
+                if isinstance(raw, Mapping):
+                    handoff_data = raw
+    except (zipfile.BadZipFile, json.JSONDecodeError, UnicodeDecodeError, OSError):
+        return "L1", "M1_conformers"
+
+    workflow_type = str(handoff_data.get("workflow_type", "")).strip().lower()
+    metadata = handoff_data.get("metadata") if isinstance(handoff_data.get("metadata"), Mapping) else {}
+    dossier_kind = str(metadata.get("dossier_kind", "")).strip().lower()
+    has_spcat_member = any(
+        "spcat" in n or n.endswith((".cat", ".var", ".int")) for n in names_lower
+    )
+
+    if workflow_type == "conformer":
+        return "L1", "M1_conformers"
+    if workflow_type == "nci_dimer":
+        return "L1", "M3_nci_bsse"
+    if workflow_type == "vpt2_anharmonic":
+        return "L1", "M3_gvpt2"
+    if workflow_type == "rxn_profile":
+        return "L1", "M4_rxn_profile"
+    if workflow_type == "geom_comparison":
+        if has_spcat_member or "spcat" in dossier_kind or "rotational_constants_mhz" in metadata:
+            return "L1", "M4_spcat_8_18ghz"
+        return "L1", "M2_geom_comparison"
+
+    if has_spcat_member:
+        return "L1", "M4_spcat_8_18ghz"
+    if any("bsse_counterpoise" in n or "vdw_titration" in n for n in names_lower):
+        return "L1", "M3_nci_bsse"
+    if any("gvpt2" in n or "fermi" in n for n in names_lower):
+        return "L1", "M3_gvpt2"
+    if any("rxn_profile" in n or "neb_path" in n or "irc_path" in n or "ts_polished" in n for n in names_lower):
+        return "L1", "M4_rxn_profile"
+    if any("kk_atr" in n or "kramers" in n for n in names_lower):
+        return "L2", "M2_kk_atr"
+    return "L1", "M1_conformers"
+
+
 def classify_artifact_tier(path: Path) -> tuple[str, str]:
     """Classify an upstream artifact into (level, milestone_key)."""
     name = path.name.lower()
+    if name.endswith(".zip") and path.is_file():
+        return _classify_handoff_zip(path)
     if name in ("handoff.json", "input.xyz", "refined.xyz", "crest_conformers.xyz", "ranking.json"):
         return "L1", "M1_conformers"
     if name.endswith((".cat", ".var", ".int", ".parquet")) or "spcat" in name:
@@ -80,6 +141,56 @@ def classify_artifact_tier(path: Path) -> tuple[str, str]:
     if name.endswith((".csv", ".json", ".md")):
         return "L2", "M2_kk_atr"
     return "L1", "M1_conformers"
+
+
+def _verify_embedded_handoff_zip(zip_path: Path) -> list[str]:
+    """Cross-verify `files_sha256` inside an embedded `handoff.json` within a `.zip` archive."""
+    try:
+        zf_ctx = zipfile.ZipFile(zip_path, "r")
+    except zipfile.BadZipFile as exc:
+        raise FactLedgerIntegrityError(f"Invalid or corrupted ZIP archive {zip_path.name}: {exc}") from exc
+
+    with zf_ctx as zf:
+        members = set(zf.namelist())
+        if "handoff.json" not in members:
+            return []
+        try:
+            data = json.loads(zf.read("handoff.json").decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise FactLedgerIntegrityError(
+                f"Malformed embedded handoff.json in {zip_path.name}: {exc}"
+            ) from exc
+        if not isinstance(data, Mapping):
+            raise FactLedgerIntegrityError(f"Embedded handoff.json in {zip_path.name} must be a JSON object.")
+        files_sha = data.get("files_sha256")
+        if files_sha is None:
+            return []
+        if not isinstance(files_sha, Mapping):
+            raise FactLedgerIntegrityError(
+                f"Invalid files_sha256 mapping in embedded handoff.json of {zip_path.name}."
+            )
+        verified: list[str] = []
+        for rel_name, expected in files_sha.items():
+            if not isinstance(expected, str) or not HEX64_RE.fullmatch(expected):
+                raise FactLedgerIntegrityError(
+                    f"Invalid SHA-256 in {zip_path.name} handoff.json for member {rel_name!r}: {expected!r}"
+                )
+            if rel_name not in members:
+                raise FactLedgerIntegrityError(
+                    f"Handoff member {rel_name!r} listed in {zip_path.name} is missing from ZIP archive."
+                )
+            h = hashlib.sha256()
+            with zf.open(rel_name, "r") as fh:
+                for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                    h.update(chunk)
+            actual = h.hexdigest()
+            if actual != expected:
+                raise FactLedgerIntegrityError(
+                    f"Tampered ZIP member {rel_name!r} in {zip_path.name}: "
+                    f"expected SHA-256 {expected}, got {actual}."
+                )
+            verified.append(rel_name)
+        return verified
 
 
 def _verify_embedded_handoff_hashes(handoff_path: Path) -> list[str]:
@@ -150,6 +261,8 @@ def build_fact_ledger(
         handoff_members_verified: list[str] = []
         if resolved.name.lower() == "handoff.json":
             handoff_members_verified = _verify_embedded_handoff_hashes(resolved)
+        elif resolved.suffix.lower() == ".zip":
+            handoff_members_verified = _verify_embedded_handoff_zip(resolved)
 
         artifact_id = f"{tier}-{len(artifacts_by_id) + 1:03d}"
         entry = {
@@ -218,13 +331,30 @@ def build_fact_ledger(
 
     # Build L3 milestone table (missing milestones are explicitly PENDING)
     l3_milestones: list[dict[str, Any]] = []
+    default_keys = {k for k, _ in DEFAULT_MILESTONES}
     for key, title in DEFAULT_MILESTONES:
-        ev_ids = milestone_evidence.get(key, [])
+        ev_ids = list(milestone_evidence.get(key, []))
+        for child_key in PARENT_MILESTONE_CHILDREN.get(key, ()):
+            for cid in milestone_evidence.get(child_key, []):
+                if cid not in ev_ids:
+                    ev_ids.append(cid)
         l3_milestones.append(
             {
                 "milestone": key,
                 "title": title,
                 "status": "VERIFIED" if ev_ids else "PENDING",
+                "evidence_artifact_ids": ev_ids,
+                "evidence_sha256": [artifacts_by_id[aid]["sha256"] for aid in ev_ids],
+            }
+        )
+    for extra_key, ev_ids in milestone_evidence.items():
+        if extra_key in default_keys or not ev_ids:
+            continue
+        l3_milestones.append(
+            {
+                "milestone": extra_key,
+                "title": EXTRA_MILESTONE_TITLES.get(extra_key, extra_key),
+                "status": "VERIFIED",
                 "evidence_artifact_ids": ev_ids,
                 "evidence_sha256": [artifacts_by_id[aid]["sha256"] for aid in ev_ids],
             }
@@ -304,6 +434,8 @@ def verify_fact_ledger(
                 )
             if target.name.lower() == "handoff.json":
                 _verify_embedded_handoff_hashes(target)
+            elif target.suffix.lower() == ".zip":
+                _verify_embedded_handoff_zip(target)
             verified_by_id[aid] = actual_sha
 
     for claim in levels.get("L3_claims", []):

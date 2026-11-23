@@ -9,9 +9,9 @@ on:
         default: examples/student_inputs/chem312_team4_rxn
         type: string
       input_name:
-        description: Logical input filename stem for the sealed handoff receipt
-        required: true
-        default: chem312_team4_rxn.xyz
+        description: Optional output stem (leave as auto to derive from input_dir folder name, e.g., hcof_fluoride_rxn.xyz)
+        required: false
+        default: auto
         type: string
       charge:
         description: Total molecular charge (-2, -1, 0, 1, 2)
@@ -154,11 +154,23 @@ jobs:
       - name: Seal and verify cochem.student-handoff/2 reaction profile bundle
         run: |
           python - <<'PY'
-          import json, os, shutil, sys
+          import json, os, re, shutil, sys
           from pathlib import Path
 
           sys.path.insert(0, "student")
           import handoff
+
+          raw_input_name = os.environ.get("INPUT_NAME", "").strip()
+          input_dir_name = Path(os.environ.get("INPUT_DIR", "").rstrip("/\\")).name or "rxn_profile"
+          if (
+              not raw_input_name
+              or raw_input_name.lower() == "auto"
+              or (raw_input_name == "chem312_team4_rxn.xyz" and input_dir_name != "chem312_team4_rxn")
+          ):
+              safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", input_dir_name).strip("._-") or "rxn_profile"
+              resolved_input_name = f"{safe_stem}.xyz"
+          else:
+              resolved_input_name = raw_input_name
 
           rxn_in = Path(os.environ["RUNNER_TEMP"]) / "rxn_input"
           rxn_out = Path(os.environ["RUNNER_TEMP"]) / "rxn_out"
@@ -348,7 +360,7 @@ jobs:
 
           manifest = {
               "workflow_type": "rxn_profile",
-              "input_name": os.environ["INPUT_NAME"],
+              "input_name": resolved_input_name,
               "charge": charge,
               "multiplicity": mult,
               "length_unit": "angstrom",

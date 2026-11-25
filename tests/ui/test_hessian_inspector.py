@@ -125,7 +125,7 @@ def test_gui_selects_multiple_isotopes_and_reuses_real_hessian(physical_bundle):
     assert "Projected harmonic modes" in result
     assert "Rigid modes removed: 6" in result
     assert "B0 is [MISSING DATA]" in result
-    assert "ASE/EMT" in result
+    assert "Analytic valence harmonic Hessian" in result
     assert gui._isotope_hessian_data.sha256 in result
     assert "Download SVG figure" in gui.isotope_modes_plot.value
     assert "Download frequency data (CSV)" in gui.isotope_modes_plot.value

@@ -244,10 +244,10 @@ def test_provenance_and_results():
     import ase
     from ase import units
     from ase.build import molecule
-    from ase.calculators.emt import EMT
+    from ase.calculators.lj import LennardJones
 
     atoms = molecule("H2O")
-    atoms.calc = EMT()
+    atoms.calc = LennardJones(sigma=1.0, epsilon=0.05, rc=5.0)
     start = time.perf_counter()
     energy = atoms.get_potential_energy() / units.Hartree
     elapsed = time.perf_counter() - start
@@ -258,8 +258,8 @@ def test_provenance_and_results():
     assert "[M]" in tag
     assert prov.software_version in tag
     assert prov.codata_version in tag
-    result = QuantumCalculationResult(engine="ASE/EMT", task_type=TaskType.ENERGY,
-                                      method="EMT", energy_hartree=energy,
+    result = QuantumCalculationResult(engine="ASE/LennardJones", task_type=TaskType.ENERGY,
+                                      method="LennardJones", energy_hartree=energy,
                                       wall_time_seconds=elapsed)
     assert result.final_energy_hartree == energy
     assert result.calculation_type == TaskType.ENERGY

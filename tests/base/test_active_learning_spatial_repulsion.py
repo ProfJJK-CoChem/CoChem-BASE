@@ -20,7 +20,7 @@ os.environ["JAX_ENABLE_X64"] = "True"
 
 import numpy as np
 from ase import Atoms, units
-from ase.calculators.emt import EMT
+from ase.calculators.lj import LennardJones
 from ase.md.verlet import VelocityVerlet
 from mendeleev import element
 
@@ -37,9 +37,9 @@ def test_dynamic_mendeleev_invariants():
 
 def test_spatial_repulsion_prevents_greedy_clustering():
     """Assert active learning batch selection disperses candidates despite localized uncertainty spike [M], [D]."""
-    # 1. Generate realistic molecular dynamics candidate pool using ASE EMT
-    atoms = Atoms("CuAg", positions=[[0.0, 0.0, 0.0], [2.5, 0.0, 0.0]])
-    atoms.calc = EMT()
+    # 1. Generate deterministic molecular dynamics candidate pool using explicit-parameter Lennard-Jones
+    atoms = Atoms("CuAg", positions=[[0.0, 0.0, 0.0], [2.85, 0.0, 0.0]])
+    atoms.calc = LennardJones(sigma=2.55, epsilon=0.15, rc=8.0)
 
     # Tightly clustered points near equilibrium (low velocity)
     atoms.set_velocities([[0.001, 0.0, 0.0], [-0.001, 0.0, 0.0]])

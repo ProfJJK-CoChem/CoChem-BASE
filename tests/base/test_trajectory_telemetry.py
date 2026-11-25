@@ -10,7 +10,7 @@ import time
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.calculators.emt import EMT
+from ase.calculators.lj import LennardJones
 from ase.io import write
 from scipy.constants import physical_constants
 
@@ -32,7 +32,11 @@ def _xtb_frames():
 
 
 def _ase_frame():
-    atoms = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [2.5, 0.0, 0.0]], calculator=EMT())
+    atoms = Atoms(
+        "Cu2",
+        positions=[[0.0, 0.0, 0.0], [2.5, 0.0, 0.0]],
+        calculator=LennardJones(sigma=2.3, epsilon=0.4, rc=8.0),
+    )
     energy_ev = atoms.get_potential_energy()
     atoms.get_forces()
     atoms.info["energy_unit"] = "eV"
@@ -155,12 +159,12 @@ def test_external_ase_process_is_observed_before_it_finishes(tmp_path):
     script = '''
 import pathlib, sys, time
 from ase import Atoms
-from ase.calculators.emt import EMT
+from ase.calculators.lj import LennardJones
 from ase.io import write
 path, release = map(pathlib.Path, sys.argv[1:])
 with path.open("w") as output:
     for step, distance in enumerate((2.4, 2.5, 2.6)):
-        atoms = Atoms("Cu2", positions=[[0, 0, 0], [distance, 0, 0]], calculator=EMT())
+        atoms = Atoms("Cu2", positions=[[0, 0, 0], [distance, 0, 0]], calculator=LennardJones(sigma=2.3, epsilon=0.4, rc=8.0))
         atoms.get_potential_energy()
         atoms.info["energy_unit"] = "eV"
         write(output, atoms, format="extxyz")

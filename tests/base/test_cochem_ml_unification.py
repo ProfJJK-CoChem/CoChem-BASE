@@ -37,4 +37,4 @@ def test_submodule_structure_and_no_sys_path_append() -> None:
     assert hasattr(al, "ActiveLearningManager")
     assert hasattr(conf, "ConformalPredictor")
     assert hasattr(krr, "KernelRidgeModel")
-    assert hasattr(base, "EMTBaselineEngine")
+    assert hasattr(base, "DeltaMLDispersionConfig")

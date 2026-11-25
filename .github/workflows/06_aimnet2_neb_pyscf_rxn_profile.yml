@@ -99,7 +99,7 @@ jobs:
           "$py" -m pip install -c "$RUNNER_TEMP/cpu-constraints.txt" --extra-index-url https://download.pytorch.org/whl/cpu \
             'aimnet>=0.2.0' 'ase>=3.22.0' 'sella>=2.3.0' 'pyscf==2.14.0' 'pyscf-dispersion>=1.0.0'
           "$py" -m pip install -c "$RUNNER_TEMP/cpu-constraints.txt" --extra-index-url https://download.pytorch.org/whl/cpu \
-            'git+https://github.com/ProfJJK-CoChem/CoChem-KINETIC.git@ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2'
+            'git+https://github.com/ProfJJK-CoChem/CoChem-KINETIC.git@90c0de02c89cc3ff8bbcc6dfa85e766a1e4a3b97'
           "$py" -c 'import torch; assert torch.version.cuda is None'
           "$RUNNER_TEMP/kinetic/bin/cochem-kinetic" rxn-profile --help > /dev/null
       - name: Stage normalized reaction-profile inputs
@@ -352,7 +352,7 @@ jobs:
               "input_mode": input_mode,
               "primary_ts_state": ts_state,
               "dft_basis": os.environ["DFT_BASIS"],
-              "kinetic_revision": "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2",
+              "kinetic_revision": "90c0de02c89cc3ff8bbcc6dfa85e766a1e4a3b97",
               **traj_meta,
           }
           if results_ts_n_imag is not None:

@@ -246,11 +246,11 @@ def test_orca_carthess_roundtrip() -> None:
     from pathlib import Path
     import numpy as np
     from ase.build import molecule
-    from ase.calculators.emt import EMT
+    from ase.calculators.lj import LennardJones
     from ase.vibrations import Vibrations
 
     atoms = molecule('C6H6') # Benzene (12 atoms, 36 dim, exceeds block limits)
-    atoms.calc = EMT()
+    atoms.calc = LennardJones(sigma=1.5, epsilon=0.05, rc=6.0)
     with tempfile.TemporaryDirectory() as td:
         vib = Vibrations(atoms, name=str(Path(td) / 'vib'))
         vib.run()
@@ -271,12 +271,25 @@ def test_validate_carthess_eigenvalues() -> None:
     """Verify Cartesian Hessian eigenvalue invariance assertion (Method Matrix  8A.3)."""
     import tempfile
     from pathlib import Path
-    from ase.build import molecule
-    from ase.calculators.emt import EMT
+    from ase import Atoms
+    from ase.calculators.lj import LennardJones
+    from ase.optimize import BFGS
     from ase.vibrations import Vibrations
 
-    atoms = molecule('C2H6') # Ethane (8 atoms, 24 dim)
-    atoms.calc = EMT()
+    # Regular Ar4 tetrahedron relaxed to its explicit Lennard-Jones minimum (4 atoms, 12 dim)
+    r_eq = 2.5 * (2.0 ** (1.0 / 6.0))
+    scale = r_eq / np.sqrt(2.0)
+    atoms = Atoms(
+        "Ar4",
+        positions=[
+            [0.0, 0.0, 0.0],
+            [scale, scale, 0.0],
+            [scale, 0.0, scale],
+            [0.0, scale, scale],
+        ],
+    )
+    atoms.calc = LennardJones(sigma=2.5, epsilon=0.1, rc=10.0)
+    assert BFGS(atoms, logfile=None).run(fmax=1e-8, steps=100)
     with tempfile.TemporaryDirectory() as td:
         vib = Vibrations(atoms, name=str(Path(td) / 'vib'))
         vib.run()

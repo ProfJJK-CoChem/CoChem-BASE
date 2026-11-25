@@ -234,15 +234,15 @@ def test_canonical_pipeline_preserves_seed_already_in_campaign(tmp_path):
     assert seed.read_bytes() == original
 
 
-def test_standard_campaign_includes_real_emt_nitrogen_hessian(tmp_path):
+def test_standard_campaign_includes_real_morse_nitrogen_hessian(tmp_path):
     import time
-    from ase.calculators.emt import EMT
+    from ase.calculators.morse import MorsePotential
     from ase.optimize import BFGS
     from ase.vibrations import Vibrations
     from cochem_base.chain.chain import StateRecord, BOHR_TO_ANGSTROM, HARTREE_TO_EV
 
     atoms = molecule("N2")
-    atoms.calc = EMT()
+    atoms.calc = MorsePotential(epsilon=9.76, r0=1.0977, rho0=2.69)
     start = time.monotonic()
     optimizer = BFGS(atoms, logfile=None)
     reached = optimizer.run(fmax=1e-6, steps=100)
@@ -252,7 +252,7 @@ def test_standard_campaign_includes_real_emt_nitrogen_hessian(tmp_path):
     hessian = vibrations.get_vibrations().get_hessian_2d() * BOHR_TO_ANGSTROM**2 / HARTREE_TO_EV
     chain = Chain(workdir=tmp_path / "campaign")
     record = StateRecord(
-        stage="emt_nitrogen", level="ASE EMT finite-difference Hessian", wall_s=time.monotonic()-start,
+        stage="morse_nitrogen", level="ASE Morse finite-difference Hessian", wall_s=time.monotonic()-start,
         energy_hartree=atoms.get_potential_energy()/HARTREE_TO_EV, symbols=atoms.get_chemical_symbols(),
         geometry=atoms.positions.copy(), hessian=hessian, converged=bool(reached), exit_status="SUCCESS",
     )

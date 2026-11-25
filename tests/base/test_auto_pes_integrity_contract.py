@@ -6,7 +6,7 @@ import h5py
 import numpy as np
 import pytest
 from ase import Atoms, units
-from ase.calculators.emt import EMT
+from ase.calculators.lj import LennardJones
 
 from cochem_base.core_engine.cochem_core_auto_pes import (
     AutoPESOrchestrator,
@@ -20,9 +20,9 @@ from cochem_base.core_engine.cochem_core_auto_pes import (
 from cochem_base.exceptions import MissingDataError
 
 
-def test_emt_demo_energies_are_hartree_and_transformation_is_explicit():
+def test_lj_demo_energies_are_hartree_and_transformation_is_explicit():
     symbols, geometries, empirical, transformed = generate_benchmark_intermolecular_pes_data(1)
-    atoms = Atoms(symbols, positions=geometries[0], calculator=EMT())
+    atoms = Atoms(symbols, positions=geometries[0], calculator=LennardJones(sigma=2.55, epsilon=0.15, rc=8.0))
     energy_ev = atoms.get_potential_energy()
     assert empirical[0] == pytest.approx(energy_ev / units.Hartree, abs=1e-14)
     assert transformed[0] == pytest.approx((1.02 * energy_ev - 0.005) / units.Hartree, abs=1e-14)

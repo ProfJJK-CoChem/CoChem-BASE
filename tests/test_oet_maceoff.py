@@ -350,11 +350,13 @@ def test_missing_explicit_checkpoint_is_not_replaced(tmp_path: Path) -> None:
 
 
 def test_backend_failure_does_not_produce_surrogate_energy() -> None:
-    from ase.calculators.emt import EMT
+    from ase.calculators.calculator import PropertyNotImplementedError
+    from ase.calculators.singlepoint import SinglePointCalculator
 
-    # EMT explicitly does not support helium. The wrapper must preserve that error.
-    with pytest.raises(NotImplementedError, match="No EMT-potential for He"):
-        compute_maceoff_energy_gradient(Atoms("He"), EMT())
+    # An unpopulated SinglePointCalculator raises PropertyNotImplementedError; wrapper must preserve that failure.
+    atoms = Atoms("He")
+    with pytest.raises(PropertyNotImplementedError):
+        compute_maceoff_energy_gradient(atoms, SinglePointCalculator(atoms))
 
 
 def test_retired_untrained_fallback_fails_closed() -> None:

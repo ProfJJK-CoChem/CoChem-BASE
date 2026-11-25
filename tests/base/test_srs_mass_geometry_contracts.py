@@ -1,13 +1,15 @@
-"""SRS Chunk 17 REQ-004/005/006/014 regressions using real ASE/EMT calculations.
+"""SRS Chunk 17 REQ-004/005/006/014 regressions using analytic harmonic/Morse potentials.
 
-EMT validates mass transformation and numerics here, not publication accuracy.
+Analytic valence/Morse potentials validate mass transformation and numerics here,
+not publication accuracy.
 """
 from pathlib import Path
 
 import numpy as np
 import pytest
+from ase import Atoms
 from ase.build import molecule
-from ase.calculators.emt import EMT
+from ase.calculators.morse import MorsePotential
 from ase.optimize import BFGS
 from ase.units import Bohr, Hartree
 from ase.vibrations import Vibrations
@@ -26,15 +28,55 @@ from cochem_base.physics.isotopes import get_element_mass_and_abundance, get_iso
 from cochem_base.spectroscopy.isotopologue import IsotopologueSpectroscopyEngine, get_nuclide_mass
 
 
+def _water_harmonic_valence_energy_hartree(coords_ang: np.ndarray) -> float:
+    """Rotationally/translationally invariant analytic valence potential for bent C2v H2O (Hartree)."""
+    r0_bohr = 0.9572 / Bohr
+    theta0 = np.deg2rad(104.52)
+    k_r = 0.54
+    k_theta = 0.16
+    c_bohr = coords_ang / Bohr
+    v1 = c_bohr[1] - c_bohr[0]
+    v2 = c_bohr[2] - c_bohr[0]
+    r1 = float(np.linalg.norm(v1))
+    r2 = float(np.linalg.norm(v2))
+    cos_t = float(np.clip(np.dot(v1, v2) / (r1 * r2), -1.0, 1.0))
+    theta = float(np.arccos(cos_t))
+    return 0.5 * k_r * ((r1 - r0_bohr) ** 2 + (r2 - r0_bohr) ** 2) + 0.5 * k_theta * ((theta - theta0) ** 2)
+
+
+def _analytic_water_equilibrium_and_hessian() -> tuple[Atoms, np.ndarray]:
+    r0 = 0.9572
+    half_angle = np.deg2rad(104.52 / 2.0)
+    coords = np.array([
+        [0.0, 0.0, 0.0],
+        [0.0, r0 * np.sin(half_angle), r0 * np.cos(half_angle)],
+        [0.0, -r0 * np.sin(half_angle), r0 * np.cos(half_angle)],
+    ], dtype=np.float64)
+    atoms = Atoms(["O", "H", "H"], positions=coords)
+    step_bohr = 1e-4
+    step_ang = step_bohr * Bohr
+    flat = coords.reshape(-1)
+    mat = np.empty((9, 9), dtype=np.float64)
+    for i in range(9):
+        for j in range(i, 9):
+            pp = flat.copy(); pp[i] += step_ang; pp[j] += step_ang
+            pm = flat.copy(); pm[i] += step_ang; pm[j] -= step_ang
+            mp = flat.copy(); mp[i] -= step_ang; mp[j] += step_ang
+            mm = flat.copy(); mm[i] -= step_ang; mm[j] -= step_ang
+            val = (
+                _water_harmonic_valence_energy_hartree(pp.reshape(3, 3))
+                - _water_harmonic_valence_energy_hartree(pm.reshape(3, 3))
+                - _water_harmonic_valence_energy_hartree(mp.reshape(3, 3))
+                + _water_harmonic_valence_energy_hartree(mm.reshape(3, 3))
+            ) / (4.0 * step_bohr * step_bohr)
+            mat[i, j] = val
+            mat[j, i] = val
+    return atoms, mat
+
+
 @pytest.fixture(scope="module")
-def water_calculation(tmp_path_factory):
-    atoms = molecule("H2O")
-    atoms.calc = EMT()
-    assert BFGS(atoms, logfile=None).run(fmax=1e-8, steps=200)
-    vibrations = Vibrations(atoms, name=str(tmp_path_factory.mktemp("water") / "vib"))
-    vibrations.run()
-    hessian = vibrations.get_vibrations().get_hessian_2d() * Bohr**2 / Hartree
-    return atoms, hessian
+def water_calculation():
+    return _analytic_water_equilibrium_and_hessian()
 
 
 def test_exact_spectral_masses_and_natural_abundance():
@@ -86,7 +128,7 @@ def test_projection_does_not_hide_imaginary_or_soft_modes(water_calculation):
 
 def test_linear_molecule_keeps_one_vibrational_mode(tmp_path):
     atoms = molecule("H2")
-    atoms.calc = EMT()
+    atoms.calc = MorsePotential(epsilon=4.75, r0=0.7414, rho0=1.44)
     assert BFGS(atoms, logfile=None).run(fmax=1e-8, steps=200)
     vibrations = Vibrations(atoms, name=str(tmp_path / "hydrogen"))
     vibrations.run()

@@ -3,7 +3,7 @@
   "modules": {
     "bench": {
       "repository": "ProfJJK-CoChem/CoChem-BENCH",
-      "revision": "cb874d8f20723c70b26b805329cb873ebe1c463f",
+      "revision": "b903ca63713deba093edce57afd9ffd94d1e9564",
       "distribution": "cochem-bench",
       "adapter": "bench_provider",
       "entry_point": "cochem_bench.provider:bench_provider",
@@ -45,7 +45,7 @@
     },
     "geom": {
       "repository": "ProfJJK-CoChem/CoChem-GEOM",
-      "revision": "ae8f1e7d56a4030e377d36ca7c9516cd0da16851",
+      "revision": "9935c513a455ab1f3f9615162bc1671626ff15ce",
       "distribution": "CoChem-GEOM",
       "adapter": "geom_provider",
       "entry_point": "cochem_geom.provider:geom_provider",
@@ -64,7 +64,7 @@
     },
     "kinetic": {
       "repository": "ProfJJK-CoChem/CoChem-KINETIC",
-      "revision": "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2",
+      "revision": "90c0de02c89cc3ff8bbcc6dfa85e766a1e4a3b97",
       "distribution": "cochem-kinetic",
       "adapter": "kinetic_provider",
       "entry_point": "cochem_kinetic.provider:kinetic_provider",
@@ -156,7 +156,7 @@
     },
     "scribe": {
       "repository": "ProfJJK-CoChem/CoChem-SCRIBE",
-      "revision": "85216dd12c998c1f879b6bb73ab74a44fc98f4bc",
+      "revision": "5f9d4d2e9e5fa5abac9f029c2e41b1e820b13903",
       "distribution": "cochem-scribe",
       "adapter": "scribe_provider",
       "entry_point": "cochem_scribe.provider:scribe_provider",
@@ -184,23 +184,25 @@
       "adapter_requirements": [],
       "operations": []
     },
-    "spycfit": {
-      "repository": "ProfJJK-CoChem/CoChem-SpycFit",
-      "revision": "aebe6fd8d5939ed617dad72e1392230e3979faf9",
-      "distribution": "CoChem-SpycFit",
-      "adapter": "spycfit_provider",
-      "entry_point": "cochem_spycfit.module_provider:spycfit_provider",
+    "spyfy": {
+      "repository": "ProfJJK-CoChem/CoChem-SPYFY",
+      "revision": "4372dbf448471d8bc7b51feb0bbf7d7a53f400d5",
+      "distribution": "CoChem-SPYFY",
+      "adapter": "spyfy_provider",
+      "entry_point": "cochem_spyfy.module_provider:spyfy_provider",
       "adapter_requirements": [],
       "operations": [
         "predict_spectrum",
         "fit_pickett",
         "parse_pickett",
-        "audit_fit"
+        "audit_fit",
+        "plan_surf_scan",
+        "ingest_surf_run"
       ]
     },
     "topos": {
       "repository": "ProfJJK-CoChem/CoChem-TOPOS",
-      "revision": "734aae0a1ef1f08e0faa2912780aefe25d576eb0",
+      "revision": "4cd484ccd14fd6a9d001946732575664ea65778b",
       "distribution": "cochem-topos",
       "adapter": "topos_provider",
       "entry_point": "topos.base_provider:provider",
@@ -224,7 +226,7 @@
     },
     "torq": {
       "repository": "ProfJJK-CoChem/CoChem-TORQ",
-      "revision": "1f4359d125a7951dc36e62fb6476a9a002205ed3",
+      "revision": "f4c1000f2ad82d9403e85db50463ea06c8b42361",
       "distribution": "CoChem-TORQ",
       "adapter": "torq_provider",
       "entry_point": "cochem_torq.ecosystem:module_provider",

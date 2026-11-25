@@ -1651,12 +1651,12 @@ def main() -> int:
             [ 1.933,  0.000, -0.772],
         ])
         from ase import Atoms
-        from ase.calculators.emt import EMT
+        from ase.calculators.lj import LennardJones
         from ase.optimize import BFGS
 
-        # Real physical computation using ASE EMT potential instead of random noise
+        # Deterministic explicit-parameter Lennard-Jones relaxation for G3 guard demo
         atoms = Atoms("OHHOHH", positions=c1)
-        atoms.calc = EMT()
+        atoms.calc = LennardJones(sigma=2.6, epsilon=0.01, rc=8.0)
         opt = BFGS(atoms, logfile=None)
         opt.run(fmax=0.5, steps=5)
         c2 = atoms.get_positions()

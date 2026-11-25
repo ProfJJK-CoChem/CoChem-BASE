@@ -5,7 +5,6 @@ from __future__ import annotations
 _CAPABILITIES = {
     "BaselinePhysicsEngine": "baseline/delta-model and dispersion",
     "DeltaMLEngine": "baseline/delta-model and dispersion",
-    "EMTBaselineEngine": "baseline/delta-model and dispersion",
     "GFN2xTBEngine": "baseline/delta-model and dispersion",
     "LennardJonesBaselineEngine": "baseline/delta-model and dispersion",
     "PM6Engine": "baseline/delta-model and dispersion",

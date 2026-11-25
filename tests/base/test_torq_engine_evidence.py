@@ -10,7 +10,7 @@ import sys
 
 from ase import units
 from ase.build import molecule
-from ase.calculators.emt import EMT
+from ase.calculators.lj import LennardJones
 import pytest
 from pydantic import ValidationError
 
@@ -24,9 +24,9 @@ from cochem_base.cochem_torq_engine import (
 )
 
 
-def test_real_emt_energy_does_not_imply_unreported_convergence() -> None:
+def test_real_lj_energy_does_not_imply_unreported_convergence() -> None:
     atoms = molecule("H2O")
-    atoms.calc = EMT()
+    atoms.calc = LennardJones(sigma=1.0, epsilon=0.05, rc=5.0)
     measured_energy = atoms.get_potential_energy() / units.Hartree
     scf = SCFResult(point_idx=0, energy_hartree=measured_energy, coordinates=atoms.positions)
     step = ORCAStepResult(energy=measured_energy, coordinates=atoms.positions)
@@ -56,7 +56,7 @@ def test_missing_and_invalid_output_cannot_become_zero_energy_or_gradient(tmp_pa
 
 def test_tensor_archive_cannot_be_mislabeled_as_gbw(tmp_path: Path) -> None:
     atoms = molecule("H2O")
-    atoms.calc = EMT()
+    atoms.calc = LennardJones(sigma=1.0, epsilon=0.05, rc=5.0)
     result = ORCAStepResult(energy=atoms.get_potential_energy() / units.Hartree,
                            coordinates=atoms.positions)
     payload = DispatchPayload(symbols=atoms.get_chemical_symbols(), coordinates=atoms.positions)

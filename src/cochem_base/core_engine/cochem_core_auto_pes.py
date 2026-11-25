@@ -2499,25 +2499,25 @@ def generate_benchmark_intermolecular_pes_data(
     random_seed: int = 42,
 ) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray]:
     """
-    Return a deterministic Cu/Ag/Au EMT trajectory and two numerical targets.
+    Return a deterministic Cu/Ag/Au Lennard-Jones trajectory and two numerical targets.
 
     Both energy arrays are in Hartree. The second target is an explicitly
-    artificial affine transformation of EMT energy for solver verification;
-    it is not DFT, CCSD(T), or evidence of spectroscopic prediction accuracy.
-    Specifically, E_target = 1.02 * E_EMT - 0.005 eV. With the same centered
-    linear estimator, the correction error scales to 2% of the baseline error;
-    passing a correction threshold here is not independent accuracy evidence.
+    artificial affine transformation of the explicit-parameter Lennard-Jones energy
+    for solver verification; it is not DFT, CCSD(T), or evidence of spectroscopic
+    prediction accuracy. Specifically, E_target = 1.02 * E_LJ - 0.005 eV. With the
+    same centered linear estimator, the correction error scales to 2% of the baseline
+    error; passing a correction threshold here is not independent accuracy evidence.
     ``random_seed`` is retained for API compatibility; this trajectory has
     fixed initial coordinates and velocities and uses no random sampling.
     """
     from ase import Atoms, units
-    from ase.calculators.emt import EMT
+    from ase.calculators.lj import LennardJones
     from ase.md.verlet import VelocityVerlet
 
     symbols = ["Cu", "Ag", "Au"]
-    # Starting geometry
-    atoms = Atoms("CuAgAu", positions=[[0.0, 0.0, 0.0], [2.5, 0.0, 0.0], [0.0, 2.5, 0.0]])
-    atoms.calc = EMT()
+    # Starting geometry near the LJ pair minimum (r_min = 2^(1/6) * sigma ~ 2.86 A)
+    atoms = Atoms("CuAgAu", positions=[[0.0, 0.0, 0.0], [2.85, 0.0, 0.0], [0.0, 2.85, 0.0]])
+    atoms.calc = LennardJones(sigma=2.55, epsilon=0.15, rc=8.0)
 
     # Deterministic velocities to start MD
     atoms.set_velocities([[0.01, 0.01, 0.0], [-0.01, 0.0, 0.01], [0.0, -0.01, -0.01]])

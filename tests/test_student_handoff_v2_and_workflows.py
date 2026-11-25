@@ -401,14 +401,15 @@ def test_module_distribution_manifest_has_verified_adapters_and_passes_loader() 
     manifest = manage_modules.load_manifest()
     modules = manifest["modules"]
     expected = {
-        "bench": ("bench_provider", "cochem_bench.provider:bench_provider", "cb874d8f20723c70b26b805329cb873ebe1c463f"),
-        "topos": ("topos_provider", "topos.base_provider:provider", "734aae0a1ef1f08e0faa2912780aefe25d576eb0"),
-        "torq": ("torq_provider", "cochem_torq.ecosystem:module_provider", "1f4359d125a7951dc36e62fb6476a9a002205ed3"),
-        "geom": ("geom_provider", "cochem_geom.provider:geom_provider", "ae8f1e7d56a4030e377d36ca7c9516cd0da16851"),
-        "spycfit": ("spycfit_provider", "cochem_spycfit.module_provider:spycfit_provider", "aebe6fd8d5939ed617dad72e1392230e3979faf9"),
-        "kinetic": ("kinetic_provider", "cochem_kinetic.provider:kinetic_provider", "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2"),
-        "scribe": ("scribe_provider", "cochem_scribe.provider:scribe_provider", "85216dd12c998c1f879b6bb73ab74a44fc98f4bc"),
+        "bench": ("bench_provider", "cochem_bench.provider:bench_provider", "b903ca63713deba093edce57afd9ffd94d1e9564"),
+        "topos": ("topos_provider", "topos.base_provider:provider", "4cd484ccd14fd6a9d001946732575664ea65778b"),
+        "torq": ("torq_provider", "cochem_torq.ecosystem:module_provider", "f4c1000f2ad82d9403e85db50463ea06c8b42361"),
+        "geom": ("geom_provider", "cochem_geom.provider:geom_provider", "9935c513a455ab1f3f9615162bc1671626ff15ce"),
+        "spyfy": ("spyfy_provider", "cochem_spyfy.module_provider:spyfy_provider", "4372dbf448471d8bc7b51feb0bbf7d7a53f400d5"),
+        "kinetic": ("kinetic_provider", "cochem_kinetic.provider:kinetic_provider", "90c0de02c89cc3ff8bbcc6dfa85e766a1e4a3b97"),
+        "scribe": ("scribe_provider", "cochem_scribe.provider:scribe_provider", "5f9d4d2e9e5fa5abac9f029c2e41b1e820b13903"),
     }
+    assert "spycfit" not in modules
     for mod_id, (adapter, ep, rev) in expected.items():
         spec = modules[mod_id]
         assert spec["adapter"] == adapter
@@ -417,7 +418,7 @@ def test_module_distribution_manifest_has_verified_adapters_and_passes_loader() 
     assert len(modules["bench"]["operations"]) == 4
     assert len(modules["topos"]["operations"]) == 9
     assert len(modules["torq"]["operations"]) == 5
-    assert len(modules["spycfit"]["operations"]) == 4
+    assert len(modules["spyfy"]["operations"]) == 6
     assert len(modules["kinetic"]["operations"]) == 5
 
 
@@ -453,7 +454,7 @@ def test_p8_student_qualification_fixes_devcontainer_workflows_and_examples() ->
     wf06_raw = (REPO_ROOT / ".github" / "workflows" / "06_aimnet2_neb_pyscf_rxn_profile.yml").read_text(encoding="utf-8")
     wf06 = yaml.safe_load(wf06_raw)
     wf06_inputs = wf06.get("on", wf06.get(True))["workflow_dispatch"]["inputs"]
-    assert "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2" in wf06_raw
+    assert "90c0de02c89cc3ff8bbcc6dfa85e766a1e4a3b97" in wf06_raw
     assert "6eade693af" not in wf06_raw
     assert wf06_inputs["input_dir"]["default"] == "examples/student_inputs/chem312_team4_rxn"
     assert wf06_inputs["dft_basis"]["default"] == "def2-TZVPP"
@@ -492,7 +493,7 @@ def test_qa_r2_rxn_profile_2endpoint_workstation_default_seal_and_vdw_guide(tmp_
     wf06 = yaml.safe_load(wf06_raw)
     wf06_inputs = wf06.get("on", wf06.get(True))["workflow_dispatch"]["inputs"]
     assert wf06_inputs["target_continuation"]["default"] == "workstation"
-    assert "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2" in wf06_raw
+    assert "90c0de02c89cc3ff8bbcc6dfa85e766a1e4a3b97" in wf06_raw
     assert 'for required in ("R.xyz", "Int_tet.xyz", "P.xyz")' not in wf06_raw
 
     steps = {step.get("name"): step.get("run", "") for step in wf06["jobs"]["rxn_profile"]["steps"]}
@@ -599,7 +600,7 @@ def test_qa_r2_rxn_profile_2endpoint_workstation_default_seal_and_vdw_guide(tmp_
     assert rec_3pt["n_imaginary_modes"] == 1
     assert rec_3pt["candidate_count"] == 3
     assert rec_3pt["metadata"]["pathway_mode"] == "elementary_3pt"
-    assert rec_3pt["metadata"]["kinetic_revision"] == "ee7e2b6970edf0c73cae63d8f5c33bd66009bfd2"
+    assert rec_3pt["metadata"]["kinetic_revision"] == "90c0de02c89cc3ff8bbcc6dfa85e766a1e4a3b97"
     for member in ("ts_polished.xyz", "results.json", "stationary_table.md", "neb_path.xyz", "irc_path.xyz", "manifest_sha256.json"):
         assert member in rec_3pt["files_sha256"]
 

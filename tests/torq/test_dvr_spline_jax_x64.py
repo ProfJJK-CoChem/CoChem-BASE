@@ -27,13 +27,13 @@ import jax
 jax.config.update("jax_enable_x64", True)
 import numpy as np  # noqa: E402
 from ase import Atoms  # noqa: E402
-from ase.calculators.emt import EMT  # noqa: E402
+from ase.calculators.lj import LennardJones  # noqa: E402
 from cochem_torq_dvr import RelaxedPESTorsionalDVR  # noqa: E402
 from mendeleev import element  # noqa: E402
 
 
 def generate_authentic_h2o2_scan() -> tuple[np.ndarray, np.ndarray, list[str], np.ndarray]:
-    """Generates authentic 1D relaxed torsional PES scan of H2O2 across [0, 360 deg]."""
+    """Generates deterministic 1D torsional PES scan of H2O2 across [0, 360 deg]."""
     angles_deg = np.arange(0, 361, 15)  # 25 points from 0° to 360°
     theta_scan_rad = np.radians(angles_deg)
 
@@ -47,7 +47,7 @@ def generate_authentic_h2o2_scan() -> tuple[np.ndarray, np.ndarray, list[str], n
     ], dtype=np.float64)
 
     atoms = Atoms(symbols=symbols, positions=coords)
-    atoms.calc = EMT()
+    atoms.calc = LennardJones(sigma=1.5, epsilon=0.05, rc=6.0)
 
     energies_ev = []
     for angle in angles_deg:

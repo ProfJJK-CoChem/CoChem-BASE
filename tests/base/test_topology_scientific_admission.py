@@ -16,7 +16,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.calculators.emt import EMT
 from ase.calculators.lj import LennardJones
 from ase.calculators.morse import MorsePotential
 
@@ -51,19 +50,26 @@ def test_actual_nonconverged_optimizer_cannot_return_an_optimized_geometry():
     left, right = copper_pair(2.7), copper_pair(2.8)
     original = left.positions.copy()
     with pytest.raises(LightningQuenchError, match="no relaxed geometry or substitute"):
-        execute_lightning_quench(left, right, calculator=EMT(), max_steps=1, fmax_ev_angstrom=1e-10)
+        execute_lightning_quench(
+            left,
+            right,
+            calculator=LennardJones(sigma=2.3, epsilon=0.4, rc=8.0),
+            max_steps=1,
+            fmax_ev_angstrom=1e-10,
+        )
     assert np.array_equal(left.positions, original) and "cochem_quench" not in left.info
 
 
-def test_genuine_explicit_emt_force_convergence_retains_exact_method_scope():
-    left, right = copper_pair(2.1), copper_pair(2.3)
-    left.calc, right.calc = EMT(), EMT()
+def test_genuine_explicit_lj_force_convergence_retains_exact_method_scope():
+    left, right = copper_pair(2.4), copper_pair(2.7)
+    left.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
+    right.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
     optimized_a, optimized_b, energy_a, energy_b = execute_lightning_quench(left, right)
     assert np.isfinite([energy_a, energy_b]).all()
     for atoms in (optimized_a, optimized_b):
         receipt = atoms.info["cochem_quench"]
         assert receipt["converged"] is True and receipt["maximum_force_ev_angstrom"] <= receipt["force_threshold_ev_angstrom"]
-        assert receipt["potential"]["class"] == "EMT"
+        assert receipt["potential"]["class"] == "LennardJones"
         assert receipt["potential"]["method_scope"] == "explicit_empirical_potential_not_quantum_chemistry"
         assert receipt["minimum_qualification"] == "not_performed"
         assert "InHess" not in atoms.info and "Calc_Hess" not in atoms.info

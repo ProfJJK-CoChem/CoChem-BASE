@@ -95,6 +95,8 @@ def test_gui_01_to_06_voila_state_sync_contrast_preview_and_copy(tmp_path: Path,
     )
     assert "class='cochem-components-table'" in gui.student_setup_status.value
     assert "<td>PySCF</td>" in gui.student_setup_status.value
+    assert "<td>CoChem-SPYFY</td>" in gui.student_setup_status.value
+    assert "optional add-on (not installed — run: bash scripts/install_optional_spyfy.sh)" in gui.student_setup_status.value
 
     # GUI-05: No Google Colab in workspace guidance; no raw DEGRADED_OPERATIONAL or registry path
     assert "Google Colab" not in help_html("workspace")
@@ -326,22 +328,25 @@ def test_codespace_setup_voila_hygiene_and_chem490_guide() -> None:
     setup_sh = (REPO_ROOT / "scripts" / "setup_devcontainer.sh").read_text(encoding="utf-8")
     for token in (
         "f5af2ff0f1acb1eb11ecffe7ef3b55d457801f7b",
-        "cb874d8f20723c70b26b805329cb873ebe1c463f",
-        "aebe6fd8d5939ed617dad72e1392230e3979faf9",
-        "85216dd12c998c1f879b6bb73ab74a44fc98f4bc",
-        "ae8f1e7d56a4030e377d36ca7c9516cd0da16851",
+        "b903ca63713deba093edce57afd9ffd94d1e9564",
+        "5f9d4d2e9e5fa5abac9f029c2e41b1e820b13903",
+        "9935c513a455ab1f3f9615162bc1671626ff15ce",
         "pyscf==2.14.0",
         "geometric==1.1.1",
         "cochem-geom",
         "cochem-bench",
-        "cochem-spycfit",
         "cochem-scribe",
         "cochem-torq",
         "$artifact_bin/topos",
         "$artifact_bin/spfit",
         "$artifact_bin/spcat",
+        "COCHEM_INSTALL_SPYFY",
+        "install_optional_spyfy.sh",
     ):
         assert token in setup_sh, f"Missing expected Codespace setup token: {token}"
+    assert "CoChem-SpycFit" not in setup_sh
+    assert "cochem-spycfit" not in setup_sh
+    assert "jax[cpu]" not in setup_sh
 
     from scripts.hosted_dashboard import server_command
     cmd = server_command(Path("/usr/bin/python3"), 8866)
@@ -351,7 +356,9 @@ def test_codespace_setup_voila_hygiene_and_chem490_guide() -> None:
     for cmd_tok in (
         "cochem-bench",
         "cochem-geom",
-        "cochem-spycfit",
+        "CoChem-SPYFY",
+        "install_optional_spyfy.sh",
+        "cochem-spyfy",
         "cochem-scribe",
         "cochem-torq",
         "topos",
@@ -365,6 +372,7 @@ def test_codespace_setup_voila_hygiene_and_chem490_guide() -> None:
         "~10–15 minutes",
     ):
         assert cmd_tok in guide, f"CHEM490 guide missing {cmd_tok}"
+    assert "SpycFit" not in guide and "spycfit" not in guide
 
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert "student/CHEM490_STEP_BY_STEP_GUIDE.md" in readme
@@ -384,8 +392,8 @@ def test_codespace_setup_voila_hygiene_and_chem490_guide() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_qa490_r2_setup_devcontainer_isolation_depth_and_spycfit_cli(tmp_path: Path) -> None:
-    """Verify SB490-R2-01 (3 separate pip installs), SB490-R2-02 (-maxdepth 8), and SB490-R2-03 (cochem-spycfit CLI)."""
+def test_qa490_r2_setup_devcontainer_isolation_depth_and_optional_spyfy_addon(tmp_path: Path) -> None:
+    """Verify isolated pip installs, -maxdepth 8, optional CoChem-SPYFY add-on script, and cochem-spyfy CLI."""
     import ast
     import re
 
@@ -394,21 +402,17 @@ def test_qa490_r2_setup_devcontainer_isolation_depth_and_spycfit_cli(tmp_path: P
     assert b"\r\n" not in raw_bytes, "setup_devcontainer.sh must use pure LF line endings"
     setup_sh = raw_bytes.decode("utf-8")
 
-    # SB490-R2-01: CoChem-BENCH, CoChem-SCRIBE, and CoChem-SpycFit must be in 3 separate pip install calls
+    # Separate pip installs for CoChem-BENCH and CoChem-SCRIBE; CoChem-SPYFY must NOT be installed by default
     pip_blocks = re.findall(r'"\$ui_python"\s+-m\s+pip\s+install[\s\S]*?\|\|[^\n]+', setup_sh)
-    bench_blocks = [b for b in pip_blocks if "CoChem-BENCH.git@cb874d8f20723c70b26b805329cb873ebe1c463f" in b]
-    scribe_blocks = [b for b in pip_blocks if "CoChem-SCRIBE.git@85216dd12c998c1f879b6bb73ab74a44fc98f4bc" in b]
-    spycfit_blocks = [b for b in pip_blocks if "CoChem-SpycFit.git@aebe6fd8d5939ed617dad72e1392230e3979faf9" in b]
+    bench_blocks = [b for b in pip_blocks if "CoChem-BENCH.git@b903ca63713deba093edce57afd9ffd94d1e9564" in b]
+    scribe_blocks = [b for b in pip_blocks if "CoChem-SCRIBE.git@5f9d4d2e9e5fa5abac9f029c2e41b1e820b13903" in b]
     assert len(bench_blocks) == 1
     assert len(scribe_blocks) == 1
-    assert len(spycfit_blocks) == 1
     assert "CoChem-SCRIBE" not in bench_blocks[0]
-    assert "CoChem-SpycFit" not in bench_blocks[0]
     assert "CoChem-BENCH" not in scribe_blocks[0]
-    assert "CoChem-SpycFit" not in scribe_blocks[0]
-    assert "CoChem-BENCH" not in spycfit_blocks[0]
-    assert "CoChem-SCRIBE" not in spycfit_blocks[0]
-    assert "CoChem-GEOM.git@ae8f1e7d56a4030e377d36ca7c9516cd0da16851" in setup_sh
+    assert "CoChem-SPYFY" not in setup_sh or 'COCHEM_INSTALL_SPYFY' in setup_sh
+    assert "jax[cpu]" not in setup_sh
+    assert "CoChem-GEOM.git@9935c513a455ab1f3f9615162bc1671626ff15ce" in setup_sh
 
     # SB490-R2-02: -maxdepth 8 (never -maxdepth 4) and clean fallback wrappers for topos and torq
     assert "-maxdepth 4" not in setup_sh
@@ -418,13 +422,21 @@ def test_qa490_r2_setup_devcontainer_isolation_depth_and_spycfit_cli(tmp_path: P
     assert "from topos.cli import main" in setup_sh
     assert "from cochem_torq.cli import main" in setup_sh
 
-    # SB490-R2-03: Standalone Python cochem-spycfit CLI wrapper dispatching to cochem_spycfit.module_provider
-    assert '-m cochem_spycfit' not in setup_sh
-    match = re.search(r"cat <<'PY'\n([\s\S]*?)\nPY\n  \} > \"\$artifact_bin/cochem-spycfit\"", setup_sh)
-    assert match is not None, "Embedded cochem-spycfit Python wrapper not found"
+    # Optional add-on installer script scripts/install_optional_spyfy.sh
+    addon_path = REPO_ROOT / "scripts" / "install_optional_spyfy.sh"
+    assert addon_path.is_file()
+    addon_bytes = addon_path.read_bytes()
+    assert b"\r\n" not in addon_bytes, "install_optional_spyfy.sh must use pure LF line endings"
+    addon_sh = addon_bytes.decode("utf-8")
+    assert "4372dbf448471d8bc7b51feb0bbf7d7a53f400d5" in addon_sh
+    assert "CoChem-SPYFY.git" in addon_sh
+    assert "jax[cpu]" in addon_sh
+    assert "grulab_surf" in addon_sh
+    match = re.search(r"cat <<'PY'\n([\s\S]*?)\nPY\n\} > \"\$artifact_bin/cochem-spyfy\"", addon_sh)
+    assert match is not None, "Embedded cochem-spyfy Python wrapper not found"
     wrapper_src = match.group(1)
     ast.parse(wrapper_src)
-    wrapper_file = tmp_path / "cochem_spycfit_wrapper.py"
+    wrapper_file = tmp_path / "cochem_spyfy_wrapper.py"
     wrapper_file.write_text(wrapper_src, encoding="utf-8")
 
     help_res = subprocess.run(
@@ -435,8 +447,30 @@ def test_qa490_r2_setup_devcontainer_isolation_depth_and_spycfit_cli(tmp_path: P
         timeout=20,
     )
     assert help_res.returncode == 0, help_res.stderr
-    for subcmd in ("info", "parse", "predict", "fit"):
+    for subcmd in ("info", "parse", "predict", "fit", "plan-surf", "ingest-surf"):
         assert subcmd in help_res.stdout
+
+
+def test_cli_addons_and_emt_rejection(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Verify cochem-cli addons / install-addon --dry-run and hard EMT rejection in Parsl worker cache."""
+    from cochem_base import cli as base_cli
+    from cochem_base.core_engine.cochem_core_parsl_executors import get_cached_mlff_calculator
+
+    art = tmp_path / "artifacts"
+    art.mkdir()
+    assert base_cli.main(["addons", "--artifact-dir", str(art), "--json"]) == 0
+    addons_payload = json.loads(capsys.readouterr().out)
+    assert addons_payload["addons"]["spyfy"]["revision"] == "4372dbf448471d8bc7b51feb0bbf7d7a53f400d5"
+    assert addons_payload["addons"]["spyfy"]["installed"] is False
+
+    assert base_cli.main(["install-addon", "spyfy", "--dry-run", "--json"]) == 0
+    dry_payload = json.loads(capsys.readouterr().out)
+    assert dry_payload["dry_run"] is True
+    assert dry_payload["addon"] == "spyfy"
+    assert dry_payload["installer_script"].endswith("install_optional_spyfy.sh")
+
+    with pytest.raises(ValueError, match="permanently retired"):
+        get_cached_mlff_calculator("emt")
 
 
 def test_qa490_r2_cli_status_json_and_human_default(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

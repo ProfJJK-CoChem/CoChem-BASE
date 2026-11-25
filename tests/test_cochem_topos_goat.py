@@ -1,6 +1,6 @@
 """
 Unit and integration test suite for CoChem-TOPOS Stage 2.3 GOAT Cascade Master Orchestrator.
-Zero-Mock Mandate: Uses real ASE Atoms, real calculators (EMT, LennardJones, TorchMLFF),
+Zero-Mock Mandate: Uses real ASE Atoms, real calculators (LennardJones, TorchMLFF),
 real optimizers (LBFGS, FIRE, BFGS, BaseOptimizer adapters), real HDF5 SWMR persistence,
 real process reaper, batched tensor inference with CPU fallback, dynamic ALPB solvation,
 and strict scratch purge management under 10GB.
@@ -22,7 +22,6 @@ import h5py
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.calculators.emt import EMT
 from ase.calculators.lj import LennardJones
 from mendeleev import element
 
@@ -304,7 +303,7 @@ class TestBaseOptimizerAbstraction:
     def test_ase_optimizer_adapter_execution(self) -> None:
         """Verify ASEOptimizerAdapter relaxes structures using standard ASE optimizers."""
         atoms = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.8]])
-        atoms.calc = EMT()
+        atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         adapter = ASEOptimizerAdapter(
             optimizer_algorithm=QuenchAlgorithm.BFGS,
@@ -335,7 +334,7 @@ class TestBaseOptimizerAbstraction:
         )
         cascade = ToposGOATCascade(config=config, optimizer=custom_optimizer)
         seed_atoms = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.7]])
-        seed_atoms.calc = EMT()
+        seed_atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         report = cascade.run_cascade(seed_atoms=seed_atoms, session_id="custom_opt_session")
         assert report.total_cycles_executed == 1
@@ -374,7 +373,7 @@ class TestMLFFSingletonAndBatchedInference:
 
         def fetch_calc() -> Any:
             return loader.get_calculator(
-                engine="EMT",
+                engine="LJ",
                 device=DeviceType.CPU,
                 precision=PrecisionMode.FP32,
                 atomic_numbers=[29],
@@ -412,7 +411,7 @@ class TestMLFFSingletonAndBatchedInference:
         """Verify batching with batch_size=64 handles arbitrary length lists."""
         geometries = [Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.5 + 0.01 * i]]) for i in range(70)]
         batch_engine = BatchedMLFFInference(batch_size=64, device="cpu")
-        calc = EMT()
+        calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         results = batch_engine.evaluate_batch(geometries, calculator=calc)
         assert len(results) == 70
@@ -487,7 +486,7 @@ class TestDynamicSolvationActivation:
         assert cascade.config.alpb_solvation_active is True
 
         seed_atoms = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.5]])
-        seed_atoms.calc = EMT()
+        seed_atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         report = cascade.run_cascade(seed_atoms=seed_atoms, session_id="charged_run")
         assert report.total_cycles_executed == 1
@@ -562,7 +561,7 @@ class TestStrictScratchPurgeProtocol:
         (scratch_dir / "run.tmp").write_text("transient")
 
         seed_atoms = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.5]])
-        seed_atoms.calc = EMT()
+        seed_atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         report = cascade.run_cascade(seed_atoms=seed_atoms, session_id="scratch_test_run")
         assert report.total_cycles_executed >= 1
@@ -636,7 +635,7 @@ class TestGradientNoiseOptimizer:
     def test_smooth_lbfgs_convergence_no_toggle(self) -> None:
         """Verify smooth descent converges using LBFGS without needing a toggle."""
         atoms = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.8]])
-        atoms.calc = EMT()
+        atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         opt_engine = GradientNoiseOptimizer(
             primary_optimizer=QuenchAlgorithm.LBFGS,
@@ -674,7 +673,7 @@ class TestGradientNoiseOptimizer:
     def test_unphysical_geometry_intercept_and_fire_fallback(self) -> None:
         """Verify that an unphysical geometry producing NaN forces naturally falls back to FIRE."""
         atoms = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
-        atoms.calc = EMT()
+        atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         opt_engine = GradientNoiseOptimizer(
             primary_optimizer=QuenchAlgorithm.LBFGS,
@@ -716,7 +715,7 @@ class TestToposGOATCascadePipeline:
             [1.25, 2.16, 0.0],
             [1.25, 0.72, 2.04],
         ])
-        seed_atoms.calc = EMT()
+        seed_atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         report = cascade.run_cascade(seed_atoms=seed_atoms, session_id="test_single_cycle")
         assert report.total_cycles_executed == 1
@@ -746,7 +745,7 @@ class TestToposGOATCascadePipeline:
             [1.25, 2.16, 0.0],
             [1.25, 0.72, 2.04],
         ])
-        seed_atoms.calc = EMT()
+        seed_atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         report = cascade.run_cascade(seed_atoms=seed_atoms, session_id="test_multi_cycle")
         assert report.total_cycles_executed <= 2
@@ -793,7 +792,7 @@ class TestToposGOATCascadePipeline:
         cascade = ToposGOATCascade(config=config)
 
         seed_atoms = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.5]])
-        seed_atoms.calc = EMT()
+        seed_atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         report = cascade.run_cascade(seed_atoms=seed_atoms, session_id="test_patience")
         assert report.total_cycles_executed <= 3
@@ -829,7 +828,7 @@ class TestToposGOATCascadePipeline:
         )
         cascade = ToposGOATCascade(config=config)
         seed_atoms = Atoms("Cu3", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.4], [2.2, 0.0, 0.0]])
-        seed_atoms.calc = EMT()
+        seed_atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         report = cascade.run_cascade(seed_atoms=seed_atoms, session_id="test_json_export")
         dumped_json = report.model_dump_json()
@@ -856,7 +855,7 @@ class TestToposGOATCascadePipeline:
         )
         cascade = ToposGOATCascade(config=config, broker=broker)
         seed_atoms = Atoms("Cu2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 2.6]])
-        seed_atoms.calc = EMT()
+        seed_atoms.calc = LennardJones(sigma=2.3, epsilon=0.4, rc=8.0)
 
         report = cascade.run_cascade(seed_atoms=seed_atoms, session_id="test_broker")
         assert report.total_unique_basins >= 1

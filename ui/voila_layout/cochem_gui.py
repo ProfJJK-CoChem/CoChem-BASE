@@ -2484,6 +2484,42 @@ class CoChemGUI(InputManagementMixin):
         except Exception:
             return ("PySCF", "unavailable", "", "Open-source Hartree-Fock engine not yet verified by Stage 0 setup.")
 
+    def _observe_spyfy_component_row(self) -> tuple[str, str, str, str]:
+        """Observe whether optional add-on CoChem-SPYFY is installed without importing it eagerly."""
+        import importlib.metadata as _ilm
+        import shutil as _shutil
+
+        pinned_rev = "4372dbf44847"
+        try:
+            ver = _ilm.version("CoChem-SPYFY")
+            return (
+                "CoChem-SPYFY",
+                "installed",
+                ver,
+                "Optional rotational spectroscopy & GruLab SURF add-on installed.",
+            )
+        except _ilm.PackageNotFoundError:
+            pass
+        try:
+            from cochem_base.config_loader import get_artifact_dir
+
+            wrapper = get_artifact_dir() / "bin" / "cochem-spyfy"
+            if wrapper.is_file() or _shutil.which("cochem-spyfy"):
+                return (
+                    "CoChem-SPYFY",
+                    "installed",
+                    pinned_rev,
+                    "Optional rotational spectroscopy & GruLab SURF add-on CLI available on PATH.",
+                )
+        except OSError:
+            pass
+        return (
+            "CoChem-SPYFY",
+            "optional add-on (not installed — run: bash scripts/install_optional_spyfy.sh)",
+            pinned_rev,
+            "Optional rotational spectroscopy & GruLab SURF add-on (not installed by default).",
+        )
+
     def _build_student_setup_panel(self) -> None:
         self.student_setup_status = widgets.HTML("<p role='status'>Checking CoChem setup…</p>")
         self.btn_setup_retry = widgets.Button(description="Retry setup", icon="refresh")
@@ -2520,6 +2556,9 @@ class CoChemGUI(InputManagementMixin):
         if not any(name.lower() == 'pyscf' for name in free_engines.get('engines', {})):
             pyscf_row = self._observe_pyscf_component_row()
             rows.append('<tr>' + ''.join('<td>' + html.escape(str(value)) + '</td>' for value in pyscf_row) + '</tr>')
+        if not any(name.lower() in {'spyfy', 'cochem-spyfy'} for name in status.get("modules", {})):
+            spyfy_row = self._observe_spyfy_component_row()
+            rows.append('<tr>' + ''.join('<td>' + html.escape(str(value)) + '</td>' for value in spyfy_row) + '</tr>')
         base = status.get("base", {})
         operation = status.get("operation", {})
         message = str(operation.get('message') or '').strip()

@@ -94,18 +94,18 @@ def test_topos_completion_waits_for_real_worker_exit(tmp_path):
 
 
 def test_scientific_telemetry_commits_only_supplied_observables(tmp_path):
-    # Actual ASE EMT energy and forces supply this storage integration test.
+    # Actual explicit-parameter ASE Morse energy and forces supply this storage integration test.
     from ase.build import molecule
-    from ase.calculators.emt import EMT
+    from ase.calculators.morse import MorsePotential
     atoms = molecule("H2")
-    atoms.calc = EMT()
+    atoms.calc = MorsePotential(epsilon=4.75, r0=0.7414, rho0=1.44)
     energy = atoms.get_potential_energy() / constants.HARTREE_TO_EV
     gradient = -atoms.get_forces() * constants.BOHR_TO_ANGSTROM / constants.HARTREE_TO_EV
     target = tmp_path / "complexes.h5"
     append_scientific_result("physical", atoms.get_chemical_symbols(), atoms.positions, energy,
-                            metadata={"engine": "ASE EMT", "kind": "energy"}, store_path=target)
+                            metadata={"engine": "ASE MorsePotential", "kind": "energy"}, store_path=target)
     append_scientific_result("physical", atoms.get_chemical_symbols(), atoms.positions, energy,
-                            gradients=gradient, metadata={"engine": "ASE EMT", "kind": "gradient"}, store_path=target)
+                            gradients=gradient, metadata={"engine": "ASE MorsePotential", "kind": "gradient"}, store_path=target)
     result = read_scientific_results("physical", store_path=target)
     assert result["energy_hartree"].tolist() == [energy, energy]
     assert result["gradient_record_indices"].tolist() == [1]

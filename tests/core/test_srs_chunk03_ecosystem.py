@@ -29,7 +29,7 @@ import pytest
 import torch
 from ase import Atoms
 import ase.io
-from ase.calculators.emt import EMT
+from ase.calculators.lj import LennardJones
 from mendeleev import element
 import filelock
 
@@ -295,7 +295,7 @@ def test_hdf5_swmr_preallocation_and_dual_locking(tmp_path):
         assert f.swmr_mode is True
 
     # Append batch under filelock protection
-    _water_atoms.calc = EMT()
+    _water_atoms.calc = LennardJones(sigma=1.0, epsilon=0.05, rc=5.0)
     real_energy = _water_atoms.get_potential_energy()
     real_forces = _water_atoms.get_forces()
     

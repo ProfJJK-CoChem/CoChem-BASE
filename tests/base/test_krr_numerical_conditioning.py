@@ -16,14 +16,14 @@ def test_krr_numerical_conditioning_and_anchor_floor():
     assert ar_elem.atomic_number == 18
 
     from ase import Atoms
-    from ase.calculators.emt import EMT
+    from ase.calculators.lj import LennardJones
     from ase.md.verlet import VelocityVerlet
     from ase import units
 
     # 1. Construct dataset with 5 asymptotic dissociation points where r > 10 A
-    # Physical states using ASE EMT
-    atoms = Atoms("CuAg", positions=[[0,0,0], [2.5,0,0]])
-    atoms.calc = EMT()
+    # Deterministic trajectory using explicit-parameter Lennard-Jones
+    atoms = Atoms("CuAg", positions=[[0,0,0], [2.85,0,0]])
+    atoms.calc = LennardJones(sigma=2.55, epsilon=0.15, rc=8.0)
 
     # Near equilibrium: 10 points
     atoms.set_velocities([[0.01, 0, 0], [-0.01, 0, 0]])

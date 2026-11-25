@@ -206,8 +206,10 @@ def get_cached_mlff_calculator(
                     f"Requested AIMNet2 model {model_name!r} could not be loaded: {e}"
                 ) from e
         elif m_lower == "emt":
-            from ase.calculators.emt import EMT
-            calc = EMT()
+            raise ValueError(
+                "ASE EMT is permanently retired and prohibited in CoChem-BASE. "
+                "Use an audited scientific model (mace, aimnet2) or an explicit analytic/quantum calculator."
+            )
         else:
             raise RequestedModelUnavailableError(f"Unsupported requested scientific model {model_name!r}")
 

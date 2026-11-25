@@ -60,7 +60,7 @@ def _calculator_receipt(calculator: Any) -> dict:
     import ase
     if calculator is None:
         raise LightningQuenchError("Choose an explicit supported potential; an unavailable model is never replaced by Lennard-Jones")
-    if type(calculator).__module__ not in {"ase.calculators.emt", "ase.calculators.lj"}:
+    if type(calculator).__module__ != "ase.calculators.lj":
         raise LightningQuenchError("This selected model has no audited lightning-quench contract; use BASE's verified native provider rather than replacing it with another potential")
     try:
         source = Path(inspect.getfile(type(calculator)))

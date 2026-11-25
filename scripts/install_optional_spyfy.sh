@@ -29,9 +29,10 @@ if [ ! -x "$ui_python" ]; then
   exit 1
 fi
 
-echo "Installing optional add-on CoChem-SPYFY (${SPYFY_REV:0:12}) + jax[cpu] into $ui_env..."
+echo "Installing optional add-on CoChem-SPYFY (${SPYFY_REV:0:12}) + jax[cpu] + scikit-learn into $ui_env..."
 "$ui_python" -m pip install --no-input --quiet \
   "jax[cpu]" \
+  "scikit-learn" \
   "git+${SPYFY_REPO}@${SPYFY_REV}"
 
 {
@@ -202,8 +203,9 @@ PY
 } > "$artifact_bin/cochem-spyfy"
 chmod 0755 "$artifact_bin/cochem-spyfy"
 
-echo "Verifying cochem-spyfy info (checking default_instrument_profile == 'grulab_surf')..."
+echo "Verifying cochem-spyfy info and cochem_spyfy.instruments (checking DEFAULT_INSTRUMENT_PROFILE == 'grulab_surf')..."
 spyfy_info="$("$artifact_bin/cochem-spyfy" info --check-compat)"
+"$ui_python" -c "from cochem_spyfy.instruments import DEFAULT_INSTRUMENT_PROFILE; assert DEFAULT_INSTRUMENT_PROFILE == 'grulab_surf'"
 "$ui_python" - "$spyfy_info" <<'PY'
 import json, sys
 data = json.loads(sys.argv[1])

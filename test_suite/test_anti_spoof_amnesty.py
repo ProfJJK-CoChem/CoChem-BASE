@@ -71,22 +71,15 @@ EXCLUDED_DIRS: Set[str] = {
 
 # Mandatory active parallel / concurrency orchestration modules that must be whitelisted
 MANDATORY_CONCURRENCY_MODULES: List[str] = [
-    "cochem_base/core/dispatcher.py",
-    "cochem_base/core/hardware.py",
-    "cochem_base/engine/hpc_dispatcher.py",
-    "cochem_base/interfaces/cochem_unity_installer_dashboard.py",
-    "cochem_topos/engine.py",
-    "core_engine/cochem_core_scheduler.py",
-    "core_engine/cochem_core_subprocess_broker.py",
-    "core_engine/cochem_core_telemetry_logger.py",
-    "intake/cochem_stage2_ingestor.py",
-    "interfaces/cochem_unity_installer_dashboard.py",
-    "setup/cochem_base_setup.py",
-    "setup/cochem_setup_orchestrator.py",
+    "src/cochem_base/cli.py",
+    "src/cochem_base/core_engine/cochem_core_parsl_executors.py",
+    "src/cochem_base/core_engine/cochem_core_scheduler.py",
+    "src/cochem_base/core_engine/cochem_core_subprocess_broker.py",
+    "src/cochem_base/core_engine/cochem_core_telemetry_logger.py",
+    "src/cochem_base/intake/cochem_stage2_ingestor.py",
     "tests/integration/test_gc_sweep.py",
     "tests/test_gc_sweep_unit.py",
     "test_suite/test_cochem_core_telemetry_logger.py",
-    "test_suite/test_web_streaming.py",
 ]
 
 

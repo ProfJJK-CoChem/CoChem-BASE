@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.calculators.emt import EMT
+from ase.calculators.lj import LennardJones
 from cochem_base.cochem_torq_mace import evaluate_pes_point, RequestedPotentialUnavailableError
 from cochem_base.cochem_torq_quench import ConformalMDQuencher, format_to_qcschema_v1, QuenchReevaluationRequiredError
 from cochem_base.core.cochem_constants import ANGSTROM_TO_BOHR, HARTREE_TO_EV
@@ -29,10 +29,11 @@ def test_missing_selected_potential_refuses_unrequested_lennard_jones():
     with pytest.raises(RequestedPotentialUnavailableError, match='no replacement model'):
         evaluate_pes_point(symbols, coordinates)
 
-def test_explicit_actual_emt_is_empirical_emt_and_matches_its_native_evaluation():
+def test_explicit_actual_lj_is_empirical_lj_and_matches_its_native_evaluation():
     symbols, coordinates, _ = native()
-    actual_ev = Atoms(symbols=symbols, positions=coordinates, calculator=EMT()).get_potential_energy()
-    assert evaluate_pes_point(symbols, coordinates, model_wrapper=EMT()) == actual_ev / HARTREE_TO_EV
+    calc = LennardJones(sigma=1.0, epsilon=0.05, rc=5.0)
+    actual_ev = Atoms(symbols=symbols, positions=coordinates, calculator=calc).get_potential_energy()
+    assert evaluate_pes_point(symbols, coordinates, model_wrapper=LennardJones(sigma=1.0, epsilon=0.05, rc=5.0)) == actual_ev / HARTREE_TO_EV
     # This proves an explicitly selected empirical calculator, not MACE or QM accuracy.
 
 def test_geometric_qcschema_is_molecule_only_with_bohr_and_no_invented_energy():

@@ -162,7 +162,6 @@ def test_supported_base_ml_exports_keep_their_actual_implementation_identity():
             [
                 "BaselinePhysicsEngine",
                 "DeltaMLEngine",
-                "EMTBaselineEngine",
                 "GFN2xTBEngine",
                 "LennardJonesBaselineEngine",
                 "PM6Engine",
@@ -303,7 +302,7 @@ def test_crest_actual_caller_flags_and_default_are_preserved():
 )
 def test_crest_missing_other_or_conflicting_state_refuses_before_authority_or_calculation(state):
     from ase import Atoms
-    from ase.calculators.emt import EMT
+    from ase.calculators.lj import LennardJones
 
     from cochem_base.exceptions import EcosystemDependencyError
     from cochem_base.topology.cochem_topos_crusher import CRESTConformerEngine, TopologyCrusher
@@ -312,7 +311,7 @@ def test_crest_missing_other_or_conflicting_state_refuses_before_authority_or_ca
     seed.info.update(state)
     # This actual empirical calculator would fill its cache if evaluated. It is
     # not a test double; neither geometry nor energy is evaluated by this guard.
-    seed.calc = EMT()
+    seed.calc = LennardJones(sigma=2.5, epsilon=0.05, rc=6.0)
     before = dict(seed.info)
     with pytest.raises(EcosystemDependencyError):
         CRESTConformerEngine().execute_secondary_search(seed)
@@ -530,7 +529,7 @@ pathlib.Path(sys.argv[1],'actual-cli-phase6-result.json').write_text(json.dumps(
 )
 def test_crest_declared_nuclear_identity_refuses_before_calculator_or_engine(identity):
     from ase import Atoms
-    from ase.calculators.emt import EMT
+    from ase.calculators.lj import LennardJones
     from rdkit import Chem
 
     from cochem_base.exceptions import EcosystemDependencyError
@@ -558,7 +557,7 @@ def test_crest_declared_nuclear_identity_refuses_before_calculator_or_engine(ide
         molecule = Chem.MolFromSmiles("[2H]O")
         assert molecule is not None
         seed.info["rdkit_mol"] = molecule
-    seed.calc = EMT()
+    seed.calc = LennardJones(sigma=2.5, epsilon=0.05, rc=6.0)
     with pytest.raises(EcosystemDependencyError, match="mass|identity|isotope"):
         CRESTConformerEngine().execute_secondary_search(seed)
     assert seed.calc.results == {}

@@ -36,7 +36,6 @@ _UNAVAILABLE = (
     "BaselinePhysicsEngine",
     "DispersionD3Config",
     "DispersionD3Layer",
-    "EMTBaselineEngine",
     "GFN2xTBEngine",
     "LennardJonesBaselineEngine",
     "PM6Engine",

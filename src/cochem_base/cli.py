@@ -1103,6 +1103,109 @@ def action_run(args: argparse.Namespace) -> int:
         return 1
 
 
+OPTIONAL_ADDONS: Dict[str, Dict[str, str]] = {
+    "spyfy": {
+        "name": "CoChem-SPYFY",
+        "distribution": "CoChem-SPYFY",
+        "repository": "ProfJJK-CoChem/CoChem-SPYFY",
+        "revision": "4372dbf448471d8bc7b51feb0bbf7d7a53f400d5",
+        "cli_name": "cochem-spyfy",
+        "installer_script": "scripts/install_optional_spyfy.sh",
+        "install_command": "bash scripts/install_optional_spyfy.sh",
+        "description": "Optional rotational spectroscopy (SPFIT/SPCAT) & GruLab SURF add-on (not installed by default).",
+    },
+}
+
+
+def _inspect_optional_addons(artifact_dir: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
+    """Inspect installation state of optional add-ons without importing them."""
+    import importlib.metadata
+    import shutil
+
+    art = artifact_dir if artifact_dir is not None else get_artifact_dir()
+    observed: Dict[str, Dict[str, Any]] = {}
+    for addon_id, spec in OPTIONAL_ADDONS.items():
+        installed_version: Optional[str] = None
+        try:
+            installed_version = importlib.metadata.version(spec["distribution"])
+        except importlib.metadata.PackageNotFoundError:
+            installed_version = None
+        cli_candidate = art / "bin" / spec["cli_name"]
+        cli_path = str(cli_candidate) if cli_candidate.is_file() else shutil.which(spec["cli_name"])
+        installed = bool(installed_version or cli_path)
+        observed[addon_id] = {
+            **spec,
+            "installed": installed,
+            "status": "installed" if installed else "not installed",
+            "installed_version": installed_version,
+            "cli_path": cli_path,
+        }
+    return observed
+
+
+def action_addons(args: argparse.Namespace) -> int:
+    """List optional CoChem add-ons and their observed installation status."""
+    artifact_dir = Path(args.artifact_dir).resolve() if getattr(args, "artifact_dir", None) else get_artifact_dir()
+    addons = _inspect_optional_addons(artifact_dir)
+    if args.json:
+        print(json.dumps({"artifact_directory": str(artifact_dir), "addons": addons}, indent=2))
+    else:
+        print(TermColor.title("Optional CoChem Add-Ons (not installed by default):"))
+        for addon_id, info in addons.items():
+            badge = TermColor.ok("installed") if info["installed"] else TermColor.warn("optional add-on (not installed)")
+            print(f"  - {addon_id} ({info['name']} @ {info['revision'][:12]}): {badge}")
+            if not info["installed"]:
+                print(f"    Install: {info['install_command']}")
+    return 0
+
+
+def action_install_addon(args: argparse.Namespace) -> int:
+    """Install a registered optional add-on via its pinned installer script."""
+    import shutil
+    import subprocess
+
+    addon_id = args.addon.strip().lower()
+    if addon_id not in OPTIONAL_ADDONS:
+        print(f"Unknown optional add-on {addon_id!r}. Available: {', '.join(sorted(OPTIONAL_ADDONS))}", file=sys.stderr)
+        return 2
+    spec = OPTIONAL_ADDONS[addon_id]
+    script_path = (REPO_ROOT / spec["installer_script"]).resolve()
+    if not script_path.is_file():
+        print(f"Add-on installer script not found: {script_path}", file=sys.stderr)
+        return 1
+    if getattr(args, "dry_run", False):
+        payload = {
+            "addon": addon_id,
+            "name": spec["name"],
+            "revision": spec["revision"],
+            "installer_script": str(script_path),
+            "command": ["bash", str(script_path)],
+            "dry_run": True,
+        }
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(f"[DRY-RUN] Would run: bash {script_path}")
+        return 0
+    bash_bin = shutil.which("bash")
+    if not bash_bin:
+        print("bash is required to execute optional add-on installers.", file=sys.stderr)
+        return 1
+    env = dict(os.environ)
+    if getattr(args, "artifact_dir", None):
+        env["COCHEM_ARTIFACT_DIR"] = str(Path(args.artifact_dir).resolve())
+    completed = subprocess.run([bash_bin, str(script_path)], env=env, check=False)
+    if args.json:
+        print(json.dumps({
+            "addon": addon_id,
+            "name": spec["name"],
+            "revision": spec["revision"],
+            "exit_code": completed.returncode,
+            "installed": completed.returncode == 0,
+        }, indent=2))
+    return int(completed.returncode)
+
+
 # =============================================================================
 # CLI PARSER BUILDER
 # =============================================================================
@@ -1184,6 +1287,17 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     p_modules = subparsers.add_parser("modules", help="Fetch, install and verify pinned ecosystem modules")
     p_modules.add_argument("module_arguments", nargs=argparse.REMAINDER,
                            help="list, fetch, install or verify followed by module installer options")
+
+    # --- Subcommands: addons / install-addon ---
+    p_addons = subparsers.add_parser("addons", help="List optional CoChem add-ons (such as CoChem-SPYFY)")
+    p_addons.add_argument("-a", "--artifact-dir", type=str, default=None, help="Custom artifact directory root")
+    p_addons.add_argument("--json", action="store_true", help="Output optional add-on status in JSON format")
+
+    p_install_addon = subparsers.add_parser("install-addon", help="Install an optional CoChem add-on (e.g. spyfy)")
+    p_install_addon.add_argument("addon", choices=sorted(OPTIONAL_ADDONS.keys()), help="Optional add-on identifier")
+    p_install_addon.add_argument("-a", "--artifact-dir", type=str, default=None, help="Custom artifact directory root")
+    p_install_addon.add_argument("--dry-run", action="store_true", help="Print installer plan without executing")
+    p_install_addon.add_argument("--json", action="store_true", help="Output install result in JSON format")
 
     # --- Subcommand: run ---
     p_run = subparsers.add_parser(
@@ -1297,6 +1411,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     elif subcommand == "modules":
         from scripts.manage_modules import main as modules_main
         return modules_main(args.module_arguments)
+    elif subcommand == "addons":
+        return action_addons(args)
+    elif subcommand == "install-addon":
+        return action_install_addon(args)
     else:
         logger.error(f"Unrecognized subcommand: {subcommand}")
         parser.print_help()

@@ -123,18 +123,13 @@ if [ -x "$ui_python" ]; then
 
   echo "Installing CoChem-BENCH into ui-env..."
   "$ui_python" -m pip install --no-input --quiet \
-    "git+https://github.com/ProfJJK-CoChem/CoChem-BENCH.git@cb874d8f20723c70b26b805329cb873ebe1c463f" \
+    "git+https://github.com/ProfJJK-CoChem/CoChem-BENCH.git@b903ca63713deba093edce57afd9ffd94d1e9564" \
     || echo "Warning: CoChem-BENCH install into ui-env skipped." >&2
 
   echo "Installing CoChem-SCRIBE into ui-env..."
   "$ui_python" -m pip install --no-input --quiet \
-    "git+https://github.com/ProfJJK-CoChem/CoChem-SCRIBE.git@85216dd12c998c1f879b6bb73ab74a44fc98f4bc" \
+    "git+https://github.com/ProfJJK-CoChem/CoChem-SCRIBE.git@5f9d4d2e9e5fa5abac9f029c2e41b1e820b13903" \
     || echo "Warning: CoChem-SCRIBE install into ui-env skipped." >&2
-
-  echo "Installing CoChem-SpycFit (CPU-only) into ui-env..."
-  "$ui_python" -m pip install --no-input --quiet "jax[cpu]" \
-    "git+https://github.com/ProfJJK-CoChem/CoChem-SpycFit.git@aebe6fd8d5939ed617dad72e1392230e3979faf9" \
-    || echo "Warning: CoChem-SpycFit (CPU-only) install into ui-env skipped." >&2
 fi
 
 # Install CoChem-GEOM into an isolated venv to avoid namespace collision with BASE's internal src/cochem_geom/.
@@ -146,7 +141,7 @@ if [ ! -x "$geom_env/bin/cochem-geom" ]; then
     python3 -m venv "$geom_env"
     "$geom_env/bin/python" -m pip install --no-input --quiet --upgrade pip
     "$geom_env/bin/python" -m pip install --no-input --quiet \
-      "git+https://github.com/ProfJJK-CoChem/CoChem-GEOM.git@ae8f1e7d56a4030e377d36ca7c9516cd0da16851"
+      "git+https://github.com/ProfJJK-CoChem/CoChem-GEOM.git@9935c513a455ab1f3f9615162bc1671626ff15ce"
   ) || echo "Warning: isolated CoChem-GEOM env install skipped." >&2
 fi
 
@@ -154,98 +149,12 @@ fi
 [ -x "$ui_env_bin/cochem-bench" ] && ln -sf "$ui_env_bin/cochem-bench" "$artifact_bin/cochem-bench"
 [ -x "$ui_env_bin/cochem-scribe" ] && ln -sf "$ui_env_bin/cochem-scribe" "$artifact_bin/cochem-scribe"
 [ -x "$geom_env/bin/cochem-geom" ] && ln -sf "$geom_env/bin/cochem-geom" "$artifact_bin/cochem-geom"
-if [ -x "$ui_python" ]; then
-  {
-    printf '#!%s\n' "$ui_python"
-    cat <<'PY'
-"""Standalone CLI wrapper for CoChem-SpycFit provider operations."""
-from __future__ import annotations
 
-import argparse
-import json
-import sys
-from pathlib import Path
-
-
-def _emit(payload: object, out_path: Path | None) -> None:
-    rendered = json.dumps(payload, indent=2, allow_nan=False)
-    if out_path is not None:
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(rendered + "\n", encoding="utf-8")
-    print(rendered)
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="cochem-spycfit",
-        description="CoChem-SpycFit CLI wrapper dispatching to cochem_spycfit.module_provider.",
-    )
-    sub = parser.add_subparsers(dest="command")
-
-    p_info = sub.add_parser("info", help="Print CoChem-SpycFit provider capabilities and operations.")
-    p_info.add_argument("--out", type=Path, default=None, help="Optional JSON output path.")
-
-    p_parse = sub.add_parser("parse", help="Parse a Pickett .var, .par, .fit, or .cat file.")
-    p_parse.add_argument("input_file", type=Path, help="Path to Pickett .var/.par/.fit/.cat file.")
-    p_parse.add_argument("--kind", choices=("var", "par", "fit", "cat"), default=None, help="Explicit file kind.")
-    p_parse.add_argument("--out", type=Path, default=None, help="Optional JSON output path.")
-
-    p_pred = sub.add_parser("predict", help="Predict rotational spectrum via Pickett SPCAT.")
-    p_pred.add_argument("--var", dest="var_file", type=Path, required=True, help="Path to Pickett .var file.")
-    p_pred.add_argument("--int", dest="int_file", type=Path, required=True, help="Path to Pickett .int file.")
-    p_pred.add_argument("--stem", default="cochem_spcat", help="Run stem name.")
-    p_pred.add_argument("--out", type=Path, default=None, help="Optional JSON output path.")
-
-    p_fit = sub.add_parser("fit", help="Fit rotational constants via Pickett SPFIT.")
-    p_fit.add_argument("--par", dest="par_file", type=Path, required=True, help="Path to Pickett .par file.")
-    p_fit.add_argument("--lin", dest="lin_file", type=Path, required=True, help="Path to Pickett .lin file.")
-    p_fit.add_argument("--stem", default="cochem_spfit", help="Run stem name.")
-    p_fit.add_argument("--out", type=Path, default=None, help="Optional JSON output path.")
-
-    return parser
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    if not args.command:
-        parser.print_help()
-        return 0
-    try:
-        from cochem_spycfit import module_provider as spycfit_mod
-    except ImportError as exc:
-        print(f"cochem-spycfit error: cochem_spycfit is not installed ({exc})", file=sys.stderr)
-        return 1
-    if args.command == "info":
-        _emit(spycfit_mod.spycfit_provider(), args.out)
-        return 0
-    if args.command == "parse":
-        kind = args.kind or args.input_file.suffix.lstrip(".").lower()
-        if kind not in {"var", "par", "fit", "cat"}:
-            print(f"cochem-spycfit error: unsupported kind {kind!r}; specify --kind var|par|fit|cat", file=sys.stderr)
-            return 2
-        text = args.input_file.read_text(encoding="utf-8")
-        _emit(spycfit_mod.parse_pickett(kind, text), args.out)
-        return 0
-    if args.command == "predict":
-        var_text = args.var_file.read_text(encoding="utf-8")
-        int_text = args.int_file.read_text(encoding="utf-8")
-        _emit(spycfit_mod.predict_spectrum(var_text, int_text, stem=args.stem), args.out)
-        return 0
-    if args.command == "fit":
-        par_text = args.par_file.read_text(encoding="utf-8")
-        lin_text = args.lin_file.read_text(encoding="utf-8")
-        _emit(spycfit_mod.fit_pickett(par_text, lin_text, stem=args.stem), args.out)
-        return 0
-    parser.print_help()
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-PY
-  } > "$artifact_bin/cochem-spycfit"
-  chmod 0755 "$artifact_bin/cochem-spycfit"
+# Optional add-on: CoChem-SPYFY is NOT installed by default in Codespaces.
+# Opt in explicitly via `bash scripts/install_optional_spyfy.sh` or COCHEM_INSTALL_SPYFY=1.
+if [ "${COCHEM_INSTALL_SPYFY:-0}" = "1" ]; then
+  bash "$repo_root/scripts/install_optional_spyfy.sh" \
+    || echo "Warning: optional CoChem-SPYFY add-on install skipped." >&2
 fi
 
 # Module venvs live at $artifact_root/Modules/<module>/<revision>/policies/<policy_sha256>/env/bin/* (depth 6).

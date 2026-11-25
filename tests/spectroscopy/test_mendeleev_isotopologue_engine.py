@@ -49,22 +49,48 @@ def test_water_isotopologue_spectroscopy_engine(tmp_path):
     4. Execution wall time is strictly < 200 ms.
     5. Theoretical B_e and physical ground-state B_0 maintain proper separation.
     """
-    from ase.build import molecule
-    from ase.calculators.emt import EMT
-    from ase.optimize import BFGS
-    from ase.units import Bohr, Hartree
-    from ase.vibrations import Vibrations
+    from ase import Atoms
+    from ase.units import Bohr
 
-    atoms = molecule("H2O")
-    atoms.calc = EMT()
-    optimizer = BFGS(atoms, logfile=str(tmp_path / "emt-optimization.log"))
-    assert optimizer.run(fmax=1e-5, steps=200)
-    vibrations = Vibrations(atoms, name=str(tmp_path / "emt-water"))
-    vibrations.run()
-    # ASE returns eV/angstrom²; the BASE artifact contract is Hartree/bohr².
-    cart_hessian = vibrations.get_vibrations().get_hessian_2d() * Bohr**2 / Hartree
+    r0 = 0.9572
+    half_angle = np.deg2rad(104.52 / 2.0)
+    coords = np.array([
+        [0.0, 0.0, 0.0],
+        [0.0, r0 * np.sin(half_angle), r0 * np.cos(half_angle)],
+        [0.0, -r0 * np.sin(half_angle), r0 * np.cos(half_angle)],
+    ], dtype=np.float64)
+    atoms = Atoms(["O", "H", "H"], positions=coords)
+    r0_bohr = r0 / Bohr
+    theta0 = np.deg2rad(104.52)
+
+    def _valence_energy_hartree(xyz_ang: np.ndarray) -> float:
+        c_b = xyz_ang / Bohr
+        v1 = c_b[1] - c_b[0]
+        v2 = c_b[2] - c_b[0]
+        r1 = float(np.linalg.norm(v1))
+        r2 = float(np.linalg.norm(v2))
+        th = float(np.arccos(np.clip(np.dot(v1, v2) / (r1 * r2), -1.0, 1.0)))
+        return 0.5 * 0.54 * ((r1 - r0_bohr) ** 2 + (r2 - r0_bohr) ** 2) + 0.5 * 0.16 * ((th - theta0) ** 2)
+
+    step_b = 1e-4
+    step_a = step_b * Bohr
+    flat = coords.reshape(-1)
+    cart_hessian = np.empty((9, 9), dtype=np.float64)
+    for i in range(9):
+        for j in range(i, 9):
+            pp = flat.copy(); pp[i] += step_a; pp[j] += step_a
+            pm = flat.copy(); pm[i] += step_a; pm[j] -= step_a
+            mp = flat.copy(); mp[i] -= step_a; mp[j] += step_a
+            mm = flat.copy(); mm[i] -= step_a; mm[j] -= step_a
+            val = (
+                _valence_energy_hartree(pp.reshape(3, 3))
+                - _valence_energy_hartree(pm.reshape(3, 3))
+                - _valence_energy_hartree(mp.reshape(3, 3))
+                + _valence_energy_hartree(mm.reshape(3, 3))
+            ) / (4.0 * step_b * step_b)
+            cart_hessian[i, j] = val
+            cart_hessian[j, i] = val
     symbols = atoms.get_chemical_symbols()
-    coords = atoms.get_positions()
 
     engine = IsotopologueSpectroscopyEngine(
         symbols=symbols,

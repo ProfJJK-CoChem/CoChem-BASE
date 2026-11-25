@@ -28,7 +28,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.calculators.emt import EMT
+from ase.calculators.lj import LennardJones
 from scipy.spatial.transform import Rotation
 
 from topology.cochem_topos_wiggle import (
@@ -216,14 +216,14 @@ class TestLightningQuenchOptimization:
     def test_lightning_quench_energy_minimization(self) -> None:
         """Relaxed coordinates have lower or equal potential energy compared to perturbed state."""
         # Create slightly perturbed atoms
-        atoms_a = Atoms("Cu2", positions=[[0, 0, 0], [2.1, 0, 0]])
-        atoms_b = Atoms("Cu2", positions=[[0, 0, 0], [2.3, 0, 0]])
+        atoms_a = Atoms("Cu2", positions=[[0, 0, 0], [2.4, 0, 0]])
+        atoms_b = Atoms("Cu2", positions=[[0, 0, 0], [2.7, 0, 0]])
 
         relaxed_a, relaxed_b, energy_a, energy_b = execute_lightning_quench(
             atoms_a=atoms_a,
             atoms_b=atoms_b,
             max_steps=50,
-            calculator=EMT(),
+            calculator=LennardJones(sigma=2.3, epsilon=0.4, rc=8.0),
         )
 
         assert isinstance(relaxed_a, Atoms)
@@ -350,11 +350,11 @@ class TestJiggleQuenchArbiterPipeline:
 
         result = arbiter.process_ambiguous_pair(
             symbols=["Cu", "Cu"],
-            coords_a=[[0, 0, 0], [2.1, 0, 0]],
-            coords_b=[[0, 0, 0], [2.3, 0, 0]],
+            coords_a=[[0, 0, 0], [2.4, 0, 0]],
+            coords_b=[[0, 0, 0], [2.7, 0, 0]],
             candidate_id_a="eth_a",
             candidate_id_b="eth_b",
-            calculator=EMT(),
+            calculator=LennardJones(sigma=2.3, epsilon=0.4, rc=8.0),
         )
 
         assert isinstance(result, JiggleQuenchResult)

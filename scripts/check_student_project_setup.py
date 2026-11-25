@@ -36,7 +36,8 @@ def _research_admission(source: Path) -> dict:
 
 OPEN_ENGINE_STUDENT_SUMMARY = (
     "Open-source Codespace research setup ready (PySCF, xTB, CREST, TOPOS, BENCH, TORQ, GEOM, "
-    "SpycFit, SCRIBE, spfit/spcat). Optional ORCA/CFOUR access is not configured yet -- submit "
+    "SCRIBE, spfit/spcat; optional CoChem-SPYFY add-on via bash scripts/install_optional_spyfy.sh). "
+    "Optional ORCA/CFOUR access is not configured yet -- submit "
     "your verified bundle to Dr. Klaassen for department-computer ORCA/CCSD(T)/VPT2 calculations."
 )
 

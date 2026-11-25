@@ -42,6 +42,9 @@ jobs:
       - name: Enforce canonical source and selected-test policy without app imports
         shell: bash
         run: python -B -I -S ci_tools/base_ci.py audit --expected-revision "$COCHEM_EXPECTED_REVISION" --output "${{ runner.temp }}/base-source-evidence"
+      - name: Enforce hard zero-EMT AST gate across tracked Python files
+        shell: bash
+        run: python -B tests/test_no_emt_gate.py
       - name: Preserve findings, fixture provenance, and full legacy inventory
         if: always()
         uses: actions/upload-artifact@v4

@@ -17,14 +17,14 @@ without local installation.
 | **CHEM 312L Organic Chemistry II Lab (Cumberland University)** | Click **Fork** near the top right | Keep visibility **Public** · Keep name **`CoChem-BASE`** *(gives unlimited free GitHub Actions minutes; required by M1 Rubric C4)* | **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** |
 | **CHEM 490 Directed Research (Cumberland University)** | Click **Use this template → Create a new repository** | **Private** · Name `CoChem-[target-molecule]` | **[`student/CHEM490_STEP_BY_STEP_GUIDE.md`](student/CHEM490_STEP_BY_STEP_GUIDE.md)** |
 
-> **Course Rule (CHEM 312L & CHEM 490):** **Students do NOT use Google Colab directly, Classroom50, or personal ORCA Forum licenses, and never enter API tokens.** Open-source engines (`PySCF`, `xTB`, `CREST`, `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SpycFit`, `SCRIBE`, `spfit`/`spcat`) run in your GitHub Codespace/Actions; optional ORCA 6.1.1 / CCSD(T) / VPT2 jobs for CHEM 490 are run by Dr. Klaassen on Cumberland University's department research computers via the Student ↔ Professor Handoff.
+> **Course Rule (CHEM 312L & CHEM 490):** **Students do NOT use Google Colab directly, Classroom50, or personal ORCA Forum licenses, and never enter API tokens.** Open-source engines (`PySCF`, `xTB`, `CREST`, `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, `spfit`/`spcat`, plus the optional `CoChem-SPYFY` add-on installed on demand via `bash scripts/install_optional_spyfy.sh`) run in your GitHub Codespace/Actions; optional ORCA 6.1.1 / CCSD(T) / VPT2 jobs for CHEM 490 are run by Dr. Klaassen on Cumberland University's department research computers via the Student ↔ Professor Handoff.
 
 ---
 
 ## Students: start your project here (4 clicks — no secrets or enrollment needed)
 
-- **CHEM 312L (Cumberland University, partnering with Tennessee Tech University CP-FTMW collaborators):** Follow **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** for the complete Day-1 through Milestone 4 (`M1`–`M4`) walkthrough.
-- **CHEM 490 Directed Research (Cumberland University, partnering with Tennessee Tech University CP-FTMW collaborators):** Follow **[`student/CHEM490_STEP_BY_STEP_GUIDE.md`](student/CHEM490_STEP_BY_STEP_GUIDE.md)** for private template setup, Voilà GUI (`xTB` & `PySCF`), Weeks 4–11 CLI tools (`TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SpycFit`, `SCRIBE`, `spfit`/`spcat`), and the Student ↔ Professor Handoff.
+- **CHEM 312L (Cumberland University, partnering with Tennessee Tech University CP-FTMW / GruLab SURF collaborators):** Follow **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** for the complete Day-1 through Milestone 4 (`M1`–`M4`) walkthrough.
+- **CHEM 490 Directed Research (Cumberland University, partnering with Tennessee Tech University CP-FTMW / GruLab SURF collaborators):** Follow **[`student/CHEM490_STEP_BY_STEP_GUIDE.md`](student/CHEM490_STEP_BY_STEP_GUIDE.md)** for private template setup, Voilà GUI (`xTB` & `PySCF`), Weeks 4–11 CLI tools (`TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, `spfit`/`spcat`, and the optional `CoChem-SPYFY` add-on), and the Student ↔ Professor Handoff.
 - **General browser dashboard reference:** **[Open the account and workspace guide](.docs/GET_STARTED.md#student-personal-project)**.
 
 You use buttons and menus in your web browser. You do not need to install Python,
@@ -49,7 +49,9 @@ your GitHub Codespace and runs your assigned calculations cleanly on CPU.
 2. Select the **Codespaces** tab, then click **Create codespace on main**.
 3. Wait **~10–15 minutes on a fresh Codespace (or ~30 seconds when Prebuilds are
    enabled)** while your Codespace prepares `PySCF`, `xTB`, `CREST`, `TOPOS`,
-   `BENCH`, `TORQ`, `GEOM`, `SpycFit`, `SCRIBE`, and `spfit`/`spcat`. Port **8866 (`CoChem Voilà dashboard`)** displays a live
+   `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, and `spfit`/`spcat` (optional add-on
+   `CoChem-SPYFY` is not installed by default; install on demand via
+   `bash scripts/install_optional_spyfy.sh`). Port **8866 (`CoChem Voilà dashboard`)** displays a live
    auto-refreshing setup progress page and automatically opens the CoChem
    dashboard as soon as setup finishes. (If the browser tab did not open
    automatically, open VS Code's **Ports** panel at the bottom and click the

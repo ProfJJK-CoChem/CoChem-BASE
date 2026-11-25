@@ -1,13 +1,13 @@
 # CHEM 490 Directed Research — Step-by-Step Student Guide (Cumberland University)
 
-Welcome to **CHEM 490 Directed Research in Computational Chemistry** at **Cumberland University** (Dr. Joshua J. Klaassen), partnering with **Tennessee Tech University** (external CP-FTMW microwave spectroscopy collaborator).
+Welcome to **CHEM 490 Directed Research in Computational Chemistry** at **Cumberland University** (Dr. Joshua J. Klaassen), partnering with **Tennessee Tech University** (external CP-FTMW / GruLab SURF microwave spectroscopy collaborator).
 
 This is your **single end-to-end guide** for Weeks 1–16 of CHEM 490. Every repository step, browser button label, workflow name, and terminal command below matches the live `CoChem-BASE` repository and your GitHub Codespace environment verbatim.
 
 > **Course Boundaries (Read First):**
 > - **Private Template Repository:** Click **Use this template → Create a new repository** on [`ProfJJK-CoChem/CoChem-BASE`](https://github.com/ProfJJK-CoChem/CoChem-BASE), set visibility to **Private**, and name your project **`CoChem-[target]`** (for example, `CoChem-h2o-hf`).
 > - **Browser-Only GitHub Codespaces:** No local Python installation, root/admin permissions, or Google Drive Desktop client is required. Everything runs in your browser via **GitHub Codespaces** (`~10–15 minutes` on a fresh Codespace, or `~30 seconds` when Prebuilds are enabled).
-> - **Zero Direct Google Colab, Zero Classroom50, Zero ORCA Forum Registration:** CHEM 490 students do **not** use Google Colab directly, do **not** join Classroom50, and do **not** register on the ORCA Forum or install personal ORCA/CFOUR licenses. All open-source engines (`PySCF`, `xTB`, `CREST`, `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SpycFit`, `SCRIBE`, `spfit`/`spcat`) run locally in your Codespace; optional high-level `ORCA 6.1.1` / `CCSD(T)/CBS` / `VPT2` jobs are run by Dr. Klaassen on Cumberland University's department research computers.
+> - **Zero Direct Google Colab, Zero Classroom50, Zero ORCA Forum Registration:** CHEM 490 students do **not** use Google Colab directly, do **not** join Classroom50, and do **not** register on the ORCA Forum or install personal ORCA/CFOUR licenses. All open-source engines (`PySCF`, `xTB`, `CREST`, `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, `spfit`/`spcat`, plus the optional `CoChem-SPYFY` add-on installed on demand via `bash scripts/install_optional_spyfy.sh`) run locally in your Codespace; optional high-level `ORCA 6.1.1` / `CCSD(T)/CBS` / `VPT2` jobs are run by Dr. Klaassen on Cumberland University's department research computers.
 
 ---
 
@@ -32,11 +32,11 @@ This is your **single end-to-end guide** for Weeks 1–16 of CHEM 490. Every rep
 If you open your repository's **Actions** tab and run **`CoChem project setup check`** (`student_project_setup.yml`):
 - Leave `request_id` at its default **`self-check`** and click **Run workflow**.
 - On a personal open-engine template repository without ORCA/CFOUR secrets, the workflow exits **green (`0`)** with:
-  > *Open-source Codespace research setup ready (PySCF, xTB, CREST, TOPOS, BENCH, TORQ, GEOM, SpycFit, SCRIBE, spfit/spcat). Optional ORCA/CFOUR access is not configured yet — submit your verified bundle to Dr. Klaassen for department-computer ORCA/CCSD(T)/VPT2 calculations.*
+  > *Open-source Codespace research setup ready (PySCF, xTB, CREST, TOPOS, BENCH, TORQ, GEOM, SCRIBE, spfit/spcat; optional CoChem-SPYFY add-on via `bash scripts/install_optional_spyfy.sh`). Optional ORCA/CFOUR access is not configured yet — submit your verified bundle to Dr. Klaassen for department-computer ORCA/CCSD(T)/VPT2 calculations.*
 
 ### Step 3: Launch Your GitHub Codespace
 1. On your private `CoChem-[target]` repository page, click **Code** → **Codespaces** → **Create codespace on main**.
-2. Wait **`~10–15 minutes` on a fresh Codespace (or `~30 seconds` when Prebuilds are enabled)** while automatic setup provisions `PySCF`, `xTB`, `CREST`, `spfit`, `spcat`, `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SpycFit`, `SCRIBE`, and the 11-phase Stage 0 verification.
+2. Wait **`~10–15 minutes` on a fresh Codespace (or `~30 seconds` when Prebuilds are enabled)** while automatic setup provisions `PySCF`, `xTB`, `CREST`, `spfit`, `spcat`, `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, and the 11-phase Stage 0 verification. (`CoChem-SPYFY` is an optional add-on not installed by default — install it when needed in Week 10 via `bash scripts/install_optional_spyfy.sh`.)
 3. Port **8866 (`CoChem Voilà dashboard`)** displays an auto-refreshing setup progress page and switches automatically to the live CoChem dashboard as soon as setup finishes. (If needed, open VS Code's **Ports** panel and click the globe icon next to **8866**.)
 4. **Always stop your Codespace when finished:** open [github.com/codespaces](https://github.com/codespaces), click **`...`** next to your Codespace, and choose **Stop codespace**.
 
@@ -67,15 +67,16 @@ Use the four numbered buttons across the top of the dashboard:
 ## Stage 3 — Week-by-Week CHEM 490 Codespace CLI Reference
 
 Your Codespace terminal automatically puts `/home/vscode/CoChem_Artifacts/bin` and `/home/vscode/CoChem_Artifacts/ui-env/bin` first on `PATH`. In the default terminal:
-- **Direct Python imports (`python`):** `cochem_base`, `pyscf`, `cochem_bench`, `cochem_spycfit`, `cochem_scribe`
-- **Direct binaries & module CLIs on `PATH`:** `cochem-cli`, `xtb`, `crest`, `spfit`, `spcat`, `topos` (`cochem-topos`), `cochem-bench`, `cochem-torq`, `cochem-geom`, `cochem-spycfit`, `cochem-scribe`
+- **Direct Python imports (`python`):** `cochem_base`, `pyscf`, `cochem_bench`, `cochem_scribe` (plus `cochem_spyfy` after installing the optional `CoChem-SPYFY` add-on)
+- **Direct binaries & module CLIs on `PATH`:** `cochem-cli`, `xtb`, `crest`, `spfit`, `spcat`, `topos` (`cochem-topos`), `cochem-bench`, `cochem-torq`, `cochem-geom`, `cochem-scribe` (plus `cochem-spyfy` after installing the optional `CoChem-SPYFY` add-on)
 
 ### Environment Health Check (Week 4 — `CoChem-BASE`)
 ```bash
 cochem-cli status --json
 cochem-cli audit
-python -c "import cochem_base, pyscf, cochem_bench, cochem_spycfit, cochem_scribe; print('PySCF', pyscf.__version__)"
-which xtb crest spfit spcat topos cochem-bench cochem-torq cochem-geom cochem-spycfit cochem-scribe
+cochem-cli addons
+python -c "import cochem_base, pyscf, cochem_bench, cochem_scribe; print('PySCF', pyscf.__version__)"
+which xtb crest spfit spcat topos cochem-bench cochem-torq cochem-geom cochem-scribe
 ```
 
 ### Week 5 — Conformer Discovery (`CoChem-TOPOS`, `xTB`, `CREST`)
@@ -112,8 +113,8 @@ python scripts/kraitchman_rs.py \
   --output-md results/h2o_hdo_kraitchman.md
 ```
 
-### Week 10 — 8–18 GHz CP-FTMW Prediction & Pickett Fitting (`CoChem-SpycFit`, `spfit`, `spcat`, `scripts/spcat_runner.py`)
-Generate Watson A-reduction Pickett `.var`/`.int` decks and execute compiled JPL `calpgm` `spcat` for 8–18 GHz CP-FTMW predictions at $T_{\text{rot}} = 2.0\text{ K}$:
+### Week 10 — 8–18 GHz CP-FTMW Prediction & Pickett Fitting (`spfit`, `spcat`, `scripts/spcat_runner.py`, & Optional `CoChem-SPYFY` Add-On)
+Generate Watson A-reduction Pickett `.var`/`.int` decks and execute compiled JPL `calpgm` `spcat` for 8–18 GHz CP-FTMW predictions at $T_{\text{rot}} = 2.0\text{ K}$. If your project uses the optional **`CoChem-SPYFY`** rotational-fitting / GruLab SURF add-on (not installed by default), install it once with `bash scripts/install_optional_spyfy.sh` (or `cochem-cli install-addon spyfy`):
 ```bash
 python scripts/spcat_runner.py \
   --a-mhz 410000 --b-mhz 7260 --c-mhz 7140 \
@@ -122,7 +123,10 @@ python scripts/spcat_runner.py \
   --constant-type Be --allow-unvibrated-be \
   --output-json results/h2o_hf_8_18ghz.json \
   --output-csv results/h2o_hf_8_18ghz.csv
-cochem-spycfit --help
+
+# Optional CoChem-SPYFY add-on (install on demand for Pickett/GruLab SURF workflows):
+bash scripts/install_optional_spyfy.sh
+cochem-spyfy info
 ```
 *(Remember Method Matrix §3.0: distinguish equilibrium $B_e$ from vibrationally corrected ground-state $B_0 = B_e + \Delta B_{\text{vib}}$ before comparing with Tennessee Tech CP-FTMW line frequencies.)*
 

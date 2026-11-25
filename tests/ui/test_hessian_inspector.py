@@ -1,4 +1,4 @@
-"""Real ASE/EMT force Hessians validate UI transport, not ab-initio accuracy."""
+"""Analytic valence force Hessians validate UI transport, not ab-initio accuracy."""
 from __future__ import annotations
 
 import hashlib
@@ -6,11 +6,8 @@ import hashlib
 import h5py
 import numpy as np
 import pytest
-from ase.build import molecule
-from ase.calculators.emt import EMT
-from ase.optimize import BFGS
-from ase.units import Bohr, Hartree
-from ase.vibrations import Vibrations
+from ase import Atoms
+from ase.units import Bohr
 
 from cochem_base.spectroscopy.artifacts import load_hessian_artifact
 from cochem_base.spectroscopy.parser import read_hdf5_dataset_previews
@@ -20,16 +17,49 @@ from ui.voila_layout.cochem_gui import CoChemGUI
 @pytest.fixture(scope="module")
 def physical_bundle(tmp_path_factory):
     directory = tmp_path_factory.mktemp("inspector-hessian")
-    atoms = molecule("H2O")
-    atoms.calc = EMT()
-    assert BFGS(atoms, logfile=None).run(fmax=1e-8, steps=200)
-    vibrations = Vibrations(atoms, name=str(directory / "vib"))
-    vibrations.run()
+    r0 = 0.9572
+    half_angle = np.deg2rad(104.52 / 2.0)
+    coords = np.array([
+        [0.0, 0.0, 0.0],
+        [0.0, r0 * np.sin(half_angle), r0 * np.cos(half_angle)],
+        [0.0, -r0 * np.sin(half_angle), r0 * np.cos(half_angle)],
+    ], dtype=np.float64)
+    atoms = Atoms(["O", "H", "H"], positions=coords)
+    r0_bohr = r0 / Bohr
+    theta0 = np.deg2rad(104.52)
+
+    def _valence_energy_hartree(xyz_ang: np.ndarray) -> float:
+        c_b = xyz_ang / Bohr
+        v1 = c_b[1] - c_b[0]
+        v2 = c_b[2] - c_b[0]
+        r1 = float(np.linalg.norm(v1))
+        r2 = float(np.linalg.norm(v2))
+        th = float(np.arccos(np.clip(np.dot(v1, v2) / (r1 * r2), -1.0, 1.0)))
+        return 0.5 * 0.54 * ((r1 - r0_bohr) ** 2 + (r2 - r0_bohr) ** 2) + 0.5 * 0.16 * ((th - theta0) ** 2)
+
+    step_b = 1e-4
+    step_a = step_b * Bohr
+    flat = coords.reshape(-1)
+    hess = np.empty((9, 9), dtype=np.float64)
+    for i in range(9):
+        for j in range(i, 9):
+            pp = flat.copy(); pp[i] += step_a; pp[j] += step_a
+            pm = flat.copy(); pm[i] += step_a; pm[j] -= step_a
+            mp = flat.copy(); mp[i] -= step_a; mp[j] += step_a
+            mm = flat.copy(); mm[i] -= step_a; mm[j] -= step_a
+            val = (
+                _valence_energy_hartree(pp.reshape(3, 3))
+                - _valence_energy_hartree(pm.reshape(3, 3))
+                - _valence_energy_hartree(mp.reshape(3, 3))
+                + _valence_energy_hartree(mm.reshape(3, 3))
+            ) / (4.0 * step_b * step_b)
+            hess[i, j] = val
+            hess[j, i] = val
     payload = {
         "symbols": np.asarray(atoms.get_chemical_symbols()),
         "coordinates_angstrom": atoms.positions,
-        "hessian_hartree_bohr2": vibrations.get_vibrations().get_hessian_2d() * Bohr**2 / Hartree,
-        "source": np.asarray("ASE/EMT finite-difference Hessian; not an ab-initio accuracy reference"),
+        "hessian_hartree_bohr2": hess,
+        "source": np.asarray("Analytic valence harmonic Hessian; not an ab-initio accuracy reference"),
     }
     path = directory / "water.npz"
     np.savez(path, **payload)
@@ -95,7 +125,7 @@ def test_gui_selects_multiple_isotopes_and_reuses_real_hessian(physical_bundle):
     assert "Projected harmonic modes" in result
     assert "Rigid modes removed: 6" in result
     assert "B0 is [MISSING DATA]" in result
-    assert "ASE/EMT" in result
+    assert "Analytic valence harmonic Hessian" in result
     assert gui._isotope_hessian_data.sha256 in result
     assert "Download SVG figure" in gui.isotope_modes_plot.value
     assert "Download frequency data (CSV)" in gui.isotope_modes_plot.value

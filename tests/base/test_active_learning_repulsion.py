@@ -16,13 +16,13 @@ def test_active_learning_sequential_repulsion_batch_diversity():
     assert c_elem.atomic_number == 6
 
     from ase import Atoms
-    from ase.calculators.emt import EMT
+    from ase.calculators.lj import LennardJones
     from ase.md.verlet import VelocityVerlet
     from ase import units
 
     # Construct physical candidate pool: 20 cluster points near origin, 30 dispersed points
-    atoms = Atoms("CuAg", positions=[[0,0,0], [2.5,0,0]])
-    atoms.calc = EMT()
+    atoms = Atoms("CuAg", positions=[[0,0,0], [2.85,0,0]])
+    atoms.calc = LennardJones(sigma=2.55, epsilon=0.15, rc=8.0)
 
     # Cluster points: low velocity, small timestep
     atoms.set_velocities([[0.001, 0, 0], [-0.001, 0, 0]])

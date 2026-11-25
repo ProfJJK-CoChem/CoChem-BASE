@@ -15,9 +15,9 @@ from cochem_torq_dvr import RelaxedPESTorsionalDVR
 
 
 def get_authentic_h2o2_scan():
-    """Generates authentic 1D relaxed torsional PES scan of H2O2 using ASE EMT."""
+    """Generates deterministic 1D torsional PES scan of H2O2 using explicit-parameter Lennard-Jones."""
     from ase import Atoms
-    from ase.calculators.emt import EMT
+    from ase.calculators.lj import LennardJones
     
     angles_deg = np.arange(0, 361, 15)  # 25 points from 0° to 360°
     theta_scan_rad = np.radians(angles_deg)
@@ -32,7 +32,7 @@ def get_authentic_h2o2_scan():
     ], dtype=np.float64)
 
     atoms = Atoms(symbols=symbols, positions=coords)
-    atoms.calc = EMT()
+    atoms.calc = LennardJones(sigma=1.5, epsilon=0.05, rc=6.0)
 
     energies_ev = []
     for angle in angles_deg:

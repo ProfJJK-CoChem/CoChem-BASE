@@ -26,15 +26,42 @@ WATER_COORDS = np.array([
 ], dtype=np.float64)
 
 def _calculate_water_hessian(directory):
-    from ase import Atoms
-    from ase.calculators.emt import EMT
-    from ase.units import Bohr, Hartree
-    from ase.vibrations import Vibrations
-    atoms = Atoms(WATER_SYMBOLS, positions=WATER_COORDS)
-    atoms.calc = EMT()
-    vibrations = Vibrations(atoms, name=str(directory / "water"))
-    vibrations.run()
-    return vibrations.get_vibrations().get_hessian_2d() * Bohr**2 / Hartree
+    from ase.units import Bohr
+
+    c_eq = WATER_COORDS / Bohr
+    v1_eq = c_eq[1] - c_eq[0]
+    v2_eq = c_eq[2] - c_eq[0]
+    r0_bohr = float(0.5 * (np.linalg.norm(v1_eq) + np.linalg.norm(v2_eq)))
+    theta0 = float(np.arccos(np.clip(np.dot(v1_eq, v2_eq) / (np.linalg.norm(v1_eq) * np.linalg.norm(v2_eq)), -1.0, 1.0)))
+
+    def _energy(coords_ang: np.ndarray) -> float:
+        c_b = coords_ang / Bohr
+        u1 = c_b[1] - c_b[0]
+        u2 = c_b[2] - c_b[0]
+        r1 = float(np.linalg.norm(u1))
+        r2 = float(np.linalg.norm(u2))
+        th = float(np.arccos(np.clip(np.dot(u1, u2) / (r1 * r2), -1.0, 1.0)))
+        return 0.5 * 0.54 * ((r1 - r0_bohr) ** 2 + (r2 - r0_bohr) ** 2) + 0.5 * 0.16 * ((th - theta0) ** 2)
+
+    step_b = 1e-4
+    step_a = step_b * Bohr
+    flat = WATER_COORDS.reshape(-1)
+    mat = np.empty((9, 9), dtype=np.float64)
+    for i in range(9):
+        for j in range(i, 9):
+            pp = flat.copy(); pp[i] += step_a; pp[j] += step_a
+            pm = flat.copy(); pm[i] += step_a; pm[j] -= step_a
+            mp = flat.copy(); mp[i] -= step_a; mp[j] += step_a
+            mm = flat.copy(); mm[i] -= step_a; mm[j] -= step_a
+            val = (
+                _energy(pp.reshape(3, 3))
+                - _energy(pm.reshape(3, 3))
+                - _energy(mp.reshape(3, 3))
+                + _energy(mm.reshape(3, 3))
+            ) / (4.0 * step_b * step_b)
+            mat[i, j] = val
+            mat[j, i] = val
+    return mat
 
 def test_offline_pinned_mass_tables_integrity():
     result = validate_pinned_tables_against_mendeleev()

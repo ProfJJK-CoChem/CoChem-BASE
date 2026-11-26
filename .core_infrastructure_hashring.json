@@ -38,7 +38,7 @@
     ".scripts/prompts/5.3.2_prompt.json": "4b029bc0f273833667a38a920d3742f2ec77897597eddb210c15d170d5af69d5",
     "MANIFEST.in": "45b483173a6244ceed0daa95bb23ca671c0de8c22d983a577dcc80b839c76a86",
     "ci_tools/__init__.py": "8e1c2caf17ff55969f721556db7722ebf22534678514c38a7f7c670a5817e95b",
-    "ci_tools/anti_spoof_linter.py": "05c1c6c960274c7df55bd6d3e4dfe25ffdba7ab199cfdeaa83e7ac1ca54ba683",
+    "ci_tools/anti_spoof_linter.py": "6e432d375d37d6ef4fd4c5ea3806d6f8552c342674427bc054cb9b07e7d510c6",
     "ci_tools/base_ci.py": "05e64597e580608e74f1d5501e86df879d741bc03a90f2223f6511b52c465a27",
     "ci_tools/ci_airgap_sweep.py": "d8ffdb9559b232c1d2475355a19218a84bf8256a4daa513f16f468907a2d76a0",
     "ci_tools/ci_migration.json": "e0dead12d66a432205dfe8d81a05f15ad7cbc4eef1fe7632610535d67eba2640",

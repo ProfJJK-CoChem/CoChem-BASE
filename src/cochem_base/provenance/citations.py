@@ -669,6 +669,428 @@ _AUTHORITATIVE_BIBTEX_CATALOG: dict[str, EngineCitation] = {
             "}"
         ),
     ),
+    "revdsd_pbep86_d4": EngineCitation(
+        engine_id="revdsd_pbep86_d4",
+        name="revDSD-PBEP86-D4 Double-Hybrid Functional",
+        category="Double-Hybrid Density Functional",
+        description="Minimally empirical spin-component-scaled double-hybrid functional trained against GMTKN55 with D4 dispersion.",
+        doi="10.1021/acs.jpca.9b03157",
+        url="https://doi.org/10.1021/acs.jpca.9b03157",
+        bibtex=(
+            "@article{Santra2019revDSD,\n"
+            "  author = {Santra, Golokesh and Sylvetsky, Nitai and Martin, Jan M. L.},\n"
+            "  title = {Minimally Empirical Double-Hybrid Functionals Trained against the {GMTKN55} Database: {revDSD-PBEP86-D4}, {revDOD-PBE-D4}, and {DOD-SCAN-D4}},\n"
+            "  journal = {The Journal of Physical Chemistry A},\n"
+            "  volume = {123},\n"
+            "  number = {24},\n"
+            "  pages = {5129--5143},\n"
+            "  year = {2019},\n"
+            "  doi = {10.1021/acs.jpca.9b03157}\n"
+            "}"
+        ),
+    ),
+    "multiwfn": EngineCitation(
+        engine_id="multiwfn",
+        name="Multiwfn Wavefunction Analyzer",
+        category="Wavefunction Analysis",
+        description="Multifunctional wavefunction analyzer for QTAIM, NCI, IGMH, ELF, and real-space electronic structure properties.",
+        doi="10.1002/jcc.22885",
+        url="https://doi.org/10.1002/jcc.22885",
+        bibtex=(
+            "@article{Lu2012Multiwfn,\n"
+            "  author = {Lu, Tian and Chen, Feiwu},\n"
+            "  title = {{Multiwfn}: A multifunctional wavefunction analyzer},\n"
+            "  journal = {Journal of Computational Chemistry},\n"
+            "  volume = {33},\n"
+            "  number = {5},\n"
+            "  pages = {580--592},\n"
+            "  year = {2012},\n"
+            "  doi = {10.1002/jcc.22885}\n"
+            "}"
+        ),
+    ),
+    "igmh": EngineCitation(
+        engine_id="igmh",
+        name="Independent Gradient Model based on Hirshfeld Partition (IGMH)",
+        category="Noncovalent Interaction Analysis",
+        description="Real-space visual analysis of inter- and intramolecular interactions using Hirshfeld atomic density partitioning.",
+        doi="10.1002/jcc.26812",
+        url="https://doi.org/10.1002/jcc.26812",
+        bibtex=(
+            "@article{Lu2022IGMH,\n"
+            "  author = {Lu, Tian and Chen, Qinxue},\n"
+            "  title = {Independent gradient model based on {Hirshfeld} partition: A new method for visual study of interactions in chemical systems},\n"
+            "  journal = {Journal of Computational Chemistry},\n"
+            "  volume = {43},\n"
+            "  number = {8},\n"
+            "  pages = {539--555},\n"
+            "  year = {2022},\n"
+            "  doi = {10.1002/jcc.26812}\n"
+            "}"
+        ),
+    ),
+    "qtaim": EngineCitation(
+        engine_id="qtaim",
+        name="Quantum Theory of Atoms in Molecules (QTAIM)",
+        category="Wavefunction Analysis",
+        description="Topological electron density analysis defining bond critical points, bond paths, and atomic basins.",
+        doi="10.1021/cr00005a013",
+        url="https://doi.org/10.1021/cr00005a013",
+        bibtex=(
+            "@article{Bader1991QTAIM,\n"
+            "  author = {Bader, Richard F. W.},\n"
+            "  title = {A quantum theory of molecular structure and its applications},\n"
+            "  journal = {Chemical Reviews},\n"
+            "  volume = {91},\n"
+            "  number = {5},\n"
+            "  pages = {893--928},\n"
+            "  year = {1991},\n"
+            "  doi = {10.1021/cr00005a013}\n"
+            "}"
+        ),
+    ),
+    "nbo7": EngineCitation(
+        engine_id="nbo7",
+        name="NBO 7.0 Natural Bond Orbital Analysis",
+        category="Wavefunction Analysis",
+        description="Natural bond orbital, natural resonance theory, and second-order donor-acceptor perturbation analysis suite.",
+        doi="10.1002/jcc.25873",
+        url="https://doi.org/10.1002/jcc.25873",
+        bibtex=(
+            "@article{Glendening2019NBO7,\n"
+            "  author = {Glendening, Eric D. and Landis, Clark R. and Weinhold, Frank},\n"
+            "  title = {{NBO 7.0}: New vistas in localized and delocalized chemical bonding theory},\n"
+            "  journal = {Journal of Computational Chemistry},\n"
+            "  volume = {40},\n"
+            "  number = {25},\n"
+            "  pages = {2234--2241},\n"
+            "  year = {2019},\n"
+            "  doi = {10.1002/jcc.25873}\n"
+            "}"
+        ),
+    ),
+    "dlpno_led": EngineCitation(
+        engine_id="dlpno_led",
+        name="DLPNO-CCSD(T) Local Energy Decomposition (LED)",
+        category="Energy Decomposition Analysis",
+        description="Decomposition of intermolecular interaction energies within the DLPNO coupled-cluster framework.",
+        doi="10.1021/acs.jctc.6b00523",
+        url="https://doi.org/10.1021/acs.jctc.6b00523",
+        bibtex=(
+            "@article{Schneider2016LED,\n"
+            "  author = {Schneider, Wolfgang B. and Bistoni, Giovanni and Sparta, Manuel and Saitow, Masaaki and Riplinger, Christoph and Auer, Alexander A. and Neese, Frank},\n"
+            "  title = {Decomposition of Intermolecular Interaction Energies within the Local Pair Natural Orbital Coupled Cluster Framework},\n"
+            "  journal = {Journal of Chemical Theory and Computation},\n"
+            "  volume = {12},\n"
+            "  number = {10},\n"
+            "  pages = {4778--4792},\n"
+            "  year = {2016},\n"
+            "  doi = {10.1021/acs.jctc.6b00523}\n"
+            "}"
+        ),
+    ),
+    "helgaker_cbs": EngineCitation(
+        engine_id="helgaker_cbs",
+        name="Helgaker Two-Point Complete Basis Set (CBS) Extrapolation",
+        category="Basis Set Extrapolation",
+        description="Two-point inverse-cubic X^(-3) correlation energy extrapolation to the complete basis set limit.",
+        doi="10.1016/S0009-2614(98)00111-0",
+        url="https://doi.org/10.1016/S0009-2614(98)00111-0",
+        bibtex=(
+            "@article{Halkier1998CBS,\n"
+            "  author = {Halkier, Asger and Helgaker, Trygve and J{\\o}rgensen, Poul and Klopper, Wim and Koch, Henrik and Olsen, Jeppe and Wilson, Angela K.},\n"
+            "  title = {Basis-set convergence in correlated calculations on {Ne}, {N$_2$}, and {H$_2$O}},\n"
+            "  journal = {Chemical Physics Letters},\n"
+            "  volume = {286},\n"
+            "  number = {3--4},\n"
+            "  pages = {243--252},\n"
+            "  year = {1998},\n"
+            "  doi = {10.1016/S0009-2614(98)00111-0}\n"
+            "}"
+        ),
+    ),
+    "boys_bernardi_cp": EngineCitation(
+        engine_id="boys_bernardi_cp",
+        name="Boys-Bernardi Counterpoise (CP) BSSE Correction",
+        category="Basis Set Superposition Error Correction",
+        description="Function counterpoise procedure correcting basis set superposition error in molecular interaction energies.",
+        doi="10.1080/00268977000101561",
+        url="https://doi.org/10.1080/00268977000101561",
+        bibtex=(
+            "@article{Boys1970CP,\n"
+            "  author = {Boys, S. F. and Bernardi, F.},\n"
+            "  title = {The calculation of small molecular interactions by the differences of separate total energies. {Some} procedures with reduced errors},\n"
+            "  journal = {Molecular Physics},\n"
+            "  volume = {19},\n"
+            "  number = {4},\n"
+            "  pages = {553--566},\n"
+            "  year = {1970},\n"
+            "  doi = {10.1080/00268977000101561}\n"
+            "}"
+        ),
+    ),
+    "surf_cp_ftmw": EngineCitation(
+        engine_id="surf_cp_ftmw",
+        name="SURF L-FTMW / CP-FTMW Microwave Spectrometer",
+        category="Rotational Spectroscopy Instrumentation",
+        description="Design and performance of an L-shaped Fourier transform microwave spectrometer with Fabry-Perot cavity setup.",
+        doi="10.1063/5.0311736",
+        url="https://doi.org/10.1063/5.0311736",
+        bibtex=(
+            "@article{Rajapaksha2026LFTMW,\n"
+            "  author = {Rajapaksha, Rusiru P. H. and Miller, Cadence and Padikoralage, Randi K. and Jayasekara, Thusitha S. and Swann, Mitchell and Kidder, Madeline and Gurusinghe, Ranil M.},\n"
+            "  title = {Design and performance of an {L}-shaped {Fourier} transform microwave spectrometer ({L-FTMW}): {Fabry}--{Perot} cavity spectrometer setup},\n"
+            "  journal = {Review of Scientific Instruments},\n"
+            "  volume = {97},\n"
+            "  number = {2},\n"
+            "  pages = {024704},\n"
+            "  year = {2026},\n"
+            "  doi = {10.1063/5.0311736}\n"
+            "}"
+        ),
+    ),
+    "kraitchman": EngineCitation(
+        engine_id="kraitchman",
+        name="Kraitchman Substitution Coordinate Equations",
+        category="Rotational Spectroscopy",
+        description="Determination of principal-axis atomic substitution coordinates (r_s) from isotopic rotational constant shifts.",
+        doi="10.1119/1.1933338",
+        url="https://doi.org/10.1119/1.1933338",
+        bibtex=(
+            "@article{Kraitchman1953Rs,\n"
+            "  author = {Kraitchman, J.},\n"
+            "  title = {Determination of Molecular Structure from Microwave Spectroscopic Data},\n"
+            "  journal = {American Journal of Physics},\n"
+            "  volume = {21},\n"
+            "  number = {1},\n"
+            "  pages = {17--24},\n"
+            "  year = {1953},\n"
+            "  doi = {10.1119/1.1933338}\n"
+            "}"
+        ),
+    ),
+    "costain": EngineCitation(
+        engine_id="costain",
+        name="Costain Substitution Structure Uncertainty Formalism",
+        category="Rotational Spectroscopy",
+        description="Ground-state rotational constant substitution structure formalism and Costain coordinate uncertainty estimation.",
+        doi="10.1063/1.1744602",
+        url="https://doi.org/10.1063/1.1744602",
+        bibtex=(
+            "@article{Costain1958Rs,\n"
+            "  author = {Costain, C. C.},\n"
+            "  title = {Determination of Molecular Structures from Ground State Rotational Constants},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {29},\n"
+            "  number = {4},\n"
+            "  pages = {864--874},\n"
+            "  year = {1958},\n"
+            "  doi = {10.1063/1.1744602}\n"
+            "}"
+        ),
+    ),
+    "watson_reduction": EngineCitation(
+        engine_id="watson_reduction",
+        name="Watson A- and S-Reduced Rotational Hamiltonian",
+        category="Rotational Spectroscopy",
+        description="Asymmetric-top centrifugal distortion reductions (A- and S-reductions) for quartic and sextic rotational Hamiltonians.",
+        doi=None,
+        url="https://www.worldcat.org/isbn/9780444415882",
+        bibtex=(
+            "@incollection{Watson1977Reduction,\n"
+            "  author = {Watson, James K. G.},\n"
+            "  title = {Aspects of Quartic and Sextic Centrifugal Effects on Rotational Energy Levels},\n"
+            "  booktitle = {Vibrational Spectra and Structure: A Series of Advances},\n"
+            "  editor = {Durig, James R.},\n"
+            "  volume = {6},\n"
+            "  pages = {1--89},\n"
+            "  publisher = {Elsevier Scientific Publishing Company},\n"
+            "  address = {Amsterdam},\n"
+            "  year = {1977},\n"
+            "  isbn = {978-0-444-41588-2}\n"
+            "}"
+        ),
+    ),
+    "colbert_miller_dvr": EngineCitation(
+        engine_id="colbert_miller_dvr",
+        name="Colbert-Miller Sinc-DVR Nuclear Motion Solver",
+        category="Quantum Nuclear Dynamics",
+        description="Uniform-grid discrete variable representation (Sinc-DVR) kinetic energy operator for 1D/multi-D vibrational Hamiltonians.",
+        doi="10.1063/1.462100",
+        url="https://doi.org/10.1063/1.462100",
+        bibtex=(
+            "@article{Colbert1992DVR,\n"
+            "  author = {Colbert, Daniel T. and Miller, William H.},\n"
+            "  title = {A novel discrete variable representation for quantum mechanical reactive scattering via the {S}-matrix {Kohn} method},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {96},\n"
+            "  number = {3},\n"
+            "  pages = {1982--1991},\n"
+            "  year = {1992},\n"
+            "  doi = {10.1063/1.462100}\n"
+            "}"
+        ),
+    ),
+    "neb_ts": EngineCitation(
+        engine_id="neb_ts",
+        name="NEB-TS Transition State Search",
+        category="Reaction Path & Transition State Optimization",
+        description="Nudged elastic band with energy-weighted springs combined with eigenvector-following transition state optimization.",
+        doi="10.1021/acs.jctc.1c00462",
+        url="https://doi.org/10.1021/acs.jctc.1c00462",
+        bibtex=(
+            "@article{Asgeirsson2021NEBTS,\n"
+            "  author = {{\\'A}sgeirsson, Vilhj{\\'a}lmur and Birgisson, Benedikt Orri and Bjornsson, Ragnar and Becker, Ute and Neese, Frank and Riplinger, Christoph and J{\\'o}nsson, Hannes},\n"
+            "  title = {Nudged Elastic Band Method for Molecular Reactions Using Energy-Weighted Springs Combined with Eigenvector Following},\n"
+            "  journal = {Journal of Chemical Theory and Computation},\n"
+            "  volume = {17},\n"
+            "  number = {8},\n"
+            "  pages = {4929--4945},\n"
+            "  year = {2021},\n"
+            "  doi = {10.1021/acs.jctc.1c00462}\n"
+            "}"
+        ),
+    ),
+    "grimme_qrrho": EngineCitation(
+        engine_id="grimme_qrrho",
+        name="Grimme Quasi-RRHO Thermochemistry",
+        category="Statistical Thermochemistry",
+        description="Quasi-rigid-rotor-harmonic-oscillator entropy damping treatment for low-frequency vibrational modes.",
+        doi="10.1002/chem.201200497",
+        url="https://doi.org/10.1002/chem.201200497",
+        bibtex=(
+            "@article{Grimme2012qRRHO,\n"
+            "  author = {Grimme, Stefan},\n"
+            "  title = {Supramolecular Binding Thermodynamics by Dispersion-Corrected Density Functional Theory},\n"
+            "  journal = {Chemistry -- A European Journal},\n"
+            "  volume = {18},\n"
+            "  number = {32},\n"
+            "  pages = {9955--9964},\n"
+            "  year = {2012},\n"
+            "  doi = {10.1002/chem.201200497}\n"
+            "}"
+        ),
+    ),
+    "smd": EngineCitation(
+        engine_id="smd",
+        name="SMD Continuum Solvation Model",
+        category="Continuum Solvation",
+        description="Universal solvation model based on solute electron density and continuum solvent bulk dielectric/surface tensions.",
+        doi="10.1021/jp810292n",
+        url="https://doi.org/10.1021/jp810292n",
+        bibtex=(
+            "@article{Marenich2009SMD,\n"
+            "  author = {Marenich, Aleksandr V. and Cramer, Christopher J. and Truhlar, Donald G.},\n"
+            "  title = {Universal Solvation Model Based on Solute Electron Density and on a Continuum Model of the Solvent Defined by the Bulk Dielectric Constant and Atomic Surface Tensions},\n"
+            "  journal = {The Journal of Physical Chemistry B},\n"
+            "  volume = {113},\n"
+            "  number = {18},\n"
+            "  pages = {6378--6396},\n"
+            "  year = {2009},\n"
+            "  doi = {10.1021/jp810292n}\n"
+            "}"
+        ),
+    ),
+    "giao": EngineCitation(
+        engine_id="giao",
+        name="Gauge-Independent Atomic Orbital (GIAO) NMR Method",
+        category="NMR Spectroscopy",
+        description="Efficient gauge-including atomic orbital formulation for quantum chemical NMR magnetic shielding tensors.",
+        doi="10.1021/ja00179a005",
+        url="https://doi.org/10.1021/ja00179a005",
+        bibtex=(
+            "@article{Wolinski1990GIAO,\n"
+            "  author = {Wolinski, Krzysztof and Hinton, James F. and Pulay, Peter},\n"
+            "  title = {Efficient implementation of the gauge-independent atomic orbital method for {NMR} chemical shift calculations},\n"
+            "  journal = {Journal of the American Chemical Society},\n"
+            "  volume = {112},\n"
+            "  number = {23},\n"
+            "  pages = {8251--8260},\n"
+            "  year = {1990},\n"
+            "  doi = {10.1021/ja00179a005}\n"
+            "}"
+        ),
+    ),
+    "dp4_plus": EngineCitation(
+        engine_id="dp4_plus",
+        name="DP4+ NMR Stereochemical Probability",
+        category="NMR Spectroscopy",
+        description="Bayesian NMR chemical shift probability formalism incorporating unscaled and scaled GIAO shielding tensors.",
+        doi="10.1021/acs.joc.5b02396",
+        url="https://doi.org/10.1021/acs.joc.5b02396",
+        bibtex=(
+            "@article{Grimblat2015DP4Plus,\n"
+            "  author = {Grimblat, Nicol{\\'a}s and Zanardi, Mar{\\'i}a M. and Sarotti, Ariel M.},\n"
+            "  title = {Beyond {DP4}: an Improved Probability for the Stereochemical Assignment of Isomeric Compounds using Quantum Chemical Calculations of {NMR} Shifts},\n"
+            "  journal = {The Journal of Organic Chemistry},\n"
+            "  volume = {80},\n"
+            "  number = {24},\n"
+            "  pages = {12526--12534},\n"
+            "  year = {2015},\n"
+            "  doi = {10.1021/acs.joc.5b02396}\n"
+            "}"
+        ),
+    ),
+    "steom_dlpno_ccsd": EngineCitation(
+        engine_id="steom_dlpno_ccsd",
+        name="STEOM-DLPNO-CCSD Excited-State Coupled Cluster",
+        category="Excited-State Electronic Structure",
+        description="Similarity-transformed equation-of-motion domain-based local pair natural orbital coupled-cluster method.",
+        doi="10.1021/acs.jctc.9b00559",
+        url="https://doi.org/10.1021/acs.jctc.9b00559",
+        bibtex=(
+            "@article{BerraudPache2020STEOM,\n"
+            "  author = {Berraud-Pache, Romain and Neese, Frank and Bistoni, Giovanni and Izs{\\'a}k, R{\\'o}bert},\n"
+            "  title = {Unveiling the Photophysical Properties of Boron-dipyrromethene Dyes Using a New Accurate Excited State Coupled Cluster Method},\n"
+            "  journal = {Journal of Chemical Theory and Computation},\n"
+            "  volume = {16},\n"
+            "  number = {1},\n"
+            "  pages = {564--575},\n"
+            "  year = {2020},\n"
+            "  doi = {10.1021/acs.jctc.9b00559}\n"
+            "}"
+        ),
+    ),
+    "nto": EngineCitation(
+        engine_id="nto",
+        name="Natural Transition Orbitals (NTO)",
+        category="Excited-State Analysis",
+        description="Compact singular-value decomposition representation of electronic transition density matrices into hole-particle pairs.",
+        doi="10.1063/1.1558471",
+        url="https://doi.org/10.1063/1.1558471",
+        bibtex=(
+            "@article{Martin2003NTO,\n"
+            "  author = {Martin, Richard L.},\n"
+            "  title = {Natural transition orbitals},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {118},\n"
+            "  number = {11},\n"
+            "  pages = {4775--4777},\n"
+            "  year = {2003},\n"
+            "  doi = {10.1063/1.1558471}\n"
+            "}"
+        ),
+    ),
+    "orca_esd": EngineCitation(
+        engine_id="orca_esd",
+        name="ORCA Excited State Dynamics (ESD) Path-Integral Module",
+        category="Vibronic Spectroscopy & Photophysics",
+        description="Path-integral time-dependent formulation for fluorescence, phosphorescence, absorption, and internal conversion rates.",
+        doi="10.1063/1.5010895",
+        url="https://doi.org/10.1063/1.5010895",
+        bibtex=(
+            "@article{deSouza2018ESD,\n"
+            "  author = {de Souza, Bernardo and Neese, Frank and Izs{\\'a}k, R{\\'o}bert},\n"
+            "  title = {On the theoretical prediction of fluorescence rates from first principles using the path integral approach},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {148},\n"
+            "  number = {3},\n"
+            "  pages = {034104},\n"
+            "  year = {2018},\n"
+            "  doi = {10.1063/1.5010895}\n"
+            "}"
+        ),
+    ),
 }
 
 # Alias resolution mapping for flexible identifier lookup
@@ -765,6 +1187,83 @@ _ALIAS_MAP: dict[str, str] = {
     "ase": "ase",
     "parsl": "parsl",
     "rdkit": "rdkit",
+    # Double-hybrid DFT
+    "revdsd-pbep86-d4": "revdsd_pbep86_d4",
+    "revdsd_pbep86_d4": "revdsd_pbep86_d4",
+    "revdsd-pbep86": "revdsd_pbep86_d4",
+    "revdsd_pbep86": "revdsd_pbep86_d4",
+    # Wavefunction & Energy Decomposition Analysis
+    "multiwfn": "multiwfn",
+    "igmh": "igmh",
+    "igm-h": "igmh",
+    "igm_h": "igmh",
+    "qtaim": "qtaim",
+    "bader": "qtaim",
+    "nbo": "nbo7",
+    "nbo7": "nbo7",
+    "nbo-7": "nbo7",
+    "nbo_7": "nbo7",
+    "nbo 7": "nbo7",
+    "nbo 7.0": "nbo7",
+    "nbo7.0": "nbo7",
+    "dlpno-led": "dlpno_led",
+    "dlpno_led": "dlpno_led",
+    "led": "dlpno_led",
+    # Basis Set & BSSE
+    "helgaker": "helgaker_cbs",
+    "helgaker-cbs": "helgaker_cbs",
+    "helgaker_cbs": "helgaker_cbs",
+    "cbs": "helgaker_cbs",
+    "boys-bernardi": "boys_bernardi_cp",
+    "boys_bernardi": "boys_bernardi_cp",
+    "boys_bernardi_cp": "boys_bernardi_cp",
+    "counterpoise": "boys_bernardi_cp",
+    "cp-bsse": "boys_bernardi_cp",
+    "cp_bsse": "boys_bernardi_cp",
+    # Rotational Spectroscopy & Nuclear Motion
+    "surf": "surf_cp_ftmw",
+    "surf-cp-ftmw": "surf_cp_ftmw",
+    "surf_cp_ftmw": "surf_cp_ftmw",
+    "cp-ftmw": "surf_cp_ftmw",
+    "cp_ftmw": "surf_cp_ftmw",
+    "l-ftmw": "surf_cp_ftmw",
+    "l_ftmw": "surf_cp_ftmw",
+    "kraitchman": "kraitchman",
+    "costain": "costain",
+    "watson": "watson_reduction",
+    "watson-reduction": "watson_reduction",
+    "watson_reduction": "watson_reduction",
+    "watson-a": "watson_reduction",
+    "watson-s": "watson_reduction",
+    "colbert-miller": "colbert_miller_dvr",
+    "colbert_miller": "colbert_miller_dvr",
+    "colbert_miller_dvr": "colbert_miller_dvr",
+    "sinc-dvr": "colbert_miller_dvr",
+    "sinc_dvr": "colbert_miller_dvr",
+    # Reaction Path, Thermochemistry & Solvation
+    "neb-ts": "neb_ts",
+    "neb_ts": "neb_ts",
+    "nebts": "neb_ts",
+    "qrrho": "grimme_qrrho",
+    "grimme-qrrho": "grimme_qrrho",
+    "grimme_qrrho": "grimme_qrrho",
+    "smd": "smd",
+    # NMR Spectroscopy
+    "giao": "giao",
+    "dp4+": "dp4_plus",
+    "dp4-plus": "dp4_plus",
+    "dp4_plus": "dp4_plus",
+    "dp4plus": "dp4_plus",
+    # Excited States & Photophysics
+    "steom-dlpno-ccsd": "steom_dlpno_ccsd",
+    "steom_dlpno_ccsd": "steom_dlpno_ccsd",
+    "steom-ccsd": "steom_dlpno_ccsd",
+    "steom_ccsd": "steom_dlpno_ccsd",
+    "nto": "nto",
+    "ntos": "nto",
+    "orca-esd": "orca_esd",
+    "orca_esd": "orca_esd",
+    "esd": "orca_esd",
 }
 
 
@@ -1034,10 +1533,106 @@ class CitationTracker:
             self._tracked_engines.add("wb97x_v")
             detected.append("wb97x_v")
 
-        if re.search(r"(?i)\bdlpno(?:[-_]ccsd\(?t\)?)?\b", method_string):
-            self._tracked_engines.add("dlpno_ccsd_t")
+        if re.search(r"(?i)\bsteom[-_](?:dlpno[-_])?ccsd\b", method_string):
+            self._tracked_engines.add("steom_dlpno_ccsd")
             self._tracked_engines.add("orca")
-            detected.extend(["dlpno_ccsd_t", "orca"])
+            detected.extend(["steom_dlpno_ccsd", "orca"])
+
+        if re.search(r"(?i)\bdlpno[-_]?led\b|\blocal\s+energy\s+decomposition\b", method_string):
+            self._tracked_engines.add("dlpno_led")
+            self._tracked_engines.add("orca")
+            detected.extend(["dlpno_led", "orca"])
+
+        if re.search(r"(?i)\bdlpno(?:[-_]ccsd\(?t\d*\)?)?\b", method_string):
+            if not (
+                re.search(r"(?i)\bsteom[-_]dlpno[-_]ccsd\b", method_string)
+                or re.search(r"(?i)\bdlpno[-_]?led\b", method_string)
+            ) or re.search(r"(?i)\bdlpno[-_]ccsd\(?t\d*\)?\b", method_string):
+                self._tracked_engines.add("dlpno_ccsd_t")
+                self._tracked_engines.add("orca")
+                detected.extend(["dlpno_ccsd_t", "orca"])
+
+        if re.search(r"(?i)\brevdsd[-_]?pbep86(?:[-_]?d4)?\b", method_string):
+            self._tracked_engines.add("revdsd_pbep86_d4")
+            detected.append("revdsd_pbep86_d4")
+            if re.search(r"(?i)\brevdsd[-_]?pbep86[-_]?d4\b", method_string):
+                self._tracked_engines.add("dft_d4")
+                detected.append("dft_d4")
+
+        if re.search(r"(?i)\bmultiwfn\b", method_string):
+            self._tracked_engines.add("multiwfn")
+            detected.append("multiwfn")
+
+        if re.search(r"(?i)\bigm[-_]?h\b", method_string):
+            self._tracked_engines.add("igmh")
+            self._tracked_engines.add("multiwfn")
+            detected.extend(["igmh", "multiwfn"])
+
+        if re.search(r"(?i)\b(?:qtaim|bader\s+analysis)\b", method_string):
+            self._tracked_engines.add("qtaim")
+            detected.append("qtaim")
+
+        if re.search(r"(?i)\bnbo(?:[-_\s]?7(?:\.0)?)?\b", method_string):
+            self._tracked_engines.add("nbo7")
+            detected.append("nbo7")
+
+        if re.search(r"(?i)\b(?:helgaker(?:[-_\s]?cbs)?|cbs[-_\s]?(?:extrapolation|tq|dt|\([dtq5]\s*,\s*[tq5]\)))\b", method_string):
+            self._tracked_engines.add("helgaker_cbs")
+            detected.append("helgaker_cbs")
+
+        if re.search(r"(?i)\b(?:boys[-_\s]?bernardi|counterpoise|cp[-_]?bsse)\b", method_string):
+            self._tracked_engines.add("boys_bernardi_cp")
+            detected.append("boys_bernardi_cp")
+
+        if re.search(r"(?i)\b(?:surf[-_\s]?cp[-_]?ftmw|cp[-_]?ftmw|l[-_]?ftmw)\b", method_string):
+            self._tracked_engines.add("surf_cp_ftmw")
+            detected.append("surf_cp_ftmw")
+
+        if re.search(r"(?i)\bkraitchman\b", method_string):
+            self._tracked_engines.add("kraitchman")
+            detected.append("kraitchman")
+
+        if re.search(r"(?i)\bcostain\b", method_string):
+            self._tracked_engines.add("costain")
+            detected.append("costain")
+
+        if re.search(r"(?i)\bwatson(?:[-_\s]?(?:reduction|[as][-_\s]?reduction))?\b", method_string):
+            self._tracked_engines.add("watson_reduction")
+            detected.append("watson_reduction")
+
+        if re.search(r"(?i)\b(?:colbert[-_\s]?miller|sinc[-_]?dvr)\b", method_string):
+            self._tracked_engines.add("colbert_miller_dvr")
+            detected.append("colbert_miller_dvr")
+
+        if re.search(r"(?i)\bneb[-_]?ts\b", method_string):
+            self._tracked_engines.add("neb_ts")
+            self._tracked_engines.add("orca")
+            detected.extend(["neb_ts", "orca"])
+
+        if re.search(r"(?i)\b(?:grimme[-_\s]?)?qrrho\b", method_string):
+            self._tracked_engines.add("grimme_qrrho")
+            detected.append("grimme_qrrho")
+
+        if re.search(r"(?i)\bsmd\b", method_string):
+            self._tracked_engines.add("smd")
+            detected.append("smd")
+
+        if re.search(r"(?i)\bgiao\b", method_string):
+            self._tracked_engines.add("giao")
+            detected.append("giao")
+
+        if re.search(r"(?i)(?<!\w)dp4(?:\+|[-_]?plus)(?!\w)", method_string):
+            self._tracked_engines.add("dp4_plus")
+            detected.append("dp4_plus")
+
+        if re.search(r"(?i)\b(?:ntos?|natural\s+transition\s+orbitals?)\b", method_string):
+            self._tracked_engines.add("nto")
+            detected.append("nto")
+
+        if re.search(r"(?i)\b(?:orca[-_\s]?)?esd\b", method_string):
+            self._tracked_engines.add("orca_esd")
+            self._tracked_engines.add("orca")
+            detected.extend(["orca_esd", "orca"])
 
         if re.search(r"(?i)\b(?:sapt0?|sapt2\+?|sapt|autopes)\b", method_string):
             self._tracked_engines.add("sapt")

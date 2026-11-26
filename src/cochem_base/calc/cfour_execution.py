@@ -290,9 +290,9 @@ def write_cfour_input(directory: Path, config: Any, elements: list[str], coordin
         # CFOUR 2.1 defaults CPHF_CONVER to 10^-16 (ICPHFT=16), which hits the
         # IEEE-754 FP64 roundoff floor (~10^-26 squared norm) in xcphf for
         # correlated analytic Hessians (e.g. MP2 VIB=EXACT) and aborts after
-        # 64 cycles. CPHF_CONVER=12 (10^-12) + LINEQ_CONV=7 (CFOUR standard)
-        # preserves tight response convergence cleanly above machine roundoff.
-        keywords.append("LINEQ_CONV=7")
+        # 64 cycles. CPHF_CONVER=12 (10^-12) avoids the xcphf FP64 roundoff
+        # stall cleanly above machine roundoff while keeping LINEQ_CONV=10.
+        keywords.append("LINEQ_CONV=10")
         keywords.append("CPHF_CONVER=12")
         keywords.append("CPHF_MAXCYC=128")
     elif opts["do_harmonic"]:
@@ -391,6 +391,7 @@ def _accept_output(
         raise ValueError("CFOUR VPT2 output lacks anharmonic vibrational analysis results")
     accepted_payload: dict[str, Any] = {
         "energy_hartree": energy,
+        "reference_energy_hartree": candidates[0],
         "native_modules_completed": [name for name, _ in statuses],
         "electronic_convergence_verified": True,
     }
@@ -504,6 +505,32 @@ def _accept_hessian(directory: Path, elements: list[str], coordinates: Any,
             "harmonic_isotope_masses_u": selected.masses,
             "principal_isotope_masses_u": principal.masses,
             "harmonic_frequency_provenance": "Input-nuclide mass reweighting and geometric rigid-motion projection of measured CFOUR FCMFINAL; bare elements select their principal isotope"}
+
+
+def _reconcile_post_opt_vibrational_energy(
+    previous_energy: float,
+    final: dict[str, Any],
+    *,
+    vib_mode: str | None,
+    is_vpt2: bool,
+) -> float:
+    """Cross-check post-optimization vibrational energy against the optimized equilibrium minimum."""
+    if vib_mode == "EXACT" and not is_vpt2:
+        if not math.isclose(final["energy_hartree"], previous_energy, abs_tol=ENERGY_TOLERANCE_HARTREE, rel_tol=0):
+            raise ValueError("CFOUR vibrational evaluation changed the optimized electronic energy")
+        return final["energy_hartree"]
+    # In ANY multi-displacement job (VPT2 with VIB=EXACT or VIB=FINDIF, or
+    # harmonic VIB=FINDIF), CFOUR's last evaluated energy is a displaced
+    # geometry; cross-check the first undisplaced reference evaluation energy
+    # against the optimized minimum and retain `previous_energy`.
+    reference_energy = final.get("reference_energy_hartree")
+    if (
+        not isinstance(reference_energy, (int, float))
+        or isinstance(reference_energy, bool)
+        or not math.isclose(reference_energy, previous_energy, abs_tol=ENERGY_TOLERANCE_HARTREE, rel_tol=0)
+    ):
+        raise ValueError("CFOUR vibrational evaluation reference geometry changed the optimized electronic energy")
+    return previous_energy
 
 
 @scientific_producer
@@ -673,15 +700,12 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
             harmonic=(config.is_freq and not config.is_vpt2),
             anharmonic=config.is_vpt2,
         )
-        if vib_opts["vib_mode"] == "EXACT":
-            if not math.isclose(final["energy_hartree"], previous_energy, abs_tol=ENERGY_TOLERANCE_HARTREE, rel_tol=0):
-                raise ValueError("CFOUR vibrational evaluation changed the optimized electronic energy")
-            equilibrium_energy_hartree = final["energy_hartree"]
-        else:
-            # In CFOUR 2.1 VIB=FINDIF (including CCSD(T) VPT2/FINDIF), the last
-            # evaluated energy is a finite-difference displaced geometry, so the
-            # optimized equilibrium energy remains `previous_energy`.
-            equilibrium_energy_hartree = previous_energy
+        equilibrium_energy_hartree = _reconcile_post_opt_vibrational_energy(
+            previous_energy,
+            final,
+            vib_mode=vib_opts["vib_mode"],
+            is_vpt2=bool(config.is_vpt2),
+        )
 
     from cochem_base.calc.regime_guards import apply_chemical_regime_guards
 

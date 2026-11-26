@@ -274,8 +274,8 @@ class CFOURInputConfig(BaseModel):
     memory_size_mb: Optional[int] = Field(default=None, ge=1, description="Optional global memory allocation in MB (overrides memory_size_gb when set).")
     scf_conv: int = Field(default=10, description="SCF convergence exponent (10 -> 10^-10).")
     cc_conv: int = Field(default=10, description="CC convergence exponent (10 -> 10^-10).")
-    lineq_conv: int = Field(default=7, description="Linear equation convergence exponent (CFOUR 2.1 standard default 7 -> 10^-7).")
-    cphf_conver: int = Field(default=12, ge=1, le=15, description="CPHF response convergence exponent (12 -> 10^-12; avoids CFOUR 2.1 10^-16 FP64 roundoff abort).")
+    lineq_conv: int = Field(default=10, description="Linear equation convergence exponent (10 -> 10^-10; kept tight while CPHF_CONVER=12 avoids xcphf FP64 roundoff stall).")
+    cphf_conver: int = Field(default=12, ge=1, le=15, description="CPHF response convergence exponent (12 -> 10^-12; avoids CFOUR 2.1 10^-16 FP64 roundoff abort while keeping LINEQ_CONV=10).")
     cphf_maxcyc: int = Field(default=128, ge=1, description="Maximum CPHF cycles for analytic second derivatives.")
     geo_conv: int = Field(default=5, description="Geometry convergence exponent.")
     spinrot: bool = Field(default=False, description="Compute nuclear spin-rotation constants (SPINROT=ON).")
@@ -2185,15 +2185,18 @@ def export_cfour_to_spcat_var(
                 v = sd.h_3_Hz * 1e-6
                 param_lines.append(_format_var_line(60000, v, abs(v * 0.10)))
 
-    # 4. Nuclear Quadrupole Coupling chi_aa, chi_bb, chi_cc (kHz -> MHz)
+    # 4. Nuclear Quadrupole Coupling: fail closed until spin-coupled SPIND/hyperfine IDs are implemented
     for q_tensor in observables.quadrupole_couplings:
-        if abs(q_tensor.chi_aa_kHz) > 1e-4:
-            code_chi_aa = q_tensor.atom_index * 100000 + 10000
-            code_chi_diff = q_tensor.atom_index * 100000 + 20000
-            chi_aa_mhz = q_tensor.chi_aa_kHz * 1e-3
-            chi_diff_mhz = (q_tensor.chi_bb_kHz - q_tensor.chi_cc_kHz) * 1e-3
-            param_lines.append(_format_var_line(code_chi_aa, chi_aa_mhz, abs(chi_aa_mhz * 0.02)))
-            param_lines.append(_format_var_line(code_chi_diff, chi_diff_mhz, abs(chi_diff_mhz * 0.02)))
+        if (
+            abs(q_tensor.chi_aa_kHz) > 1e-4
+            or abs(q_tensor.chi_bb_kHz) > 1e-4
+            or abs(q_tensor.chi_cc_kHz) > 1e-4
+        ):
+            raise ValueError(
+                "Hyperfine nuclear quadrupole SPCAT export requires spin-coupled SPIND/hyperfine parameter IDs "
+                "(e.g., 110010000 = 1.5*chi_aa, 110040000 = (chi_bb-chi_cc)/4) and is not yet implemented; "
+                "omit quadrupole_couplings for rotational-only export."
+            )
 
     reduction_flag = "a" if reduction == WatsonReduction.A else "s"
     lines: List[str] = [

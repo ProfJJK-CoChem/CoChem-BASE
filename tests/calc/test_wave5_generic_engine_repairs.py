@@ -1,4 +1,4 @@
-"""Generic Wave 5 regression tests for CoChem-BASE engine defects (DEF-S1-01, 05, 06, 07, 08).
+"""Generic Wave 5 regression tests for CoChem-BASE engine defects (DEF-S1-01, 05, 06, 07, 08, 11; C2, C3, M5).
 
 All assertions are molecule-agnostic and test generic method/solver/protocol contracts
 with zero mocks, zero skips, and zero molecule-specific special cases.
@@ -13,7 +13,11 @@ import numpy as np
 import pytest
 
 from cochem_base.calc.calculation_service import CalculationMatrixConfig
-from cochem_base.calc.cfour_execution import _accept_output, write_cfour_input
+from cochem_base.calc.cfour_execution import (
+    _accept_output,
+    _reconcile_post_opt_vibrational_energy,
+    write_cfour_input,
+)
 from cochem_base.calc.cochem_calc_input_generator import (
     MoleculeInput,
     _orca_requires_numerical_frequency,
@@ -26,6 +30,7 @@ from cochem_base.core_engine.cochem_core_cfour_bridge import (
     CFOURObservables,
     CFOUROutputParser,
     CFOURVibMode,
+    ElectricFieldGradientTensor,
     HarmonicForceField,
     QuarticCentrifugalDistortion,
     SexticCentrifugalDistortion,
@@ -219,16 +224,17 @@ The final electronic energy is -75.012310088704552 a.u.
 
 
 # ==============================================================================
-# DEF-S1-06: CFOUR 2.1 CPHF_CONVER=12 & LINEQ_CONV=7 for MP2 & CCSD(T) VPT2
+# DEF-S1-06 + C3: CFOUR 2.1 CPHF_CONVER=12 & LINEQ_CONV=10 for MP2 & CCSD(T) VPT2
 # ==============================================================================
 
 @pytest.mark.parametrize("method,expected_vib", [("MP2", "EXACT"), ("CCSD(T)", "FINDIF")])
 def test_def_s1_06_cfour_vpt2_zmat_avoids_cphf_roundoff_stall(
     tmp_path: Path, method: str, expected_vib: str
 ) -> None:
-    """CFOUR VPT2 decks emit LINEQ_CONV=7 and CPHF_CONVER=12 (not LINEQ_CONV=10 / default 10^-16)."""
+    """CFOUR VPT2 decks emit LINEQ_CONV=10 and CPHF_CONVER=12 (avoiding default 10^-16 xcphf stall)."""
+    # Generic triatomic OCS geometry (non-SO2)
     cfg = CalculationMatrixConfig(
-        geometry="S 0 0 0\nO 0 1.234 0.718\nO 0 -1.234 0.718\n",
+        geometry="O 0 0 -1.157\nC 0 0 0.000\nS 0 0 1.561\n",
         engine="cfour",
         method=method,
         basis_set="cc-pVDZ",
@@ -239,15 +245,15 @@ def test_def_s1_06_cfour_vpt2_zmat_avoids_cphf_roundoff_stall(
     zmat = write_cfour_input(
         tmp_path / method.replace("(", "").replace(")", ""),
         cfg,
-        ["S", "O", "O"],
-        [(0.0, 0.0, 0.0), (0.0, 1.234, 0.718), (0.0, -1.234, 0.718)],
+        ["O", "C", "S"],
+        [(0.0, 0.0, -1.157), (0.0, 0.0, 0.0), (0.0, 0.0, 1.561)],
         anharmonic=True,
     ).read_text(encoding="utf-8")
 
     assert f"VIB={expected_vib}" in zmat
     assert "ANHARM=VPT2" in zmat
-    assert "LINEQ_CONV=7" in zmat
-    assert "LINEQ_CONV=10" not in zmat
+    assert "LINEQ_CONV=10" in zmat
+    assert "LINEQ_CONV=7" not in zmat
     assert "CPHF_CONVER=12" in zmat
     assert "CPHF_MAXCYC=128" in zmat
 
@@ -257,18 +263,22 @@ def test_def_s1_06_cfour_vpt2_zmat_avoids_cphf_roundoff_stall(
 # ==============================================================================
 
 def test_def_s1_07a_props_first_order_never_emitted_with_vib_or_anharm() -> None:
-    """CFOURInputConfig defaults props='OFF' and strips PROPS=FIRST_ORDER whenever VIB/ANHARM is active."""
+    """CFOURInputConfig defaults props='OFF', lineq_conv=10, cphf_conver=12 and strips PROPS=FIRST_ORDER with VIB/ANHARM."""
     default_cfg = CFOURInputConfig(calc_level=CFOURCalcLevel.MP2, basis="cc-pVDZ")
     assert default_cfg.props == "OFF"
-    assert default_cfg.lineq_conv == 7
+    assert default_cfg.lineq_conv == 10
     assert default_cfg.cphf_conver == 12
+    assert default_cfg.cphf_maxcyc == 128
 
-    coords = np.array([[0.0, 0.0, 0.0], [0.0, 1.234, 0.718], [0.0, -1.234, 0.718]])
-    zmat_default = generate_cfour_zmat(["S", "O", "O"], coords, default_cfg)
+    # Generic linear HCN coordinates (non-SO2)
+    coords = np.array([[0.0, 0.0, -1.065], [0.0, 0.0, 0.0], [0.0, 0.0, 1.153]])
+    zmat_default = generate_cfour_zmat(["H", "C", "N"], coords, default_cfg)
     assert "PROPS=FIRST_ORDER" not in zmat_default
     assert "VIB=EXACT" in zmat_default
     assert "ANHARM=VPT2" in zmat_default
+    assert "LINEQ_CONV=10" in zmat_default
     assert "CPHF_CONVER=12" in zmat_default
+    assert "CPHF_MAXCYC=128" in zmat_default
 
     # Even if caller explicitly passes props="FIRST_ORDER" or extra_keywords={"PROPS": "FIRST_ORDER"}
     # alongside VPT2 or VIB=EXACT/FINDIF, PROPS=FIRST_ORDER MUST NOT be written.
@@ -286,7 +296,7 @@ def test_def_s1_07a_props_first_order_never_emitted_with_vib_or_anharm() -> None
             props="FIRST_ORDER",
             extra_keywords={"PROPS": "FIRST_ORDER"},
         )
-        zmat = generate_cfour_zmat(["S", "O", "O"], coords, explicit_cfg)
+        zmat = generate_cfour_zmat(["H", "C", "N"], coords, explicit_cfg)
         assert "PROPS=FIRST_ORDER" not in zmat
 
     # Single-point job (VIB=NONE, ANHARM=NONE) with explicit props="FIRST_ORDER" still emits it
@@ -297,7 +307,7 @@ def test_def_s1_07a_props_first_order_never_emitted_with_vib_or_anharm() -> None
         anharm_mode=CFOURAnharmMode.NONE,
         props="FIRST_ORDER",
     )
-    zmat_sp = generate_cfour_zmat(["S", "O", "O"], coords, sp_props_cfg)
+    zmat_sp = generate_cfour_zmat(["H", "C", "N"], coords, sp_props_cfg)
     assert "PROPS=FIRST_ORDER" in zmat_sp
     assert "VIB=" not in zmat_sp
     assert "ANHARM=" not in zmat_sp
@@ -497,3 +507,227 @@ def test_def_s1_08_spcat_runner_decks_mhz_codes_parsing_and_fail_closed(tmp_path
     runner = SPCATRunner(spcat_bin_path=tmp_path / "absent_spcat_binary")
     with pytest.raises(FileNotFoundError, match="Pickett spcat binary not found"):
         runner.generate_parquet_catalog(cfg, tmp_path / "out.parquet", scratch_dir=tmp_path / "scr")
+
+
+# ==============================================================================
+# DEF-S1-11 + M5: Post-Opt Multi-Displacement Reference Energy Cross-Check
+# ==============================================================================
+
+def test_def_s1_11_and_m5_accept_output_reference_energy_and_post_opt_reconciliation() -> None:
+    """_accept_output records candidates[0] as reference_energy_hartree and post-opt VPT2/FINDIF cross-checks it."""
+    # Generic OCS MP2 VIB=EXACT ANHARM=VPT2 multi-displacement output:
+    # First evaluation is undisplaced equilibrium; last evaluation is a displaced geometry.
+    eq_mp2_energy = -510.751234567890
+    disp_mp2_energy = -510.750987654321
+    mp2_vpt2_log = f"""
+--invoking executable--
+/opt/cfour/bin/xvscf
+SCF has converged.
+E(SCF)= -510.312000000000
+--executable xvscf finished with status 0
+--invoking executable--
+/opt/cfour/bin/xvcc
+Total MP2 energy: {eq_mp2_energy:.12f}
+--executable xvcc finished with status 0
+--invoking executable--
+/opt/cfour/bin/xvscf
+SCF has converged.
+E(SCF)= -510.311800000000
+--executable xvscf finished with status 0
+--invoking executable--
+/opt/cfour/bin/xvcc
+Total MP2 energy: {disp_mp2_energy:.12f}
+--executable xvcc finished with status 0
+HARMONIC AND FUNDAMENTAL FREQUENCIES (cm-1) AND INTENSITIES (km/mol)
+The final electronic energy is {disp_mp2_energy:.12f} a.u.
+"""
+    accepted_mp2 = _accept_output(mp2_vpt2_log, "MP2", requested_threads=2, anharmonic=True)
+    assert accepted_mp2["energy_hartree"] == pytest.approx(disp_mp2_energy, abs=1e-12)
+    assert accepted_mp2["reference_energy_hartree"] == pytest.approx(eq_mp2_energy, abs=1e-12)
+
+    # MP2 is_opt + is_vpt2 (VIB=EXACT, ANHARM=VPT2): must cross-check reference_energy_hartree,
+    # NOT the displaced final energy, and retain previous_energy as equilibrium energy.
+    retained_mp2 = _reconcile_post_opt_vibrational_energy(
+        eq_mp2_energy,
+        accepted_mp2,
+        vib_mode="EXACT",
+        is_vpt2=True,
+    )
+    assert retained_mp2 == pytest.approx(eq_mp2_energy, abs=1e-12)
+
+    # Mismatched reference geometry energy on MP2 VIB=EXACT ANHARM=VPT2 must fail closed.
+    with pytest.raises(
+        ValueError,
+        match="CFOUR vibrational evaluation reference geometry changed the optimized electronic energy",
+    ):
+        _reconcile_post_opt_vibrational_energy(
+            eq_mp2_energy - 1e-4,
+            accepted_mp2,
+            vib_mode="EXACT",
+            is_vpt2=True,
+        )
+
+    # Generic HCN CCSD(T) VIB=FINDIF ANHARM=VPT2 multi-displacement output:
+    eq_ccsdt_energy = -93.265432109876
+    disp_ccsdt_energy = -93.265111222333
+    ccsdt_findif_log = f"""
+--invoking executable--
+/opt/cfour/bin/xvscf
+SCF has converged.
+E(SCF)= -92.875000000000
+--executable xvscf finished with status 0
+--invoking executable--
+/opt/cfour/bin/xvcc
+CCSD(T) energy will be calculated.
+Amplitude equations converged in 12iterations.
+The CC iterations have converged.
+E(CCSD(T))        =     {eq_ccsdt_energy:.12f}
+--executable xvcc finished with status 0
+--invoking executable--
+/opt/cfour/bin/xvscf
+SCF has converged.
+E(SCF)= -92.874800000000
+--executable xvscf finished with status 0
+--invoking executable--
+/opt/cfour/bin/xvcc
+CCSD(T) energy will be calculated.
+Amplitude equations converged in 12iterations.
+The CC iterations have converged.
+E(CCSD(T))        =     {disp_ccsdt_energy:.12f}
+--executable xvcc finished with status 0
+HARMONIC AND FUNDAMENTAL FREQUENCIES (cm-1) AND INTENSITIES (km/mol)
+The final electronic energy is {disp_ccsdt_energy:.12f} a.u.
+"""
+    accepted_ccsdt = _accept_output(ccsdt_findif_log, "CCSD(T)", requested_threads=2, anharmonic=True)
+    assert accepted_ccsdt["energy_hartree"] == pytest.approx(disp_ccsdt_energy, abs=1e-12)
+    assert accepted_ccsdt["reference_energy_hartree"] == pytest.approx(eq_ccsdt_energy, abs=1e-12)
+
+    # CCSD(T) VIB=FINDIF (both harmonic and VPT2): cross-checks reference_energy_hartree & retains previous_energy.
+    for is_vpt2_flag in (False, True):
+        retained_cc = _reconcile_post_opt_vibrational_energy(
+            eq_ccsdt_energy,
+            accepted_ccsdt,
+            vib_mode="FINDIF",
+            is_vpt2=is_vpt2_flag,
+        )
+        assert retained_cc == pytest.approx(eq_ccsdt_energy, abs=1e-12)
+
+        with pytest.raises(
+            ValueError,
+            match="CFOUR vibrational evaluation reference geometry changed the optimized electronic energy",
+        ):
+            _reconcile_post_opt_vibrational_energy(
+                eq_ccsdt_energy + 5e-5,
+                accepted_ccsdt,
+                vib_mode="FINDIF",
+                is_vpt2=is_vpt2_flag,
+            )
+
+    # Harmonic-only VIB=EXACT (not VPT2) continues to cross-check final["energy_hartree"].
+    exact_harm_payload = {"energy_hartree": eq_mp2_energy, "reference_energy_hartree": eq_mp2_energy}
+    assert _reconcile_post_opt_vibrational_energy(
+        eq_mp2_energy, exact_harm_payload, vib_mode="EXACT", is_vpt2=False
+    ) == pytest.approx(eq_mp2_energy, abs=1e-12)
+    with pytest.raises(
+        ValueError,
+        match="CFOUR vibrational evaluation changed the optimized electronic energy",
+    ):
+        _reconcile_post_opt_vibrational_energy(
+            eq_mp2_energy - 1e-4, exact_harm_payload, vib_mode="EXACT", is_vpt2=False
+        )
+
+
+# ==============================================================================
+# Opus C2: Fail-Closed Hyperfine Nuclear Quadrupole SPCAT Export
+# ==============================================================================
+
+def test_c2_export_cfour_to_spcat_var_fails_closed_on_nonzero_quadrupole() -> None:
+    """export_cfour_to_spcat_var raises ValueError on nonzero quadrupole couplings instead of emitting invalid IDs."""
+    # Generic HCN observables with 14N nuclear quadrupole coupling
+    base_obs = CFOURObservables(
+        final_energy_hartree=-93.265,
+        A0_MHz=1_000_000.0,
+        B0_MHz=44315.97,
+        C0_MHz=44315.97,
+        harmonic_force_field=HarmonicForceField(
+            n_atoms=3,
+            symbols=["H", "C", "N"],
+            masses_u=[get_dynamic_atomic_mass(sym) for sym in ("H", "C", "N")],
+            frequencies_cm_inv=[712.0, 712.0, 2097.0, 3311.0],
+        ),
+    )
+
+    # Nonzero chi_aa must fail closed with exact spin-coupled SPIND/hyperfine guidance
+    obs_nonzero_aa = base_obs.model_copy(
+        update={
+            "quadrupole_couplings": [
+                ElectricFieldGradientTensor(
+                    atom_index=3,
+                    symbol="N",
+                    isotope_mass_number=14,
+                    q_xx_au=0.5,
+                    q_yy_au=0.5,
+                    q_zz_au=-1.0,
+                    asymmetry_eta=0.0,
+                    nuclear_quadrupole_moment_mbarn=20.44,
+                    chi_aa_kHz=-4709.0,
+                    chi_bb_kHz=2354.5,
+                    chi_cc_kHz=2354.5,
+                )
+            ]
+        }
+    )
+    with pytest.raises(
+        ValueError,
+        match=r"Hyperfine nuclear quadrupole SPCAT export requires spin-coupled SPIND/hyperfine parameter IDs",
+    ):
+        export_cfour_to_spcat_var(obs_nonzero_aa)
+
+    # Even if chi_aa == 0, nonzero chi_bb or chi_cc must still fail closed
+    obs_nonzero_bb_cc = base_obs.model_copy(
+        update={
+            "quadrupole_couplings": [
+                ElectricFieldGradientTensor(
+                    atom_index=3,
+                    symbol="N",
+                    isotope_mass_number=14,
+                    q_xx_au=0.5,
+                    q_yy_au=-0.5,
+                    q_zz_au=0.0,
+                    asymmetry_eta=0.0,
+                    nuclear_quadrupole_moment_mbarn=20.44,
+                    chi_aa_kHz=0.0,
+                    chi_bb_kHz=450.0,
+                    chi_cc_kHz=-450.0,
+                )
+            ]
+        }
+    )
+    with pytest.raises(ValueError, match="omit quadrupole_couplings for rotational-only export"):
+        export_cfour_to_spcat_var(obs_nonzero_bb_cc)
+
+    # Negligible/zero quadrupole couplings (<= 1e-4 kHz) export cleanly without bogus hyperfine codes
+    obs_zero_quad = base_obs.model_copy(
+        update={
+            "quadrupole_couplings": [
+                ElectricFieldGradientTensor(
+                    atom_index=3,
+                    symbol="N",
+                    isotope_mass_number=14,
+                    q_xx_au=0.0,
+                    q_yy_au=0.0,
+                    q_zz_au=0.0,
+                    asymmetry_eta=0.0,
+                    nuclear_quadrupole_moment_mbarn=20.44,
+                    chi_aa_kHz=0.0,
+                    chi_bb_kHz=0.0,
+                    chi_cc_kHz=0.0,
+                )
+            ]
+        }
+    )
+    var_rot_only = export_cfour_to_spcat_var(obs_zero_quad)
+    rot_lines = [ln for ln in var_rot_only.splitlines() if ln.strip()]
+    assert rot_lines[1].split()[0] == "3"
+    rot_codes = {int(ln.split()[0]) for ln in rot_lines[3:]}
+    assert rot_codes == {10000, 20000, 30000}

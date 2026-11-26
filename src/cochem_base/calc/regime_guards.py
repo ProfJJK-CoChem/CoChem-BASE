@@ -132,10 +132,12 @@ def _match_basis_token(theory_level: str) -> tuple[int, str] | None:
     """Locate the primary orbital basis token inside an ORCA theory_level string."""
     tokens = theory_level.split()
     basis_pattern = re.compile(
-        r"^(?:(?:dkh|zora|ma|aug|d-aug|jun|may|apr|old-dkh|sarc-dkh|sarc-zora)-)*"
-        r"(?:def2-(?:s|tz|qz)vp{1,2}d?|cc-p(?:w?c)?v[dtq56]z(?:-dk|-f12)?|"
+        r"^(?:(?:dkh|zora|ma|aug|d-aug|t-aug|maug|jun|may|apr|jul|old-dkh|old-zora|sarc-dkh|sarc-zora)-)*"
+        r"(?:def2-(?:sv\(p\)|msvp|svpd|svp|tzvp\(-f\)|tzvppd|tzvpp|tzvpd|tzvp|qzvppd|qzvpp|qzvpd|qzvp)|"
+        r"x2c-(?:sv\(p\)|svp|tzvpp|tzvp|qzvpp|qzvp)all(?:-2c)?(?:-s)?|"
+        r"cc-p(?:w?c)?v[dtq56]z(?:-dk|-pp|-f12)?|"
         r"p(?:w?c)?v[dtq56]z|sto-[36]g|[346]-\d+\+{0,2}g(?:\*{0,2}|\([dfp,]+\))?|"
-        r"pc(?:seg)?-[0-4]|ano[0-9a-z_-]*|mini|minix|dz|dzp|d95\*?)$",
+        r"pc(?:seg)?-[0-4]|ano[0-9a-z_-]*|mini|minix|midi|dz|dzp|d95\*?)$",
         re.IGNORECASE,
     )
     for idx, token in enumerate(tokens):
@@ -144,6 +146,82 @@ def _match_basis_token(theory_level: str) -> tuple[int, str] | None:
         if basis_pattern.fullmatch(token):
             return idx, token
     return None
+
+
+def _basis_zeta(basis: str) -> int | None:
+    """Return the cardinal zeta number (1=SZ, 2=DZ/SVP, 3=TZ, 4=QZ, 5=5Z, 6=6Z), or None if unknown."""
+    lower = basis.strip().lower()
+    if not lower:
+        return None
+    if re.search(r"(?:^|-)p?(?:w?c)?v6z(?:$|-)", lower):
+        return 6
+    if re.search(r"(?:^|-)p?(?:w?c)?v5z(?:$|-)", lower) or re.fullmatch(r"(?:aug-)?pc(?:seg)?-4", lower):
+        return 5
+    if (
+        re.search(r"(?:^|-)p?(?:w?c)?vqz(?:$|-)", lower)
+        or re.search(r"(?:^|-)qzvp{1,2}(?:d|all)?(?:$|[-_(])", lower)
+        or re.fullmatch(r"(?:aug-)?pc(?:seg)?-3", lower)
+        or lower in {"ano2", "ano-rcc-vqzp"}
+    ):
+        return 4
+    if (
+        re.search(r"(?:^|-)p?(?:w?c)?vtz(?:$|-)", lower)
+        or re.search(r"(?:^|-)tzvp{1,2}(?:d|all)?(?:$|[-_(])", lower)
+        or re.fullmatch(r"6-311\+{0,2}g(?:\*{0,2}|\([^)]+\))?", lower)
+        or re.fullmatch(r"(?:aug-)?pc(?:seg)?-2", lower)
+        or lower in {"ano1", "ano-rcc-vtzp"}
+    ):
+        return 3
+    if (
+        re.search(r"(?:^|-)p?(?:w?c)?vdz(?:$|-)", lower)
+        or re.search(r"(?:^|-)(?:m?sv\(?p\)?d?|svp(?:d|all)?|sv\(p\)all)(?:$|[-_(])", lower)
+        or re.fullmatch(r"[346]-[23]1\+{0,2}g(?:\*{0,2}|\([^)]+\))?", lower)
+        or re.fullmatch(r"(?:aug-)?pc(?:seg)?-[01]", lower)
+        or lower in {"dz", "dzp", "d95", "d95*", "ano0", "ano-rcc-vdzp"}
+    ):
+        return 2
+    if lower in {"sto-3g", "sto-6g", "mini", "minix", "midi"}:
+        return 1
+    return None
+
+
+def _basis_family_tags(basis: str) -> frozenset[str]:
+    """Extract relativistic/pseudopotential family tags that must never be stripped."""
+    lower = basis.strip().lower()
+    tags: set[str] = set()
+    if lower.startswith(("dkh-", "ma-dkh-", "dkh-ma-", "old-dkh-", "sarc-dkh-")) or lower.endswith("-dk"):
+        tags.add("dkh")
+    if lower.startswith(("zora-", "ma-zora-", "zora-ma-", "old-zora-", "sarc-zora-")):
+        tags.add("zora")
+    if lower.startswith(("x2c-", "ma-x2c-", "aug-x2c-")) or lower.endswith("-x2c"):
+        tags.add("x2c")
+    if lower.endswith("-pp"):
+        tags.add("pp")
+    return frozenset(tags)
+
+
+def _assert_non_downgrading_diffuse_upgrade(original: str, upgraded: str, *, engine: str) -> str:
+    """Enforce structural invariants: diffuse output, zeta monotonicity, and family preservation."""
+    if not is_diffuse_basis(upgraded):
+        raise ValueError(
+            f"Internal regime-guard invariant violated on engine={engine!r}: mapped basis {upgraded!r} "
+            f"for {original!r} is not diffuse."
+        )
+    orig_zeta = _basis_zeta(original)
+    new_zeta = _basis_zeta(upgraded)
+    if orig_zeta is not None and (new_zeta is None or new_zeta < orig_zeta):
+        raise ValueError(
+            f"Refusing silent basis zeta downgrade for anion on engine={engine!r}: "
+            f"{original!r} (zeta={orig_zeta}) -> {upgraded!r} (zeta={new_zeta})."
+        )
+    orig_tags = _basis_family_tags(original)
+    new_tags = _basis_family_tags(upgraded)
+    if not orig_tags.issubset(new_tags):
+        raise ValueError(
+            f"Refusing relativistic/ECP family stripping for anion on engine={engine!r}: "
+            f"{original!r} ({sorted(orig_tags)}) -> {upgraded!r} ({sorted(new_tags)})."
+        )
+    return upgraded
 
 
 @dataclass(frozen=True)
@@ -164,14 +242,23 @@ class AnionDiffuseGuardDecision:
 
 
 def _map_diffuse_basis(basis: str, engine: str) -> str:
-    """Map a non-diffuse basis set to its matching diffuse basis for the target engine."""
+    """Map a non-diffuse basis set to an exact same-family, non-downgrading diffuse basis.
+
+    Raises:
+        ValueError: Fail closed when no verified same-zeta, same-family diffuse counterpart
+            exists (including relativistic x2c-* bases or unrecognized exotic basis sets).
+            Never silently falls back to ma-def2-SVP or aug-cc-pVDZ.
+    """
     cleaned = basis.strip()
     lower = cleaned.lower()
     eng = engine.strip().lower()
+    orig_zeta = _basis_zeta(cleaned)
+    candidate: str | None = None
 
-    # Karlsruhe def2 family
+    # Karlsruhe def2 family (including ORCA DKH-def2-* and ZORA-def2-* scalar-relativistic sets)
     if eng == "cfour":
         cfour_def2 = {
+            "def2-sv(p)": "def2-SVPD",
             "def2-svp": "def2-SVPD",
             "def2-tzvp": "def2-TZVPD",
             "def2-tzvpp": "def2-TZVPPD",
@@ -179,56 +266,92 @@ def _map_diffuse_basis(basis: str, engine: str) -> str:
             "def2-qzvpp": "def2-QZVPPD",
         }
         if lower in cfour_def2:
-            return cfour_def2[lower]
+            candidate = cfour_def2[lower]
     else:
         orca_pyscf_def2 = {
+            "def2-sv(p)": "ma-def2-SVP",
             "def2-svp": "ma-def2-SVP",
             "def2-tzvp": "ma-def2-TZVP",
             "def2-tzvpp": "def2-TZVPPD",
             "def2-qzvp": "ma-def2-QZVP",
             "def2-qzvpp": "def2-QZVPPD",
+            # Verified live in ORCA 6.1.1: ma-DKH-def2-{SV(P),SVP,TZVP,TZVP(-f),TZVPP,QZVPP}
+            # Note: ORCA 6 defines ma-DKH-def2-QZVPP (not ma-DKH-def2-QZVP)
+            "dkh-def2-sv(p)": "ma-DKH-def2-SV(P)",
             "dkh-def2-svp": "ma-DKH-def2-SVP",
             "dkh-def2-tzvp": "ma-DKH-def2-TZVP",
+            "dkh-def2-tzvp(-f)": "ma-DKH-def2-TZVP(-f)",
             "dkh-def2-tzvpp": "ma-DKH-def2-TZVPP",
-            "dkh-def2-qzvp": "ma-DKH-def2-QZVP",
+            "dkh-def2-qzvp": "ma-DKH-def2-QZVPP",
+            "dkh-def2-qzvpp": "ma-DKH-def2-QZVPP",
+            # Verified live in ORCA 6.1.1: ma-ZORA-def2-{SV(P),SVP,TZVP,TZVP(-f),TZVPP,QZVPP}
+            "zora-def2-sv(p)": "ma-ZORA-def2-SV(P)",
             "zora-def2-svp": "ma-ZORA-def2-SVP",
             "zora-def2-tzvp": "ma-ZORA-def2-TZVP",
+            "zora-def2-tzvp(-f)": "ma-ZORA-def2-TZVP(-f)",
             "zora-def2-tzvpp": "ma-ZORA-def2-TZVPP",
-            "zora-def2-qzvp": "ma-ZORA-def2-QZVP",
+            "zora-def2-qzvp": "ma-ZORA-def2-QZVPP",
+            "zora-def2-qzvpp": "ma-ZORA-def2-QZVPP",
         }
         if lower in orca_pyscf_def2:
-            return orca_pyscf_def2[lower]
+            candidate = orca_pyscf_def2[lower]
 
-    # Dunning correlation-consistent family (cc-pVXZ, cc-pCVXZ, cc-pwCVXZ)
-    dunning = re.fullmatch(r"(cc-p(?:w?c)?v[dtq56]z(?:-dk|-f12)?)", cleaned, re.IGNORECASE)
-    if dunning:
-        return f"aug-{dunning.group(1)}"
+    # Dunning correlation-consistent family:
+    # cc-pV(D|T|Q|5)Z-PP, cc-pV(D|T|Q|5)Z-DK, cc-p(w)CV(D|T|Q|5)Z(-DK|-PP)?, cc-pV(D|T|Q|5|6)Z(-F12)?
+    if candidate is None:
+        dunning_rel_pp = re.fullmatch(r"(cc-p(?:w?c)?v[dtq5]z-(?:dk|pp))", cleaned, re.IGNORECASE)
+        if dunning_rel_pp:
+            candidate = f"aug-{dunning_rel_pp.group(1)}"
 
-    # CFOUR short Dunning keywords (PVDZ -> AUG-PVDZ, etc.)
-    cfour_short = re.fullmatch(r"(p(?:w?c)?v[dtq56]z)", cleaned, re.IGNORECASE)
-    if cfour_short:
-        return f"AUG-{cfour_short.group(1).upper()}"
+    if candidate is None:
+        dunning_std = re.fullmatch(r"(cc-p(?:w?c)?v[dtq56]z(?:-f12)?)", cleaned, re.IGNORECASE)
+        if dunning_std:
+            candidate = f"aug-{dunning_std.group(1)}"
+
+    # CFOUR short Dunning keywords (PVDZ -> AUG-PVDZ, PWCVTZ -> AUG-PWCVTZ, etc.)
+    if candidate is None:
+        cfour_short = re.fullmatch(r"(p(?:w?c)?v[dtq56]z)", cleaned, re.IGNORECASE)
+        if cfour_short:
+            candidate = f"AUG-{cfour_short.group(1).upper()}"
 
     # Pople split-valence sets (6-31G*, 6-31G**, 6-311G(d,p), etc.)
-    pople = re.fullmatch(r"([346]-\d+)g(\*{0,2}|\([^)]+\))?", cleaned, re.IGNORECASE)
-    if pople:
-        stem, pol = pople.group(1), pople.group(2) or ""
-        if stem == "3-21":
-            return "aug-cc-pVDZ" if eng == "cfour" else "ma-def2-SVP"
-        diffuse_plus = "++" if ("**" in pol or "," in pol) else "+"
-        return f"{stem}{diffuse_plus}G{pol}"
+    if candidate is None:
+        pople = re.fullmatch(r"([346]-\d+)g(\*{0,2}|\([^)]+\))?", cleaned, re.IGNORECASE)
+        if pople:
+            stem, pol = pople.group(1), pople.group(2) or ""
+            if stem == "3-21":
+                candidate = "aug-cc-pVDZ" if eng == "cfour" else "ma-def2-SVP"
+            else:
+                diffuse_plus = "++" if ("**" in pol or "," in pol) else "+"
+                candidate = f"{stem}{diffuse_plus}G{pol}"
 
     # Jensen polarization-consistent sets (pc-n, pcseg-n)
-    jensen = re.fullmatch(r"(pc(?:seg)?-[0-4])", cleaned, re.IGNORECASE)
-    if jensen:
-        return f"aug-{jensen.group(1)}"
+    if candidate is None:
+        jensen = re.fullmatch(r"(pc(?:seg)?-[0-4])", cleaned, re.IGNORECASE)
+        if jensen:
+            candidate = f"aug-{jensen.group(1)}"
 
-    # Minimal / small basis sets (STO-3G, MINI, MINIX, DZ, DZP, D95, MIDI)
-    if lower in {"sto-3g", "sto-6g", "mini", "minix", "dz", "dzp", "d95", "d95*", "midi"}:
-        return "aug-cc-pVDZ" if eng == "cfour" else "ma-def2-SVP"
+    # Explicitly recognized minimal / double-zeta non-relativistic basis sets (zeta <= 2 only)
+    if candidate is None and lower in {"sto-3g", "sto-6g", "mini", "minix", "dz", "dzp", "d95", "d95*", "midi"}:
+        candidate = "aug-cc-pVDZ" if eng == "cfour" else "ma-def2-SVP"
 
-    # Generic fallback for other recognized non-diffuse bases
-    return "aug-cc-pVDZ" if eng == "cfour" else "ma-def2-SVP"
+    if candidate is None:
+        zeta_note = f" (zeta={orig_zeta})" if orig_zeta is not None else ""
+        if lower.startswith("x2c-") or lower.endswith("-x2c"):
+            raise ValueError(
+                f"Anion diffuse-basis guard cannot auto-upgrade relativistic X2C basis {cleaned!r}{zeta_note} "
+                f"on engine={eng!r}: ORCA 6 / standard libraries provide no exact same-zeta diffuse x2c-* "
+                f"counterpart, and silent downgrade to ma-def2-SVP/aug-cc-pVDZ is prohibited. "
+                f"Please specify an explicit diffuse basis of matching zeta (e.g., ma-DKH-def2-TZVP, "
+                f"ma-ZORA-def2-TZVP, aug-cc-pVTZ-DK, or aug-cc-pVTZ-PP)."
+            )
+        raise ValueError(
+            f"Anion diffuse-basis guard has no verified same-zeta, same-family diffuse counterpart "
+            f"for basis {cleaned!r}{zeta_note} on engine={eng!r}; refusing silent fallback to "
+            f"ma-def2-SVP/aug-cc-pVDZ. Please specify an explicit diffuse basis of matching zeta."
+        )
+
+    return _assert_non_downgrading_diffuse_upgrade(cleaned, candidate, engine=eng)
 
 
 def upgrade_anion_diffuse_basis(
@@ -346,24 +469,67 @@ class HeavyElementGuardDecision:
 def _is_def2_ecp_basis(basis: str | None) -> bool:
     if not basis:
         return False
-    return bool(re.fullmatch(r"(?:ma-)?def2-(?:s|tz|qz)vp{1,2}d?", basis.strip(), re.IGNORECASE))
+    return bool(
+        re.fullmatch(
+            r"(?:ma-)?def2-(?:sv\(p\)|msvp|svpd|svp|tzvppd|tzvpp|tzvpd|tzvp|qzvppd|qzvpp|qzvpd|qzvp)",
+            basis.strip(),
+            re.IGNORECASE,
+        )
+    )
+
+
+def _is_pp_ecp_basis(basis: str | None) -> bool:
+    if not basis:
+        return False
+    return bool(
+        re.fullmatch(
+            r"(?:(?:d-|t-)?aug-|jun-|may-|apr-|jul-)?cc-p(?:w?c)?v[dtq5]z-pp",
+            basis.strip(),
+            re.IGNORECASE,
+        )
+    )
 
 
 def _to_dkh_or_zora_base_basis(basis: str | None, hamiltonian: str) -> str:
-    """Convert a standard def2/light basis to a valid ORCA DKH2/ZORA light-atom basis."""
+    """Convert a standard def2/light basis to a valid ORCA DKH2/ZORA light-atom basis without zeta downgrade."""
     prefix = "ZORA" if hamiltonian.upper() == "ZORA" else "DKH"
     if not basis:
         return f"{prefix}-def2-TZVP"
     cleaned = basis.strip()
     lower = cleaned.lower()
     if lower.startswith((f"{prefix.lower()}-", f"ma-{prefix.lower()}-", f"sarc-{prefix.lower()}-", f"old-{prefix.lower()}-")):
+        if lower == f"{prefix.lower()}-def2-qzvp":
+            return f"{prefix}-def2-QZVPP"
+        if lower == f"ma-{prefix.lower()}-def2-qzvp":
+            return f"ma-{prefix}-def2-QZVPP"
+        return cleaned
+    if prefix == "DKH" and lower.endswith("-dk"):
         return cleaned
     if lower.startswith("ma-def2-"):
-        return f"ma-{prefix}-def2-{cleaned[8:]}"
+        suffix = cleaned[8:]
+        if suffix.lower() == "qzvp":
+            suffix = "QZVPP"
+        return f"ma-{prefix}-def2-{suffix}"
+    if lower in {"def2-svpd", "def2-tzvpd", "def2-tzvppd", "def2-qzvpd", "def2-qzvppd"}:
+        mapped_d = {
+            "def2-svpd": f"ma-{prefix}-def2-SVP",
+            "def2-tzvpd": f"ma-{prefix}-def2-TZVP",
+            "def2-tzvppd": f"ma-{prefix}-def2-TZVPP",
+            "def2-qzvpd": f"ma-{prefix}-def2-QZVPP",
+            "def2-qzvppd": f"ma-{prefix}-def2-QZVPP",
+        }
+        return mapped_d[lower]
     if lower.startswith("def2-"):
-        return f"{prefix}-{cleaned}"
-    if re.fullmatch(r"(?:aug-)?cc-p(?:w?c)?v[dtq56]z", lower):
-        return f"{cleaned}-DK" if prefix == "DKH" else f"{prefix}-def2-TZVP"
+        suffix = cleaned[5:]
+        if suffix.lower() == "qzvp":
+            suffix = "QZVPP"
+        return f"{prefix}-def2-{suffix}"
+    if re.fullmatch(r"(?:aug-)?cc-p(?:w?c)?v[dtq5]z", lower):
+        if prefix == "DKH":
+            return f"{cleaned}-DK"
+        zeta = _basis_zeta(cleaned) or 3
+        stem = {2: "SVP", 3: "TZVP", 4: "QZVPP", 5: "QZVPP"}.get(zeta, "TZVP")
+        return f"ma-ZORA-def2-{stem}" if is_diffuse_basis(cleaned) else f"ZORA-def2-{stem}"
     return f"{prefix}-def2-TZVP"
 
 
@@ -457,6 +623,23 @@ def evaluate_heavy_element_and_tm_guard(
             )
             logger.warning(w)
             warnings_list.append(w)
+        elif existing_rel is None and not superheavy and _is_pp_ecp_basis(effective_basis):
+            # ORCA 6 automatically assigns scalar-relativistic SK-MCDHF-RSC ECPs for -PP bases
+            # on heavy atoms (Z=37..86). For mixed molecules containing light atoms (Z <= 28)
+            # lacking -PP definitions in ORCA, assign the matching same-zeta non-PP Dunning
+            # basis via %basis NewGTO while keeping the global -PP basis and ECP intact.
+            relativistic_mode = "PP-ECP (SK-MCDHF-RSC)"
+            non_pp_basis = effective_basis[:-3]
+            light_for_pp = tuple(dict.fromkeys(sym for sym, z in z_values if z <= 28))
+            for sym in light_for_pp:
+                orca_basis_block_lines.append(f'  NewGTO {sym} "{non_pp_basis}" end')
+            w = (
+                f"[REGIME_GUARD: HEAVY_ELEMENT_ECP] Heavy element(s) {', '.join(heavy)} (max Z={max_z}, Z in 37..86) "
+                f"on ORCA with pseudopotential basis '{effective_basis}': scalar-relativistic SK-MCDHF-RSC ECP "
+                f"is active and DEFGRID3 is enforced."
+            )
+            logger.warning(w)
+            warnings_list.append(w)
         else:
             # All-electron basis (e.g., cc-pVXZ, STO-3G, 6-31G*), explicit DKH2/ZORA, or Z > 86:
             # Inject DKH2 (or preserve explicit ZORA/X2C) with valid ORCA 6 scalar-relativistic basis sets.
@@ -497,13 +680,17 @@ def evaluate_heavy_element_and_tm_guard(
         warnings_list.append(w)
 
     elif eng in {"pyscf", "gpu4pyscf"}:
-        if not superheavy and _is_def2_ecp_basis(effective_basis):
+        if not superheavy and (_is_def2_ecp_basis(effective_basis) or _is_pp_ecp_basis(effective_basis)):
             # In PySCF, ECPs are NOT loaded unless gto.M(..., ecp=...) is passed explicitly!
             ecp_basis_name = effective_basis
             if ecp_basis_name and ecp_basis_name.lower().startswith("ma-"):
                 ecp_basis_name = ecp_basis_name[3:]
             pyscf_ecp = {sym: ecp_basis_name for sym in heavy_37_86}
-            relativistic_mode = f"def2-ECP ({ecp_basis_name})"
+            relativistic_mode = (
+                f"PP-ECP ({ecp_basis_name})"
+                if _is_pp_ecp_basis(effective_basis)
+                else f"def2-ECP ({ecp_basis_name})"
+            )
             w = (
                 f"[REGIME_GUARD: HEAVY_ELEMENT_ECP] Heavy element(s) {', '.join(heavy_37_86)} "
                 f"(max Z={max_z}) on {eng}: explicitly attached scalar-relativistic ECP "

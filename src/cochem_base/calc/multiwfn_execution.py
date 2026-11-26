@@ -297,18 +297,42 @@ def _run_multiwfn_batch(
             shutil.rmtree(stage_dir, ignore_errors=True)
 
 
-def parse_multiwfn_qtaim(stdout_text: str, cpprop_text: str | None = None) -> dict[str, Any]:
-    """Parse Multiwfn QTAIM critical point counts, Poincare-Hopf invariant, and BCP properties."""
+def parse_multiwfn_qtaim(
+    stdout_text: str,
+    cpprop_text: str | None = None,
+    *,
+    expected_atoms: int | None = None,
+) -> dict[str, Any]:
+    """Parse Multiwfn QTAIM critical point counts, Poincare-Hopf invariant, and BCP properties.
+
+    Raises:
+        ValueError: If the authentic Multiwfn banner or critical-point summary block is
+            missing from `stdout_text`, or if `expected_atoms` is not a positive integer.
+    """
     banner = _extract_multiwfn_banner(stdout_text)
+
+    if expected_atoms is not None:
+        if isinstance(expected_atoms, bool) or not isinstance(expected_atoms, int) or expected_atoms <= 0:
+            raise ValueError(f"expected_atoms must be a positive integer, got {expected_atoms!r}")
 
     counts_match = re.findall(
         r"\(3,-3\):\s*(\d+),\s*\(3,-1\):\s*(\d+),\s*\(3,\+1\):\s*(\d+),\s*\(3,\+3\):\s*(\d+)",
         stdout_text,
     )
-    if counts_match:
-        n_ncp, n_bcp, n_rcp, n_ccp = (int(x) for x in counts_match[-1])
-    else:
-        n_ncp = n_bcp = n_rcp = n_ccp = 0
+    if not counts_match:
+        raise ValueError("Multiwfn QTAIM output missing critical-point summary")
+    n_ncp, n_bcp, n_rcp, n_ccp = (int(x) for x in counts_match[-1])
+
+    atom_count: int | None = expected_atoms
+    if atom_count is None:
+        atom_match = (
+            re.search(r"\bAtoms\s*:\s*(\d+)\b", stdout_text)
+            or re.search(r"Number\s+of\s+atoms\s*[:=]\s*(\d+)", stdout_text, re.IGNORECASE)
+        )
+        if atom_match:
+            parsed_atoms = int(atom_match.group(1))
+            if parsed_atoms > 0:
+                atom_count = parsed_atoms
 
     bcps: list[dict[str, Any]] = []
     all_cps: list[dict[str, Any]] = []
@@ -369,19 +393,16 @@ def parse_multiwfn_qtaim(stdout_text: str, cpprop_text: str | None = None) -> di
             if cp_type == "3,-1":
                 bcps.append(record)
 
-        if not counts_match and all_cps:
-            n_ncp = sum(1 for cp in all_cps if cp["type"] == "(3,-3)")
-            n_bcp = sum(1 for cp in all_cps if cp["type"] == "(3,-1)")
-            n_rcp = sum(1 for cp in all_cps if cp["type"] == "(3,+1)")
-            n_ccp = sum(1 for cp in all_cps if cp["type"] == "(3,+3)")
-
     chi = n_ncp - n_bcp + n_rcp - n_ccp
+    ncp_matches_atoms: bool | None = (n_ncp == atom_count) if atom_count is not None else None
     return {
         **banner,
         "n_ncp": n_ncp,
         "n_bcp": n_bcp,
         "n_rcp": n_rcp,
         "n_ccp": n_ccp,
+        "atom_count": atom_count,
+        "ncp_matches_atoms": ncp_matches_atoms,
         "poincare_hopf_chi": chi,
         "poincare_hopf_satisfied": chi == 1,
         "bcps": bcps,
@@ -509,6 +530,7 @@ def run_multiwfn_qtaim(
     workdir: str | Path,
     multiwfn_executable: str | Path | None = None,
     orca_2mkl_executable: str | Path | None = None,
+    expected_atoms: int | None = None,
     timeout_seconds: float = 300.0,
     env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
@@ -533,7 +555,7 @@ def run_multiwfn_qtaim(
     log_path.write_text(run_info["stdout"], encoding="utf-8")
     cpprop_path = run_info["collected_files"].get("CPprop.txt")
     cpprop_text = cpprop_path.read_text(encoding="utf-8", errors="replace") if cpprop_path else None
-    parsed = parse_multiwfn_qtaim(run_info["stdout"], cpprop_text)
+    parsed = parse_multiwfn_qtaim(run_info["stdout"], cpprop_text, expected_atoms=expected_atoms)
     parsed.update({
         "engine": "multiwfn",
         "analysis": "qtaim",

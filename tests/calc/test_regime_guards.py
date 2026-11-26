@@ -35,6 +35,9 @@ from cochem_base.calc.regime_guards import (
     MAX_IMAGINARY_MODE_RETRIES,
     MAX_SCF_RETRIES,
     ImaginaryModePersistenceError,
+    _assert_non_downgrading_diffuse_upgrade,
+    _basis_family_tags,
+    _basis_zeta,
     apply_chemical_regime_guards,
     displace_along_imaginary_mode,
     evaluate_heavy_element_and_tm_guard,
@@ -92,13 +95,197 @@ def test_anion_diffuse_basis_upgrade_mapping_and_warning(engine: str, requested:
 
 @pytest.mark.parametrize("diffuse_basis", [
     "ma-def2-SVP", "ma-def2-TZVP", "def2-TZVPPD", "def2-QZVPPD",
-    "aug-cc-pVDZ", "aug-cc-pVTZ", "6-31+G*", "6-31++G**", "ANO-RCC",
+    "ma-DKH-def2-TZVP", "ma-DKH-def2-QZVPP", "ma-ZORA-def2-TZVP", "ma-ZORA-def2-QZVPP",
+    "aug-cc-pVDZ", "aug-cc-pVTZ", "aug-cc-pVTZ-PP", "aug-cc-pVQZ-PP",
+    "aug-cc-pVTZ-DK", "aug-cc-pwCVTZ-DK", "aug-cc-pwCVQZ-PP",
+    "6-31+G*", "6-31++G**", "ANO-RCC",
 ])
 def test_already_diffuse_basis_is_not_double_upgraded(diffuse_basis: str) -> None:
     assert is_diffuse_basis(diffuse_basis) is True
     dec = upgrade_anion_diffuse_basis(diffuse_basis, charge=-1, engine="orca")
     assert dec.triggered is False
     assert dec.effective_basis == diffuse_basis
+
+
+@pytest.mark.parametrize("engine,requested,expected", [
+    # Dunning pseudopotential (-PP) family: preserve zeta and -PP
+    ("orca", "cc-pVDZ-PP", "aug-cc-pVDZ-PP"),
+    ("orca", "cc-pVTZ-PP", "aug-cc-pVTZ-PP"),
+    ("orca", "cc-pVQZ-PP", "aug-cc-pVQZ-PP"),
+    ("orca", "cc-pV5Z-PP", "aug-cc-pV5Z-PP"),
+    ("cfour", "cc-pVQZ-PP", "aug-cc-pVQZ-PP"),
+    ("pyscf", "cc-pVTZ-PP", "aug-cc-pVTZ-PP"),
+    # Dunning Douglas-Kroll (-DK) family: preserve zeta and -DK
+    ("orca", "cc-pVDZ-DK", "aug-cc-pVDZ-DK"),
+    ("orca", "cc-pVTZ-DK", "aug-cc-pVTZ-DK"),
+    ("orca", "cc-pVQZ-DK", "aug-cc-pVQZ-DK"),
+    ("orca", "cc-pV5Z-DK", "aug-cc-pV5Z-DK"),
+    # Weighted core-valence Dunning family (standard, -DK, -PP)
+    ("orca", "cc-pwCVDZ", "aug-cc-pwCVDZ"),
+    ("orca", "cc-pwCVTZ", "aug-cc-pwCVTZ"),
+    ("orca", "cc-pwCVTZ-DK", "aug-cc-pwCVTZ-DK"),
+    ("orca", "cc-pwCVQZ-DK", "aug-cc-pwCVQZ-DK"),
+    ("orca", "cc-pwCVTZ-PP", "aug-cc-pwCVTZ-PP"),
+    ("orca", "cc-pwCVQZ-PP", "aug-cc-pwCVQZ-PP"),
+    ("orca", "cc-pwCV5Z-PP", "aug-cc-pwCV5Z-PP"),
+    # ORCA scalar-relativistic Karlsruhe DKH-def2-* and ZORA-def2-*
+    ("orca", "DKH-def2-SVP", "ma-DKH-def2-SVP"),
+    ("orca", "DKH-def2-TZVP", "ma-DKH-def2-TZVP"),
+    ("orca", "DKH-def2-TZVPP", "ma-DKH-def2-TZVPP"),
+    ("orca", "DKH-def2-QZVPP", "ma-DKH-def2-QZVPP"),
+    ("orca", "ZORA-def2-SVP", "ma-ZORA-def2-SVP"),
+    ("orca", "ZORA-def2-TZVP", "ma-ZORA-def2-TZVP"),
+    ("orca", "ZORA-def2-TZVPP", "ma-ZORA-def2-TZVPP"),
+    ("orca", "ZORA-def2-QZVPP", "ma-ZORA-def2-QZVPP"),
+])
+def test_anion_diffuse_preserves_zeta_and_relativistic_pp_families(
+    engine: str, requested: str, expected: str
+) -> None:
+    dec = upgrade_anion_diffuse_basis(requested, charge=-1, engine=engine)
+    assert dec.triggered is True
+    assert dec.original_basis == requested
+    assert dec.effective_basis == expected
+    assert is_diffuse_basis(dec.effective_basis) is True
+    orig_zeta = _basis_zeta(requested)
+    new_zeta = _basis_zeta(dec.effective_basis)
+    assert orig_zeta is not None and new_zeta is not None and new_zeta >= orig_zeta
+    assert _basis_family_tags(requested).issubset(_basis_family_tags(dec.effective_basis))
+
+
+@pytest.mark.parametrize("engine,basis", [
+    ("orca", "x2c-SVPall"),
+    ("orca", "x2c-TZVPall"),
+    ("orca", "x2c-TZVPPall"),
+    ("orca", "x2c-QZVPall"),
+    ("orca", "x2c-QZVPPall"),
+    ("orca", "x2c-TZVPall-s"),
+    ("orca", "x2c-TZVPall-2c"),
+    ("cfour", "x2c-TZVPall"),
+    ("cfour", "DKH-def2-QZVPP"),
+    ("orca", "Sapporo-DKH3-QZP-2012"),
+    ("orca", "ANO-VT-QZ"),
+    ("cfour", "exotic-custom-TZ"),
+])
+def test_anion_diffuse_fails_closed_for_x2c_and_exotic_bases(engine: str, basis: str) -> None:
+    # Neutral/cationic runs keep the requested basis untouched
+    neutral = upgrade_anion_diffuse_basis(basis, charge=0, engine=engine)
+    assert neutral.triggered is False
+    assert neutral.effective_basis == basis
+
+    # Anionic runs MUST fail closed with explicit ValueError — never silently downgrade to ma-def2-SVP / aug-cc-pVDZ
+    with pytest.raises(ValueError, match="explicit diffuse basis"):
+        upgrade_anion_diffuse_basis(basis, charge=-1, engine=engine)
+
+
+def test_anion_b2_redteam_six_poc_regressions_and_zeta_monotonicity(
+    tmp_path: Path, configured_registry
+) -> None:
+    # Structural zeta ordering & invariant enforcement
+    assert _basis_zeta("STO-3G") == 1
+    assert _basis_zeta("def2-SVP") == 2
+    assert _basis_zeta("ma-def2-SVP") == 2
+    assert _basis_zeta("x2c-TZVPall") == 3
+    assert _basis_zeta("cc-pVTZ-PP") == 3
+    assert _basis_zeta("aug-cc-pVTZ-PP") == 3
+    assert _basis_zeta("DKH-def2-QZVPP") == 4
+    assert _basis_zeta("ma-DKH-def2-QZVPP") == 4
+    assert _basis_zeta("cc-pVQZ-PP") == 4
+    assert _basis_zeta("cc-pV5Z-PP") == 5
+    assert _basis_zeta("cc-pV6Z") == 6
+
+    with pytest.raises(ValueError, match="zeta downgrade"):
+        _assert_non_downgrading_diffuse_upgrade("cc-pVTZ-PP", "aug-cc-pVDZ-PP", engine="orca")
+    with pytest.raises(ValueError, match="zeta downgrade"):
+        _assert_non_downgrading_diffuse_upgrade("DKH-def2-QZVPP", "ma-DKH-def2-TZVP", engine="orca")
+    with pytest.raises(ValueError, match="family stripping"):
+        _assert_non_downgrading_diffuse_upgrade("cc-pVTZ-PP", "aug-cc-pVTZ", engine="orca")
+    with pytest.raises(ValueError, match="family stripping"):
+        _assert_non_downgrading_diffuse_upgrade("DKH-def2-TZVP", "ma-def2-TZVP", engine="orca")
+
+    # PoC 1: orca x2c-TZVPall (charge=-1) -> fail closed ValueError (never ma-def2-SVP)
+    with pytest.raises(ValueError, match="x2c"):
+        upgrade_anion_diffuse_basis("x2c-TZVPall", charge=-1, engine="orca")
+
+    # PoC 2: orca DKH-def2-QZVPP (charge=-1) -> ma-DKH-def2-QZVPP (QZ DKH preserved)
+    poc2 = upgrade_anion_diffuse_basis("DKH-def2-QZVPP", charge=-1, engine="orca")
+    assert poc2.effective_basis == "ma-DKH-def2-QZVPP"
+
+    # PoC 3: orca cc-pVTZ-PP (charge=-1) -> aug-cc-pVTZ-PP (TZ PP preserved)
+    poc3 = upgrade_anion_diffuse_basis("cc-pVTZ-PP", charge=-1, engine="orca")
+    assert poc3.effective_basis == "aug-cc-pVTZ-PP"
+
+    # PoC 4: cfour cc-pVQZ-PP (charge=-1) -> aug-cc-pVQZ-PP (QZ PP preserved)
+    poc4 = upgrade_anion_diffuse_basis("cc-pVQZ-PP", charge=-1, engine="cfour")
+    assert poc4.effective_basis == "aug-cc-pVQZ-PP"
+
+    # PoC 5: full-guard ['I', 'C', 'H', 'H', 'H'] q=-1 cc-pVTZ-PP -> aug-cc-pVTZ-PP + light-atom NewGTO + DEFGRID3
+    poc5 = apply_chemical_regime_guards(
+        ["I", "C", "H", "H", "H"],
+        charge=-1,
+        method_or_theory="B3LYP D3BJ cc-pVTZ-PP",
+        engine="orca",
+    )
+    assert poc5.effective_basis == "aug-cc-pVTZ-PP"
+    assert "aug-cc-pVTZ-PP" in poc5.effective_theory_level
+    assert "ma-def2-SVP" not in poc5.effective_theory_level
+    assert "DKH2" not in poc5.effective_theory_level
+    assert poc5.require_defgrid3 is True
+    assert '  NewGTO C "aug-cc-pVTZ" end' in poc5.orca_basis_block_lines
+    assert '  NewGTO H "aug-cc-pVTZ" end' in poc5.orca_basis_block_lines
+
+    # Also verify full ORCA deck compilation for PoC 5 and PoC 2
+    ch3i_mol = MoleculeInput(
+        basin_id="ch3i_anion_pp",
+        elements=["I", "C", "H", "H", "H"],
+        coordinates=[
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, 2.14),
+            (1.03, 0.0, 2.49),
+            (-0.515, 0.892, 2.49),
+            (-0.515, -0.892, 2.49),
+        ],
+        theory_level="B3LYP D3BJ cc-pVTZ-PP",
+        charge=-1,
+        multiplicity=2,
+        is_opt=False,
+    )
+    ch3i_deck = generate_orca_input(ch3i_mol, output_dir=tmp_path).read_text(encoding="utf-8")
+    assert "aug-cc-pVTZ-PP" in ch3i_deck
+    assert 'NewGTO C "aug-cc-pVTZ" end' in ch3i_deck
+    assert 'NewGTO H "aug-cc-pVTZ" end' in ch3i_deck
+    assert "DEFGRID3" in ch3i_deck
+    assert "ma-def2-SVP" not in ch3i_deck
+
+    f_dkh_mol = MoleculeInput(
+        basin_id="f_anion_dkh_qz",
+        elements=["F"],
+        coordinates=[(0.0, 0.0, 0.0)],
+        theory_level="B3LYP D3BJ DKH2 DKH-def2-QZVPP",
+        charge=-1,
+        multiplicity=1,
+        is_opt=False,
+    )
+    f_dkh_deck = generate_orca_input(f_dkh_mol, output_dir=tmp_path).read_text(encoding="utf-8")
+    assert "ma-DKH-def2-QZVPP" in f_dkh_deck
+    assert "DKH2" in f_dkh_deck
+    assert "ma-def2-SVP" not in f_dkh_deck
+
+    # PoC 6: full-guard ['Br'] q=-1 x2c-TZVPall -> fail closed ValueError (never ma-def2-SVP)
+    with pytest.raises(ValueError, match="x2c"):
+        apply_chemical_regime_guards(
+            ["Br"],
+            charge=-1,
+            method_or_theory="B3LYP D3BJ X2C x2c-TZVPall",
+            engine="orca",
+        )
+    with pytest.raises(ValueError, match="x2c"):
+        apply_chemical_regime_guards(
+            ["Br"],
+            charge=-1,
+            method_or_theory="B3LYP D3BJ",
+            basis="x2c-TZVPall",
+            engine="orca",
+        )
 
 
 def test_anion_guard_wired_into_orca_cfour_pyscf_gpu4pyscf_and_service(

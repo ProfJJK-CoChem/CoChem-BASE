@@ -233,6 +233,52 @@ def test_parse_multiwfn_qtaim_nci_and_mayer(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Authentic Multiwfn banner"):
         parse_multiwfn_qtaim("no banner here", cpprop)
 
+    # Missing CP-count summary block MUST fail closed with explicit ValueError (never silently return 0,0,0,0 / chi=0)
+    stdout_missing_summary = """
+ Multiwfn -- A Multifunctional Wavefunction Analyzer
+ Version 3.8(dev), update date: 2026-Aug-21
+ Atoms:   3,  Basis functions:  24,  GTFs:  42
+ Topology analysis aborted before critical point summary.
+"""
+    with pytest.raises(ValueError, match="Multiwfn QTAIM output missing critical-point summary"):
+        parse_multiwfn_qtaim(stdout_missing_summary)
+    with pytest.raises(ValueError, match="Multiwfn QTAIM output missing critical-point summary"):
+        parse_multiwfn_qtaim(stdout_missing_summary, cpprop)
+
+    # Explicit ncp_matches_atoms check: None when atom count unknown, bool when known from stdout or expected_atoms
+    assert qtaim["atom_count"] is None
+    assert qtaim["ncp_matches_atoms"] is None
+
+    qtaim_expected_ok = parse_multiwfn_qtaim(stdout_qtaim, cpprop, expected_atoms=3)
+    assert qtaim_expected_ok["atom_count"] == 3
+    assert qtaim_expected_ok["ncp_matches_atoms"] is True
+
+    qtaim_expected_mismatch = parse_multiwfn_qtaim(stdout_qtaim, cpprop, expected_atoms=2)
+    assert qtaim_expected_mismatch["atom_count"] == 2
+    assert qtaim_expected_mismatch["ncp_matches_atoms"] is False
+
+    stdout_with_atoms_match = """
+ Multiwfn -- A Multifunctional Wavefunction Analyzer
+ Version 3.8(dev), update date: 2026-Aug-21
+ Atoms:   3,  Basis functions:  24,  GTFs:  42
+ Summary of found CPs:
+ (3,-3): 3, (3,-1): 2, (3,+1): 0, (3,+3): 0
+"""
+    qtaim_auto_atoms = parse_multiwfn_qtaim(stdout_with_atoms_match)
+    assert qtaim_auto_atoms["atom_count"] == 3
+    assert qtaim_auto_atoms["ncp_matches_atoms"] is True
+
+    stdout_with_nna = stdout_with_atoms_match.replace("(3,-3): 3", "(3,-3): 4")
+    qtaim_nna = parse_multiwfn_qtaim(stdout_with_nna)
+    assert qtaim_nna["atom_count"] == 3
+    assert qtaim_nna["n_ncp"] == 4
+    assert qtaim_nna["ncp_matches_atoms"] is False
+
+    with pytest.raises(ValueError, match="expected_atoms"):
+        parse_multiwfn_qtaim(stdout_qtaim, expected_atoms=0)
+    with pytest.raises(ValueError, match="expected_atoms"):
+        parse_multiwfn_qtaim(stdout_qtaim, expected_atoms=True)
+
     # NCI output.txt grid stats (columns: x y z sign(lambda2)*rho RDG)
     nci_file = tmp_path / "output.txt"
     nci_file.write_text(

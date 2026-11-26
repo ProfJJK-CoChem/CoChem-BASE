@@ -78,6 +78,84 @@ def _orca_method_keywords(theory_level: str) -> str:
     return rendered
 
 
+_ORCA_BASIS_TOKEN_PREFIXES = (
+    "DEF2-", "MA-", "CC-", "AUG-", "D-AUG-", "T-AUG-", "JUN-", "MAY-", "APR-", "JUL-",
+    "OLD-", "DKH-", "ZORA-", "X2C-", "SARC-", "PC-", "PCSEG-", "STO-", "ANO",
+)
+
+_ORCA_VV10_NL_TOKENS = frozenset({"NL", "SCNL", "VV10", "RVV10"})
+
+_ORCA_MP2_AND_DOUBLE_HYBRID_RE = re.compile(
+    r"^(?:"
+    r"(?:RI-|SCS-|SOS-|OO-RI-|OO-|DLPNO-|F12-|RI-SCS-)*MP2(?:-[A-Z0-9]+)?|"
+    r"(?:REV-?)?(?:"
+    r"B2(?:GP|K|T)?-?PLYP|"
+    r"MPW2(?:K-)?PLYP|"
+    r"WB2(?:GP-)?PLYP|"
+    r"PWPB95|"
+    r"(?:DSD|DOD)-[A-Z0-9]+|"
+    r"XYG3|"
+    r"WB97[MX]\(?2\)?|"
+    r"(?:RSX-|PBE-)?QIDH|"
+    r"PBE0-2|"
+    r"SOS0-PBE0-2|"
+    r"[KW]?PR2SCAN50"
+    r")(?:[-/][A-Z0-9-]+)*"
+    r")$",
+    re.IGNORECASE,
+)
+
+_ORCA_CC_METHOD_RE = re.compile(
+    r"^(?:DLPNO-|LPNO-|RI-)?CCSD(?:\(T[01]?\))?(?:-F12[AB]?)?$",
+    re.IGNORECASE,
+)
+
+
+def _orca_requires_numerical_frequency(theory_level: str) -> Tuple[bool, Optional[str]]:
+    """Return (True, reason) when an ORCA 6.1.1 method lacks analytic Hessian support.
+
+    Verified empirically against ORCA 6.1.1:
+    - DFT-NL / VV10 nonlocal dispersion functionals (e.g. wB97M-V, wB97X-V, B97M-V,
+      explicit NL/SCNL/VV10 keywords, *-NL functionals) abort `! Freq` with rc=25 and
+      require `! NumFreq`.
+    - MP2 and MP2-based double-hybrid functionals (e.g. MP2, RI-MP2, B2PLYP, PWPB95,
+      revDSD-PBEP86-D4, DSD-PBEP86, B2GP-PLYP) abort `! Freq` with rc=25 and require
+      `! NumFreq`.
+    - Coupled-cluster methods (e.g. CCSD, CCSD(T), DLPNO-CCSD(T)) lack analytic
+      Hessians in ORCA 6 and require `! NumFreq`.
+    """
+    normalized = theory_level.strip().upper().replace("Ω", "W").replace("Ω", "W")
+    tokens = normalized.split()
+    for raw_tok in tokens:
+        tok = raw_tok.split("/", 1)[0]
+        if tok in _ORCA_VV10_NL_TOKENS or tok.endswith(("-NL", "-SCNL", "-VV10", "-RVV10")):
+            return (
+                True,
+                f"ORCA 6 DFT-NL/VV10 nonlocal dispersion ('{raw_tok}') does not support analytic Hessians; numerical frequencies (! NumFreq) are required.",
+            )
+        if (
+            tok.endswith("-V")
+            and len(tok) >= 4
+            and not tok.endswith("-SV")
+            and not tok.startswith(_ORCA_BASIS_TOKEN_PREFIXES)
+        ):
+            return (
+                True,
+                f"ORCA 6 DFT-NL/VV10 functional '{raw_tok}' does not support analytic Hessians; numerical frequencies (! NumFreq) are required.",
+            )
+        if _ORCA_MP2_AND_DOUBLE_HYBRID_RE.fullmatch(raw_tok) or _ORCA_MP2_AND_DOUBLE_HYBRID_RE.fullmatch(tok):
+            return (
+                True,
+                f"ORCA 6 MP2/double-hybrid method '{raw_tok}' does not support analytic Hessians; numerical frequencies (! NumFreq) are required.",
+            )
+        if _ORCA_CC_METHOD_RE.fullmatch(tok):
+            return (
+                True,
+                f"ORCA 6 coupled-cluster method '{raw_tok}' does not support analytic Hessians; numerical frequencies (! NumFreq) are required.",
+            )
+    return (False, None)
+
+
 class MoleculeInput(BaseModel):
     basin_id: str = Field(..., description="Unique Basin ID")
     elements: List[str] = Field(..., description="List of elements")
@@ -367,8 +445,25 @@ def generate_orca_input(
     basis_block = ""
     if regime.orca_basis_block_lines:
         basis_block = "\n".join(["%basis", *regime.orca_basis_block_lines, "end"])
-    if data.is_freq and not re.search(r"(?i)\b(?:NUMFREQ|FREQ)\b", theory_level):
-        theory_level += " Freq"
+    freq_guard_warnings: List[str] = []
+    needs_numfreq, numfreq_reason = _orca_requires_numerical_frequency(theory_level)
+    if data.is_freq and not re.search(r"(?i)\b(?:NUMFREQ|ANFREQ|FREQ)\b", theory_level):
+        if needs_numfreq:
+            theory_level += " NumFreq"
+            warning_msg = f"[FREQ_GUARD: ORCA_NUMFREQ] Emitted '! NumFreq' instead of '! Freq': {numfreq_reason}"
+            freq_guard_warnings.append(warning_msg)
+            logger.warning(warning_msg)
+        else:
+            theory_level += " Freq"
+    elif (
+        needs_numfreq
+        and re.search(r"(?i)\b(?:ANFREQ|FREQ)\b", theory_level)
+        and not re.search(r"(?i)\bNUMFREQ\b", theory_level)
+    ):
+        theory_level = re.sub(r"(?i)\b(?:ANFREQ|FREQ)\b", "NumFreq", theory_level)
+        warning_msg = f"[FREQ_GUARD: ORCA_NUMFREQ] Rewrote analytic frequency keyword to '! NumFreq': {numfreq_reason}"
+        freq_guard_warnings.append(warning_msg)
+        logger.warning(warning_msg)
     if data.is_vpt2 and not re.search(r"(?i)\bVPT2\b", theory_level):
         theory_level += " VPT2"
     if data.is_weak_complex:
@@ -439,6 +534,7 @@ def generate_orca_input(
 {% endif %}
 {% if automatic_auxiliary %}# Correlation fitting basis: generated AutoAux (no explicit /C basis supplied)
 {% endif %}{% for guard_warning in regime_warnings %}# Chemical-Regime Auto-Guard: {{ guard_warning }}
+{% endfor %}{% for freq_warning in freq_guard_warnings %}# Frequency Auto-Guard: {{ freq_warning }}
 {% endfor %}# =====================================================================
 ! {{ theory_level }} {{ opt_keyword }} {{ grid_keyword }} {{ solvation_keyword }} NoSym TightSCF
 
@@ -475,6 +571,7 @@ end
         theory_level=theory_level,
         automatic_auxiliary="AUTOAUX" in theory_level.upper().split() and "AUTOAUX" not in data.theory_level.upper().split(),
         regime_warnings=list(regime.warnings),
+        freq_guard_warnings=freq_guard_warnings,
         opt_keyword=opt_keyword,
         grid_keyword=grid_keyword,
         solvation_keyword=solvation_keyword,

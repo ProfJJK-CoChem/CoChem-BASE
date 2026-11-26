@@ -266,12 +266,17 @@ class CFOURInputConfig(BaseModel):
     anharm_mode: CFOURAnharmMode = Field(default=CFOURAnharmMode.VPT2, description="Anharmonic VPT2 mode.")
     anh_stepsiz: int = Field(default=50000, description="Step size in reduced coordinates (default 50000 = 0.05).")
     fd_project: bool = Field(default=True, description="FD_PROJECT flag (ON for stationary points, OFF for queue split).")
-    props: str = Field(default="FIRST_ORDER", description="Property evaluation (FIRST_ORDER for dipole, quadrupole, EFG).")
+    props: str = Field(
+        default="OFF",
+        description="Property evaluation (OFF by default; FIRST_ORDER silently suppresses VIB/ANHARM in CFOUR 2.1).",
+    )
     memory_size_gb: int = Field(default=32, description="Global memory allocation in GB (MEMORY_SIZE=32, MEM_UNIT=GB).")
     memory_size_mb: Optional[int] = Field(default=None, ge=1, description="Optional global memory allocation in MB (overrides memory_size_gb when set).")
     scf_conv: int = Field(default=10, description="SCF convergence exponent (10 -> 10^-10).")
     cc_conv: int = Field(default=10, description="CC convergence exponent (10 -> 10^-10).")
-    lineq_conv: int = Field(default=10, description="Linear equation convergence exponent.")
+    lineq_conv: int = Field(default=7, description="Linear equation convergence exponent (CFOUR 2.1 standard default 7 -> 10^-7).")
+    cphf_conver: int = Field(default=12, ge=1, le=15, description="CPHF response convergence exponent (12 -> 10^-12; avoids CFOUR 2.1 10^-16 FP64 roundoff abort).")
+    cphf_maxcyc: int = Field(default=128, ge=1, description="Maximum CPHF cycles for analytic second derivatives.")
     geo_conv: int = Field(default=5, description="Geometry convergence exponent.")
     spinrot: bool = Field(default=False, description="Compute nuclear spin-rotation constants (SPINROT=ON).")
     dboc: bool = Field(default=False, description="Compute diagonal Born-Oppenheimer correction (DBOC=ON).")
@@ -874,10 +879,17 @@ def generate_cfour_zmat(
         cfour_kw.append(f"ANHARM={cfg.anharm_mode.value}")
         cfour_kw.append(f"ANH_STEPSIZ={cfg.anh_stepsiz}")
 
+    has_vib_or_anharm = cfg.vib_mode != CFOURVibMode.NONE or cfg.anharm_mode != CFOURAnharmMode.NONE
     if cfg.vib_mode == CFOURVibMode.FINDIF or cfg.anharm_mode != CFOURAnharmMode.NONE:
         cfour_kw.append(f"FD_PROJECT={'ON' if cfg.fd_project else 'OFF'}")
     if cfg.props and cfg.props.upper() != "OFF":
-        cfour_kw.append(f"PROPS={cfg.props.upper()}")
+        if has_vib_or_anharm and cfg.props.upper() == "FIRST_ORDER":
+            logger.warning(
+                "Omitting PROPS=FIRST_ORDER because CFOUR 2.1 silently suppresses VIB/ANHARM "
+                "stages when PROPS=FIRST_ORDER is active in the same ZMAT."
+            )
+        else:
+            cfour_kw.append(f"PROPS={cfg.props.upper()}")
     if cfg.memory_size_mb is not None:
         cfour_kw.append(f"MEMORY_SIZE={cfg.memory_size_mb}")
         cfour_kw.append("MEM_UNIT=MB")
@@ -887,6 +899,12 @@ def generate_cfour_zmat(
     cfour_kw.append(f"SCF_CONV={cfg.scf_conv}")
     cfour_kw.append(f"CC_CONV={cfg.cc_conv}")
     cfour_kw.append(f"LINEQ_CONV={cfg.lineq_conv}")
+    extra_upper_keys = {ek.upper() for ek in cfg.extra_keywords}
+    if has_vib_or_anharm:
+        if "CPHF_CONVER" not in extra_upper_keys:
+            cfour_kw.append(f"CPHF_CONVER={cfg.cphf_conver}")
+        if "CPHF_MAXCYC" not in extra_upper_keys:
+            cfour_kw.append(f"CPHF_MAXCYC={cfg.cphf_maxcyc}")
     cfour_kw.append(f"GEO_CONV={cfg.geo_conv}")
 
     if cfg.charge != 0:
@@ -906,9 +924,16 @@ def generate_cfour_zmat(
     if cfg.fd_irrep is not None:
         cfour_kw.append(f"FD_IRREP={cfg.fd_irrep}")
 
-    # Append custom keywords
+    # Append custom keywords (never permit PROPS=FIRST_ORDER alongside VIB/ANHARM)
     for ek, ev in sorted(cfg.extra_keywords.items()):
-        cfour_kw.append(f"{ek.upper()}={ev.upper()}")
+        ek_up, ev_up = ek.upper(), ev.upper()
+        if has_vib_or_anharm and ek_up == "PROPS" and ev_up == "FIRST_ORDER":
+            logger.warning(
+                "Omitting extra keyword PROPS=FIRST_ORDER because CFOUR 2.1 silently suppresses "
+                "VIB/ANHARM stages when PROPS=FIRST_ORDER is active in the same ZMAT."
+            )
+            continue
+        cfour_kw.append(f"{ek_up}={ev_up}")
 
     # Join *CFOUR(...) block
     lines.append("*CFOUR(" + "\n".join(cfour_kw) + ")")
@@ -933,7 +958,7 @@ class CFOUROutputParser:
     """Robust parser for CFOUR standard output logs and auxiliary text archives."""
 
     PAT_SCF_ENERGY = re.compile(r"(?:E\(SCF\)|SCF ENERGY|Total SCF energy|SCF energy)\s*[:=]?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?|[+-]?(?:nan|inf))", re.IGNORECASE)
-    PAT_MP2_ENERGY = re.compile(r"(?:E\(CORR\)\(MP2\)|E\(MP2\)|MP2 ENERGY|Total MP2 energy)\s*[:=]?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?|[+-]?(?:nan|inf))", re.IGNORECASE)
+    PAT_MP2_ENERGY = re.compile(r"(?:E\(CORR\)\(MP2\)|E\(MP2\)|MP2 ENERGY|Total MP2 energy|Total MBPT\(2\)\s+energy)\s*[:=]?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?|[+-]?(?:nan|inf))", re.IGNORECASE)
     PAT_CCSD_ENERGY = re.compile(r"(?:E\(CCSD\)|CCSD ENERGY|Total CCSD energy)\s*[:=]?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?|[+-]?(?:nan|inf))", re.IGNORECASE)
     PAT_CCSD_T_ENERGY = re.compile(r"(?:E\(CCSD\(T\)\)|CCSD\(T\) ENERGY|Total CCSD\(T\) energy)\s*[:=]?\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eEdD][+-]?\d+)?|[+-]?(?:nan|inf))", re.IGNORECASE)
 
@@ -978,6 +1003,29 @@ class CFOUROutputParser:
                 re.I,
             ):
                 raise ConvergenceError("CFOUR output lacks explicit coupled-cluster convergence evidence")
+
+    @staticmethod
+    def verify_requested_stage_completeness(observables: CFOURObservables, config: CFOURInputConfig) -> None:
+        """Fail closed when requested VPT2 or vibrational stages were silently skipped or incomplete."""
+        if config.anharm_mode == CFOURAnharmMode.VPT2:
+            if not observables.fundamental_frequencies_cm_inv or not all(
+                math.isfinite(val) for val in observables.fundamental_frequencies_cm_inv
+            ):
+                raise ConvergenceError(
+                    "EXECUTION_FAILED: CFOUR VPT2 (ANHARM=VPT2) was requested, but output contains no "
+                    "finite parsed fundamental frequencies (VPT2 stage was suppressed or did not complete)."
+                )
+            if observables.B0_MHz is None or not math.isfinite(observables.B0_MHz):
+                raise ConvergenceError(
+                    "EXECUTION_FAILED: CFOUR VPT2 (ANHARM=VPT2) was requested, but output lacks a finite "
+                    "ground-state rotational constant B0_MHz."
+                )
+        if config.vib_mode != CFOURVibMode.NONE or config.anharm_mode != CFOURAnharmMode.NONE:
+            if not observables.harmonic_force_field.frequencies_cm_inv:
+                raise ConvergenceError(
+                    "EXECUTION_FAILED: CFOUR vibrational analysis was requested, but output contains no "
+                    "parsed harmonic vibrational frequencies."
+                )
 
     @classmethod
     def parse_cfour_stdout(
@@ -1121,6 +1169,12 @@ class CFOUROutputParser:
                                 Ae_MHz, Be_MHz, Ce_MHz = sorted_vals[0], sorted_vals[1], sorted_vals[2]
                             elif is_cm_table:
                                 Ae_cm, Be_cm, Ce_cm = sorted_vals[0], sorted_vals[1], sorted_vals[2]
+                        elif len(nums) == 2:
+                            # Linear molecules emit only two degenerate rotational constants (X/Y axes; A=0).
+                            if is_mhz_table:
+                                Ae_MHz, Be_MHz, Ce_MHz = 0.0, nums[0], nums[1]
+                            elif is_cm_table:
+                                Ae_cm, Be_cm, Ce_cm = 0.0, nums[0], nums[1]
                     elif r_strip.startswith("B0 "):
                         nums = [_f(t) for t in re.findall(_num, r_strip[2:])]
                         if len(nums) >= 3:
@@ -1129,6 +1183,11 @@ class CFOUROutputParser:
                                 direct_A0_MHz, direct_B0_MHz, direct_C0_MHz = sorted_vals[0], sorted_vals[1], sorted_vals[2]
                             elif is_cm_table:
                                 direct_A0_cm, direct_B0_cm, direct_C0_cm = sorted_vals[0], sorted_vals[1], sorted_vals[2]
+                        elif len(nums) == 2:
+                            if is_mhz_table:
+                                direct_A0_MHz, direct_B0_MHz, direct_C0_MHz = 0.0, nums[0], nums[1]
+                            elif is_cm_table:
+                                direct_A0_cm, direct_B0_cm, direct_C0_cm = 0.0, nums[0], nums[1]
                     elif r_strip.startswith("---"):
                         if (is_mhz_table and direct_A0_MHz is not None) or (is_cm_table and direct_A0_cm is not None):
                             break
@@ -2005,97 +2064,126 @@ def export_cfour_to_spcat_var(
 ) -> str:
     """Export CFOUR spectroscopic observables to Pickett SPFIT/SPCAT `.var` format.
 
-    Uses official Pickett rotational and centrifugal distortion parameter integer codes:
+    Uses official JPL Pickett rotational and centrifugal distortion parameter codes
+    and sign conventions strictly in MHz:
     - 10000: A (MHz)
     - 20000: B (MHz)
     - 30000: C (MHz)
-    - 200: -Delta_J (MHz) / -D_J (MHz)
-    - 1100: -Delta_JK (MHz) / -D_JK (MHz)
-    - 2000: -Delta_K (MHz) / -D_K (MHz)
-    - 40100: -delta_J (MHz) / -d_1 (MHz)
-    - 50000: -delta_K (MHz) / -d_2 (MHz)
-    - 300: Phi_J / H_J (MHz)
-    - 1200: Phi_JK / H_JK (MHz)
-    - 2100: Phi_KJ / H_KJ (MHz)
-    - 3000: Phi_K / H_K (MHz)
+    -   200: -Delta_J (Watson A) / -D_J (Watson S) (MHz)
+    -  1100: -Delta_JK (Watson A) / -D_JK (Watson S) (MHz)
+    -  2000: -Delta_K (Watson A) / -D_K (Watson S) (MHz)
+    - 40100: -delta_J (Watson A) / +d_1 (Watson S) (MHz)
+    - 41000: -delta_K (Watson A) (MHz)
+    - 50000: +d_2 (Watson S) (MHz)
+    -   300: Phi_J / H_J (MHz)
+    -  1200: Phi_JK / H_JK (MHz)
+    -  2100: Phi_KJ / H_KJ (MHz)
+    -  3000: Phi_K / H_K (MHz)
     - 40200: phi_j / h_1 (MHz)
-    - 41100: phi_jk / h_2 (MHz)
-    - 50100: phi_k / h_3 (MHz)
+    - 41100: phi_jk (Watson A) (MHz)
+    - 42000: phi_k (Watson A) (MHz)
+    - 50100: h_2 (Watson S) (MHz)
+    - 60000: h_3 (Watson S) (MHz)
     """
     if any(value is None or not math.isfinite(value) for value in (observables.A0_MHz, observables.B0_MHz, observables.C0_MHz)):
         raise ValueError("SPCAT export requires measured or complete anharmonically derived ground-state rotational constants")
-    lines: List[str] = []
-    lines.append(f"CoChem CFOUR Bridge Export - Watson {reduction.value}-Reduction")
 
     def _format_var_line(code: int, value_mhz: float, uncert: float) -> str:
         return f"{code:6d}{value_mhz:18.8f}{uncert:14.8f}"
 
-    # 1. Rotational Constants A0, B0, C0
-    lines.append(_format_var_line(10000, observables.A0_MHz, abs(observables.A0_MHz * uncertainty_fraction)))
-    lines.append(_format_var_line(20000, observables.B0_MHz, abs(observables.B0_MHz * uncertainty_fraction)))
-    lines.append(_format_var_line(30000, observables.C0_MHz, abs(observables.C0_MHz * uncertainty_fraction)))
+    param_lines: List[str] = []
 
-    # 2. Quartic Centrifugal Distortion (converted to MHz: 1 kHz = 1e-3 MHz)
+    # 1. Rotational Constants A0, B0, C0 (MHz)
+    param_lines.append(_format_var_line(10000, observables.A0_MHz, abs(observables.A0_MHz * uncertainty_fraction)))
+    param_lines.append(_format_var_line(20000, observables.B0_MHz, abs(observables.B0_MHz * uncertainty_fraction)))
+    param_lines.append(_format_var_line(30000, observables.C0_MHz, abs(observables.C0_MHz * uncertainty_fraction)))
+
+    # 2. Quartic Centrifugal Distortion (kHz -> MHz: 1 kHz = 1e-3 MHz)
+    # Pickett Watson-A requires negated quartics (-Delta_J, -Delta_JK, -Delta_K,
+    # -delta_J [40100], -delta_K [41000]); Watson-S uses -D_J, -D_JK, -D_K,
+    # +d_1 [40100], +d_2 [50000].
     qd = observables.quartic_distortion
     if qd is not None:
         if reduction == WatsonReduction.A:
             if qd.Delta_J_kHz is not None:
-                v = qd.Delta_J_kHz * 1e-3
-                lines.append(_format_var_line(200, v, abs(v * 0.05)))
+                v = -qd.Delta_J_kHz * 1e-3
+                param_lines.append(_format_var_line(200, v, abs(v * 0.05)))
             if qd.Delta_JK_kHz is not None:
-                v = qd.Delta_JK_kHz * 1e-3
-                lines.append(_format_var_line(1100, v, abs(v * 0.05)))
+                v = -qd.Delta_JK_kHz * 1e-3
+                param_lines.append(_format_var_line(1100, v, abs(v * 0.05)))
             if qd.Delta_K_kHz is not None:
-                v = qd.Delta_K_kHz * 1e-3
-                lines.append(_format_var_line(2000, v, abs(v * 0.05)))
+                v = -qd.Delta_K_kHz * 1e-3
+                param_lines.append(_format_var_line(2000, v, abs(v * 0.05)))
             if qd.delta_j_kHz is not None:
-                v = qd.delta_j_kHz * 1e-3
-                lines.append(_format_var_line(40100, v, abs(v * 0.05)))
+                v = -qd.delta_j_kHz * 1e-3
+                param_lines.append(_format_var_line(40100, v, abs(v * 0.05)))
             if qd.delta_k_kHz is not None:
-                v = qd.delta_k_kHz * 1e-3
-                lines.append(_format_var_line(50000, v, abs(v * 0.05)))
+                v = -qd.delta_k_kHz * 1e-3
+                param_lines.append(_format_var_line(41000, v, abs(v * 0.05)))
         else:
             if qd.D_J_kHz is not None:
-                v = qd.D_J_kHz * 1e-3
-                lines.append(_format_var_line(200, v, abs(v * 0.05)))
+                v = -qd.D_J_kHz * 1e-3
+                param_lines.append(_format_var_line(200, v, abs(v * 0.05)))
             if qd.D_JK_kHz is not None:
-                v = qd.D_JK_kHz * 1e-3
-                lines.append(_format_var_line(1100, v, abs(v * 0.05)))
+                v = -qd.D_JK_kHz * 1e-3
+                param_lines.append(_format_var_line(1100, v, abs(v * 0.05)))
             if qd.D_K_kHz is not None:
-                v = qd.D_K_kHz * 1e-3
-                lines.append(_format_var_line(2000, v, abs(v * 0.05)))
+                v = -qd.D_K_kHz * 1e-3
+                param_lines.append(_format_var_line(2000, v, abs(v * 0.05)))
             if qd.d_1_kHz is not None:
                 v = qd.d_1_kHz * 1e-3
-                lines.append(_format_var_line(40100, v, abs(v * 0.05)))
+                param_lines.append(_format_var_line(40100, v, abs(v * 0.05)))
             if qd.d_2_kHz is not None:
                 v = qd.d_2_kHz * 1e-3
-                lines.append(_format_var_line(50000, v, abs(v * 0.05)))
+                param_lines.append(_format_var_line(50000, v, abs(v * 0.05)))
 
-    # 3. Sextic Centrifugal Distortion (converted to MHz: 1 Hz = 1e-6 MHz)
+    # 3. Sextic Centrifugal Distortion (Hz -> MHz: 1 Hz = 1e-6 MHz)
     sd = observables.sextic_distortion
     if sd is not None:
         if reduction == WatsonReduction.A:
             if sd.Phi_J_Hz is not None:
                 v = sd.Phi_J_Hz * 1e-6
-                lines.append(_format_var_line(300, v, abs(v * 0.10)))
+                param_lines.append(_format_var_line(300, v, abs(v * 0.10)))
             if sd.Phi_JK_Hz is not None:
                 v = sd.Phi_JK_Hz * 1e-6
-                lines.append(_format_var_line(1200, v, abs(v * 0.10)))
+                param_lines.append(_format_var_line(1200, v, abs(v * 0.10)))
             if sd.Phi_KJ_Hz is not None:
                 v = sd.Phi_KJ_Hz * 1e-6
-                lines.append(_format_var_line(2100, v, abs(v * 0.10)))
+                param_lines.append(_format_var_line(2100, v, abs(v * 0.10)))
             if sd.Phi_K_Hz is not None:
                 v = sd.Phi_K_Hz * 1e-6
-                lines.append(_format_var_line(3000, v, abs(v * 0.10)))
+                param_lines.append(_format_var_line(3000, v, abs(v * 0.10)))
             if sd.phi_j_Hz is not None:
                 v = sd.phi_j_Hz * 1e-6
-                lines.append(_format_var_line(40200, v, abs(v * 0.10)))
+                param_lines.append(_format_var_line(40200, v, abs(v * 0.10)))
             if sd.phi_jk_Hz is not None:
                 v = sd.phi_jk_Hz * 1e-6
-                lines.append(_format_var_line(41100, v, abs(v * 0.10)))
+                param_lines.append(_format_var_line(41100, v, abs(v * 0.10)))
             if sd.phi_k_Hz is not None:
                 v = sd.phi_k_Hz * 1e-6
-                lines.append(_format_var_line(50100, v, abs(v * 0.10)))
+                param_lines.append(_format_var_line(42000, v, abs(v * 0.10)))
+        else:
+            if sd.H_J_Hz is not None:
+                v = sd.H_J_Hz * 1e-6
+                param_lines.append(_format_var_line(300, v, abs(v * 0.10)))
+            if sd.H_JK_Hz is not None:
+                v = sd.H_JK_Hz * 1e-6
+                param_lines.append(_format_var_line(1200, v, abs(v * 0.10)))
+            if sd.H_KJ_Hz is not None:
+                v = sd.H_KJ_Hz * 1e-6
+                param_lines.append(_format_var_line(2100, v, abs(v * 0.10)))
+            if sd.H_K_Hz is not None:
+                v = sd.H_K_Hz * 1e-6
+                param_lines.append(_format_var_line(3000, v, abs(v * 0.10)))
+            if sd.h_1_Hz is not None:
+                v = sd.h_1_Hz * 1e-6
+                param_lines.append(_format_var_line(40200, v, abs(v * 0.10)))
+            if sd.h_2_Hz is not None:
+                v = sd.h_2_Hz * 1e-6
+                param_lines.append(_format_var_line(50100, v, abs(v * 0.10)))
+            if sd.h_3_Hz is not None:
+                v = sd.h_3_Hz * 1e-6
+                param_lines.append(_format_var_line(60000, v, abs(v * 0.10)))
 
     # 4. Nuclear Quadrupole Coupling chi_aa, chi_bb, chi_cc (kHz -> MHz)
     for q_tensor in observables.quadrupole_couplings:
@@ -2104,10 +2192,17 @@ def export_cfour_to_spcat_var(
             code_chi_diff = q_tensor.atom_index * 100000 + 20000
             chi_aa_mhz = q_tensor.chi_aa_kHz * 1e-3
             chi_diff_mhz = (q_tensor.chi_bb_kHz - q_tensor.chi_cc_kHz) * 1e-3
-            lines.append(_format_var_line(code_chi_aa, chi_aa_mhz, abs(chi_aa_mhz * 0.02)))
-            lines.append(_format_var_line(code_chi_diff, chi_diff_mhz, abs(chi_diff_mhz * 0.02)))
+            param_lines.append(_format_var_line(code_chi_aa, chi_aa_mhz, abs(chi_aa_mhz * 0.02)))
+            param_lines.append(_format_var_line(code_chi_diff, chi_diff_mhz, abs(chi_diff_mhz * 0.02)))
 
-    lines.append("")
+    reduction_flag = "a" if reduction == WatsonReduction.A else "s"
+    lines: List[str] = [
+        f"CoChem CFOUR Bridge Export - Watson {reduction.value}-Reduction",
+        f"{len(param_lines):4d}  0  1  0  0.0000E+00  1.0000E+04  1.0000E+00  1.0000E+00",
+        f"{reduction_flag}    1  1   0   30   0   1   1   1   0   0   0",
+        *param_lines,
+        "",
+    ]
     return "\n".join(lines)
 
 
@@ -2337,6 +2432,7 @@ class CFOURBridge:
             symbols_fallback=list(symbols),
             coordinates_fallback=np.asarray(coordinates_angstrom, dtype=np.float64),
         )
+        CFOUROutputParser.verify_requested_stage_completeness(observables, config)
         return CFOURJobResult(
             success=True,
             status="EXECUTION_VERIFIED",

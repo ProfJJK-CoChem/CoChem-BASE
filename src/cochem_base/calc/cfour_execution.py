@@ -287,9 +287,19 @@ def write_cfour_input(directory: Path, config: Any, elements: list[str], coordin
     if opts["do_vpt2"]:
         keywords.append(f"VIB={opts['vib_mode']}")
         keywords.append("ANHARM=VPT2")
-        keywords.append("LINEQ_CONV=10")
+        # CFOUR 2.1 defaults CPHF_CONVER to 10^-16 (ICPHFT=16), which hits the
+        # IEEE-754 FP64 roundoff floor (~10^-26 squared norm) in xcphf for
+        # correlated analytic Hessians (e.g. MP2 VIB=EXACT) and aborts after
+        # 64 cycles. CPHF_CONVER=12 (10^-12) + LINEQ_CONV=7 (CFOUR standard)
+        # preserves tight response convergence cleanly above machine roundoff.
+        keywords.append("LINEQ_CONV=7")
+        keywords.append("CPHF_CONVER=12")
+        keywords.append("CPHF_MAXCYC=128")
     elif opts["do_harmonic"]:
         keywords.append(f"VIB={opts['vib_mode']}")
+        if opts["vib_mode"] == "EXACT":
+            keywords.append("CPHF_CONVER=12")
+            keywords.append("CPHF_MAXCYC=128")
     elif gradient:
         keywords.append("DERIV_LEVEL=FIRST")
 
@@ -331,11 +341,24 @@ def _accept_output(
         raise ValueError("CFOUR requires one finite final electronic energy and normal driver completion")
     patterns = {
         "HF": rf"E\(SCF\)\s*=\s*({NUMBER})",
-        "MP2": rf"Total MP2 energy\s*[:=]?\s*({NUMBER})",
-        "CCSD": rf"Total CCSD energy\s*[:=]?\s*({NUMBER})",
-        "CCSD(T)": rf"Total CCSD\(T\) energy\s*[:=]?\s*({NUMBER})",
+        "MP2": rf"(?:Total MP2 energy|Total MBPT\(2\)\s+energy|E\(MP2\))\s*[:=]?\s*({NUMBER})",
+        "CCSD": rf"(?:Total CCSD energy|E\(CCSD\)|(?<![A-Za-z0-9_(])CCSD energy)\s*[:=]?\s*({NUMBER})",
+        "CCSD(T)": rf"(?:Total CCSD\(T\) energy|E\(CCSD\(T\)\)|(?<![A-Za-z0-9_(])CCSD\(T\) energy)\s*[:=]?\s*({NUMBER})",
     }
     measured = re.findall(patterns[method], text, re.I)
+    if not measured and method == "CCSD":
+        # CFOUR 2.1 xvcc for CALC=CCSD reports "The total energy is <E> a.u."
+        # inside the converged xvcc section rather than "E(CCSD) = <E>".
+        vcc_sections = re.findall(
+            r"--invoking executable--\s*[^\n]*[/\\]xvcc\s*\n(.*?)(?=--executable xvcc finished)",
+            text,
+            re.S,
+        )
+        for sec in vcc_sections:
+            if re.search(r"CCSD energy will be calculated", sec, re.I) and re.search(
+                r"The CC iterations have converged", sec, re.I
+            ):
+                measured.extend(re.findall(rf"The total energy is\s+({NUMBER})\s+a\.u\.", sec, re.I))
     if not measured:
         raise ValueError(f"CFOUR has no measured total energy for requested {method}")
     energy = _float(final[0])
@@ -632,15 +655,33 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
             harmonic=(config.is_freq and not config.is_vpt2),
             anharmonic=config.is_vpt2,
         )
+    equilibrium_energy_hartree = final["energy_hartree"]
     if config.is_opt and (config.is_freq or config.is_vpt2):
         previous_energy = final["energy_hartree"]
+        vib_opts = _resolve_cfour_options(
+            config,
+            elements,
+            harmonic=(config.is_freq and not config.is_vpt2),
+            anharmonic=config.is_vpt2,
+            frozen_core=frozen_core,
+            reference=reference,
+            vib_mode=vib_mode,
+            spherical=spherical,
+        )
         final = native(
             final_coordinates,
             harmonic=(config.is_freq and not config.is_vpt2),
             anharmonic=config.is_vpt2,
         )
-        if not math.isclose(final["energy_hartree"], previous_energy, abs_tol=ENERGY_TOLERANCE_HARTREE, rel_tol=0):
-            raise ValueError("CFOUR vibrational evaluation changed the optimized electronic energy")
+        if vib_opts["vib_mode"] == "EXACT":
+            if not math.isclose(final["energy_hartree"], previous_energy, abs_tol=ENERGY_TOLERANCE_HARTREE, rel_tol=0):
+                raise ValueError("CFOUR vibrational evaluation changed the optimized electronic energy")
+            equilibrium_energy_hartree = final["energy_hartree"]
+        else:
+            # In CFOUR 2.1 VIB=FINDIF (including CCSD(T) VPT2/FINDIF), the last
+            # evaluated energy is a finite-difference displaced geometry, so the
+            # optimized equilibrium energy remains `previous_energy`.
+            equilibrium_energy_hartree = previous_energy
 
     from cochem_base.calc.regime_guards import apply_chemical_regime_guards
 
@@ -668,7 +709,7 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
     )
     result = {"engine": "cfour", "method": config.method, "basis_set": regime.effective_basis or config.basis_set,
               "requested_basis_set": config.basis_set,
-              "converged": True, "energy_hartree": final["energy_hartree"], "elements": elements,
+              "converged": True, "energy_hartree": equilibrium_energy_hartree, "elements": elements,
               "coordinates_angstrom": final_coordinates.tolist(), "operation": operation,
               "optimization_performed": config.is_opt, "native_evaluations": runs,
               "reference": resolved_opts["reference"], "multiplicity": resolved_opts["multiplicity"],

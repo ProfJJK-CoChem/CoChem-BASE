@@ -130,8 +130,8 @@ _AUTHORITATIVE_BIBTEX_CATALOG: dict[str, EngineCitation] = {
             "  title = {Automated exploration of the low-energy chemical space with fast quantum chemical methods},\n"
             "  journal = {Physical Chemistry Chemical Physics},\n"
             "  volume = {22},\n"
-            "  number = {9},\n"
-            "  pages = {5169--5181},\n"
+            "  number = {14},\n"
+            "  pages = {7169--7192},\n"
             "  year = {2020},\n"
             "  doi = {10.1039/C9CP06869D}\n"
             "}"
@@ -262,18 +262,38 @@ _AUTHORITATIVE_BIBTEX_CATALOG: dict[str, EngineCitation] = {
         name="gpu4pyscf GPU Quantum Chemistry",
         category="GPU Quantum Chemistry Engine",
         description="GPU-accelerated electronic structure framework for high-throughput DFT and Hessians.",
-        doi="10.1063/5.0223707",
+        doi="10.1021/acs.jpca.4c05876",
         url="https://github.com/pyscf/gpu4pyscf",
         bibtex=(
-            "@article{Wu2024gpu4pyscf,\n"
-            "  author = {Wu, Xiaojie and Zhang, Xing and Sun, Qiming and Chan, Garnet Kin-Lic},\n"
-            "  title = {{gpu4pyscf}: {GPU}-accelerated quantum chemistry with {PySCF}},\n"
-            "  journal = {The Journal of Chemical Physics},\n"
-            "  volume = {161},\n"
-            "  number = {12},\n"
-            "  pages = {124801},\n"
-            "  year = {2024},\n"
-            "  doi = {10.1063/5.0223707}\n"
+            "@article{Li2025gpu4pyscf,\n"
+            "  author = {Li, Rui and Sun, Qiming and Zhang, Xing and Chan, Garnet Kin-Lic},\n"
+            "  title = {Introducing {GPU} Acceleration into the {Python}-Based Simulations of Chemistry Framework},\n"
+            "  journal = {The Journal of Physical Chemistry A},\n"
+            "  volume = {129},\n"
+            "  number = {5},\n"
+            "  pages = {1459--1468},\n"
+            "  year = {2025},\n"
+            "  doi = {10.1021/acs.jpca.4c05876}\n"
+            "}"
+        ),
+    ),
+    "gpu4pyscf_wires": EngineCitation(
+        engine_id="gpu4pyscf_wires",
+        name="GPU4PySCF WIREs Review",
+        category="GPU Quantum Chemistry Engine",
+        description="GPU acceleration architecture and benchmarks in the Python-based simulations of chemistry framework.",
+        doi="10.1002/wcms.70008",
+        url="https://github.com/pyscf/gpu4pyscf",
+        bibtex=(
+            "@article{Wu2025gpu4pyscf,\n"
+            "  author = {Wu, Xiaojie and Sun, Qiming and Pu, Zhichen and Zheng, Tianze and Ma, Wenzhi and Yan, Wen and Xia, Yu and Wu, Zhengxiao and Huo, Mian and Li, Xiang and Ren, Weiluo and Gong, Sheng and Zhang, Yumin and Gao, Weihao},\n"
+            "  title = {Enhancing {GPU}-Acceleration in the {Python}-Based Simulations of Chemistry Frameworks},\n"
+            "  journal = {WIREs Computational Molecular Science},\n"
+            "  volume = {15},\n"
+            "  number = {2},\n"
+            "  pages = {e70008},\n"
+            "  year = {2025},\n"
+            "  doi = {10.1002/wcms.70008}\n"
             "}"
         ),
     ),
@@ -342,14 +362,14 @@ _AUTHORITATIVE_BIBTEX_CATALOG: dict[str, EngineCitation] = {
         doi="10.1021/jacs.4c07099",
         url="https://pubs.acs.org/doi/10.1021/jacs.4c07099",
         bibtex=(
-            "@article{Kovacs2024MACEOFF23,\n"
-            "  author = {Kovacs, David P. and Moore, J. Harry and Browning, Nicholas J. and Batatia, Ilyes and Horton, Joshua T. and Ortner, Christoph and Cs{\\'a}nyi, G{\\'a}bor},\n"
-            "  title = {{MACE-OFF23}: Transferable Machine Learning Force Fields for Organic Molecules},\n"
+            "@article{Kovacs2025MACEOFF,\n"
+            "  author = {Kov{\\'a}cs, D{\\'a}vid P{\\'e}ter and Moore, J. Harry and Browning, Nicholas J. and Batatia, Ilyes and Horton, Joshua T. and Pu, Yixuan and Kapil, Venkat and Witt, William C. and Magd{\\u{a}}u, Ioan-Bogdan and Cole, Daniel J. and Cs{\\'a}nyi, G{\\'a}bor},\n"
+            "  title = {{MACE-OFF}: Short-Range Transferable Machine Learning Force Fields for Organic Molecules},\n"
             "  journal = {Journal of the American Chemical Society},\n"
-            "  volume = {146},\n"
-            "  number = {42},\n"
-            "  pages = {28886--28896},\n"
-            "  year = {2024},\n"
+            "  volume = {147},\n"
+            "  number = {21},\n"
+            "  pages = {17598--17611},\n"
+            "  year = {2025},\n"
             "  doi = {10.1021/jacs.4c07099}\n"
             "}"
         ),
@@ -358,19 +378,19 @@ _AUTHORITATIVE_BIBTEX_CATALOG: dict[str, EngineCitation] = {
         engine_id="aimnet2",
         name="AIMNet2 Neural Network Potential",
         category="Machine Learning Force Field",
-        description="Atoms-in-molecules neural network potential for organic and bio-organic chemistry.",
-        doi="10.1021/acs.jcim.4c00445",
-        url="https://pubs.acs.org/doi/10.1021/acs.jcim.4c00445",
+        description="Atoms-in-molecules neural network potential for neutral, charged, organic, and elemental-organic chemistry.",
+        doi="10.1039/d4sc08572h",
+        url="https://pubs.rsc.org/en/content/articlelanding/2025/sc/d4sc08572h",
         bibtex=(
-            "@article{Anstine2024AIMNet2,\n"
+            "@article{Anstine2025AIMNet2,\n"
             "  author = {Anstine, Dylan M. and Zubatyuk, Roman and Isayev, Olexandr},\n"
-            "  title = {{AIMNet2}: A Neural Network Potential to Meet Your Chemistry Needs},\n"
-            "  journal = {Journal of Chemical Information and Modeling},\n"
-            "  volume = {64},\n"
-            "  number = {14},\n"
-            "  pages = {5600--5610},\n"
-            "  year = {2024},\n"
-            "  doi = {10.1021/acs.jcim.4c00445}\n"
+            "  title = {{AIMNet2}: a neural network potential to meet your neutral, charged, organic, and elemental-organic needs},\n"
+            "  journal = {Chemical Science},\n"
+            "  volume = {16},\n"
+            "  number = {23},\n"
+            "  pages = {10228--10244},\n"
+            "  year = {2025},\n"
+            "  doi = {10.1039/d4sc08572h}\n"
             "}"
         ),
     ),
@@ -458,19 +478,19 @@ _AUTHORITATIVE_BIBTEX_CATALOG: dict[str, EngineCitation] = {
         engine_id="wb97x_v",
         name="wB97X-V Density Functional",
         category="Density Functional",
-        description="Range-separated hybrid GGA functional with VV10 dispersion correction.",
-        doi="10.1039/C4CP00288E",
-        url="https://pubs.rsc.org/en/content/articlelanding/2014/cp/c4cp00288e",
+        description="Range-separated hybrid GGA functional with VV10 nonlocal correlation.",
+        doi="10.1039/c3cp54374a",
+        url="https://pubs.rsc.org/en/content/articlelanding/2014/cp/c3cp54374a",
         bibtex=(
             "@article{Mardirossian2014wB97XV,\n"
             "  author = {Mardirossian, Narbe and Head-Gordon, Martin},\n"
-            "  title = {$\\omega${B97X-V}: A 10-parameter, range-separated hybrid, generalized gradient approximation density functional with {VV10} dispersion correction},\n"
+            "  title = {$\\omega${B97X-V}: A 10-parameter, range-separated hybrid, generalized gradient approximation density functional with nonlocal correlation, designed by a survival-of-the-fittest strategy},\n"
             "  journal = {Physical Chemistry Chemical Physics},\n"
             "  volume = {16},\n"
             "  number = {21},\n"
             "  pages = {9904--9924},\n"
             "  year = {2014},\n"
-            "  doi = {10.1039/C4CP00288E}\n"
+            "  doi = {10.1039/c3cp54374a}\n"
             "}"
         ),
     ),

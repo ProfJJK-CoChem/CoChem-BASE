@@ -29,9 +29,29 @@ from cochem_base.geometry.constraints import (
 )
 
 
+def _co2_h2o_dimer():
+    """Explicit CO2+H2O dimer test geometry passed by caller (never defaulted in src)."""
+    complex_data = build_reference_co2_h2o_complex()
+    return complex_data[0], complex_data[1]
+
+
+def _hf_h2o_dimer():
+    """Generic non-CO2+H2O dimer geometry to verify molecule-agnostic Recipe R2 generation."""
+    symbols = ["F", "H", "O", "H", "H"]
+    coords = np.array([
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.92],
+        [0.0, 0.0, 2.75],
+        [0.0, 0.757, 3.336],
+        [0.0, -0.757, 3.336],
+    ], dtype=np.float64)
+    return symbols, coords
+
+
 def test_recipe_r2_electronic_structure_keywords(tmp_path: Path, configured_registry) -> None:
     """Verifies electronic structure keywords strictly match Method Matrix v4.1 Recipe R2 standard."""
-    deck_path = generate_recipe_r2_orca_deck(output_dir=tmp_path)
+    symbols, coords = _co2_h2o_dimer()
+    deck_path = generate_recipe_r2_orca_deck(symbols=symbols, coordinates=coords, output_dir=tmp_path)
     assert deck_path.exists(), "Recipe R2 deck file was not generated"
 
     content = deck_path.read_text(encoding="utf-8")
@@ -47,6 +67,28 @@ def test_recipe_r2_electronic_structure_keywords(tmp_path: Path, configured_regi
 
     # 3. Assert base job name is specified
     assert '%base "cochem_dimer_recipe_r2"' in content
+
+
+def test_recipe_r2_requires_explicit_geometry_and_supports_generic_dimers(tmp_path: Path, configured_registry) -> None:
+    """Missing geometry is rejected (no hardcoded CO2+H2O default) and arbitrary dimers work."""
+    with pytest.raises(ValueError, match="Explicit symbols and coordinates"):
+        generate_recipe_r2_orca_deck(output_dir=tmp_path)
+
+    symbols, coords = _hf_h2o_dimer()
+    deck_path = generate_recipe_r2_orca_deck(
+        basin_id="hf_h2o_generic",
+        symbols=symbols,
+        coordinates=coords,
+        monomer_a_indices=(0, 1),
+        monomer_b_indices=(2, 3, 4),
+        output_dir=tmp_path,
+    )
+    content = deck_path.read_text(encoding="utf-8")
+    assert "{ B 0 1 C }" in content
+    assert "{ B 2 3 C }" in content
+    assert "{ B 2 4 C }" in content
+    assert "{ A 3 2 4 C }" in content
+    assert "CO2" not in content
 
 
 def test_recipe_r2_prohibition_of_redundant_dispersion() -> None:
@@ -92,7 +134,8 @@ def test_recipe_r2_prohibition_of_calc_hess_true() -> None:
 
 def test_recipe_r2_scf_convergence_parameters(tmp_path: Path, configured_registry) -> None:
     """Verifies that %scf block strictly contains TolE 1.0e-08, Thresh 1.0e-11, and MaxIter 150 [M]."""
-    deck_path = generate_recipe_r2_orca_deck(output_dir=tmp_path)
+    symbols, coords = _co2_h2o_dimer()
+    deck_path = generate_recipe_r2_orca_deck(symbols=symbols, coordinates=coords, output_dir=tmp_path)
     content = deck_path.read_text(encoding="utf-8")
 
     assert "%scf" in content, "Missing %scf block in Recipe R2 deck"
@@ -103,7 +146,8 @@ def test_recipe_r2_scf_convergence_parameters(tmp_path: Path, configured_registr
 
 def test_recipe_r2_quintuple_geometry_convergence_block(tmp_path: Path, configured_registry) -> None:
     """Verifies %geom contains InHess XTB2 and the quintuple stationary point convergence criteria [M]."""
-    deck_path = generate_recipe_r2_orca_deck(output_dir=tmp_path)
+    symbols, coords = _co2_h2o_dimer()
+    deck_path = generate_recipe_r2_orca_deck(symbols=symbols, coordinates=coords, output_dir=tmp_path)
     content = deck_path.read_text(encoding="utf-8")
 
     assert "%geom" in content, "Missing %geom block in Recipe R2 deck"
@@ -123,7 +167,8 @@ def test_recipe_r2_wilson_internal_constraints_ingestion(tmp_path: Path, configu
 
     And leave all 6 intermolecular degrees of freedom fully unconstrained (Method Matrix §9A.1, WBS 5.3.1/5.3.2).
     """
-    deck_path = generate_recipe_r2_orca_deck(output_dir=tmp_path)
+    symbols, coords = _co2_h2o_dimer()
+    deck_path = generate_recipe_r2_orca_deck(symbols=symbols, coordinates=coords, output_dir=tmp_path)
     content = deck_path.read_text(encoding="utf-8")
 
     # 1. Monomer A (CO2): atoms 0 (C), 1 (O), 2 (O)
@@ -186,27 +231,34 @@ def test_recipe_r2_reference_monomer_geometry_integrity() -> None:
 
 
 def test_recipe_r2_counterpoise_distance_bracketing_flags(tmp_path: Path, configured_registry) -> None:
-    """Verifies generation of 3-leg distance bracketing decks and CP keyword flags [M]."""
-    # 1. Single deck with counterpoise=True
-    cp_deck_path = generate_recipe_r2_orca_deck(
-        basin_id="co2_h2o_cp",
-        counterpoise=True,
-        output_dir=tmp_path,
-    )
-    cp_content = cp_deck_path.read_text(encoding="utf-8")
-    assert "CP" in cp_content.splitlines()[5], "Missing CP flag in simple keywords line"
-    assert "C(1)" in cp_content, "Missing fragment 1 annotation for Monomer A"
-    assert "O(2)" in cp_content, "Missing fragment 2 annotation for Monomer B"
+    """Verifies invalid single-deck '! CP' is rejected and 3-leg ghost-atom decks are valid [M]."""
+    symbols, coords = _co2_h2o_dimer()
+    # 1. Single deck with counterpoise=True without explicit cp_leg is rejected (ORCA has no '! CP')
+    with pytest.raises(ValueError, match="CP"):
+        generate_recipe_r2_orca_deck(
+            basin_id="co2_h2o_cp",
+            symbols=symbols,
+            coordinates=coords,
+            counterpoise=True,
+            output_dir=tmp_path,
+        )
 
-    # 2. Generate complete 3-leg triplet
+    # 2. Generate complete 3-leg ghost-atom triplet
     decks = generate_recipe_r2_counterpoise_bracketing_decks(
         basin_id="co2_h2o_bracket",
+        symbols=symbols,
+        coordinates=coords,
         output_dir=tmp_path,
     )
     assert set(decks.keys()) == {"dimer", "monomer_a_ghosts", "monomer_b_ghosts"}
 
     for leg_name, path in decks.items():
         assert path.exists(), f"Leg {leg_name} deck was not created"
+        text = path.read_text(encoding="utf-8")
+        keyword_lines = [ln for ln in text.splitlines() if ln.strip().startswith("!")]
+        assert keyword_lines and all(" CP" not in ln for ln in keyword_lines), (
+            f"Leg {leg_name} must never emit invalid ORCA '! CP' keyword"
+        )
 
     # Leg 2: Monomer B atoms ghosted with ':'
     leg2_text = decks["monomer_a_ghosts"].read_text(encoding="utf-8")
@@ -238,7 +290,8 @@ def test_recipe_r2_dynamic_mendeleev_library_mandate() -> None:
 
 def test_recipe_r2_deck_zero_syntax_warnings_and_srs_parity(tmp_path: Path, configured_registry) -> None:
     """Verifies generated input deck strictly matches SRS_Chunk_17.md §6.1 specification."""
-    deck_path = generate_recipe_r2_orca_deck(output_dir=tmp_path)
+    symbols, coords = _co2_h2o_dimer()
+    deck_path = generate_recipe_r2_orca_deck(symbols=symbols, coordinates=coords, output_dir=tmp_path)
     content = deck_path.read_text(encoding="utf-8")
 
     # Assert cryptographic SHA-256 header stamp is present
@@ -263,8 +316,9 @@ def test_recipe_r2_deck_zero_syntax_warnings_and_srs_parity(tmp_path: Path, conf
 
 def test_recipe_r2_canonical_deliverable_artifact_on_disk(tmp_path: Path, configured_registry) -> None:
     """The requested deck is written to the configured artifact directory."""
+    symbols, coords = _co2_h2o_dimer()
     canonical_artifact = generate_recipe_r2_orca_deck(
-        output_dir=tmp_path, filename="recipe_r2_production_deck.inp"
+        symbols=symbols, coordinates=coords, output_dir=tmp_path, filename="recipe_r2_production_deck.inp"
     )
     assert canonical_artifact.exists(), f"Physical deliverable missing at: {canonical_artifact}"
     assert canonical_artifact.stat().st_size > 1000, "Deliverable file size too small (< 1000 bytes)"

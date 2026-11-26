@@ -175,12 +175,12 @@ def test_hungarian_rotation_can_reorder_matching_nuclides_but_cannot_exchange_h_
 
 def test_chain_pending_request_keeps_isotope_assignment_in_config_and_artifact(tmp_path):
     from cochem_base.chain import Chain, Stage
-    config = CalculationMatrixConfig(geometry="2\nHD\nD 0 0 0\nH 0 0 .74\n", engine="cfour", method="HF",
+    config = CalculationMatrixConfig(geometry="2\nHD\nD 0 0 0\nH 0 0 .74\n", engine="cfour", method="CC3",
                                      basis_set="STO-3G", is_opt=False, is_vpt2=True)
     source = tmp_path / "HD.xyz"
     source.write_text(config.geometry)
     chain = Chain(workdir=tmp_path / "chain", orca_cmd="deliberately-uninstalled-orca")
-    stage = Stage("isotope", "HF STO-3G VPT2", engine="cfour", scientific_config=config.model_dump(mode="json"))
+    stage = Stage("isotope", "CC3 STO-3G VPT2", engine="cfour", scientific_config=config.model_dump(mode="json"))
     record = chain.run_stage(stage, source)
     request = load_calculation_handoff(record.handoff_manifest)
     assert parse_run_geometry_identity(request.calculation_config["geometry"]).nuclides == ("2H", "H")

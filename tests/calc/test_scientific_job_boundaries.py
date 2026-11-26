@@ -19,13 +19,14 @@ GEOMETRY = "2\nHydrogen input\nH 0 0 0\nH 0 0 0.74\n"
 
 
 def cfour_config(**updates):
-    return CalculationMatrixConfig(geometry=GEOMETRY, engine="cfour", method="CCSD(T)",
-                                    basis_set="cc-pVTZ", is_opt=False, **updates)
+    values = dict(geometry=GEOMETRY, engine="cfour", method="CCSD(T)", basis_set="cc-pVTZ", is_opt=False)
+    values.update(updates)
+    return CalculationMatrixConfig(**values)
 
 
 @pytest.mark.parametrize("engine,method,basis,is_freq,is_vpt2", [
     ("cfour", "CC3", "cc-pVTZ", False, False),
-    ("cfour", "CCSD(T)", "cc-pVTZ", True, True),
+    ("cfour", "CC3", "cc-pVTZ", True, True),
     ("orca", "wB97M-V", "def2-QZVPP", True, True),
 ])
 def test_native_pending_job_produces_handoff_without_scientific_result(tmp_path, engine, method, basis, is_freq, is_vpt2):
@@ -92,7 +93,7 @@ def test_public_boundary_rejects_absent_declared_hessian_and_incomplete_periodic
 
 def test_pending_request_preserves_original_coordinate_frame(tmp_path):
     from cochem_base.calc.calculation_service import parse_run_geometry
-    config = cfour_config(is_vpt2=True)
+    config = cfour_config(method="CC3", is_vpt2=True)
     path = tmp_path / "input.json"
     path.write_text(config.model_dump_json())
     result = run_calculation(path, scratch=tmp_path / "scratch")
@@ -122,29 +123,24 @@ def test_connected_capability_does_not_claim_executable_or_scientific_validation
 
 
 @pytest.mark.parametrize("anharmonic", ["VPT2", "NONE"])
-def test_cfour_bridge_preserves_complete_provider_request_without_execution(tmp_path, anharmonic):
+def test_cfour_bridge_fails_closed_when_xcfour_binary_is_absent(tmp_path, anharmonic):
     from cochem_base.core_engine.cochem_core_cfour_bridge import CFOURAnharmMode, CFOURBridge, CFOURCalcLevel, CFOURInputConfig
+    from cochem_base.exceptions import BinaryNotFoundError
     bridge = CFOURBridge(cfour_executable="deliberately-uninstalled-cfour", scratch_root=tmp_path)
     config = CFOURInputConfig(basis="cc-pVTZ", memory_size_gb=3, scf_conv=12,
                               calc_level=CFOURCalcLevel.HF, anharm_mode=CFOURAnharmMode(anharmonic))
-    result = bridge.dispatch_cfour_job("pending", ["H", "H"], np.array([[0, 0, 0], [0, 0, .74]]), config)
-    assert result.status == "PENDING_INTEGRATION" and result.success is False
-    assert result.observables is None and result.error_message is None
-    request = load_calculation_handoff(result.handoff_manifest)
-    assert request.provider_options["cfour_input"]["memory_size_gb"] == 3
-    assert request.provider_options["cfour_input"]["scf_conv"] == 12
-    assert request.capability.adapter_status == "pending_integration"
-    assert request.provider_options["native_base_execution_api"] == "cochem_base.calc.calculation_service.run_calculation"
-    assert not list(Path(result.working_directory).rglob("output.dat"))
+    with pytest.raises(BinaryNotFoundError, match="deliberately-uninstalled-cfour"):
+        bridge.dispatch_cfour_job("missing_bin", ["H", "H"], np.array([[0, 0, 0], [0, 0, .74]]), config)
+    assert not list(tmp_path.rglob("output.dat"))
 
 
 def test_chain_pending_state_has_no_result_and_cannot_be_promoted(tmp_path):
     from cochem_base.chain import Chain, ConvergenceFailureError, PendingStateRecord, Stage
     source = tmp_path / "geometry.xyz"
     source.write_text(GEOMETRY)
-    config = cfour_config(is_freq=True, is_vpt2=True)
+    config = cfour_config(method="CC3", is_freq=True, is_vpt2=True)
     chain = Chain(workdir=tmp_path / "chain", orca_cmd="deliberately-uninstalled-orca")
-    stage = Stage("anharm", "CCSD(T) cc-pVTZ VPT2", engine="cfour",
+    stage = Stage("anharm", "CC3 cc-pVTZ VPT2", engine="cfour",
                   blocks="*CFOUR(ANHARM=VPT2,SCF_CONV=12)", scientific_config=config.model_dump(mode="json"))
     pending = chain.run_stage(stage, source)
     assert isinstance(pending, PendingStateRecord)
@@ -169,7 +165,7 @@ def test_raw_vpt2_chain_points_to_structured_input_contract(tmp_path):
 
 def test_cli_pending_integration_has_distinct_exit_code_and_durable_manifest(tmp_path):
     path = tmp_path / "input.json"
-    path.write_text(cfour_config(is_vpt2=True).model_dump_json())
+    path.write_text(cfour_config(method="CC3", is_vpt2=True).model_dump_json())
     repository = Path(__file__).resolve().parents[2]
     completed = subprocess.run(
         [sys.executable, str(repository / "cli.py"), "run", "--config", str(path),

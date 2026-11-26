@@ -149,15 +149,19 @@ def test_dockerfile_layer_structure_and_order(dockerfile_content: str) -> None:
 
 def test_dockerfile_zero_mock_and_anti_spoofing(dockerfile_content: str) -> None:
     """Validate zero-stub anti-spoofing compliance and absence of banned directives."""
+    from ci_tools.anti_spoof_linter import (
+        BANNED_MOCK_ATTRIBUTES,
+        BANNED_MOCK_MODULES,
+    )
+
     # anti-spoofing policy enforcement: banned terms verification
     banned_tokens = [
-        "unittest." + "mock",
-        "Magic" + "Mock",
-        "Mock(",
-        "TO" + "DO",
-        "FIX" + "ME",
-        "PLACE" + "HOLDER",
-        "NotImplemented" + "Error",
+        *sorted(BANNED_MOCK_MODULES),
+        *sorted(BANNED_MOCK_ATTRIBUTES),
+        "TODO",
+        "FIXME",
+        "PLACEHOLDER",
+        "NotImplementedError",
         "pass",
     ]
     for token in banned_tokens:

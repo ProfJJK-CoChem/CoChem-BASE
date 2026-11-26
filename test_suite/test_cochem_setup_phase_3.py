@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import platform
 import stat
 import sys
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Iterator, Optional
 
 import pytest
 
@@ -223,17 +225,34 @@ def test_compute_file_sha256_directory(tmp_path: Path) -> None:
 # =============================================================================
 
 
-def test_resolve_binary_search_paths_with_env_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    saved = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, previous in saved.items():
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+
+
+def test_resolve_binary_search_paths_with_env_override(tmp_path: Path) -> None:
     """Test Tier 1 search paths via environment variable overrides."""
     custom_bin_dir = tmp_path / "custom_orca_dir"
     custom_bin_dir.mkdir()
     custom_orca = custom_bin_dir / ("orca.exe" if platform.system() == "Windows" else "orca")
     custom_orca.write_bytes(b"synthetic_binary_payload")
 
-    monkeypatch.setenv("COCHEM_ORCA_PATH", str(custom_orca))
-
-    paths = resolve_binary_search_paths("orca")
-    assert any(str(custom_orca) in str(p) or p == custom_orca for p in paths)
+    with _scoped_env(COCHEM_ORCA_PATH=str(custom_orca)):
+        paths = resolve_binary_search_paths("orca")
+        assert any(str(custom_orca) in str(p) or p == custom_orca for p in paths)
 
 
 def test_discover_binary_path_found(tmp_path: Path) -> None:
@@ -482,7 +501,7 @@ def test_dependency_manager_rollback_on_exception(tmp_path: Path) -> None:
     assert not temp_tracked_file.exists()
 
 
-def test_resolve_p3_registry_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_p3_registry_path(tmp_path: Path) -> None:
     """Test resolution of p3.json target registry file path."""
     # 1. Custom output dir
     custom_dir = tmp_path / "my_custom_registry"
@@ -496,9 +515,9 @@ def test_resolve_p3_registry_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
     # 3. Environment variable override
     env_art_dir = tmp_path / "env_artifacts"
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(env_art_dir))
-    p3_env = resolve_p3_registry_path()
-    assert p3_env == env_art_dir / "Registry" / "p3.json"
+    with _scoped_env(COCHEM_ARTIFACT_DIR=str(env_art_dir)):
+        p3_env = resolve_p3_registry_path()
+        assert p3_env == env_art_dir / "Registry" / "p3.json"
 
 
 # =============================================================================

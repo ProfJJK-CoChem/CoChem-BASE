@@ -24,6 +24,7 @@ Directives & Mandates:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import hashlib
 import importlib
 import importlib.util
@@ -32,7 +33,7 @@ import math
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Iterator, Optional, Union
 
 import mendeleev
 import numpy as np
@@ -533,7 +534,26 @@ def test_batch_directory_scanning(tmp_path: Path) -> None:
         assert len(payloads) >= 5
 
 
-def test_io_fallback_scratch_resolution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
+def test_io_fallback_scratch_resolution(tmp_path: Path) -> None:
     """Verify fallback logic prioritizing:
     1. $SCRATCH
     2. $SLURM_TMPDIR
@@ -543,33 +563,30 @@ def test_io_fallback_scratch_resolution(tmp_path: Path, monkeypatch: pytest.Monk
     # Tier 1: $SCRATCH takes highest precedence
     scratch_tier1 = tmp_path / "hpc_scratch_t1"
     scratch_tier1.mkdir()
-    monkeypatch.setenv("SCRATCH", str(scratch_tier1))
-    monkeypatch.setenv("COCHEM_SCRATCH", str(scratch_tier1))
-
-    resolved_t1 = _invoke_resolve_scratch()
-    assert resolved_t1.resolve() == scratch_tier1.resolve()
+    with _scoped_env(SCRATCH=str(scratch_tier1), COCHEM_SCRATCH=str(scratch_tier1)):
+        resolved_t1 = _invoke_resolve_scratch()
+        assert resolved_t1.resolve() == scratch_tier1.resolve()
 
     # Tier 2: When $SCRATCH is absent, we skip SLURM_TMPDIR test here unless present physically
-    monkeypatch.delenv("SCRATCH", raising=False)
-    monkeypatch.delenv("COCHEM_SCRATCH", raising=False)
-    if os.environ.get("SLURM_TMPDIR"):
-        expected = Path(os.environ.get("SLURM_TMPDIR")).resolve()
-        assert _invoke_resolve_scratch().resolve() == expected
+    with _scoped_env(SCRATCH=None, COCHEM_SCRATCH=None):
+        if os.environ.get("SLURM_TMPDIR"):
+            expected = Path(os.environ.get("SLURM_TMPDIR")).resolve()
+            assert _invoke_resolve_scratch().resolve() == expected
 
-    # Tier 2: Test COCHEM_SCRATCH_DIR fallback
-    scratch_tier2 = tmp_path / "cochem_scratch_t2"
-    scratch_tier2.mkdir()
-    monkeypatch.setenv("COCHEM_SCRATCH_DIR", str(scratch_tier2))
-    assert _invoke_resolve_scratch().resolve() == scratch_tier2.resolve()
+        # Tier 2: Test COCHEM_SCRATCH_DIR fallback
+        scratch_tier2 = tmp_path / "cochem_scratch_t2"
+        scratch_tier2.mkdir()
+        with _scoped_env(COCHEM_SCRATCH_DIR=str(scratch_tier2)):
+            assert _invoke_resolve_scratch().resolve() == scratch_tier2.resolve()
 
-    # Tier 3: Custom path override overrides all environment variables
-    explicit_custom = tmp_path / "explicit_user_scratch"
-    resolved_custom = _invoke_resolve_scratch(custom_path=explicit_custom)
-    assert resolved_custom.resolve() == explicit_custom.resolve()
-    assert resolved_custom.exists()
+            # Tier 3: Custom path override overrides all environment variables
+            explicit_custom = tmp_path / "explicit_user_scratch"
+            resolved_custom = _invoke_resolve_scratch(custom_path=explicit_custom)
+            assert resolved_custom.resolve() == explicit_custom.resolve()
+            assert resolved_custom.exists()
 
 
-def test_config_binding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_binding(tmp_path: Path) -> None:
     """Verify integration with cochem_system_config.json and hardware profile."""
     custom_system_config = {
         "schema_version": "1.0.0",
@@ -602,17 +619,16 @@ def test_config_binding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
     config_path = tmp_path / "cochem_system_config.json"
     config_path.write_text(json.dumps(custom_system_config, indent=2), encoding="utf-8")
-    monkeypatch.setenv("COCHEM_CONFIG", str(config_path))
-
-    mod = _load_mint_module()
-    if hasattr(mod, "bind_system_config"):
-        bound = mod.bind_system_config(config_path)
-        assert bound is not None
-    else:
-        from cochem_base.config_loader import load_system_config
-        cfg = load_system_config(config_path)
-        assert cfg.hardware.physical_cpu_cores == 8
-        assert cfg.hardware.ram_gb == 64.0
+    with _scoped_env(COCHEM_CONFIG=str(config_path)):
+        mod = _load_mint_module()
+        if hasattr(mod, "bind_system_config"):
+            bound = mod.bind_system_config(config_path)
+            assert bound is not None
+        else:
+            from cochem_base.config_loader import load_system_config
+            cfg = load_system_config(config_path)
+            assert cfg.hardware.physical_cpu_cores == 8
+            assert cfg.hardware.ram_gb == 64.0
 
 
 def test_malformed_and_edge_cases(tmp_path: Path) -> None:

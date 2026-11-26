@@ -25,7 +25,7 @@ def test_audit_binary_linkage_existing_binary(tmp_path: Path):
     assert isinstance(missing, list)
 
 
-def test_audit_binary_linkage_auto_remediation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_audit_binary_linkage_auto_remediation(tmp_path: Path):
     """Verify automated runtime library path remediation finds adjacent libraries and updates env."""
     bin_dir = tmp_path / "bin"
     lib_dir = tmp_path / "lib"

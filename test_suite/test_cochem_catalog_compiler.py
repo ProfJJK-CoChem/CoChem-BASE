@@ -15,8 +15,9 @@ import gc
 import math
 import os
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, Optional
 
 import psutil
 import pyarrow as pa  # type: ignore[import-untyped]
@@ -417,7 +418,25 @@ def test_generate_methods_latex_and_bibtex_deduplication() -> None:
 # 8. 6-Tier CoChemPathManager & Ghost Output Purger Integration Tests
 # =============================================================================
 
-def test_cochem_path_manager_6_tiers_and_ghost_purger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    saved = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, previous in saved.items():
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+
+
+def test_cochem_path_manager_6_tiers_and_ghost_purger(tmp_path: Path) -> None:
     """Validate all 6 resolution tiers of CoChemPathManager and ghost output purging."""
     # Tier 1: Explicit custom path
     custom_scratch = tmp_path / "custom_tier1"
@@ -427,10 +446,9 @@ def test_cochem_path_manager_6_tiers_and_ghost_purger(tmp_path: Path, monkeypatc
 
     # Tier 2: COCHEM_SCRATCH environment variable
     t2_path = tmp_path / "env_tier2"
-    monkeypatch.setenv("COCHEM_SCRATCH", str(t2_path))
-    resolved_t2 = CoChemPathManager.resolve_scratch_dir()
-    assert resolved_t2 == t2_path.resolve()
-    monkeypatch.delenv("COCHEM_SCRATCH")
+    with _scoped_env(COCHEM_SCRATCH=str(t2_path)):
+        resolved_t2 = CoChemPathManager.resolve_scratch_dir()
+        assert resolved_t2 == t2_path.resolve()
 
     # Deliverables resolution
     custom_deliv = tmp_path / "custom_deliverables"

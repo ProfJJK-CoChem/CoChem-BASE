@@ -163,7 +163,7 @@ class TestTorqMasterContextAnchor:
                 m = importlib.import_module(mod)
                 assert m is not None
 
-    def test_full_10_phase_funnel_end_to_end(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_full_10_phase_funnel_end_to_end(self, tmp_path: Path) -> None:
         """Executes full 10-Phase pipeline funnel sequentially on real molecular inputs."""
 
         # -------------------------------------------------------------

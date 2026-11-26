@@ -196,9 +196,29 @@ def build_gpu4pyscf_script(
     spin = int(multiplicity) - 1
     unrestricted = spin > 0 or method.strip().upper().startswith(("UHF", "UKS"))
 
+    from cochem_base.calc.regime_guards import apply_chemical_regime_guards
+
+    regime = apply_chemical_regime_guards(
+        elements,
+        charge=int(charge),
+        method_or_theory=method.strip(),
+        basis=basis_set.strip(),
+        engine="gpu4pyscf",
+    )
+    effective_basis = regime.effective_basis or basis_set.strip()
+    effective_xc_grid = (
+        (max(int(xc_grid[0]), DEFAULT_XC_GRID[0]), max(int(xc_grid[1]), DEFAULT_XC_GRID[1]))
+        if regime.require_defgrid3
+        else (int(xc_grid[0]), int(xc_grid[1]))
+    )
+
     spec: dict[str, Any] = {
         "atom": [[str(sym), [float(v) for v in row]] for sym, row in zip(elements, xyz, strict=True)],
-        "basis": basis_set.strip(),
+        "basis": effective_basis,
+        "requested_basis": basis_set.strip(),
+        "ecp": dict(regime.pyscf_ecp) if regime.pyscf_ecp else None,
+        "use_sfx2c1e": bool(regime.pyscf_sfx2c1e),
+        "regime_guards": regime.to_provenance_dict(),
         "charge": int(charge),
         "spin": spin,
         "multiplicity": int(multiplicity),
@@ -208,7 +228,7 @@ def build_gpu4pyscf_script(
         "uses_vv10": uses_vv10,
         "unrestricted": unrestricted,
         "auxbasis": auxbasis,
-        "xc_grid": [int(xc_grid[0]), int(xc_grid[1])],
+        "xc_grid": [effective_xc_grid[0], effective_xc_grid[1]],
         "nlc_grid": [int(nlc_grid[0]), int(nlc_grid[1])] if uses_vv10 else None,
         "conv_tol": float(conv_tol),
         "max_cycle": int(max_cycle),
@@ -266,15 +286,18 @@ init_coords = np.asarray([item[1] for item in spec["atom"]], dtype=np.float64)
 
 def _build_mf(coords_ang):
     atom_spec = [[sym, coords_ang[i].tolist()] for i, sym in enumerate(elements)]
-    mol = gto.M(
-        atom=atom_spec,
-        unit="Angstrom",
-        basis=spec["basis"],
-        charge=spec["charge"],
-        spin=spec["spin"],
-        max_memory=spec["max_memory_mb"],
-        verbose=3,
-    )
+    mol_kwargs = {
+        "atom": atom_spec,
+        "unit": "Angstrom",
+        "basis": spec["basis"],
+        "charge": spec["charge"],
+        "spin": spec["spin"],
+        "max_memory": spec["max_memory_mb"],
+        "verbose": 3,
+    }
+    if spec.get("ecp"):
+        mol_kwargs["ecp"] = spec["ecp"]
+    mol = gto.M(**mol_kwargs)
     if spec["is_hf"]:
         mf = gpu_uhf.UHF(mol) if spec["unrestricted"] else gpu_hf.RHF(mol)
         mf = mf.density_fit(auxbasis=spec["auxbasis"])
@@ -288,6 +311,8 @@ def _build_mf(coords_ang):
         mf.grids.atom_grid = tuple(spec["xc_grid"])
         if spec["nlc_grid"] is not None:
             mf.nlcgrids.atom_grid = tuple(spec["nlc_grid"])
+    if spec.get("use_sfx2c1e"):
+        mf = mf.sfx2c1e()
     mf.conv_tol = float(spec["conv_tol"])
     mf.max_cycle = int(spec["max_cycle"])
     return mol, mf
@@ -379,6 +404,10 @@ payload = {
     "functional": spec["xc_or_hf"],
     "reference": reference_kind,
     "basis": spec["basis"],
+    "requested_basis": spec.get("requested_basis", spec["basis"]),
+    "ecp": spec.get("ecp"),
+    "use_sfx2c1e": bool(spec.get("use_sfx2c1e", False)),
+    "regime_guards": spec.get("regime_guards"),
     "auxbasis": spec["auxbasis"],
     "xc_grid": spec["xc_grid"] if not spec["is_hf"] else None,
     "nlc_grid": spec["nlc_grid"] if not spec["is_hf"] else None,

@@ -412,10 +412,10 @@ def test_compute_core_affinity_distribution_invalid_cores_error() -> None:
 
 
 def test_audit_anti_spoof_amnesty_real_repository() -> None:
-    """Test audit_anti_spoof_amnesty on the active repository .anti_spoof_amnesty.json."""
+    """Test audit_anti_spoof_amnesty on the active repository zero-amnesty .anti_spoof_amnesty.json."""
     profile = audit_anti_spoof_amnesty()
     assert profile.is_amnesty_present is True
-    assert profile.total_amnestied_entries >= 10
+    assert profile.total_amnestied_entries == 0
     assert profile.is_utf8_lf_compliant is True
     assert profile.is_alphabetically_sorted is True
     assert profile.has_zero_duplicates is True

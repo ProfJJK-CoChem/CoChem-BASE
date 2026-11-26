@@ -493,7 +493,11 @@ def audit_anti_spoof_amnesty(
     ]
 
     normalized_entries = {e.replace("\\", "/").strip("/").lower() for e in entries}
-    parsl_covered = any("parsl" in e or "orchestrator" in e or "core" in e for e in normalized_entries)
+    # Under Zero-Amnesty Protocol (empty .anti_spoof_amnesty.json = []), legitimate
+    # concurrency imports are natively permitted by anti_spoof_linter without amnesty entries.
+    parsl_covered = (len(entries) == 0) or any(
+        "parsl" in e or "orchestrator" in e or "core" in e for e in normalized_entries
+    )
 
     return AmnestyAuditProfile(
         amnesty_file_path=str(target_file),

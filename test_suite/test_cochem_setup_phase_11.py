@@ -18,8 +18,9 @@ import os
 import platform
 import stat
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 import pytest
 from pydantic import ValidationError
@@ -66,24 +67,46 @@ from orchestrator.cochem_setup_phase_11 import (
 )
 
 
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    saved = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, previous in saved.items():
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+
+
 @pytest.fixture(autouse=True)
-def clean_hpc_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def clean_hpc_environment() -> Iterator[None]:
     """Ensure no HPC scheduler environment variables pollute test execution."""
-    for var in [
-        "SLURM_JOB_ID",
-        "SLURM_JOBID",
-        "SLURM_MEM_PER_NODE",
-        "SLURM_MEM_PER_CPU",
-        "SLURM_CPUS_ON_NODE",
-        "SLURM_JOB_CPUS_PER_NODE",
-        "PBS_JOBID",
-        "PBS_JOBNAME",
-        "PBS_MEM",
-        "PBS_RESOURCE_LIST",
-        "LSB_JOBID",
-        "LSB_JOB_MEMLIMIT",
-    ]:
-        monkeypatch.delenv(var, raising=False)
+    hpc_vars = {
+        var: None
+        for var in [
+            "SLURM_JOB_ID",
+            "SLURM_JOBID",
+            "SLURM_MEM_PER_NODE",
+            "SLURM_MEM_PER_CPU",
+            "SLURM_CPUS_ON_NODE",
+            "SLURM_JOB_CPUS_PER_NODE",
+            "PBS_JOBID",
+            "PBS_JOBNAME",
+            "PBS_MEM",
+            "PBS_RESOURCE_LIST",
+            "LSB_JOBID",
+            "LSB_JOB_MEMLIMIT",
+        ]
+    }
+    with _scoped_env(**hpc_vars):
+        yield
 
 
 def make_temp_dir() -> tempfile.TemporaryDirectory:
@@ -439,77 +462,71 @@ def test_parse_cgroup_v1_unlimited_boundary(tmp_path: Path) -> None:
     assert profile.is_cgroup_constrained is False
 
 
-def test_detect_hpc_memory_limits_slurm(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_hpc_memory_limits_slurm() -> None:
     """Verify Slurm HPC job memory limit resolution via SLURM_MEM_PER_NODE."""
-    monkeypatch.setenv("SLURM_JOB_ID", "123456")
-    monkeypatch.setenv("SLURM_MEM_PER_NODE", "65536")
-    scheduler, mem_bytes = detect_hpc_memory_limits()
-    assert scheduler == "Slurm"
-    assert mem_bytes == 65536 * 1024 * 1024
+    with _scoped_env(SLURM_JOB_ID="123456", SLURM_MEM_PER_NODE="65536"):
+        scheduler, mem_bytes = detect_hpc_memory_limits()
+        assert scheduler == "Slurm"
+        assert mem_bytes == 65536 * 1024 * 1024
 
 
-def test_detect_hpc_memory_limits_slurm_per_cpu(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_hpc_memory_limits_slurm_per_cpu() -> None:
     """Verify Slurm HPC job memory limit resolution via SLURM_MEM_PER_CPU * SLURM_CPUS_ON_NODE."""
-    monkeypatch.setenv("SLURM_JOBID", "123456")
-    monkeypatch.setenv("SLURM_MEM_PER_CPU", "4096")
-    monkeypatch.setenv("SLURM_CPUS_ON_NODE", "8")
-    scheduler, mem_bytes = detect_hpc_memory_limits()
-    assert scheduler == "Slurm"
-    assert mem_bytes == 4096 * 1024 * 1024 * 8
+    with _scoped_env(SLURM_JOBID="123456", SLURM_MEM_PER_CPU="4096", SLURM_CPUS_ON_NODE="8"):
+        scheduler, mem_bytes = detect_hpc_memory_limits()
+        assert scheduler == "Slurm"
+        assert mem_bytes == 4096 * 1024 * 1024 * 8
 
 
-def test_detect_hpc_memory_limits_slurm_jobid_only(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_hpc_memory_limits_slurm_jobid_only() -> None:
     """Verify Slurm HPC job detection when no memory limit variable is specified."""
-    monkeypatch.setenv("SLURM_JOB_ID", "999999")
-    scheduler, mem_bytes = detect_hpc_memory_limits()
-    assert scheduler == "Slurm"
-    assert mem_bytes is None
+    with _scoped_env(SLURM_JOB_ID="999999"):
+        scheduler, mem_bytes = detect_hpc_memory_limits()
+        assert scheduler == "Slurm"
+        assert mem_bytes is None
 
 
-def test_detect_hpc_memory_limits_pbs(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_hpc_memory_limits_pbs() -> None:
     """Verify PBS HPC job memory limit resolution via PBS_MEM."""
-    monkeypatch.setenv("PBS_JOBID", "789012")
-    monkeypatch.setenv("PBS_MEM", "32gb")
-
-    scheduler, mem_bytes = detect_hpc_memory_limits()
-    assert scheduler == "PBS"
-    assert mem_bytes == 32 * 1024 * 1024 * 1024
+    with _scoped_env(PBS_JOBID="789012", PBS_MEM="32gb"):
+        scheduler, mem_bytes = detect_hpc_memory_limits()
+        assert scheduler == "PBS"
+        assert mem_bytes == 32 * 1024 * 1024 * 1024
 
 
-def test_detect_hpc_memory_limits_pbs_resource_list(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_hpc_memory_limits_pbs_resource_list() -> None:
     """Verify PBS HPC job memory limit resolution via PBS_RESOURCE_LIST token parsing."""
-    monkeypatch.setenv("PBS_JOBNAME", "cochem_job_42")
-    monkeypatch.setenv("PBS_RESOURCE_LIST", "ncpus=16,mem=64gb,walltime=24:00:00")
+    with _scoped_env(
+        PBS_JOBNAME="cochem_job_42",
+        PBS_RESOURCE_LIST="ncpus=16,mem=64gb,walltime=24:00:00",
+    ):
+        scheduler, mem_bytes = detect_hpc_memory_limits()
+        assert scheduler == "PBS"
+        assert mem_bytes == 64 * 1024 * 1024 * 1024
 
-    scheduler, mem_bytes = detect_hpc_memory_limits()
-    assert scheduler == "PBS"
-    assert mem_bytes == 64 * 1024 * 1024 * 1024
 
-
-def test_detect_hpc_memory_limits_pbs_jobid_only(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_hpc_memory_limits_pbs_jobid_only() -> None:
     """Verify PBS HPC job detection when no memory limit is specified."""
-    monkeypatch.setenv("PBS_JOBID", "888888")
-    scheduler, mem_bytes = detect_hpc_memory_limits()
-    assert scheduler == "PBS"
-    assert mem_bytes is None
+    with _scoped_env(PBS_JOBID="888888"):
+        scheduler, mem_bytes = detect_hpc_memory_limits()
+        assert scheduler == "PBS"
+        assert mem_bytes is None
 
 
-def test_detect_hpc_memory_limits_lsf(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_hpc_memory_limits_lsf() -> None:
     """Verify LSF HPC job memory limit resolution via LSB_JOB_MEMLIMIT."""
-    monkeypatch.setenv("LSB_JOBID", "54321")
-    monkeypatch.setenv("LSB_JOB_MEMLIMIT", "16384M")
-
-    scheduler, mem_bytes = detect_hpc_memory_limits()
-    assert scheduler == "LSF"
-    assert mem_bytes == 16384 * 1024 * 1024
+    with _scoped_env(LSB_JOBID="54321", LSB_JOB_MEMLIMIT="16384M"):
+        scheduler, mem_bytes = detect_hpc_memory_limits()
+        assert scheduler == "LSF"
+        assert mem_bytes == 16384 * 1024 * 1024
 
 
-def test_detect_hpc_memory_limits_lsf_jobid_only(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_hpc_memory_limits_lsf_jobid_only() -> None:
     """Verify LSF HPC job detection when LSB_JOBID is present without limit."""
-    monkeypatch.setenv("LSB_JOBID", "54321")
-    scheduler, mem_bytes = detect_hpc_memory_limits()
-    assert scheduler == "LSF"
-    assert mem_bytes is None
+    with _scoped_env(LSB_JOBID="54321"):
+        scheduler, mem_bytes = detect_hpc_memory_limits()
+        assert scheduler == "LSF"
+        assert mem_bytes is None
 
 
 def test_detect_hpc_memory_limits_none() -> None:
@@ -999,7 +1016,7 @@ def test_load_phase_2_audit_findings_corrupt_or_missing(tmp_path: Path) -> None:
     assert load_phase_2_audit_findings(p2_path=corrupt_path) is None
 
 
-def test_load_phase_2_audit_findings_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_phase_2_audit_findings_env_var(tmp_path: Path) -> None:
     """Verify load_phase_2_audit_findings discovers p2.json via COCHEM_REGISTRY_DIR."""
     reg_dir = tmp_path / "env_registry"
     reg_dir.mkdir()
@@ -1012,12 +1029,11 @@ def test_load_phase_2_audit_findings_env_var(tmp_path: Path, monkeypatch: pytest
         "gpu": {"available": False},
     }
     p2_file.write_text(json.dumps(p2_payload), encoding="utf-8")
-    monkeypatch.setenv("COCHEM_REGISTRY_DIR", str(reg_dir))
-
-    findings = load_phase_2_audit_findings()
-    assert findings is not None
-    assert findings.physical_cores == 8
-    assert findings.total_physical_ram_bytes == 68719476736
+    with _scoped_env(COCHEM_REGISTRY_DIR=str(reg_dir)):
+        findings = load_phase_2_audit_findings()
+        assert findings is not None
+        assert findings.physical_cores == 8
+        assert findings.total_physical_ram_bytes == 68719476736
 
 
 def test_run_phase_11_audit_with_p2_path(tmp_path: Path) -> None:

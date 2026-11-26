@@ -6,13 +6,14 @@ and rigorous Pydantic V2 model validations across POSIX and Windows platforms.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import hashlib
 import json
 import os
 from pathlib import Path
 import platform
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Iterator, Optional
 
 import pytest
 from pydantic import ValidationError
@@ -42,6 +43,25 @@ from cochem_core_registry_schema import (
 )
 
 
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
 # =============================================================================
 # 1. GLOBAL SCHEMA CONSTRAINTS: EXTRA FORBIDDEN & VALIDATE ASSIGNMENT
 # =============================================================================
@@ -52,7 +72,7 @@ def test_global_schema_constraints_extra_fields_forbidden():
         GPUComputeSchema(gpu_profile="NVIDIA", hallucinated_field="forbidden")
 
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        MPSConfig(enabled=True, fake_field=123)
+        MPSConfig(enabled=True, unexpected_extra_field=123)
 
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         CorePinningConfig(anchor_p_cores=4, ghost_core=1)
@@ -337,31 +357,30 @@ def test_environment_schema_isotopic_mass_locking():
         env.get_isotopic_mass("999Unobtainium")
 
 
-def test_environment_schema_path_resolution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_environment_schema_path_resolution(tmp_path: Path):
     """Test cross-platform path resolution and strict relative path rejection."""
     test_dir = tmp_path / "cochem_env_dir"
     test_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_TEST_VAR", str(test_dir))
+    with _scoped_env(COCHEM_TEST_VAR=str(test_dir)):
+        env = EnvironmentSchema(
+            artifacts_dir="$COCHEM_TEST_VAR/artifacts" if os.name != "nt" else "%COCHEM_TEST_VAR%\\artifacts",
+            scratch_dir="$COCHEM_TEST_VAR/scratch" if os.name != "nt" else "%COCHEM_TEST_VAR%\\scratch",
+        )
+        assert str(test_dir) in str(env.artifacts_dir)
+        assert str(test_dir) in str(env.scratch_dir)
 
-    env = EnvironmentSchema(
-        artifacts_dir="$COCHEM_TEST_VAR/artifacts" if os.name != "nt" else "%COCHEM_TEST_VAR%\\artifacts",
-        scratch_dir="$COCHEM_TEST_VAR/scratch" if os.name != "nt" else "%COCHEM_TEST_VAR%\\scratch",
-    )
-    assert str(test_dir) in str(env.artifacts_dir)
-    assert str(test_dir) in str(env.scratch_dir)
+        # Resolve absolute path
+        resolved = env.resolve_path(str(test_dir / "target.txt"))
+        assert resolved.name == "target.txt"
 
-    # Resolve absolute path
-    resolved = env.resolve_path(str(test_dir / "target.txt"))
-    assert resolved.name == "target.txt"
+        # Strict path resolution rejecting relative paths
+        env_strict = EnvironmentSchema(strict_path_resolution=True)
+        with pytest.raises(ValueError, match="Strict path resolution enabled"):
+            env_strict.resolve_path("relative/path/not/absolute.txt")
 
-    # Strict path resolution rejecting relative paths
-    env_strict = EnvironmentSchema(strict_path_resolution=True)
-    with pytest.raises(ValueError, match="Strict path resolution enabled"):
-        env_strict.resolve_path("relative/path/not/absolute.txt")
-
-    # Empty path rejection
-    with pytest.raises(ValueError, match="Cannot resolve empty path"):
-        env.resolve_path("")
+        # Empty path rejection
+        with pytest.raises(ValueError, match="Cannot resolve empty path"):
+            env.resolve_path("")
 
 
 def test_environment_schema_invalid_os_target():
@@ -424,23 +443,22 @@ def test_silo_paths_schema_rejects_relative_paths():
         SiloPathsSchema(hdf5_pes_store_path="data/store.h5")
 
 
-def test_silo_paths_schema_rejects_cochem_root_write_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_silo_paths_schema_rejects_cochem_root_write_store(tmp_path: Path):
     """Verify write stores targeting immutable $COCHEM_ROOT are rejected."""
     cochem_root = tmp_path / "cochem_codebase_root"
     cochem_root.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ROOT", str(cochem_root))
+    with _scoped_env(COCHEM_ROOT=str(cochem_root)):
+        # Path inside COCHEM_ROOT must be rejected for write store
+        forbidden_store = cochem_root / "forbidden_pes.h5"
+        with pytest.raises(ValidationError, match="targets immutable codebase"):
+            SiloPathsSchema(hdf5_pes_store_path=str(forbidden_store))
 
-    # Path inside COCHEM_ROOT must be rejected for write store
-    forbidden_store = cochem_root / "forbidden_pes.h5"
-    with pytest.raises(ValidationError, match="targets immutable codebase"):
-        SiloPathsSchema(hdf5_pes_store_path=str(forbidden_store))
-
-    # Path outside COCHEM_ROOT is valid
-    dynamic_data_dir = tmp_path / "cochem_dynamic_data"
-    dynamic_data_dir.mkdir(parents=True, exist_ok=True)
-    valid_store = dynamic_data_dir / "valid_pes.h5"
-    silo_valid = SiloPathsSchema(hdf5_pes_store_path=str(valid_store))
-    assert silo_valid.hdf5_pes_store_path == str(valid_store.resolve())
+        # Path outside COCHEM_ROOT is valid
+        dynamic_data_dir = tmp_path / "cochem_dynamic_data"
+        dynamic_data_dir.mkdir(parents=True, exist_ok=True)
+        valid_store = dynamic_data_dir / "valid_pes.h5"
+        silo_valid = SiloPathsSchema(hdf5_pes_store_path=str(valid_store))
+        assert silo_valid.hdf5_pes_store_path == str(valid_store.resolve())
 
 
 # =============================================================================

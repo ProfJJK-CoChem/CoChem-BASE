@@ -23,8 +23,11 @@ Validates:
 from __future__ import annotations
 
 import ast
+from contextlib import contextmanager
 import hashlib
+import os
 from pathlib import Path
+from typing import Iterator, Optional
 
 import h5py
 import numpy as np
@@ -365,12 +368,12 @@ def test_template_engine_ast_zero_mock_compliance() -> None:
     Exhaustively scans template_engine.py and test_template_engine.py for banned mock imports.
     Ensures zero synthetic test double imports, zero MagicMock, and zero placeholder shortcuts.
     """
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_ATTRIBUTES, BANNED_MOCK_MODULES
+
     target_files = [
         Path(__file__).resolve().parent.parent / "cochem_core" / "ai" / "template_engine.py",
         Path(__file__).resolve(),
     ]
-
-    banned_terms = ["unittest" + ".mock", "MagicMock", "patch", "create_autospec"]
 
     for file_path in target_files:
         assert file_path.is_file(), f"Target file does not exist: {file_path}"
@@ -381,15 +384,26 @@ def test_template_engine_ast_zero_mock_compliance() -> None:
             # Check import statements
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    for term in banned_terms:
-                        assert term not in alias.name, f"Banned import '{alias.name}' in {file_path}"
+                    assert not any(
+                        alias.name == mod or alias.name.startswith(mod + ".")
+                        for mod in BANNED_MOCK_MODULES
+                    ), f"Banned import '{alias.name}' in {file_path}"
+                    assert alias.name not in BANNED_MOCK_ATTRIBUTES, (
+                        f"Banned import symbol '{alias.name}' in {file_path}"
+                    )
             elif isinstance(node, ast.ImportFrom):
                 module = node.module or ""
-                for term in banned_terms:
-                    assert term not in module, f"Banned from-import '{module}' in {file_path}"
+                assert not any(
+                    module == mod or module.startswith(mod + ".")
+                    for mod in BANNED_MOCK_MODULES
+                ), f"Banned from-import '{module}' in {file_path}"
                 for alias in node.names:
-                    for term in banned_terms:
-                        assert term not in alias.name, f"Banned import symbol '{alias.name}' in {file_path}"
+                    assert alias.name not in BANNED_MOCK_ATTRIBUTES, (
+                        f"Banned import symbol '{alias.name}' in {file_path}"
+                    )
+                    assert alias.name not in BANNED_MOCK_MODULES, (
+                        f"Banned import module '{alias.name}' in {file_path}"
+                    )
 
 
 # =============================================================================
@@ -467,14 +481,33 @@ def test_convenience_helper_functions(genuine_landscape_h5: Path) -> None:
     assert r"\qty{-76.4321987654321}{\hartree}" in summary.output_text
 
 
-def test_resolve_landscape_h5_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or unset environment variables and restore them on exit."""
+    saved = {k: os.environ.get(k) for k in updates}
+    try:
+        for k, v in updates.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        yield
+    finally:
+        for k, prev in saved.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
+def test_resolve_landscape_h5_file(tmp_path: Path) -> None:
     """Verifies resolution of landscape.h5 via custom path and environment variable."""
     custom = tmp_path / "custom_landscape.h5"
     assert resolve_landscape_h5_file(custom) == custom.resolve()
 
     env_target = tmp_path / "env_landscape.h5"
-    monkeypatch.setenv("COCHEM_LANDSCAPE_H5", str(env_target))
-    assert resolve_landscape_h5_file() == env_target.resolve()
+    with _scoped_env(COCHEM_LANDSCAPE_H5=str(env_target)):
+        assert resolve_landscape_h5_file() == env_target.resolve()
 
 
 def test_special_floats_and_array_inputs() -> None:

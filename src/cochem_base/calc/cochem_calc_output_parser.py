@@ -378,6 +378,21 @@ class QuantumParser:
         has_strain = last_max_g > strain_threshold
         return last_max_g, has_strain
 
+    def parse_cc_diagnostics(
+        self,
+        log_path: Union[str, Path],
+        *,
+        method: str = "",
+        multiplicity: int = 1,
+    ) -> dict:
+        """Parse coupled-cluster T1/D1 multireference diagnostics from an ORCA output file."""
+        from cochem_base.calc.regime_guards import parse_cc_multireference_diagnostics
+
+        content = Path(log_path).read_text(encoding="utf-8", errors="replace")
+        return parse_cc_multireference_diagnostics(
+            content, engine="orca", method=method, multiplicity=multiplicity,
+        )
+
 
 OutputParser = QuantumParser
 

@@ -30,8 +30,8 @@ ENERGY_TOLERANCE_HARTREE = 2e-8
 FREQUENCY_TOLERANCE_CM1 = 0.25
 OPTIMIZATION_FORCE_TOLERANCE = 1e-5  # largest atomic norm, hartree/bohr
 SUPPORTED_CFOUR_BASIS_LABELS = (
-    "STO-3G", "3-21G", "4-31G", "6-31G", "6-31G*", "6-31G**", "6-31+G**",
-    "6-311G", "6-311G*", "6-311G**", "DZ", "DZP", "D95", "D95*", "MIDI",
+    "STO-3G", "3-21G", "4-31G", "6-31G", "6-31G*", "6-31G**", "6-31+G", "6-31+G*", "6-31+G**", "6-31++G**",
+    "6-311G", "6-311G*", "6-311G**", "6-311+G*", "6-311++G**", "DZ", "DZP", "D95", "D95*", "MIDI",
     "cc-pVDZ", "cc-pVTZ", "cc-pVQZ", "cc-pV5Z", "cc-pV6Z",
     "aug-cc-pVDZ", "aug-cc-pVTZ", "aug-cc-pVQZ", "aug-cc-pV5Z",
     "cc-pCVDZ", "cc-pCVTZ", "cc-pCVQZ", "cc-pCV5Z",
@@ -234,8 +234,24 @@ def write_cfour_input(directory: Path, config: Any, elements: list[str], coordin
     if isinstance(memory_mb, bool) or not isinstance(memory_mb, int) or memory_mb < 1:
         raise ValueError("CFOUR global memory must be a positive integer MB")
 
+    from cochem_base.calc.regime_guards import apply_chemical_regime_guards
+
+    regime = apply_chemical_regime_guards(
+        elements,
+        charge=int(config.charge),
+        method_or_theory=str(config.method),
+        basis=basis,
+        engine="cfour",
+    )
+    effective_basis = regime.effective_basis or basis
+    effective_config = (
+        config.model_copy(update={"basis_set": effective_basis})
+        if hasattr(config, "model_copy") and effective_basis != basis
+        else config
+    )
+
     opts = _resolve_cfour_options(
-        config,
+        effective_config,
         elements,
         gradient=gradient,
         harmonic=harmonic,
@@ -246,7 +262,7 @@ def write_cfour_input(directory: Path, config: Any, elements: list[str], coordin
         spherical=spherical,
     )
 
-    cfour_basis_kw = normalize_cfour_basis_keyword(basis)
+    cfour_basis_kw = normalize_cfour_basis_keyword(effective_basis)
     keywords = [
         f"CALC={config.method}",
         f"BASIS={cfour_basis_kw}",
@@ -263,6 +279,9 @@ def write_cfour_input(directory: Path, config: Any, elements: list[str], coordin
         f"MEMORY_SIZE={memory_mb}",
         "MEM_UNIT=MB",
     ]
+    for rel_kw in regime.cfour_keywords:
+        if rel_kw not in keywords:
+            keywords.append(rel_kw)
     if opts["cc_prog"] is not None:
         keywords.append(f"CC_PROG={opts['cc_prog']}")
     if opts["do_vpt2"]:
@@ -287,7 +306,14 @@ def write_cfour_input(directory: Path, config: Any, elements: list[str], coordin
     return path
 
 
-def _accept_output(text: str, method: str, requested_threads: int, *, anharmonic: bool = False) -> dict[str, Any]:
+def _accept_output(
+    text: str,
+    method: str,
+    requested_threads: int,
+    *,
+    anharmonic: bool = False,
+    multiplicity: int = 1,
+) -> dict[str, Any]:
     """Check every native module status and the specifically requested energy."""
     from cochem_base.exceptions import ConvergenceError
     if re.search(r"NOT CONVERGED|DID NOT CONVERGE|FAILED TO CONVERGE|FATAL ERROR|ABNORMAL TERMINATION", text, re.I):
@@ -340,8 +366,18 @@ def _accept_output(text: str, method: str, requested_threads: int, *, anharmonic
                 raise ValueError("NCC did not confirm the requested OpenMP thread count")
     if anharmonic and not re.search(r"HARMONIC AND FUNDAMENTAL FREQUENCIES|VPT2 vibrational analysis", text, re.I):
         raise ValueError("CFOUR VPT2 output lacks anharmonic vibrational analysis results")
-    return {"energy_hartree": energy, "native_modules_completed": [name for name, _ in statuses],
-            "electronic_convergence_verified": True}
+    accepted_payload: dict[str, Any] = {
+        "energy_hartree": energy,
+        "native_modules_completed": [name for name, _ in statuses],
+        "electronic_convergence_verified": True,
+    }
+    if method in {"CCSD", "CCSD(T)"}:
+        from cochem_base.calc.regime_guards import parse_cc_multireference_diagnostics
+
+        accepted_payload["multireference_diagnostics"] = parse_cc_multireference_diagnostics(
+            text, engine="cfour", method=method, multiplicity=multiplicity,
+        )
+    return accepted_payload
 
 
 def _rigid_alignment(native: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -514,7 +550,10 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
         _raise_if_cancelled(cancellation_event)
         if proc.returncode != 0:
             raise RuntimeError(f"CFOUR process exited {proc.returncode}; diagnostics retained in {work}")
-        accepted = _accept_output(proc.stdout or "", config.method, authority.cores, anharmonic=anharmonic)
+        accepted = _accept_output(
+            proc.stdout or "", config.method, authority.cores,
+            anharmonic=anharmonic, multiplicity=int(config.multiplicity),
+        )
         accepted.update(input_artifact=_record(deck, directory.parent), output_artifact=_record(stdout, directory.parent))
         accepted["directory"] = str(work.relative_to(directory.parent))
         if (gradient or harmonic) and (work / "GRD").is_file():
@@ -603,8 +642,20 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
         if not math.isclose(final["energy_hartree"], previous_energy, abs_tol=ENERGY_TOLERANCE_HARTREE, rel_tol=0):
             raise ValueError("CFOUR vibrational evaluation changed the optimized electronic energy")
 
+    from cochem_base.calc.regime_guards import apply_chemical_regime_guards
+
+    regime = apply_chemical_regime_guards(
+        elements,
+        charge=int(config.charge),
+        method_or_theory=str(config.method),
+        basis=config.basis_set,
+        engine="cfour",
+    )
     resolved_opts = _resolve_cfour_options(
-        config, elements,
+        config.model_copy(update={"basis_set": regime.effective_basis or config.basis_set})
+        if hasattr(config, "model_copy") and regime.effective_basis
+        else config,
+        elements,
         gradient=config.is_opt, harmonic=(config.is_freq and not config.is_vpt2),
         anharmonic=config.is_vpt2, frozen_core=frozen_core, reference=reference,
         vib_mode=vib_mode, spherical=spherical,
@@ -615,7 +666,8 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
         else "optimization" if config.is_opt
         else "single_point"
     )
-    result = {"engine": "cfour", "method": config.method, "basis_set": config.basis_set,
+    result = {"engine": "cfour", "method": config.method, "basis_set": regime.effective_basis or config.basis_set,
+              "requested_basis_set": config.basis_set,
               "converged": True, "energy_hartree": final["energy_hartree"], "elements": elements,
               "coordinates_angstrom": final_coordinates.tolist(), "operation": operation,
               "optimization_performed": config.is_opt, "native_evaluations": runs,
@@ -625,6 +677,7 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
               "anharmonic_mode": "VPT2" if config.is_vpt2 else "NONE",
               "parallel_model": "OpenMP; no MPI launcher", "requested_threads": authority.cores,
               "runtime_provenance": runtime,
+              "regime_guards": regime.to_provenance_dict(),
               "scientific_accuracy_established": False}
     result.update({
         key: final[key]
@@ -635,7 +688,7 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
             "harmonic_frequency_provenance", "fundamental_frequencies_cm1",
             "anharmonic_contributions_cm1", "rotational_constants_be_mhz",
             "rotational_constants_b0_mhz", "quartic_distortion_khz",
-            "vpt2_zpe_cm1", "vpt2_observables",
+            "vpt2_zpe_cm1", "vpt2_observables", "multireference_diagnostics",
         )
         if key in final
     })
@@ -649,6 +702,7 @@ def execute_cfour(config: Any, elements: list[str], coordinates: Any, *, directo
             "harmonic_nuclides", "harmonic_isotope_masses_u", "principal_isotope_masses_u",
             "rotational_constants_be_mhz", "rotational_constants_b0_mhz",
             "quartic_distortion_khz", "vpt2_zpe_cm1", "parallel_model",
+            "regime_guards", "multireference_diagnostics",
         )
         if key in result
     }

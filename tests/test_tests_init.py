@@ -7,10 +7,11 @@ SRS Document 10 §2, Method Matrix v4, and CoChem Anti-Spoofing Protocol v3.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterator, List, Optional
 
 import pytest
 
@@ -159,15 +160,34 @@ def test_get_test_environment_metadata() -> None:
     assert isinstance(meta["headless"], bool)
 
 
-def test_get_test_environment_metadata_headless_flag(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify environment metadata correctly reflects COCHEM_HEADLESS setting."""
-    monkeypatch.setenv("COCHEM_HEADLESS", "0")
-    meta_gui = tests.get_test_environment_metadata()
-    assert meta_gui["headless"] is False
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
 
-    monkeypatch.setenv("COCHEM_HEADLESS", "1")
-    meta_headless = tests.get_test_environment_metadata()
-    assert meta_headless["headless"] is True
+
+def test_get_test_environment_metadata_headless_flag() -> None:
+    """Verify environment metadata correctly reflects COCHEM_HEADLESS setting."""
+    with _scoped_env(COCHEM_HEADLESS="0"):
+        meta_gui = tests.get_test_environment_metadata()
+        assert meta_gui["headless"] is False
+
+    with _scoped_env(COCHEM_HEADLESS="1"):
+        meta_headless = tests.get_test_environment_metadata()
+        assert meta_headless["headless"] is True
 
 
 def test_all_exports_integrity() -> None:

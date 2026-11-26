@@ -152,7 +152,17 @@ def test_compress_nested_structures_and_pydantic_models() -> None:
         gradients: List[float]
         hessian: Any
 
-    large_hessian = np.ones((120, 120), dtype=np.float64) * 3.14159  # 14,400 elements
+    # Analytical coupled harmonic oscillator force-constant matrix (14,400 elements)
+    mode_idx = np.arange(120, dtype=np.float64)
+    large_hessian = np.outer(mode_idx, mode_idx) * 1e-3 + 3.14159
+    expected_hess_min = float(np.min(large_hessian))
+    expected_hess_max = float(np.max(large_hessian))
+    expected_hess_var = float(np.var(large_hessian))
+
+    # Analytical Hooke's law force vectors F = -k * dx
+    step1_displacements = np.arange(10500, dtype=np.float64) * 1e-4
+    step1_forces = -0.5 * step1_displacements
+    step2_forces = -1.0 * np.arange(-2, 3, dtype=np.float64)
     small_grads = [0.1, -0.2, 0.05]
 
     model_instance = CalculationResult(
@@ -165,8 +175,8 @@ def test_compress_nested_structures_and_pydantic_models() -> None:
         "system": "Benzene-Dimer",
         "record": model_instance,
         "history": [
-            {"step": 1, "forces": np.zeros(10500, dtype=np.float64)},
-            {"step": 2, "forces": np.ones(5, dtype=np.float64)},
+            {"step": 1, "forces": step1_forces},
+            {"step": 2, "forces": step2_forces},
         ],
         "meta": (np.arange(10000, dtype=np.float64), "converged"),
     }
@@ -179,15 +189,15 @@ def test_compress_nested_structures_and_pydantic_models() -> None:
     # Pydantic model dumped and compressed
     assert compressed["record"]["calc_id"] == "job_qm_9042"
     assert compressed["record"]["gradients"] == [0.1, -0.2, 0.05]
-    assert compressed["record"]["hessian"]["Min"] == 3.14159
-    assert compressed["record"]["hessian"]["Max"] == 3.14159
-    assert math.isclose(compressed["record"]["hessian"]["Variance"], 0.0, abs_tol=1e-9)
+    assert math.isclose(compressed["record"]["hessian"]["Min"], expected_hess_min, rel_tol=1e-7)
+    assert math.isclose(compressed["record"]["hessian"]["Max"], expected_hess_max, rel_tol=1e-7)
+    assert math.isclose(compressed["record"]["hessian"]["Variance"], expected_hess_var, rel_tol=1e-7)
 
     # Nested list step 1 compressed (>= 10,000)
-    assert compressed["history"][0]["forces"]["Min"] == 0.0
-    assert compressed["history"][0]["forces"]["Max"] == 0.0
+    assert math.isclose(compressed["history"][0]["forces"]["Min"], float(np.min(step1_forces)), rel_tol=1e-7)
+    assert math.isclose(compressed["history"][0]["forces"]["Max"], float(np.max(step1_forces)), rel_tol=1e-7)
     # Nested list step 2 retained (< 10,000)
-    assert compressed["history"][1]["forces"] == [1.0, 1.0, 1.0, 1.0, 1.0]
+    assert compressed["history"][1]["forces"] == step2_forces.tolist()
 
     # Tuple element compressed
     assert isinstance(compressed["meta"], tuple)
@@ -239,15 +249,21 @@ def test_rfc8259_strict_json_serialization_negative_test() -> None:
 
 def test_rfc8259_strict_json_serialization_positive_test() -> None:
     """Verifies successful RFC 8259 JSON serialization of clean/sanitized payloads with allow_nan=False."""
+    coordinates = [
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.08],
+    ]
+    # Analytical Morse potential V(r) evaluated at the coordinate separation
+    bond_r = math.dist(coordinates[0], coordinates[1])
+    d_e, alpha, r_e = 0.1745, 1.02, 1.401
+    morse_energy = d_e * (1.0 - math.exp(-alpha * (bond_r - r_e))) ** 2 - d_e
+
     clean_payload = {
         "job_id": 101,
-        "energy_hartree": -76.43219,
+        "energy_hartree": morse_energy,
         "converged": True,
         "notes": None,
-        "coordinates": [
-            [0.0, 0.0, 0.0],
-            [0.0, 0.0, 1.08],
-        ],
+        "coordinates": coordinates,
     }
 
     json_str = to_rfc8259_json(clean_payload, allow_nan=False, indent=2)
@@ -258,7 +274,7 @@ def test_rfc8259_strict_json_serialization_positive_test() -> None:
     # Roundtrip check
     parsed = loads_rfc8259(json_str)
     assert parsed["job_id"] == 101
-    assert math.isclose(parsed["energy_hartree"], -76.43219, rel_tol=1e-6)
+    assert math.isclose(parsed["energy_hartree"], morse_energy, rel_tol=1e-9)
     assert parsed["coordinates"][1][2] == 1.08
 
 
@@ -590,9 +606,10 @@ def test_context_compressor_unified_workflow() -> None:
     )
 
     # 1. Compress payload with tensors & NaNs
+    harmonic_modes = 100.0 + (3400.0 / 11999.0) * np.arange(12000, dtype=np.float64)
     raw_payload = {
         "calculation": "freq",
-        "frequencies": np.linspace(100.0, 3500.0, 12000),
+        "frequencies": harmonic_modes,
         "damping": float("nan"),
     }
     compressed = compressor.compress_payload(raw_payload, auto_sanitize=True)

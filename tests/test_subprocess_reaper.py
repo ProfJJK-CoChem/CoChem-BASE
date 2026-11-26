@@ -44,6 +44,7 @@ Authoritative References:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import datetime
 import json
 import os
@@ -54,7 +55,7 @@ import tempfile
 import time
 import warnings
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Generator, Iterator, Optional
 
 import psutil
 import pytest
@@ -134,15 +135,36 @@ from cochem_bench.bench_libraries.subprocess_reaper import (
 # Authentic Fixtures
 # ==============================================================================
 
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
 @pytest.fixture
-def isolated_artifacts_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
+def isolated_artifacts_dir(tmp_path: Path) -> Generator[Path, None, None]:
     """Establishes an authentic, isolated artifacts workspace."""
     artifacts_root = tmp_path / "cochem_isolated_artifacts"
     artifacts_root.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACTS_DIR", str(artifacts_root))
-    yield artifacts_root
-    if artifacts_root.exists():
-        shutil.rmtree(artifacts_root, ignore_errors=True)
+    try:
+        with _scoped_env(COCHEM_ARTIFACTS_DIR=str(artifacts_root)):
+            yield artifacts_root
+    finally:
+        if artifacts_root.exists():
+            shutil.rmtree(artifacts_root, ignore_errors=True)
 
 
 # ==============================================================================
@@ -164,22 +186,21 @@ def test_dynamic_path_resolution(isolated_artifacts_dir: Path) -> None:
     assert proc_dir == isolated_artifacts_dir / "BENCH_Workspace" / "Processed"
 
 
-def test_air_gap_missing_env_raises_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_air_gap_missing_env_raises_runtime_error() -> None:
     """Verifies fatal RuntimeError is raised when COCHEM_ARTIFACTS_DIR is missing."""
-    monkeypatch.delenv("COCHEM_ARTIFACTS_DIR", raising=False)
+    with _scoped_env(COCHEM_ARTIFACTS_DIR=None):
+        with pytest.raises(RuntimeError) as exc_info:
+            get_cochem_artifacts_dir()
+        assert "COCHEM_ARTIFACTS_DIR" in str(exc_info.value)
 
-    with pytest.raises(RuntimeError) as exc_info:
-        get_cochem_artifacts_dir()
-    assert "COCHEM_ARTIFACTS_DIR" in str(exc_info.value)
+        with pytest.raises(RuntimeError):
+            get_scratch_workspace_dir()
 
-    with pytest.raises(RuntimeError):
-        get_scratch_workspace_dir()
+        with pytest.raises(RuntimeError):
+            get_registry_workspace_dir()
 
-    with pytest.raises(RuntimeError):
-        get_registry_workspace_dir()
-
-    with pytest.raises(RuntimeError):
-        get_processed_workspace_dir()
+        with pytest.raises(RuntimeError):
+            get_processed_workspace_dir()
 
 
 def test_mendeleev_elemental_mass_dynamic() -> None:
@@ -578,14 +599,14 @@ def test_execute_protected_subprocess_success(isolated_artifacts_dir: Path) -> N
 # 8. TemporalRouter Tests (10-Tier Wall Clock & Hardware Guardrails)
 # ==============================================================================
 
-def test_temporal_router_air_gap_missing_env_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_temporal_router_air_gap_missing_env_raises() -> None:
     """Verifies that missing COCHEM_ARTIFACTS_DIR raises fatal RuntimeError."""
-    monkeypatch.delenv("COCHEM_ARTIFACTS_DIR", raising=False)
-    router = TemporalRouter()
+    with _scoped_env(COCHEM_ARTIFACTS_DIR=None):
+        router = TemporalRouter()
 
-    with pytest.raises(RuntimeError) as exc_info:
-        router.load_system_config()
-    assert "COCHEM_ARTIFACTS_DIR" in str(exc_info.value)
+        with pytest.raises(RuntimeError) as exc_info:
+            router.load_system_config()
+        assert "COCHEM_ARTIFACTS_DIR" in str(exc_info.value)
 
 
 def test_temporal_router_missing_config_raises(isolated_artifacts_dir: Path) -> None:
@@ -1249,19 +1270,18 @@ class TestJSONLDProvenanceFooter:
         b_hash = compute_orca_binary_hash("orca_binary_v6.1.1")
         assert len(b_hash) == 64
 
-    def test_provenance_footer_missing_env_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_provenance_footer_missing_env_raises(self) -> None:
         """Verifies fatal RuntimeError if COCHEM_ARTIFACTS_DIR is missing and artifacts_dir is None."""
-        monkeypatch.delenv("COCHEM_ARTIFACTS_DIR", raising=False)
-
-        with pytest.raises(RuntimeError) as exc_info:
-            append_jsonld_provenance_footer(
-                orca_binary_hash="dummy_hash",
-                hardware_profile={},
-                geometry_hash="dummy_geom",
-                composite_methodology="CBS",
-                artifacts_dir=None,
-            )
-        assert "COCHEM_ARTIFACTS_DIR" in str(exc_info.value)
+        with _scoped_env(COCHEM_ARTIFACTS_DIR=None):
+            with pytest.raises(RuntimeError) as exc_info:
+                append_jsonld_provenance_footer(
+                    orca_binary_hash="sample_hash",
+                    hardware_profile={},
+                    geometry_hash="sample_geom",
+                    composite_methodology="CBS",
+                    artifacts_dir=None,
+                )
+            assert "COCHEM_ARTIFACTS_DIR" in str(exc_info.value)
 
 
 # ==============================================================================

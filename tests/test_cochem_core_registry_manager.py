@@ -20,8 +20,9 @@ import os
 import socket
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Iterator, List, Optional
 
 import pytest
 from pydantic import BaseModel, Field
@@ -63,11 +64,30 @@ from cochem_core_registry_schema import (
 )
 
 
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
 class PhysicalTestJobModel(BaseModel):
     command: List[str] = Field(default_factory=lambda: ["orca", "input.inp"])
     product_class: str = "Polymer_Alpha"
     atom_count: int = 48
-    converged: bool = True
+    converged: bool = False
 
 
 class HardwareProfileModel(BaseModel):
@@ -226,7 +246,7 @@ def test_atomic_write_json_clean_execution(tmp_path: Path) -> None:
 def test_atomic_write_json_with_pydantic_model(tmp_path: Path) -> None:
     """Verify atomic_write_json directly accepts Pydantic models."""
     out_file = tmp_path / "model_test.json"
-    model = PhysicalTestJobModel(product_class="Polymer_Beta", atom_count=96)
+    model = PhysicalTestJobModel(product_class="Polymer_Beta", atom_count=96, converged=True)
 
     atomic_write_json(out_file, model)
     assert out_file.exists()
@@ -241,45 +261,46 @@ def test_atomic_write_json_with_pydantic_model(tmp_path: Path) -> None:
 # 4. ENVIRONMENT VARIABLE INTERPOLATION (${VAR}, $VAR, %VAR%, ~)
 # =============================================================================
 
-def test_interpolate_env_vars_all_syntaxes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_interpolate_env_vars_all_syntaxes() -> None:
     """Verify interpolation handles ${VAR}, $VAR, %VAR%, and home directory across OSs."""
-    monkeypatch.setenv("COCHEM_BIN_DIR", "opt/cochem/bin")
-    monkeypatch.setenv("COCHEM_SCRATCH_DIR", "tmp/scratch")
-    monkeypatch.setenv("COCHEM_MAX_CORES", "32")
+    with _scoped_env(
+        COCHEM_BIN_DIR="opt/cochem/bin",
+        COCHEM_SCRATCH_DIR="tmp/scratch",
+        COCHEM_MAX_CORES="32",
+    ):
+        # String with ${VAR}
+        assert interpolate_env_vars("${COCHEM_BIN_DIR}/orca") == "opt/cochem/bin/orca"
 
-    # String with ${VAR}
-    assert interpolate_env_vars("${COCHEM_BIN_DIR}/orca") == "opt/cochem/bin/orca"
+        # String with $VAR
+        assert interpolate_env_vars("$COCHEM_SCRATCH_DIR/job_1") == "tmp/scratch/job_1"
 
-    # String with $VAR
-    assert interpolate_env_vars("$COCHEM_SCRATCH_DIR/job_1") == "tmp/scratch/job_1"
+        # String with %VAR% (Windows style)
+        assert interpolate_env_vars("%COCHEM_BIN_DIR%/xtb") == "opt/cochem/bin/xtb"
 
-    # String with %VAR% (Windows style)
-    assert interpolate_env_vars("%COCHEM_BIN_DIR%/xtb") == "opt/cochem/bin/xtb"
+        # Combined strings
+        combined = "${COCHEM_BIN_DIR}/mpirun -n %COCHEM_MAX_CORES% $COCHEM_SCRATCH_DIR"
+        assert interpolate_env_vars(combined) == "opt/cochem/bin/mpirun -n 32 tmp/scratch"
 
-    # Combined strings
-    combined = "${COCHEM_BIN_DIR}/mpirun -n %COCHEM_MAX_CORES% $COCHEM_SCRATCH_DIR"
-    assert interpolate_env_vars(combined) == "opt/cochem/bin/mpirun -n 32 tmp/scratch"
+        # Unset env vars should remain uncorrupted
+        assert interpolate_env_vars("${UNSET_VARIABLE_XYZ}/test") == "${UNSET_VARIABLE_XYZ}/test"
+        assert interpolate_env_vars("%UNSET_VARIABLE_XYZ%/test") == "%UNSET_VARIABLE_XYZ%/test"
 
-    # Unset env vars should remain uncorrupted
-    assert interpolate_env_vars("${UNSET_VARIABLE_XYZ}/test") == "${UNSET_VARIABLE_XYZ}/test"
-    assert interpolate_env_vars("%UNSET_VARIABLE_XYZ%/test") == "%UNSET_VARIABLE_XYZ%/test"
-
-    # Dictionary input
-    dict_payload = {
-        "orca_path": "${COCHEM_BIN_DIR}/orca",
-        "scratch": "$COCHEM_SCRATCH_DIR",
-        "cores": "%COCHEM_MAX_CORES%",
-        "nested": {
-            "path": "${COCHEM_BIN_DIR}/tools",
-            "list_paths": ["${COCHEM_BIN_DIR}/1", "$COCHEM_SCRATCH_DIR/2"],
-        },
-    }
-    interpolated_dict = interpolate_env_vars(dict_payload)
-    assert interpolated_dict["orca_path"] == "opt/cochem/bin/orca"
-    assert interpolated_dict["scratch"] == "tmp/scratch"
-    assert interpolated_dict["cores"] == "32"
-    assert interpolated_dict["nested"]["path"] == "opt/cochem/bin/tools"
-    assert interpolated_dict["nested"]["list_paths"] == ["opt/cochem/bin/1", "tmp/scratch/2"]
+        # Dictionary input
+        dict_payload = {
+            "orca_path": "${COCHEM_BIN_DIR}/orca",
+            "scratch": "$COCHEM_SCRATCH_DIR",
+            "cores": "%COCHEM_MAX_CORES%",
+            "nested": {
+                "path": "${COCHEM_BIN_DIR}/tools",
+                "list_paths": ["${COCHEM_BIN_DIR}/1", "$COCHEM_SCRATCH_DIR/2"],
+            },
+        }
+        interpolated_dict = interpolate_env_vars(dict_payload)
+        assert interpolated_dict["orca_path"] == "opt/cochem/bin/orca"
+        assert interpolated_dict["scratch"] == "tmp/scratch"
+        assert interpolated_dict["cores"] == "32"
+        assert interpolated_dict["nested"]["path"] == "opt/cochem/bin/tools"
+        assert interpolated_dict["nested"]["list_paths"] == ["opt/cochem/bin/1", "tmp/scratch/2"]
 
 
 # =============================================================================
@@ -696,32 +717,25 @@ def test_mendeleev_dynamic_isotopic_mass_queries() -> None:
 # 12. ENVIRONMENT DETECTION & ZEROMQ BROADCAST
 # =============================================================================
 
-def test_is_master_node_multi_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_is_master_node_multi_environment() -> None:
     """Verify is_master_node correctly inspects Slurm, MPI, and environment overrides."""
-    # Default standalone
-    monkeypatch.delenv("COCHEM_IS_MASTER", raising=False)
-    monkeypatch.delenv("RANK", raising=False)
-
     # Explicit override
-    monkeypatch.setenv("COCHEM_IS_MASTER", "0")
-    assert is_master_node() is False
-    monkeypatch.setenv("COCHEM_IS_MASTER", "1")
-    assert is_master_node() is True
+    with _scoped_env(COCHEM_IS_MASTER="0", RANK=None):
+        assert is_master_node() is False
+    with _scoped_env(COCHEM_IS_MASTER="1", RANK=None):
+        assert is_master_node() is True
 
-    monkeypatch.delenv("COCHEM_IS_MASTER", raising=False)
-    
     # MPI rank
-    monkeypatch.setenv("RANK", "0")
-    assert is_master_node() is True
-    monkeypatch.setenv("RANK", "1")
-    assert is_master_node() is False
+    with _scoped_env(COCHEM_IS_MASTER=None, RANK="0"):
+        assert is_master_node() is True
+    with _scoped_env(COCHEM_IS_MASTER=None, RANK="1"):
+        assert is_master_node() is False
 
 @pytest.mark.skipif(not os.environ.get("SLURM_PROCID"), reason="Requires physical SLURM allocation")
-def test_is_master_node_slurm(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("COCHEM_IS_MASTER", raising=False)
-    monkeypatch.delenv("RANK", raising=False)
-    expected = (os.environ.get("SLURM_PROCID") == "0")
-    assert is_master_node() is expected
+def test_is_master_node_slurm() -> None:
+    with _scoped_env(COCHEM_IS_MASTER=None, RANK=None):
+        expected = (os.environ.get("SLURM_PROCID") == "0")
+        assert is_master_node() is expected
 
 def test_zeromq_broadcast_and_receive(tmp_path: Path) -> None:
     """Verify master node ZeroMQ broadcast and worker node subscriber reception."""

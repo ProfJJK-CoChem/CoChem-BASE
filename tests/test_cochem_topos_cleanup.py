@@ -13,6 +13,7 @@ Authoritative Standards:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import os
 import platform
@@ -20,6 +21,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Iterator, Optional
 
 import h5py
 import psutil
@@ -63,6 +65,25 @@ except ImportError:
         WSLPathTranslator,
         _compute_sha256,
     )
+
+
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
 
 
 # ============================================================================
@@ -311,7 +332,7 @@ class TestToposScratchPurgeEngine:
         assert result.total_directories_removed >= 3
 
     def test_env_var_directory_discovery_with_targeted_subdirs(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         env_scratch = tmp_path / "cochem_env_scratch"
         env_scratch.mkdir()
@@ -325,19 +346,18 @@ class TestToposScratchPurgeEngine:
         f2 = ase_graphs / "graph_state.tmp"
         f2.write_bytes(b"\x00" * 50)
 
-        monkeypatch.setenv("COCHEM_SCRATCH_DIR", str(env_scratch))
+        with _scoped_env(COCHEM_SCRATCH_DIR=str(env_scratch)):
+            engine = ToposScratchPurgeEngine()
+            discovered = engine.discover_target_directories()
 
-        engine = ToposScratchPurgeEngine()
-        discovered = engine.discover_target_directories()
+            assert any(d.resolve() == env_scratch.resolve() for d in discovered)
+            assert any(d.resolve() == orca_tmp.resolve() for d in discovered)
+            assert any(d.resolve() == ase_graphs.resolve() for d in discovered)
 
-        assert any(d.resolve() == env_scratch.resolve() for d in discovered)
-        assert any(d.resolve() == orca_tmp.resolve() for d in discovered)
-        assert any(d.resolve() == ase_graphs.resolve() for d in discovered)
-
-        result = engine.purge()
-        assert not f1.exists()
-        assert not f2.exists()
-        assert result.total_files_deleted >= 2
+            result = engine.purge()
+            assert not f1.exists()
+            assert not f2.exists()
+            assert result.total_files_deleted >= 2
 
     def test_kernel_file_lock_retry_handling(self, tmp_path: Path) -> None:
         scratch_dir = tmp_path / "locked_scratch"
@@ -407,20 +427,19 @@ class TestToposScratchPurgeEngine:
         assert statuses[str(old_file)] == "deleted"
         assert statuses[str(new_file)] == "whitelisted"
 
-    def test_target_dirs_isolation_in_discovery(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_target_dirs_isolation_in_discovery(self, tmp_path: Path) -> None:
         explicit_dir = tmp_path / "explicit_scratch"
         explicit_dir.mkdir()
 
         env_dir = tmp_path / "env_scratch"
         env_dir.mkdir()
-        monkeypatch.setenv("COCHEM_SCRATCH_DIR", str(env_dir))
+        with _scoped_env(COCHEM_SCRATCH_DIR=str(env_dir)):
+            config = ScratchPurgeConfig(target_dirs=[explicit_dir])
+            engine = ToposScratchPurgeEngine(config)
+            discovered = engine.discover_target_directories()
 
-        config = ScratchPurgeConfig(target_dirs=[explicit_dir])
-        engine = ToposScratchPurgeEngine(config)
-        discovered = engine.discover_target_directories()
-
-        assert len(discovered) == 1
-        assert discovered[0].resolve() == explicit_dir.resolve()
+            assert len(discovered) == 1
+            assert discovered[0].resolve() == explicit_dir.resolve()
 
     def test_purge_with_sha256_computation(self, tmp_path: Path) -> None:
         scratch_dir = tmp_path / "sha_scratch"

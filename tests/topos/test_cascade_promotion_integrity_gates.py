@@ -9,9 +9,12 @@ Verifies Deliverable 3:
 5. Cascade gate telemetry manifest persistence (cascade_gate_telemetry.json).
 """
 
+from contextlib import contextmanager
 import io
 import json
+import os
 from pathlib import Path
+from typing import Iterator, Optional
 
 import pytest
 from ase import Atoms
@@ -141,31 +144,49 @@ def test_verify_g3_basin_identity_heavy_atom_rmsd(tmp_path: Path):
     assert "[INTEGRITY-GATE-TRIPPED]" in msg
 
 
-def test_process_geometry_spin_contamination_detection(tmp_path: Path, monkeypatch):
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
+def test_process_geometry_spin_contamination_detection(tmp_path: Path):
     """Verify process_geometry detects spin contamination and halts with ERR_SPIN_CONTAMINATION."""
     # Direct scratch and artifacts to tmp_path to verify air-gap
-    monkeypatch.setenv("COCHEM_SCRATCH_DIR", str(tmp_path / "scratch"))
     (tmp_path / "scratch").mkdir(parents=True, exist_ok=True)
+    with _scoped_env(COCHEM_SCRATCH_DIR=str(tmp_path / "scratch")):
+        config = CascadeConfig(artifact_dir=tmp_path / "artifacts", complex_flag=True)
+        (tmp_path / "artifacts").mkdir(parents=True, exist_ok=True)
+        orchestrator = CascadeOrchestrator(config)
 
-    config = CascadeConfig(artifact_dir=tmp_path / "artifacts", complex_flag=True)
-    (tmp_path / "artifacts").mkdir(parents=True, exist_ok=True)
-    orchestrator = CascadeOrchestrator(config)
+        dimer = _make_authentic_water_dimer()
+        # Inject spin contamination marker in XYZ comment line
+        xyz_str = _atoms_to_xyz(dimer, comment="s2_error_pct=14.5 ERR_SPIN_CONTAMINATION")
 
-    dimer = _make_authentic_water_dimer()
-    # Inject spin contamination marker in XYZ comment line
-    xyz_str = _atoms_to_xyz(dimer, comment="s2_error_pct=14.5 ERR_SPIN_CONTAMINATION")
+        payload = orchestrator.process_geometry("water_dimer_spin_tripped", xyz_str, complex_flag=True)
 
-    payload = orchestrator.process_geometry("water_dimer_spin_tripped", xyz_str, complex_flag=True)
+        assert payload.final_status == "ERR_SPIN_CONTAMINATION"
+        assert payload.highest_tier == 0
 
-    assert payload.final_status == "ERR_SPIN_CONTAMINATION"
-    assert payload.highest_tier == 0
-
-    # Verify structured telemetry JSON persisted in artifact dir and scratch dir
-    telemetry_file = tmp_path / "artifacts" / "cascade_gate_telemetry.json"
-    assert telemetry_file.exists()
-    telemetry_data = json.loads(telemetry_file.read_text(encoding="utf-8"))
-    assert telemetry_data["final_status"] == "ERR_SPIN_CONTAMINATION"
-    assert telemetry_data["geom_id"] == "water_dimer_spin_tripped"
+        # Verify structured telemetry JSON persisted in artifact dir and scratch dir
+        telemetry_file = tmp_path / "artifacts" / "cascade_gate_telemetry.json"
+        assert telemetry_file.exists()
+        telemetry_data = json.loads(telemetry_file.read_text(encoding="utf-8"))
+        assert telemetry_data["final_status"] == "ERR_SPIN_CONTAMINATION"
+        assert telemetry_data["geom_id"] == "water_dimer_spin_tripped"
 
 
 def test_spin_contamination_error_exception_hierarchy():

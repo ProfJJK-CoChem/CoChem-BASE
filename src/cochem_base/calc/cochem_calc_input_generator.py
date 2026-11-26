@@ -349,16 +349,24 @@ def generate_orca_input(
     if maxcore < 1 or maxcore * nprocs > memory_budget:
         raise HardwareAllocationError("Requested per-core memory exceeds the audited memory budget.")
 
-    # Transition metal check for tight grid override
-    transition_metals = {"Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
-                         "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd",
-                         "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg"}
-    needs_tight_grid = any(el in data.elements for el in transition_metals)
-    # 2. Dynamic Grid Tightening: defgrid3 mandated for frequency/Hessian tasks
-    grid_keyword = "DEFGRID3" if needs_tight_grid else data.resolved_grid()
-    theory_level = _orca_method_keywords(
-        re.sub(r"(?i)\bDEFGRID\d+\b", "", data.theory_level).strip()
+    # Chemical-regime auto-guards: anion diffuse basis (charge < 0), 3d TM DEFGRID3 (Z=21..30),
+    # and heavy-element scalar-relativistic / ECP treatment (Z > 36 across IUPAC Z=1..118).
+    from cochem_base.calc.regime_guards import apply_chemical_regime_guards
+
+    regime = apply_chemical_regime_guards(
+        data.elements,
+        charge=data.charge,
+        method_or_theory=data.theory_level,
+        engine="orca",
     )
+    # 2. Dynamic Grid Tightening: DEFGRID3 mandated for frequency/Hessian, 3d TMs, and heavy elements (Z > 36)
+    grid_keyword = "DEFGRID3" if regime.require_defgrid3 else data.resolved_grid()
+    theory_level = _orca_method_keywords(
+        re.sub(r"(?i)\bDEFGRID\d+\b", "", regime.effective_theory_level).strip()
+    )
+    basis_block = ""
+    if regime.orca_basis_block_lines:
+        basis_block = "\n".join(["%basis", *regime.orca_basis_block_lines, "end"])
     if data.is_freq and not re.search(r"(?i)\b(?:NUMFREQ|FREQ)\b", theory_level):
         theory_level += " Freq"
     if data.is_vpt2 and not re.search(r"(?i)\bVPT2\b", theory_level):
@@ -430,7 +438,8 @@ def generate_orca_input(
 # Nuclear assignment SHA-256: {{ nuclides_sha256 }}
 {% endif %}
 {% if automatic_auxiliary %}# Correlation fitting basis: generated AutoAux (no explicit /C basis supplied)
-{% endif %}# =====================================================================
+{% endif %}{% for guard_warning in regime_warnings %}# Chemical-Regime Auto-Guard: {{ guard_warning }}
+{% endfor %}# =====================================================================
 ! {{ theory_level }} {{ opt_keyword }} {{ grid_keyword }} {{ solvation_keyword }} NoSym TightSCF
 
 %pal
@@ -440,6 +449,10 @@ end
 %maxcore {{ maxcore }}
 
 {{ scf_block }}
+{% if basis_block %}
+
+{{ basis_block }}
+{% endif %}
 
 {{ geom_block }}
 {% if requires_atm %}
@@ -461,12 +474,14 @@ end
         nuclides_sha256=hashlib.sha256(json.dumps(data.nuclides).encode()).hexdigest() if data.nuclides is not None else None,
         theory_level=theory_level,
         automatic_auxiliary="AUTOAUX" in theory_level.upper().split() and "AUTOAUX" not in data.theory_level.upper().split(),
+        regime_warnings=list(regime.warnings),
         opt_keyword=opt_keyword,
         grid_keyword=grid_keyword,
         solvation_keyword=solvation_keyword,
         nprocs=nprocs,
         maxcore=maxcore,
         scf_block=ORCA_SCF_BLOCK,
+        basis_block=basis_block,
         charge=data.charge,
         multiplicity=data.multiplicity,
         coord_block=coord_str,
@@ -502,11 +517,23 @@ def generate_pyscf_input(data: MoleculeInput, output_dir: Optional[Path] = None,
         raise ValueError("This PySCF adapter supports restricted closed-shell single-point energies only")
     if data.tier == 2 and tokens[1].upper() not in {"MINI", "STO-3G"}:
         raise ValueError("Canonical Tier T2 requires HF/MINI or HF/STO-3G")
-    specification = {
+    from cochem_base.calc.regime_guards import apply_chemical_regime_guards
+
+    regime = apply_chemical_regime_guards(
+        data.elements,
+        charge=data.charge,
+        method_or_theory=data.theory_level,
+        basis=tokens[1],
+        engine="pyscf",
+    )
+    effective_basis = regime.effective_basis or tokens[1]
+    specification: Dict[str, Any] = {
         "atom": [[symbol, list(xyz)] for symbol, xyz in zip(data.elements, data.coordinates, strict=True)],
-        "unit": "Angstrom", "basis": tokens[1], "charge": data.charge, "spin": 0,
+        "unit": "Angstrom", "basis": effective_basis, "charge": data.charge, "spin": 0,
         "max_memory": (data.maxcore_mb or 1024) * (data.nprocs or 1),
     }
+    if regime.pyscf_ecp:
+        specification["ecp"] = dict(regime.pyscf_ecp)
     nuclear_identity = None
     if data.nuclides is not None:
         from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
@@ -528,8 +555,12 @@ if pyscf.__version__ != EXPECTED_VERSION:
 pyscf.lib.num_threads(PROCESS_THREADS)
 specification = json.loads(SPECIFICATION_JSON)
 nuclear_identity = json.loads(NUCLEAR_IDENTITY_JSON)
+regime_guards = json.loads(REGIME_GUARDS_JSON)
+use_sfx2c1e = USE_SFX2C1E
 molecule = gto.M(**specification)
 calculation = scf.RHF(molecule)
+if use_sfx2c1e:
+    calculation = calculation.sfx2c1e()
 calculation.conv_tol = 1e-10
 calculation.max_cycle = 200
 calculation.kernel()
@@ -544,9 +575,10 @@ Path(__file__).with_suffix('.result.json').write_text(json.dumps({
     'scf_converged': bool(calculation.converged), 'energy_hartree': float(calculation.e_tot),
     'gradients_hartree_per_bohr': gradient.tolist(),
     'nuclear_identity': nuclear_identity,
+    'regime_guards': regime_guards,
     'input_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
 }, indent=2, allow_nan=False), encoding='utf-8')
-""".replace("EXPECTED_VERSION", repr(expected_version)).replace("PROCESS_THREADS", str(data.nprocs or 1)).replace("SPECIFICATION_JSON", repr(json.dumps(specification))).replace("NUCLEAR_IDENTITY_JSON", repr(json.dumps(nuclear_identity)))
+""".replace("EXPECTED_VERSION", repr(expected_version)).replace("PROCESS_THREADS", str(data.nprocs or 1)).replace("SPECIFICATION_JSON", repr(json.dumps(specification))).replace("NUCLEAR_IDENTITY_JSON", repr(json.dumps(nuclear_identity))).replace("REGIME_GUARDS_JSON", repr(json.dumps(regime.to_provenance_dict()))).replace("USE_SFX2C1E", repr(bool(regime.pyscf_sfx2c1e)))
     out_base = output_dir if output_dir else get_artifact_base()
     out_base.mkdir(parents=True, exist_ok=True)
     output_path = out_base / f"{data.basin_id}_pyscf.py"

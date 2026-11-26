@@ -21,6 +21,8 @@ from __future__ import annotations
 import json
 import math
 import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import List
 
@@ -231,7 +233,7 @@ class TestOrcaIO:
         assert "InHess XTB2" in inp
 
     def test_parse_orca_output(self) -> None:
-        mock_output = """
+        sample_orca_output = """
         FINAL SINGLE POINT ENERGY      -152.8846014000
         SCF CONVERGED AFTER 12 CYCLES
         MAX gradient      0.00000450
@@ -259,7 +261,7 @@ class TestOrcaIO:
           H    -1.7580200   0.0000000   0.9840500
         ---------------------------------
         """
-        metrics = parse_orca_output_for_grid_metrics(mock_output)
+        metrics = parse_orca_output_for_grid_metrics(sample_orca_output)
         assert metrics["energy_hartree"] == -152.8846014
         assert metrics["scf_converged"] is True
         assert metrics["max_gradient"] == 4.5e-6
@@ -283,13 +285,27 @@ class TestGridConvergenceEndToEnd:
         seeds = get_canonical_reference_system(system_name)
         assert all("energy" not in grid for grid in seeds["grids"].values())
 
-    def test_cli_execution(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-        test_args = [
-            "cochem_grid_convergence.py",
-            "--system", "water_dimer",
-            "--outdir", str(tmp_path),
-            "--audit"
-        ]
-        monkeypatch.setattr("sys.argv", test_args)
-        exit_code = main()
-        assert exit_code == 2
+    def test_cli_execution(self, tmp_path: Path) -> None:
+        env = dict(os.environ)
+        env["PYTHONPATH"] = os.pathsep.join(
+            [p for p in sys.path if p]
+        )
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                "-c",
+                "import sys; from calc.cochem_grid_convergence import main; sys.exit(main())",
+                "--system",
+                "water_dimer",
+                "--outdir",
+                str(tmp_path),
+                "--audit",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        assert proc.returncode == 2

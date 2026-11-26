@@ -7,12 +7,14 @@ Testing Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 requirements across:
 - CoChem-TOPOS
 """
 
+from contextlib import contextmanager
 import math
 import os
 import shutil
 import sys
 import tempfile
 from pathlib import Path
+from typing import Iterator, Optional
 
 import numpy as np
 import pytest
@@ -234,7 +236,26 @@ def test_interfaces_abc():
 # =============================================================================
 
 
-def test_zero_mock_crest_raises_binary_not_found(monkeypatch):
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or unset environment variables and restore them on exit."""
+    saved = {k: os.environ.get(k) for k in updates}
+    try:
+        for k, v in updates.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        yield
+    finally:
+        for k, prev in saved.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
+def test_zero_mock_crest_raises_binary_not_found():
     """Verify CREST runner strictly raises BinaryNotFoundError when executable is absent
     and has deleted the physical fallback generator.
     """
@@ -243,33 +264,30 @@ def test_zero_mock_crest_raises_binary_not_found(monkeypatch):
 
     runner = CrestRunner()
     # Ensure crest binary is not found
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.delenv("COCHEM_CREST_BIN", raising=False)
-    monkeypatch.delenv("CREST_PATH", raising=False)
+    with _scoped_env(PATH="", COCHEM_CREST_BIN=None, CREST_PATH=None):
+        # Check that _generate_physical_fallback_ensemble is deleted
+        assert not hasattr(runner, "_generate_physical_fallback_ensemble")
 
-    # Check that _generate_physical_fallback_ensemble is deleted
-    assert not hasattr(runner, "_generate_physical_fallback_ensemble")
-
-    from cochem_base.environment import PathRegistry
-    import shutil
-    
-    artifacts_dir = PathRegistry.get_artifacts_dir()
-    ref_xyz = artifacts_dir / "reference_data" / "water_optimized.xyz"
-    if not ref_xyz.exists():
-        pytest.skip("Authentic physical reference geometry required for CREST testing")
+        from cochem_base.environment import PathRegistry
+        import shutil
         
-    with tempfile.NamedTemporaryFile("w", suffix=".xyz", delete=False) as f:
-        f_name = f.name
-        
-    shutil.copy2(ref_xyz, f_name)
+        artifacts_dir = PathRegistry.get_artifacts_dir()
+        ref_xyz = artifacts_dir / "reference_data" / "water_optimized.xyz"
+        if not ref_xyz.exists():
+            pytest.skip("Authentic physical reference geometry required for CREST testing")
+            
+        with tempfile.NamedTemporaryFile("w", suffix=".xyz", delete=False) as f:
+            f_name = f.name
+            
+        shutil.copy2(ref_xyz, f_name)
 
-    try:
-        with pytest.raises(BinaryNotFoundError) as excinfo:
-            runner.run_crest(f_name)
-        assert "[MISSING DATA]" in str(excinfo.value)
-    finally:
-        if os.path.exists(f_name):
-            os.remove(f_name)
+        try:
+            with pytest.raises(BinaryNotFoundError) as excinfo:
+                runner.run_crest(f_name)
+            assert "[MISSING DATA]" in str(excinfo.value)
+        finally:
+            if os.path.exists(f_name):
+                os.remove(f_name)
 
 
 def test_orca_constraint_block_frozen_monomer():
@@ -407,7 +425,7 @@ def test_torq_parser_s2_regex():
         assert pytest.approx(val, abs=1e-6) == expected
 
 
-def test_torq_cfour_executor_scratch_and_interface(monkeypatch):
+def test_torq_cfour_executor_scratch_and_interface():
     """Verify TorqCfourExecutor executes in isolated scratch directory and inherits from ElectronicStructureExecutor."""
     from cochem_base.exceptions import BinaryNotFoundError
     from cochem_base.interfaces import ElectronicStructureExecutor
@@ -416,34 +434,30 @@ def test_torq_cfour_executor_scratch_and_interface(monkeypatch):
     assert issubclass(TorqCfourExecutor, ElectronicStructureExecutor)
 
     # Unconfigured environment raises BinaryNotFoundError
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.delenv("CFOUR_ROOT", raising=False)
-    monkeypatch.delenv("CFOUR_PATH", raising=False)
-    monkeypatch.delenv("COCHEM_CFOUR_BIN", raising=False)
-
-    executor = TorqCfourExecutor()
-    # CoChem-Licensing-Mandate: Must gracefully fallback to ORCA 6.1.1 if CFOUR is absent
-    from cochem_base.environment import PathRegistry
-    import json
-    
-    artifacts_dir = PathRegistry.get_artifacts_dir()
-    ref_json = artifacts_dir / "reference_data" / "water_job_spec.json"
-    if not ref_json.exists():
-        pytest.skip("Authentic physical reference geometry required for schema testing")
+    with _scoped_env(PATH="", CFOUR_ROOT=None, CFOUR_PATH=None, COCHEM_CFOUR_BIN=None):
+        executor = TorqCfourExecutor()
+        # CoChem-Licensing-Mandate: Must gracefully fallback to ORCA 6.1.1 if CFOUR is absent
+        from cochem_base.environment import PathRegistry
+        import json
         
-    with open(ref_json, "r") as f:
-        data = json.load(f)
+        artifacts_dir = PathRegistry.get_artifacts_dir()
+        ref_json = artifacts_dir / "reference_data" / "water_job_spec.json"
+        if not ref_json.exists():
+            pytest.skip("Authentic physical reference geometry required for schema testing")
+            
+        with open(ref_json, "r") as f:
+            data = json.load(f)
 
-    try:
-        executor.run_cfour_job(
-            job_name="test_water",
-            symbols=data["symbols"],
-            coordinates=data["coordinates"],
-        )
-    except Exception as e:
-        # Fallback may raise something else or attempt to invoke ORCA.
-        # But we must NOT enforce raising BinaryNotFoundError for CFOUR.
-        assert "BinaryNotFoundError" not in type(e).__name__, "CoChem-Licensing-Mandate Violation: Should fallback to ORCA, not raise BinaryNotFoundError."
+        try:
+            executor.run_cfour_job(
+                job_name="test_water",
+                symbols=data["symbols"],
+                coordinates=data["coordinates"],
+            )
+        except Exception as e:
+            # Fallback may raise something else or attempt to invoke ORCA.
+            # But we must NOT enforce raising BinaryNotFoundError for CFOUR.
+            assert "BinaryNotFoundError" not in type(e).__name__, "CoChem-Licensing-Mandate Violation: Should fallback to ORCA, not raise BinaryNotFoundError."
 
 
 # =============================================================================

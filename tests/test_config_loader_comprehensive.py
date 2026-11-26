@@ -11,6 +11,7 @@ Validates all functionality:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import os
 import platform
@@ -21,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Iterator, Optional
 
 import pytest
 
@@ -52,6 +54,25 @@ from cochem_base.config_loader import (
 )
 
 
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
 def test_get_cochem_root_default() -> None:
     """Verify get_cochem_root discovers repository workspace root in live environment."""
     root = get_cochem_root()
@@ -60,66 +81,61 @@ def test_get_cochem_root_default() -> None:
     assert root.exists()
 
 
-def test_get_cochem_root_with_cochem_root_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_cochem_root_with_cochem_root_env(tmp_path: Path) -> None:
     """Verify get_cochem_root respects COCHEM_ROOT environment variable."""
     custom_root = tmp_path / "custom_cochem_root"
     custom_root.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ROOT", str(custom_root))
+    with _scoped_env(COCHEM_ROOT=str(custom_root)):
+        resolved = get_cochem_root()
+        assert resolved == custom_root.resolve()
 
-    resolved = get_cochem_root()
-    assert resolved == custom_root.resolve()
 
-
-def test_get_cochem_root_with_cochem_workspace_root_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_cochem_root_with_cochem_workspace_root_env(tmp_path: Path) -> None:
     """Verify get_cochem_root respects COCHEM_WORKSPACE_ROOT when COCHEM_ROOT is unset."""
-    monkeypatch.delenv("COCHEM_ROOT", raising=False)
     custom_ws = tmp_path / "custom_workspace"
     custom_ws.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_WORKSPACE_ROOT", str(custom_ws))
+    with _scoped_env(COCHEM_ROOT=None, COCHEM_WORKSPACE_ROOT=str(custom_ws)):
+        resolved = get_cochem_root()
+        assert resolved == custom_ws.resolve()
 
-    resolved = get_cochem_root()
-    assert resolved == custom_ws.resolve()
 
-
-def test_get_cochem_root_outside_repo_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_cochem_root_outside_repo_fallback(tmp_path: Path) -> None:
     """Verify get_cochem_root falls back to ~/.cochem when outside repo structure."""
-    monkeypatch.delenv("COCHEM_ROOT", raising=False)
-    monkeypatch.delenv("COCHEM_WORKSPACE_ROOT", raising=False)
+    with _scoped_env(COCHEM_ROOT=None, COCHEM_WORKSPACE_ROOT=None):
+        import cochem_base.config_loader
+        real_file = Path(cochem_base.config_loader.__file__).resolve()
 
-    import cochem_base.config_loader
-    real_file = Path(cochem_base.config_loader.__file__).resolve()
+        isolated_dir = tmp_path / "standalone_env" / "isolated_pkg"
+        isolated_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(real_file, isolated_dir / "config_loader.py")
 
-    isolated_dir = tmp_path / "standalone_env" / "isolated_pkg"
-    isolated_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(real_file, isolated_dir / "config_loader.py")
+        runner_script = tmp_path / "standalone_env" / "run_fallback_check.py"
+        runner_script.write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            "sys.path.insert(0, str(Path(__file__).parent / 'isolated_pkg'))\n"
+            "import config_loader\n"
+            "resolved = config_loader.get_cochem_root()\n"
+            "expected = (Path.home() / '.cochem').resolve()\n"
+            "assert resolved == expected, f'Expected {expected}, got {resolved}'\n"
+            "print(f'RESOLVED_FALLBACK:{resolved}')\n",
+            encoding="utf-8",
+        )
 
-    runner_script = tmp_path / "standalone_env" / "run_fallback_check.py"
-    runner_script.write_text(
-        "import sys\n"
-        "from pathlib import Path\n"
-        "sys.path.insert(0, str(Path(__file__).parent / 'isolated_pkg'))\n"
-        "import config_loader\n"
-        "resolved = config_loader.get_cochem_root()\n"
-        "expected = (Path.home() / '.cochem').resolve()\n"
-        "assert resolved == expected, f'Expected {expected}, got {resolved}'\n"
-        "print(f'RESOLVED_FALLBACK:{resolved}')\n",
-        encoding="utf-8",
-    )
+        env = os.environ.copy()
+        env.pop("COCHEM_ROOT", None)
+        env.pop("COCHEM_WORKSPACE_ROOT", None)
 
-    env = os.environ.copy()
-    env.pop("COCHEM_ROOT", None)
-    env.pop("COCHEM_WORKSPACE_ROOT", None)
-
-    result = subprocess.run(
-        [sys.executable, str(runner_script)],
-        cwd=str(tmp_path / "standalone_env"),
-        env=env,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    expected_root = (Path.home() / ".cochem").resolve()
-    assert f"RESOLVED_FALLBACK:{expected_root}" in result.stdout
+        result = subprocess.run(
+            [sys.executable, str(runner_script)],
+            cwd=str(tmp_path / "standalone_env"),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        expected_root = (Path.home() / ".cochem").resolve()
+        assert f"RESOLVED_FALLBACK:{expected_root}" in result.stdout
 
 
 def test_get_base_root_default() -> None:
@@ -130,14 +146,13 @@ def test_get_base_root_default() -> None:
     assert (base_root / "cochem_base").is_dir()
 
 
-def test_get_base_root_with_cochem_base_root_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_base_root_with_cochem_base_root_env(tmp_path: Path) -> None:
     """Verify get_base_root respects COCHEM_BASE_ROOT environment variable."""
     custom_base = tmp_path / "custom_base_root"
     custom_base.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_BASE_ROOT", str(custom_base))
-
-    resolved = get_base_root()
-    assert resolved == custom_base.resolve()
+    with _scoped_env(COCHEM_BASE_ROOT=str(custom_base)):
+        resolved = get_base_root()
+        assert resolved == custom_base.resolve()
 
 
 def test_get_repo_root_default() -> None:
@@ -148,25 +163,22 @@ def test_get_repo_root_default() -> None:
     assert repo_root.exists()
 
 
-def test_get_repo_root_with_cochem_workspace_root_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_repo_root_with_cochem_workspace_root_env(tmp_path: Path) -> None:
     """Verify get_repo_root respects COCHEM_WORKSPACE_ROOT environment variable."""
     custom_repo = tmp_path / "custom_repo_root"
     custom_repo.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_WORKSPACE_ROOT", str(custom_repo))
+    with _scoped_env(COCHEM_WORKSPACE_ROOT=str(custom_repo)):
+        resolved = get_repo_root()
+        assert resolved == custom_repo.resolve()
 
-    resolved = get_repo_root()
-    assert resolved == custom_repo.resolve()
 
-
-def test_get_repo_root_with_cochem_root_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_repo_root_with_cochem_root_env(tmp_path: Path) -> None:
     """Verify get_repo_root respects COCHEM_ROOT when COCHEM_WORKSPACE_ROOT is unset."""
-    monkeypatch.delenv("COCHEM_WORKSPACE_ROOT", raising=False)
     custom_root = tmp_path / "custom_cochem_root"
     custom_root.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ROOT", str(custom_root))
-
-    resolved = get_repo_root()
-    assert resolved == custom_root.resolve()
+    with _scoped_env(COCHEM_WORKSPACE_ROOT=None, COCHEM_ROOT=str(custom_root)):
+        resolved = get_repo_root()
+        assert resolved == custom_root.resolve()
 
 
 # =============================================================================
@@ -174,81 +186,67 @@ def test_get_repo_root_with_cochem_root_env(tmp_path: Path, monkeypatch: pytest.
 # =============================================================================
 
 
-def test_get_scratch_dir_tier1_explicit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_scratch_dir_tier1_explicit(tmp_path: Path) -> None:
     """Tier 1: Explicit custom_path overrides environment variables and defaults."""
-    monkeypatch.setenv("COCHEM_SCRATCH", str(tmp_path / "ignored_env_scratch"))
     custom_target = tmp_path / "explicit_scratch_dir"
+    with _scoped_env(COCHEM_SCRATCH=str(tmp_path / "ignored_env_scratch")):
+        resolved = get_scratch_dir(custom_path=custom_target)
+        assert resolved == custom_target.resolve()
+        assert resolved.is_dir()
 
-    resolved = get_scratch_dir(custom_path=custom_target)
-    assert resolved == custom_target.resolve()
-    assert resolved.is_dir()
 
-
-def test_get_scratch_dir_tier2_cochem_scratch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_scratch_dir_tier2_cochem_scratch(tmp_path: Path) -> None:
     """Tier 2: COCHEM_SCRATCH environment variable resolution."""
     scratch_target = tmp_path / "env_cochem_scratch"
-    monkeypatch.setenv("COCHEM_SCRATCH", str(scratch_target))
-
-    resolved = get_scratch_dir()
-    assert resolved == scratch_target.resolve()
-    assert resolved.is_dir()
-
-
-def test_get_scratch_dir_tier2_cochem_scratch_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tier 2: COCHEM_SCRATCH_DIR environment variable resolution."""
-    monkeypatch.delenv("COCHEM_SCRATCH", raising=False)
-    scratch_target = tmp_path / "env_cochem_scratch_dir"
-    monkeypatch.setenv("COCHEM_SCRATCH_DIR", str(scratch_target))
-
-    resolved = get_scratch_dir()
-    assert resolved == scratch_target.resolve()
-    assert resolved.is_dir()
-
-
-def test_get_scratch_dir_tier3_xdg_cache_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tier 3: XDG_CACHE_HOME environment variable resolution."""
-    monkeypatch.delenv("COCHEM_SCRATCH", raising=False)
-    monkeypatch.delenv("COCHEM_SCRATCH_DIR", raising=False)
-    xdg_target = tmp_path / "xdg_cache"
-    monkeypatch.setenv("XDG_CACHE_HOME", str(xdg_target))
-
-    resolved = get_scratch_dir()
-    expected = (xdg_target / "cochem" / "scratch").resolve()
-    assert resolved == expected
-    assert resolved.is_dir()
-
-
-def test_get_scratch_dir_tier4_tempfile(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tier 4: tempfile.gettempdir() / "cochem_scratch" default."""
-    monkeypatch.delenv("COCHEM_SCRATCH", raising=False)
-    monkeypatch.delenv("COCHEM_SCRATCH_DIR", raising=False)
-    monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
-
-    resolved = get_scratch_dir()
-    expected = (Path(tempfile.gettempdir()) / "cochem_scratch").resolve()
-    assert resolved == expected
-    assert resolved.is_dir()
-
-
-def test_get_scratch_dir_tier5_home_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Tier 5: Fallback to Path.home() / ".cochem" / "scratch" when Tier 4 fails."""
-    monkeypatch.delenv("COCHEM_SCRATCH", raising=False)
-    monkeypatch.delenv("COCHEM_SCRATCH_DIR", raising=False)
-    monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
-
-    # Induce Tier 4 failure physically by pointing tempdir to a file
-    dummy_file = tmp_path / "dummy_tempdir.txt"
-    dummy_file.write_text("blocker")
-    original_tempdir = tempfile.tempdir
-    tempfile.tempdir = str(dummy_file)
-
-    try:
+    with _scoped_env(COCHEM_SCRATCH=str(scratch_target)):
         resolved = get_scratch_dir()
-        expected = (Path.home() / ".cochem" / "scratch").resolve()
+        assert resolved == scratch_target.resolve()
+        assert resolved.is_dir()
+
+
+def test_get_scratch_dir_tier2_cochem_scratch_dir(tmp_path: Path) -> None:
+    """Tier 2: COCHEM_SCRATCH_DIR environment variable resolution."""
+    scratch_target = tmp_path / "env_cochem_scratch_dir"
+    with _scoped_env(COCHEM_SCRATCH=None, COCHEM_SCRATCH_DIR=str(scratch_target)):
+        resolved = get_scratch_dir()
+        assert resolved == scratch_target.resolve()
+        assert resolved.is_dir()
+
+
+def test_get_scratch_dir_tier3_xdg_cache_home(tmp_path: Path) -> None:
+    """Tier 3: XDG_CACHE_HOME environment variable resolution."""
+    xdg_target = tmp_path / "xdg_cache"
+    with _scoped_env(COCHEM_SCRATCH=None, COCHEM_SCRATCH_DIR=None, XDG_CACHE_HOME=str(xdg_target)):
+        resolved = get_scratch_dir()
+        expected = (xdg_target / "cochem" / "scratch").resolve()
         assert resolved == expected
         assert resolved.is_dir()
-    finally:
-        tempfile.tempdir = original_tempdir
+
+
+def test_get_scratch_dir_tier4_tempfile() -> None:
+    """Tier 4: tempfile.gettempdir() / "cochem_scratch" default."""
+    with _scoped_env(COCHEM_SCRATCH=None, COCHEM_SCRATCH_DIR=None, XDG_CACHE_HOME=None):
+        resolved = get_scratch_dir()
+        expected = (Path(tempfile.gettempdir()) / "cochem_scratch").resolve()
+        assert resolved == expected
+        assert resolved.is_dir()
+
+
+def test_get_scratch_dir_tier5_home_fallback(tmp_path: Path) -> None:
+    """Tier 5: Fallback to Path.home() / ".cochem" / "scratch" when Tier 4 fails."""
+    # Induce Tier 4 failure physically by pointing tempdir to a file
+    blocker_file = tmp_path / "tempdir_blocker.txt"
+    blocker_file.write_text("blocker")
+    original_tempdir = tempfile.tempdir
+    with _scoped_env(COCHEM_SCRATCH=None, COCHEM_SCRATCH_DIR=None, XDG_CACHE_HOME=None):
+        tempfile.tempdir = str(blocker_file)
+        try:
+            resolved = get_scratch_dir()
+            expected = (Path.home() / ".cochem" / "scratch").resolve()
+            assert resolved == expected
+            assert resolved.is_dir()
+        finally:
+            tempfile.tempdir = original_tempdir
 
 
 def test_get_cochem_scratch_alias(tmp_path: Path) -> None:
@@ -274,58 +272,50 @@ def test_resolve_config_path_explicit(tmp_path: Path) -> None:
     assert resolved == custom_cfg.resolve()
 
 
-def test_resolve_config_path_cochem_root_direct(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_config_path_cochem_root_direct(tmp_path: Path) -> None:
     """Verify resolve_config_path discovers cochem_system_config.json under COCHEM_ROOT."""
-    monkeypatch.delenv("COCHEM_CONFIG", raising=False)
     custom_root = tmp_path / "root_with_cfg"
     custom_root.mkdir(parents=True, exist_ok=True)
     cfg_file = custom_root / "cochem_system_config.json"
     cfg_file.write_text("{}", encoding="utf-8")
 
-    monkeypatch.setenv("COCHEM_ROOT", str(custom_root))
+    with _scoped_env(COCHEM_CONFIG=None, COCHEM_ROOT=str(custom_root)):
+        resolved = resolve_config_path()
+        assert resolved == cfg_file.resolve()
 
-    resolved = resolve_config_path()
-    assert resolved == cfg_file.resolve()
 
-
-def test_resolve_config_path_cochem_root_base_subdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_config_path_cochem_root_base_subdir(tmp_path: Path) -> None:
     """Verify resolve_config_path discovers cochem_system_config.json under COCHEM_ROOT/CoChem-BASE."""
-    monkeypatch.delenv("COCHEM_CONFIG", raising=False)
     custom_root = tmp_path / "root_with_base_cfg"
     base_dir = custom_root / "CoChem-BASE"
     base_dir.mkdir(parents=True, exist_ok=True)
     cfg_file = base_dir / "cochem_system_config.json"
     cfg_file.write_text("{}", encoding="utf-8")
 
-    monkeypatch.setenv("COCHEM_ROOT", str(custom_root))
+    with _scoped_env(COCHEM_CONFIG=None, COCHEM_ROOT=str(custom_root)):
+        resolved = resolve_config_path()
+        assert resolved == cfg_file.resolve()
 
-    resolved = resolve_config_path()
-    assert resolved == cfg_file.resolve()
 
-
-def test_resolve_config_path_cochem_config_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_config_path_cochem_config_env(tmp_path: Path) -> None:
     """Verify resolve_config_path respects COCHEM_CONFIG environment variable if file exists."""
     cfg_file = tmp_path / "env_config.json"
     cfg_file.write_text("{}", encoding="utf-8")
-    monkeypatch.setenv("COCHEM_CONFIG", str(cfg_file))
+    with _scoped_env(COCHEM_CONFIG=str(cfg_file)):
+        resolved = resolve_config_path()
+        assert resolved == cfg_file.resolve()
 
-    resolved = resolve_config_path()
-    assert resolved == cfg_file.resolve()
 
-
-def test_resolve_config_path_cochem_artifact_dir_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_config_path_cochem_artifact_dir_env(tmp_path: Path) -> None:
     """Verify resolve_config_path discovers cochem_system_config.json under COCHEM_ARTIFACT_DIR."""
-    monkeypatch.delenv("COCHEM_CONFIG", raising=False)
-    monkeypatch.delenv("COCHEM_ROOT", raising=False)
     art_dir = tmp_path / "artifacts"
     art_dir.mkdir(parents=True, exist_ok=True)
     cfg_file = art_dir / "cochem_system_config.json"
     cfg_file.write_text("{}", encoding="utf-8")
 
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(art_dir))
-
-    resolved = resolve_config_path()
-    assert resolved == cfg_file.resolve()
+    with _scoped_env(COCHEM_CONFIG=None, COCHEM_ROOT=None, COCHEM_ARTIFACT_DIR=str(art_dir)):
+        resolved = resolve_config_path()
+        assert resolved == cfg_file.resolve()
 
 
 # =============================================================================
@@ -372,14 +362,13 @@ def test_get_artifact_dir_default() -> None:
     assert artifact_dir.is_absolute()
 
 
-def test_get_artifact_dir_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_artifact_dir_env(tmp_path: Path) -> None:
     """Verify get_artifact_dir respects COCHEM_ARTIFACT_DIR."""
     custom_art = tmp_path / "custom_artifacts"
     custom_art.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(custom_art))
-
-    resolved = get_artifact_dir()
-    assert resolved == custom_art.resolve()
+    with _scoped_env(COCHEM_ARTIFACT_DIR=str(custom_art)):
+        resolved = get_artifact_dir()
+        assert resolved == custom_art.resolve()
 
 
 def test_get_modules_dir_default() -> None:
@@ -389,14 +378,13 @@ def test_get_modules_dir_default() -> None:
     assert modules_dir.is_absolute()
 
 
-def test_get_modules_dir_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_modules_dir_env(tmp_path: Path) -> None:
     """Verify get_modules_dir respects COCHEM_MODULE_DIR."""
     custom_modules = tmp_path / "custom_modules"
     custom_modules.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_MODULE_DIR", str(custom_modules))
-
-    resolved = get_modules_dir()
-    assert resolved == custom_modules.resolve()
+    with _scoped_env(COCHEM_MODULE_DIR=str(custom_modules)):
+        resolved = get_modules_dir()
+        assert resolved == custom_modules.resolve()
 
 
 # =============================================================================
@@ -412,14 +400,13 @@ def test_get_runtime_dir_default() -> None:
     assert runtime_dir.is_dir()
 
 
-def test_get_runtime_dir_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_runtime_dir_env(tmp_path: Path) -> None:
     """Verify get_runtime_dir respects COCHEM_RUNTIME_DIR."""
     custom_runtime = tmp_path / "custom_runtime"
-    monkeypatch.setenv("COCHEM_RUNTIME_DIR", str(custom_runtime))
-
-    resolved = get_runtime_dir()
-    assert resolved == custom_runtime.resolve()
-    assert resolved.is_dir()
+    with _scoped_env(COCHEM_RUNTIME_DIR=str(custom_runtime)):
+        resolved = get_runtime_dir()
+        assert resolved == custom_runtime.resolve()
+        assert resolved.is_dir()
 
 
 def test_get_telemetry_socket_path_default() -> None:
@@ -430,13 +417,12 @@ def test_get_telemetry_socket_path_default() -> None:
     assert socket_path.name == "cochem_telemetry.sock"
 
 
-def test_get_telemetry_socket_path_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_telemetry_socket_path_env(tmp_path: Path) -> None:
     """Verify get_telemetry_socket_path respects COCHEM_TELEMETRY_SOCKET."""
     custom_sock = tmp_path / "custom.sock"
-    monkeypatch.setenv("COCHEM_TELEMETRY_SOCKET", str(custom_sock))
-
-    resolved = get_telemetry_socket_path()
-    assert resolved == custom_sock.resolve()
+    with _scoped_env(COCHEM_TELEMETRY_SOCKET=str(custom_sock)):
+        resolved = get_telemetry_socket_path()
+        assert resolved == custom_sock.resolve()
 
 
 def test_get_telemetry_transport_default() -> None:
@@ -448,17 +434,17 @@ def test_get_telemetry_transport_default() -> None:
         assert transport == "unix"
 
 
-def test_get_telemetry_transport_env_valid(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_telemetry_transport_env_valid() -> None:
     """Verify get_telemetry_transport parses valid transport configuration."""
-    monkeypatch.setenv("COCHEM_TELEMETRY_TRANSPORT", "udp")
-    assert get_telemetry_transport() == "udp"
+    with _scoped_env(COCHEM_TELEMETRY_TRANSPORT="udp"):
+        assert get_telemetry_transport() == "udp"
 
 
-def test_get_telemetry_transport_env_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_telemetry_transport_env_invalid() -> None:
     """Verify get_telemetry_transport rejects invalid transport options."""
-    monkeypatch.setenv("COCHEM_TELEMETRY_TRANSPORT", "invalid_protocol")
-    with pytest.raises(ValueError, match="must be 'unix' or 'udp'"):
-        get_telemetry_transport()
+    with _scoped_env(COCHEM_TELEMETRY_TRANSPORT="invalid_protocol"):
+        with pytest.raises(ValueError, match="must be 'unix' or 'udp'"):
+            get_telemetry_transport()
 
 
 def test_get_telemetry_udp_address_default() -> None:
@@ -468,24 +454,23 @@ def test_get_telemetry_udp_address_default() -> None:
     assert port == 8765
 
 
-def test_get_telemetry_udp_address_env(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_telemetry_udp_address_env() -> None:
     """Verify get_telemetry_udp_address respects host and port overrides."""
-    monkeypatch.setenv("COCHEM_TELEMETRY_HOST", "127.0.0.2")
-    monkeypatch.setenv("COCHEM_TELEMETRY_PORT", "9999")
-    host, port = get_telemetry_udp_address()
-    assert host == "127.0.0.2"
-    assert port == 9999
+    with _scoped_env(COCHEM_TELEMETRY_HOST="127.0.0.2", COCHEM_TELEMETRY_PORT="9999"):
+        host, port = get_telemetry_udp_address()
+        assert host == "127.0.0.2"
+        assert port == 9999
 
 
-def test_get_telemetry_udp_address_invalid_port(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_telemetry_udp_address_invalid_port() -> None:
     """Verify get_telemetry_udp_address raises on non-integer or out-of-range port."""
-    monkeypatch.setenv("COCHEM_TELEMETRY_PORT", "not_a_number")
-    with pytest.raises(ValueError, match="must be an integer"):
-        get_telemetry_udp_address()
+    with _scoped_env(COCHEM_TELEMETRY_PORT="not_a_number"):
+        with pytest.raises(ValueError, match="must be an integer"):
+            get_telemetry_udp_address()
 
-    monkeypatch.setenv("COCHEM_TELEMETRY_PORT", "70000")
-    with pytest.raises(ValueError, match="between 1 and 65535"):
-        get_telemetry_udp_address()
+    with _scoped_env(COCHEM_TELEMETRY_PORT="70000"):
+        with pytest.raises(ValueError, match="between 1 and 65535"):
+            get_telemetry_udp_address()
 
 
 def test_get_state_file_path_default() -> None:
@@ -495,13 +480,12 @@ def test_get_state_file_path_default() -> None:
     assert state_path.name == "cochem_state.h5"
 
 
-def test_get_state_file_path_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_state_file_path_env(tmp_path: Path) -> None:
     """Verify get_state_file_path respects COCHEM_STATE_FILE."""
     custom_state = tmp_path / "custom_state.h5"
-    monkeypatch.setenv("COCHEM_STATE_FILE", str(custom_state))
-
-    resolved = get_state_file_path()
-    assert resolved == custom_state.resolve()
+    with _scoped_env(COCHEM_STATE_FILE=str(custom_state)):
+        resolved = get_state_file_path()
+        assert resolved == custom_state.resolve()
 
 
 def test_get_mps_directories_default() -> None:
@@ -513,30 +497,31 @@ def test_get_mps_directories_default() -> None:
     assert log_dir.name == "nvidia-log"
 
 
-def test_get_mps_directories_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_mps_directories_env(tmp_path: Path) -> None:
     """Verify get_mps_directories respects CUDA_MPS_PIPE_DIRECTORY and CUDA_MPS_LOG_DIRECTORY."""
     custom_pipe = tmp_path / "mps_pipe"
     custom_log = tmp_path / "mps_log"
-    monkeypatch.setenv("CUDA_MPS_PIPE_DIRECTORY", str(custom_pipe))
-    monkeypatch.setenv("CUDA_MPS_LOG_DIRECTORY", str(custom_log))
+    with _scoped_env(
+        CUDA_MPS_PIPE_DIRECTORY=str(custom_pipe),
+        CUDA_MPS_LOG_DIRECTORY=str(custom_log),
+    ):
+        pipe_dir, log_dir = get_mps_directories()
+        assert pipe_dir == custom_pipe.resolve()
+        assert log_dir == custom_log.resolve()
 
-    pipe_dir, log_dir = get_mps_directories()
-    assert pipe_dir == custom_pipe.resolve()
-    assert log_dir == custom_log.resolve()
 
-
-def test_get_ramdisk_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_ramdisk_dir(tmp_path: Path) -> None:
     """Verify get_ramdisk_dir respects COCHEM_RAMDISK_DIR and handles platform fallback."""
     custom_ram = tmp_path / "ramdisk"
-    monkeypatch.setenv("COCHEM_RAMDISK_DIR", str(custom_ram))
-    assert get_ramdisk_dir() == custom_ram.resolve()
+    with _scoped_env(COCHEM_RAMDISK_DIR=str(custom_ram)):
+        assert get_ramdisk_dir() == custom_ram.resolve()
 
-    monkeypatch.delenv("COCHEM_RAMDISK_DIR", raising=False)
-    result = get_ramdisk_dir()
-    if platform.system() == "Linux" and Path("/dev/shm").is_dir():
-        assert result == Path("/dev/shm")
-    else:
-        assert result is None or isinstance(result, Path)
+    with _scoped_env(COCHEM_RAMDISK_DIR=None):
+        result = get_ramdisk_dir()
+        if platform.system() == "Linux" and Path("/dev/shm").is_dir():
+            assert result == Path("/dev/shm")
+        else:
+            assert result is None or isinstance(result, Path)
 
 
 # =============================================================================
@@ -551,23 +536,20 @@ def test_resolve_executable_direct() -> None:
     assert Path(resolved).exists()
 
 
-def test_resolve_executable_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_executable_env_var(tmp_path: Path) -> None:
     """Verify resolve_executable resolves from an environment variable."""
-    dummy_exe = tmp_path / "dummy_runner"
-    dummy_exe.write_text("#!/bin/sh\n", encoding="utf-8")
-    monkeypatch.setenv("CUSTOM_EXE_PATH", str(dummy_exe))
+    sample_exe = tmp_path / "sample_runner"
+    sample_exe.write_text("#!/bin/sh\n", encoding="utf-8")
+    with _scoped_env(CUSTOM_EXE_PATH=str(sample_exe)):
+        resolved = resolve_executable(env_var="CUSTOM_EXE_PATH")
+        assert resolved == str(sample_exe.resolve())
 
-    resolved = resolve_executable(env_var="CUSTOM_EXE_PATH")
-    assert resolved == str(dummy_exe.resolve())
 
-
-def test_resolve_conda_executable_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_conda_executable_not_found() -> None:
     """Verify resolve_conda_executable behavior when missing."""
-    monkeypatch.setenv("COCHEM_CONDA_EXE", "non_existent_conda_xyz_123")
-    monkeypatch.delenv("CONDA_EXE", raising=False)
-
-    with pytest.raises(FileNotFoundError, match="Configured Conda executable was not found"):
-        resolve_conda_executable(required=True)
+    with _scoped_env(COCHEM_CONDA_EXE="non_existent_conda_xyz_123", CONDA_EXE=None):
+        with pytest.raises(FileNotFoundError, match="Configured Conda executable was not found"):
+            resolve_conda_executable(required=True)
 
 
 def test_resolve_wsl_executable() -> None:

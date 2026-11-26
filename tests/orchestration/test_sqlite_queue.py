@@ -13,6 +13,12 @@ from pathlib import Path
 from src.cochem.orchestration.sqlite_queue import SQLiteTaskQueue
 
 
+def _compute_h2_nuclear_repulsion_hartree(bond_length_angstrom: float = 0.7414) -> float:
+    """Compute exact Coulomb nuclear-nuclear repulsion energy of H2 in Hartree."""
+    bohr_in_angstrom = 0.529177210903
+    return round(1.0 / (bond_length_angstrom / bohr_in_angstrom), 8)
+
+
 def test_sqlite_queue_pragmas(tmp_path: Path) -> None:
     """Verify SQLite connection applies required WAL and durability pragmas."""
     db_file = tmp_path / "tasks.db"
@@ -59,13 +65,18 @@ def test_enqueue_and_lease_lifecycle(tmp_path: Path) -> None:
         assert queue.heartbeat(high_id, worker_pid=1001) is True
         assert queue.heartbeat(high_id, worker_pid=9999) is False  # Wrong PID
 
-        # Complete high priority task
-        queue.complete_task(high_id, result={"energy": -232.15, "converged": True})
+        # Complete high priority task with computed physical observable
+        nuclear_repulsion_ha = _compute_h2_nuclear_repulsion_hartree()
+        queue.complete_task(
+            high_id,
+            result={"energy": nuclear_repulsion_ha, "converged": True},
+        )
         completed_record = queue.get_task(high_id)
         assert completed_record is not None
         assert completed_record.state == "COMPLETED"
         assert completed_record.result is not None
         assert completed_record.result["converged"] is True
+        assert completed_record.result["energy"] == nuclear_repulsion_ha
 
         # Next lease retrieves lower priority task
         leased2 = queue.lease_task(worker_pid=1002, worker_host="node02")

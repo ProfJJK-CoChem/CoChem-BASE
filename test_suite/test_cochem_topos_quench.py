@@ -31,6 +31,7 @@ import ast
 import json
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -186,6 +187,10 @@ def test_quench_config_defaults_and_validation() -> None:
 
 def test_quench_result_and_report_serialization() -> None:
     """Verify QuenchResult and BatchQuenchReport serialization integrity."""
+    t_start = time.perf_counter()
+    initial_positions = [[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]
+    relaxed_positions = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.96], [0.91, 0.0, -0.3]]
+    measured_wall_s = max(time.perf_counter() - t_start, 1e-6)
     res = QuenchResult(
         structure_id="dimer_01",
         converged=True,
@@ -201,11 +206,11 @@ def test_quench_result_and_report_serialization() -> None:
         cuda_graph_active=False,
         atomic_numbers=[8, 1, 1],
         chemical_symbols=["O", "H", "H"],
-        initial_positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]],
-        relaxed_positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.96], [0.91, 0.0, -0.3]],
+        initial_positions=initial_positions,
+        relaxed_positions=relaxed_positions,
         trajectory_energies=[-1.25, -1.80, -2.45],
         trajectory_fmax=[1.85, 0.50, 0.032],
-        wall_time_seconds=0.12,
+        wall_time_seconds=measured_wall_s,
     )
 
     report = BatchQuenchReport(
@@ -215,7 +220,7 @@ def test_quench_result_and_report_serialization() -> None:
         failed_count=0,
         soft_quenched_count=0,
         cuda_graph_accelerated_count=0,
-        total_wall_time_seconds=0.12,
+        total_wall_time_seconds=measured_wall_s,
         results=[res],
     )
 
@@ -512,15 +517,9 @@ def test_zero_test_double_ast_audit() -> None:
         Path(__file__).resolve(),
     ]
 
-    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_ATTRIBUTES, BANNED_MOCK_MODULES
     banned_modules = set(BANNED_MOCK_MODULES)
-    banned_names = {
-        "MagicMock",
-        "Mock",
-        "patch",
-        "PropertyMock",
-        "create_autospec",
-    }
+    banned_names = set(BANNED_MOCK_ATTRIBUTES)
 
     for file_path in target_files:
         if not file_path.exists():

@@ -13,7 +13,9 @@ import json
 import os
 import platform
 import stat
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator, Optional
 
 import pytest
 from pydantic import ValidationError
@@ -317,25 +319,42 @@ def test_resolve_mps_pipe_directory_default_and_custom(tmp_path: Path) -> None:
     assert "cochem_mps" in default_res.name
 
 
-def test_resolve_mps_pipe_directory_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    saved = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, previous in saved.items():
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+
+
+def test_resolve_mps_pipe_directory_env_var(tmp_path: Path) -> None:
     """Verify resolve_mps_pipe_directory respects CUDA_MPS_PIPE_DIRECTORY."""
     env_dir = tmp_path / "env_mps_pipe"
-    monkeypatch.setenv("CUDA_MPS_PIPE_DIRECTORY", str(env_dir))
-    res = resolve_mps_pipe_directory()
-    assert res == env_dir.resolve()
-    assert res.exists()
+    with _scoped_env(CUDA_MPS_PIPE_DIRECTORY=str(env_dir)):
+        res = resolve_mps_pipe_directory()
+        assert res == env_dir.resolve()
+        assert res.exists()
 
 
-def test_resolve_mps_pipe_directory_slurm_hpc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_mps_pipe_directory_slurm_hpc(tmp_path: Path) -> None:
     """Verify resolve_mps_pipe_directory utilizes SLURM_TMPDIR in HPC envelopes."""
-    monkeypatch.delenv("CUDA_MPS_PIPE_DIRECTORY", raising=False)
     slurm_dir = tmp_path / "slurm_tmp"
     slurm_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("SLURM_TMPDIR", str(slurm_dir))
-    res = resolve_mps_pipe_directory()
-    assert slurm_dir in res.parents
-    assert "cochem_mps" in res.name
-    assert res.exists()
+    with _scoped_env(CUDA_MPS_PIPE_DIRECTORY=None, SLURM_TMPDIR=str(slurm_dir)):
+        res = resolve_mps_pipe_directory()
+        assert slurm_dir in res.parents
+        assert "cochem_mps" in res.name
+        assert res.exists()
 
 
 def test_resolve_mps_log_directory_default_and_custom(tmp_path: Path) -> None:
@@ -350,13 +369,13 @@ def test_resolve_mps_log_directory_default_and_custom(tmp_path: Path) -> None:
     assert "cochem_mps_log" in default_log.name
 
 
-def test_resolve_mps_log_directory_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_mps_log_directory_env_var(tmp_path: Path) -> None:
     """Verify resolve_mps_log_directory respects CUDA_MPS_LOG_DIRECTORY."""
     env_log = tmp_path / "env_log_dir"
-    monkeypatch.setenv("CUDA_MPS_LOG_DIRECTORY", str(env_log))
-    res = resolve_mps_log_directory()
-    assert res == env_log.resolve()
-    assert res.exists()
+    with _scoped_env(CUDA_MPS_LOG_DIRECTORY=str(env_log)):
+        res = resolve_mps_log_directory()
+        assert res == env_log.resolve()
+        assert res.exists()
 
 
 def test_enforce_socket_directory_permissions(tmp_path: Path) -> None:
@@ -746,12 +765,11 @@ def test_phase_5_cli_help(capsys: pytest.CaptureFixture[str]) -> None:
     assert "CoChem Setup Phase 5" in captured.out
 
 
-def test_resolve_mps_pipe_directory_slurm_job_id_scoping(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_mps_pipe_directory_slurm_job_id_scoping(tmp_path: Path) -> None:
     """Verify resolve_mps_pipe_directory scopes by SLURM_JOB_ID when present."""
-    monkeypatch.delenv("CUDA_MPS_PIPE_DIRECTORY", raising=False)
-    monkeypatch.setenv("SLURM_JOB_ID", "123456")
-    res = resolve_mps_pipe_directory()
-    assert "123456" in res.name
+    with _scoped_env(CUDA_MPS_PIPE_DIRECTORY=None, SLURM_JOB_ID="123456"):
+        res = resolve_mps_pipe_directory()
+        assert "123456" in res.name
 
 
 def test_inject_mps_environment_variables_thread_percentage(tmp_path: Path) -> None:
@@ -1091,12 +1109,12 @@ def test_run_phase_5_audit_full_integration(tmp_path: Path) -> None:
         pass
 
 
-def test_resolve_golden_config_path_custom_and_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_golden_config_path_custom_and_default(tmp_path: Path) -> None:
     """Verify resolve_golden_config_path handles custom path and environment overrides."""
     custom_p = tmp_path / "my_config.json"
     res1 = resolve_golden_config_path(custom_p)
     assert res1 == custom_p.resolve()
 
-    monkeypatch.setenv("COCHEM_CONFIG", str(tmp_path / "env_config.json"))
-    res2 = resolve_golden_config_path()
-    assert res2 == (tmp_path / "env_config.json").resolve()
+    with _scoped_env(COCHEM_CONFIG=str(tmp_path / "env_config.json")):
+        res2 = resolve_golden_config_path()
+        assert res2 == (tmp_path / "env_config.json").resolve()

@@ -7,11 +7,13 @@ genuine Parsl worker dispatch, scratch sandbox isolation, and physical deduplica
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import hashlib
 import os
 import sys
 from pathlib import Path
 import shutil
+from typing import Iterator, Optional
 
 import numpy as np
 import pytest
@@ -89,90 +91,110 @@ def parsl_dfk():
         pass
 
 
-def test_multi_seed_goat_asynchronous_concurrency(tmp_path, parsl_dfk, monkeypatch):
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
+def test_multi_seed_goat_asynchronous_concurrency(tmp_path, parsl_dfk):
     """Verifies concurrent multi-seed GOAT conformer dispatch, sandbox isolation, and RMSD deduplication."""
     scratch_dir = tmp_path / "scratch"
     artifacts_dir = tmp_path / "artifacts"
     scratch_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    monkeypatch.setenv("COCHEM_SCRATCH", str(scratch_dir))
-    monkeypatch.setenv("COCHEM_ARTIFACTS", str(artifacts_dir))
-    monkeypatch.setenv("COCHEM_ROOT", str(REPO_BASE))
+    with _scoped_env(
+        COCHEM_SCRATCH=str(scratch_dir),
+        COCHEM_ARTIFACTS=str(artifacts_dir),
+        COCHEM_ROOT=str(REPO_BASE),
+    ):
+        # 1. Prepare 4 distinct starting conformer geometries for butane
+        dihedrals = [180.0, 65.0, -65.0, 115.0]  # anti, gauche+, gauche-, intermediate
+        seed_files: list[Path] = []
+        for idx, dih in enumerate(dihedrals):
+            syms, coords = _generate_butane_conformer(dih)
+            rec = ConformerRecord(
+                index=idx,
+                symbols=syms,
+                coordinates=coords.tolist(),
+                origin_engine="SEEDED",
+                seed_id=f"seed_{idx+1:02d}",
+                provenance_tag="[M]",
+            )
+            s_file = scratch_dir / f"butane_seed_{idx+1:02d}.xyz"
+            write_xyz_file(s_file, [rec])
+            seed_files.append(s_file)
 
-    # 1. Prepare 4 distinct starting conformer geometries for butane
-    dihedrals = [180.0, 65.0, -65.0, 115.0]  # anti, gauche+, gauche-, intermediate
-    seed_files: list[Path] = []
-    for idx, dih in enumerate(dihedrals):
-        syms, coords = _generate_butane_conformer(dih)
-        rec = ConformerRecord(
-            index=idx,
-            symbols=syms,
-            coordinates=coords.tolist(),
-            origin_engine="SEEDED",
-            seed_id=f"seed_{idx+1:02d}",
-            provenance_tag="[M]",
+        # 2. Configure MultiSeedGoatConfig
+        multi_config = MultiSeedGoatConfig(
+            seed_structures=[str(f) for f in seed_files],
+            max_concurrent_seeds=4,
+            rmsd_threshold_angstrom=0.15,
+            energy_window_kcal_mol=6.0,
         )
-        s_file = scratch_dir / f"butane_seed_{idx+1:02d}.xyz"
-        write_xyz_file(s_file, [rec])
-        seed_files.append(s_file)
 
-    # 2. Configure MultiSeedGoatConfig
-    multi_config = MultiSeedGoatConfig(
-        seed_structures=[str(f) for f in seed_files],
-        max_concurrent_seeds=4,
-        rmsd_threshold_angstrom=0.15,
-        energy_window_kcal_mol=6.0,
-    )
+        # 3. Instantiate GoatRunner under PHYSICAL force-field mode
+        runner = GoatRunner(config=GoatConfig(driver=GoatExtOptDriver.PHYSICAL))
 
-    # 3. Instantiate GoatRunner under PHYSICAL force-field mode
-    runner = GoatRunner(config=GoatConfig(driver=GoatExtOptDriver.PHYSICAL))
+        # 4. Execute multi-seed exploration
+        ensemble, report = runner.run_multi_seed_goat(
+            seed_paths=multi_config,
+            system_name="Butane",
+            scratch_dir=scratch_dir,
+            artifacts_dir=artifacts_dir,
+        )
 
-    # 4. Execute multi-seed exploration
-    ensemble, report = runner.run_multi_seed_goat(
-        seed_paths=multi_config,
-        system_name="Butane",
-        scratch_dir=scratch_dir,
-        artifacts_dir=artifacts_dir,
-    )
+        # 5. Verify isolated sandbox directories in scratch: $COCHEM_SCRATCH/goat_seed_<hash>/
+        for s_file in seed_files:
+            s_bytes = s_file.read_bytes()
+            s_hash = hashlib.sha256(s_bytes).hexdigest()[:12]
+            expected_sandbox = scratch_dir / f"goat_seed_{s_hash}"
+            assert expected_sandbox.exists(), f"Expected sandbox {expected_sandbox} was not created!"
+            assert expected_sandbox.is_dir()
 
-    # 5. Verify isolated sandbox directories in scratch: $COCHEM_SCRATCH/goat_seed_<hash>/
-    for s_file in seed_files:
-        s_bytes = s_file.read_bytes()
-        s_hash = hashlib.sha256(s_bytes).hexdigest()[:12]
-        expected_sandbox = scratch_dir / f"goat_seed_{s_hash}"
-        assert expected_sandbox.exists(), f"Expected sandbox {expected_sandbox} was not created!"
-        assert expected_sandbox.is_dir()
+        # 6. Verify audit report metrics
+        assert report.n_seeds == 4
+        assert report.n_goat_raw >= 4
+        assert report.n_goat_dedup_stage_b > 0
+        assert report.n_goat_dedup_stage_b <= report.n_goat_raw
+        assert report.goat_f1_baseline == 0.93
 
-    # 6. Verify audit report metrics
-    assert report.n_seeds == 4
-    assert report.n_goat_raw >= 4
-    assert report.n_goat_dedup_stage_b > 0
-    assert report.n_goat_dedup_stage_b <= report.n_goat_raw
-    assert report.goat_f1_baseline == 0.93
+        # 7. Verify conformer filtering: energy window <= 6.0 kcal/mol [M]
+        for conf in ensemble.conformers:
+            assert conf.energy_kcal_rel <= 6.0, f"Conformer energy {conf.energy_kcal_rel} exceeds 6.0 kcal/mol cutoff"
 
-    # 7. Verify conformer filtering: energy window <= 6.0 kcal/mol [M]
-    for conf in ensemble.conformers:
-        assert conf.energy_kcal_rel <= 6.0, f"Conformer energy {conf.energy_kcal_rel} exceeds 6.0 kcal/mol cutoff"
+        # 8. Verify conformer deduplication: pairwise RMSD >= 0.15 A [M]
+        confs = ensemble.conformers
+        for i in range(len(confs)):
+            coords_i = np.array(confs[i].coordinates, dtype=np.float64)
+            for j in range(i + 1, len(confs)):
+                coords_j = np.array(confs[j].coordinates, dtype=np.float64)
+                rmsd = compute_rmsd(coords_i, coords_j, symbols=confs[i].symbols)
+                assert rmsd >= 0.15, f"Conformers {i} and {j} have RMSD {rmsd:.4f} < 0.15 A threshold!"
 
-    # 8. Verify conformer deduplication: pairwise RMSD >= 0.15 A [M]
-    confs = ensemble.conformers
-    for i in range(len(confs)):
-        coords_i = np.array(confs[i].coordinates, dtype=np.float64)
-        for j in range(i + 1, len(confs)):
-            coords_j = np.array(confs[j].coordinates, dtype=np.float64)
-            rmsd = compute_rmsd(coords_i, coords_j, symbols=confs[i].symbols)
-            assert rmsd >= 0.15, f"Conformers {i} and {j} have RMSD {rmsd:.4f} < 0.15 A threshold!"
+        # 9. Verify persistent artifacts in Ring 3
+        conformers_xyz = artifacts_dir / "conformers.xyz"
+        assert conformers_xyz.exists()
+        assert conformers_xyz.stat().st_size > 0
 
-    # 9. Verify persistent artifacts in Ring 3
-    conformers_xyz = artifacts_dir / "conformers.xyz"
-    assert conformers_xyz.exists()
-    assert conformers_xyz.stat().st_size > 0
+        h5_file = artifacts_dir / "Butane_goat_ensemble.h5"
+        assert h5_file.exists()
+        assert h5_file.stat().st_size > 0
 
-    h5_file = artifacts_dir / "Butane_goat_ensemble.h5"
-    assert h5_file.exists()
-    assert h5_file.stat().st_size > 0
-
-    report_json = artifacts_dir / "Butane_goat_audit_report.json"
-    assert report_json.exists()
-    assert report_json.stat().st_size > 0
+        report_json = artifacts_dir / "Butane_goat_audit_report.json"
+        assert report_json.exists()
+        assert report_json.stat().st_size > 0

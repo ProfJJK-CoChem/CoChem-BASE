@@ -19,9 +19,12 @@ Validates:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
+import os
 import platform
 from pathlib import Path
+from typing import Iterator, Optional
 
 import psutil
 import pytest
@@ -334,7 +337,26 @@ def test_container_ram_limit_interception_real_file(tmp_path: Path) -> None:
     assert "Container memory ceiling (4.00 GB) is below safety threshold (8.00 GB)" in decision.reason
 
 
-def test_active_job_interception_and_failover_modes(monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or unset environment variables and restore them on exit."""
+    saved = {k: os.environ.get(k) for k in updates}
+    try:
+        for k, v in updates.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        yield
+    finally:
+        for k, prev in saved.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
+def test_active_job_interception_and_failover_modes() -> None:
     """Verifies that active jobs force interception and fail over to EXTERNAL_API or DRY_RUN."""
     active_override = {
         "active_jobs": {
@@ -343,40 +365,41 @@ def test_active_job_interception_and_failover_modes(monkeypatch: pytest.MonkeyPa
     }
 
     # Test failover without API keys in environment
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.delenv("COCHEM_AI_API_KEY", raising=False)
+    with _scoped_env(
+        GEMINI_API_KEY=None,
+        OPENAI_API_KEY=None,
+        ANTHROPIC_API_KEY=None,
+        COCHEM_AI_API_KEY=None,
+    ):
+        decision_dry = evaluate_resource_guard(
+            min_ram_gb=1.0,
+            scan_process_table=False,
+            system_config_override=active_override,
+        )
+        assert decision_dry.intercepted is True
+        assert decision_dry.allow_local_llm is False
+        assert decision_dry.execution_mode == "DRY_RUN"
+        assert "Active calculation detected" in decision_dry.reason
 
-    decision_dry = evaluate_resource_guard(
-        min_ram_gb=1.0,
-        scan_process_table=False,
-        system_config_override=active_override,
-    )
-    assert decision_dry.intercepted is True
-    assert decision_dry.allow_local_llm is False
-    assert decision_dry.execution_mode == "DRY_RUN"
-    assert "Active calculation detected" in decision_dry.reason
+        # Test failover with GEMINI_API_KEY set
+        with _scoped_env(GEMINI_API_KEY="test_gemini_api_key_auth_value_12345"):
+            decision_api = evaluate_resource_guard(
+                min_ram_gb=1.0,
+                scan_process_table=False,
+                system_config_override=active_override,
+            )
+            assert decision_api.intercepted is True
+            assert decision_api.allow_local_llm is False
+            assert decision_api.execution_mode == "EXTERNAL_API"
 
-    # Test failover with GEMINI_API_KEY set
-    monkeypatch.setenv("GEMINI_API_KEY", "test_gemini_api_key_auth_value_12345")
-    decision_api = evaluate_resource_guard(
-        min_ram_gb=1.0,
-        scan_process_table=False,
-        system_config_override=active_override,
-    )
-    assert decision_api.intercepted is True
-    assert decision_api.allow_local_llm is False
-    assert decision_api.execution_mode == "EXTERNAL_API"
-
-    # Test explicit fallback_mode override
-    decision_custom = evaluate_resource_guard(
-        min_ram_gb=1.0,
-        scan_process_table=False,
-        fallback_mode="CUSTOM_FALLBACK",
-        system_config_override=active_override,
-    )
-    assert decision_custom.execution_mode == "CUSTOM_FALLBACK"
+            # Test explicit fallback_mode override
+            decision_custom = evaluate_resource_guard(
+                min_ram_gb=1.0,
+                scan_process_table=False,
+                fallback_mode="CUSTOM_FALLBACK",
+                system_config_override=active_override,
+            )
+            assert decision_custom.execution_mode == "CUSTOM_FALLBACK"
 
 
 def test_vram_and_available_ram_threshold_boundaries() -> None:
@@ -471,44 +494,41 @@ def test_full_evaluation_telemetry_payload() -> None:
     assert decision.details["host_total_ram_gb"] > 0.0
 
 
-def test_env_vars_config_resolution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_env_vars_config_resolution(tmp_path: Path) -> None:
     """Verifies config resolution via COCHEM_CONFIG and COCHEM_ARTIFACT_DIR env vars."""
     custom_cfg = tmp_path / "env_config.json"
     custom_cfg.write_text(json.dumps({"hardware": {"ram_gb": 128.0}, "active_jobs": {}}), encoding="utf-8")
 
-    monkeypatch.setenv("COCHEM_CONFIG", str(custom_cfg))
-    hw, jobs, resolved_path = resolve_cochem_system_config()
-    assert hw is not None
-    assert hw["ram_gb"] == 128.0
-    assert resolved_path == str(custom_cfg.resolve())
+    with _scoped_env(COCHEM_CONFIG=str(custom_cfg)):
+        hw, jobs, resolved_path = resolve_cochem_system_config()
+        assert hw is not None
+        assert hw["ram_gb"] == 128.0
+        assert resolved_path == str(custom_cfg.resolve())
 
     # Test COCHEM_ARTIFACT_DIR
-    monkeypatch.delenv("COCHEM_CONFIG", raising=False)
     art_dir = tmp_path / "artifacts"
     reg_dir = art_dir / "Registry"
     reg_dir.mkdir(parents=True, exist_ok=True)
     art_cfg = reg_dir / "cochem_system_config.json"
     art_cfg.write_text(json.dumps({"hardware": {"vram_gb": 48.0}}), encoding="utf-8")
 
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(art_dir))
-    hw_art, jobs_art, resolved_path_art = resolve_cochem_system_config()
-    assert hw_art is not None
-    assert hw_art["vram_gb"] == 48.0
-    assert resolved_path_art == str(art_cfg.resolve())
+    with _scoped_env(COCHEM_CONFIG=None, COCHEM_ARTIFACT_DIR=str(art_dir)):
+        hw_art, jobs_art, resolved_path_art = resolve_cochem_system_config()
+        assert hw_art is not None
+        assert hw_art["vram_gb"] == 48.0
+        assert resolved_path_art == str(art_cfg.resolve())
 
 
-def test_container_env_variable_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_container_env_variable_detection() -> None:
     """Verifies that container environment variables are detected without synthetic mocks."""
-    monkeypatch.setenv("CONTAINER", "true")
-    assert is_container_environment() is True
+    with _scoped_env(CONTAINER="true"):
+        assert is_container_environment() is True
 
-    monkeypatch.delenv("CONTAINER", raising=False)
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    assert is_container_environment() is True
+    with _scoped_env(CONTAINER=None, GITHUB_ACTIONS="true"):
+        assert is_container_environment() is True
 
-    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
-    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
-    assert is_container_environment() is True
+    with _scoped_env(CONTAINER=None, GITHUB_ACTIONS=None, KUBERNETES_SERVICE_HOST="10.0.0.1"):
+        assert is_container_environment() is True
 
 
 def test_active_calculation_non_dict_job_entry_and_inactive_status() -> None:

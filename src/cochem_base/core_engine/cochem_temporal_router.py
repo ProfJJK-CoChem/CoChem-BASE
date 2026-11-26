@@ -327,6 +327,7 @@ class ThermalState(str, Enum):
     WARNING = "WARNING"
     THROTTLED = "THROTTLED"
     SUSPENDED = "SUSPENDED"
+    UNKNOWN = "UNKNOWN"
 
 
 EMT_REGEX = re.compile(r"(?:^|[^a-zA-Z0-9])emt(?:$|[^a-zA-Z0-9])|effective[\s_-]*medium[\s_-]*theory", re.IGNORECASE)
@@ -1917,6 +1918,8 @@ class ThermalGuardDaemon:
         self.temperature_probe_fn = temperature_probe_fn
 
         self.state = ThermalState.NORMAL
+        self.last_temperature_c: Optional[float] = None
+        self.sensor_available: Optional[bool] = None
         self.suspended_pids: Set[int] = set()
         self._running = False
         self._task: Optional[asyncio.Task] = None
@@ -1932,40 +1935,78 @@ class ThermalGuardDaemon:
             self.target_pids.remove(pid)
 
     def get_current_temperature(self) -> Optional[float]:
-        """Probes current system temperature.
+        """Probes current system temperature from hardware sensors or explicit probe callable.
 
-        Guarded with platform.system() == 'Linux' and fallback to custom probe.
+        Queries `temperature_probe_fn` if configured, otherwise reads Linux hardware sensors
+        via `psutil.sensors_temperatures()` and `/sys/class/thermal/thermal_zone*/temp`.
+        Returns `None` when no real thermal sensor is readable.
         """
         if self.temperature_probe_fn is not None:
-            return self.temperature_probe_fn()
+            reading = self.temperature_probe_fn()
+            if reading is None:
+                return None
+            val = float(reading)
+            return val if math.isfinite(val) else None
 
         if platform.system() == "Linux":
+            temps: List[float] = []
             try:
                 sensors_fn = getattr(psutil, "sensors_temperatures", None)
                 if sensors_fn is not None:
                     sensors = sensors_fn()
                     if sensors:
-                        temps: List[float] = []
                         for _sensor_name, entries in sensors.items():
                             for entry in entries:
                                 cur = getattr(entry, "current", None)
                                 if cur is not None:
-                                    temps.append(float(cur))
-                        if temps:
-                            return max(temps)
+                                    val = float(cur)
+                                    if math.isfinite(val):
+                                        temps.append(val)
             except Exception as e:
                 logger.debug(f"psutil temperature probe failed: {e}")
 
+            if not temps:
+                thermal_root = Path("/sys/class/thermal")
+                if thermal_root.is_dir():
+                    for zone_temp in sorted(thermal_root.glob("thermal_zone*/temp")):
+                        try:
+                            raw = zone_temp.read_text(encoding="utf-8").strip()
+                            if raw:
+                                val = float(raw) / 1000.0
+                                if math.isfinite(val) and val > -273.15:
+                                    temps.append(val)
+                        except (OSError, ValueError) as e:
+                            logger.debug(f"sysfs thermal zone read failed ({zone_temp}): {e}")
+
+            if temps:
+                return max(temps)
+
         return None
 
-    def check_thermal_cycle(self, simulated_temp: Optional[float] = None) -> ThermalState:
-        """Performs a single thermal evaluation cycle and suspends/resumes process tree."""
-        temp = simulated_temp if simulated_temp is not None else self.get_current_temperature()
-        if temp is None:
+    def check_thermal_cycle(self) -> ThermalState:
+        """Performs a single thermal evaluation cycle from hardware sensors.
+
+        Always queries `self.get_current_temperature()`. When no thermal sensor is
+        readable, sets `self.sensor_available = False` and transitions to
+        `ThermalState.UNKNOWN` (explicit degraded/unknown state without unsafely
+        resuming already-suspended processes).
+        """
+        temp = self.get_current_temperature()
+        if temp is None or not math.isfinite(temp):
+            self.last_temperature_c = None
+            self.sensor_available = False
+            if self.state != ThermalState.UNKNOWN:
+                logger.warning(
+                    "No hardware thermal sensor readable; thermal guard state is UNKNOWN (degraded)."
+                )
+            self.state = ThermalState.UNKNOWN
             return self.state
 
+        self.last_temperature_c = float(temp)
+        self.sensor_available = True
+
         if temp >= self.high_temp_threshold:
-            if self.state != ThermalState.SUSPENDED:
+            if self.state != ThermalState.SUSPENDED or not self.suspended_pids:
                 self.state = ThermalState.SUSPENDED
                 logger.warning(
                     f"Thermal limit breached ({temp:.1f}\u00b0C >= {self.high_temp_threshold}\u00b0C). "
@@ -1973,7 +2014,7 @@ class ThermalGuardDaemon:
                 )
                 self._suspend_process_tree()
         elif temp <= self.recovery_temp_threshold:
-            if self.state == ThermalState.SUSPENDED:
+            if self.state == ThermalState.SUSPENDED or self.suspended_pids:
                 self.state = ThermalState.NORMAL
                 logger.info(
                     f"Thermal recovery achieved ({temp:.1f}\u00b0C <= {self.recovery_temp_threshold}\u00b0C). "
@@ -1985,9 +2026,12 @@ class ThermalGuardDaemon:
             else:
                 self.state = ThermalState.NORMAL
         else:
-            if self.state != ThermalState.SUSPENDED:
-                if temp > self.high_temp_threshold - 5.0:
-                    self.state = ThermalState.WARNING
+            if self.state == ThermalState.SUSPENDED or self.suspended_pids:
+                self.state = ThermalState.SUSPENDED
+            elif temp > self.high_temp_threshold - 5.0:
+                self.state = ThermalState.WARNING
+            else:
+                self.state = ThermalState.NORMAL
 
         return self.state
 

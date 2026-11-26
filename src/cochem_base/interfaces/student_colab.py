@@ -20,7 +20,9 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
+import tarfile
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -68,10 +70,24 @@ else:
 SCHEMA_LEDGER = "cochem.student-colab-cu-ledger.v1"
 SCHEMA_REQUEST = "cochem.student-colab-request.v1"
 SCHEMA_RESULT = "cochem.student-colab-result.v1"
+SCHEMA_COLAB_JOB = "cochem-colab-job/1"
+SCHEMA_COLAB_PAYLOAD = "cochem-colab-payload/2"
+SUPPORTED_COLAB_ENGINES = frozenset({"ORCA", "CFOUR", "XTB", "PYSCF", "GPU4PYSCF"})
 DEFAULT_MONTHLY_POOL_CU = 1750.0
 _STUDENT_ID_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\Z")
 _JOB_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{3,63}\Z")
 _MONTH_RE = re.compile(r"\d{4}-(?:0[1-9]|1[0-2])\Z")
+_SLOT_RE = re.compile(r"w\d{2,3}\Z")
+_HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
+_GPU_CLASSES = frozenset({"any", "T4", "L4", "A100", "A100-40", "A100-80", "H100", "G4"})
+_FORBIDDEN_SIMULATION_KEYS = frozenset({
+    "simulation",
+    "simulate",
+    "simulated",
+    "mock",
+    "dry_run_result",
+    "synthetic_result",
+})
 _FORBIDDEN_CREDENTIALS = (
     "token.json",
     ".config/colab-cli",
@@ -454,7 +470,7 @@ def package_student_colab_request(
     if not isinstance(engine, str):
         raise CourseAccessError("Calculation engine must be a string.")
     clean_engine = engine.strip().upper()
-    if clean_engine not in {"ORCA", "CFOUR", "XTB", "PYSCF"}:
+    if clean_engine not in SUPPORTED_COLAB_ENGINES:
         raise CourseAccessError("Unsupported calculation engine for student Colab offload.")
     clean_xyz, clean_method, clean_basis, clean_estimate = _validate_colab_scientific_inputs(
         geometry_xyz=geometry_xyz, method=method, basis_set=basis_set,
@@ -554,4 +570,362 @@ def submit_student_colab_issue(
         "html_url": str(issue.get("html_url", "")),
         "job_id": job_id,
         "status": "submitted",
+    }
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _colab_engine_runtime_spec(
+    engine: str,
+    *,
+    stage_dir: str,
+    out_dir: str,
+    charge: int,
+    multiplicity: int,
+) -> dict[str, Any]:
+    if engine == "ORCA":
+        return {
+            "env": "orca-6.1.1",
+            "argv": ["/content/appliances/orca-6.1.1/orca", "calculation.inp"],
+            "env_vars": {
+                "ORCA_DIR": "/content/appliances/orca-6.1.1",
+                "LD_LIBRARY_PATH": "/content/appliances/orca-6.1.1:/usr/lib/x86_64-linux-gnu/openmpi/lib",
+            },
+            "done_when": [
+                {"file_exists": f"{out_dir}/calculation.out"},
+                {
+                    "file_contains": {
+                        "path": f"{out_dir}/calculation.out",
+                        "text": "****ORCA TERMINATED NORMALLY****",
+                    }
+                },
+            ],
+        }
+    if engine == "CFOUR":
+        return {
+            "env": "cfour-2.1",
+            "argv": ["/content/appliances/cfour-2.1/bin/xcfour"],
+            "env_vars": {
+                "CFOUR_DIR": "/content/appliances/cfour-2.1",
+            },
+            "done_when": [
+                {"file_exists": f"{out_dir}/calculation.out"},
+            ],
+        }
+    if engine == "XTB":
+        return {
+            "env": "xtb",
+            "argv": [
+                "xtb",
+                "workspace/geometry.xyz",
+                "--chrg",
+                str(charge),
+                "--uhf",
+                str(multiplicity - 1),
+            ],
+            "env_vars": {},
+            "done_when": [
+                {"file_exists": f"{out_dir}/calculation.out"},
+            ],
+        }
+    if engine == "GPU4PYSCF":
+        return {
+            "env": "gpu4pyscf",
+            "argv": [
+                "/home/ansac/.venvs/gpu4pyscf/bin/python",
+                "-B",
+                "-m",
+                "cochem_base.calc.pyscf_runner",
+                "workspace/student_request.json",
+            ],
+            "env_vars": {
+                "PYTHONDONTWRITEBYTECODE": "1",
+            },
+            "done_when": [
+                {"file_exists": f"{out_dir}/result.json"},
+            ],
+        }
+    return {
+        "env": "pyscf",
+        "argv": [
+            "python3",
+            "-B",
+            "-m",
+            "cochem_base.calc.pyscf_runner",
+            "workspace/student_request.json",
+        ],
+        "env_vars": {
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
+        "done_when": [
+            {"file_exists": f"{out_dir}/result.json"},
+        ],
+    }
+
+
+def build_colab_job_metadata(
+    packaged_request: Mapping[str, Any],
+    *,
+    slot: str = "w53",
+    stage_root: str = "/content/cochem-stage",
+    max_hours: int = 1,
+    gpu_min: str = "any",
+    vram_mb: int = 16000,
+    ram_mb: int = 16000,
+    cpu_threads: int = 4,
+    dispatcher_host: str = "workstation",
+) -> dict[str, Any]:
+    """Build strictly live-only `cochem-colab-job/1` metadata from a signed v1 request.
+
+    Compatible with `cochem_workstation_job_runner` (`CONTRACT.md` / `colab_offload_bridge.py`).
+    Rejects simulation/mock flags, tampered geometry digests, forbidden credential paths,
+    and malformed slot or resource specifications.
+    """
+    if not isinstance(packaged_request, Mapping):
+        raise CourseAccessError("Packaged Colab request must be a mapping.")
+    if packaged_request.get("schema") != SCHEMA_REQUEST:
+        raise CourseAccessError("Only a cochem.student-colab-request.v1 payload may be converted to cochem-colab-job/1.")
+    for key in packaged_request:
+        if str(key).strip().lower() in _FORBIDDEN_SIMULATION_KEYS:
+            raise CourseAccessError(f"Refusing non-live key in Colab request payload: {key!r}")
+    signature = packaged_request.get("hmac_sha256")
+    if not isinstance(signature, str) or not _HEX64_RE.fullmatch(signature.strip()):
+        raise CourseAccessError("Packaged Colab request must carry a valid 64-hex HMAC-SHA256 signature.")
+
+    student_id = packaged_request.get("student_id")
+    job_id = packaged_request.get("job_id")
+    engine = packaged_request.get("engine")
+    if not isinstance(student_id, str) or not _STUDENT_ID_RE.fullmatch(student_id.strip()):
+        raise CourseAccessError("Invalid student_id in packaged Colab request.")
+    if not isinstance(job_id, str) or not _JOB_ID_RE.fullmatch(job_id.strip()):
+        raise CourseAccessError("Invalid job_id in packaged Colab request.")
+    if not isinstance(engine, str) or engine.strip().upper() not in SUPPORTED_COLAB_ENGINES:
+        raise CourseAccessError("Unsupported calculation engine in packaged Colab request.")
+    clean_student = student_id.strip()
+    clean_job = job_id.strip()
+    clean_engine = engine.strip().upper()
+
+    clean_xyz, clean_method, clean_basis, clean_estimate = _validate_colab_scientific_inputs(
+        geometry_xyz=packaged_request.get("geometry_xyz"),  # type: ignore[arg-type]
+        method=packaged_request.get("method"),  # type: ignore[arg-type]
+        basis_set=packaged_request.get("basis_set"),
+        charge=packaged_request.get("charge"),  # type: ignore[arg-type]
+        multiplicity=packaged_request.get("multiplicity"),  # type: ignore[arg-type]
+        is_opt=packaged_request.get("is_opt"),  # type: ignore[arg-type]
+        is_freq=packaged_request.get("is_freq"),  # type: ignore[arg-type]
+        estimated_cu=packaged_request.get("estimated_cu", 0.0),  # type: ignore[arg-type]
+    )
+    expected_geom_sha = hashlib.sha256(clean_xyz.encode("utf-8")).hexdigest()
+    provided_geom_sha = packaged_request.get("geometry_sha256")
+    if not isinstance(provided_geom_sha, str) or not hmac.compare_digest(provided_geom_sha.strip(), expected_geom_sha):
+        raise CourseAccessError("Packaged Colab request geometry_sha256 does not match geometry_xyz.")
+
+    if not isinstance(slot, str) or not _SLOT_RE.fullmatch(slot.strip()):
+        raise CourseAccessError("Colab slot must match wNN or wNNN (e.g. w53).")
+    clean_slot = slot.strip()
+
+    if (
+        not isinstance(stage_root, str)
+        or not stage_root.strip().startswith("/")
+        or ".." in stage_root.split("/")
+        or "\\" in stage_root
+        or not stage_root.isprintable()
+    ):
+        raise CourseAccessError("Colab stage_root must be a clean absolute POSIX path without '..'.")
+    clean_stage_root = stage_root.strip().rstrip("/")
+
+    if type(max_hours) is not int or not (1 <= max_hours <= 24):
+        raise CourseAccessError("max_hours must be an integer between 1 and 24.")
+    if not isinstance(gpu_min, str) or gpu_min.strip() not in _GPU_CLASSES:
+        raise CourseAccessError(f"gpu_min must be one of {sorted(_GPU_CLASSES)}.")
+    clean_gpu_min = gpu_min.strip()
+    if type(vram_mb) is not int or vram_mb < 1024:
+        raise CourseAccessError("vram_mb must be an integer >= 1024.")
+    if type(ram_mb) is not int or ram_mb < 1024:
+        raise CourseAccessError("ram_mb must be an integer >= 1024.")
+    if type(cpu_threads) is not int or not (1 <= cpu_threads <= 64):
+        raise CourseAccessError("cpu_threads must be an integer between 1 and 64.")
+    if not isinstance(dispatcher_host, str) or not dispatcher_host.strip() or not dispatcher_host.isprintable():
+        raise CourseAccessError("dispatcher_host must be a nonempty printable string.")
+    clean_host = dispatcher_host.strip()
+
+    isolation_blob = f"{clean_job}\n{clean_method}\n{clean_basis or ''}\n{clean_xyz}\n{clean_stage_root}\n{clean_host}".lower()
+    if any(marker in isolation_blob for marker in _FORBIDDEN_CREDENTIALS):
+        raise CourseAccessError("Credential isolation check refused forbidden path or Drive reference.")
+
+    stage_dir = f"{clean_stage_root}/{clean_job}"
+    out_dir = f"{stage_dir}/out"
+    runtime_spec = _colab_engine_runtime_spec(
+        clean_engine,
+        stage_dir=stage_dir,
+        out_dir=out_dir,
+        charge=packaged_request["charge"],
+        multiplicity=packaged_request["multiplicity"],
+    )
+
+    return {
+        "schema": SCHEMA_COLAB_JOB,
+        "job_id": clean_job,
+        "slot": clean_slot,
+        "env": runtime_spec["env"],
+        "cwd": stage_dir,
+        "argv": list(runtime_spec["argv"]),
+        "env_vars": dict(runtime_spec["env_vars"]),
+        "sync_in": ["workspace/geometry.xyz", "workspace/student_request.json"],
+        "sync_out": [out_dir],
+        "log_append": f"{stage_dir}/calculation.log",
+        "checkpoint_every_s": 300,
+        "max_hours": max_hours,
+        "gpu_min": clean_gpu_min,
+        "vram_mb": vram_mb,
+        "ram_mb": ram_mb,
+        "cpu_threads": cpu_threads,
+        "done_when": runtime_spec["done_when"],
+        "dispatched": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "dispatcher_host": clean_host,
+        "request_schema": SCHEMA_REQUEST,
+        "student_id": clean_student,
+        "engine": clean_engine,
+        "method": clean_method,
+        "basis_set": clean_basis,
+        "charge": packaged_request["charge"],
+        "multiplicity": packaged_request["multiplicity"],
+        "is_opt": packaged_request["is_opt"],
+        "is_freq": packaged_request["is_freq"],
+        "estimated_cu": round(clean_estimate, 4),
+        "geometry_sha256": expected_geom_sha,
+        "dispatch_token_fingerprint": str(packaged_request.get("dispatch_token_fingerprint", "")),
+    }
+
+
+def export_local_colab_bundle(
+    packaged_request: Mapping[str, Any],
+    output_dir: Path | str,
+    *,
+    slot: str = "w53",
+    stage_root: str = "/content/cochem-stage",
+    max_hours: int = 1,
+    gpu_min: str = "any",
+    vram_mb: int = 16000,
+    ram_mb: int = 16000,
+    cpu_threads: int = 4,
+    dispatcher_host: str = "workstation",
+) -> dict[str, Any]:
+    """Export a credential-isolated local `cochem-colab-job/1` + `cochem-colab-payload/2` bundle.
+
+    Writes `geometry.xyz`, `student_request.json`, uncompressed PAX `payload.tar`,
+    `job.json`, and strictly last `payload_manifest.json` into `<output_dir>/<job_id>/`
+    for direct WSL2/workstation submission via `cochem_workstation_job_runner` without
+    GitHub Issues or Drive mounts.
+    """
+    job_metadata = build_colab_job_metadata(
+        packaged_request,
+        slot=slot,
+        stage_root=stage_root,
+        max_hours=max_hours,
+        gpu_min=gpu_min,
+        vram_mb=vram_mb,
+        ram_mb=ram_mb,
+        cpu_threads=cpu_threads,
+        dispatcher_host=dispatcher_host,
+    )
+    job_id = str(job_metadata["job_id"])
+    root_dir = Path(output_dir)
+    root_dir.mkdir(parents=True, exist_ok=True)
+    staging_dir = root_dir / f".staging-{job_id}-{uuid.uuid4().hex[:8]}"
+    staging_dir.mkdir(parents=True, exist_ok=False)
+
+    try:
+        xyz_path = staging_dir / "geometry.xyz"
+        xyz_path.write_text(str(packaged_request["geometry_xyz"]).strip() + "\n", encoding="utf-8", newline="\n")
+
+        req_path = staging_dir / "student_request.json"
+        req_path.write_text(
+            json.dumps(dict(packaged_request), indent=2, sort_keys=True, allow_nan=False) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+        tar_path = staging_dir / "payload.tar"
+        files_to_pack = (
+            ("workspace/geometry.xyz", xyz_path),
+            ("workspace/student_request.json", req_path),
+        )
+        files_manifest: dict[str, dict[str, Any]] = {}
+        with tarfile.open(tar_path, "w", format=tarfile.PAX_FORMAT) as archive:
+            for member_name, source_path in files_to_pack:
+                stat = source_path.stat()
+                info = tarfile.TarInfo(name=member_name)
+                info.size = stat.st_size
+                info.mode = 0o644
+                info.uid = 0
+                info.gid = 0
+                info.uname = "root"
+                info.gname = "root"
+                info.mtime = int(stat.st_mtime)
+                with source_path.open("rb") as handle:
+                    archive.addfile(info, handle)
+                files_manifest[member_name] = {
+                    "size": stat.st_size,
+                    "sha256": _sha256_file(source_path),
+                }
+
+        tar_size = tar_path.stat().st_size
+        tar_sha256 = _sha256_file(tar_path)
+
+        job_json_path = staging_dir / "job.json"
+        job_json_path.write_text(
+            json.dumps(job_metadata, indent=2, sort_keys=True, allow_nan=False) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+        # Write payload_manifest.json strictly LAST per CONTRACT.md v2.
+        payload_manifest = {
+            "schema": SCHEMA_COLAB_PAYLOAD,
+            "job_id": job_id,
+            "tar": {
+                "name": "payload.tar",
+                "size": tar_size,
+                "sha256": tar_sha256,
+            },
+            "files": files_manifest,
+            "cached": {},
+        }
+        manifest_path = staging_dir / "payload_manifest.json"
+        manifest_path.write_text(
+            json.dumps(payload_manifest, indent=2, sort_keys=True, allow_nan=False) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+        dest_dir = root_dir / job_id
+        if dest_dir.exists():
+            shutil.rmtree(dest_dir)
+        staging_dir.replace(dest_dir)
+    except BaseException:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
+
+    return {
+        "status": "packaged",
+        "bundle_dir": str(dest_dir),
+        "job_id": job_id,
+        "slot": job_metadata["slot"],
+        "request_schema": SCHEMA_REQUEST,
+        "job_schema": SCHEMA_COLAB_JOB,
+        "payload_schema": SCHEMA_COLAB_PAYLOAD,
+        "payload_tar_sha256": tar_sha256,
+        "payload_tar_size": tar_size,
+        "files": files_manifest,
+        "request_path": str(dest_dir / "student_request.json"),
+        "job_json_path": str(dest_dir / "job.json"),
+        "payload_manifest_path": str(dest_dir / "payload_manifest.json"),
     }

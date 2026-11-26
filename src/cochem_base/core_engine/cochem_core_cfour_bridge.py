@@ -647,6 +647,81 @@ def _format_cfour_var_name(prefix: str, index: int) -> str:
         return f"{p}{c1}{c2}"
 
 
+def _compute_bond_angle_deg(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray) -> float:
+    """Compute bond angle p0-p1-p2 in degrees with vertex at p1."""
+    v1 = p0 - p1
+    v2 = p2 - p1
+    n1 = float(np.linalg.norm(v1))
+    n2 = float(np.linalg.norm(v2))
+    if n1 <= 1e-15 or n2 <= 1e-15:
+        raise ValueError("Cannot compute bond angle with coincident reference coordinates.")
+    cos_val = float(np.clip(np.dot(v1, v2) / (n1 * n2), -1.0, 1.0))
+    return float(np.degrees(np.arccos(cos_val)))
+
+
+def _compute_cfour_dihedral_deg(
+    p0: np.ndarray,
+    p1: np.ndarray,
+    p2: np.ndarray,
+    p3: np.ndarray,
+) -> float:
+    """Compute exact CFOUR/IUPAC Z-matrix dihedral (degrees) for ordered 4-tuple (p0, p1, p2, p3).
+
+    Matches CFOUR 2.1 ``xjoda`` connectivity ``SYM p1 R p2 A p3 D`` around bond axis
+    ``p1 -> p2`` (cis = 0 deg, trans = 180 deg, proper right-handed rotation det(R) = +1):
+        b0 = p0 - p1, b1 = p2 - p1, b2 = p3 - p2
+        v = b0 - (b0 . b1_hat) * b1_hat
+        w = b2 - (b2 . b1_hat) * b1_hat
+        D = atan2((b1_hat x v) . w, v . w)
+    """
+    b0 = p0 - p1
+    b1 = p2 - p1
+    b2 = p3 - p2
+    norm_b1 = float(np.linalg.norm(b1))
+    if norm_b1 <= 1e-15:
+        raise ValueError("Degenerate central bond axis (p1 == p2) while computing CFOUR Z-matrix dihedral.")
+    b1_hat = b1 / norm_b1
+    v = b0 - float(np.dot(b0, b1_hat)) * b1_hat
+    w = b2 - float(np.dot(b2, b1_hat)) * b1_hat
+    norm_v = float(np.linalg.norm(v))
+    norm_w = float(np.linalg.norm(w))
+    if norm_v <= 1e-12 or norm_w <= 1e-12:
+        raise ValueError(
+            "Collinear reference triple encountered while computing CFOUR Z-matrix dihedral "
+            f"(|v|={norm_v:.3e}, |w|={norm_w:.3e})."
+        )
+    v_hat = v / norm_v
+    w_hat = w / norm_w
+    x = float(np.dot(v_hat, w_hat))
+    y = float(np.dot(np.cross(b1_hat, v_hat), w_hat))
+    dihed_deg = float(np.degrees(np.arctan2(y, x)))
+    if abs(dihed_deg) < 1e-12:
+        return 0.0
+    if abs(abs(dihed_deg) - 180.0) < 1e-12:
+        return 180.0
+    return dihed_deg
+
+
+def _orthogonal_unit_vector(axis: np.ndarray, secondary: Optional[np.ndarray] = None) -> np.ndarray:
+    """Return a deterministic unit vector orthogonal to ``axis`` (and ``secondary`` when non-collinear)."""
+    norm_axis = float(np.linalg.norm(axis))
+    if norm_axis <= 1e-15:
+        raise ValueError("Cannot construct orthogonal vector to zero-length bond axis.")
+    u = axis / norm_axis
+    if secondary is not None:
+        cross_sec = np.cross(u, secondary)
+        norm_sec = float(np.linalg.norm(cross_sec))
+        if norm_sec > 1e-10:
+            return cross_sec / norm_sec
+    ref_axis = (
+        np.array([1.0, 0.0, 0.0], dtype=np.float64)
+        if abs(float(u[0])) < 0.8
+        else np.array([0.0, 1.0, 0.0], dtype=np.float64)
+    )
+    perp = np.cross(u, ref_axis)
+    return perp / float(np.linalg.norm(perp))
+
+
 def generate_cfour_zmat(
     symbols: Sequence[str],
     coordinates_angstrom: np.ndarray,
@@ -657,7 +732,8 @@ def generate_cfour_zmat(
 
     Implements:
     - 3-character variable names (e.g. R01, A01, D01, RX, RH).
-    - Automated detection and perpendicular dummy atom ('X') insertion for collinear fragments (0° / 180° singularity avoidance).
+    - Automated detection and perpendicular auxiliary atom ('X') insertion for collinear fragments (0° / 180° singularity avoidance).
+    - Exact IUPAC/CFOUR Z-matrix dihedral reconstruction preserving planar trans and chiral handedness (det(R) = +1).
     - Global memory keyword formatting: `MEMORY_SIZE=32`, `MEM_UNIT=GB`.
     - Single-space formatting between fields.
     - `%isotopes` block generated dynamically via `mendeleev`.
@@ -672,7 +748,7 @@ def generate_cfour_zmat(
     # 1. Title line
     lines.append(cfg.title.strip())
 
-    # 2. Build Internal Coordinates / Z-matrix with Collinear Dummy Atom Insertion
+    # 2. Build Internal Coordinates / Z-matrix with Collinear Auxiliary Atom Insertion
     zmat_entries: List[str] = []
     variables: Dict[str, float] = {}
 
@@ -681,7 +757,7 @@ def generate_cfour_zmat(
     var_d_idx = 1
     var_x_idx = 1
 
-    # Keep track of ZMAT row positions and their 3D coordinates
+    # Keep track of ZMAT row positions (0-indexed) and their 3D coordinates
     zmat_coords: List[np.ndarray] = []
 
     for i in range(n_atoms):
@@ -699,32 +775,17 @@ def generate_cfour_zmat(
             zmat_entries.append(f"{sym} 1 {r_name}")
             zmat_coords.append(cur_pos)
         elif i == 2:
-            # Compute angle at vertex atom 1 (row 1): angle(atom2 - atom1, atom3 - atom1)
-            v12 = zmat_coords[1] - zmat_coords[0]
-            v13 = cur_pos - zmat_coords[0]
-            norm12 = np.linalg.norm(v12)
-            norm13 = np.linalg.norm(v13)
-            cos_theta1 = np.clip(np.dot(v12, v13) / (norm12 * norm13 + 1e-15), -1.0, 1.0)
-            angle_at_1 = float(np.degrees(np.arccos(cos_theta1)))
+            # Compute angles at atom 1 (row 1) and atom 2 (row 2) to detect collinear / near-collinear triples
+            angle_at_1 = _compute_bond_angle_deg(cur_pos, zmat_coords[0], zmat_coords[1])
+            angle_at_2 = _compute_bond_angle_deg(cur_pos, zmat_coords[1], zmat_coords[0])
 
-            # Also check collinearity at atom 2 for the dummy-atom fallback
-            v21 = zmat_coords[0] - zmat_coords[1]
-            v23 = cur_pos - zmat_coords[1]
-            norm21 = np.linalg.norm(v21)
-            norm23 = np.linalg.norm(v23)
-            cos_theta2 = np.clip(np.dot(v21, v23) / (norm21 * norm23 + 1e-15), -1.0, 1.0)
-            angle_at_2 = float(np.degrees(np.arccos(cos_theta2)))
-
-            # If collinear (angle < 5 deg or > 175 deg), insert dummy atom X perpendicular to bond 1-2
+            # If collinear or near-collinear (angle < 5 deg or > 175 deg), insert auxiliary atom X
+            # perpendicular to bond 2-1 (and to 2-3 when slightly bent) so row 3 is strictly non-collinear.
             if angle_at_1 < 5.0 or angle_at_1 > 175.0 or angle_at_2 < 5.0 or angle_at_2 > 175.0:
-                # Find perpendicular vector
-                u = v21 / (norm21 + 1e-15)
-                # Pick arbitrary non-collinear vector
-                ref_axis = np.array([1.0, 0.0, 0.0]) if abs(u[0]) < 0.8 else np.array([0.0, 1.0, 0.0])
-                perp = np.cross(u, ref_axis)
-                perp = perp / np.linalg.norm(perp)
+                v21 = zmat_coords[0] - zmat_coords[1]
+                v23 = cur_pos - zmat_coords[1]
+                perp = _orthogonal_unit_vector(v21, v23)
 
-                # Dummy atom position attached to atom 1 (row 2)
                 x_pos = zmat_coords[1] + 1.0 * perp
                 rx_name = _format_cfour_var_name("X", var_x_idx)
                 var_x_idx += 1
@@ -734,12 +795,12 @@ def generate_cfour_zmat(
                 variables[rx_name] = 1.000000
                 variables[ax_name] = 90.000000
 
-                # Insert dummy atom X at row 3 (referencing row 2 with 1.0 Å and row 1 with 90°)
+                # Insert auxiliary atom X at row 3 (referencing row 2 with 1.0 Å and row 1 with 90°)
                 zmat_entries.append(f"X 2 {rx_name} 1 {ax_name}")
                 zmat_coords.append(x_pos)
                 x_row = len(zmat_coords)  # 3
 
-                # Now add atom 2 (row 4): distance to atom 1 (row 2), angle to X (90°), dihedral to atom 0 (row 1)
+                # Add atom 3 at row 4: distance to row 2, exact angle to X (row 3), exact dihedral to row 1
                 r_name = _format_cfour_var_name("R", var_r_idx)
                 var_r_idx += 1
                 a_name = _format_cfour_var_name("A", var_a_idx)
@@ -747,9 +808,11 @@ def generate_cfour_zmat(
                 d_name = _format_cfour_var_name("D", var_d_idx)
                 var_d_idx += 1
 
-                variables[r_name] = float(norm23)
-                variables[a_name] = 90.000000
-                variables[d_name] = 180.000000 if angle_at_2 > 90.0 else 0.000000
+                variables[r_name] = float(np.linalg.norm(v23))
+                variables[a_name] = _compute_bond_angle_deg(cur_pos, zmat_coords[1], x_pos)
+                variables[d_name] = _compute_cfour_dihedral_deg(
+                    cur_pos, zmat_coords[1], x_pos, zmat_coords[0]
+                )
 
                 zmat_entries.append(f"{sym} 2 {r_name} {x_row} {a_name} 1 {d_name}")
                 zmat_coords.append(cur_pos)
@@ -759,85 +822,88 @@ def generate_cfour_zmat(
                 a_name = _format_cfour_var_name("A", var_a_idx)
                 var_a_idx += 1
 
-                variables[r_name] = float(norm13)
+                variables[r_name] = float(np.linalg.norm(cur_pos - zmat_coords[0]))
                 variables[a_name] = angle_at_1
                 zmat_entries.append(f"{sym} 1 {r_name} 2 {a_name}")
                 zmat_coords.append(cur_pos)
         else:
-            # Check angle with atom 0 (row 1) and atom 1 (row 2)
-            v1i = cur_pos - zmat_coords[0]
-            v12 = zmat_coords[1] - zmat_coords[0]
-            norm1i = np.linalg.norm(v1i)
-            norm12 = np.linalg.norm(v12)
-            cos_theta = np.dot(v1i, v12) / (norm1i * norm12 + 1e-15)
-            cos_theta = np.clip(cos_theta, -1.0, 1.0)
-            angle_deg = float(np.degrees(np.arccos(cos_theta)))
+            # Verify both angle(i, 1, 2) and angle(3, 2, 1) are safely non-collinear before using (1, 2, 3)
+            angle_i12 = _compute_bond_angle_deg(cur_pos, zmat_coords[0], zmat_coords[1])
+            angle_321 = _compute_bond_angle_deg(zmat_coords[2], zmat_coords[1], zmat_coords[0])
 
-            if angle_deg < 5.0 or angle_deg > 175.0:
-                # Find perpendicular vector
-                u = v12 / (norm12 + 1e-15)
-                ref_axis = np.array([1.0, 0.0, 0.0]) if abs(u[0]) < 0.8 else np.array([0.0, 1.0, 0.0])
-                perp = np.cross(u, ref_axis)
-                perp = perp / np.linalg.norm(perp)
-
-                x_pos = zmat_coords[0] + 1.0 * perp
-                rx_name = _format_cfour_var_name("X", var_x_idx)
-                var_x_idx += 1
-                ax_name = _format_cfour_var_name("A", var_a_idx)
-                var_a_idx += 1
-
-                variables[rx_name] = 1.000000
-                variables[ax_name] = 90.000000
-
-                zmat_entries.append(f"X 1 {rx_name} 2 {ax_name}")
-                zmat_coords.append(x_pos)
-                x_row = len(zmat_coords)
-
-                r_name = _format_cfour_var_name("R", var_r_idx)
-                var_r_idx += 1
-                a_name = _format_cfour_var_name("A", var_a_idx)
-                var_a_idx += 1
-                d_name = _format_cfour_var_name("D", var_d_idx)
-                var_d_idx += 1
-
-                variables[r_name] = float(norm1i)
-                variables[a_name] = 90.000000
-                variables[d_name] = 180.000000 if angle_deg > 90.0 else 0.000000
-
-                zmat_entries.append(f"{sym} 1 {r_name} {x_row} {a_name} 2 {d_name}")
-                zmat_coords.append(cur_pos)
+            if 5.0 <= angle_i12 <= 175.0 and 5.0 <= angle_321 <= 175.0:
+                ref_a, ref_b, ref_c = 1, 2, 3
+                dist = float(np.linalg.norm(cur_pos - zmat_coords[0]))
+                angle_deg = angle_i12
+                dihed_deg = _compute_cfour_dihedral_deg(
+                    cur_pos, zmat_coords[0], zmat_coords[1], zmat_coords[2]
+                )
             else:
-                r_name = _format_cfour_var_name("R", var_r_idx)
-                var_r_idx += 1
-                a_name = _format_cfour_var_name("A", var_a_idx)
-                var_a_idx += 1
-                d_name = _format_cfour_var_name("D", var_d_idx)
-                var_d_idx += 1
+                # Try well-conditioned existing reference triples before inserting a new auxiliary atom X.
+                # Order: (2, 3, 1) reuses a row-3 perpendicular X cleanly for linear chains (e.g. C2H2);
+                # (1, 3, 2) handles linear axial ligands around a bent/T-shaped/square-planar core.
+                chosen: Optional[Tuple[int, int, int, float, float, float]] = None
+                for cand_a, cand_b, cand_c in ((2, 3, 1), (1, 3, 2)):
+                    pa = zmat_coords[cand_a - 1]
+                    pb = zmat_coords[cand_b - 1]
+                    pc = zmat_coords[cand_c - 1]
+                    cand_dist = float(np.linalg.norm(cur_pos - pa))
+                    if cand_dist <= 1e-6:
+                        continue
+                    ang_iab = _compute_bond_angle_deg(cur_pos, pa, pb)
+                    ang_cba = _compute_bond_angle_deg(pc, pb, pa)
+                    if 10.0 <= ang_iab <= 170.0 and 10.0 <= ang_cba <= 170.0:
+                        cand_dihed = _compute_cfour_dihedral_deg(cur_pos, pa, pb, pc)
+                        chosen = (cand_a, cand_b, cand_c, cand_dist, ang_iab, cand_dihed)
+                        break
 
-                dist = float(norm1i)
-
-                # Dihedral i-1-2-3
-                v1 = zmat_coords[1] - zmat_coords[0]
-                v2 = zmat_coords[2] - zmat_coords[1]
-                v3 = cur_pos - zmat_coords[2]
-
-                n1 = np.cross(v1, v2)
-                n2 = np.cross(v2, v3)
-                norm_n1 = np.linalg.norm(n1)
-                norm_n2 = np.linalg.norm(n2)
-                if norm_n1 > 1e-8 and norm_n2 > 1e-8:
-                    m1 = np.cross(n1, v2 / (np.linalg.norm(v2) + 1e-15))
-                    x = np.dot(n1, n2) / (norm_n1 * norm_n2)
-                    y = np.dot(m1, n2) / (norm_n1 * norm_n2)
-                    dihed_deg = float(np.degrees(np.arctan2(y, x)))
+                if chosen is not None:
+                    ref_a, ref_b, ref_c, dist, angle_deg, dihed_deg = chosen
                 else:
-                    dihed_deg = 0.0
+                    # Universal fallback: insert a full 3-internal auxiliary atom X at row >= 4
+                    # positioned 1.0 Å from row 1, at 90° to row 2, cis (0°) to row 3.
+                    p1, p2, p3 = zmat_coords[0], zmat_coords[1], zmat_coords[2]
+                    u12 = (p2 - p1) / float(np.linalg.norm(p2 - p1))
+                    w3 = (p3 - p2) - float(np.dot(p3 - p2, u12)) * u12
+                    norm_w3 = float(np.linalg.norm(w3))
+                    if norm_w3 > 1e-10:
+                        e_perp = w3 / norm_w3
+                    else:
+                        e_perp = _orthogonal_unit_vector(p2 - p1, cur_pos - p1)
 
-                variables[r_name] = dist
-                variables[a_name] = angle_deg
-                variables[d_name] = dihed_deg
-                zmat_entries.append(f"{sym} 1 {r_name} 2 {a_name} 3 {d_name}")
-                zmat_coords.append(cur_pos)
+                    x_pos = p1 + 1.0 * e_perp
+                    rx_name = _format_cfour_var_name("X", var_x_idx)
+                    var_x_idx += 1
+                    ax_name = _format_cfour_var_name("A", var_a_idx)
+                    var_a_idx += 1
+                    dx_name = _format_cfour_var_name("D", var_d_idx)
+                    var_d_idx += 1
+
+                    variables[rx_name] = 1.000000
+                    variables[ax_name] = 90.000000
+                    variables[dx_name] = _compute_cfour_dihedral_deg(x_pos, p1, p2, p3)
+
+                    zmat_entries.append(f"X 1 {rx_name} 2 {ax_name} 3 {dx_name}")
+                    zmat_coords.append(x_pos)
+                    x_row = len(zmat_coords)
+
+                    ref_a, ref_b, ref_c = 1, x_row, 2
+                    dist = float(np.linalg.norm(cur_pos - p1))
+                    angle_deg = _compute_bond_angle_deg(cur_pos, p1, x_pos)
+                    dihed_deg = _compute_cfour_dihedral_deg(cur_pos, p1, x_pos, p2)
+
+            r_name = _format_cfour_var_name("R", var_r_idx)
+            var_r_idx += 1
+            a_name = _format_cfour_var_name("A", var_a_idx)
+            var_a_idx += 1
+            d_name = _format_cfour_var_name("D", var_d_idx)
+            var_d_idx += 1
+
+            variables[r_name] = dist
+            variables[a_name] = angle_deg
+            variables[d_name] = dihed_deg
+            zmat_entries.append(f"{sym} {ref_a} {r_name} {ref_b} {a_name} {ref_c} {d_name}")
+            zmat_coords.append(cur_pos)
 
     lines.extend(zmat_entries)
     lines.append("")  # Mandatory blank line separating topology from variables

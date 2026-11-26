@@ -1,4 +1,4 @@
-"""Generic Wave 5 regression tests for CoChem-BASE engine defects (DEF-S1-01, 05, 06, 07, 08, 11; C2, C3, M5).
+"""Generic Wave 5 & Wave 7 regression tests for CoChem-BASE engine defects (DEF-S1-01, 05, 06, 07, 08, 11; C2, C3, M5; DEF-S2-02, DEF-S2-04).
 
 All assertions are molecule-agnostic and test generic method/solver/protocol contracts
 with zero mocks, zero skips, and zero molecule-specific special cases.
@@ -6,6 +6,7 @@ with zero mocks, zero skips, and zero molecule-specific special cases.
 
 from __future__ import annotations
 
+import inspect
 import math
 from pathlib import Path
 import re
@@ -22,6 +23,11 @@ from cochem_base.calc.cochem_calc_input_generator import (
     MoleculeInput,
     _orca_requires_numerical_frequency,
     generate_orca_input,
+)
+from cochem_base.calc.multiwfn_execution import (
+    build_multiwfn_qtaim_commands,
+    run_multiwfn_analysis,
+    run_multiwfn_qtaim,
 )
 from cochem_base.core_engine.cochem_core_cfour_bridge import (
     CFOURAnharmMode,
@@ -731,3 +737,315 @@ def test_c2_export_cfour_to_spcat_var_fails_closed_on_nonzero_quadrupole() -> No
     assert rot_lines[1].split()[0] == "3"
     rot_codes = {int(ln.split()[0]) for ln in rot_lines[3:]}
     assert rot_codes == {10000, 20000, 30000}
+
+
+# ==============================================================================
+# DEF-S2-02: CFOUR Z-Matrix Dihedral Connectivity, Chirality & Collinearity
+# ==============================================================================
+
+def _reconstruct_cfour_zmat_cartesian(zmat_text: str) -> tuple[list[str], np.ndarray, dict[str, float]]:
+    """Reconstruct Cartesian coordinates from a CFOUR ZMAT using exact NeRF geometry.
+
+    Validates row token arity (1, 3, 5, 7 tokens for rows 1, 2, 3, >=4) and CFOUR
+    3-character variable-name bounds, returning ``(real_symbols, coords_angstrom, vars)``.
+    """
+    blocks = zmat_text.strip().split("\n\n")
+    assert len(blocks) >= 2, "CFOUR ZMAT missing topology or variable block"
+    topo_lines = [ln.strip() for ln in blocks[0].splitlines()[1:] if ln.strip()]
+    var_map: dict[str, float] = {}
+    for ln in blocks[1].splitlines():
+        if "=" in ln:
+            k, v = ln.split("=", 1)
+            key = k.strip()
+            assert len(key) <= 3, f"CFOUR variable name exceeds 3 characters: {key!r}"
+            var_map[key] = float(v.strip())
+
+    all_coords: list[np.ndarray] = []
+    real_coords: list[np.ndarray] = []
+    real_syms: list[str] = []
+
+    for row_idx, ln in enumerate(topo_lines):
+        toks = ln.split()
+        sym = toks[0].upper()
+        if row_idx == 0:
+            assert len(toks) == 1, f"Row 1 must have 1 token, got: {ln!r}"
+            pos = np.array([0.0, 0.0, 0.0], dtype=np.float64)
+        elif row_idx == 1:
+            assert len(toks) == 3, f"Row 2 must have 3 tokens, got: {ln!r}"
+            ia = int(toks[1]) - 1
+            r_val = var_map[toks[2]]
+            pos = all_coords[ia] + np.array([0.0, 0.0, r_val], dtype=np.float64)
+        elif row_idx == 2:
+            assert len(toks) == 5, f"Row 3 must have 5 tokens, got: {ln!r}"
+            ia, ib = int(toks[1]) - 1, int(toks[3]) - 1
+            r_val = var_map[toks[2]]
+            a_rad = math.radians(var_map[toks[4]])
+            pa, pb = all_coords[ia], all_coords[ib]
+            e_z = (pb - pa) / float(np.linalg.norm(pb - pa))
+            ref = (
+                np.array([1.0, 0.0, 0.0], dtype=np.float64)
+                if abs(float(e_z[0])) < 0.8
+                else np.array([0.0, 1.0, 0.0], dtype=np.float64)
+            )
+            e_x = np.cross(e_z, ref)
+            e_x = e_x / float(np.linalg.norm(e_x))
+            pos = pa + r_val * (math.cos(a_rad) * e_z + math.sin(a_rad) * e_x)
+        else:
+            assert len(toks) == 7, f"Row {row_idx + 1} must have 7 tokens, got: {ln!r}"
+            ia, ib, ic = int(toks[1]) - 1, int(toks[3]) - 1, int(toks[5]) - 1
+            r_val = var_map[toks[2]]
+            a_rad = math.radians(var_map[toks[4]])
+            d_rad = math.radians(var_map[toks[6]])
+            pa, pb, pc = all_coords[ia], all_coords[ib], all_coords[ic]
+            e_z = (pb - pa) / float(np.linalg.norm(pb - pa))
+            w_vec = (pc - pb) - float(np.dot(pc - pb, e_z)) * e_z
+            e_x = w_vec / float(np.linalg.norm(w_vec))
+            e_perp = np.cross(e_x, e_z)
+            pos = pa + r_val * (
+                math.cos(a_rad) * e_z
+                + math.sin(a_rad) * (math.cos(d_rad) * e_x + math.sin(d_rad) * e_perp)
+            )
+        all_coords.append(pos)
+        if sym != "X":
+            real_syms.append(sym)
+            real_coords.append(pos)
+
+    return real_syms, np.vstack(real_coords), var_map
+
+
+def _kabsch_proper_rotation_rmsd(coords_a: np.ndarray, coords_b: np.ndarray) -> tuple[float, float]:
+    """Compute Kabsch RMSD enforcing a strict proper rotation (det(R) == +1, no mirror reflection)."""
+    a_centered = coords_a - np.mean(coords_a, axis=0)
+    b_centered = coords_b - np.mean(coords_b, axis=0)
+    u_mat, _, vt_mat = np.linalg.svd(a_centered.T @ b_centered)
+    raw_det = float(np.linalg.det(vt_mat.T @ u_mat.T))
+    sign = 1.0 if raw_det >= 0.0 else -1.0
+    rot = vt_mat.T @ np.diag([1.0, 1.0, sign]) @ u_mat.T
+    det_r = float(np.linalg.det(rot))
+    aligned = a_centered @ rot.T
+    rmsd = float(np.sqrt(np.mean(np.sum((aligned - b_centered) ** 2, axis=1))))
+    return rmsd, det_r
+
+
+@pytest.mark.parametrize(
+    "case_name,symbols,coords_list",
+    [
+        (
+            "H2CO_planar_Y",
+            ["C", "O", "H", "H"],
+            [
+                [0.000000, 0.000000, 0.000000],
+                [0.000000, 0.000000, 1.205000],
+                [0.000000, 0.942800, -0.587600],
+                [0.000000, -0.942800, -0.587600],
+            ],
+        ),
+        (
+            "BF3_trigonal_Y",
+            ["B", "F", "F", "F"],
+            [
+                [0.000000, 0.000000, 0.000000],
+                [1.310000, 0.000000, 0.000000],
+                [-0.655000, 1.134493, 0.000000],
+                [-0.655000, -1.134493, 0.000000],
+            ],
+        ),
+        (
+            "NH3_pyramidal",
+            ["N", "H", "H", "H"],
+            [
+                [0.000000, 0.000000, 0.116489],
+                [0.000000, 0.939731, -0.271808],
+                [0.813831, -0.469865, -0.271808],
+                [-0.813831, -0.469865, -0.271808],
+            ],
+        ),
+        (
+            "R_CHFClBr_chiral",
+            ["C", "H", "F", "Cl", "Br"],
+            [
+                [0.000000, 0.000000, 0.000000],
+                [0.629000, 0.629000, 0.629000],
+                [-0.780000, -0.780000, 0.780000],
+                [-1.022000, 1.022000, -1.022000],
+                [1.114000, -1.114000, -1.114000],
+            ],
+        ),
+        (
+            "S_CHFClBr_chiral_mirror",
+            ["C", "H", "F", "Cl", "Br"],
+            [
+                [0.000000, 0.000000, 0.000000],
+                [0.629000, 0.629000, -0.629000],
+                [-0.780000, -0.780000, -0.780000],
+                [-1.022000, 1.022000, 1.022000],
+                [1.114000, -1.114000, 1.114000],
+            ],
+        ),
+        (
+            "CH2FCl_tetrahedral",
+            ["C", "H", "H", "F", "Cl"],
+            [
+                [0.000000, 0.000000, 0.000000],
+                [0.629000, 0.629000, 0.629000],
+                [-0.629000, -0.629000, 0.629000],
+                [-0.780000, 0.780000, -0.780000],
+                [1.022000, -1.022000, -1.022000],
+            ],
+        ),
+        (
+            "HCN_linear_HCN",
+            ["H", "C", "N"],
+            [[0.0, 0.0, -1.065], [0.0, 0.0, 0.0], [0.0, 0.0, 1.153]],
+        ),
+        (
+            "HCN_linear_CNH",
+            ["C", "N", "H"],
+            [[0.0, 0.0, 0.0], [0.0, 0.0, 1.156], [0.0, 0.0, -1.065]],
+        ),
+        (
+            "HCN_quasilinear_177deg",
+            ["H", "C", "N"],
+            [
+                [0.0, 0.0, -1.065],
+                [0.0, 0.0, 0.0],
+                [1.153 * math.sin(math.radians(3.0)), 0.0, 1.153 * math.cos(math.radians(3.0))],
+            ],
+        ),
+        (
+            "C2H2_linear_HCCH",
+            ["H", "C", "C", "H"],
+            [[0.0, 0.0, -1.66], [0.0, 0.0, -0.60], [0.0, 0.0, 0.60], [0.0, 0.0, 1.66]],
+        ),
+        (
+            "C2H2_linear_CCHH",
+            ["C", "C", "H", "H"],
+            [[0.0, 0.0, -0.60], [0.0, 0.0, 0.60], [0.0, 0.0, 1.66], [0.0, 0.0, -1.66]],
+        ),
+        (
+            "ClF3_T_shaped_collinear_atom4",
+            ["Cl", "F", "F", "F"],
+            [[0.0, 0.0, 0.0], [0.0, 0.0, 1.698], [1.598, 0.0, 0.0], [0.0, 0.0, -1.698]],
+        ),
+        (
+            "HCCOH_linear_prefix_bent_tail",
+            ["H", "C", "C", "O", "H"],
+            [
+                [0.0, 0.0, -1.66],
+                [0.0, 0.0, -0.60],
+                [0.0, 0.0, 0.60],
+                [0.0, 0.0, 1.92],
+                [0.92, 0.25, 2.25],
+            ],
+        ),
+        (
+            "H4_collinear_row4_aux_x",
+            ["H", "H", "H", "H"],
+            [[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.35, 0.0, 2.7], [0.0, 0.0, -1.1]],
+        ),
+    ],
+)
+def test_def_s2_02_cfour_zmat_cartesian_round_trip_proper_rotation(
+    case_name: str,
+    symbols: list[str],
+    coords_list: list[list[float]],
+) -> None:
+    """generate_cfour_zmat round-trips arbitrary planar, pyramidal, chiral, and collinear geometries with det(R) == +1."""
+    coords = np.array(coords_list, dtype=np.float64)
+    cfg = CFOURInputConfig(
+        title=f"ZMAT ROUNDTRIP {case_name}",
+        calc_level=CFOURCalcLevel.HF,
+        basis="STO-3G",
+        vib_mode=CFOURVibMode.NONE,
+        anharm_mode=CFOURAnharmMode.NONE,
+    )
+    zmat = generate_cfour_zmat(symbols, coords, cfg)
+    rec_syms, rec_coords, var_map = _reconstruct_cfour_zmat_cartesian(zmat)
+    assert rec_syms == [s.upper() for s in symbols]
+    rmsd, det_r = _kabsch_proper_rotation_rmsd(rec_coords, coords)
+    assert det_r == pytest.approx(1.0, abs=1e-9), f"{case_name}: improper rotation det(R)={det_r}"
+    assert rmsd < 1e-5, f"{case_name}: ZMAT Cartesian round-trip RMSD={rmsd:.3e} A exceeds 1e-5 A"
+
+    if case_name in {"H2CO_planar_Y", "BF3_trigonal_Y"}:
+        # Atom 4 is trans to atom 3 across bond 1-2: must emit 180 deg, never 0 deg (which folds atom 4 onto atom 3)
+        assert var_map["D01"] == pytest.approx(180.0, abs=1e-4)
+    if case_name == "H4_collinear_row4_aux_x":
+        # Auxiliary atom X inserted at row >= 4 must carry all 3 internal coordinates (7 tokens)
+        assert "X 1 " in zmat
+
+
+def test_def_s2_02_cfour_zmat_preserves_chiral_enantiomer_handedness() -> None:
+    """Chiral R and S enantiomers round-trip strictly to their own handedness (never mirror-inverted)."""
+    syms = ["C", "H", "F", "Cl", "Br"]
+    coords_r = np.array(
+        [
+            [0.000000, 0.000000, 0.000000],
+            [0.629000, 0.629000, 0.629000],
+            [-0.780000, -0.780000, 0.780000],
+            [-1.022000, 1.022000, -1.022000],
+            [1.114000, -1.114000, -1.114000],
+        ],
+        dtype=np.float64,
+    )
+    coords_s = coords_r * np.array([1.0, 1.0, -1.0], dtype=np.float64)
+    cfg = CFOURInputConfig(
+        calc_level=CFOURCalcLevel.HF,
+        basis="STO-3G",
+        vib_mode=CFOURVibMode.NONE,
+        anharm_mode=CFOURAnharmMode.NONE,
+    )
+
+    _, rec_r, vars_r = _reconstruct_cfour_zmat_cartesian(generate_cfour_zmat(syms, coords_r, cfg))
+    _, rec_s, vars_s = _reconstruct_cfour_zmat_cartesian(generate_cfour_zmat(syms, coords_s, cfg))
+
+    rmsd_rr, det_rr = _kabsch_proper_rotation_rmsd(rec_r, coords_r)
+    rmsd_ss, det_ss = _kabsch_proper_rotation_rmsd(rec_s, coords_s)
+    rmsd_rs, det_rs = _kabsch_proper_rotation_rmsd(rec_r, coords_s)
+
+    assert det_rr == pytest.approx(1.0, abs=1e-9)
+    assert det_ss == pytest.approx(1.0, abs=1e-9)
+    assert det_rs == pytest.approx(1.0, abs=1e-9)
+    assert rmsd_rr < 1e-5
+    assert rmsd_ss < 1e-5
+    assert rmsd_rs > 0.3, f"Expected large proper-rotation RMSD between opposite enantiomers, got {rmsd_rs}"
+    assert vars_r["D01"] == pytest.approx(-vars_s["D01"], abs=1e-4)
+    assert vars_r["D02"] == pytest.approx(-vars_s["D02"], abs=1e-4)
+
+
+# ==============================================================================
+# DEF-S2-04: Multiwfn QTAIM Nuclear-Centered Sphere CP Search
+# ==============================================================================
+
+def test_def_s2_04_multiwfn_qtaim_sphere_cp_search_commands_and_validation(tmp_path: Path) -> None:
+    """run_multiwfn_qtaim enables sphere CP search (200 points) by default, disables at 0, and rejects invalid counts."""
+    sig_qtaim = inspect.signature(run_multiwfn_qtaim)
+    assert "sphere_points" in sig_qtaim.parameters
+    assert sig_qtaim.parameters["sphere_points"].default == 200
+
+    sig_analysis = inspect.signature(run_multiwfn_analysis)
+    assert "qtaim_sphere_points" in sig_analysis.parameters
+    assert sig_analysis.parameters["qtaim_sphere_points"].default == 200
+
+    # Default (sphere_points=200): sphere search inserted right after 2->2->3->4->5 and before 8->7->0->0->-10->q
+    default_cmds = build_multiwfn_qtaim_commands()
+    assert default_cmds == "2\n2\n3\n4\n5\n6\n11\n200\n-1\n-9\n8\n7\n0\n0\n-10\nq\n"
+
+    # Custom positive sphere_points
+    custom_cmds = build_multiwfn_qtaim_commands(sphere_points=50)
+    assert custom_cmds == "2\n2\n3\n4\n5\n6\n11\n50\n-1\n-9\n8\n7\n0\n0\n-10\nq\n"
+
+    # Disabled when sphere_points=0
+    disabled_cmds = build_multiwfn_qtaim_commands(sphere_points=0)
+    assert disabled_cmds == "2\n2\n3\n4\n5\n8\n7\n0\n0\n-10\nq\n"
+    assert "6\n11\n" not in disabled_cmds
+
+    # Fail-closed validation on negative, boolean, or non-integer sphere_points
+    for bad_val in (-1, -100, True, False, 200.5, "200"):
+        with pytest.raises(ValueError, match="sphere_points must be a non-negative integer"):
+            build_multiwfn_qtaim_commands(sphere_points=bad_val)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="sphere_points must be a non-negative integer"):
+            run_multiwfn_qtaim(
+                tmp_path / "nonexistent.molden",
+                workdir=tmp_path / "work",
+                sphere_points=bad_val,  # type: ignore[arg-type]
+            )

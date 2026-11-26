@@ -523,6 +523,24 @@ def _prepare_wavefunction(
     return source, None
 
 
+def build_multiwfn_qtaim_commands(*, sphere_points: int = 200) -> str:
+    """Build Multiwfn QTAIM topology batch stdin commands.
+
+    When ``sphere_points > 0``, runs Multiwfn's nuclear-centered sphere critical-point
+    search (``6 -> 11 -> <sphere_points> -> -1 -> -9``) after nuclear/midpoint/triangle/
+    pyramid searches so polar and asymmetric covalent bond critical points are located
+    reliably and Poincare-Hopf topology closes cleanly.
+    """
+    if isinstance(sphere_points, bool) or not isinstance(sphere_points, int) or sphere_points < 0:
+        raise ValueError(f"sphere_points must be a non-negative integer, got {sphere_points!r}")
+    # 2: Topology -> 2 (NCP), 3 (BCP), 4 (RCP), 5 (CCP)
+    # [optional 6 (sphere search) -> 11 (<sphere_points>) -> -1 (each nucleus) -> -9 (return)]
+    # -> 8 (bond paths), 7->0 (CPprop.txt), 0 (summary/Poincare-Hopf), -10, q
+    if sphere_points > 0:
+        return f"2\n2\n3\n4\n5\n6\n11\n{int(sphere_points)}\n-1\n-9\n8\n7\n0\n0\n-10\nq\n"
+    return "2\n2\n3\n4\n5\n8\n7\n0\n0\n-10\nq\n"
+
+
 @scientific_producer
 def run_multiwfn_qtaim(
     wavefunction_path: str | Path,
@@ -531,17 +549,17 @@ def run_multiwfn_qtaim(
     multiwfn_executable: str | Path | None = None,
     orca_2mkl_executable: str | Path | None = None,
     expected_atoms: int | None = None,
+    sphere_points: int = 200,
     timeout_seconds: float = 300.0,
     env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Run real Multiwfn QTAIM topology analysis (CPs, Poincare-Hopf, BCP properties)."""
+    commands = build_multiwfn_qtaim_commands(sphere_points=sphere_points)
     work = Path(workdir).expanduser().resolve()
     work.mkdir(parents=True, exist_ok=True)
     wf_path, gbw_sha = _prepare_wavefunction(
         wavefunction_path, work, orca_2mkl_executable=orca_2mkl_executable, env=env
     )
-    # 2: Topology -> 2 (NCP), 3 (BCP), 4 (RCP), 5 (CCP), 8 (bond paths), 7->0 (CPprop.txt), 0 (summary/Poincare-Hopf), -10, q
-    commands = "2\n2\n3\n4\n5\n8\n7\n0\n0\n-10\nq\n"
     run_info = _run_multiwfn_batch(
         wf_path,
         commands,
@@ -559,6 +577,7 @@ def run_multiwfn_qtaim(
     parsed.update({
         "engine": "multiwfn",
         "analysis": "qtaim",
+        "sphere_points": int(sphere_points),
         "wavefunction_file": str(wf_path),
         "wavefunction_sha256": _sha256_file(wf_path),
         "source_gbw_sha256": gbw_sha,
@@ -673,6 +692,7 @@ def run_multiwfn_analysis(
     workdir: str | Path,
     analyses: Sequence[str] = ("qtaim", "nci", "mayer_bond_order"),
     nci_grid_quality: int = 1,
+    qtaim_sphere_points: int = 200,
     rdg_cutoff: float = 0.5,
     multiwfn_executable: str | Path | None = None,
     orca_2mkl_executable: str | Path | None = None,
@@ -699,6 +719,7 @@ def run_multiwfn_analysis(
             wf_path,
             workdir=work / "qtaim",
             multiwfn_executable=multiwfn_executable,
+            sphere_points=qtaim_sphere_points,
             timeout_seconds=timeout_seconds,
             env=env,
         )
@@ -768,6 +789,7 @@ def run_multiwfn_analysis(
 
 
 __all__ = [
+    "build_multiwfn_qtaim_commands",
     "convert_gbw_to_molden",
     "parse_multiwfn_mayer_bond_orders",
     "parse_multiwfn_nci_output_txt",

@@ -1,0 +1,222 @@
+{
+  "schema": "cochem-legacy-handoff-inventory/1",
+  "schema_status": "DRAFT",
+  "status_until_first_producer": "DRAFT",
+  "canonical_targets": [
+    "cochem-job-handoff/1",
+    "cochem-quantities/1",
+    "cochem-portal-dossier/1.1"
+  ],
+  "authority": "CoChem-BASE (swarm-1126-8efd)",
+  "recorded_at_utc": "2026-11-27T08:35:00Z",
+  "entries": [
+    {
+      "schema_id": "cochem.module-handoff/1",
+      "producer_repo": "CoChem-BASE",
+      "observed_locations": ["src/cochem_base/interfaces/artifact_handoff.py", "CoChem-KINETIC", "CoChem-BENCH", "CoChem-GEOM", "CoChem-SCRIBE", "CoChem-SPYFY"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Local isolated-interpreter artifact envelope; adapt to cochem-job-handoff/1 when scientific outputs are produced."
+    },
+    {
+      "schema_id": "cochem.module-handoff-result/1",
+      "producer_repo": "CoChem-KINETIC",
+      "observed_locations": ["CoChem-KINETIC/cochem_kinetic/provider.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Provider return envelope mapping reaction profile outputs into cochem-job-handoff/1 quantities."
+    },
+    {
+      "schema_id": "cochem.module-operation/1",
+      "producer_repo": "CoChem-BASE",
+      "observed_locations": ["src/cochem_base/interfaces/module_execution.py", "CoChem-SCRIBE/src/cochem_scribe/provider.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Isolated subprocess execution receipt; retain adapter for local module execution boundary."
+    },
+    {
+      "schema_id": "cochem.module-execution/1",
+      "producer_repo": "CoChem-BASE",
+      "observed_locations": ["src/cochem_base/interfaces/module_execution.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Execution audit wrapper around module operation reports."
+    },
+    {
+      "schema_id": "cochem.student-conformer-handoff/1",
+      "producer_repo": "cochem_workstation_job_runner",
+      "observed_locations": ["cochem_workstation_job_runner/src/cochem_runner/student_handoff_intake.py", "CoChem-BASE/student/handoff.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Ethanol pilot student conformer ZIP handoff; superseded by cochem.student-handoff/2 and canonical cochem-job-handoff/1."
+    },
+    {
+      "schema_id": "cochem.student-handoff/2",
+      "producer_repo": "cochem_workstation_job_runner",
+      "observed_locations": ["cochem_workstation_job_runner/src/cochem_runner/student_handoff_intake.py", "CoChem-BASE/tests/test_student_handoff_v2_and_workflows.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Generalized student workflow handoff ZIP; bridges student outputs to Pipeline 5.0.0 continuation lanes."
+    },
+    {
+      "schema_id": "cochem.student-handoff-quarantine/1",
+      "producer_repo": "cochem_workstation_job_runner",
+      "observed_locations": ["cochem_workstation_job_runner/src/cochem_runner/student_handoff_intake.py"],
+      "disposition": "quarantine",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Quarantine receipt emitted for malformed or untrusted student handoff archives."
+    },
+    {
+      "schema_id": "cochem.student-handoff-registry/1",
+      "producer_repo": "cochem_workstation_job_runner",
+      "observed_locations": ["cochem_workstation_job_runner/src/cochem_runner/student_handoff_intake.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Local intake ledger indexing ingested student handoff archives."
+    },
+    {
+      "schema_id": "cochem.pipeline500-handoff-spec/1",
+      "producer_repo": "cochem_workstation_job_runner",
+      "observed_locations": ["cochem_workstation_job_runner/src/cochem_runner/pipeline500_bridge.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-quantities/1",
+      "notes": "Pre-consolidation Pipeline 5.0.0 bridge specification; map consumes/produces to cochem-quantities/1."
+    },
+    {
+      "schema_id": "cochem-pipeline500-continuation-envelope/1",
+      "producer_repo": "CoChem-BASE",
+      "observed_locations": ["CoChem-BASE/student/handoff.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Student-to-workstation/cloud continuation envelope."
+    },
+    {
+      "schema_id": "cochem-continuation-package/1",
+      "producer_repo": "CoChem-BASE",
+      "observed_locations": ["CoChem-BASE/student/"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-quantities/1",
+      "notes": "Continuation package descriptor referencing starting geometry and target lane."
+    },
+    {
+      "schema_id": "cochem-control-plane-handoff-card/1",
+      "producer_repo": "cochem_workstation_job_runner",
+      "observed_locations": ["cochem_workstation_job_runner/src/cochem_runner/pipeline500_bridge.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Control-plane job card handoff projection."
+    },
+    {
+      "schema_id": "cochem.geom.pipeline500-continuation/1",
+      "producer_repo": "CoChem-GEOM",
+      "observed_locations": ["CoChem-GEOM/src/cochem_geom/"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "GEOM r0/rs/CCSD continuation packet into Pipeline 5.0.0."
+    },
+    {
+      "schema_id": "cochem.geom.rung2-pickett-bundle/1",
+      "producer_repo": "CoChem-GEOM",
+      "observed_locations": ["CoChem-GEOM/src/cochem_geom/"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Pickett .par/.lin/.fit experimental B0 handoff bundle."
+    },
+    {
+      "schema_id": "cochem.torq.vpt2-spectroscopy-handoff/1",
+      "producer_repo": "CoChem-TORQ",
+      "observed_locations": ["CoChem-TORQ/src/cochem_torq/chem490_vpt2_bridge.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "VPT2 rotational constant & Pickett spectroscopy handoff from TORQ to SPYFY/GEOM."
+    },
+    {
+      "schema_id": "cochem.torq-conformer-handoff/1",
+      "producer_repo": "CoChem-TORQ",
+      "observed_locations": ["CoChem-TORQ/Libraries/cochem_torq_topos_handoff.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "TOPOS-to-TORQ conformer ensemble handoff contract."
+    },
+    {
+      "schema_id": "cochem.torq-reviewed-topos-import/1",
+      "producer_repo": "CoChem-TORQ",
+      "observed_locations": ["CoChem-TORQ/src/cochem_torq/"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Reviewed TOPOS basket import record inside TORQ."
+    },
+    {
+      "schema_id": "cochem.torq.agent-handoff/1",
+      "producer_repo": "CoChem-TORQ",
+      "observed_locations": ["CoChem-TORQ/docs/"],
+      "disposition": "retire_with_evidence",
+      "canonical_target": "cochem-portal-dossier/1.1",
+      "notes": "Legacy pre-5.0.0 agent handoff note superseded by Pipeline 5.0.0 Portal dossiers."
+    },
+    {
+      "schema_id": "cochem.torq.agent-handoff-draft/1",
+      "producer_repo": "CoChem-TORQ",
+      "observed_locations": ["CoChem-TORQ/docs/"],
+      "disposition": "retire_with_evidence",
+      "canonical_target": "cochem-portal-dossier/1.1",
+      "notes": "Draft legacy agent handoff retired in favor of cochem-portal-dossier/1.1."
+    },
+    {
+      "schema_id": "cochem.torq.research-design-handoff/1",
+      "producer_repo": "CoChem-TORQ",
+      "observed_locations": ["CoChem-TORQ/docs/development/handoff/"],
+      "disposition": "retire_with_evidence",
+      "canonical_target": "cochem-portal-dossier/1.1",
+      "notes": "Unimplemented research design handoff index; non-normative archive."
+    },
+    {
+      "schema_id": "cochem.torq.unimplemented-research-handoff/1",
+      "producer_repo": "CoChem-TORQ",
+      "observed_locations": ["CoChem-TORQ/docs/development/handoff/"],
+      "disposition": "retire_with_evidence",
+      "canonical_target": "cochem-portal-dossier/1.1",
+      "notes": "Archived index of unimplemented TORQ research designs."
+    },
+    {
+      "schema_id": "cochem-torq.unvalidated-handoff-draft/1",
+      "producer_repo": "CoChem-TORQ",
+      "observed_locations": ["CoChem-TORQ/docs/"],
+      "disposition": "quarantine",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Explicitly unvalidated draft handoff; quarantined from automated ingestion."
+    },
+    {
+      "schema_id": "cochem.actual-handoff-reference-access/1",
+      "producer_repo": "CoChem-BASE",
+      "observed_locations": ["CoChem-BASE/scripts/"],
+      "disposition": "retire_with_evidence",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Legacy evidence-plane reference access handoff snapshot."
+    },
+    {
+      "schema_id": "cochem.topos-scientific-export/1",
+      "producer_repo": "CoChem-TOPOS",
+      "observed_locations": ["CoChem-TOPOS/topos/"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "TOPOS scientific export manifest carrying conformer energies and geometries."
+    },
+    {
+      "schema_id": "cochem.surf-scan-manifest/1",
+      "producer_repo": "CoChem-SPYFY",
+      "observed_locations": ["CoChem-SpycFit/src/cochem_spyfy/instruments/surf_schemas.py"],
+      "disposition": "verified_adapter",
+      "canonical_target": "cochem-quantities/1",
+      "notes": "CP-FTMW 2-18 GHz SURF instrument scan manifest bridging SPYFY and Pipeline 5.0.0."
+    },
+    {
+      "schema_id": "untagged_topos_torq_ensemble_handoff",
+      "producer_repo": "CoChem-TOPOS",
+      "observed_locations": ["CoChem-TOPOS/.docs/evidence/TOPOS_CANDIDATE07_TORQ_HANDOFF.json"],
+      "disposition": "quarantine",
+      "canonical_target": "cochem-job-handoff/1",
+      "notes": "Legacy untagged JSON lacking explicit schema identifier; fail-closed quarantine until migrated."
+    }
+  ]
+}

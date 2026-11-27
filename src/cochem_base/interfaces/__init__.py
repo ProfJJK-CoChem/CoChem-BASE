@@ -8,7 +8,14 @@ from __future__ import annotations
 from cochem_base.interfaces.conformer import ConformerGenerator
 from cochem_base.interfaces.executors import ElectronicStructureExecutor
 from cochem_base.interfaces.module_registry import (
-    ModuleCapability, ModuleStatus, get_module_capability, list_module_capabilities,
+    ModuleCapability,
+    ModuleStatus,
+    ModuleUnavailableError,
+    assert_module_dispatchable,
+    canonical_module_id,
+    dispatch_module,
+    get_module_capability,
+    list_module_capabilities,
 )
 from cochem_base.interfaces.artifact_handoff import (
     ModuleHandoff, prepare_module_handoff, load_module_handoff,
@@ -28,7 +35,18 @@ class InterfaceUnavailableError(ImportError):
 
 
 __all__ = [
-    "ElectronicStructureExecutor", "ConformerGenerator", "InterfaceUnavailableError",
-    "ModuleCapability", "ModuleStatus", "get_module_capability", "list_module_capabilities",
-    "ModuleHandoff", "prepare_module_handoff", "load_module_handoff",
+    "ElectronicStructureExecutor",
+    "ConformerGenerator",
+    "InterfaceUnavailableError",
+    "ModuleCapability",
+    "ModuleStatus",
+    "ModuleUnavailableError",
+    "assert_module_dispatchable",
+    "canonical_module_id",
+    "dispatch_module",
+    "get_module_capability",
+    "list_module_capabilities",
+    "ModuleHandoff",
+    "prepare_module_handoff",
+    "load_module_handoff",
 ]

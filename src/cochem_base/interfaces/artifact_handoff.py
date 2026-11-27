@@ -12,7 +12,12 @@ import uuid
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .module_registry import ModuleCapability, canonical_module_id, get_module_capability
+from .module_registry import (
+    ModuleCapability,
+    assert_module_dispatchable,
+    canonical_module_id,
+    get_module_capability,
+)
 
 
 class ArtifactReference(BaseModel):
@@ -127,7 +132,7 @@ def prepare_module_handoff(module_id: str, artifact_path: str | Path, destinatio
     """
     from cochem.core.context import assert_writable_path
 
-    name = canonical_module_id(module_id)
+    name = assert_module_dispatchable(module_id)
     source = Path(artifact_path).expanduser().resolve(strict=True)
     target = Path(destination).expanduser().resolve()
     assert_writable_path(target)

@@ -1,0 +1,221 @@
+{
+  "$defs": {
+    "QuantityConsumeEntry": {
+      "additionalProperties": false,
+      "description": "Declared upstream artifact consumed by a Pipeline 5.0.0 job.",
+      "properties": {
+        "charge": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Charge"
+        },
+        "file": {
+          "minLength": 1,
+          "title": "File",
+          "type": "string"
+        },
+        "format": {
+          "minLength": 1,
+          "title": "Format",
+          "type": "string"
+        },
+        "formula": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": null,
+          "title": "Formula"
+        },
+        "multiplicity": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Multiplicity"
+        },
+        "n_atoms": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Atoms"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "source_path": {
+          "minLength": 1,
+          "title": "Source Path",
+          "type": "string"
+        },
+        "source_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "name",
+        "file",
+        "format",
+        "source_path",
+        "source_sha256"
+      ],
+      "title": "QuantityConsumeEntry",
+      "type": "object"
+    },
+    "QuantityProduceEntry": {
+      "additionalProperties": false,
+      "description": "Declared downstream artifact or observable produced by a Pipeline 5.0.0 job.",
+      "properties": {
+        "file": {
+          "minLength": 1,
+          "title": "File",
+          "type": "string"
+        },
+        "format": {
+          "minLength": 1,
+          "title": "Format",
+          "type": "string"
+        },
+        "gates": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gates"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "name",
+        "file",
+        "format",
+        "required"
+      ],
+      "title": "QuantityProduceEntry",
+      "type": "object"
+    }
+  },
+  "$id": "urn:cochem:schema:cochem-quantities/1",
+  "additionalProperties": false,
+  "description": "Canonical Pipeline 5.0.0 ``cochem-quantities/1`` (QUANTITIES.json) DRAFT contract.",
+  "properties": {
+    "consumes": {
+      "items": {
+        "$ref": "#/$defs/QuantityConsumeEntry"
+      },
+      "title": "Consumes",
+      "type": "array"
+    },
+    "job_id": {
+      "minLength": 1,
+      "title": "Job Id",
+      "type": "string"
+    },
+    "produces": {
+      "items": {
+        "$ref": "#/$defs/QuantityProduceEntry"
+      },
+      "minItems": 1,
+      "title": "Produces",
+      "type": "array"
+    },
+    "schema": {
+      "const": "cochem-quantities/1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "schema_status": {
+      "const": "DRAFT",
+      "default": "DRAFT",
+      "title": "Schema Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "job_id",
+    "consumes",
+    "produces"
+  ],
+  "title": "QuantitiesContractV1",
+  "type": "object",
+  "x-cochem-schema-id": "cochem-quantities/1",
+  "x-cochem-status": "DRAFT",
+  "x-status-until-first-producer": "DRAFT"
+}

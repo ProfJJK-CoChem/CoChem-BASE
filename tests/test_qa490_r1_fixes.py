@@ -1,12 +1,14 @@
 """Zero-mock regression tests for QA490-R1 CHEM 490 & live Voilà GUI fixes (GUI-01..06, SB490-01..11)."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import os
 import subprocess
 import sys
 import uuid
 from pathlib import Path
+from typing import Iterator, Optional
 
 import pytest
 import yaml
@@ -14,110 +16,130 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
 # ---------------------------------------------------------------------------
 # 1. GUI-01..GUI-06 (Live Voilà Dashboard Widgets, CSS, and Guidance)
 # ---------------------------------------------------------------------------
 
 
-def test_gui_01_to_06_voila_state_sync_contrast_preview_and_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_gui_01_to_06_voila_state_sync_contrast_preview_and_copy(tmp_path: Path) -> None:
     """Verify GUI-01..GUI-06 directly on real CoChemGUI + apply_workspace_layout widgets."""
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path / "artifacts"))
-    monkeypatch.setenv("COCHEM_CONFIG", str(tmp_path / "absent-registry.json"))
-    monkeypatch.setenv("COCHEM_STUDENT_AUTO_REMOTE_CHECK", "0")
+    with _scoped_env(
+        COCHEM_ARTIFACT_DIR=str(tmp_path / "artifacts"),
+        COCHEM_CONFIG=str(tmp_path / "absent-registry.json"),
+        COCHEM_STUDENT_AUTO_REMOTE_CHECK="0",
+    ):
+        from ui.voila_layout.cochem_gui import CoChemGUI
+        from ui.voila_layout.learning import help_html
+        from ui.voila_layout.workspace_layout import apply_workspace_layout
+        from ui.voila_layout.workspace_style import WORKSPACE_CSS
 
-    from ui.voila_layout.cochem_gui import CoChemGUI
-    from ui.voila_layout.learning import help_html
-    from ui.voila_layout.workspace_layout import apply_workspace_layout
-    from ui.voila_layout.workspace_style import WORKSPACE_CSS
+        gui = CoChemGUI()
+        apply_workspace_layout(gui)
 
-    gui = CoChemGUI()
-    apply_workspace_layout(gui)
+        water_xyz = "3\nwater\nO 0.0 0.0 0.0\nH 0.0 0.757 0.586\nH 0.0 -0.757 0.586\n"
+        gui.matrix_geometry.value = water_xyz
 
-    water_xyz = "3\nwater\nO 0.0 0.0 0.0\nH 0.0 0.757 0.586\nH 0.0 -0.757 0.586\n"
-    gui.matrix_geometry.value = water_xyz
+        # GUI-01: Selecting PySCF directly under default Product A cleanly configures RHF single point
+        gui.matrix_engine.value = "PYSCF"
+        assert gui.matrix_tier.value == "T2"
+        assert gui.matrix_method.value == "HF/STO-3G"
+        assert gui.matrix_basis.value == "STO-3G"
+        assert not gui.matrix_basis.disabled
+        assert gui.matrix_solvation.value is None
+        assert gui.product_class_selector.value == "Screening (no product accuracy claim)"
+        assert not gui.product_class_selector.disabled
+        assert gui.dispersion_warning.value == ""
+        assert gui.btn_execute.description == "Run PySCF single point"
+        assert "program PYSCF; method HF/STO-3G; basis STO-3G" in gui.guided_draft_status.value
 
-    # GUI-01: Selecting PySCF directly under default Product A cleanly configures RHF single point
-    gui.matrix_engine.value = "PYSCF"
-    assert gui.matrix_tier.value == "T2"
-    assert gui.matrix_method.value == "HF/STO-3G"
-    assert gui.matrix_basis.value == "STO-3G"
-    assert not gui.matrix_basis.disabled
-    assert gui.matrix_solvation.value is None
-    assert gui.product_class_selector.value == "Screening (no product accuracy claim)"
-    assert not gui.product_class_selector.disabled
-    assert gui.dispersion_warning.value == ""
-    assert gui.btn_execute.description == "Run PySCF single point"
-    assert "program PYSCF; method HF/STO-3G; basis STO-3G" in gui.guided_draft_status.value
+        # GUI-01: Switching XTB -> PYSCF updates basis & Current settings (never stuck on XTB/built-in)
+        gui.matrix_engine.value = "XTB"
+        assert gui.matrix_basis.value == "built-in"
+        gui.matrix_engine.value = "PYSCF"
+        assert gui.matrix_tier.value == "T2"
+        assert gui.matrix_method.value == "HF/STO-3G"
+        assert gui.matrix_basis.value == "STO-3G"
+        assert not gui.matrix_basis.disabled
+        assert "program PYSCF; method HF/STO-3G; basis STO-3G" in gui.guided_draft_status.value
+        assert "program XTB" not in gui.guided_draft_status.value
+        assert "built-in" not in gui.guided_draft_status.value
 
-    # GUI-01: Switching XTB -> PYSCF updates basis & Current settings (never stuck on XTB/built-in)
-    gui.matrix_engine.value = "XTB"
-    assert gui.matrix_basis.value == "built-in"
-    gui.matrix_engine.value = "PYSCF"
-    assert gui.matrix_tier.value == "T2"
-    assert gui.matrix_method.value == "HF/STO-3G"
-    assert gui.matrix_basis.value == "STO-3G"
-    assert not gui.matrix_basis.disabled
-    assert "program PYSCF; method HF/STO-3G; basis STO-3G" in gui.guided_draft_status.value
-    assert "program XTB" not in gui.guided_draft_status.value
-    assert "built-in" not in gui.guided_draft_status.value
+        # GUI-02: High-contrast hover/focus/active CSS rules for danger/primary buttons
+        assert ".jupyter-button.mod-danger:hover:enabled" in WORKSPACE_CSS
+        assert ".jupyter-button.mod-danger:focus:enabled" in WORKSPACE_CSS
+        assert "#732125" in WORKSPACE_CSS
 
-    # GUI-02: High-contrast hover/focus/active CSS rules for danger/primary buttons
-    assert ".jupyter-button.mod-danger:hover:enabled" in WORKSPACE_CSS
-    assert ".jupyter-button.mod-danger:focus:enabled" in WORKSPACE_CSS
-    assert "#732125" in WORKSPACE_CSS
+        # GUI-03: 3D preview mounted directly on 2 · Add your molecule without horizontal overflow
+        assert hasattr(gui, "inputs_viewer_output")
+        assert hasattr(gui, "inputs_preview_columns")
+        assert gui.inputs_viewer_output.layout.overflow == "hidden"
+        assert gui.viewer_output.layout.overflow == "hidden"
+        assert ".cochem-molecule-preview" in WORKSPACE_CSS
+        from cochem_base.interfaces.molecule_viewer import molecule_viewer_html
+        rendered_html = molecule_viewer_html(water_xyz)
+        assert "overflow:hidden" in rendered_html
 
-    # GUI-03: 3D preview mounted directly on 2 · Add your molecule without horizontal overflow
-    assert hasattr(gui, "inputs_viewer_output")
-    assert hasattr(gui, "inputs_preview_columns")
-    assert gui.inputs_viewer_output.layout.overflow == "hidden"
-    assert gui.viewer_output.layout.overflow == "hidden"
-    assert ".cochem-molecule-preview" in WORKSPACE_CSS
-    from cochem_base.interfaces.molecule_viewer import molecule_viewer_html
-    rendered_html = molecule_viewer_html(water_xyz)
-    assert "overflow:hidden" in rendered_html
+        # GUI-04: Wider select controls, nowrap Status column CSS, and PySCF in CoChem components
+        assert gui.matrix_engine.layout.width == "480px"
+        assert gui.matrix_solvation.layout.width == "480px"
+        assert "cochem-components-table" in WORKSPACE_CSS
+        assert "white-space: nowrap" in WORKSPACE_CSS
+        gui._render_student_setup_status(
+            {
+                "ready": True,
+                "base": {"revision": "0b3af3e1e7ee"},
+                "modules": {"topos": {"status": "installed", "revision": "abc", "message": "ok"}},
+                "free_engines": {
+                    "status": "ready",
+                    "message": "Pinned free-engine installations verified.",
+                    "engines": {"xtb": {"status": "installed", "version": "6.7.1", "message": "ok"}},
+                },
+            }
+        )
+        assert "class='cochem-components-table'" in gui.student_setup_status.value
+        assert "<td>PySCF</td>" in gui.student_setup_status.value
+        assert "<td>CoChem-SPYFY</td>" in gui.student_setup_status.value
+        assert "optional add-on (not installed — run: bash scripts/install_optional_spyfy.sh)" in gui.student_setup_status.value
 
-    # GUI-04: Wider select controls, nowrap Status column CSS, and PySCF in CoChem components
-    assert gui.matrix_engine.layout.width == "480px"
-    assert gui.matrix_solvation.layout.width == "480px"
-    assert "cochem-components-table" in WORKSPACE_CSS
-    assert "white-space: nowrap" in WORKSPACE_CSS
-    gui._render_student_setup_status(
-        {
-            "ready": True,
-            "base": {"revision": "0b3af3e1e7ee"},
-            "modules": {"topos": {"status": "installed", "revision": "abc", "message": "ok"}},
-            "free_engines": {
-                "status": "ready",
-                "message": "Pinned free-engine installations verified.",
-                "engines": {"xtb": {"status": "installed", "version": "6.7.1", "message": "ok"}},
-            },
-        }
-    )
-    assert "class='cochem-components-table'" in gui.student_setup_status.value
-    assert "<td>PySCF</td>" in gui.student_setup_status.value
-    assert "<td>CoChem-SPYFY</td>" in gui.student_setup_status.value
-    assert "optional add-on (not installed — run: bash scripts/install_optional_spyfy.sh)" in gui.student_setup_status.value
+        # GUI-05: No Google Colab in workspace guidance; no raw DEGRADED_OPERATIONAL or registry path
+        assert "Google Colab" not in help_html("workspace")
+        assert "department research computers" in help_html("workspace")
+        gui._on_environment_change({"new": "Codespaces [DEGRADED_OPERATIONAL]"})
+        assert "DEGRADED_OPERATIONAL" not in gui.header_env.value
+        assert "Codespaces · Open-source engines ready" in gui.header_env.value
+        assert "cochem_system_config.json" not in gui.licensed_engine_status.value
+        assert "ORCA is optional" in gui.licensed_engine_status.value
 
-    # GUI-05: No Google Colab in workspace guidance; no raw DEGRADED_OPERATIONAL or registry path
-    assert "Google Colab" not in help_html("workspace")
-    assert "department research computers" in help_html("workspace")
-    gui._on_environment_change({"new": "Codespaces [DEGRADED_OPERATIONAL]"})
-    assert "DEGRADED_OPERATIONAL" not in gui.header_env.value
-    assert "Codespaces · Open-source engines ready" in gui.header_env.value
-    assert "cochem_system_config.json" not in gui.licensed_engine_status.value
-    assert "ORCA is optional" in gui.licensed_engine_status.value
-
-    # GUI-06: Upload counter sync & unambiguous canonical-frame SHA-256 vs original upload SHA-256
-    from cochem_base.interfaces.student_ingestion import ingest_uploaded_file
-    receipt = ingest_uploaded_file("h2o_start.xyz", water_xyz.encode("utf-8"), artifact_dir=tmp_path / "artifacts")
-    gui._input_library = {receipt["input_id"]: receipt}
-    gui.input_library_choice.options = [("Choose", ""), ("h2o_start.xyz", receipt["input_id"])]
-    gui.input_library_choice.value = receipt["input_id"]
-    gui._use_library_geometry()
-    assert "1 structure loaded" in gui.xyz_upload.description
-    assert "Canonical frame SHA-256" in gui.student_upload_status.value
-    assert receipt["sha256"] in gui.student_upload_status.value
-    assert "Original bytes preserved" in gui.student_upload_status.value
+        # GUI-06: Upload counter sync & unambiguous canonical-frame SHA-256 vs original upload SHA-256
+        from cochem_base.interfaces.student_ingestion import ingest_uploaded_file
+        receipt = ingest_uploaded_file("h2o_start.xyz", water_xyz.encode("utf-8"), artifact_dir=tmp_path / "artifacts")
+        gui._input_library = {receipt["input_id"]: receipt}
+        gui.input_library_choice.options = [("Choose", ""), ("h2o_start.xyz", receipt["input_id"])]
+        gui.input_library_choice.value = receipt["input_id"]
+        gui._use_library_geometry()
+        assert "1 structure loaded" in gui.xyz_upload.description
+        assert "Canonical frame SHA-256" in gui.student_upload_status.value
+        assert receipt["sha256"] in gui.student_upload_status.value
+        assert "Original bytes preserved" in gui.student_upload_status.value
 
 
 # ---------------------------------------------------------------------------
@@ -303,9 +325,9 @@ def test_cli_audit_meminfo_and_engine_probe(tmp_path: Path) -> None:
     """Verify Linux /proc/meminfo RAM parsing and artifact_dir/bin engine probing."""
     from cochem_base.cli import _probe_additional_engines, _read_linux_meminfo_gb
 
-    fake_meminfo = tmp_path / "meminfo"
-    fake_meminfo.write_text("MemTotal:        8136940 kB\nMemFree:         4000000 kB\n", encoding="utf-8")
-    assert _read_linux_meminfo_gb(fake_meminfo) == pytest.approx(7.76, abs=0.01)
+    sample_meminfo = tmp_path / "meminfo"
+    sample_meminfo.write_text("MemTotal:        8136940 kB\nMemFree:         4000000 kB\n", encoding="utf-8")
+    assert _read_linux_meminfo_gb(sample_meminfo) == pytest.approx(7.76, abs=0.01)
 
     art = tmp_path / "CoChem_Artifacts"
     (art / "bin").mkdir(parents=True)
@@ -551,7 +573,7 @@ def test_qa490_r2_fact_ledger_chem490_default_label_and_readme_footer(tmp_path: 
 
 
 def test_qa490_r2_gui_pyscf_local_registration_and_3d_viewer_overflow(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     """Verify GUI-R2-01 (PySCF Step 4 registration & Prepare calculation download) and GUI-R2-02 (zero 3D scrollbar)."""
     import hashlib
@@ -660,73 +682,74 @@ def test_qa490_r2_gui_pyscf_local_registration_and_3d_viewer_overflow(
     assert obs["method"]["basis"] == "STO-3G"
     assert obs["energy_hartree"] == pytest.approx(-74.963905001272)
 
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(art))
-    monkeypatch.setenv("COCHEM_CONFIG", str(tmp_path / "absent-registry.json"))
-    monkeypatch.setenv("COCHEM_STUDENT_AUTO_REMOTE_CHECK", "0")
+    with _scoped_env(
+        COCHEM_ARTIFACT_DIR=str(art),
+        COCHEM_CONFIG=str(tmp_path / "absent-registry.json"),
+        COCHEM_STUDENT_AUTO_REMOTE_CHECK="0",
+    ):
+        from ui.voila_layout.cochem_gui import CoChemGUI, completed_xtb_result_html
+        from ui.voila_layout.workspace_layout import apply_workspace_layout
+        from ui.voila_layout.workspace_style import WORKSPACE_CSS
 
-    from ui.voila_layout.cochem_gui import CoChemGUI, completed_xtb_result_html
-    from ui.voila_layout.workspace_layout import apply_workspace_layout
-    from ui.voila_layout.workspace_style import WORKSPACE_CSS
+        card_html = completed_xtb_result_html(receipt, res_dir)
+        assert "Saved PySCF RHF single-point result" in card_html
+        assert "RHF / STO-3G" in card_html
+        assert "-74.963905001272 Hartree" in card_html
 
-    card_html = completed_xtb_result_html(receipt, res_dir)
-    assert "Saved PySCF RHF single-point result" in card_html
-    assert "RHF / STO-3G" in card_html
-    assert "-74.963905001272 Hartree" in card_html
+        gui = CoChemGUI()
+        apply_workspace_layout(gui)
+        gui._local_file_operation = None
+        view_gen = gui._local_view_generation
+        gui._publish_completed_xtb_result(receipt, res_dir, view_gen)
+        assert "Saved PySCF RHF single-point result" in gui.calculation_result.value
 
-    gui = CoChemGUI()
-    apply_workspace_layout(gui)
-    gui._local_file_operation = None
-    view_gen = gui._local_view_generation
-    gui._publish_completed_xtb_result(receipt, res_dir, view_gen)
-    assert "Saved PySCF RHF single-point result" in gui.calculation_result.value
+        xtb_summary = SavedLocalCalculation("job_" + "1" * 32, "Saved calculation 1 · GFN2-xTB · Geometry optimization", "retained-native-files-and-submission-context", ())
+        pyscf_summary = SavedLocalCalculation(run_id, "Saved calculation 2 · PySCF · RHF single point", "retained-native-files-and-submission-context", ())
+        gui._apply_saved_local_catalog((xtb_summary, pyscf_summary))
+        gui._viewed_local_record_id = pyscf_summary.record_id
+        gui.viewed_local_calculation.value = f"<p><b>Viewing:</b> {pyscf_summary.label}</p>"
+        gui._refresh_local_file_controls()
 
-    xtb_summary = SavedLocalCalculation("job_" + "1" * 32, "Saved calculation 1 · GFN2-xTB · Geometry optimization", "retained-native-files-and-submission-context", ())
-    pyscf_summary = SavedLocalCalculation(run_id, "Saved calculation 2 · PySCF · RHF single point", "retained-native-files-and-submission-context", ())
-    gui._apply_saved_local_catalog((xtb_summary, pyscf_summary))
-    gui._viewed_local_record_id = pyscf_summary.record_id
-    gui.viewed_local_calculation.value = f"<p><b>Viewing:</b> {pyscf_summary.label}</p>"
-    gui._refresh_local_file_controls()
+        option_labels = [label for label, _ in gui.saved_local_calculation.options]
+        assert "Saved calculation 1 · GFN2-xTB · Geometry optimization" in option_labels
+        assert "Saved calculation 2 · PySCF · RHF single point" in option_labels
+        assert "No registered local result is being viewed" not in gui.viewed_local_calculation.value
+        assert gui.btn_save_local_files.disabled is False
 
-    option_labels = [label for label, _ in gui.saved_local_calculation.options]
-    assert "Saved calculation 1 · GFN2-xTB · Geometry optimization" in option_labels
-    assert "Saved calculation 2 · PySCF · RHF single point" in option_labels
-    assert "No registered local result is being viewed" not in gui.viewed_local_calculation.value
-    assert gui.btn_save_local_files.disabled is False
+        # On POSIX (Linux/Codespaces/WSL2), also exercise full LocalCalculationStore + retained_files_zip end-to-end
+        if os.name == "posix" and hasattr(os, "O_NOFOLLOW"):
+            from cochem_base.calc.local_publication import finalize_publication
+            from cochem_base.core.managed_files import open_directory_chain
+            from cochem_base.interfaces.local_calculations import LocalCalculationStore
 
-    # On POSIX (Linux/Codespaces/WSL2), also exercise full LocalCalculationStore + retained_files_zip end-to-end
-    if os.name == "posix" and hasattr(os, "O_NOFOLLOW"):
-        from cochem_base.calc.local_publication import finalize_publication
-        from cochem_base.core.managed_files import open_directory_chain
-        from cochem_base.interfaces.local_calculations import LocalCalculationStore
+            sandbox_dir = run_dir / "Scratch" / run_id
+            sandbox_dir.mkdir(parents=True)
+            native_members = {p.name for p in res_dir.iterdir() if p.name not in {"execution.json", "execution.json.sha256"}}
+            with open_directory_chain(res_dir) as stage_b, open_directory_chain(sandbox_dir) as sb_b:
+                published_receipt = finalize_publication(
+                    staging=res_dir, sandbox=sandbox_dir, native_members=native_members,
+                    receipt=receipt, submitted_config=config_bytes, input_snapshot=None,
+                    stage_binding=stage_b, sandbox_binding=sb_b,
+                )
+            assert published_receipt["retained_files"]["available"] is True
+            store = LocalCalculationStore(art)
+            saved = store.register_completed(published_receipt, results_directory=res_dir)
+            assert saved.label == "Saved calculation 1 · PySCF · RHF single point"
+            archive = store.retained_files_zip(saved.record_id)
+            with zipfile.ZipFile(io.BytesIO(archive.content), "r") as zf:
+                names = set(zf.namelist())
+                assert "manifest.json" in names
+                assert "native/result.json" in names
+                assert f"native/{run_id}_pyscf.py" in names
 
-        sandbox_dir = run_dir / "Scratch" / run_id
-        sandbox_dir.mkdir(parents=True)
-        native_members = {p.name for p in res_dir.iterdir() if p.name not in {"execution.json", "execution.json.sha256"}}
-        with open_directory_chain(res_dir) as stage_b, open_directory_chain(sandbox_dir) as sb_b:
-            published_receipt = finalize_publication(
-                staging=res_dir, sandbox=sandbox_dir, native_members=native_members,
-                receipt=receipt, submitted_config=config_bytes, input_snapshot=None,
-                stage_binding=stage_b, sandbox_binding=sb_b,
-            )
-        assert published_receipt["retained_files"]["available"] is True
-        store = LocalCalculationStore(art)
-        saved = store.register_completed(published_receipt, results_directory=res_dir)
-        assert saved.label == "Saved calculation 1 · PySCF · RHF single point"
-        archive = store.retained_files_zip(saved.record_id)
-        with zipfile.ZipFile(io.BytesIO(archive.content), "r") as zf:
-            names = set(zf.namelist())
-            assert "manifest.json" in names
-            assert "native/result.json" in names
-            assert f"native/{run_id}_pyscf.py" in names
-
-    # GUI-R2-02: Zero horizontal scrollbar on 2 · Add your molecule 3D Structure preview
-    assert gui.inputs_viewer_output.layout.overflow == "hidden"
-    assert gui.viewer_output.layout.overflow == "hidden"
-    assert gui.inputs_preview_columns.layout.overflow == "hidden"
-    assert ".jp-OutputArea-output" in WORKSPACE_CSS
-    assert "overflow-x: hidden !important" in WORKSPACE_CSS
-    viewer_html = molecule_viewer_html(water_xyz)
-    assert "box-sizing:border-box" in viewer_html
-    assert "overflow-x:hidden !important" in viewer_html
-    assert "canvas.style.maxWidth = '100%'" in viewer_html
-    assert "ResizeObserver" in viewer_html
+        # GUI-R2-02: Zero horizontal scrollbar on 2 · Add your molecule 3D Structure preview
+        assert gui.inputs_viewer_output.layout.overflow == "hidden"
+        assert gui.viewer_output.layout.overflow == "hidden"
+        assert gui.inputs_preview_columns.layout.overflow == "hidden"
+        assert ".jp-OutputArea-output" in WORKSPACE_CSS
+        assert "overflow-x: hidden !important" in WORKSPACE_CSS
+        viewer_html = molecule_viewer_html(water_xyz)
+        assert "box-sizing:border-box" in viewer_html
+        assert "overflow-x:hidden !important" in viewer_html
+        assert "canvas.style.maxWidth = '100%'" in viewer_html
+        assert "ResizeObserver" in viewer_html

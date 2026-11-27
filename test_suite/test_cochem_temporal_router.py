@@ -578,8 +578,18 @@ def test_preemption_timer_triggers_callback() -> None:
 # 9. Thermal Guard Daemon Process Tree Suspend & Resume Tests
 # =====================================================================
 
-def test_thermal_guard_suspend_and_resume_cycle() -> None:
+def test_thermal_guard_suspend_and_resume_cycle(tmp_path: Path) -> None:
     """Spawns real child process tree, tests recursive suspend on breach and resume on recovery."""
+    sensor_file = tmp_path / "thermal_zone0_temp"
+
+    def write_sensor_celsius(celsius: float) -> None:
+        sensor_file.write_text(f"{int(round(celsius * 1000))}\n", encoding="utf-8")
+
+    def read_sensor_celsius() -> float | None:
+        if not sensor_file.is_file():
+            return None
+        return float(sensor_file.read_text(encoding="utf-8").strip()) / 1000.0
+
     parent_script = """
 import subprocess, sys, time
 child = subprocess.Popen([sys.executable, '-c', 'import time; [time.sleep(0.1) for _ in range(100)]'])
@@ -594,27 +604,35 @@ for _ in range(100):
         high_temp_threshold=85.0,
         recovery_temp_threshold=75.0,
         target_pids=[proc.pid],
+        temperature_probe_fn=read_sensor_celsius,
     )
 
     try:
-        state_init = daemon.check_thermal_cycle(simulated_temp=70.0)
+        write_sensor_celsius(70.0)
+        state_init = daemon.check_thermal_cycle()
         assert state_init == ThermalState.NORMAL
+        assert daemon.sensor_available is True
+        assert daemon.last_temperature_c == pytest.approx(70.0)
 
-        state_breach = daemon.check_thermal_cycle(simulated_temp=90.0)
+        write_sensor_celsius(90.0)
+        state_breach = daemon.check_thermal_cycle()
         assert state_breach == ThermalState.SUSPENDED
         time.sleep(0.1)
         assert p_parent.status() in (psutil.STATUS_STOPPED, "stopped")
 
-        state_mid = daemon.check_thermal_cycle(simulated_temp=80.0)
+        write_sensor_celsius(80.0)
+        state_mid = daemon.check_thermal_cycle()
         assert state_mid == ThermalState.SUSPENDED
 
-        state_recovery = daemon.check_thermal_cycle(simulated_temp=72.0)
+        write_sensor_celsius(72.0)
+        state_recovery = daemon.check_thermal_cycle()
         assert state_recovery == ThermalState.NORMAL
         time.sleep(0.1)
         assert p_parent.status() in (psutil.STATUS_RUNNING, psutil.STATUS_SLEEPING)
 
     finally:
-        daemon.check_thermal_cycle(simulated_temp=60.0)
+        write_sensor_celsius(60.0)
+        daemon.check_thermal_cycle()
         for child in p_parent.children(recursive=True):
             try:
                 child.terminate()
@@ -622,6 +640,22 @@ for _ in range(100):
                 pass
         proc.terminate()
         proc.wait(timeout=3.0)
+
+
+def test_thermal_guard_unreadable_sensor_returns_unknown() -> None:
+    """When no thermal sensor is readable, check_thermal_cycle returns explicit UNKNOWN state."""
+    daemon = ThermalGuardDaemon(
+        high_temp_threshold=85.0,
+        recovery_temp_threshold=75.0,
+        temperature_probe_fn=lambda: None,
+    )
+    state = daemon.check_thermal_cycle()
+    assert state == ThermalState.UNKNOWN
+    assert daemon.state == ThermalState.UNKNOWN
+    assert daemon.sensor_available is False
+    assert daemon.last_temperature_c is None
+    with pytest.raises(TypeError):
+        daemon.check_thermal_cycle(90.0)  # type: ignore[misc]
 
 
 def test_thermal_guard_async_lifecycle() -> None:

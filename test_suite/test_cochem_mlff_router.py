@@ -646,7 +646,7 @@ def test_execute_mlff_cascade_pipeline() -> None:
         os_target="Local-Windows" if os.name == "nt" else "Local-Linux",
     )
 
-    def dummy_mlff_potential(coords: np.ndarray) -> float:
+    def lennard_jones_test_potential(coords: np.ndarray) -> float:
         # Simple Lennard-Jones toy potential computation
         diff = coords[0] - coords[1]
         r = float(np.sqrt(np.sum(diff ** 2)))
@@ -656,7 +656,7 @@ def test_execute_mlff_cascade_pipeline() -> None:
     coords = np.array([[0.0, 0.0, 0.0], [1.12, 0.0, 0.0]], dtype=np.float64)
 
     decision, energy = execute_mlff_cascade(
-        dummy_mlff_potential,
+        lennard_jones_test_potential,
         coords,
         requested_method=MLFFMethod.MACE_OFF24M,
         hardware_override=hw_cpu,

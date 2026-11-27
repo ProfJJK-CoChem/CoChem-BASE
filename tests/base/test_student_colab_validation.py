@@ -4,13 +4,19 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import tarfile
 
 import pytest
 
 from cochem_base.interfaces.course_access import CourseAccessError
 from cochem_base.interfaces.student_colab import (
+    SCHEMA_COLAB_JOB,
+    SCHEMA_COLAB_PAYLOAD,
+    SCHEMA_REQUEST,
     MonthlyStudentCuQuotaManager,
     _canonical_signing_bytes,
+    build_colab_job_metadata,
+    export_local_colab_bundle,
     package_student_colab_request,
     verify_student_colab_request_signature,
 )
@@ -269,3 +275,140 @@ def test_standalone_colab_cli_in_fresh_stdlib_environment(stdlib_colab_cli, case
             assert "Google Colab dispatch token is not configured" in result.stderr
             assert "Confirm project enrollment in Connect using an instructor invitation" in result.stderr
             assert "GH_TOKEN or GITHUB_TOKEN is required" not in result.stderr
+
+
+@pytest.mark.parametrize("engine", ["ORCA", "CFOUR", "XTB", "PYSCF", "GPU4PYSCF"])
+def test_colab_job_metadata_and_local_bundle_export_are_live_and_verified(tmp_path, engine):
+    packaged = package_student_colab_request(
+        **inputs(engine=engine, job_id=f"local-{engine.lower()}-run"),
+        environ=ENV,
+    )
+    job = build_colab_job_metadata(packaged, slot="w54", max_hours=2, gpu_min="A100")
+    assert job["schema"] == SCHEMA_COLAB_JOB
+    assert job["request_schema"] == SCHEMA_REQUEST
+    assert job["job_id"] == f"local-{engine.lower()}-run"
+    assert job["slot"] == "w54"
+    assert job["engine"] == engine
+    assert job["max_hours"] == 2
+    assert job["gpu_min"] == "A100"
+    assert job["geometry_sha256"] == packaged["geometry_sha256"]
+    assert "simulation" not in json.dumps(job).lower()
+    assert KEY not in json.dumps(job)
+
+    receipt = export_local_colab_bundle(
+        packaged,
+        tmp_path,
+        slot="w54",
+        max_hours=2,
+        gpu_min="A100",
+    )
+    assert receipt["status"] == "packaged"
+    assert receipt["job_schema"] == SCHEMA_COLAB_JOB
+    assert receipt["payload_schema"] == SCHEMA_COLAB_PAYLOAD
+    bundle_dir = tmp_path / packaged["job_id"]
+    assert bundle_dir.is_dir()
+
+    exported_request = json.loads((bundle_dir / "student_request.json").read_text(encoding="utf-8"))
+    assert verify_student_colab_request_signature(exported_request, KEY)
+    assert KEY not in (bundle_dir / "student_request.json").read_text(encoding="utf-8")
+
+    exported_job = json.loads((bundle_dir / "job.json").read_text(encoding="utf-8"))
+    assert exported_job["schema"] == SCHEMA_COLAB_JOB
+    assert exported_job["slot"] == "w54"
+
+    manifest = json.loads((bundle_dir / "payload_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["schema"] == SCHEMA_COLAB_PAYLOAD
+    assert manifest["job_id"] == packaged["job_id"]
+    tar_path = bundle_dir / "payload.tar"
+    assert tar_path.is_file()
+    assert manifest["tar"]["size"] == tar_path.stat().st_size
+    assert manifest["tar"]["sha256"] == hashlib.sha256(tar_path.read_bytes()).hexdigest()
+    assert set(manifest["files"]) == {"workspace/geometry.xyz", "workspace/student_request.json"}
+    assert manifest["files"]["workspace/geometry.xyz"]["sha256"] == hashlib.sha256(
+        (bundle_dir / "geometry.xyz").read_bytes()
+    ).hexdigest()
+    assert manifest["files"]["workspace/student_request.json"]["sha256"] == hashlib.sha256(
+        (bundle_dir / "student_request.json").read_bytes()
+    ).hexdigest()
+
+    with tarfile.open(tar_path, "r") as archive:
+        names = archive.getnames()
+        assert names == ["workspace/geometry.xyz", "workspace/student_request.json"]
+        assert all(not n.startswith("/") and ".." not in n.split("/") for n in names)
+
+
+def test_colab_job_metadata_rejects_tampering_bad_slot_and_non_live_keys():
+    packaged = package_student_colab_request(**inputs(), environ=ENV)
+
+    with pytest.raises(CourseAccessError, match="slot must match"):
+        build_colab_job_metadata(packaged, slot="../w53")
+
+    tampered_geom = dict(packaged, geometry_sha256="0" * 64)
+    with pytest.raises(CourseAccessError, match="geometry_sha256"):
+        build_colab_job_metadata(tampered_geom)
+
+    non_live = dict(packaged, simulation=True)
+    with pytest.raises(CourseAccessError, match="Refusing non-live key"):
+        build_colab_job_metadata(non_live)
+
+    with pytest.raises(CourseAccessError, match="Credential isolation"):
+        build_colab_job_metadata(packaged, stage_root="/content/drive/MyDrive/unsafe")
+
+
+@pytest.mark.parametrize("mode", ["package_only", "bundle_dir"])
+def test_standalone_colab_cli_package_only_and_bundle_in_fresh_stdlib_env(stdlib_colab_cli, mode):
+    import subprocess
+
+    root, work, prefix, python, base_env = stdlib_colab_cli
+    env = dict(base_env)
+    env.update(ENV)
+    bundle_root = work / "local-bundles"
+    arguments = [
+        "--student-id", "student-01",
+        "--job-id", f"stdlib-{mode.replace('_', '-')}",
+        "--engine", "GPU4PYSCF",
+        "--method", "HF",
+        "--basis-set", "sto-3g",
+        "--xyz", H2,
+        "--charge", "0",
+        "--multiplicity", "1",
+        "--no-opt",
+        "--no-freq",
+        "--slot", "w55",
+        "--gpu-min", "L4",
+        "--max-hours", "2",
+    ]
+    if mode == "package_only":
+        arguments.append("--package-only")
+    else:
+        arguments.extend(["--bundle-dir", str(bundle_root)])
+
+    report = work / f"{mode}.json"
+    result = subprocess.run(
+        [str(python), "-B", "-c", STDLIB_CLI_CHILD, str(root), str(prefix), str(report),
+         json.dumps(arguments)],
+        env=env,
+        cwd=work,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not result.stderr
+    actual = json.loads(report.read_text(encoding="utf-8"))
+    assert not actual["blocked_execution_or_network"]
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "packaged"
+    assert payload["request"]["schema"] == SCHEMA_REQUEST
+    assert payload["job"]["schema"] == SCHEMA_COLAB_JOB
+    assert payload["job"]["slot"] == "w55"
+    assert payload["job"]["engine"] == "GPU4PYSCF"
+    assert verify_student_colab_request_signature(payload["request"], KEY)
+    assert KEY not in result.stdout
+    if mode == "bundle_dir":
+        bdir = bundle_root / f"stdlib-{mode.replace('_', '-')}"
+        assert (bdir / "job.json").is_file()
+        assert (bdir / "payload.tar").is_file()
+        assert (bdir / "payload_manifest.json").is_file()
+        assert (bdir / "student_request.json").is_file()

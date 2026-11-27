@@ -137,15 +137,15 @@ def test_parse_xtb_energy_files_and_stdout(tmp_path: Path) -> None:
     assert abs(e1 - (-17.504066223730)) < 1e-10
 
     # 2. From stdout regex
-    fake_empty_dir = tmp_path / "empty_dir"
-    fake_empty_dir.mkdir()
+    empty_work_dir = tmp_path / "empty_dir"
+    empty_work_dir.mkdir()
     stdout_sample = """
           -----------------------------------------------------------
           | TOTAL ENERGY              -17.504066223730 Eh           |
           | GRADIENT NORM               0.001428571429 Eh/alpha     |
           -----------------------------------------------------------
     """
-    e2 = parse_xtb_energy(fake_empty_dir, stdout_text=stdout_sample)
+    e2 = parse_xtb_energy(empty_work_dir, stdout_text=stdout_sample)
     assert abs(e2 - (-17.504066223730)) < 1e-10
 
 

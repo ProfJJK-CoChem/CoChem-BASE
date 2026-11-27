@@ -415,6 +415,7 @@ def test_stream_webhook_successful_dispatch(tmp_path):
     Validates successful webhook dispatch with a live local HTTP test server.
     """
     received_requests = []
+    server_logs = []
 
     class TestHandler(http.server.BaseHTTPRequestHandler):
         def do_POST(self):
@@ -425,7 +426,7 @@ def test_stream_webhook_successful_dispatch(tmp_path):
             self.end_headers()
 
         def log_message(self, format, *args):
-            pass
+            server_logs.append(format % args if args else str(format))
 
     server = http.server.HTTPServer(("127.0.0.1", 0), TestHandler)
     port = server.server_address[1]

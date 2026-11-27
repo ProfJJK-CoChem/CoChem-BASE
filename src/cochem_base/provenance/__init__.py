@@ -1,4 +1,8 @@
 """CoChem-BASE Cryptographic Provenance, Hashing, and Automated Citations Engine."""
+from __future__ import annotations
+
+from typing import Any
+
 from cochem_base.provenance.citations import (
     CitationEntry,
     CitationTracker,
@@ -17,17 +21,31 @@ from cochem_base.provenance.citations import (
     track_method,
     write_citations_bib,
 )
-from cochem_base.provenance.hashing import (
-    EnvironmentHashRecord,
-    SourceIntegrityError,
-    TopologicalLockRecord,
-    assert_topological_lock,
-    compute_file_sha256,
-    compute_repository_source_hash,
-    generate_topological_source_lock,
-    hash_environment,
-    verify_source_code_integrity,
-)
+
+_HASHING_EXPORTS = frozenset({
+    "EnvironmentHashRecord",
+    "SourceIntegrityError",
+    "TopologicalLockRecord",
+    "assert_topological_lock",
+    "compute_file_sha256",
+    "compute_repository_source_hash",
+    "generate_topological_source_lock",
+    "hash_environment",
+    "verify_source_code_integrity",
+})
+
+
+def __getattr__(name: str) -> Any:
+    if name in _HASHING_EXPORTS:
+        from cochem_base.provenance import hashing
+
+        return getattr(hashing, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))
+
 
 __all__ = [
     "CitationEntry",

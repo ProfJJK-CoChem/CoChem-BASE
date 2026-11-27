@@ -56,6 +56,10 @@ CourseAccessError = contract.CourseAccessError
 GitHubAPI = contract.GitHubAPI
 repository_name = contract.repository_name
 SCHEMA_RESULT = contract.SCHEMA_RESULT
+SCHEMA_COLAB_JOB = contract.SCHEMA_COLAB_JOB
+SCHEMA_COLAB_PAYLOAD = contract.SCHEMA_COLAB_PAYLOAD
+build_colab_job_metadata = contract.build_colab_job_metadata
+export_local_colab_bundle = contract.export_local_colab_bundle
 package_student_colab_request = contract.package_student_colab_request
 submit_student_colab_issue = contract.submit_student_colab_issue
 
@@ -107,8 +111,8 @@ def poll_colab_issue_result(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--student-id", default=os.environ.get("GITHUB_USER") or os.environ.get("GITHUB_ACTOR") or "")
-    parser.add_argument("--job-id", required=True, help="Unique job identifier (e.g., orgo1-formaldehyde-freq)")
-    parser.add_argument("--engine", default="ORCA", choices=("ORCA", "CFOUR", "XTB", "PYSCF"))
+    parser.add_argument("--job-id", required=True, help="Unique job identifier (e.g., orgo1-molecule-freq)")
+    parser.add_argument("--engine", default="ORCA", choices=("ORCA", "CFOUR", "XTB", "PYSCF", "GPU4PYSCF"))
     parser.add_argument("--method", default="r2SCAN-3c")
     parser.add_argument("--basis-set", default=None)
     parser.add_argument("--xyz-file", type=Path, help="Path to XYZ coordinate file")
@@ -123,6 +127,20 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("COCHEM_ACCESS_CONTROLLER_REPOSITORY", "ProfJJK-CoChem/CoChem-Project-Access"),
     )
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", ""))
+    parser.add_argument(
+        "--package-only",
+        action="store_true",
+        help="Validate, sign, and emit live cochem.student-colab-request.v1 + cochem-colab-job/1 metadata without GitHub Issue submission",
+    )
+    parser.add_argument(
+        "--bundle-dir",
+        type=Path,
+        default=None,
+        help="Export a local cochem-colab-job/1 + cochem-colab-payload/2 bundle directory for workstation/WSL2 Colab runner dispatch (implies --package-only)",
+    )
+    parser.add_argument("--slot", default="w53", help="Target Colab worker slot for cochem-colab-job/1 metadata (default: w53)")
+    parser.add_argument("--gpu-min", default="any", help="Minimum GPU class for cochem-colab-job/1 metadata (default: any)")
+    parser.add_argument("--max-hours", type=int, default=1, help="Maximum walltime hours for cochem-colab-job/1 metadata (default: 1)")
     parser.add_argument("--wait", action="store_true", help="Wait and poll for the completed Colab GPU result")
     parser.add_argument("--timeout-seconds", type=int, default=900)
     args = parser.parse_args(argv)
@@ -145,6 +163,28 @@ def main(argv: list[str] | None = None) -> int:
         is_opt=not args.no_opt,
         is_freq=not args.no_freq,
     )
+    if args.package_only or args.bundle_dir is not None:
+        job_metadata = build_colab_job_metadata(
+            packaged,
+            slot=args.slot,
+            max_hours=args.max_hours,
+            gpu_min=args.gpu_min,
+        )
+        output: dict[str, Any] = {
+            "status": "packaged",
+            "request": packaged,
+            "job": job_metadata,
+        }
+        if args.bundle_dir is not None:
+            output["bundle"] = export_local_colab_bundle(
+                packaged,
+                args.bundle_dir,
+                slot=args.slot,
+                max_hours=args.max_hours,
+                gpu_min=args.gpu_min,
+            )
+        print(json.dumps(output, indent=2, sort_keys=True))
+        return 0
     api = GitHubAPI(_github_token())
     submitted = submit_student_colab_issue(api, args.controller_repository, packaged)
     if args.wait:

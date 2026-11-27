@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import socket
 from pathlib import Path
 from typing import Any, Dict
@@ -119,7 +120,9 @@ def test_zeromq_daemon_physical_ipc_transport() -> None:
             assert received_dict["uptime_seconds"] == 120
 
             # Test B: daemon.broadcast_state -> ext_sub
-            broadcast_payload = {"step": 4, "converged": True, "energy": -76.4}
+            sigma_r6 = math.pow(2.0 / 2.5, 6.0)
+            lj_pair_energy = 4.0 * 0.05 * (sigma_r6 * sigma_r6 - sigma_r6)
+            broadcast_payload = {"step": 4, "converged": True, "energy": lj_pair_energy}
             await daemon.broadcast_state("state/broadcast", broadcast_payload)
 
             raw_topic, raw_payload = await asyncio.wait_for(ext_sub.recv_multipart(), timeout=3.0)
@@ -127,6 +130,7 @@ def test_zeromq_daemon_physical_ipc_transport() -> None:
             received_dict = json.loads(raw_payload.decode("utf-8"))
             assert received_dict["step"] == 4
             assert received_dict["converged"] is True
+            assert received_dict["energy"] == pytest.approx(lj_pair_energy)
 
             # Test C: ext_pub -> daemon.recv_message()
             incoming_payload = {"job_id": "job_99", "task": "geometry_opt", "status": "RUNNING"}

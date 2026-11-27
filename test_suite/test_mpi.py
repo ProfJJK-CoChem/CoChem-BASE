@@ -15,8 +15,9 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 import pytest
 
@@ -196,17 +197,35 @@ def test_orca_mpi_input_content_specification() -> None:
     assert "H 0.0 0.0 0.74" in ORCA_MPI_TEST_INPUT
 
 
-def test_run_multi_core_orca_test_scratch_isolation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or unset environment variables and restore them on exit."""
+    saved = {k: os.environ.get(k) for k in updates}
+    try:
+        for k, v in updates.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        yield
+    finally:
+        for k, prev in saved.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
+def test_run_multi_core_orca_test_scratch_isolation(tmp_path: Path) -> None:
     """Validate that multi-core execution executes in an isolated scratch directory without polluting root."""
     custom_scratch = tmp_path / "test_mpi_scratch"
     custom_scratch.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_SCRATCH", str(custom_scratch))
-
-    ok, msg = run_multi_core_orca_test()
-    assert isinstance(ok, bool)
-    assert isinstance(msg, str)
-    # Check that root scratch directory does not retain temporary input files directly
-    assert not (custom_scratch / "test_job_mpi.inp").exists()
+    with _scoped_env(COCHEM_SCRATCH=str(custom_scratch)):
+        ok, msg = run_multi_core_orca_test()
+        assert isinstance(ok, bool)
+        assert isinstance(msg, str)
+        # Check that root scratch directory does not retain temporary input files directly
+        assert not (custom_scratch / "test_job_mpi.inp").exists()
 
 
 def test_run_multi_core_orca_test_provenance_tag_on_success() -> None:

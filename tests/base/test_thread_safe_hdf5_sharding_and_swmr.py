@@ -11,10 +11,11 @@ Mandated by SRS Chunk 16 (Deliverable 9, Suggestion #159):
 from __future__ import annotations
 
 import concurrent.futures
+from contextlib import contextmanager
 import os
 import uuid
 from pathlib import Path
-from typing import List
+from typing import Iterator, List, Optional
 
 import numpy as np
 import pytest
@@ -68,6 +69,25 @@ def _worker_write_shard_task(
     return n_points_per_worker
 
 
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or unset environment variables and restore them on exit."""
+    saved = {k: os.environ.get(k) for k in updates}
+    try:
+        for k, v in updates.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        yield
+    finally:
+        for k, prev in saved.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
 class TestThreadSafeHDF5ShardingAndSWMR:
     """Test suite for Deliverable 9 (Suggestion #159)."""
 
@@ -90,27 +110,23 @@ class TestThreadSafeHDF5ShardingAndSWMR:
         assert shard_p.parent == scratch_dir
         assert shard_p.name == f"shard_{worker_uuid}_{task_id}.h5"
 
-    def test_hpc_file_locking_suppression(self, monkeypatch):
+    def test_hpc_file_locking_suppression(self):
         """Verify that HPC environments automatically set HDF5_USE_FILE_LOCKING='FALSE'."""
-        monkeypatch.delenv("SLURM_JOB_ID", raising=False)
-        monkeypatch.delenv("PBS_JOBID", raising=False)
-        monkeypatch.delenv("HDF5_USE_FILE_LOCKING", raising=False)
+        with _scoped_env(SLURM_JOB_ID=None, PBS_JOBID=None, HDF5_USE_FILE_LOCKING=None):
+            with _scoped_env(SLURM_JOB_ID="987654", HDF5_USE_FILE_LOCKING=None):
+                is_hpc = configure_hdf5_locking()
+                assert is_hpc is True
+                assert os.environ.get("HDF5_USE_FILE_LOCKING") == "FALSE"
 
-        monkeypatch.setenv("SLURM_JOB_ID", "987654")
-        is_hpc = configure_hdf5_locking()
-        assert is_hpc is True
-        assert os.environ.get("HDF5_USE_FILE_LOCKING") == "FALSE"
+            with _scoped_env(HDF5_USE_FILE_LOCKING=None):
+                res = configure_hdf5_locking(force_hpc=True)
+                assert res is True
+                assert os.environ.get("HDF5_USE_FILE_LOCKING") == "FALSE"
 
-        monkeypatch.delenv("SLURM_JOB_ID", raising=False)
-        monkeypatch.delenv("HDF5_USE_FILE_LOCKING", raising=False)
-        res = configure_hdf5_locking(force_hpc=True)
-        assert res is True
-        assert os.environ.get("HDF5_USE_FILE_LOCKING") == "FALSE"
-
-        monkeypatch.delenv("HDF5_USE_FILE_LOCKING", raising=False)
-        res_false = configure_hdf5_locking(force_hpc=False)
-        assert res_false is False
-        assert os.environ.get("HDF5_USE_FILE_LOCKING") is None
+            with _scoped_env(HDF5_USE_FILE_LOCKING=None):
+                res_false = configure_hdf5_locking(force_hpc=False)
+                assert res_false is False
+                assert os.environ.get("HDF5_USE_FILE_LOCKING") is None
 
     def test_concurrent_worker_sharding_and_atomic_merge(self, test_environment):
         """

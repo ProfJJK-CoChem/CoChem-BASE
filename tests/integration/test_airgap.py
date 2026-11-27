@@ -16,8 +16,9 @@ import platform
 import shutil
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Set, Tuple, TypedDict
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, TypedDict
 
 import h5py
 import numpy as np
@@ -209,6 +210,25 @@ class FileIOMonitor:
             )
 
 
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or unset environment variables and restore them on exit."""
+    saved = {k: os.environ.get(k) for k in updates}
+    try:
+        for k, v in updates.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        yield
+    finally:
+        for k, prev in saved.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
 class TestAirGapBoundaryIntegration:
     """Engineering filesystem and encoded-data boundary checks; no native chemistry."""
 
@@ -225,7 +245,6 @@ class TestAirGapBoundaryIntegration:
     def test_airgap_boundary_hardware_and_registry_generation(
         self,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Verify hardware profiling and golden registry generation write only to dynamic tier."""
         static_repo = tmp_path / "CoChem-BASE"
@@ -236,63 +255,63 @@ class TestAirGapBoundaryIntegration:
         dynamic_artifacts = tmp_path / "CoChem_Artifacts"
         dynamic_artifacts.mkdir(parents=True, exist_ok=True)
 
-        monkeypatch.setenv("COCHEM_BASE_ROOT", str(static_repo))
-        monkeypatch.setenv("COCHEM_ROOT", str(dynamic_artifacts))
-        monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(dynamic_artifacts))
+        with _scoped_env(
+            COCHEM_BASE_ROOT=str(static_repo),
+            COCHEM_ROOT=str(dynamic_artifacts),
+            COCHEM_ARTIFACT_DIR=str(dynamic_artifacts),
+        ):
+            static_snap_before = DirectoryStateSnapshot(static_repo)
+            monitor = FileIOMonitor(restricted_roots=[static_repo], allowed_roots=[dynamic_artifacts])
 
-        static_snap_before = DirectoryStateSnapshot(static_repo)
-        monitor = FileIOMonitor(restricted_roots=[static_repo], allowed_roots=[dynamic_artifacts])
+            # Stage 0: Real hardware audit
+            cpu_cores = HardwareDiscovery.get_cpu_cores()
+            assert cpu_cores > 0
+            ram_gb = HardwareDiscovery.get_system_ram_gb()
+            assert ram_gb > 0.0
+            pinning_spec = HardwareDiscovery.get_core_pinning_config()
 
-        # Stage 0: Real hardware audit
-        cpu_cores = HardwareDiscovery.get_cpu_cores()
-        assert cpu_cores > 0
-        ram_gb = HardwareDiscovery.get_system_ram_gb()
-        assert ram_gb > 0.0
-        pinning_spec = HardwareDiscovery.get_core_pinning_config()
+            # Stage 1: Build registry inside dynamic artifacts
+            registry_file = dynamic_artifacts / "cochem_system_config.json"
+            hw_cfg = HardwareConfig(
+                physical_cpu_cores=min(cpu_cores, 8),
+                logical_cpu_cores=min(cpu_cores * 2, 16),
+                ram_gb=round(ram_gb, 2),
+                maxcore_mb=3000,
+                os_target=f"{platform.system().lower()}_{platform.machine().lower()}",
+                core_pinning=CorePinningConfig(kmp_hw_subset=pinning_spec),
+            )
 
-        # Stage 1: Build registry inside dynamic artifacts
-        registry_file = dynamic_artifacts / "cochem_system_config.json"
-        hw_cfg = HardwareConfig(
-            physical_cpu_cores=min(cpu_cores, 8),
-            logical_cpu_cores=min(cpu_cores * 2, 16),
-            ram_gb=round(ram_gb, 2),
-            maxcore_mb=3000,
-            os_target=f"{platform.system().lower()}_{platform.machine().lower()}",
-            core_pinning=CorePinningConfig(kmp_hw_subset=pinning_spec),
-        )
+            orca_path = shutil.which("orca") or str(Path(sys.executable).parent / "orca")
+            mpirun_path = shutil.which("mpirun") or str(Path(sys.executable).parent / "mpirun")
+            xtb_path = shutil.which("xtb") or str(Path(sys.executable).parent / "xtb")
 
-        orca_path = shutil.which("orca") or str(Path(sys.executable).parent / "orca")
-        mpirun_path = shutil.which("mpirun") or str(Path(sys.executable).parent / "mpirun")
-        xtb_path = shutil.which("xtb") or str(Path(sys.executable).parent / "xtb")
+            cfg = CoChemConfig(
+                schema_version="4.0.0",
+                hardware=hw_cfg,
+                engines=EnginePaths(
+                    orca=EngineInfo(status="ready", path=orca_path, version="6.1.1", hash="auto"),
+                    mpirun=EngineInfo(status="ready", path=mpirun_path, version="openmpi-4.1", hash="auto"),
+                    xtb=EngineInfo(status="ready", path=xtb_path, version="6.6.1", hash="auto"),
+                ),
+                silos=SiloConfig(torq_silo_active=True, gpu_silo_active=False),
+                quantum_settings=QuantumSettings(implicit_solvation=None, integration_grid="defgrid2"),
+                hpc=HPCConfig(scheduler="local"),
+            )
 
-        cfg = CoChemConfig(
-            schema_version="4.0.0",
-            hardware=hw_cfg,
-            engines=EnginePaths(
-                orca=EngineInfo(status="ready", path=orca_path, version="6.1.1", hash="auto"),
-                mpirun=EngineInfo(status="ready", path=mpirun_path, version="openmpi-4.1", hash="auto"),
-                xtb=EngineInfo(status="ready", path=xtb_path, version="6.6.1", hash="auto"),
-            ),
-            silos=SiloConfig(torq_silo_active=True, gpu_silo_active=False),
-            quantum_settings=QuantumSettings(implicit_solvation=None, integration_grid="defgrid2"),
-            hpc=HPCConfig(scheduler="local"),
-        )
+            cfg.to_file(registry_file)
+            monitor.record_write(registry_file, "write_json")
 
-        cfg.to_file(registry_file)
-        monitor.record_write(registry_file, "write_json")
+            assert registry_file.exists()
+            assert registry_file.stat().st_size > 0
 
-        assert registry_file.exists()
-        assert registry_file.stat().st_size > 0
-
-        # Verify static repository has ZERO mutations
-        static_snap_after = DirectoryStateSnapshot(static_repo)
-        static_snap_before.assert_zero_modifications(static_snap_after, "Hardware & Registry Stage")
-        monitor.assert_zero_violations()
+            # Verify static repository has ZERO mutations
+            static_snap_after = DirectoryStateSnapshot(static_repo)
+            static_snap_before.assert_zero_modifications(static_snap_after, "Hardware & Registry Stage")
+            monitor.assert_zero_violations()
 
     def test_airgap_boundary_quantum_input_generation(
         self,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Verify authentic Water Dimer ORCA input generation writes only to dynamic scratch tier."""
         static_repo = tmp_path / "CoChem-BASE"
@@ -303,66 +322,66 @@ class TestAirGapBoundaryIntegration:
         scratch_dir = dynamic_artifacts / "Scratch"
         scratch_dir.mkdir(parents=True, exist_ok=True)
 
-        monkeypatch.setenv("COCHEM_BASE_ROOT", str(static_repo))
-        monkeypatch.setenv("COCHEM_ROOT", str(dynamic_artifacts))
-        monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(dynamic_artifacts))
+        with _scoped_env(
+            COCHEM_BASE_ROOT=str(static_repo),
+            COCHEM_ROOT=str(dynamic_artifacts),
+            COCHEM_ARTIFACT_DIR=str(dynamic_artifacts),
+        ):
+            # Write system config to dynamic artifacts
+            config_path = dynamic_artifacts / "cochem_system_config.json"
+            hw_cfg = HardwareConfig(
+                physical_cpu_cores=8,
+                logical_cpu_cores=16,
+                ram_gb=16.0,
+                maxcore_mb=3000,
+                os_target=f"{platform.system().lower()}_{platform.machine().lower()}",
+                core_pinning=CorePinningConfig(kmp_hw_subset="KMP_HW_SUBSET=8c:intel_core,1t"),
+            )
+            cfg = CoChemConfig(schema_version="4.0.0", hardware=hw_cfg)
+            cfg.to_file(config_path)
 
-        # Write system config to dynamic artifacts
-        config_path = dynamic_artifacts / "cochem_system_config.json"
-        hw_cfg = HardwareConfig(
-            physical_cpu_cores=8,
-            logical_cpu_cores=16,
-            ram_gb=16.0,
-            maxcore_mb=3000,
-            os_target=f"{platform.system().lower()}_{platform.machine().lower()}",
-            core_pinning=CorePinningConfig(kmp_hw_subset="KMP_HW_SUBSET=8c:intel_core,1t"),
-        )
-        cfg = CoChemConfig(schema_version="4.0.0", hardware=hw_cfg)
-        cfg.to_file(config_path)
+            static_snap_before = DirectoryStateSnapshot(static_repo)
+            monitor = FileIOMonitor(restricted_roots=[static_repo], allowed_roots=[dynamic_artifacts])
 
-        static_snap_before = DirectoryStateSnapshot(static_repo)
-        monitor = FileIOMonitor(restricted_roots=[static_repo], allowed_roots=[dynamic_artifacts])
+            # Create authentic Water Dimer Molecule
+            atoms = [Atom(symbol=s, x=x, y=y, z=z) for s, x, y, z in WATER_DIMER_COORDINATES]
+            molecule = Molecule(atoms=atoms, charge=0, multiplicity=1)
+            assert len(molecule.atoms) == 6
 
-        # Create authentic Water Dimer Molecule
-        atoms = [Atom(symbol=s, x=x, y=y, z=z) for s, x, y, z in WATER_DIMER_COORDINATES]
-        molecule = Molecule(atoms=atoms, charge=0, multiplicity=1)
-        assert len(molecule.atoms) == 6
+            coords_list = [atom[1:] for atom in WATER_DIMER_COORDINATES]
+            elements_list = [atom[0] for atom in WATER_DIMER_COORDINATES]
 
-        coords_list = [atom[1:] for atom in WATER_DIMER_COORDINATES]
-        elements_list = [atom[0] for atom in WATER_DIMER_COORDINATES]
+            # Generate ORCA input adhering to Method Matrix (TolMaxG 1e-5, defgrid1->defgrid3, InHess XTB2, D3/D4)
+            mol_input = MoleculeInput(
+                basin_id="water_dimer_opt_airgap",
+                elements=elements_list,
+                coordinates=coords_list,
+                theory_level="B3LYP-D3 def2-SVP",
+                charge=0,
+                multiplicity=1,
+                is_weak_complex=True,
+                is_opt=True,
+            )
 
-        # Generate ORCA input adhering to Method Matrix (TolMaxG 1e-5, defgrid1->defgrid3, InHess XTB2, D3/D4)
-        mol_input = MoleculeInput(
-            basin_id="water_dimer_opt_airgap",
-            elements=elements_list,
-            coordinates=coords_list,
-            theory_level="B3LYP-D3 def2-SVP",
-            charge=0,
-            multiplicity=1,
-            is_weak_complex=True,
-            is_opt=True,
-        )
+            target_inp = generate_orca_input(mol_input, output_dir=scratch_dir)
+            monitor.record_write(target_inp, "write_orca_inp")
 
-        target_inp = generate_orca_input(mol_input, output_dir=scratch_dir)
-        monitor.record_write(target_inp, "write_orca_inp")
+            assert target_inp.exists()
+            assert target_inp.stat().st_size > 0
+            inp_content = target_inp.read_text(encoding="utf-8")
+            assert "TolMaxG 1e-5" in inp_content
+            assert "B3LYP-D3" in inp_content
+            assert "InHess XTB2" in inp_content
 
-        assert target_inp.exists()
-        assert target_inp.stat().st_size > 0
-        inp_content = target_inp.read_text(encoding="utf-8")
-        assert "TolMaxG 1e-5" in inp_content
-        assert "B3LYP-D3" in inp_content
-        assert "InHess XTB2" in inp_content
-
-        # Verify static repo unchanged
-        static_snap_after = DirectoryStateSnapshot(static_repo)
-        static_snap_before.assert_zero_modifications(static_snap_after, "Quantum Input Generation Stage")
-        monitor.assert_zero_violations()
+            # Verify static repo unchanged
+            static_snap_after = DirectoryStateSnapshot(static_repo)
+            static_snap_before.assert_zero_modifications(static_snap_after, "Quantum Input Generation Stage")
+            monitor.assert_zero_violations()
 
 
     def test_airgap_boundary_telemetry_and_hdf5_persistence(
         self,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Verify TelemetryLogger and HDF5OntologyEnforcer commit strictly to dynamic data tier."""
         static_repo = tmp_path / "CoChem-BASE"
@@ -372,64 +391,65 @@ class TestAirGapBoundaryIntegration:
         log_dir = dynamic_artifacts / "Logs"
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        monkeypatch.setenv("COCHEM_BASE_ROOT", str(static_repo))
-        monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(dynamic_artifacts))
+        with _scoped_env(
+            COCHEM_BASE_ROOT=str(static_repo),
+            COCHEM_ARTIFACT_DIR=str(dynamic_artifacts),
+        ):
+            static_snap_before = DirectoryStateSnapshot(static_repo)
+            monitor = FileIOMonitor(restricted_roots=[static_repo], allowed_roots=[dynamic_artifacts])
 
-        static_snap_before = DirectoryStateSnapshot(static_repo)
-        monitor = FileIOMonitor(restricted_roots=[static_repo], allowed_roots=[dynamic_artifacts])
+            # 1. Telemetry logging in dynamic tier
+            telemetry = TelemetryLogger(log_dir=log_dir)
+            chunk_1 = "CYCLE 1: dE = -0.051200\n"
+            chunk_2 = "CYCLE 2: dE = -0.002100\n"
+            chunk_3 = "FINAL SINGLE POINT ENERGY -152.854032\n"
+            assert telemetry.process_stream_chunk(chunk_1) is True
+            assert telemetry.process_stream_chunk(chunk_2) is True
+            assert telemetry.process_stream_chunk(chunk_3) is True
+            assert telemetry.is_clean() is True
 
-        # 1. Telemetry logging in dynamic tier
-        telemetry = TelemetryLogger(log_dir=log_dir)
-        chunk_1 = "CYCLE 1: dE = -0.051200\n"
-        chunk_2 = "CYCLE 2: dE = -0.002100\n"
-        chunk_3 = "FINAL SINGLE POINT ENERGY -152.854032\n"
-        assert telemetry.process_stream_chunk(chunk_1) is True
-        assert telemetry.process_stream_chunk(chunk_2) is True
-        assert telemetry.process_stream_chunk(chunk_3) is True
-        assert telemetry.is_clean() is True
+            log_path_str = telemetry.aggregate_and_lock(
+                job_name="water_dimer_telemetry_airgap",
+                stdout_history=[chunk_1, chunk_2, chunk_3],
+                stderr_history=[],
+                exit_code=0,
+                active_hash="hash_h4o2_dimer_provenance",
+            )
+            telemetry_file = Path(log_path_str)
+            monitor.record_write(telemetry_file, "telemetry_aggregate_and_lock")
 
-        log_path_str = telemetry.aggregate_and_lock(
-            job_name="water_dimer_telemetry_airgap",
-            stdout_history=[chunk_1, chunk_2, chunk_3],
-            stderr_history=[],
-            exit_code=0,
-            active_hash="hash_h4o2_dimer_provenance",
-        )
-        telemetry_file = Path(log_path_str)
-        monitor.record_write(telemetry_file, "telemetry_aggregate_and_lock")
+            assert telemetry_file.exists()
+            assert telemetry_file.stat().st_size > 0
+            telemetry_text = telemetry_file.read_text(encoding="utf-8")
+            assert "COCHEM JSON-LD" in telemetry_text or "QCSchema" in telemetry_text
 
-        assert telemetry_file.exists()
-        assert telemetry_file.stat().st_size > 0
-        telemetry_text = telemetry_file.read_text(encoding="utf-8")
-        assert "COCHEM JSON-LD" in telemetry_text or "QCSchema" in telemetry_text
+            # 2. HDF5 Ontology persistence in dynamic tier
+            h5_path = dynamic_artifacts / "Registry" / "cochem_state.h5"
+            h5_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # 2. HDF5 Ontology persistence in dynamic tier
-        h5_path = dynamic_artifacts / "Registry" / "cochem_state.h5"
-        h5_path.parent.mkdir(parents=True, exist_ok=True)
+            enforcer = HDF5OntologyEnforcer(hdf5_path=h5_path)
+            coord_matrix = np.array([c[1:] for c in WATER_DIMER_COORDINATES], dtype=np.float64)
 
-        enforcer = HDF5OntologyEnforcer(hdf5_path=h5_path)
-        coord_matrix = np.array([c[1:] for c in WATER_DIMER_COORDINATES], dtype=np.float64)
+            record_data = {
+                "molecule_name": "Water_Dimer_H4O2",
+                "xyz_coordinates": coord_matrix,
+                "energy": -152.854032,
+                "symmetry_group": "Cs",
+                "LAM_TRIGGER_REQUIRED": False,
+            }
+            enforcer.write_record(group_path="basins/H4O2_dimer", data=record_data)
+            monitor.record_write(h5_path, "hdf5_commit")
 
-        record_data = {
-            "molecule_name": "Water_Dimer_H4O2",
-            "xyz_coordinates": coord_matrix,
-            "energy": -152.854032,
-            "symmetry_group": "Cs",
-            "LAM_TRIGGER_REQUIRED": False,
-        }
-        enforcer.write_record(group_path="basins/H4O2_dimer", data=record_data)
-        monitor.record_write(h5_path, "hdf5_commit")
+            assert h5_path.exists()
+            with h5py.File(h5_path, "r") as h5f:
+                assert "basins/H4O2_dimer" in h5f
+                grp = h5f["basins/H4O2_dimer"]
+                assert grp.attrs["molecule_name"] == "Water_Dimer_H4O2"
+                assert float(grp.attrs["energy"]) == pytest.approx(-152.854032)
+                assert grp.attrs["symmetry_group"] == "Cs"
 
-        assert h5_path.exists()
-        with h5py.File(h5_path, "r") as h5f:
-            assert "basins/H4O2_dimer" in h5f
-            grp = h5f["basins/H4O2_dimer"]
-            assert grp.attrs["molecule_name"] == "Water_Dimer_H4O2"
-            assert float(grp.attrs["energy"]) == pytest.approx(-152.854032)
-            assert grp.attrs["symmetry_group"] == "Cs"
-
-        # Verify static repo unchanged
-        static_snap_after = DirectoryStateSnapshot(static_repo)
-        static_snap_before.assert_zero_modifications(static_snap_after, "Telemetry & HDF5 Stage")
-        monitor.assert_zero_violations()
+            # Verify static repo unchanged
+            static_snap_after = DirectoryStateSnapshot(static_repo)
+            static_snap_before.assert_zero_modifications(static_snap_after, "Telemetry & HDF5 Stage")
+            monitor.assert_zero_violations()
 

@@ -25,16 +25,28 @@ def request(**changes):
 
 
 @pytest.mark.parametrize("changes", [
-    {"method": "CCSD(T)", "is_freq": True}, {"method": "MP2", "is_opt": True, "initial_hessian": "BFGS"},
-    {"is_vpt2": True}, {"multiplicity": 3}, {"method": "CC3"}, {"grid_stage": 3},
+    {"method": "CC3"}, {"grid_stage": 3},
     {"is_opt": True, "initial_hessian": "XTB2"}, {"is_opt": True, "initial_hessian": "Lindh"},
-    {"basis_set": "def2-TZVP"}, {"basis_set": "def2-TZVPP"},
     {"product_class": "A"}, {"product_class": "B"}, {"product_class": "C"},
 ])
 def test_unvalidated_cfour_operation_has_no_native_execution_capability(changes):
     config = request(**changes)
     assert not supported_cfour_request(config)
     assert calculation_capability(config).adapter_status == "pending_integration"
+
+
+@pytest.mark.parametrize("changes", [
+    {"method": "CCSD(T)", "is_freq": True},
+    {"method": "MP2", "is_opt": True, "initial_hessian": "BFGS"},
+    {"is_vpt2": True},
+    {"multiplicity": 3},
+    {"basis_set": "def2-TZVP"},
+    {"basis_set": "def2-TZVPP"},
+])
+def test_connected_cfour_wave2_operations_have_native_execution_capability(changes):
+    config = request(**changes)
+    assert supported_cfour_request(config)
+    assert calculation_capability(config).adapter_status == "connected"
 
 
 def test_cfour_optimizer_requires_explicit_bfgs_and_does_not_claim_science():

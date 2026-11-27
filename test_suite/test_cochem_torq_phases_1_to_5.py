@@ -12,8 +12,9 @@ import json
 import logging
 import math
 import os
+from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 import h5py
 import numpy as np
@@ -102,44 +103,64 @@ from cochem_torq_watchdog import (
 # ==============================================================================
 
 
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    saved = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, previous in saved.items():
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+
+
 class TestTorqInit:
     """Test suite for cochem_torq_init.py."""
 
     def test_resolve_torq_environment_default(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+        self, tmp_path: Path
     ) -> None:
         isolated_home_dir = tmp_path / "isolated_home"
         isolated_home_dir.mkdir()
-        monkeypatch.setenv("HOME", str(isolated_home_dir))
-        monkeypatch.setenv("USERPROFILE", str(isolated_home_dir))
-        monkeypatch.delenv("COCHEM_ARTIFACTS", raising=False)
-        monkeypatch.delenv("COCHEM_TORQ_LIB", raising=False)
-        monkeypatch.delenv("COCHEM_SCRATCH", raising=False)
-        monkeypatch.delenv("COCHEM_UPLOADS", raising=False)
+        with _scoped_env(
+            HOME=str(isolated_home_dir),
+            USERPROFILE=str(isolated_home_dir),
+            COCHEM_ARTIFACTS=None,
+            COCHEM_TORQ_LIB=None,
+            COCHEM_SCRATCH=None,
+            COCHEM_UPLOADS=None,
+        ):
+            env_dirs = resolve_torq_environment()
+            assert "artifacts" in env_dirs
+            assert "torq_lib" in env_dirs
+            assert "scratch" in env_dirs
+            assert "uploads" in env_dirs
 
-        env_dirs = resolve_torq_environment()
-        assert "artifacts" in env_dirs
-        assert "torq_lib" in env_dirs
-        assert "scratch" in env_dirs
-        assert "uploads" in env_dirs
-
-        for p in env_dirs.values():
-            assert p.exists()
-            assert p.is_dir()
+            for p in env_dirs.values():
+                assert p.exists()
+                assert p.is_dir()
 
     def test_resolve_torq_environment_custom_env(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+        self, tmp_path: Path
     ) -> None:
         custom_art = tmp_path / "custom_artifacts"
         custom_lib = tmp_path / "custom_lib"
-        monkeypatch.setenv("COCHEM_ARTIFACTS", str(custom_art))
-        monkeypatch.setenv("COCHEM_TORQ_LIB", str(custom_lib))
-
-        env_dirs = resolve_torq_environment()
-        assert env_dirs["artifacts"] == custom_art.resolve()
-        assert env_dirs["torq_lib"] == custom_lib.resolve()
-        assert custom_art.exists()
-        assert custom_lib.exists()
+        with _scoped_env(
+            COCHEM_ARTIFACTS=str(custom_art),
+            COCHEM_TORQ_LIB=str(custom_lib),
+        ):
+            env_dirs = resolve_torq_environment()
+            assert env_dirs["artifacts"] == custom_art.resolve()
+            assert env_dirs["torq_lib"] == custom_lib.resolve()
+            assert custom_art.exists()
+            assert custom_lib.exists()
 
     def test_verify_airgap_success(self, tmp_path: Path) -> None:
         exec_dir = tmp_path / "exec_space"

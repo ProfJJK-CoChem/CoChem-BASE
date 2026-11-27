@@ -9,6 +9,7 @@ W3C Linked Data Proof did:key signatures, and deterministic UUIDv5 content hashi
 from __future__ import annotations
 
 import copy
+import math
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -124,6 +125,27 @@ def test_dynamic_registry_schema_isotopic_masses() -> None:
     assert not hasattr(cochem_core_registry_schema, "ISOTOPIC_MASSES")
 
 
+def _compute_h2o_nuclear_repulsion_hartree() -> float:
+    """Compute exact Coulomb nuclear-nuclear repulsion energy of H2O in Hartree."""
+    bohr_in_angstrom = 0.529177210903
+    atoms = (
+        (8, 0.0, 0.0, 0.0),
+        (1, 0.0, 0.7572, 0.5865),
+        (1, 0.0, -0.7572, 0.5865),
+    )
+    v_nn = 0.0
+    for i in range(len(atoms)):
+        zi, xi, yi, zi_coord = atoms[i]
+        for j in range(i + 1, len(atoms)):
+            zj, xj, yj, zj_coord = atoms[j]
+            r_bohr = (
+                math.sqrt((xi - xj) ** 2 + (yi - yj) ** 2 + (zi_coord - zj_coord) ** 2)
+                / bohr_in_angstrom
+            )
+            v_nn += (zi * zj) / r_bohr
+    return round(v_nn, 8)
+
+
 def test_w3c_linked_data_proof_pure_ed25519_did_key() -> None:
     """Validate W3C Linked Data Proof envelopes and offline did:key multicodec resolution (Suggestion #56)."""
     # 1. Generate real Ed25519 key pair
@@ -136,12 +158,13 @@ def test_w3c_linked_data_proof_pure_ed25519_did_key() -> None:
     recovered_pub = did_key_to_public_key(did_key)
     assert recovered_pub.public_bytes_raw() == public_key.public_bytes_raw()
 
-    # 2. Sign computational payload
+    # 2. Sign computational payload using computed nuclear repulsion observable
+    computed_energy_ha = _compute_h2o_nuclear_repulsion_hartree()
     payload = {
         "job_id": "job_opt_20260904_001",
         "method": "wB97M-V",
         "basis": "def2-TZVP",
-        "energy_hartree": -76.42512345,
+        "energy_hartree": computed_energy_ha,
         "converged": True,
     }
 
@@ -159,7 +182,7 @@ def test_w3c_linked_data_proof_pure_ed25519_did_key() -> None:
 
     # 4. Tampering test: perturb energy by 1 micro-Hartree
     tampered_doc = copy.deepcopy(signed_doc)
-    tampered_doc["energy_hartree"] = -76.42512445
+    tampered_doc["energy_hartree"] = round(computed_energy_ha - 1.0e-6, 8)
     assert verify_report_payload(tampered_doc) is False
 
 

@@ -11,9 +11,11 @@ All tests ingest genuine physical molecular coordinates and authentic potentials
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import math
+import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, Iterator, List, Optional
 import mendeleev
 from pydantic import ValidationError
 import pytest
@@ -307,17 +309,33 @@ def test_apple_silicon_mps_float64_cpu_fallback() -> None:
     assert dispatched_cpu == torch.device("cpu")
 
 
-def test_hpc_distributed_lock_prohibition_staging(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or unset environment variables and restore them on exit."""
+    saved = {k: os.environ.get(k) for k in updates}
+    try:
+        for k, v in updates.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        yield
+    finally:
+        for k, prev in saved.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
+def test_hpc_distributed_lock_prohibition_staging(tmp_path: Path) -> None:
     """9. Assert SLURM environment stages temporary scratch files to $SLURM_TMPDIR/cochem_torq_scratch [M]."""
     staging_slurm_nvme = tmp_path / "slurm_node_nvme"
     staging_slurm_nvme.mkdir()
-    monkeypatch.setenv("SLURM_TMPDIR", str(staging_slurm_nvme))
-
-    scratch_dir = resolve_hpc_safe_scratch()
-    assert scratch_dir == staging_slurm_nvme / "cochem_torq_scratch"
-    assert scratch_dir.is_dir()
+    with _scoped_env(SLURM_TMPDIR=str(staging_slurm_nvme)):
+        scratch_dir = resolve_hpc_safe_scratch()
+        assert scratch_dir == staging_slurm_nvme / "cochem_torq_scratch"
+        assert scratch_dir.is_dir()
 
 
 def test_pydantic_v2_validation_and_contracts() -> None:

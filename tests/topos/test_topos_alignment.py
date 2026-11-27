@@ -7,8 +7,10 @@ numerical degeneracy safeguards, MCS timeouts, ensemble clustering, and HDF5 per
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import os
 from pathlib import Path
+from typing import Iterator, Optional
 
 import h5py
 import numpy as np
@@ -271,62 +273,77 @@ def test_cluster_ensemble_deduplication():
     assert "dup_methane" in summary.duplicate_clusters[0] or "ref_methane" in summary.duplicate_clusters[0]
 
 
-def test_persist_aligned_ensemble_h5_roundtrip(tmp_path, monkeypatch):
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
+def test_persist_aligned_ensemble_h5_roundtrip(tmp_path):
     """REQ-TOPOS-013.6: Verify thread-safe HDF5 persistence and air-gap boundary check."""
     store_dir = tmp_path / "topos_store"
     store_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCH_STORE_DIR", str(store_dir))
+    with _scoped_env(COCH_STORE_DIR=str(store_dir)):
+        summary = EnsembleAlignmentSummary(
+            ensemble_id="test_ensemble_01",
+            reference_id="ref_01",
+            total_conformers=1,
+            aligned_conformers=[
+                AlignedConformerResult(
+                    conformer_id="conf_01",
+                    reference_id="ref_01",
+                    rmsd_angstrom=0.05,
+                    rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                    translation_vector=[0.0, 0.0, 0.0],
+                    aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                    atom_mapping={0: 0, 1: 1, 2: 2},
+                    execution_duration_seconds=0.01,
+                )
+            ],
+            pairwise_rmsd_matrix=[[0.0]],
+            duplicate_clusters=[],
+            mcs_mapping={0: 0, 1: 1, 2: 2},
+            aligned_mcs_coords=[[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]],
+        )
 
-    summary = EnsembleAlignmentSummary(
-        ensemble_id="test_ensemble_01",
-        reference_id="ref_01",
-        total_conformers=1,
-        aligned_conformers=[
-            AlignedConformerResult(
-                conformer_id="conf_01",
-                reference_id="ref_01",
-                rmsd_angstrom=0.05,
-                rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-                translation_vector=[0.0, 0.0, 0.0],
-                aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
-                atom_mapping={0: 0, 1: 1, 2: 2},
-                execution_duration_seconds=0.01,
-            )
-        ],
-        pairwise_rmsd_matrix=[[0.0]],
-        duplicate_clusters=[],
-        mcs_mapping={0: 0, 1: 1, 2: 2},
-        aligned_mcs_coords=[[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]],
-    )
+        archive_path = store_dir / "ensemble_01.h5"
+        out_path = persist_aligned_ensemble_h5(summary, archive_path)
+        assert out_path.exists()
 
-    archive_path = store_dir / "ensemble_01.h5"
-    out_path = persist_aligned_ensemble_h5(summary, archive_path)
-    assert out_path.exists()
+        with h5py.File(out_path, "r") as h5f:
+            assert f"/ensembles/{summary.ensemble_id}/aligned_coords" in h5f
+            assert f"/ensembles/{summary.ensemble_id}/pairwise_rmsd" in h5f
+            assert f"/ensembles/{summary.ensemble_id}/mcs_mapping" in h5f
 
-    with h5py.File(out_path, "r") as h5f:
-        assert f"/ensembles/{summary.ensemble_id}/aligned_coords" in h5f
-        assert f"/ensembles/{summary.ensemble_id}/pairwise_rmsd" in h5f
-        assert f"/ensembles/{summary.ensemble_id}/mcs_mapping" in h5f
-
-    # Air-gap violation check
-    outside_path = tmp_path / "unauthorized" / "leak.h5"
-    with pytest.raises(AirGapBoundaryViolationError):
-        persist_aligned_ensemble_h5(summary, outside_path)
+        # Air-gap violation check
+        outside_path = tmp_path / "unauthorized" / "leak.h5"
+        with pytest.raises(AirGapBoundaryViolationError):
+            persist_aligned_ensemble_h5(summary, outside_path)
 
 
-def test_concurrency_tier_detection(monkeypatch):
+def test_concurrency_tier_detection():
     """REQ-TOPOS-013.6: Verify concurrency tier detection logic across environment markers."""
-    monkeypatch.setenv("SLURM_JOB_ID", "123456")
-    assert detect_concurrency_tier() == StorageTier.TIER6_HPC
-    monkeypatch.delenv("SLURM_JOB_ID", raising=False)
+    with _scoped_env(SLURM_JOB_ID="123456"):
+        assert detect_concurrency_tier() == StorageTier.TIER6_HPC
 
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    assert detect_concurrency_tier() == StorageTier.TIER5_GITHUB_ACTIONS
-    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    with _scoped_env(SLURM_JOB_ID=None, GITHUB_ACTIONS="true"):
+        assert detect_concurrency_tier() == StorageTier.TIER5_GITHUB_ACTIONS
 
-    monkeypatch.setenv("CODESPACES", "true")
-    assert detect_concurrency_tier() == StorageTier.TIER4_CODESPACES
-    monkeypatch.delenv("CODESPACES", raising=False)
+    with _scoped_env(SLURM_JOB_ID=None, GITHUB_ACTIONS=None, CODESPACES="true"):
+        assert detect_concurrency_tier() == StorageTier.TIER4_CODESPACES
 
 
 def test_mass_weighted_alignment_preserves_so3_and_calculates_analytical_rmsd():
@@ -350,47 +367,46 @@ def test_mass_weighted_alignment_preserves_so3_and_calculates_analytical_rmsd():
     assert np.isclose(np.linalg.det(np.array(res.rotation_matrix)), 1.0, atol=1e-4)
 
 
-def test_heterogeneous_ensemble_persistence_h5(tmp_path, monkeypatch):
+def test_heterogeneous_ensemble_persistence_h5(tmp_path):
     """REQ-TOPOS-013.6: Verify HDF5 persistence for heterogeneous ensembles with differing atom counts."""
     store_dir = tmp_path / "topos_store"
     store_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCH_STORE_DIR", str(store_dir))
+    with _scoped_env(COCH_STORE_DIR=str(store_dir)):
+        conf_3atom = AlignedConformerResult(
+            conformer_id="conf_3",
+            reference_id="ref_root",
+            rmsd_angstrom=0.01,
+            rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            translation_vector=[0.0, 0.0, 0.0],
+            aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            atom_mapping={0: 0, 1: 1, 2: 2},
+            execution_duration_seconds=0.005,
+        )
+        conf_4atom = AlignedConformerResult(
+            conformer_id="conf_4",
+            reference_id="ref_root",
+            rmsd_angstrom=0.02,
+            rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            translation_vector=[0.0, 0.0, 0.0],
+            aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+            atom_mapping={0: 0, 1: 1, 2: 2},
+            execution_duration_seconds=0.006,
+        )
+        summary = EnsembleAlignmentSummary(
+            ensemble_id="ens_hetero_01",
+            reference_id="ref_root",
+            total_conformers=2,
+            aligned_conformers=[conf_3atom, conf_4atom],
+            pairwise_rmsd_matrix=[[0.0, 0.1], [0.1, 0.0]],
+            duplicate_clusters=[],
+            mcs_mapping={0: 0, 1: 1, 2: 2},
+        )
 
-    conf_3atom = AlignedConformerResult(
-        conformer_id="conf_3",
-        reference_id="ref_root",
-        rmsd_angstrom=0.01,
-        rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        translation_vector=[0.0, 0.0, 0.0],
-        aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
-        atom_mapping={0: 0, 1: 1, 2: 2},
-        execution_duration_seconds=0.005,
-    )
-    conf_4atom = AlignedConformerResult(
-        conformer_id="conf_4",
-        reference_id="ref_root",
-        rmsd_angstrom=0.02,
-        rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        translation_vector=[0.0, 0.0, 0.0],
-        aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
-        atom_mapping={0: 0, 1: 1, 2: 2},
-        execution_duration_seconds=0.006,
-    )
-    summary = EnsembleAlignmentSummary(
-        ensemble_id="ens_hetero_01",
-        reference_id="ref_root",
-        total_conformers=2,
-        aligned_conformers=[conf_3atom, conf_4atom],
-        pairwise_rmsd_matrix=[[0.0, 0.1], [0.1, 0.0]],
-        duplicate_clusters=[],
-        mcs_mapping={0: 0, 1: 1, 2: 2},
-    )
+        archive_path = store_dir / "hetero_ensemble.h5"
+        out_path = persist_aligned_ensemble_h5(summary, archive_path)
+        assert out_path.exists()
 
-    archive_path = store_dir / "hetero_ensemble.h5"
-    out_path = persist_aligned_ensemble_h5(summary, archive_path)
-    assert out_path.exists()
-
-    with h5py.File(out_path, "r") as h5f:
-        assert f"/ensembles/{summary.ensemble_id}/conformers/conf_3/aligned_coords" in h5f
-        assert f"/ensembles/{summary.ensemble_id}/conformers/conf_4/aligned_coords" in h5f
-        assert f"/ensembles/{summary.ensemble_id}/pairwise_rmsd" in h5f
+        with h5py.File(out_path, "r") as h5f:
+            assert f"/ensembles/{summary.ensemble_id}/conformers/conf_3/aligned_coords" in h5f
+            assert f"/ensembles/{summary.ensemble_id}/conformers/conf_4/aligned_coords" in h5f
+            assert f"/ensembles/{summary.ensemble_id}/pairwise_rmsd" in h5f

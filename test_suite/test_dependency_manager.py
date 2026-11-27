@@ -176,8 +176,9 @@ def test_atomic_write_json_cleans_temporary_on_error(tmp_path: Path) -> None:
     dm = DependencyManager()
     target = tmp_path / "corrupted.json"
 
-    class NonSerializableObject:
-        pass
+    class NonSerializableObject(object):
+        def __init__(self, marker: str = "unserializable_payload") -> None:
+            self.marker = marker
 
     with pytest.raises(Exception):
         dm.atomic_write_json(target, NonSerializableObject())

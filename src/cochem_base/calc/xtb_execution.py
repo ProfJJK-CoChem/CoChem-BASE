@@ -10,7 +10,12 @@ from typing import Any, Sequence
 from cochem_base.physics.isotopes import get_element_mass_and_abundance
 
 
-def validate_xtb_config(config: Any, elements: Sequence[str]) -> list[str]:
+def validate_xtb_config(
+    config: Any,
+    elements: Sequence[str],
+    *,
+    allow_open_shell: bool = False,
+) -> list[str]:
     """Return a fixed argument list; unsupported methodology never disappears."""
     methods = {"GFN2-XTB": ("T1", ["--gfn", "2"]), "GFN-FF": ("T0", ["--gfnff"])}
     method = config.method.strip().upper()
@@ -31,19 +36,19 @@ def validate_xtb_config(config: Any, elements: Sequence[str]) -> list[str]:
     if unsupported:
         raise ValueError("The xTB screening adapter does not support product certification, frequencies, "
                          "VPT2, recipes, grids, solvation, constraints or Hessian reuse")
-    # These methods expose unpaired-electron input but not the S² evidence
-    # required by the project's open-shell acceptance gate.
-    if config.multiplicity != 1:
+    # Default student/UI screening route requires explicit S² verification for open-shell states.
+    if not allow_open_shell and config.multiplicity != 1:
         raise ValueError(
             "This xTB route cannot verify the spin state for multiplicities above 1. "
             "Check that Total charge and Spin multiplicity describe your intended molecule. "
             "If they are correct, choose an engine and method that support its spin state; "
             "do not change the molecule's spin just to enable the calculation."
         )
+    unpaired = max(0, int(config.multiplicity) - 1)
     electrons = sum(get_element_mass_and_abundance(symbol)[2] for symbol in elements) - config.charge
-    if electrons < 0 or electrons % 2:
+    if electrons < 0 or unpaired > electrons or (electrons - unpaired) % 2:
         raise ValueError("Spin multiplicity is incompatible with the electron count and charge")
-    arguments = [*arguments, "--chrg", str(config.charge), "--uhf", "0"]
+    arguments = [*arguments, "--chrg", str(config.charge), "--uhf", str(unpaired)]
     if config.is_opt:
         arguments.extend(["--opt", "tight"])
     return arguments

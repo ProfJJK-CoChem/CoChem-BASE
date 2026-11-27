@@ -31,8 +31,9 @@ import stat
 import sys
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, Iterator, List, Optional, Set
 
 import pytest
 
@@ -790,7 +791,25 @@ def test_plaintext_rotating_file_handler(tmp_path: Path) -> None:
 # ==============================================================================
 
 
-def test_resolve_telemetry_log_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    saved = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, previous in saved.items():
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+
+
+def test_resolve_telemetry_log_dir(tmp_path: Path) -> None:
     """Test resolution hierarchy for $COCHEM_SCRATCH_DIR/CoChem_Artifacts/Logs."""
     # 1. Explicit path parameter
     custom_dir = tmp_path / "my_custom_logs"
@@ -799,10 +818,10 @@ def test_resolve_telemetry_log_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
     # 2. Environment variable COCHEM_SCRATCH_DIR
     scratch_dir = tmp_path / "scratch_space"
-    monkeypatch.setenv("COCHEM_SCRATCH_DIR", str(scratch_dir))
-    expected = (scratch_dir / "CoChem_Artifacts" / "Logs").resolve()
-    assert resolve_telemetry_log_dir() == expected
-    assert expected.exists()
+    with _scoped_env(COCHEM_SCRATCH_DIR=str(scratch_dir)):
+        expected = (scratch_dir / "CoChem_Artifacts" / "Logs").resolve()
+        assert resolve_telemetry_log_dir() == expected
+        assert expected.exists()
 
 
 # ==============================================================================

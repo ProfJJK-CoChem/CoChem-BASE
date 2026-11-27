@@ -2,108 +2,113 @@
 
 Welcome to **CHEM 312 / 312L Organic Chemistry II Laboratory** at **Cumberland University** (Dr. Joshua J. Klaassen), partnering with **Tennessee Tech University** (external CP-FTMW microwave spectroscopy collaborator).
 
-This is your **single end-to-end guide** from Day 1 through Milestone 4 (`M1`–`M4`). Every workflow name, folder path, input field, and terminal command below matches the live `CoChem-BASE` repository verbatim.
+This is your **single end-to-end guide** from Day 1 through Milestone 4 (`M1`–`M4`). Every local WSL2 activation command, script path, CREST flag, and handoff step below matches the live `CoChem-BASE` repository verbatim.
 
-> **Course Boundaries (Read First):**
-> - **Public Fork Required:** Every CHEM 312L student clicks **Fork** on [`ProfJJK-CoChem/CoChem-BASE`](https://github.com/ProfJJK-CoChem/CoChem-BASE), keeps visibility **Public**, and keeps the repository name **`CoChem-BASE`**. Public forks get unlimited free GitHub Actions minutes and are required by **M1 Rubric C4**. Do **not** create a private repo for CHEM 312L.
-> - **Zero External Cloud Accounts or Licenses:** CHEM 312L runs 100% on your free public-fork **GitHub Actions** and **GitHub Codespaces** using open-source engines (`PySCF`, `xTB`, `CREST 3.0.2`, `AIMNet2`, `SPCAT`). Students never touch external cloud GPU notebooks, licensed cluster programs (ORCA/CFOUR), or API tokens.
-> - **All Submissions Go to Canvas:** Every Milestone PDF (`M1`–`M4`) and verified `.zip` + `.zip.sha256` bundle is submitted through your **Canvas** assignment.
-> - **Standardized Lab Conventions:** Nicolet iS50 diamond ATR-FTIR spectra are recorded at **`0.5 cm^-1` resolution** (`n_1 = 2.417`, `45.0 deg`). Your AI disclosure log is **`AI_Usage_Log.md`** (starter template already committed at the root of your fork).
+> **2026-11-27 Course Architecture & Boundaries (Read First):**
+> - **Primary Execution Stack (Local WSL2):** CHEM 312L runs locally in **WSL2 Ubuntu** (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) using authentic open-source engines (`PySCF`, `xTB`, `CREST 3.0.2`, `AIMNet2`, `SPCAT`, `TOPOS`, `TORQ`, `CoChem-KINETIC`).
+> - **Deprecated / Retired Compute Surfaces & `CoChem-CURE` Authority:** Legacy `classroom50`, GitHub Codespaces, and GitHub Actions compute workflows are **deprecated** in favor of local WSL2 execution (historical workflow references are kept at the bottom strictly for archival compatibility). **`ProfJJK-CoChem/CoChem-CURE`** is the authoritative source of truth for course profiles, milestones, and pathways (loaded dynamically when you answer **Yes** to *"Is this a course?"* in `CoChem-BASE` `1 · Setup` or `python -m cochem_base.course_loader`; this file is a local reference mirror), and `CoChem-ORACLE` is redesigned as the **zero-LLM Student Data Auditing Model**.
+> - **All Submissions Go to Canvas:** Every Milestone PDF (`M1`–`M4`) and verified `cochem.student-handoff/2` `.zip` + `.zip.sha256` bundle is submitted through your **Canvas** assignment.
+> - **Standardized Lab Conventions:** Nicolet iS50 diamond ATR-FTIR spectra are recorded at **`0.5 cm^-1` resolution** (`n_1 = 2.417`, `45.0 deg`). Your AI disclosure log is **`AI_Usage_Log.md`** (starter template committed at the root of `CoChem-BASE`).
 
 ---
 
 ## Plain-English Organic Chemistry 2 Professor Handoff Box
 
-- **What you submit to your professor:** Upload your Milestone PDF (with your clickable public-fork GitHub Actions Run URL, Commit SHA, `FactLedger` SHA-256, and `AI_Usage_Log.md`) **and** your verified `cochem.student-handoff/2` `.zip` + `.zip.sha256` bundle to the **Canvas assignment**.
-- **What your professor does with it (in Organic Chemistry 2 terms):** Verifies your SHA-256 hashes, grades your rubric, and runs high-precision quantum chemistry calculations (coupled-cluster theory) on Cumberland's department research computers using your verified 3D structures to pin down subtle hydrogen-bond strengths, exact transition-state barrier heights, and microwave rotational constants too demanding for free classroom runners.
+- **What you submit to your professor:** Upload your Milestone PDF (with your local Commit SHA, `FactLedger` SHA-256, and `AI_Usage_Log.md`) **and** your verified `cochem.student-handoff/2` `.zip` + `.zip.sha256` bundle to the **Canvas assignment**.
+- **What your professor does with it (in Organic Chemistry 2 terms):** Verifies your SHA-256 hashes, grades your rubric (with `CoChem-ORACLE` zero-LLM Student Data Auditing Model checks), and runs high-precision quantum chemistry calculations (canonical coupled-cluster theory via `cochem_workstation_job_runner`) on Cumberland's department research computers using your verified 3D structures to pin down subtle hydrogen-bond strengths, exact transition-state barrier heights, and microwave rotational constants.
 - **What your professor hands back to you:** Graded Canvas rubric feedback, the unblinded Week 12 research-grade reference key (so you can compare your DFT energies, carbonyl shifts, and barriers against high-accuracy theory), and the Tennessee Tech University CP-FTMW spectroscopy collaborator's experimental rotational comparison for your M3/M4 report and poster.
 
 ---
 
-## Stage 0 — Day-1 Setup (10 Minutes)
+## Stage 0 — Day-1 Local WSL2 Setup (5 Minutes)
 
-### Step 1: Fork `CoChem-BASE` as a Public Repository
+### Step 1: Activate the Pre-Provisioned WSL2 Environment
 
-1. Sign in to your personal [GitHub](https://github.com/) account.
-2. Open [`ProfJJK-CoChem/CoChem-BASE`](https://github.com/ProfJJK-CoChem/CoChem-BASE).
-3. Click **Fork** near the top right.
-4. Keep **Owner** set to your personal username, keep **Repository name** as **`CoChem-BASE`**, and keep visibility **Public**. Click **Create fork**.
-5. Open your fork's **Actions** tab and click **I understand my workflows, go ahead and enable them** (GitHub asks once on new forks).
+1. Open your **WSL2 Ubuntu** terminal and activate the CoChem workstation stack:
 
-### Step 2: Run Your Day-1 Smoke Test on GitHub Actions
+```bash
+source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh
+cd /mnt/d/__CoChem/GitHub-Repo/CoChem-BASE
+```
 
-1. On your public fork, click **Actions** → select **`Student conformers (CREST 3.0.2, AIMNet2/MACE, CPU PySCF)`** (`student_conformers.yml`) in the left sidebar.
-2. Click **Run workflow** → leave the default **`xyz: ethanol.xyz`** (and `course_id: CHEM312`) → click the green **Run workflow** button.
-3. Wait for the green checkmark, open the completed run, and download the `cochem-student-handoff-v2` artifact ZIP (contains your inner `.zip` and `.zip.sha256` sidecar).
+2. Verify local binaries and Python engines are live on `PATH`:
 
-*(Note: `student_project_setup.yml` in the Actions sidebar is an optional private-track setup diagnostic for CHEM 490 instructor-invited repositories and is skipped on public forks—use `student_conformers.yml` on `ethanol.xyz` for your CHEM 312L Day-1 smoke test.)*
+```bash
+cochem-cli --version
+xtb --version | head -n 4
+crest --version | head -n 4
+which spcat spfit
+python -c "import pyscf, numpy, scipy, cochem_base; print('OK PySCF:', pyscf.__version__)"
+```
 
-### Step 3: Open Your Personal GitHub Codespace (for Local Analysis & Dashboard)
-
-1. On your public fork's home page, click the green **Code** button → **Codespaces** tab → **Create codespace on main**.
-2. Wait **5–10 minutes on a fresh Codespace (or ~30 seconds when Prebuilds are enabled)** while `PySCF`, `xTB`, `CREST`, `TOPOS`, and `TORQ` finish preparing. Port **8866 (`CoChem Voilà dashboard`)** shows a live auto-refreshing progress page and opens the dashboard automatically when ready.
-3. Starter folders and templates are already committed in your fork on Day 1:
+3. Starter folders and templates are already committed in `CoChem-BASE`:
    - `AI_Usage_Log.md` — Fill in as you complete `M1`–`M4`.
    - `targets/team_card.yaml` — Record your team's assigned molecule, dimer, and reaction inputs.
    - `data/` — Place your wet-lab Nicolet iS50 ATR-FTIR `.csv` files here.
    - `results/` — Save all local script outputs (`.csv`, `.json`, `.md`, `FactLedger.*`) here.
-4. Your Codespace terminal automatically puts the managed scientific Python environment (`/home/vscode/CoChem_Artifacts/ui-env/bin`) first on `PATH`, so `python` and `python3` have `numpy`, `scipy`, `pandas`, and `cochem-cli` ready immediately with zero manual `venv` activation.
-5. **Always stop your Codespace when finished:** open [github.com/codespaces](https://github.com/codespaces), click **`...`** next to your Codespace, and choose **Stop codespace**. (Stopping a Codespace does not cancel a running GitHub Actions job.)
+
+### Step 2: Run Your Day-1 Local Smoke Test (`ethanol.xyz`)
+
+Run a quick local conformer + PySCF check using **CREST 3.0.2** with the mandatory `--legacy --xnam "$(which xtb)" --nocross` flags:
+
+```bash
+mkdir -p ~/CoChem_Workstation_Direct/Scratch/chem312_day1
+cd ~/CoChem_Workstation_Direct/Scratch/chem312_day1
+cp /mnt/d/__CoChem/GitHub-Repo/CoChem-BASE/examples/student_inputs/ethanol.xyz .
+crest ethanol.xyz --gfn2 --legacy --xnam "$(which xtb)" --nocross -T 2 --quick > crest_ethanol.out 2>&1
+```
+
+*(Optional Voilà GUI: launch `python /mnt/d/__CoChem/GitHub-Repo/CoChem-BASE/scripts/student_voila.py /mnt/d/__CoChem/GitHub-Repo/CoChem-BASE/Start_Here.ipynb --port=8866 --no-browser` and open `http://localhost:8866`.)*
 
 ---
 
-## How to Upload `.xyz` Molecules to Your Fork (Required Before Running Workflows)
+## Preparing Your `.xyz` Molecule Inputs
 
-All GitHub Actions course workflows read your starting structures from **`examples/student_inputs/`** in your public fork. Use **either** Option A (zero terminal) or Option B (Codespace terminal):
-
-### Option A — GitHub Web UI (Click-by-Click, Zero Terminal)
-
-1. Open your public fork (`https://github.com/<your-username>/CoChem-BASE`) in your browser.
-2. Click the **`examples`** folder, then click **`student_inputs`**.
-3. Click **Add file** → **Upload files** near the top right.
-4. Drag and drop your `.xyz` file (for example, `hcooh_start.xyz` or `hcooh_water_dimer.xyz`) into the upload box.
-   - For a Week 10 NAS reaction folder (e.g., `hcof_fluoride_rxn/` containing `reactant.xyz` and `product.xyz`), drag the entire folder into the upload box so it appears at `examples/student_inputs/hcof_fluoride_rxn/reactant.xyz` and `product.xyz`.
-5. Scroll down, enter a short commit message (e.g., `Add HCOOH starting geometry`), leave **Commit directly to the `main` branch** selected, and click **Commit changes**.
-
-### Option B — Codespace Terminal
+Place your starting geometries inside your working scratch directory (or `examples/student_inputs/` in your local clone):
 
 ```bash
 # Single monomer or dimer .xyz file:
 cp <file>.xyz examples/student_inputs/
-git add examples/student_inputs/<file>.xyz
-git commit -m "Add molecule"
-git push
 
 # Week 10 NAS reaction folder (reactant.xyz + product.xyz):
 mkdir -p examples/student_inputs/<rxn_folder>
 cp reactant.xyz product.xyz examples/student_inputs/<rxn_folder>/
-git add examples/student_inputs/<rxn_folder>/
-git commit -m "Add NAS reaction inputs"
-git push
 ```
 
 ---
 
-## Exact Canonical Course Workflows (GitHub Actions Tab)
+## Local WSL2 Course Calculation Commands (`M1`–`M4`)
 
-All course workflows are strictly manual **`workflow_dispatch`** (zero automatic `push` triggers, zero scheduled crons). Open your fork's **Actions** tab, pick the exact workflow filename below, click **Run workflow**, and fill in these exact inputs:
+### M1 (Weeks 1–4) — Conformers, MLFF Screening & CPU PySCF (`student/conformers.py` + `CREST 3.0.2`)
 
-| # | Milestone / Timing | Exact Workflow Filename | Exact `workflow_dispatch` Inputs to Fill In |
-| --- | --- | --- | --- |
-| 1 | Day-1 Optional Diagnostic | `student_project_setup.yml` | Private-track / instructor setup check (`request_id`); **skipped on public forks**. CHEM 312L Day-1 smoke test uses `student_conformers.yml` with `xyz: ethanol.xyz`. |
-| 2 | **M1** (Weeks 1–4) | `student_conformers.yml` | `xyz`: filename in `examples/student_inputs/` (e.g., `hcooh_start.xyz`), `charge`: `'0'` (or `'-1'`, etc.), `multiplicity`: `'1'`, `mlff`: `auto`, `method`: `B3LYP-D3BJ` (or `wB97X-D3`), `basis`: `def2-SVP` (or `def2-TZVP`), `solvation`: `gas`, **`frequencies`: `true`** (checkbox in UI to compute harmonic frequencies and verify 0 imaginary modes), `course_id`: `CHEM312`, `target_continuation`: `workstation`. |
-| 3 | **M3** (Weeks 10–11 Dimer NCI & BSSE) | `04_crest_nci_dimer_bsse.yml` | `xyz`: dimer filename in `examples/student_inputs/` (e.g., `hcooh_water_dimer.xyz`), **`monomer_a_atoms`**: leading atom count for monomer A (e.g., `'5'` for atoms 1–5 HCOOH, leaving atoms 6–8 as H2O), `charge`: `'0'`, `multiplicity`: `'1'`, `monomer_a_charge`: `'0'`, `monomer_b_charge`: `'0'`, `method`: `wB97X-D3`, `basis`: `def2-TZVP`, `solvation`: `gas`, `course_id`: `CHEM312`. |
-| 4 | **M3** (Weeks 7–9 Anharmonic IR) | `05_gvpt2_6shard_anharmonic.yml` | `xyz`: monomer filename in `examples/student_inputs/` (e.g., `hcooh_start.xyz`), `charge`: `'0'`, `multiplicity`: `'1'`, `method`: `B3LYP-D3BJ`, `basis`: `def2-SVP`, `solvation`: `gas`, **`pre_optimize`: `true`**, `step_size`: `'0.01'`, `course_id`: `CHEM312`. Runs 6 parallel shards (`0..5`) and aggregates anharmonic Barone GVPT2 frequencies. |
-| 5 | **Week 10 NAS** (M3 draft → **M4** synthesis) | `06_aimnet2_neb_pyscf_rxn_profile.yml` | `input_dir`: `examples/student_inputs/<rxn_folder>` containing `reactant.xyz` + `product.xyz` (or `R.xyz`, `Int_tet.xyz`, `P.xyz`), `input_name`: `<rxn_folder>.xyz`, **`charge`**: `'-1'` (for anionic NAS such as `HCOF + F-`) or `'0'`, **`multiplicity`**: `'1'`, `solvent_name`: `acetonitrile` (or `water`), `temp_k`: `'298.15'`, `dft_basis`: `def2-TZVPP` (or `def2-SVP` for fast checks), `stage`: `all` (`mlff` or `validate`), `course_id`: `CHEM312`. |
-| 6 | **M4** (Weeks 12–15 Rotational Prediction) | `07_spcat_8_18ghz_prediction.yml` | `xyz`: monomer filename in `examples/student_inputs/`, `charge`: `'0'`, `multiplicity`: `'1'`, **`a_mhz`**, **`b_mhz`**, **`c_mhz`**, **`mu_a`**, **`mu_b`**, **`mu_c`** (plus optional quartic distortion `dj_khz`..`d2_khz`), `t_rot_k`: `'2.0'`, `freq_min_ghz`: `'8.0'`, `freq_max_ghz`: `'18.0'`, `constant_type`: `B0`, `course_id`: `CHEM312`. |
+Always pass **`--legacy --xnam "$(which xtb)" --nocross`** whenever invoking `crest` 3.0.2 directly:
 
-*(Note on M3/M4 placement of Week 10 NAS: `06_aimnet2_neb_pyscf_rxn_profile.yml` is dispatched during Week 10 for your initial M3 reaction-profile draft and synthesized into your final M4 dossier and poster. CHEM 312L uses PySCF Boys–Bernardi counterpoise BSSE in `04_crest_nci_dimer_bsse.yml`—there is no PSI4 SAPT0 step.)*
+```bash
+# Direct CREST 3.0.2 conformer search (monomer):
+crest examples/student_inputs/hcooh_start.xyz \
+  --gfn2 --legacy --xnam "$(which xtb)" --nocross -T 2
+
+# Direct CREST 3.0.2 NCI dimer search (M3 Weeks 10–11):
+crest examples/student_inputs/hcooh_water_dimer.xyz \
+  --gfn2 --nci --legacy --xnam "$(which xtb)" --nocross -T 2
+
+# Integrated conformer + charge-aware AIMNet2/MACE + CPU PySCF pipeline:
+python student/conformers.py \
+  --xyz examples/student_inputs/hcooh_start.xyz \
+  --charge 0 --multiplicity 1 \
+  --mlff auto --method B3LYP-D3BJ --basis def2-SVP \
+  --solvation gas --frequencies \
+  --course-id CHEM312 \
+  --output-dir results/m1_hcooh
+```
+
+*(Note: CHEM 312L uses PySCF Boys–Bernardi counterpoise BSSE for M3 1:1 dimers—there is no PSI4 SAPT0 step. For Week 10 NAS reaction profiles, run `cochem-kinetic rxn-profile` locally with `$COCHEM_AIMNET_PYTHON` exported by `activate_cochem_wsl.sh`.)*
 
 ---
 
-## Local Codespace CLI Cheat-Sheet (All 6 Real Scripts)
+## Local WSL2 Analysis CLI Cheat-Sheet (All 6 Real Scripts)
 
-Run these commands directly inside your Codespace terminal (`python` already points to the scientific `ui-env`). Every command below is copy-pasteable and uses real script names and verified flags.
+Run these commands directly inside your activated WSL2 terminal. Every command below is copy-pasteable and uses real script names and verified flags.
 
 ### 1. M2 — Kramers–Kronig ATR-FTIR Correction (`scripts/kk_atr_correct.py`)
 
@@ -137,7 +142,7 @@ python scripts/fermi_deperturb.py \
 
 ### 3. M3 — 1:1 Complexation Shift & Counterpoise BSSE Analyzer (`scripts/vdw_titration_diff.py`)
 
-Combines monomer harmonic IR JSON, `bsse_counterpoise.json` from `04_crest_nci_dimer_bsse.yml`, and optional dimer harmonic IR JSON or experimental ATR CSVs (unmeasured or omitted slots are honestly marked `PENDING`):
+Combines monomer harmonic IR JSON, `bsse_counterpoise.json`, and optional dimer harmonic IR JSON or experimental ATR CSVs (unmeasured or omitted slots are honestly marked `PENDING`):
 
 ```bash
 python scripts/vdw_titration_diff.py \
@@ -149,11 +154,11 @@ python scripts/vdw_titration_diff.py \
   --output-json results/vdw_diff.json
 ```
 
-*(Note: `--dimer-json results/dimer_ir.json` is optional if you also run a separate dimer frequency calculation—`04_crest_nci_dimer_bsse.yml` emits `bsse_counterpoise.json` without a dimer Hessian. Add `--exp-monomer-csv data/monomer_atr.csv --exp-complex-csv data/complex_atr.csv --kk-correct` once experimental titration spectra are collected.)*
+*(Note: `--dimer-json results/dimer_ir.json` is optional if you also run a separate dimer frequency calculation—counterpoise BSSE produces `bsse_counterpoise.json` without a dimer Hessian. Add `--exp-monomer-csv data/monomer_atr.csv --exp-complex-csv data/complex_atr.csv --kk-correct` once experimental titration spectra are collected.)*
 
 ### 4. M3 — 6-Shard Barone GVPT2 Planner, Shard Runner & Aggregator (`scripts/gvpt2_shard_runner.py`)
 
-Used automatically inside `05_gvpt2_6shard_anharmonic.yml`, or locally in Codespace to inspect/aggregate downloaded shard JSONs:
+Run all 6 deterministic displaced-geometry shards locally in WSL2 and aggregate into `gvpt2_shard_manifest.json`:
 
 ```bash
 # Plan K=6 displaced-geometry shards:
@@ -206,7 +211,7 @@ python scripts/kraitchman_rs.py \
 
 ### 6. M4 — Cryptographic L1–L3 Provenance Ledger (`scripts/fact_ledger.py`) & Handoff Verification (`student/handoff.py`)
 
-Hashes every primary (`L1`) and derived (`L2`) artifact into a tamper-evident `FactLedger.json` and `FactLedger.md`, then verifies all digests fail-closed before uploading to Canvas:
+Hashes every primary (`L1`) and derived (`L2`) artifact into a tamper-evident `FactLedger.json` and `FactLedger.md`, then seals and verifies your `cochem.student-handoff/2` archive fail-closed before uploading to Canvas:
 
 ```bash
 # Build FactLedger.json and FactLedger.md:
@@ -218,7 +223,7 @@ python scripts/fact_ledger.py \
 # Verify fail-closed (must print "verified": true):
 python scripts/fact_ledger.py --verify results/FactLedger.json
 
-# Verify your downloaded GitHub Actions cochem.student-handoff/2 ZIP + .sha256 sidecar:
+# Verify your sealed cochem.student-handoff/2 ZIP + .sha256 sidecar:
 python student/handoff.py path/to/CoChem-bundle.zip \
   --sidecar path/to/CoChem-bundle.zip.sha256 \
   --stage ./received
@@ -226,12 +231,22 @@ python student/handoff.py path/to/CoChem-bundle.zip \
 
 ---
 
+## Deprecated / Legacy GitHub Actions Workflows (Historical Archive Reference Only)
+
+> **Deprecated Notice:** GitHub Actions compute runners, GitHub Codespaces, and `classroom50` are **deprecated** for CHEM 312L. Execute all calculations locally in WSL2 above. The historical `workflow_dispatch` filenames below are retained strictly for reading archived artifacts:
+> - `student_conformers.yml` (legacy M1 conformer workflow)
+> - `04_crest_nci_dimer_bsse.yml` (legacy M3 dimer NCI & counterpoise BSSE workflow)
+> - `05_gvpt2_6shard_anharmonic.yml` (legacy M3 6-shard GVPT2 workflow)
+> - `06_aimnet2_neb_pyscf_rxn_profile.yml` (legacy Week 10 NAS reaction-profile workflow)
+> - `07_spcat_8_18ghz_prediction.yml` (legacy M4 8–18 GHz SPCAT prediction workflow)
+
+---
+
 ## Pre-Submission Checklist (Every Milestone `M1`–`M4`)
 
-1. Public fork URL (`https://github.com/<your-username>/CoChem-BASE`) is **Public** and clickable.
-2. GitHub Actions Run URL and Commit SHA are pasted into your Milestone PDF.
+1. All calculations ran authentically in local WSL2 (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`).
+2. Local Commit SHA and `FactLedger` SHA-256 are pasted into your Milestone PDF.
 3. `python scripts/fact_ledger.py --verify results/FactLedger.json` prints `"verified": true`.
 4. `python student/handoff.py <bundle.zip> --sidecar <bundle.zip.sha256> --stage ./received` exits `0`.
-5. `AI_Usage_Log.md` is updated, committed, and attached/included.
+5. `AI_Usage_Log.md` is updated and included with your Canvas submission.
 6. Milestone PDF + verified `.zip` + `.zip.sha256` are uploaded to your **Canvas** assignment.
-7. Your GitHub Codespace is **stopped** at [github.com/codespaces](https://github.com/codespaces).

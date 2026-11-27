@@ -44,9 +44,16 @@ _TRANSITION_METALS = frozenset({
 
 def quadrature_execution_plan(molecule: Any) -> dict[str, Any]:
     """Return the native grid sequence, respecting every effective minimum."""
+    from cochem_base.calc.regime_guards import evaluate_heavy_element_and_tm_guard
+
     minimum = int(molecule.resolved_grid()[-1])
-    if any(element in _TRANSITION_METALS for element in molecule.elements):
-        minimum = 3  # Match the deck compiler's metal safeguard.
+    heavy_guard = evaluate_heavy_element_and_tm_guard(
+        molecule.elements,
+        method_or_theory=molecule.theory_level,
+        engine="orca",
+    )
+    if heavy_guard.require_defgrid3:
+        minimum = 3  # Match the deck compiler's 3d-TM and heavy-element (Z > 36) safeguard.
     tokens = set(molecule.theory_level.upper().split())
     is_dft = bool(tokens & _DFT)
     dynamic = bool(is_dft and molecule.is_opt and not molecule.is_freq
@@ -343,15 +350,79 @@ def execute_orca_calculation(
         emit({"kind": "status", "status": "RUNNING", "engine": "orca", "grid": f"DEFGRID{stage}"})
         stage_started = time.monotonic()
         stage_timeout = remaining()
-        result = safe_subprocess_run(
-            [authority.executable, deck.name], cwd=stage_dir, timeout=stage_timeout, check=False,
-            capture_output=True, text=True, env=environment, required_disk_gb=0.1,
-            on_stdout_line=stdout_line,
-            on_stderr_line=lambda line: emit({"kind": "log", "stream": "stderr", "message": line}),
-            load_full_stdout=True, cancellation_event=cancellation_event,
-            cpu_affinity=list(authority.cpu_affinity) or None,
+
+        from cochem_base.calc.regime_guards import (
+            MAX_SCF_RETRIES,
+            apply_chemical_regime_guards,
+            parse_cc_multireference_diagnostics,
+            prepare_orca_scf_retry,
+            reoptimize_imaginary_modes,
         )
-        schema = _accept_orca_result(result, stage_dir, data.basin_id, config)
+
+        scf_retry_records: list[dict[str, Any]] = []
+        retry_idx = 0
+        while True:
+            result = safe_subprocess_run(
+                [authority.executable, deck.name], cwd=stage_dir, timeout=remaining(), check=False,
+                capture_output=True, text=True, env=environment, required_disk_gb=0.1,
+                on_stdout_line=stdout_line,
+                on_stderr_line=lambda line: emit({"kind": "log", "stream": "stderr", "message": line}),
+                load_full_stdout=True, cancellation_event=cancellation_event,
+                cpu_affinity=list(authority.cpu_affinity) or None,
+            )
+            try:
+                schema = _accept_orca_result(result, stage_dir, data.basin_id, config)
+                break
+            except RuntimeError:
+                current_deck_text = deck.read_text(encoding="utf-8")
+                decision = prepare_orca_scf_retry(
+                    current_deck_text,
+                    result.stdout or "",
+                    retry_index=retry_idx,
+                    max_retries=MAX_SCF_RETRIES,
+                )
+                scf_retry_records.append(decision.to_dict())
+                if not decision.should_retry:
+                    raise
+                # Preserve failed attempt artifacts before writing remediated deck
+                (stage_dir / f"{data.basin_id}_scf_attempt_{retry_idx}.inp").write_text(
+                    current_deck_text, encoding="utf-8",
+                )
+                (stage_dir / f"{data.basin_id}_scf_attempt_{retry_idx}.out").write_text(
+                    result.stdout or "", encoding="utf-8",
+                )
+                for warn_msg in decision.warnings:
+                    emit({"kind": "warning", "code": "SCF_AUTO_RETRY", "grid": f"DEFGRID{stage}", "message": warn_msg})
+                deck.write_text(decision.remediated_deck, encoding="utf-8")
+                retry_idx += 1
+                # Reset stream collectors for clean retry measurement
+                spin = SpinContaminationStreamValidator(config.multiplicity)
+                stream = ORCAGradientStream(
+                    telemetry_job_id, data.elements, nuclides=nuclides,
+                    source_id=f"{telemetry_job_id}-defgrid{stage}-retry{retry_idx}",
+                    source_path=stage_dir / "native-gradient-evaluations.txt",
+                    metadata={"engine": "orca", "method": config.method, "basis_set": config.basis_set,
+                              "source_artifact_relative_path": str((stage_dir / "native-gradient-evaluations.txt").relative_to(directory)),
+                              "published_source_path": str(published_directory / (stage_dir / "native-gradient-evaluations.txt").relative_to(directory))
+                                                       if published_directory is not None else None,
+                              "grid": f"DEFGRID{stage}", "record_kind": "native_gradient_evaluation",
+                              "scf_retry_attempt": retry_idx},
+                    on_record=lambda record: emit({"kind": "gradient", "grid": f"DEFGRID{stage}", **record}),
+                )
+
+        stage_scf_retry_provenance = {
+            "retries_used": retry_idx,
+            "max_retries": MAX_SCF_RETRIES,
+            "decisions": scf_retry_records,
+        }
+        cc_diagnostics = parse_cc_multireference_diagnostics(
+            result.stdout or "",
+            engine="orca",
+            method=config.method,
+            multiplicity=config.multiplicity,
+        )
+        for warn_msg in cc_diagnostics.get("warnings", []):
+            emit({"kind": "warning", "code": "MULTIREFERENCE_DIAGNOSTIC", "grid": f"DEFGRID{stage}", "message": warn_msg})
         if previous is not None:
             if not re.search(r"^[ \t]*Guess MOs are being read from file:[ \t]+previous-stage\.gbw[ \t]*$",
                              result.stdout or "", flags=re.MULTILINE):
@@ -375,7 +446,10 @@ def execute_orca_calculation(
         accepted = {"engine": "orca", "method": config.method, "converged": True,
                     "energy_hartree": schema["properties"]["return_energy"], "elements": elements,
                     "coordinates_angstrom": final, "operation": capability.operation,
-                    "optimization_performed": config.is_opt}
+                    "optimization_performed": config.is_opt,
+                    "scf_retry_provenance": stage_scf_retry_provenance}
+        if cc_diagnostics.get("is_coupled_cluster"):
+            accepted["multireference_diagnostics"] = cc_diagnostics
         accepted.update(accept_gradient(
             stage_dir / f"{data.basin_id}_job.engrad", elements, final, accepted["energy_hartree"],
             required=config.is_opt or bool(re.search(r"\bENGRAD\b", data.theory_level, re.I)),
@@ -404,10 +478,51 @@ def execute_orca_calculation(
                           accepted["constraint_gradient_evidence"]["normal_reaction_gradient_norm_hartree_per_bohr"],
                       "threshold_hartree_per_bohr": 1e-4})
         if config.is_freq:
+            hess_path = stage_dir / f"{data.basin_id}_job.hess"
             accepted.update(accept_harmonic_hessian(
-                stage_dir / f"{data.basin_id}_job.hess", stage_dir / f"{data.basin_id}_job.out",
+                hess_path, stage_dir / f"{data.basin_id}_job.out",
                 elements, final, optimized=config.is_opt, nuclides=nuclides,
             ))
+            # Guard 4b: Authentic imaginary-mode eigenvector displacement + re-optimization
+            # for minimum optimizations (capped at 2 retries, failing closed if persistent).
+            if (
+                config.is_opt
+                and not re.search(r"\bOPTTS\b", config.method, re.IGNORECASE)
+                and stage == plan["stages"][-1]
+                and not getattr(config, "_in_imaginary_mode_retry", False)
+            ):
+                from cochem_base.chain.chain import parse_orca_hessian
+
+                parsed_hess = parse_orca_hessian(hess_path)
+                if parsed_hess is not None and parsed_hess.get("hessian") is not None:
+                    def _run_imag_reopt(displaced_coords: list[list[float]], attempt_num: int) -> tuple[dict[str, Any], np.ndarray]:
+                        retry_dir = directory / f"imag_mode_retry_{attempt_num}"
+                        retry_dir.mkdir(parents=True, exist_ok=False)
+                        retry_mol = _stage_model(molecule, stage, [tuple(row) for row in displaced_coords])
+                        retry_cfg = config.model_copy()
+                        object.__setattr__(retry_cfg, "_in_imaginary_mode_retry", True)
+                        retry_accepted = execute_orca_calculation(
+                            retry_cfg, retry_mol, directory=retry_dir, authority=authority,
+                            environment=environment, capability=capability, registry_path=registry_path,
+                            cancellation_event=cancellation_event, on_event=on_event,
+                            telemetry_job_id=f"{telemetry_job_id}-imag-retry-{attempt_num}",
+                            nuclides=nuclides, published_directory=published_directory,
+                        )
+                        retry_hess = parse_orca_hessian(retry_dir / f"{retry_mol.basin_id}_job.hess")
+                        if retry_hess is None or retry_hess.get("hessian") is None:
+                            raise RuntimeError("Imaginary-mode re-optimization omitted its .hess checkpoint")
+                        return retry_accepted, retry_hess["hessian"]
+
+                    accepted, imag_prov = reoptimize_imaginary_modes(
+                        elements,
+                        accepted,
+                        initial_hessian=parsed_hess["hessian"],
+                        reopt_runner=_run_imag_reopt,
+                    )
+                    accepted["imaginary_mode_check"] = imag_prov
+                    final = accepted["coordinates_angstrom"]
+                    for warn_msg in imag_prov.get("warnings", []):
+                        emit({"kind": "warning", "code": "IMAGINARY_MODE_RETRY", "message": warn_msg})
         evidence = {"grid": f"DEFGRID{stage}", "directory": str(stage_dir.relative_to(directory)),
                     "energy_hartree": accepted["energy_hartree"], "coordinates_angstrom": final,
                     "gradient_evaluations": len(stream.records), "converged": True,
@@ -444,13 +559,23 @@ def execute_orca_calculation(
                 "stage_handoff.json", "stage_result.json", "previous-stage.gbw",
             }:
                 shutil.copy2(artifact, directory / artifact.name)
+    from cochem_base.calc.regime_guards import apply_chemical_regime_guards
+
+    regime_summary = apply_chemical_regime_guards(
+        molecule.elements,
+        charge=molecule.charge,
+        method_or_theory=molecule.theory_level,
+        engine="orca",
+    )
+    accepted["regime_guards"] = regime_summary.to_provenance_dict()
     accepted["grid_lifecycle"] = {**plan, "completed_stages": stage_results, "final_grid": plan["grids"][-1],
                                   "whole_operation_timeout_seconds": config.timeout_seconds,
                                   "observed_elapsed_seconds": time.monotonic() - started}
     accepted["metadata"] = {key: accepted[key] for key in (
         "gradient_artifact", "hessian_artifact", "harmonic_frequencies_cm1", "principal_isotope_masses_u",
         "harmonic_frequency_provenance", "hessian_bundle_artifact", "harmonic_nuclides",
-        "harmonic_isotope_masses_u",
+        "harmonic_isotope_masses_u", "regime_guards", "multireference_diagnostics",
+        "scf_retry_provenance", "imaginary_mode_check",
     ) if key in accepted}
     accepted["metadata"]["grid_lifecycle"] = _lifecycle_telemetry_summary(directory / "grid_lifecycle.json", accepted["grid_lifecycle"])
     remaining()

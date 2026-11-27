@@ -32,6 +32,7 @@ Authoritative Standards:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import copy
 import json
 import math
@@ -40,7 +41,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import msgpack
 import numpy as np
@@ -198,19 +199,38 @@ def benzene_molecule() -> MolecularData:
 # 1. Environment & Dynamic Path Resolution Tests
 # ==============================================================================
 
-def test_dynamic_data_dir_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or delete os.environ entries and restore on exit."""
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
+def test_dynamic_data_dir_resolution() -> None:
     """Verify dynamic data dir respects COCHEM_DATA_DIR and defaults to ~/.cochem/data."""
     # Test fallback
-    monkeypatch.delenv("COCHEM_DATA_DIR", raising=False)
-    default_dir = get_default_data_dir()
-    expected_default = (Path.home() / ".cochem" / "data").resolve()
-    assert default_dir == expected_default
+    with _scoped_env(COCHEM_DATA_DIR=None):
+        default_dir = get_default_data_dir()
+        expected_default = (Path.home() / ".cochem" / "data").resolve()
+        assert default_dir == expected_default
 
     # Test custom env var
     with tempfile.TemporaryDirectory() as tmp_dir:
-        monkeypatch.setenv("COCHEM_DATA_DIR", tmp_dir)
-        resolved = get_default_data_dir()
-        assert resolved == Path(tmp_dir).resolve()
+        with _scoped_env(COCHEM_DATA_DIR=tmp_dir):
+            resolved = get_default_data_dir()
+            assert resolved == Path(tmp_dir).resolve()
 
 
 # ==============================================================================

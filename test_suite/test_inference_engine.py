@@ -18,10 +18,12 @@ Validates:
 from __future__ import annotations
 
 import ast
+from contextlib import contextmanager
 import json
 import os
 import platform
 from pathlib import Path
+from typing import Iterator, Optional
 
 import pytest
 
@@ -281,51 +283,67 @@ def test_local_llama_engine_context_expansion_failover(tmp_path: Path) -> None:
     assert engine.get_allocated_vram_gb() == 0.0
 
 
-def test_gemini_engine_initialization_and_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or unset environment variables and restore them on exit."""
+    saved = {k: os.environ.get(k) for k in updates}
+    try:
+        for k, v in updates.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        yield
+    finally:
+        for k, prev in saved.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
+def test_gemini_engine_initialization_and_fallback() -> None:
     """Verifies GeminiEngine configuration, key discovery, and fallback on missing credentials."""
     # Deliberately remove API key
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    with _scoped_env(GEMINI_API_KEY=None, GOOGLE_API_KEY=None):
+        engine = GeminiEngine(api_key=None, env_path=None)
+        assert engine.is_available() is False
+        assert engine.tier == 2
 
-    engine = GeminiEngine(api_key=None, env_path=None)
-    assert engine.is_available() is False
-    assert engine.tier == 2
-
-    # Generating without API key must gracefully fall back to DryRun
-    resp = engine.generate_with_fallback(
-        prompt="Generate report on molecular orbital analysis.",
-        context_data={"molecule": "H2O"},
-    )
-    assert resp.success is True
-    assert resp.tier == 3
-    assert resp.engine_name == "DryRunEngine"
-    assert "H2O" in resp.text or "molecular" in resp.text.lower()
+        # Generating without API key must gracefully fall back to DryRun
+        resp = engine.generate_with_fallback(
+            prompt="Generate report on molecular orbital analysis.",
+            context_data={"molecule": "H2O"},
+        )
+        assert resp.success is True
+        assert resp.tier == 3
+        assert resp.engine_name == "DryRunEngine"
+        assert "H2O" in resp.text or "molecular" in resp.text.lower()
 
 
-def test_scribe_router_cascade_all_tiers(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_scribe_router_cascade_all_tiers(tmp_path: Path) -> None:
     """Verifies full 3-tier cascade in ScribeLLMEngine factory router."""
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    with _scoped_env(GEMINI_API_KEY=None):
+        router = ScribeLLMEngine(
+            config=InferenceConfig(preferred_tier=1),
+            model_path=str(tmp_path / "missing_model.gguf"),
+        )
 
-    router = ScribeLLMEngine(
-        config=InferenceConfig(preferred_tier=1),
-        model_path=str(tmp_path / "missing_model.gguf"),
-    )
+        # Invariant: Dormant footprint on router initialization
+        assert router.get_dormant_vram_footprint_gb() == 0.0
 
-    # Invariant: Dormant footprint on router initialization
-    assert router.get_dormant_vram_footprint_gb() == 0.0
+        # With missing local weights and missing API key, router must cascade to Tier 3 (DryRun)
+        resp = router.generate(
+            prompt="Generate computational protocol for reaction pathway exploration.",
+            context_data={"method": "wB97X-D3", "basis_set": "def2-SVP"},
+        )
 
-    # With missing local weights and missing API key, router must cascade to Tier 3 (DryRun)
-    resp = router.generate(
-        prompt="Generate computational protocol for reaction pathway exploration.",
-        context_data={"method": "wB97X-D3", "basis_set": "def2-SVP"},
-    )
-
-    assert resp.success is True
-    assert resp.tier == 3
-    assert resp.engine_name == "DryRunEngine"
-    assert "wB97X-D3" in resp.text or "def2-SVP" in resp.text
-    assert "fallback_trail" in resp.metadata
-    assert len(resp.metadata["fallback_trail"]) >= 1
+        assert resp.success is True
+        assert resp.tier == 3
+        assert resp.engine_name == "DryRunEngine"
+        assert "wB97X-D3" in resp.text or "def2-SVP" in resp.text
+        assert "fallback_trail" in resp.metadata
+        assert len(resp.metadata["fallback_trail"]) >= 1
 
 
 def test_scribe_router_explicit_dry_run_selection() -> None:

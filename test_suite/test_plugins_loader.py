@@ -14,10 +14,12 @@ Validates:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import logging
+import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator, Optional
 
 import pluggy
 import pytest
@@ -169,6 +171,25 @@ def test_cochem_studio_specs_methods() -> None:
 # =============================================================================
 
 
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    """Temporarily set or unset environment variables and restore them on exit."""
+    saved = {k: os.environ.get(k) for k in updates}
+    try:
+        for k, v in updates.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        yield
+    finally:
+        for k, prev in saved.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
 def test_resolve_spycfit_plugin_dir_custom_path(tmp_path: Path) -> None:
     """Verify explicit custom_path argument takes highest precedence."""
     custom = tmp_path / "custom_spycfit"
@@ -176,22 +197,20 @@ def test_resolve_spycfit_plugin_dir_custom_path(tmp_path: Path) -> None:
     assert resolved == custom.resolve()
 
 
-def test_resolve_spycfit_plugin_dir_env_var(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_resolve_spycfit_plugin_dir_env_var(tmp_path: Path) -> None:
     """Verify COCHEM_SPYCFIT_DIR environment variable is respected."""
     env_dir = tmp_path / "env_spycfit"
-    monkeypatch.setenv(COCHEM_SPYCFIT_ENV_VAR, str(env_dir))
+    with _scoped_env(**{COCHEM_SPYCFIT_ENV_VAR: str(env_dir)}):
+        resolved = resolve_spycfit_plugin_dir()
+        assert resolved == env_dir.resolve()
 
-    resolved = resolve_spycfit_plugin_dir()
-    assert resolved == env_dir.resolve()
 
-
-def test_resolve_spycfit_plugin_dir_default_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_spycfit_plugin_dir_default_fallback() -> None:
     """Verify fallback to ~/.cochem/plugins/CoChem-SpycFit when no env var is set."""
-    monkeypatch.delenv(COCHEM_SPYCFIT_ENV_VAR, raising=False)
-
-    resolved = resolve_spycfit_plugin_dir()
-    expected = (Path.home() / DEFAULT_SPYCFIT_PLUGIN_RELPATH).resolve()
-    assert resolved == expected
+    with _scoped_env(**{COCHEM_SPYCFIT_ENV_VAR: None}):
+        resolved = resolve_spycfit_plugin_dir()
+        expected = (Path.home() / DEFAULT_SPYCFIT_PLUGIN_RELPATH).resolve()
+        assert resolved == expected
 
 
 # =============================================================================
@@ -329,12 +348,12 @@ def test_get_plugin_manager_with_sequence_plugin_dirs(tmp_path: Path) -> None:
             sys.path.remove(str2)
 
 
-def test_resolve_spycfit_plugin_dir_whitespace_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_spycfit_plugin_dir_whitespace_env_var() -> None:
     """Verify whitespace-only COCHEM_SPYCFIT_DIR falls back to default directory."""
-    monkeypatch.setenv(COCHEM_SPYCFIT_ENV_VAR, "   ")
-    resolved = resolve_spycfit_plugin_dir()
-    expected = (Path.home() / DEFAULT_SPYCFIT_PLUGIN_RELPATH).resolve()
-    assert resolved == expected
+    with _scoped_env(**{COCHEM_SPYCFIT_ENV_VAR: "   "}):
+        resolved = resolve_spycfit_plugin_dir()
+        expected = (Path.home() / DEFAULT_SPYCFIT_PLUGIN_RELPATH).resolve()
+        assert resolved == expected
 
 
 def test_inject_plugin_path_normalized_deduplication(tmp_path: Path) -> None:

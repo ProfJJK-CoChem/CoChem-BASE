@@ -135,7 +135,7 @@ def compute_forces(model: Base3DGNN, data: Any) -> GNNForceOutput:
         data_grad["pos"] = pos_grad
     else:
         data_grad = copy.copy(data)
-        setattr(data_grad, "pos", pos_grad)
+        data_grad.pos = pos_grad
 
     with torch.enable_grad():
         out = model(data_grad)

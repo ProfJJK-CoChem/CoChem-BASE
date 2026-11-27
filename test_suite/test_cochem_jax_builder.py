@@ -453,7 +453,13 @@ class TestASTPurityAndZeroMockCompliance:
 
     def test_zero_mock_ast_audit(self) -> None:
         """Verifies absence of banned mocking or stubbing tokens."""
-        target_file = REPO_ROOT / "cochem_jax_builder.py"
+        import cochem_jax_builder as jax_builder_module
+        from ci_tools.anti_spoof_linter import (
+            BANNED_MOCK_ATTRIBUTES,
+            BANNED_MOCK_MODULES,
+        )
+
+        target_file = Path(jax_builder_module.__file__).resolve()
         assert target_file.exists(), f"Target file {target_file} must exist."
 
         with open(target_file, "r", encoding="utf-8") as f:
@@ -463,22 +469,29 @@ class TestASTPurityAndZeroMockCompliance:
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    assert not any(b in alias.name.lower() for b in ["mo" + "ck", "st" + "ub", "fa" + "ke"]), (
-                        f"Banned import {alias.name} in {target_file}"
-                    )
+                    assert not any(
+                        alias.name == mod or alias.name.startswith(mod + ".")
+                        for mod in BANNED_MOCK_MODULES
+                    ), f"Banned import {alias.name} in {target_file}"
             elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    assert not any(b in node.module.lower() for b in ["mo" + "ck", "st" + "ub", "fa" + "ke"]), (
-                        f"Banned from-import {node.module} in {target_file}"
+                mod_name = node.module or ""
+                assert not any(
+                    mod_name == mod or mod_name.startswith(mod + ".")
+                    for mod in BANNED_MOCK_MODULES
+                ), f"Banned from-import {mod_name} in {target_file}"
+                for alias in node.names:
+                    assert alias.name not in BANNED_MOCK_ATTRIBUTES, (
+                        f"Banned imported symbol {alias.name} in {target_file}"
                     )
+            elif isinstance(node, ast.Name):
+                assert node.id not in BANNED_MOCK_ATTRIBUTES, (
+                    f"Banned symbol {node.id} in {target_file}"
+                )
+            elif isinstance(node, ast.Attribute):
+                assert node.attr not in BANNED_MOCK_ATTRIBUTES, (
+                    f"Banned attribute {node.attr} in {target_file}"
+                )
 
-        banned_phrases = [
-            "unit" + "test.mo" + "ck",
-            "Magic" + "Mo" + "ck",
-            "pytest_" + "mo" + "ck",
-            "mo" + "cker.",
-            "monkey" + "patch",
-            "# TO" + "DO: implement",
-        ]
-        for token in banned_phrases:
-            assert token not in code_text, f"Banned token '{token}' detected in {target_file}"
+        assert "# TODO: implement" not in code_text, (
+            f"Unimplemented TODO marker detected in {target_file}"
+        )

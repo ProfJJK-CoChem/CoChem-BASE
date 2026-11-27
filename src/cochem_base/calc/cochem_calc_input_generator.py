@@ -32,10 +32,8 @@ from cochem_base.theory_matrix import validate_product_class_policy
 from cochem_base.config_loader import get_artifact_dir, load_system_config_dict
 from cochem_base.geometry.constraints import (
     FrozenConstraintPayload,
-    build_reference_co2_h2o_complex,
     format_orca_frozen_monomer_constraints_block,
-    formulate_recipe_r2_wilson_constraints,
-    get_reference_monomer_geometry,
+    generate_frozen_monomer_constraints,
     get_dynamic_covalent_radius,
 )
 
@@ -78,6 +76,84 @@ def _orca_method_keywords(theory_level: str) -> str:
     ):
         rendered += " AutoAux"
     return rendered
+
+
+_ORCA_BASIS_TOKEN_PREFIXES = (
+    "DEF2-", "MA-", "CC-", "AUG-", "D-AUG-", "T-AUG-", "JUN-", "MAY-", "APR-", "JUL-",
+    "OLD-", "DKH-", "ZORA-", "X2C-", "SARC-", "PC-", "PCSEG-", "STO-", "ANO",
+)
+
+_ORCA_VV10_NL_TOKENS = frozenset({"NL", "SCNL", "VV10", "RVV10"})
+
+_ORCA_MP2_AND_DOUBLE_HYBRID_RE = re.compile(
+    r"^(?:"
+    r"(?:RI-|SCS-|SOS-|OO-RI-|OO-|DLPNO-|F12-|RI-SCS-)*MP2(?:-[A-Z0-9]+)?|"
+    r"(?:REV-?)?(?:"
+    r"B2(?:GP|K|T)?-?PLYP|"
+    r"MPW2(?:K-)?PLYP|"
+    r"WB2(?:GP-)?PLYP|"
+    r"PWPB95|"
+    r"(?:DSD|DOD)-[A-Z0-9]+|"
+    r"XYG3|"
+    r"WB97[MX]\(?2\)?|"
+    r"(?:RSX-|PBE-)?QIDH|"
+    r"PBE0-2|"
+    r"SOS0-PBE0-2|"
+    r"[KW]?PR2SCAN50"
+    r")(?:[-/][A-Z0-9-]+)*"
+    r")$",
+    re.IGNORECASE,
+)
+
+_ORCA_CC_METHOD_RE = re.compile(
+    r"^(?:DLPNO-|LPNO-|RI-)?CCSD(?:\(T[01]?\))?(?:-F12[AB]?)?$",
+    re.IGNORECASE,
+)
+
+
+def _orca_requires_numerical_frequency(theory_level: str) -> Tuple[bool, Optional[str]]:
+    """Return (True, reason) when an ORCA 6.1.1 method lacks analytic Hessian support.
+
+    Verified empirically against ORCA 6.1.1:
+    - DFT-NL / VV10 nonlocal dispersion functionals (e.g. wB97M-V, wB97X-V, B97M-V,
+      explicit NL/SCNL/VV10 keywords, *-NL functionals) abort `! Freq` with rc=25 and
+      require `! NumFreq`.
+    - MP2 and MP2-based double-hybrid functionals (e.g. MP2, RI-MP2, B2PLYP, PWPB95,
+      revDSD-PBEP86-D4, DSD-PBEP86, B2GP-PLYP) abort `! Freq` with rc=25 and require
+      `! NumFreq`.
+    - Coupled-cluster methods (e.g. CCSD, CCSD(T), DLPNO-CCSD(T)) lack analytic
+      Hessians in ORCA 6 and require `! NumFreq`.
+    """
+    normalized = theory_level.strip().upper().replace("Ω", "W").replace("Ω", "W")
+    tokens = normalized.split()
+    for raw_tok in tokens:
+        tok = raw_tok.split("/", 1)[0]
+        if tok in _ORCA_VV10_NL_TOKENS or tok.endswith(("-NL", "-SCNL", "-VV10", "-RVV10")):
+            return (
+                True,
+                f"ORCA 6 DFT-NL/VV10 nonlocal dispersion ('{raw_tok}') does not support analytic Hessians; numerical frequencies (! NumFreq) are required.",
+            )
+        if (
+            tok.endswith("-V")
+            and len(tok) >= 4
+            and not tok.endswith("-SV")
+            and not tok.startswith(_ORCA_BASIS_TOKEN_PREFIXES)
+        ):
+            return (
+                True,
+                f"ORCA 6 DFT-NL/VV10 functional '{raw_tok}' does not support analytic Hessians; numerical frequencies (! NumFreq) are required.",
+            )
+        if _ORCA_MP2_AND_DOUBLE_HYBRID_RE.fullmatch(raw_tok) or _ORCA_MP2_AND_DOUBLE_HYBRID_RE.fullmatch(tok):
+            return (
+                True,
+                f"ORCA 6 MP2/double-hybrid method '{raw_tok}' does not support analytic Hessians; numerical frequencies (! NumFreq) are required.",
+            )
+        if _ORCA_CC_METHOD_RE.fullmatch(tok):
+            return (
+                True,
+                f"ORCA 6 coupled-cluster method '{raw_tok}' does not support analytic Hessians; numerical frequencies (! NumFreq) are required.",
+            )
+    return (False, None)
 
 
 class MoleculeInput(BaseModel):
@@ -351,18 +427,43 @@ def generate_orca_input(
     if maxcore < 1 or maxcore * nprocs > memory_budget:
         raise HardwareAllocationError("Requested per-core memory exceeds the audited memory budget.")
 
-    # Transition metal check for tight grid override
-    transition_metals = {"Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
-                         "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd",
-                         "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg"}
-    needs_tight_grid = any(el in data.elements for el in transition_metals)
-    # 2. Dynamic Grid Tightening: defgrid3 mandated for frequency/Hessian tasks
-    grid_keyword = "DEFGRID3" if needs_tight_grid else data.resolved_grid()
-    theory_level = _orca_method_keywords(
-        re.sub(r"(?i)\bDEFGRID\d+\b", "", data.theory_level).strip()
+    # Chemical-regime auto-guards: anion diffuse basis (charge < 0), 3d TM DEFGRID3 (Z=21..30),
+    # and heavy-element scalar-relativistic / ECP treatment (Z > 36 across IUPAC Z=1..118).
+    from cochem_base.calc.regime_guards import apply_chemical_regime_guards
+
+    regime = apply_chemical_regime_guards(
+        data.elements,
+        charge=data.charge,
+        method_or_theory=data.theory_level,
+        engine="orca",
     )
-    if data.is_freq and not re.search(r"(?i)\b(?:NUMFREQ|FREQ)\b", theory_level):
-        theory_level += " Freq"
+    # 2. Dynamic Grid Tightening: DEFGRID3 mandated for frequency/Hessian, 3d TMs, and heavy elements (Z > 36)
+    grid_keyword = "DEFGRID3" if regime.require_defgrid3 else data.resolved_grid()
+    theory_level = _orca_method_keywords(
+        re.sub(r"(?i)\bDEFGRID\d+\b", "", regime.effective_theory_level).strip()
+    )
+    basis_block = ""
+    if regime.orca_basis_block_lines:
+        basis_block = "\n".join(["%basis", *regime.orca_basis_block_lines, "end"])
+    freq_guard_warnings: List[str] = []
+    needs_numfreq, numfreq_reason = _orca_requires_numerical_frequency(theory_level)
+    if data.is_freq and not re.search(r"(?i)\b(?:NUMFREQ|ANFREQ|FREQ)\b", theory_level):
+        if needs_numfreq:
+            theory_level += " NumFreq"
+            warning_msg = f"[FREQ_GUARD: ORCA_NUMFREQ] Emitted '! NumFreq' instead of '! Freq': {numfreq_reason}"
+            freq_guard_warnings.append(warning_msg)
+            logger.warning(warning_msg)
+        else:
+            theory_level += " Freq"
+    elif (
+        needs_numfreq
+        and re.search(r"(?i)\b(?:ANFREQ|FREQ)\b", theory_level)
+        and not re.search(r"(?i)\bNUMFREQ\b", theory_level)
+    ):
+        theory_level = re.sub(r"(?i)\b(?:ANFREQ|FREQ)\b", "NumFreq", theory_level)
+        warning_msg = f"[FREQ_GUARD: ORCA_NUMFREQ] Rewrote analytic frequency keyword to '! NumFreq': {numfreq_reason}"
+        freq_guard_warnings.append(warning_msg)
+        logger.warning(warning_msg)
     if data.is_vpt2 and not re.search(r"(?i)\bVPT2\b", theory_level):
         theory_level += " VPT2"
     if data.is_weak_complex:
@@ -432,7 +533,9 @@ def generate_orca_input(
 # Nuclear assignment SHA-256: {{ nuclides_sha256 }}
 {% endif %}
 {% if automatic_auxiliary %}# Correlation fitting basis: generated AutoAux (no explicit /C basis supplied)
-{% endif %}# =====================================================================
+{% endif %}{% for guard_warning in regime_warnings %}# Chemical-Regime Auto-Guard: {{ guard_warning }}
+{% endfor %}{% for freq_warning in freq_guard_warnings %}# Frequency Auto-Guard: {{ freq_warning }}
+{% endfor %}# =====================================================================
 ! {{ theory_level }} {{ opt_keyword }} {{ grid_keyword }} {{ solvation_keyword }} NoSym TightSCF
 
 %pal
@@ -442,6 +545,10 @@ end
 %maxcore {{ maxcore }}
 
 {{ scf_block }}
+{% if basis_block %}
+
+{{ basis_block }}
+{% endif %}
 
 {{ geom_block }}
 {% if requires_atm %}
@@ -463,12 +570,15 @@ end
         nuclides_sha256=hashlib.sha256(json.dumps(data.nuclides).encode()).hexdigest() if data.nuclides is not None else None,
         theory_level=theory_level,
         automatic_auxiliary="AUTOAUX" in theory_level.upper().split() and "AUTOAUX" not in data.theory_level.upper().split(),
+        regime_warnings=list(regime.warnings),
+        freq_guard_warnings=freq_guard_warnings,
         opt_keyword=opt_keyword,
         grid_keyword=grid_keyword,
         solvation_keyword=solvation_keyword,
         nprocs=nprocs,
         maxcore=maxcore,
         scf_block=ORCA_SCF_BLOCK,
+        basis_block=basis_block,
         charge=data.charge,
         multiplicity=data.multiplicity,
         coord_block=coord_str,
@@ -504,11 +614,23 @@ def generate_pyscf_input(data: MoleculeInput, output_dir: Optional[Path] = None,
         raise ValueError("This PySCF adapter supports restricted closed-shell single-point energies only")
     if data.tier == 2 and tokens[1].upper() not in {"MINI", "STO-3G"}:
         raise ValueError("Canonical Tier T2 requires HF/MINI or HF/STO-3G")
-    specification = {
+    from cochem_base.calc.regime_guards import apply_chemical_regime_guards
+
+    regime = apply_chemical_regime_guards(
+        data.elements,
+        charge=data.charge,
+        method_or_theory=data.theory_level,
+        basis=tokens[1],
+        engine="pyscf",
+    )
+    effective_basis = regime.effective_basis or tokens[1]
+    specification: Dict[str, Any] = {
         "atom": [[symbol, list(xyz)] for symbol, xyz in zip(data.elements, data.coordinates, strict=True)],
-        "unit": "Angstrom", "basis": tokens[1], "charge": data.charge, "spin": 0,
+        "unit": "Angstrom", "basis": effective_basis, "charge": data.charge, "spin": 0,
         "max_memory": (data.maxcore_mb or 1024) * (data.nprocs or 1),
     }
+    if regime.pyscf_ecp:
+        specification["ecp"] = dict(regime.pyscf_ecp)
     nuclear_identity = None
     if data.nuclides is not None:
         from cochem_base.geometry.nuclide_geometry import resolve_nuclear_identity
@@ -530,8 +652,12 @@ if pyscf.__version__ != EXPECTED_VERSION:
 pyscf.lib.num_threads(PROCESS_THREADS)
 specification = json.loads(SPECIFICATION_JSON)
 nuclear_identity = json.loads(NUCLEAR_IDENTITY_JSON)
+regime_guards = json.loads(REGIME_GUARDS_JSON)
+use_sfx2c1e = USE_SFX2C1E
 molecule = gto.M(**specification)
 calculation = scf.RHF(molecule)
+if use_sfx2c1e:
+    calculation = calculation.sfx2c1e()
 calculation.conv_tol = 1e-10
 calculation.max_cycle = 200
 calculation.kernel()
@@ -546,9 +672,10 @@ Path(__file__).with_suffix('.result.json').write_text(json.dumps({
     'scf_converged': bool(calculation.converged), 'energy_hartree': float(calculation.e_tot),
     'gradients_hartree_per_bohr': gradient.tolist(),
     'nuclear_identity': nuclear_identity,
+    'regime_guards': regime_guards,
     'input_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
 }, indent=2, allow_nan=False), encoding='utf-8')
-""".replace("EXPECTED_VERSION", repr(expected_version)).replace("PROCESS_THREADS", str(data.nprocs or 1)).replace("SPECIFICATION_JSON", repr(json.dumps(specification))).replace("NUCLEAR_IDENTITY_JSON", repr(json.dumps(nuclear_identity)))
+""".replace("EXPECTED_VERSION", repr(expected_version)).replace("PROCESS_THREADS", str(data.nprocs or 1)).replace("SPECIFICATION_JSON", repr(json.dumps(specification))).replace("NUCLEAR_IDENTITY_JSON", repr(json.dumps(nuclear_identity))).replace("REGIME_GUARDS_JSON", repr(json.dumps(regime.to_provenance_dict()))).replace("USE_SFX2C1E", repr(bool(regime.pyscf_sfx2c1e)))
     out_base = output_dir if output_dir else get_artifact_base()
     out_base.mkdir(parents=True, exist_ok=True)
     output_path = out_base / f"{data.basin_id}_pyscf.py"
@@ -642,9 +769,10 @@ def generate_recipe_r2_orca_deck(
     basin_id: str = "cochem_dimer_recipe_r2",
     symbols: Optional[Sequence[str]] = None,
     coordinates: Optional[Union[Sequence[Sequence[float]], np.ndarray]] = None,
-    atoms_co2: Sequence[int] = (0, 1, 2),
-    atoms_h2o: Sequence[int] = (3, 4, 5),
-    r_com: float = 2.8361,
+    monomer_a_indices: Optional[Sequence[int]] = None,
+    monomer_b_indices: Optional[Sequence[int]] = None,
+    atoms_co2: Optional[Sequence[int]] = None,
+    atoms_h2o: Optional[Sequence[int]] = None,
     charge: int = 0,
     multiplicity: int = 1,
     nprocs: Optional[int] = None,
@@ -654,115 +782,88 @@ def generate_recipe_r2_orca_deck(
     output_dir: Optional[Path] = None,
     filename: Optional[str] = None,
 ) -> Path:
-    """Generate publication-grade ORCA Recipe R2 input deck adhering to Method Matrix v4.1 and SRS Chunk 17 §6.1.
+    """Generate a molecule-agnostic ORCA Recipe R2 input deck for any two-monomer complex.
 
-    Adheres strictly to Method Matrix v4.1, Anti-Spoofing Protocol v4, and WBS Task 5.3.2 specifications:
-    1. Electronic structure keywords:
-       ! wB97M-V def2-QZVPP def2/J RIJCOSX TightOpt TightSCF DEFGRID3
-    2. SCF convergence block:
-       %scf
-         TolE 1.0e-08
-         Thresh 1.0e-11
-         MaxIter 150
-       end
-    3. Geometry optimization & Hessian preconditioning:
-       %geom
-         InHess XTB2
-         TolE 1.0e-07
-         TolRMSG 3.0e-06
-         TolMaxG 1.0e-05
-         TolRMSD 5.0e-05
-         TolMaxD 1.0e-04
-         MaxIter 200
-         Constraints
-           # Monomer A (CO2) Internal Covalent Coordinates Frozen
-           { B 0 1 C }
-           { B 0 2 C }
-           { A 1 0 2 C }
-           # Monomer B (H2O) Internal Covalent Coordinates Frozen
-           { B 3 4 C }
-           { B 3 5 C }
-           { A 4 3 5 C }
-         end
-       end
-    4. Integration with Task 5.3.1 (Wilson Internal Coordinate Locking):
-       Ingests reference monomer geometries and Wilson internal coordinate constraints from
-       cochem_base.geometry.constraints. Ensures exactly 6 intramolecular constraints and
-       zero cross-monomer constraints.
-    5. Counterpoise (CP) distance bracketing flags:
-       Supports CP keyword and atom fragment indices (1)/(2) or 3-leg ghost atom (':') representations.
-    6. Dynamic Mendeleev Invariant:
-       Dynamically queries masses and radii using mendeleev.element. Zero static mass dictionaries.
-
-    Returns:
-        Path to the generated production .inp file.
+    Adheres strictly to Method Matrix v4.1 / Pipeline 5.0.0:
+    1. Electronic structure keywords (no invalid ORCA '! CP' keyword):
+       - Dimer optimization: ! wB97M-V def2-QZVPP def2/J RIJCOSX TightOpt TightSCF DEFGRID3
+       - Ghost-atom CP legs: ! wB97M-V def2-QZVPP def2/J RIJCOSX TightSCF DEFGRID3
+    2. SCF convergence block (`TolE 1.0e-08`, `Thresh 1.0e-11`, `MaxIter 150`).
+    3. Intramolecular Wilson internal-coordinate constraints generated dynamically
+       for arbitrary supplied monomer fragments (zero hardcoded CO2/H2O geometry).
+    4. Boys-Bernardi counterpoise uses explicit ghost-atom (':') legs via
+       `cp_leg` in {'dimer', 'monomer_a_ghosts', 'monomer_b_ghosts'}; single-deck
+       `counterpoise=True` without `cp_leg` is rejected because ORCA has no '! CP'
+       simple input keyword.
+    5. Dynamic Mendeleev Invariant: atomic masses queried via `mendeleev.element`.
     """
-    # 1. Geometry Ingestion & Monomer Distortion Verification
-    if (symbols is None) != (coordinates is None):
-        raise ValueError("Provide both symbols and coordinates, or neither for the reference geometry.")
+    if symbols is None or coordinates is None:
+        raise ValueError(
+            "Explicit symbols and coordinates are required for Recipe R2 deck generation; "
+            "hardcoded CO2+H2O reference geometries are prohibited."
+        )
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", basin_id):
         raise ValueError("basin_id must be a safe filename component.")
     if cp_leg not in (None, "dimer", "monomer_a_ghosts", "monomer_b_ghosts"):
         raise ValueError(f"Unknown counterpoise leg: {cp_leg}")
-    if symbols is None:
-        syms_list, coords_arr, a_co2, a_h2o = build_reference_co2_h2o_complex(r_com=r_com)
-        eff_symbols = list(syms_list)
-        eff_coords = np.asarray(coords_arr, dtype=np.float64)
-        eff_atoms_co2 = tuple(a_co2)
-        eff_atoms_h2o = tuple(a_h2o)
+    if counterpoise and cp_leg is None:
+        raise ValueError(
+            "ORCA does not support a single-deck '! CP' keyword; specify explicit ghost-atom "
+            "cp_leg ('dimer', 'monomer_a_ghosts', 'monomer_b_ghosts') or call "
+            "generate_recipe_r2_counterpoise_bracketing_decks."
+        )
 
-        # Verify reference monomer geometry integrity (distortion < 1e-12 A against NIST/CCCBDB)
-        r_co1 = float(np.linalg.norm(eff_coords[1] - eff_coords[0]))
-        r_co2 = float(np.linalg.norm(eff_coords[2] - eff_coords[0]))
-        assert abs(r_co1 - 1.1621) < 1e-12, f"CO2 bond 1 distortion {abs(r_co1 - 1.1621):.2e} A exceeds 1e-12 [M]."
-        assert abs(r_co2 - 1.1621) < 1e-12, f"CO2 bond 2 distortion {abs(r_co2 - 1.1621):.2e} A exceeds 1e-12 [M]."
-        r_oh1 = float(np.linalg.norm(eff_coords[4] - eff_coords[3]))
-        r_oh2 = float(np.linalg.norm(eff_coords[5] - eff_coords[3]))
-        assert abs(r_oh1 - 0.9572) < 1e-12, f"H2O bond 1 distortion {abs(r_oh1 - 0.9572):.2e} A exceeds 1e-12 [M]."
-        assert abs(r_oh2 - 0.9572) < 1e-12, f"H2O bond 2 distortion {abs(r_oh2 - 0.9572):.2e} A exceeds 1e-12 [M]."
-    else:
-        eff_symbols = list(symbols)
-        eff_coords = np.asarray(coordinates, dtype=np.float64)
-        eff_atoms_co2 = tuple(atoms_co2)
-        eff_atoms_h2o = tuple(atoms_h2o)
-
-    set_co2 = set(eff_atoms_co2)
-    set_h2o = set(eff_atoms_h2o)
-    if not set_co2.isdisjoint(set_h2o) or set_co2 | set_h2o != set(range(len(eff_symbols))):
-        raise FrozenMonomerViolationError("CO2 and H2O monomers must be disjoint and cover all atoms.")
-    if eff_coords.shape != (len(eff_symbols), 3) or not np.all(np.isfinite(eff_coords)):
+    eff_symbols = list(symbols)
+    eff_coords = np.asarray(coordinates, dtype=np.float64)
+    if not eff_symbols or eff_coords.shape != (len(eff_symbols), 3) or not np.all(np.isfinite(eff_coords)):
         raise ValueError("Coordinates must be finite N x 3 values matching the atom symbols.")
-    if [eff_symbols[i] for i in eff_atoms_co2] != ["C", "O", "O"] or [eff_symbols[i] for i in eff_atoms_h2o] != ["O", "H", "H"]:
-        raise FrozenMonomerViolationError("This Recipe R2 reference helper requires CO2 and H2O atom ordering.")
+
+    eff_monomer_a = monomer_a_indices if monomer_a_indices is not None else atoms_co2
+    eff_monomer_b = monomer_b_indices if monomer_b_indices is not None else atoms_h2o
+    if eff_monomer_a is None and eff_monomer_b is None:
+        detected = detect_molecular_fragments(eff_symbols, eff_coords.tolist())
+        if len(detected) != 2:
+            raise FrozenMonomerViolationError(
+                f"Recipe R2 deck generation requires exactly two monomer fragments; detected {len(detected)}."
+            )
+        eff_monomer_a, eff_monomer_b = tuple(detected[0]), tuple(detected[1])
+    elif eff_monomer_a is None or eff_monomer_b is None:
+        raise FrozenMonomerViolationError("Provide both monomer_a_indices and monomer_b_indices, or neither.")
+    else:
+        eff_monomer_a = tuple(int(i) for i in eff_monomer_a)
+        eff_monomer_b = tuple(int(i) for i in eff_monomer_b)
+
+    set_a = set(eff_monomer_a)
+    set_b = set(eff_monomer_b)
+    if not set_a or not set_b or not set_a.isdisjoint(set_b) or set_a | set_b != set(range(len(eff_symbols))):
+        raise FrozenMonomerViolationError("Monomer A and Monomer B indices must be nonempty, disjoint, and cover all atoms.")
 
     # 2. Dynamic Mendeleev Invariant [M]
     total_mass = sum(get_dynamic_atomic_mass(s) for s in eff_symbols)
 
-    # 3. Formulate Wilson Constraints via Task 5.3.1
-    constraints = formulate_recipe_r2_wilson_constraints(
-        atoms_co2=eff_atoms_co2,
-        atoms_h2o=eff_atoms_h2o,
+    # 3. Formulate Generic Intramolecular Wilson Constraints
+    constraints = generate_frozen_monomer_constraints(
+        eff_monomer_a,
+        eff_monomer_b,
         symbols=eff_symbols,
         coordinates=eff_coords,
     )
 
-    total_constraints = len(constraints.bonds) + len(constraints.angles) + len(constraints.dihedrals)
-    assert total_constraints == 6, (
-        f"Physical Acceptance Threshold Failure: expected exactly 6 constraints, got {total_constraints} [M]."
-    )
-    assert len(constraints.bonds) == 4, f"Expected 4 bonds, got {len(constraints.bonds)}"
-    assert len(constraints.angles) == 2, f"Expected 2 angles, got {len(constraints.angles)}"
-    assert len(constraints.dihedrals) == 0, f"Expected 0 dihedrals, got {len(constraints.dihedrals)}"
-
-    # Check that constraints are purely intramolecular (zero cross-monomer locks)
     for u, v in constraints.bonds:
-        assert (u in set_co2 and v in set_co2) or (u in set_h2o and v in set_h2o), (
-            f"Cross-monomer bond constraint detected between {u} and {v} [M]."
-        )
+        if not ((u in set_a and v in set_a) or (u in set_b and v in set_b)):
+            raise FrozenMonomerViolationError(
+                f"Cross-monomer bond constraint detected between {u} and {v} [M]."
+            )
     for i, j, k in constraints.angles:
-        assert ({i, j, k}.issubset(set_co2) or {i, j, k}.issubset(set_h2o)), (
-            f"Cross-monomer angle constraint detected across ({i}, {j}, {k}) [M]."
-        )
+        if not ({i, j, k}.issubset(set_a) or {i, j, k}.issubset(set_b)):
+            raise FrozenMonomerViolationError(
+                f"Cross-monomer angle constraint detected across ({i}, {j}, {k}) [M]."
+            )
+    for i, j, k, l_idx in constraints.dihedrals:
+        if not ({i, j, k, l_idx}.issubset(set_a) or {i, j, k, l_idx}.issubset(set_b)):
+            raise FrozenMonomerViolationError(
+                f"Cross-monomer dihedral constraint detected across ({i}, {j}, {k}, {l_idx}) [M]."
+            )
 
     # 4. Hardware Parameters
     if nprocs is None or maxcore_mb is None:
@@ -778,10 +879,8 @@ def generate_recipe_r2_orca_deck(
     if nprocs < 1 or maxcore_mb < 1 or multiplicity < 1:
         raise ValueError("CPU count, per-core memory and spin multiplicity must be positive.")
 
-    # 5. Format Electronic Structure Keywords
-    if counterpoise and cp_leg is None:
-        keywords = "! wB97M-V def2-QZVPP def2/J RIJCOSX TightOpt TightSCF DEFGRID3 CP"
-    elif cp_leg in ("monomer_a_ghosts", "monomer_b_ghosts"):
+    # 5. Format Electronic Structure Keywords (strictly valid ORCA 6 syntax)
+    if cp_leg in ("monomer_a_ghosts", "monomer_b_ghosts"):
         keywords = "! wB97M-V def2-QZVPP def2/J RIJCOSX TightSCF DEFGRID3"
     else:
         keywords = "! wB97M-V def2-QZVPP def2/J RIJCOSX TightOpt TightSCF DEFGRID3"
@@ -789,13 +888,10 @@ def generate_recipe_r2_orca_deck(
     # 6. Format Coordinate Block
     coord_lines: List[str] = []
     for idx, (sym, (x, y, z)) in enumerate(zip(eff_symbols, eff_coords)):
-        if counterpoise and cp_leg is None:
-            frag = "1" if idx in set_co2 else "2"
-            label = f"{sym}({frag})"
-        elif cp_leg == "monomer_a_ghosts":
-            label = sym if idx in set_co2 else f"{sym}:"
+        if cp_leg == "monomer_a_ghosts":
+            label = sym if idx in set_a else f"{sym}:"
         elif cp_leg == "monomer_b_ghosts":
-            label = f"{sym}:" if idx in set_co2 else sym
+            label = f"{sym}:" if idx in set_a else sym
         else:
             label = sym
         coord_lines.append(f"  {label:<8} {x:.17g} {y:.17g} {z:.17g}")
@@ -806,38 +902,44 @@ def generate_recipe_r2_orca_deck(
     coord_hash = hasher.hexdigest()
 
     # 7. Format Geometry Block
-    geom_lines = [
-        "%geom",
-        "  InHess XTB2",
-        "  TolE 1.0e-07",
-        "  TolRMSG 3.0e-06",
-        "  TolMaxG 1.0e-05",
-        "  TolRMSD 5.0e-05",
-        "  TolMaxD 1.0e-04",
-        "  MaxIter 200",
-        "  Constraints",
-        "    # Monomer A (CO2) Internal Covalent Coordinates Frozen",
-    ]
-    co2_bonds = sorted([(min(u, v), max(u, v)) for u, v in constraints.bonds if u in set_co2 and v in set_co2])
-    for u, v in co2_bonds:
-        geom_lines.append(f"    {{ B {u} {v} C }}")
+    geom_block = ""
+    if cp_leg not in ("monomer_a_ghosts", "monomer_b_ghosts"):
+        geom_lines = [
+            "%geom",
+            "  InHess XTB2",
+            "  TolE 1.0e-07",
+            "  TolRMSG 3.0e-06",
+            "  TolMaxG 1.0e-05",
+            "  TolRMSD 5.0e-05",
+            "  TolMaxD 1.0e-04",
+            "  MaxIter 200",
+            "  Constraints",
+            "    # Monomer A Internal Covalent Coordinates Frozen",
+        ]
+        a_bonds = sorted([(min(u, v), max(u, v)) for u, v in constraints.bonds if u in set_a and v in set_a])
+        for u, v in a_bonds:
+            geom_lines.append(f"    {{ B {u} {v} C }}")
+        a_angles = sorted([a for a in constraints.angles if set(a).issubset(set_a)])
+        for i, j, k in a_angles:
+            geom_lines.append(f"    {{ A {i} {j} {k} C }}")
+        a_diheds = sorted([d for d in constraints.dihedrals if set(d).issubset(set_a)])
+        for i, j, k, l_idx in a_diheds:
+            geom_lines.append(f"    {{ D {i} {j} {k} {l_idx} C }}")
 
-    co2_angles = sorted([a for a in constraints.angles if set(a).issubset(set_co2)])
-    for i, j, k in co2_angles:
-        geom_lines.append(f"    {{ A {i} {j} {k} C }}")
+        geom_lines.append("    # Monomer B Internal Covalent Coordinates Frozen")
+        b_bonds = sorted([(min(u, v), max(u, v)) for u, v in constraints.bonds if u in set_b and v in set_b])
+        for u, v in b_bonds:
+            geom_lines.append(f"    {{ B {u} {v} C }}")
+        b_angles = sorted([a for a in constraints.angles if set(a).issubset(set_b)])
+        for i, j, k in b_angles:
+            geom_lines.append(f"    {{ A {i} {j} {k} C }}")
+        b_diheds = sorted([d for d in constraints.dihedrals if set(d).issubset(set_b)])
+        for i, j, k, l_idx in b_diheds:
+            geom_lines.append(f"    {{ D {i} {j} {k} {l_idx} C }}")
 
-    geom_lines.append("    # Monomer B (H2O) Internal Covalent Coordinates Frozen")
-    h2o_bonds = sorted([(min(u, v), max(u, v)) for u, v in constraints.bonds if u in set_h2o and v in set_h2o])
-    for u, v in h2o_bonds:
-        geom_lines.append(f"    {{ B {u} {v} C }}")
-
-    h2o_angles = sorted([a for a in constraints.angles if set(a).issubset(set_h2o)])
-    for i, j, k in h2o_angles:
-        geom_lines.append(f"    {{ A {i} {j} {k} C }}")
-
-    geom_lines.append("  end")
-    geom_lines.append("end")
-    geom_block = "\n".join(geom_lines)
+        geom_lines.append("  end")
+        geom_lines.append("end")
+        geom_block = "\n".join(geom_lines)
 
     # 8. Assemble Full Deck
     deck_content = f"""# =====================================================================
@@ -886,72 +988,56 @@ def generate_recipe_r2_counterpoise_bracketing_decks(
     basin_id: str = "cochem_dimer_recipe_r2",
     symbols: Optional[Sequence[str]] = None,
     coordinates: Optional[Union[Sequence[Sequence[float]], np.ndarray]] = None,
-    atoms_co2: Sequence[int] = (0, 1, 2),
-    atoms_h2o: Sequence[int] = (3, 4, 5),
-    r_com: float = 2.8361,
+    monomer_a_indices: Optional[Sequence[int]] = None,
+    monomer_b_indices: Optional[Sequence[int]] = None,
+    atoms_co2: Optional[Sequence[int]] = None,
+    atoms_h2o: Optional[Sequence[int]] = None,
     charge: int = 0,
     multiplicity: int = 1,
     nprocs: Optional[int] = None,
     maxcore_mb: Optional[int] = None,
     output_dir: Optional[Path] = None,
 ) -> Dict[str, Path]:
-    """Generate 3-leg distance bracketing input decks for Boys-Bernardi Counterpoise correction.
+    """Generate 3-leg ghost-atom decks for Boys-Bernardi Counterpoise correction.
 
     Leg 1 ('dimer'): Supermolecular dimer (AB at dimer geometry, full basis)
     Leg 2 ('monomer_a_ghosts'): Monomer A at dimer geometry with Monomer B ghost atoms (':')
     Leg 3 ('monomer_b_ghosts'): Monomer B at dimer geometry with Monomer A ghost atoms (':')
-
-    Returns:
-        Dict[str, Path] mapping leg name to file path.
     """
     out_dir = output_dir or get_artifact_base()
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    common_kwargs: Dict[str, Any] = {
+        "symbols": symbols,
+        "coordinates": coordinates,
+        "monomer_a_indices": monomer_a_indices,
+        "monomer_b_indices": monomer_b_indices,
+        "atoms_co2": atoms_co2,
+        "atoms_h2o": atoms_h2o,
+        "charge": charge,
+        "multiplicity": multiplicity,
+        "nprocs": nprocs,
+        "maxcore_mb": maxcore_mb,
+        "output_dir": out_dir,
+    }
     decks: Dict[str, Path] = {
         "dimer": generate_recipe_r2_orca_deck(
             basin_id=f"{basin_id}_leg1_dimer",
-            symbols=symbols,
-            coordinates=coordinates,
-            atoms_co2=atoms_co2,
-            atoms_h2o=atoms_h2o,
-            r_com=r_com,
-            charge=charge,
-            multiplicity=multiplicity,
-            nprocs=nprocs,
-            maxcore_mb=maxcore_mb,
             cp_leg="dimer",
-            output_dir=out_dir,
             filename=f"{basin_id}_leg1_dimer.inp",
+            **common_kwargs,
         ),
         "monomer_a_ghosts": generate_recipe_r2_orca_deck(
             basin_id=f"{basin_id}_leg2_monomer_a_ghosts",
-            symbols=symbols,
-            coordinates=coordinates,
-            atoms_co2=atoms_co2,
-            atoms_h2o=atoms_h2o,
-            r_com=r_com,
-            charge=charge,
-            multiplicity=multiplicity,
-            nprocs=nprocs,
-            maxcore_mb=maxcore_mb,
             cp_leg="monomer_a_ghosts",
-            output_dir=out_dir,
             filename=f"{basin_id}_leg2_monomer_a_ghosts.inp",
+            **common_kwargs,
         ),
         "monomer_b_ghosts": generate_recipe_r2_orca_deck(
             basin_id=f"{basin_id}_leg3_monomer_b_ghosts",
-            symbols=symbols,
-            coordinates=coordinates,
-            atoms_co2=atoms_co2,
-            atoms_h2o=atoms_h2o,
-            r_com=r_com,
-            charge=charge,
-            multiplicity=multiplicity,
-            nprocs=nprocs,
-            maxcore_mb=maxcore_mb,
             cp_leg="monomer_b_ghosts",
-            output_dir=out_dir,
             filename=f"{basin_id}_leg3_monomer_b_ghosts.inp",
+            **common_kwargs,
         ),
     }
     return decks

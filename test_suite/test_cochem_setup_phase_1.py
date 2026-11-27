@@ -7,11 +7,13 @@ deterministic Pydantic V2 schema validations, real atomic I/O, and real rollback
 from __future__ import annotations
 
 import json
+import os
 import platform
 import shutil
 import sys
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator, Optional
 
 import pytest
 from pydantic import ValidationError
@@ -496,7 +498,25 @@ def test_dependency_manager_create_temp_helpers(tmp_path: Path) -> None:
 # =============================================================================
 
 
-def test_resolve_p1_registry_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@contextmanager
+def _scoped_env(**updates: Optional[str]) -> Iterator[None]:
+    saved = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, previous in saved.items():
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+
+
+def test_resolve_p1_registry_path(tmp_path: Path) -> None:
     """Test resolution of p1.json output path under explicit and default paths."""
     explicit_out = tmp_path / "CustomRegistry"
     p1_path = resolve_p1_registry_path(explicit_out)
@@ -509,10 +529,10 @@ def test_resolve_p1_registry_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert p1_path_direct == direct_file.resolve()
 
     # With COCHEM_ARTIFACT_DIR set
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path))
-    env_resolved = resolve_p1_registry_path()
-    assert env_resolved.name == "p1.json"
-    assert str(tmp_path) in str(env_resolved)
+    with _scoped_env(COCHEM_ARTIFACT_DIR=str(tmp_path)):
+        env_resolved = resolve_p1_registry_path()
+        assert env_resolved.name == "p1.json"
+        assert str(tmp_path) in str(env_resolved)
 
 
 def test_run_phase_1_audit_end_to_end(tmp_path: Path) -> None:
@@ -541,19 +561,18 @@ def test_run_phase_1_audit_end_to_end(tmp_path: Path) -> None:
 
 
 def test_main_cli_execution_success(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Test CLI main() execution returning exit code 0 and printing human-readable summary."""
     output_dir = tmp_path / "Registry"
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path))
+    with _scoped_env(COCHEM_ARTIFACT_DIR=str(tmp_path)):
+        exit_code = main(argv=["--output-dir", str(output_dir), "--target-path", str(tmp_path)])
+        assert exit_code == 0
+        assert (output_dir / "p1.json").exists()
 
-    exit_code = main(argv=["--output-dir", str(output_dir), "--target-path", str(tmp_path)])
-    assert exit_code == 0
-    assert (output_dir / "p1.json").exists()
-
-    captured = capsys.readouterr()
-    assert "COCHEM SETUP PHASE 1: ENVIRONMENT GATEKEEPER AUDIT" in captured.out
-    assert "Phase ID:" in captured.out
+        captured = capsys.readouterr()
+        assert "COCHEM SETUP PHASE 1: ENVIRONMENT GATEKEEPER AUDIT" in captured.out
+        assert "Phase ID:" in captured.out
 
 
 def test_main_cli_execution_json_flag(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -636,17 +655,16 @@ def test_main_cli_fatal_exception_exit_code_1(
 
 
 def test_main_cli_degraded_status_exit_code_0(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Test CLI main() returns exit code 0 when audit report has status DEGRADED."""
     # Induce degraded status by clearing PATH so toolchains cannot be found
-    monkeypatch.setenv("PATH", "")
+    with _scoped_env(PATH=""):
+        exit_code = main(argv=["--output-dir", str(tmp_path), "--target-path", str(tmp_path)])
+        assert exit_code == 0
 
-    exit_code = main(argv=["--output-dir", str(tmp_path), "--target-path", str(tmp_path)])
-    assert exit_code == 0
-
-    captured = capsys.readouterr()
-    assert "Status:          DEGRADED" in captured.out
+        captured = capsys.readouterr()
+        assert "Status:          DEGRADED" in captured.out
 
 
 def test_audit_toolchain_binary_generic_exception() -> None:
@@ -711,7 +729,7 @@ def test_resolve_p1_registry_path_actual_environment_precedence(tmp_path: Path) 
 
 
 def test_dependency_manager_rollback_os_error_resilience(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path
 ) -> None:
     """Verify DependencyManager rollback suppresses OSError when unlinking files or rmtree."""
     test_file = tmp_path / "locked_file.tmp"
@@ -753,10 +771,8 @@ def test_parse_mount_table_entry_octal_unescaping() -> None:
     assert fs_type == "ext4"
 
 
-def test_audit_toolchain_binary_nonzero_returncode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_audit_toolchain_binary_nonzero_returncode(tmp_path: Path) -> None:
     """Verify audit_toolchain_binary flags binary as unavailable if returncode != 0."""
-    import os
-    import sys
     from orchestrator import cochem_setup_phase_1 as p1
 
     if sys.platform == "win32":
@@ -767,10 +783,10 @@ def test_audit_toolchain_binary_nonzero_returncode(tmp_path: Path, monkeypatch: 
         cmd_file.write_text("#!/bin/sh\necho 'broken_tool: error while loading shared libraries: libmpc.so.3' >&2\nexit 127\n")
         cmd_file.chmod(0o755)
 
-    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ.get('PATH', '')}")
-    item = p1.audit_toolchain_binary(cmd_file.name)
-    assert item.is_available is False
-    assert "exit code 127" in (item.error_detail or "")
+    with _scoped_env(PATH=f"{tmp_path}{os.pathsep}{os.environ.get('PATH', '')}"):
+        item = p1.audit_toolchain_binary(cmd_file.name)
+        assert item.is_available is False
+        assert "exit code 127" in (item.error_detail or "")
 
 
 def test_check_wsl_9p_mount_ext4_under_mnt() -> None:

@@ -3,121 +3,120 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 CoChem helps you study molecular shapes, energies, vibrational spectra, and
-rotational spectroscopy using open quantum chemistry calculations. **CoChem-BASE
-is the one repository you start with.** Its browser interface and GitHub Actions
-workflows prepare `PySCF`, `xTB`, `CREST 3.0.2`, `AIMNet2`, `TOPOS`, and `TORQ`
-without local installation.
+rotational spectroscopy using authentic quantum chemistry calculations.
+**CoChem-BASE is the unified starting repository** across **CHEM 311**,
+**CHEM 312L**, and **CHEM 490**, running primarily on **local WSL2 Ubuntu**
+(`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) with `PySCF`,
+`xTB`, `CREST 3.0.2`, `AIMNet2`, `ORCA 6.1.1`, `TOPOS`, `BENCH`, `TORQ`,
+`GEOM`, `SCRIBE`, and `SPCAT`/`SPFIT`.
 
 ---
 
-## Choose Your Course Track First
+## Is This a Course? (`CoChem-BASE` ↔ `CoChem-CURE`)
 
-| Course Track | How to Copy `CoChem-BASE` | Visibility & Repo Name | Where to Start |
-| --- | --- | --- | --- |
-| **CHEM 312L Organic Chemistry II Lab (Cumberland University)** | Click **Fork** near the top right | Keep visibility **Public** · Keep name **`CoChem-BASE`** *(gives unlimited free GitHub Actions minutes; required by M1 Rubric C4)* | **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** |
-| **CHEM 490 Directed Research (Cumberland University)** | Click **Use this template → Create a new repository** | **Private** · Name `CoChem-[target-molecule]` | **[`student/CHEM490_STEP_BY_STEP_GUIDE.md`](student/CHEM490_STEP_BY_STEP_GUIDE.md)** |
+`CoChem-BASE` is the core scientific workbench and runs standalone by default.
+When you start setup—either in **`1 · Setup`** of the Voilà dashboard or via the CLI
+(`python -m cochem_base.course_loader`)—`CoChem-BASE` asks **"Is this a course?"**:
 
-> **Course Rule (CHEM 312L & CHEM 490):** **Students do NOT use Google Colab directly, Classroom50, or personal ORCA Forum licenses, and never enter API tokens.** Open-source engines (`PySCF`, `xTB`, `CREST`, `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, `spfit`/`spcat`, plus the optional `CoChem-SPYFY` add-on installed on demand via `bash scripts/install_optional_spyfy.sh`) run in your GitHub Codespace/Actions; optional ORCA 6.1.1 / CCSD(T) / VPT2 jobs for CHEM 490 are run by Dr. Klaassen on Cumberland University's department research computers via the Student ↔ Professor Handoff.
+- **No (default — standalone research / general calculations):** `CoChem-BASE` runs
+  independently with zero `CoChem-CURE` dependency and makes no network or package install
+  calls on startup.
+- **Yes (course mode — dynamic `CoChem-CURE` loading):** `CoChem-BASE` obtains
+  **[`ProfJJK-CoChem/CoChem-CURE`](https://github.com/ProfJJK-CoChem/CoChem-CURE)** and
+  dynamically loads course selection, course profiles, milestones, and execution pathways
+  from `cochem_cure.provider` (`cochem.course-provider/1`).
+
+```bash
+# Interactive "Is this a course? [y/N]:" prompt
+python -m cochem_base.course_loader
+
+# Non-interactive standalone research mode (never requires CoChem-CURE)
+python -m cochem_base.course_loader --is-course no
+
+# Non-interactive course mode (obtain CoChem-CURE, list courses, and inspect a pathway)
+python -m cochem_base.course_loader --is-course yes --obtain --list-courses
+python -m cochem_base.course_loader --is-course yes --course CHEM311 --show-pathway
+```
+
+### Choose Your Course Track
+
+| Course Track | Primary Execution Stack | Local Guide Mirror (Authoritative Profiles in `CoChem-CURE`) |
+| --- | --- | --- |
+| **CHEM 311 Organic Chemistry I (`CoChem-QUEST`, Cumberland University)** | Local WSL2 (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) — `RDKit`, `GFN2-xTB`, `CREST 3.0.2`, `PySCF`, `IsotopologueSpectroscopyEngine`, `SPCAT` | **[`student/CHEM311_STEP_BY_STEP_GUIDE.md`](student/CHEM311_STEP_BY_STEP_GUIDE.md)** |
+| **CHEM 312L Organic Chemistry II Lab (Cumberland University)** | Local WSL2 (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) — `CREST 3.0.2`, `AIMNet2`, `PySCF`, `CoChem-KINETIC`, KK-ATR, GVPT2, Kraitchman, `FactLedger` | **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** |
+| **CHEM 490 Directed Research (Cumberland University)** | Local WSL2 (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) — `ORCA 6.1.1` (`revDSD-PBEP86-D4/2021` + VPT2), `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, `SPYFY`, + `cochem_workstation_job_runner` canonical `CCSD`/`CCSD(T)` handoff | **[`student/CHEM490_STEP_BY_STEP_GUIDE.md`](student/CHEM490_STEP_BY_STEP_GUIDE.md)** |
+
+> **2026-11-27 Architecture & Course Rules (`CHEM 311`, `CHEM 312L`, `CHEM 490`):**
+> - **Local WSL2 Primary Stack:** Activate `source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`. Legacy **`classroom50`**, **GitHub Codespaces**, and **GitHub Actions compute** are **deprecated / retired**.
+> - **`CoChem-BASE` ↔ `CoChem-CURE` Split:** `CoChem-BASE` provides the standalone scientific engines, UI, and handoff verifier; **`ProfJJK-CoChem/CoChem-CURE`** is the authoritative repository for course profiles, milestones, and pathways, obtained dynamically when you answer **Yes** to *"Is this a course?"*. **`CoChem-ORACLE`** is redesigned as the **zero-LLM Student Data Auditing Model**.
+> - **CREST 3.0.2 Flags:** Always pass `--legacy --xnam "$(which xtb)" --nocross` when invoking CREST 3.0.2 locally.
+> - **Coupled-Cluster & Handoff Policy:** Higher-end canonical `CCSD` / `CCSD(T)` calculations for CHEM 490 are routed via **`cochem_workstation_job_runner`** (`cochem.student-handoff/2`). **`DLPNO-CCSD(T)` is strictly banned under Pipeline 5.0.0.**
 
 ---
 
-## Students: start your project here (4 clicks — no secrets or enrollment needed)
+## Students: Start Locally in WSL2
 
-- **CHEM 312L (Cumberland University, partnering with Tennessee Tech University CP-FTMW / GruLab SURF collaborators):** Follow **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** for the complete Day-1 through Milestone 4 (`M1`–`M4`) walkthrough.
-- **CHEM 490 Directed Research (Cumberland University, partnering with Tennessee Tech University CP-FTMW / GruLab SURF collaborators):** Follow **[`student/CHEM490_STEP_BY_STEP_GUIDE.md`](student/CHEM490_STEP_BY_STEP_GUIDE.md)** for private template setup, Voilà GUI (`xTB` & `PySCF`), Weeks 4–11 CLI tools (`TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, `spfit`/`spcat`, and the optional `CoChem-SPYFY` add-on), and the Student ↔ Professor Handoff.
-- **General browser dashboard reference:** **[Open the account and workspace guide](.docs/GET_STARTED.md#student-personal-project)**.
+- **CHEM 311 (`CoChem-QUEST`, Cumberland University, partnering with Tennessee Tech University):** Follow **[`student/CHEM311_STEP_BY_STEP_GUIDE.md`](student/CHEM311_STEP_BY_STEP_GUIDE.md)** for Modules 0–5 (`mod1`–`mod5`).
+- **CHEM 312L (Cumberland University, partnering with Tennessee Tech University CP-FTMW collaborators):** Follow **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** for Milestones 1–4 (`M1`–`M4`).
+- **CHEM 490 Directed Research (Cumberland University, partnering with Tennessee Tech University CP-FTMW / GruLab SURF collaborators):** Follow **[`student/CHEM490_STEP_BY_STEP_GUIDE.md`](student/CHEM490_STEP_BY_STEP_GUIDE.md)** for local WSL2 ORCA 6.1.1 `revDSD-PBEP86-D4/2021` + VPT2, ecosystem CLIs (`TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, `spfit`/`spcat`, optional `CoChem-SPYFY`), and `cochem_workstation_job_runner` canonical `CCSD` / `CCSD(T)` handoffs.
+- **All Student Guides Index:** **[`student/README.md`](student/README.md)** · **[General Dashboard Reference](.docs/GET_STARTED.md#student-personal-project)**.
 
-You use buttons and menus in your web browser. You do not need to install Python,
-request organization invites, or install a GitHub App. `CoChem-BASE` automatically
-provisions **`PySCF`**, **`xTB`**, **`CREST`**, **`TOPOS`**, and **`TORQ`** inside
-your GitHub Codespace and runs your assigned calculations cleanly on CPU.
+### 1. Activate Your Local WSL2 Environment
 
-### 1. Create your GitHub account and copy `CoChem-BASE`
+```bash
+source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh
+cd /mnt/d/__CoChem/GitHub-Repo/CoChem-BASE
+cochem-cli --version
+```
 
-1. Sign in to your [GitHub account](https://github.com/signup) (or create one).
-2. Open [ProfJJK-CoChem/CoChem-BASE](https://github.com/ProfJJK-CoChem/CoChem-BASE).
-3. **For CHEM 312L (Cumberland University):** Click **Fork** near the top right,
-   keep **Owner** set to your personal username, keep visibility **Public**, and
-   keep the repository name **`CoChem-BASE`**, then click **Create fork**.
-   *(For instructor-invited CHEM 490 private research projects only: click **Use
-   this template → Create a new repository** and create a private
-   `CoChem-[target-molecule]` repository.)*
+### 2. Optional Local Voilà Dashboard (`port 8866`)
 
-### 2. Open CoChem in GitHub Codespaces
+```bash
+python scripts/student_voila.py Start_Here.ipynb --port=8866 --no-browser
+```
 
-1. On **your fork's page**, click the green **Code** button.
-2. Select the **Codespaces** tab, then click **Create codespace on main**.
-3. Wait **~10–15 minutes on a fresh Codespace (or ~30 seconds when Prebuilds are
-   enabled)** while your Codespace prepares `PySCF`, `xTB`, `CREST`, `TOPOS`,
-   `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, and `spfit`/`spcat` (optional add-on
-   `CoChem-SPYFY` is not installed by default; install on demand via
-   `bash scripts/install_optional_spyfy.sh`). Port **8866 (`CoChem Voilà dashboard`)** displays a live
-   auto-refreshing setup progress page and automatically opens the CoChem
-   dashboard as soon as setup finishes. (If the browser tab did not open
-   automatically, open VS Code's **Ports** panel at the bottom and click the
-   globe icon next to **8866 — CoChem Voilà dashboard**.)
-4. Your Codespace terminal automatically puts `/home/vscode/CoChem_Artifacts/bin`
-   and `/home/vscode/CoChem_Artifacts/ui-env/bin` first on `PATH`, so `python`,
-   `python3`, `xtb`, `crest`, `spfit`, `spcat`, and all CoChem CLI commands are
-   ready immediately. Starter templates (`AI_Usage_Log.md`,
-   `targets/team_card.yaml`, `data/`, and `results/`) are included on Day 1.
+Open `http://localhost:8866` to upload `.xyz` files, run local `xTB` / `PySCF` jobs, and download verified calculation bundles.
 
 ### 3. Work through the CoChem dashboard
 
 | In CoChem, open… | What you do |
 | --- | --- |
-| **Start here** | Confirm **Run calculations on** is set to **Linux** (your Codespace, where `PySCF`, `xTB`, `CREST`, `TOPOS`, and `TORQ` are ready immediately) or **GitHub Actions** for course workflows. |
+| **Start here** | Confirm **Run calculations on** is set to **Local computer (Linux)** (your WSL2 workstation, where `PySCF`, `xTB`, `CREST 3.0.2`, `TOPOS`, and `TORQ` are ready immediately). |
 | **Your files** | Upload your own scientific inputs (such as Avogadro 2 `.xyz` files) and select the starting structure. |
 | **Calculations** | Inspect **Starting structure**, choose **`PySCF`** or **`xTB`**, enter your study's charge, multiplicity, method, and basis set, and run the calculation. |
 | **Results** | Inspect the available values, structures, tables, and figures, and click **Download calculation bundle** to save a copy to your computer. |
 
 **[Continue with the full instructions: upload, calculate, save and submit](.docs/GET_STARTED.md#6-upload-your-own-scientific-files)**
 
-Open **Explain…** beside a setting, or **Scientific terms** in the sidebar,
-whenever a word is unfamiliar. You can read the help without losing your draft.
-
-**Save your work:** keep your original input files on your own computer and
-use **Download calculation bundle** after retrieving a result. Follow the guide's
-[save and submit steps](.docs/GET_STARTED.md#9-save-and-submit-your-work), then
-[stop your Codespace](.docs/GET_STARTED.md#10-stop-and-reopen-your-workspace)
-when finished.
-
 ---
 
-## Public-Fork CURE Route (`XYZ -> CREST -> MLFF -> CPU PySCF`)
+## Unified Course Routes (`CHEM311`, `CHEM312`, `CHEM490`) & `cochem.student-handoff/2`
 
-**Cumberland University** (`CHEM 312 / 312L` Organic Chemistry II Lab) partnering
+**Cumberland University** (`CHEM 311`, `CHEM 312 / 312L`, `CHEM 490`) partnering
 with **Tennessee Tech University** (external CP-FTMW microwave spectroscopy
-collaborator) supports an open-engine public-fork CURE route covering
-`H, B, C, N, O, F, Si, P, S, Cl, Br`, charges `-2..+2`, multiplicities `1..3`, up
-to 64 atoms, and 256 conformer/trajectory frames. (Separate private/template
-research projects for CHEM 490 also support optional ORCA 6.1.1, CFOUR, SPFIT,
-and SPCAT workflows when enabled by the instructor.)
+collaborator) pairs **`CoChem-BASE`** with dynamically loaded course profiles
+from **`ProfJJK-CoChem/CoChem-CURE`** (obtained when you answer **Yes** to
+*"Is this a course?"*), covering `H, B, C, N, O, F, Si, P, S, Cl, Br`, charges
+`-2..+2`, multiplicities `1..3`, up to 64 atoms, and 256 conformer/trajectory
+frames.
 
-### How to Submit to Your Professor (Plain-English Organic Chemistry 2 Handoff)
+### How to Submit to Your Professor (Plain-English Handoff)
 
-- **What you submit to your professor:** Upload your Milestone PDF (with your clickable public-fork GitHub Actions Run URL, Commit SHA, `FactLedger` SHA-256, and `AI_Usage_Log.md`) **and** your verified `cochem.student-handoff/2` `.zip` + `.zip.sha256` bundle to the **Canvas assignment**.
-- **What your professor does with it (in Organic Chemistry 2 terms):** Verifies your SHA-256 hashes, grades your rubric, and runs high-precision quantum chemistry calculations (coupled-cluster theory) on Cumberland's department research computers using your verified 3D structures to pin down subtle hydrogen-bond strengths, exact transition-state barrier heights, and microwave rotational constants too demanding for free classroom runners.
-- **What your professor hands back to you:** Graded Canvas rubric feedback, the unblinded Week 12 research-grade reference key (so you can compare your DFT energies, carbonyl shifts, and barriers against high-accuracy theory), and the Tennessee Tech University CP-FTMW spectroscopy collaborator's experimental rotational comparison for your M3/M4 report and poster.
+- **What you submit to your professor:** Upload your Milestone PDF (with your Commit SHA, `FactLedger` SHA-256, and `AI_Usage_Log.md`) **and** your verified `cochem.student-handoff/2` `.zip` + `.zip.sha256` bundle to the **Canvas assignment**.
+- **What your professor does with it:** Verifies your SHA-256 hashes (with `CoChem-ORACLE` zero-LLM Student Data Auditing Model checks) and runs higher-end canonical `CCSD` / `CCSD(T)` calculations via `cochem_workstation_job_runner` on Cumberland's department research computers (`DLPNO-CCSD(T)` is banned under Pipeline 5.0.0).
+- **What your professor hands back to you:** Graded Canvas rubric feedback, canonical reference outputs, and the Tennessee Tech University CP-FTMW spectroscopy collaborator's experimental rotational comparison for your report and poster.
 
-### Course Workflows & Local CLI Tools
+### Course Guides, Local Scripts & Bundle Verification
 
-1. **Full CHEM 312L Walkthrough:** Read **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** for click-by-click `.xyz` upload instructions, exact `workflow_dispatch` inputs, and copy-pasteable Codespace CLI commands.
-2. **Manual GitHub Actions Workflows (`workflow_dispatch` only — zero automatic `push:` or `schedule:` triggers):**
-   - **[Day-1 Optional Setup Check](.github/workflows/student_project_setup.yml):** Private-track setup diagnostic (skipped on public forks; CHEM 312L Day-1 smoke test uses `student_conformers.yml` with `ethanol.xyz`).
-   - **[Student conformers](.github/workflows/student_conformers.yml):** M1 `XYZ -> CREST 3.0.2 -> charge-aware AIMNet2 / MACE -> CPU PySCF` with `frequencies: true`.
-   - **[CHEM 312 NCI Dimer & BSSE](.github/workflows/04_crest_nci_dimer_bsse.yml):** M3 `CREST --nci` ellipsoidal wall sampling + PySCF Boys–Bernardi counterpoise BSSE (`xyz`, `monomer_a_atoms`).
-   - **[CHEM 312 6-Shard GVPT2](.github/workflows/05_gvpt2_6shard_anharmonic.yml):** M3 6-shard Barone GVPT2 anharmonic IR (`xyz`, `pre_optimize: true`).
-   - **[CHEM 312 Reaction Profile](.github/workflows/06_aimnet2_neb_pyscf_rxn_profile.yml):** Week 10 NAS reaction profile (M3 draft → M4 synthesis) via charge-aware `AIMNet2` CI-NEB + TS + IRC + PySCF PCM (`input_dir`, `charge`, `multiplicity`, `solvent_name`, `dft_basis`, `stage`).
-   - **[CHEM 312 SPCAT 8–18 GHz](.github/workflows/07_spcat_8_18ghz_prediction.yml):** M4 8–18 GHz CP-FTMW prediction at `T_rot = 2.0 K` (`xyz`, `a_mhz`, `b_mhz`, `c_mhz`, `mu_a`, `mu_b`, `mu_c`).
-3. **Local Codespace Analysis Scripts (`scripts/`):** `scripts/kk_atr_correct.py` (M2 `0.5 cm^-1` diamond ATR Kramers–Kronig), `scripts/fermi_deperturb.py` (M3 Fermi dyad), `scripts/vdw_titration_diff.py` (M3 1:1 complexation & BSSE), `scripts/gvpt2_shard_runner.py` (M3 6-shard GVPT2), `scripts/kraitchman_rs.py` (M4 Kraitchman $|r_s|$ coordinates), and `scripts/fact_ledger.py` (M4 L1–L3 SHA-256 `FactLedger`).
-4. **Verify your `cochem.student-handoff/2` ZIP bundle locally (pure Python stdlib):**
+1. **Course Guides:** [`student/CHEM311_STEP_BY_STEP_GUIDE.md`](student/CHEM311_STEP_BY_STEP_GUIDE.md) · [`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md) · [`student/CHEM490_STEP_BY_STEP_GUIDE.md`](student/CHEM490_STEP_BY_STEP_GUIDE.md) · [`student/README.md`](student/README.md).
+2. **Local WSL2 Analysis Scripts (`scripts/`):** `scripts/kk_atr_correct.py` (M2 `0.5 cm^-1` diamond ATR Kramers–Kronig), `scripts/fermi_deperturb.py` (M3 Fermi dyad), `scripts/vdw_titration_diff.py` (M3 1:1 complexation & BSSE), `scripts/gvpt2_shard_runner.py` (M3 6-shard GVPT2), `scripts/kraitchman_rs.py` (M4 Kraitchman $|r_s|$ coordinates), and `scripts/fact_ledger.py` (M4 L1–L3 SHA-256 `FactLedger`).
+3. **Verify your `cochem.student-handoff/2` ZIP bundle locally (pure Python stdlib):**
 
    ```bash
    python student/handoff.py path/to/CoChem-bundle.zip --sidecar path/to/CoChem-bundle.zip.sha256 --stage ./received
    ```
 
-   See [`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md) and [`student/README.md`](student/README.md) for full details.
+   *(Legacy Archive: the retired "4 clicks" GitHub Codespaces / Public-Fork CURE Route and `.github/workflows/student_conformers.yml` compute definitions are deprecated in favor of local WSL2 execution and retained solely for archived bundle provenance.)*
 
 ---
 
@@ -125,11 +124,11 @@ and SPCAT workflows when enabled by the instructor.)
 
 | You need… | Open… |
 | --- | --- |
-| Complete CHEM 312L Organic Chemistry II Lab walkthrough (M1–M4, workflows, CLI, Canvas handoff) | [CHEM 312L Step-by-Step Guide](student/CHEM312L_STEP_BY_STEP_GUIDE.md) |
-| Dashboard setup, Codespaces lifecycle, and CHEM 490 personal-project steps | [Student start guide](.docs/GET_STARTED.md#student-personal-project) |
-| Help with a missing button, unavailable engine, or setup message | [Troubleshooting](.docs/GET_STARTED.md#understand-a-setup-message) |
+| Complete CHEM 311 Organic Chemistry I (`CoChem-QUEST`) local WSL2 walkthrough (M0–M5) | [CHEM 311 Step-by-Step Guide](student/CHEM311_STEP_BY_STEP_GUIDE.md) |
+| Complete CHEM 312L Organic Chemistry II Lab walkthrough (M1–M4, local WSL2 CLI, Canvas handoff) | [CHEM 312L Step-by-Step Guide](student/CHEM312L_STEP_BY_STEP_GUIDE.md) |
+| Complete CHEM 490 Directed Research walkthrough (local WSL2 ORCA 6.1.1 `revDSD-PBEP86-D4/2021` + VPT2, workstation runner handoff) | [CHEM 490 Step-by-Step Guide](student/CHEM490_STEP_BY_STEP_GUIDE.md) |
+| General dashboard reference and troubleshooting | [Student start guide](.docs/GET_STARTED.md#student-personal-project) · [Troubleshooting](.docs/GET_STARTED.md#understand-a-setup-message) |
 | Supported inputs, monomers/complexes, TOPOS/TORQ analyses, and interpreting results | [Scientific research guide](.docs/Student_Research_No_Code.md) |
-| Instructor preparation for CHEM 490 personal private projects | [Instructor access setup](.docs/GET_STARTED.md#instructor-prepare-student-access) |
 
 <details>
 <summary><strong>Advanced / CHEM 490 Instructor-Invited Track Only (ORCA, CFOUR, Optional Cloud/Local Engines)</strong></summary>

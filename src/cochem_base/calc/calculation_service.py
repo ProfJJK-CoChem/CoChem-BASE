@@ -392,18 +392,36 @@ def run_calculation(
         raw = json.loads(submitted_config.decode("utf-8"))
         if engine:
             raw["engine"] = engine
+        requested_gpu4pyscf_engine = str(raw.get("engine", "")).strip().lower() == "gpu4pyscf"
+        if requested_gpu4pyscf_engine:
+            raw["engine"] = "pyscf"
+            if device.strip().lower() == "cpu":
+                raise ValueError("engine='gpu4pyscf' requires --device cuda (refusing CPU downgrade)")
+            if device.strip().lower() == "auto":
+                device = "cuda"
         config = CalculationMatrixConfig.model_validate(raw)
         if config.hessian_file is not None and not config.hessian_file.is_absolute():
             config = config.model_copy(update={"hessian_file": (cfg_path.parent / config.hessian_file).resolve()})
         validate_job_configuration(config)
+        device_norm = device.strip().lower()
+        is_cuda_device = device_norm == "cuda" or device_norm.startswith("cuda:")
+        if is_cuda_device:
+            from cochem_base.calc.gpu4pyscf_execution import parse_cuda_device_index
+            parse_cuda_device_index(device)
+            if config.engine != "pyscf":
+                raise ValueError(
+                    f"Engine {config.engine!r} does not support --device {device}; "
+                    "use engine='pyscf' (or 'gpu4pyscf') with --device cuda for FP64 GPU4PySCF execution."
+                )
+        use_gpu4pyscf = config.engine == "pyscf" and is_cuda_device
         capability = calculation_capability(config)
+        if use_gpu4pyscf and not config.is_freq and not config.is_vpt2:
+            capability = capability.model_copy(update={"adapter_status": "connected"})
         pending = capability.adapter_status == "pending_integration"
         if not dry_run and not pending and config.engine == "orca" and config.multiplicity > 1 and config.t9_fallback is None:
             raise ValueError("Open-shell ORCA requires an explicit T9 active space before calculation so spin contamination can trigger automatic recovery without inventing orbitals or electron counts")
         if config.recipe == "R2" and not dry_run and not pending and config.r2_reference_manifest is None:
             raise ValueError("Recipe R2 production requires a validated CCSD(T)/CBS monomer reference manifest")
-        if device == "cuda":
-            raise ValueError("The native CPU adapters do not support --device cuda")
         if threads is not None and (isinstance(threads, bool) or threads < 1):
             raise ValueError("--threads must be a positive integer")
         if maxcore_mb is not None and (isinstance(maxcore_mb, bool) or not isinstance(maxcore_mb, int) or maxcore_mb < 1):
@@ -439,15 +457,34 @@ def run_calculation(
             )
             coordinates = normalized_coordinates.tolist()
         canonical_theory_tier(config.theory_tier)
+        from cochem_base.calc.regime_guards import apply_chemical_regime_guards
+
+        regime_report = (
+            apply_chemical_regime_guards(
+                elements,
+                charge=int(config.charge),
+                method_or_theory=" ".join(
+                    part for part in (config.method, config.basis_set)
+                    if part and part.lower() not in {"built-in", "default"}
+                ),
+                basis=config.basis_set,
+                engine="gpu4pyscf" if use_gpu4pyscf else config.engine,
+            )
+            if config.engine in {"orca", "cfour", "pyscf"}
+            else None
+        )
+        if regime_report is not None:
+            for guard_warning in regime_report.warnings:
+                emit({"kind": "warning", "code": "CHEMICAL_REGIME_GUARD", "message": guard_warning})
         basin_id = f"job_{uuid.uuid4().hex}"
         molecule = build_molecular_input(
             config, basin_id=basin_id, coordinates=coordinates, nprocs=threads, maxcore_mb=maxcore_mb,
-        ) if config.engine in {"orca", "pyscf"} else None
+        ) if (config.engine == "orca" or (config.engine == "pyscf" and not use_gpu4pyscf)) else None
         xtb_config = config.model_copy(update={"is_freq": False, "is_vpt2": False}) if pending else config
         xtb_arguments = validate_xtb_config(xtb_config, elements) if config.engine == "xtb" else []
         engine_path = None
         authorization = None
-        if not dry_run and not pending:
+        if not dry_run and not pending and not use_gpu4pyscf:
             override = os.environ.get(f"{config.engine.upper()}_CMD")
             engine_path = shutil.which(resolve_executable(override)) if override else None
             if override and engine_path is None:
@@ -460,6 +497,9 @@ def run_calculation(
             engine_path, threads = authorization.executable, authorization.cores
             if molecule is not None:
                 molecule = molecule.model_copy(update={"nprocs": threads, "maxcore_mb": authorization.maxcore_mb})
+        elif not dry_run and not pending and use_gpu4pyscf:
+            from cochem_base.calc.gpu4pyscf_execution import resolve_gpu4pyscf_python
+            engine_path = str(resolve_gpu4pyscf_python())
         scratch_root = _external_run_path(Path(scratch or os.environ.get("COCH_SCRATCH") or get_artifact_dir() / "Scratch"))
         output_arg = output
         output_requested_lexical = Path(output_arg).expanduser().absolute() if output_arg else None
@@ -469,7 +509,7 @@ def run_calculation(
             and (
                 (config.engine == "xtb" and config.method.upper() == "GFN2-XTB"
                  and capability.operation in {"single_point", "optimization"})
-                or (config.engine == "pyscf" and capability.operation == "single_point")
+                or (config.engine == "pyscf" and not use_gpu4pyscf and capability.operation == "single_point")
             )
         )
         if retained_output_eligible and hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY"):
@@ -556,12 +596,29 @@ def run_calculation(
             deck = write_cfour_input(
                 sandbox_dir, config, elements, coordinates,
                 memory_mb=authorization.total_memory_mb if authorization is not None else (maxcore_mb or 1024) * threads,
-                gradient=config.method == "HF", harmonic=config.is_freq,
+                gradient=(config.is_opt and not config.is_freq and not config.is_vpt2),
+                harmonic=(config.is_freq and not config.is_vpt2),
+                anharmonic=config.is_vpt2,
             )
         elif config.engine == "qe":
             from cochem_base.calc.periodic_execution import write_periodic_input
             deck = write_periodic_input(elements, coordinates, periodic, directory=sandbox_dir,
                                         charge=config.charge, multiplicity=config.multiplicity)
+        elif use_gpu4pyscf:
+            from cochem_base.calc.gpu4pyscf_execution import parse_cuda_device_index, write_gpu4pyscf_input
+            deck = write_gpu4pyscf_input(
+                sandbox_dir,
+                elements,
+                coordinates,
+                basin_id=basin_id,
+                method=config.method,
+                basis_set=config.basis_set or "def2-SVP",
+                charge=config.charge,
+                multiplicity=config.multiplicity,
+                is_opt=config.is_opt,
+                max_memory_mb=(maxcore_mb or 4096) * max(1, threads or 1),
+                device_index=parse_cuda_device_index(device),
+            )
         elif config.engine == "pyscf":
             deck = generate_pyscf_input(molecule, output_dir=sandbox_dir, expected_version=config.pyscf_version)
         elif molecule is not None:
@@ -647,6 +704,26 @@ def run_calculation(
                     )
                     return
 
+                if use_gpu4pyscf:
+                    from cochem_base.calc.gpu4pyscf_execution import execute_gpu4pyscf
+                    emit({"kind": "status", "status": "RUNNING", "engine": "gpu4pyscf", "device": device})
+                    accepted = execute_gpu4pyscf(
+                        elements,
+                        coordinates,
+                        directory=sandbox_dir,
+                        basin_id=basin_id,
+                        method=config.method,
+                        basis_set=config.basis_set or "def2-SVP",
+                        charge=config.charge,
+                        multiplicity=config.multiplicity,
+                        is_opt=config.is_opt,
+                        max_memory_mb=(maxcore_mb or 4096) * max(1, threads or 1),
+                        device=device,
+                        timeout_seconds=config.timeout_seconds,
+                        python_executable=engine_path,
+                    )
+                    return
+
                 def stdout_line(line: str) -> None:
                     emit({"kind": "log", "stream": "stdout", "message": line})
 
@@ -701,11 +778,30 @@ def run_calculation(
                 accepted.update(telemetry_path=str(store), telemetry_job_id=basin_id)
                 (sandbox_dir / "result.json").write_text(json.dumps(accepted, indent=2, allow_nan=False), encoding="utf-8")
         status = "DECK_GENERATED" if dry_run else "T9_FALLBACK_VERIFIED" if fallback else "EXECUTION_VERIFIED"
-        payload = {"status": status, "config_file": str(cfg_path), "engine": config.engine, "method": config.method,
-                   "basis_set": config.basis_set, "dry_run": dry_run, "scratch_dir": str(sandbox_dir),
+        payload = {"status": status, "config_file": str(cfg_path),
+                   "engine": "gpu4pyscf" if use_gpu4pyscf else config.engine,
+                   "method": config.method,
+                   "basis_set": (regime_report.effective_basis if regime_report is not None and regime_report.effective_basis else config.basis_set),
+                   "dry_run": dry_run, "scratch_dir": str(sandbox_dir),
                    "operation": capability.operation,
+                   "device": device,
                    "output_dir": str(output) if output is not None else None,
                    "timestamp": datetime.now(timezone.utc).isoformat()}
+        if regime_report is not None:
+            payload["regime_guards"] = regime_report.to_provenance_dict()
+            if regime_report.warnings:
+                payload["warnings"] = list(regime_report.warnings)
+        if not dry_run and accepted is not None:
+            for extra_key in ("multireference_diagnostics", "scf_retry_provenance", "imaginary_mode_check"):
+                if extra_key in accepted:
+                    payload[extra_key] = accepted[extra_key]
+        if use_gpu4pyscf and not dry_run and accepted is not None:
+            payload.update(
+                cuda_device_name=accepted.get("cuda_device_name"),
+                precision=accepted.get("precision"),
+                gpu4pyscf_version=accepted.get("gpu4pyscf_version"),
+                banner=accepted.get("banner"),
+            )
         if fallback is not None:
             payload.update(requested_engine=config.engine, requested_method=config.method,
                            engine="pyscf", method=fallback["method"], basis_set=fallback["basis"],
@@ -740,3 +836,167 @@ def run_calculation(
         # Failed jobs retain evidence; a successful unpromoted deck must remain usable.
         if success and sandbox_dir and output and not keep_scratch:
             shutil.rmtree(sandbox_dir)
+
+
+def run_nbo7_analysis(
+    *,
+    workdir: str | Path,
+    file47_path: str | Path | None = None,
+    elements: list[str] | None = None,
+    coordinates_angstrom: Any = None,
+    method: str = "HF",
+    basis_set: str = "def2-SVP",
+    charge: int = 0,
+    multiplicity: int = 1,
+    job_name: str = "nbo_job",
+    nprocs: int = 1,
+    maxcore_mb: int = 1024,
+    timeout_seconds: float = 600.0,
+) -> dict[str, Any]:
+    """Service entrypoint for authentic NBO 7.0 analysis (ORCA %nbo or standalone gennbo.i8.exe)."""
+    from cochem_base.calc.nbo7_execution import run_gennbo7, run_orca_nbo7
+
+    if file47_path is not None:
+        return run_gennbo7(file47_path, workdir=workdir, timeout_seconds=timeout_seconds)
+    if elements is None or coordinates_angstrom is None:
+        raise ValueError("Provide either file47_path or (elements, coordinates_angstrom) for NBO 7 analysis")
+    return run_orca_nbo7(
+        elements,
+        coordinates_angstrom,
+        workdir=workdir,
+        method=method,
+        basis_set=basis_set,
+        charge=charge,
+        multiplicity=multiplicity,
+        job_name=job_name,
+        nprocs=nprocs,
+        maxcore_mb=maxcore_mb,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def run_multiwfn_analysis(
+    wavefunction_path: str | Path,
+    *,
+    workdir: str | Path,
+    analyses: tuple[str, ...] = ("qtaim", "nci", "mayer_bond_order"),
+    nci_grid_quality: int = 1,
+    rdg_cutoff: float = 0.5,
+    timeout_seconds: float = 300.0,
+) -> dict[str, Any]:
+    """Service entrypoint for authentic Multiwfn analysis (QTAIM, NCI/RDG, Mayer BO, ELF)."""
+    from cochem_base.calc.multiwfn_execution import run_multiwfn_analysis as _run_multiwfn
+
+    return _run_multiwfn(
+        wavefunction_path,
+        workdir=workdir,
+        analyses=analyses,
+        nci_grid_quality=nci_grid_quality,
+        rdg_cutoff=rdg_cutoff,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def execute_orca_with_scf_retry(
+    deck_path: str | Path,
+    *,
+    orca_executable: str | Path,
+    workdir: str | Path,
+    environment: dict[str, str] | None = None,
+    timeout_seconds: float = 1800.0,
+    max_retries: int = 2,
+    cancellation_event: Any = None,
+    on_event: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    """Execute a live ORCA deck with bounded automatic SlowConv/KDIIS/MaxIter 300 SCF retry."""
+    from cochem_base.calc.cochem_calc_output_parser import QuantumParser
+    from cochem_base.calc.regime_guards import (
+        MAX_SCF_RETRIES,
+        parse_cc_multireference_diagnostics,
+        prepare_orca_scf_retry,
+    )
+    from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+
+    deck = Path(deck_path).resolve()
+    cwd = Path(workdir).resolve()
+    cwd.mkdir(parents=True, exist_ok=True)
+    capped_max = min(int(max_retries), MAX_SCF_RETRIES)
+    env = dict(os.environ if environment is None else environment)
+    decisions: list[dict[str, Any]] = []
+    retry_idx = 0
+
+    while True:
+        proc = safe_subprocess_run(
+            [str(orca_executable), deck.name],
+            cwd=cwd,
+            timeout=timeout_seconds,
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+            required_disk_gb=0.1,
+            load_full_stdout=True,
+            cancellation_event=cancellation_event,
+        )
+        stdout_text = proc.stdout or ""
+        out_path = cwd / (deck.stem + ".out")
+        out_path.write_text(stdout_text, encoding="utf-8")
+        (cwd / "stderr.log").write_text(proc.stderr or "", encoding="utf-8")
+
+        parser = QuantumParser(str(cwd))
+        scf_ok = proc.returncode == 0 and parser.verify_scf_convergence(out_path)
+        if scf_ok:
+            cc_diag = parse_cc_multireference_diagnostics(stdout_text, engine="orca")
+            return {
+                "converged": True,
+                "returncode": proc.returncode,
+                "deck_path": str(deck),
+                "output_path": str(out_path),
+                "retries_used": retry_idx,
+                "max_retries": capped_max,
+                "decisions": decisions,
+                "multireference_diagnostics": cc_diag,
+            }
+
+        current_deck = deck.read_text(encoding="utf-8")
+        decision = prepare_orca_scf_retry(
+            current_deck,
+            stdout_text,
+            retry_index=retry_idx,
+            max_retries=capped_max,
+        )
+        decisions.append(decision.to_dict())
+        if not decision.should_retry:
+            raise RuntimeError(
+                f"ORCA SCF failed after {retry_idx} retry attempt(s): {decision.reason}"
+            )
+        (cwd / f"{deck.stem}_scf_attempt_{retry_idx}.inp").write_text(current_deck, encoding="utf-8")
+        (cwd / f"{deck.stem}_scf_attempt_{retry_idx}.out").write_text(stdout_text, encoding="utf-8")
+        if on_event is not None:
+            for warn in decision.warnings:
+                on_event({"kind": "warning", "code": "SCF_AUTO_RETRY", "message": warn})
+        deck.write_text(decision.remediated_deck, encoding="utf-8")
+        retry_idx += 1
+
+
+def reoptimize_orca_imaginary_modes(
+    elements: list[str],
+    initial_result: dict[str, Any],
+    *,
+    initial_hessian: Any,
+    reopt_runner: Callable[[list[list[float]], int], tuple[dict[str, Any], Any]],
+    max_retries: int = 2,
+    imag_threshold_cm1: float = 10.0,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Service entrypoint for authentic imaginary-mode eigenvector displacement & re-optimization."""
+    from cochem_base.calc.regime_guards import reoptimize_imaginary_modes
+
+    return reoptimize_imaginary_modes(
+        elements,
+        initial_result,
+        initial_hessian=initial_hessian,
+        reopt_runner=reopt_runner,
+        max_retries=max_retries,
+        imag_threshold_cm1=imag_threshold_cm1,
+    )
+

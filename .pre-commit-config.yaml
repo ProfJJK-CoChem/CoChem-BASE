@@ -30,3 +30,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: zero-mock-and-mockup-firewall
+        name: Zero-Mock AST Gate & Mockup-Leak Firewall
+        entry: pytest tests/test_zero_mock_and_no_sim_gate.py
+        language: system
+        pass_filenames: false
+        always_run: true

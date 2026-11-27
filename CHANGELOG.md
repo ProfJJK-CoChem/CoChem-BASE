@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased (Zero-Mock & Authentic Engines Campaign)
+
+- Burned `.anti_spoof_amnesty.json` down to `[]` (zero file waivers) and
+  disclosed reclassification of Python stdlib concurrency modules
+  (`threading`, `multiprocessing`, `concurrent.futures`): concurrency is an
+  execution primitive, not mocking, so legitimate parallel runners no longer
+  require broad amnesty entries.
+- Hardened `ci_tools/anti_spoof_linter.py` and
+  `tests/test_zero_mock_and_no_sim_gate.py` against indirect mock aliases
+  (`from unittest import mock as ...`, `importlib.import_module`,
+  `sys.modules` mock/engine injection, `builtins.__import__`, `pytest-mock` /
+  `mocker` fixtures, `responses`, `vcrpy`, `requests_mock`, and bare
+  `setattr`/`delattr` targeting scientific engine modules in tests), backed by
+  seeded-canary unit tests and a serial-vs-parallel `ThreadPoolExecutor`
+  determinism check.
+- Added a tracked-media mockup-leak firewall in
+  `tests/test_zero_mock_and_no_sim_gate.py` (wired into
+  `.pre-commit-config.yaml`) rejecting `cochem:mockup=true` PNG `tEXt`/XMP
+  metadata and `NOT SCIENTIFIC DATA` markers in committed PNG/PDF artifacts.
+- Expanded `src/cochem_base/provenance/citations.py` with 21 CrossRef-verified
+  computational chemistry, wavefunction analysis, solvation, NMR, excited-state,
+  and rotational spectroscopy citations and added
+  `tests/test_citations_catalog_and_dois.py`.
+
 ## 1.0.0
 
 This release defines CoChem-BASE as the ingestion, environment setup, Voilà

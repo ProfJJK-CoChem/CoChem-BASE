@@ -1104,6 +1104,16 @@ def action_run(args: argparse.Namespace) -> int:
 
 
 OPTIONAL_ADDONS: Dict[str, Dict[str, str]] = {
+    "cure": {
+        "name": "CoChem-CURE",
+        "distribution": "cochem-cure",
+        "repository": "ProfJJK-CoChem/CoChem-CURE",
+        "revision": "7432611286dc6e5e3e9159e55da5900c1ad36fc1",
+        "cli_name": "cochem-cure",
+        "installer_script": "",
+        "install_command": "cochem-cli install-addon cure",
+        "description": "Optional dynamic course profiles & pathways provider (CoChem-CURE; not required for standalone research).",
+    },
     "spyfy": {
         "name": "CoChem-SPYFY",
         "distribution": "CoChem-SPYFY",
@@ -1118,7 +1128,7 @@ OPTIONAL_ADDONS: Dict[str, Dict[str, str]] = {
 
 
 def _inspect_optional_addons(artifact_dir: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
-    """Inspect installation state of optional add-ons without importing them."""
+    """Inspect installation state of optional add-ons without eager imports."""
     import importlib.metadata
     import shutil
 
@@ -1132,9 +1142,28 @@ def _inspect_optional_addons(artifact_dir: Optional[Path] = None) -> Dict[str, D
             installed_version = None
         cli_candidate = art / "bin" / spec["cli_name"]
         cli_path = str(cli_candidate) if cli_candidate.is_file() else shutil.which(spec["cli_name"])
-        installed = bool(installed_version or cli_path)
+        extra: Dict[str, Any] = {}
+        if addon_id == "cure":
+            from cochem_base import course_loader
+
+            cure_ok = bool(course_loader.is_cure_installed())
+            installed = cure_ok
+            courses: List[str] = []
+            if cure_ok:
+                try:
+                    courses = [
+                        str(entry.get("course_id"))
+                        for entry in course_loader.list_cure_courses()
+                        if entry.get("course_id")
+                    ]
+                except Exception:
+                    courses = []
+            extra["courses"] = courses
+        else:
+            installed = bool(installed_version or cli_path)
         observed[addon_id] = {
             **spec,
+            **extra,
             "installed": installed,
             "status": "installed" if installed else "not installed",
             "installed_version": installed_version,
@@ -1154,13 +1183,15 @@ def action_addons(args: argparse.Namespace) -> int:
         for addon_id, info in addons.items():
             badge = TermColor.ok("installed") if info["installed"] else TermColor.warn("optional add-on (not installed)")
             print(f"  - {addon_id} ({info['name']} @ {info['revision'][:12]}): {badge}")
-            if not info["installed"]:
+            if info["installed"] and info.get("courses"):
+                print(f"    Courses: {', '.join(info['courses'])}")
+            elif not info["installed"]:
                 print(f"    Install: {info['install_command']}")
     return 0
 
 
 def action_install_addon(args: argparse.Namespace) -> int:
-    """Install a registered optional add-on via its pinned installer script."""
+    """Install a registered optional add-on via its pinned installer or provider loader."""
     import shutil
     import subprocess
 
@@ -1169,6 +1200,58 @@ def action_install_addon(args: argparse.Namespace) -> int:
         print(f"Unknown optional add-on {addon_id!r}. Available: {', '.join(sorted(OPTIONAL_ADDONS))}", file=sys.stderr)
         return 2
     spec = OPTIONAL_ADDONS[addon_id]
+    if addon_id == "cure":
+        local_repo_dir = getattr(args, "local_repo_dir", None)
+        revision = getattr(args, "revision", None)
+        if getattr(args, "dry_run", False):
+            payload = {
+                "addon": addon_id,
+                "name": spec["name"],
+                "repository": spec["repository"],
+                "revision": revision or spec["revision"],
+                "distribution": spec["distribution"],
+                "installer": "cochem_base.course_loader.obtain_cure_repository",
+                "local_repo_dir": str(local_repo_dir) if local_repo_dir else None,
+                "dry_run": True,
+            }
+            if args.json:
+                print(json.dumps(payload, indent=2))
+            else:
+                print(f"[DRY-RUN] Would obtain {spec['name']} via cochem_base.course_loader.obtain_cure_repository()")
+            return 0
+        from cochem_base.course_loader import obtain_cure_repository
+
+        try:
+            obtain_result = obtain_cure_repository(
+                local_repo_dir=local_repo_dir,
+                revision=revision,
+            )
+        except (RuntimeError, ValueError, OSError) as exc:
+            if args.json:
+                print(json.dumps({
+                    "addon": addon_id,
+                    "name": spec["name"],
+                    "revision": revision or spec["revision"],
+                    "exit_code": 1,
+                    "installed": False,
+                    "error": str(exc),
+                }, indent=2))
+            else:
+                print(f"Failed to install {spec['name']}: {exc}", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps({
+                "addon": addon_id,
+                "name": spec["name"],
+                "revision": revision or spec["revision"],
+                "exit_code": 0,
+                "installed": True,
+                "obtain": obtain_result,
+            }, indent=2))
+        else:
+            print(TermColor.ok(f"{spec['name']}: {obtain_result.get('status')} ({obtain_result.get('source')})"))
+        return 0
+
     script_path = (REPO_ROOT / spec["installer_script"]).resolve()
     if not script_path.is_file():
         print(f"Add-on installer script not found: {script_path}", file=sys.stderr)
@@ -1204,6 +1287,32 @@ def action_install_addon(args: argparse.Namespace) -> int:
             "installed": completed.returncode == 0,
         }, indent=2))
     return int(completed.returncode)
+
+
+def action_course_setup(args: argparse.Namespace) -> int:
+    """Delegate course-mode configuration and CoChem-CURE pathway inspection to cochem_base.course_loader."""
+    from cochem_base.course_loader import main as course_loader_main
+
+    forwarded: List[str] = []
+    if getattr(args, "is_course", None) is not None:
+        forwarded.extend(["--is-course", str(args.is_course)])
+    if getattr(args, "course", None) is not None:
+        forwarded.extend(["--course", str(args.course)])
+    if getattr(args, "obtain", False):
+        forwarded.append("--obtain")
+    if getattr(args, "list_courses", False):
+        forwarded.append("--list-courses")
+    if getattr(args, "show_pathway", False):
+        forwarded.append("--show-pathway")
+    if getattr(args, "artifact_dir", None):
+        forwarded.extend(["--artifact-dir", str(args.artifact_dir)])
+    if getattr(args, "local_repo_dir", None):
+        forwarded.extend(["--local-repo-dir", str(args.local_repo_dir)])
+    if getattr(args, "revision", None):
+        forwarded.extend(["--revision", str(args.revision)])
+    if getattr(args, "json", False):
+        forwarded.append("--json")
+    return int(course_loader_main(forwarded))
 
 
 # =============================================================================
@@ -1288,16 +1397,72 @@ For comprehensive documentation, see Method_Matrix.md and CoChem_User_Manual.md.
     p_modules.add_argument("module_arguments", nargs=argparse.REMAINDER,
                            help="list, fetch, install or verify followed by module installer options")
 
-    # --- Subcommands: addons / install-addon ---
-    p_addons = subparsers.add_parser("addons", help="List optional CoChem add-ons (such as CoChem-SPYFY)")
+    # --- Subcommands: addons / install-addon / course-setup ---
+    p_addons = subparsers.add_parser("addons", help="List optional CoChem add-ons (such as CoChem-CURE and CoChem-SPYFY)")
     p_addons.add_argument("-a", "--artifact-dir", type=str, default=None, help="Custom artifact directory root")
     p_addons.add_argument("--json", action="store_true", help="Output optional add-on status in JSON format")
 
-    p_install_addon = subparsers.add_parser("install-addon", help="Install an optional CoChem add-on (e.g. spyfy)")
+    p_install_addon = subparsers.add_parser("install-addon", help="Install an optional CoChem add-on (e.g. cure, spyfy)")
     p_install_addon.add_argument("addon", choices=sorted(OPTIONAL_ADDONS.keys()), help="Optional add-on identifier")
     p_install_addon.add_argument("-a", "--artifact-dir", type=str, default=None, help="Custom artifact directory root")
+    p_install_addon.add_argument("--local-repo-dir", type=Path, default=None, help="Optional local repository checkout (for cure)")
+    p_install_addon.add_argument("--revision", type=str, default=None, help="Optional git revision/branch/tag override (for cure)")
     p_install_addon.add_argument("--dry-run", action="store_true", help="Print installer plan without executing")
     p_install_addon.add_argument("--json", action="store_true", help="Output install result in JSON format")
+
+    p_course_setup = subparsers.add_parser(
+        "course-setup",
+        help="Configure standalone research vs. CoChem-CURE course mode and inspect course pathways",
+    )
+    p_course_setup.add_argument(
+        "--is-course",
+        choices=("yes", "no"),
+        default=None,
+        help="Answer 'Is this a course?' non-interactively (yes or no).",
+    )
+    p_course_setup.add_argument(
+        "--course",
+        default=None,
+        help="Course ID to select or inspect (requires CoChem-CURE).",
+    )
+    p_course_setup.add_argument(
+        "--obtain",
+        action="store_true",
+        help="Obtain and verify ProfJJK-CoChem/CoChem-CURE if not already installed.",
+    )
+    p_course_setup.add_argument(
+        "--list-courses",
+        action="store_true",
+        help="List available course profiles from CoChem-CURE.",
+    )
+    p_course_setup.add_argument(
+        "--show-pathway",
+        action="store_true",
+        help="Display the full pathway and milestones for --course.",
+    )
+    p_course_setup.add_argument(
+        "-a",
+        "--artifact-dir",
+        type=str,
+        default=None,
+        help="Override artifact directory for StudentSetup/course-mode.json.",
+    )
+    p_course_setup.add_argument(
+        "--local-repo-dir",
+        type=Path,
+        default=None,
+        help="Optional local CoChem-CURE checkout to install read-only via git archive.",
+    )
+    p_course_setup.add_argument(
+        "--revision",
+        default=None,
+        help="Optional git revision/branch/tag when obtaining CoChem-CURE.",
+    )
+    p_course_setup.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON output.",
+    )
 
     # --- Subcommand: run ---
     p_run = subparsers.add_parser(
@@ -1415,6 +1580,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return action_addons(args)
     elif subcommand == "install-addon":
         return action_install_addon(args)
+    elif subcommand == "course-setup":
+        return action_course_setup(args)
     else:
         logger.error(f"Unrecognized subcommand: {subcommand}")
         parser.print_help()

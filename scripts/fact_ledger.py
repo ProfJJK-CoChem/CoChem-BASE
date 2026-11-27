@@ -31,6 +31,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+FALLBACK_COURSE_IDS: tuple[str, ...] = ("CHEM311", "CHEM312", "CHEM490", "CHEM410", "CHEM411")
+_MILESTONE_NUM_RE = re.compile(r"(?:^|[_\-/])(?:mod|m)(\d+)(?:$|[_\-./])", re.IGNORECASE)
+_MILESTONE_PREFIX_RE = re.compile(r"^(M\d+)", re.IGNORECASE)
 
 DEFAULT_MILESTONES: tuple[tuple[str, str], ...] = (
     ("M1_conformers", "M1 Conformer Ensemble & Handoff"),
@@ -50,6 +53,165 @@ PARENT_MILESTONE_CHILDREN: dict[str, tuple[str, ...]] = {
     "M2_kk_atr": ("M2_geom_comparison",),
     "M3_nci_gvpt2_fermi": ("M3_nci_bsse", "M3_gvpt2"),
 }
+
+
+def _get_allowed_course_ids() -> tuple[str, ...]:
+    """Return allowed course IDs from CoChem-CURE via course_loader when available, else fallback."""
+    try:
+        from cochem_base.course_loader import get_allowed_course_ids as _loader_allowed_course_ids
+    except ImportError:
+        _loader_allowed_course_ids = None
+    if _loader_allowed_course_ids is not None:
+        try:
+            loaded = tuple(str(cid).strip() for cid in _loader_allowed_course_ids() if str(cid).strip())
+            if loaded:
+                return loaded
+        except Exception:
+            pass
+    try:
+        from cochem_cure import provider as _cure_provider
+    except ImportError:
+        return FALLBACK_COURSE_IDS
+    if (
+        getattr(_cure_provider, "SCHEMA_VERSION", None) == "cochem.course-provider/1"
+        and callable(getattr(_cure_provider, "get_allowed_course_ids", None))
+    ):
+        try:
+            loaded = tuple(str(cid).strip() for cid in _cure_provider.get_allowed_course_ids() if str(cid).strip())
+            if loaded:
+                return loaded
+        except Exception:
+            pass
+    return FALLBACK_COURSE_IDS
+
+
+def _validate_course_id(value: str) -> str:
+    """Validate and normalize a course identifier (fail-closed ArgumentTypeError on invalid ID)."""
+    raw = str(value or "").strip()
+    if not raw:
+        raise argparse.ArgumentTypeError("course_id must not be empty.")
+    try:
+        from cochem_cure import provider as _cure_provider
+    except ImportError:
+        _cure_provider = None
+    if (
+        _cure_provider is not None
+        and getattr(_cure_provider, "SCHEMA_VERSION", None) == "cochem.course-provider/1"
+        and callable(getattr(_cure_provider, "validate_course_id", None))
+    ):
+        try:
+            return str(_cure_provider.validate_course_id(raw))
+        except (ValueError, KeyError) as exc:
+            raise argparse.ArgumentTypeError(str(exc)) from exc
+
+    allowed = _get_allowed_course_ids()
+    normalized = raw.upper().replace(" ", "").replace("-", "").replace("_", "")
+    if normalized == "CHEM312L" and "CHEM312" in allowed:
+        return "CHEM312"
+    for cid in allowed:
+        cid_norm = cid.upper().replace(" ", "").replace("-", "").replace("_", "")
+        if raw.upper() == cid.upper() or normalized == cid_norm:
+            return cid
+    raise argparse.ArgumentTypeError(
+        f"invalid course_id {value!r} (choose from {', '.join(allowed)})"
+    )
+
+
+def _format_cure_milestones(raw_milestones: Sequence[Mapping[str, Any]]) -> tuple[tuple[str, str], ...]:
+    """Convert structured CoChem-CURE milestone dictionaries into (key, title) tuples."""
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for item in raw_milestones:
+        if not isinstance(item, Mapping):
+            continue
+        mid = str(item.get("milestone_id") or item.get("id") or item.get("code") or "").strip()
+        if not mid or mid in seen:
+            continue
+        seen.add(mid)
+        base_title = str(item.get("title") or item.get("name") or mid).strip()
+        weeks = str(item.get("weeks") or "").strip()
+        if weeks and weeks not in base_title:
+            title = f"{mid} ({weeks}): {base_title}"
+        elif not base_title.startswith(mid):
+            title = f"{mid}: {base_title}"
+        else:
+            title = base_title
+        out.append((mid, title))
+    return tuple(out)
+
+
+def get_milestone_catalog_for_course(course_id: str) -> tuple[tuple[tuple[str, str], ...], str]:
+    """Resolve the (milestones, source) tuple for ``course_id``.
+
+    Preserves exact ``DEFAULT_MILESTONES`` for ``CHEM312``; dynamically loads
+    ``CoChem-CURE`` milestones via ``cochem_base.course_loader.get_cure_milestones``
+    (or ``cochem_cure.provider``) for all other courses, with a clean generic
+    course-aware fallback when standalone.
+    """
+    cid = str(course_id or "CHEM312").strip() or "CHEM312"
+    if cid.upper() == "CHEM312":
+        return DEFAULT_MILESTONES, "chem312_default"
+
+    raw_milestones: Sequence[Mapping[str, Any]] | None = None
+    try:
+        from cochem_base.course_loader import get_cure_milestones as _loader_get_milestones
+
+        raw_milestones = _loader_get_milestones(cid)
+    except Exception:
+        raw_milestones = None
+
+    if raw_milestones is None:
+        try:
+            from cochem_cure import provider as _cure_provider
+
+            if (
+                getattr(_cure_provider, "SCHEMA_VERSION", None) == "cochem.course-provider/1"
+                and callable(getattr(_cure_provider, "get_course_milestones", None))
+            ):
+                raw_milestones = _cure_provider.get_course_milestones(cid)
+        except Exception:
+            raw_milestones = None
+
+    if raw_milestones:
+        formatted = _format_cure_milestones(raw_milestones)
+        if formatted:
+            return formatted, "cochem_cure"
+
+    return (
+        (f"{cid}_M1", f"{cid} Milestone 1: Setup & Primary Computations"),
+        (f"{cid}_M2", f"{cid} Milestone 2: Analysis & Spectroscopy"),
+        (f"{cid}_M3", f"{cid} Milestone 3: Advanced Modeling & Verification"),
+        (f"{cid}_M4", f"{cid} Milestone 4: Dossier & Cryptographic Handoff"),
+    ), "standalone_fallback"
+
+
+def _map_milestone_for_course(
+    path: Path,
+    classified_milestone: str,
+    course_id: str,
+    catalog_keys: Sequence[str],
+) -> str:
+    """Map an artifact's classified milestone onto the target course's milestone catalog."""
+    if course_id.upper() == "CHEM312" or classified_milestone in catalog_keys:
+        return classified_milestone
+    key_lookup = {k.upper(): k for k in catalog_keys}
+
+    # Honor explicit modN / mN filename conventions (e.g., mod1_results.json, mod5_isotopologues.json)
+    m_name = _MILESTONE_NUM_RE.search(path.name)
+    if m_name:
+        num = m_name.group(1)
+        for cand in (f"M{num}", f"{course_id.upper()}_M{num}"):
+            if cand in key_lookup:
+                return key_lookup[cand]
+
+    # Map classified M1..M4 prefix onto the course's matching milestone key if present
+    m_pref = _MILESTONE_PREFIX_RE.match(classified_milestone)
+    if m_pref:
+        prefix = m_pref.group(1).upper()
+        for cand in (prefix, f"{course_id.upper()}_{prefix}"):
+            if cand in key_lookup:
+                return key_lookup[cand]
+    return classified_milestone
 
 
 class FactLedgerIntegrityError(ValueError):
@@ -235,7 +397,9 @@ def build_fact_ledger(
     l1_entries: list[dict[str, Any]] = []
     l2_entries: list[dict[str, Any]] = []
     artifacts_by_id: dict[str, dict[str, Any]] = {}
-    milestone_evidence: dict[str, list[str]] = {k: [] for k, _ in DEFAULT_MILESTONES}
+    course_milestones, milestone_source = get_milestone_catalog_for_course(course_id)
+    catalog_keys = [k for k, _ in course_milestones]
+    milestone_evidence: dict[str, list[str]] = {k: [] for k, _ in course_milestones}
 
     seen_resolved: set[Path] = set()
     for raw_path in artifact_paths:
@@ -257,7 +421,8 @@ def build_fact_ledger(
         if explicit_tiers and rel_str in explicit_tiers:
             tier, milestone = explicit_tiers[rel_str]
         else:
-            tier, milestone = classify_artifact_tier(resolved)
+            tier, raw_milestone = classify_artifact_tier(resolved)
+            milestone = _map_milestone_for_course(resolved, raw_milestone, course_id, catalog_keys)
 
         handoff_members_verified: list[str] = []
         if resolved.name.lower() == "handoff.json":
@@ -332,13 +497,15 @@ def build_fact_ledger(
 
     # Build L3 milestone table (missing milestones are explicitly PENDING)
     l3_milestones: list[dict[str, Any]] = []
-    default_keys = {k for k, _ in DEFAULT_MILESTONES}
-    for key, title in DEFAULT_MILESTONES:
+    catalog_key_set = {k for k, _ in course_milestones}
+    use_chem312_children = course_id.upper() == "CHEM312"
+    for key, title in course_milestones:
         ev_ids = list(milestone_evidence.get(key, []))
-        for child_key in PARENT_MILESTONE_CHILDREN.get(key, ()):
-            for cid in milestone_evidence.get(child_key, []):
-                if cid not in ev_ids:
-                    ev_ids.append(cid)
+        if use_chem312_children:
+            for child_key in PARENT_MILESTONE_CHILDREN.get(key, ()):
+                for cid in milestone_evidence.get(child_key, []):
+                    if cid not in ev_ids:
+                        ev_ids.append(cid)
         l3_milestones.append(
             {
                 "milestone": key,
@@ -349,7 +516,7 @@ def build_fact_ledger(
             }
         )
     for extra_key, ev_ids in milestone_evidence.items():
-        if extra_key in default_keys or not ev_ids:
+        if extra_key in catalog_key_set or not ev_ids:
             continue
         l3_milestones.append(
             {
@@ -365,6 +532,7 @@ def build_fact_ledger(
         "schema": "cochem.fact-ledger/1",
         "collaborator_institution": "Tennessee Tech University",
         "course_id": course_id,
+        "milestone_source": milestone_source,
         "project_label": resolved_project_label,
         "created_at_utc": _utc_now(),
         "base_dir": root.as_posix() if root is not None else None,
@@ -543,7 +711,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Project/team label (defaults to '<course_id>_Dossier', e.g., CHEM312_Dossier or CHEM490_Dossier).",
     )
-    p.add_argument("--course-id", default="CHEM312", choices=("CHEM312", "CHEM490", "CHEM410", "CHEM411"))
+    p.add_argument(
+        "--course-id",
+        type=_validate_course_id,
+        default="CHEM312",
+        help=(
+            "Course provenance identifier resolved dynamically via CoChem-CURE when installed "
+            "(default: CHEM312; fallback: CHEM311, CHEM312, CHEM490, CHEM410, CHEM411)."
+        ),
+    )
     p.add_argument("--claims-json", type=Path, default=None, help="Optional JSON array of L3 claims referencing artifact_ids.")
     p.add_argument("--output-json", type=Path, default=None, help="Output FactLedger.json path.")
     p.add_argument("--output-md", type=Path, default=None, help="Output FactLedger.md path.")

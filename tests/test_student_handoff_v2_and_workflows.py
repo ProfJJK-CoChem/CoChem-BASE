@@ -433,6 +433,12 @@ def test_readme_preserves_nov8_onboarding_and_adds_public_fork_cure_route() -> N
     assert "Tennessee Tech University" in text
     assert "student_conformers.yml" in text
     assert "cochem.student-handoff/2" in text
+    assert "activate_cochem_wsl.sh" in text
+    assert "student/CHEM311_STEP_BY_STEP_GUIDE.md" in text
+    assert "student/CHEM312L_STEP_BY_STEP_GUIDE.md" in text
+    assert "student/CHEM490_STEP_BY_STEP_GUIDE.md" in text
+    assert "CoChem-ORACLE" in text
+    assert "DLPNO-CCSD(T)" in text
 
 
 def test_p8_student_qualification_fixes_devcontainer_workflows_and_examples() -> None:
@@ -762,3 +768,85 @@ def test_qa_r3_rxn_profile_auto_input_name_derivation_and_override(tmp_path: Pat
         assert zips[0].name == expected_zip_name
         rec = handoff.verify(zips[0], sidecar_path=zips[0].with_suffix(".zip.sha256"))
         assert rec["input_name"] == expected_input_name
+
+
+def test_v2_handoff_chem311_course_id_and_atomic_cleanup_on_failed_verify(tmp_path: Path) -> None:
+    """Verify B-311-03 (CHEM311 allowed in v2 handoff) and B-06 (atomic cleanup on failed seal verify)."""
+    assert "CHEM311" in handoff.V2_ALLOWED_COURSE_IDS
+    commit_sha = "74e2811a4d3747468e6ea195e2000fa0d0c8deac"
+    h2co_xyz = (
+        "4\n"
+        "-114.500000 RHF/def2-svp\n"
+        "C  0.000000  0.000000 -0.528800\n"
+        "O  0.000000  0.000000  0.676200\n"
+        "H  0.000000  0.935000 -1.110000\n"
+        "H  0.000000 -0.935000 -1.110000\n"
+    )
+    ok_manifest = handoff.StudentHandoffV2Manifest(
+        workflow_type="conformer",
+        input_name="chem311_h2co.xyz",
+        charge=0,
+        multiplicity=1,
+        method="GFN2-xTB",
+        basis="def2-SVP",
+        solvation="gas",
+        hessian_calculated=True,
+        n_imaginary_modes=0,
+        course_id="CHEM311",
+        collaborator_institution="Tennessee Tech University",
+        target_continuation="workstation",
+        starting_xyz="input.xyz",
+        primary_xyz="refined.xyz",
+        ensemble_xyz=None,
+        candidate_count=1,
+        selected="refined.xyz",
+        student_id="chem311_student1",
+        repository="ProfJJK-CoChem/CoChem-BASE",
+        commit=commit_sha,
+        run_id="51003111",
+        attempt="1",
+    )
+    z_ok, s_ok, sha_ok, _ = handoff.build_student_handoff_v2_zip(
+        {"input.xyz": h2co_xyz, "refined.xyz": h2co_xyz},
+        ok_manifest,
+        tmp_path / "chem311_ok",
+    )
+    verified = handoff.verify(z_ok, sidecar_path=s_ok)
+    assert verified["course_id"] == "CHEM311"
+    assert handoff.sha256_file(z_ok) == sha_ok
+
+    # B-06: Invalid spin parity inside XYZ passes manifest-field check, then fails verify();
+    # build_student_handoff_v2_zip must unlink both .zip and .zip.sha256 cleanly.
+    fail_out = tmp_path / "chem311_fail"
+    bad_manifest = handoff.StudentHandoffV2Manifest(
+        workflow_type="conformer",
+        input_name="bad_spin_h2co.xyz",
+        charge=-1,  # H2CO (16e) + 1e = 17e odd -> invalid for singlet multiplicity=1
+        multiplicity=1,
+        method="GFN2-xTB",
+        basis="def2-SVP",
+        solvation="gas",
+        hessian_calculated=False,
+        n_imaginary_modes=None,
+        course_id="CHEM311",
+        collaborator_institution="Tennessee Tech University",
+        target_continuation="workstation",
+        starting_xyz="input.xyz",
+        primary_xyz="refined.xyz",
+        ensemble_xyz=None,
+        candidate_count=1,
+        selected="refined.xyz",
+        student_id="chem311_student1",
+        repository="ProfJJK-CoChem/CoChem-BASE",
+        commit=commit_sha,
+        run_id="51003112",
+        attempt="1",
+    )
+    with pytest.raises(handoff.HandoffValidationError):
+        handoff.build_student_handoff_v2_zip(
+            {"input.xyz": h2co_xyz, "refined.xyz": h2co_xyz},
+            bad_manifest,
+            fail_out,
+        )
+    assert list(fail_out.glob("*.zip")) == [], "Orphan .zip must be cleaned up when self-verify fails"
+    assert list(fail_out.glob("*.sha256")) == [], "Orphan .sha256 must be cleaned up when self-verify fails"

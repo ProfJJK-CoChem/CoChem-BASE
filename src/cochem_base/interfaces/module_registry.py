@@ -19,6 +19,10 @@ from pydantic import BaseModel, ConfigDict
 ENTRY_POINT_GROUP = "cochem.modules"
 
 
+class ModuleUnavailableError(RuntimeError):
+    """Raised when a requested ecosystem module is unavailable or unimplemented."""
+
+
 class ModuleStatus(str, Enum):
     AVAILABLE = "available"
     NOT_INSTALLED = "not_installed"
@@ -75,11 +79,11 @@ def canonical_module_id(module_id: str) -> str:
 
 
 def assert_module_dispatchable(module_id: str) -> str:
-    """Resolve module_id and fail closed if the target module is UNIMPLEMENTED."""
+    """Resolve module_id and fail closed with ModuleUnavailableError if UNIMPLEMENTED."""
     name = canonical_module_id(module_id)
     if name in _UNIMPLEMENTED_MODULES:
         title = _MODULES[name][0]
-        raise NotImplementedError(
+        raise ModuleUnavailableError(
             f"Ecosystem module {name!r} ({title}) has status UNIMPLEMENTED and cannot be dispatched."
         )
     return name
@@ -90,7 +94,7 @@ def dispatch_module(module_id: str, operation: str, *args: Any, **kwargs: Any) -
 
     Raises ``ValueError`` for unknown/removed modules (e.g. ``'dock'``), emits
     ``DeprecationWarning`` when resolving legacy aliases (e.g. ``'spycfit'`` ->
-    ``'spyfy'``), and raises ``NotImplementedError`` for ``UNIMPLEMENTED``
+    ``'spyfy'``), and raises ``ModuleUnavailableError`` for ``UNIMPLEMENTED``
     modules (e.g. ``'orb'``).
     """
     name = assert_module_dispatchable(module_id)

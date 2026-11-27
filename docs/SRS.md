@@ -4,7 +4,7 @@ repo: ProfJJK-CoChem/CoChem-BASE
 status: ACTIVE_CORE
 pipeline_baseline: 5.0.0
 source_commit: 98aaeba4a864e8487072b31e4ce1edd4a77335a5
-decision_ref: swarm-1126-8efd, own-1127-05da, own-1127-dc8d
+decision_ref: swarm-1126-8efd, own-1127-05da, own-1127-dc8d, own-1127-74d5
 ---
 
 # CoChem-BASE Software Requirements Specification (SRS) — Pipeline 5.0.0 Canonical Edition
@@ -13,12 +13,13 @@ decision_ref: swarm-1126-8efd, own-1127-05da, own-1127-dc8d
 
 `CoChem-BASE` (`ProfJJK-CoChem/CoChem-BASE`, classification `ACTIVE_CORE`) is the foundational Python package, artifact ingestion boundary, host-setup bootstrapper, ecosystem module registry, shared canonical schema host, and local/student interface layer for the CoChem computational chemistry and rotational spectroscopy platform.
 
-This document (`SRS-COCHEM-BASE-5.0.0`) is the **sole normative SRS** for `CoChem-BASE`, governed by signed Portal decisions `sys-1126-a3d4`, `swarm-1126-8efd`, `own-1126-84f4`, `own-1126-3019`, `swarm-1126-9fc4`, **`own-1127-05da`** (`a8479c2`, `dec-own-1127-05da-17e4e950`), and **`own-1127-dc8d`** (`b845b40`, `dec-own-1127-dc8d-ce69a437`).
+This document (`SRS-COCHEM-BASE-5.0.0`) is the **sole normative SRS** for `CoChem-BASE`, governed by signed Portal decisions `sys-1126-a3d4`, `swarm-1126-8efd`, `own-1126-84f4`, `own-1126-3019`, `swarm-1126-9fc4`, **`own-1127-05da`** (`a8479c2`, `dec-own-1127-05da-17e4e950`), **`own-1127-dc8d`** (`b845b40`, `dec-own-1127-dc8d-ce69a437`), and **`own-1127-74d5`** (`dec-own-1127-74d5-688accd9`).
 
 ### Executed Owner-Signed Governance Rulings (`2026-11-27`)
 
 - **`own-1127-05da` (`a8479c2`):** Refined `ci_tools/anti_spoof_linter.py` `.patch` AST detection (`alias_resolved_receiver_or_chained_patch_family_or_call`), eliminating the 9 benign `fig.patch` / SemVer `.patch` false positives while preserving unconditional banned-mock and chained `.patch.*` enforcement; updated its single digest in `.core_infrastructure_hashring.json` with `.anti_spoof_amnesty.json` untouched (`[]`).
 - **`own-1127-dc8d` (`b845b40`):** Wired the dynamic `CoChem-CURE` course provider into `scripts/module-distribution.json`, `src/cochem_base/cli.py`, `scripts/kraitchman_rs.py`, and `scripts/fact_ledger.py`, updating those exact 4 digests in `.core_infrastructure_hashring.json` (`250/250` hashring intact on `fix/zero-mock-authentic-engines`, `.anti_spoof_amnesty.json` strictly `[]`).
+- **`own-1127-74d5` (`dec-own-1127-74d5-688accd9`, Option `a`, signed `2026-11-27T19:33:16Z`):** Replaced `NotImplementedError` in `src/cochem_base/interfaces/module_registry.py` (`assert_module_dispatchable` for `UNIMPLEMENTED` module `'orb'`) with the clean domain exception `ModuleUnavailableError(RuntimeError)` (re-exported in `src/cochem_base/interfaces/__init__.py`) and re-sealed ONLY the 3 authorized entries (`pyproject.toml`, `src/cochem_base/interfaces/module_execution.py`, `src/cochem_base/interfaces/module_registry.py`) in `.core_infrastructure_hashring.json` (`250/250` hashring intact on `feat/ecosystem-v500-consolidation`, 247 other entries byte-identical, `.anti_spoof_amnesty.json` strictly `[]`).
 
 ### Package Ownership & Distribution Requirements (`REQ-BASE-PKG`)
 
@@ -36,7 +37,7 @@ Every historical contradiction between legacy v4.x specifications and Pipeline 5
 | **CONTRA-02** | `CoChem-ORACLE` offline `llama.cpp` GGUF + ChromaDB RAG chat + GPU VRAM preemption | `CoChem-ORACLE` is redesigned (`swarm-1126-9fc4`) as a **100% deterministic, Zero-LLM Student Data Auditing Model** (zero-RAG, local-only FERPA-safe Student Publication-Readiness Audit Portal). |
 | **CONTRA-03** | `DLPNO-CCSD(T)` / `DLPNO-CCSD(T1)/CBS` default coupled-cluster track | **`DLPNOExclusionFirewall`:** All new `DLPNO` submissions are strictly blocked in favor of canonical `CCSD` / `CCSD(T)` (CFOUR 2.1 / ORCA 6.1.1, including CHEM 490 workstation handoffs via `cochem_workstation_job_runner`), `CCSD(T)-F12b`, local WSL2 `ORCA 6.1.1 revDSD-PBEP86-D4/2021` + `VPT2`, `GPU4PySCF wB97X-V`, and verified MLFF screening (`MACE-OFF24`, `AIMNet2`, `SO3LR`). |
 | **CONTRA-04** | Spectroscopy module registered as `'spycfit'` (`CoChem-SPYCFIT`) without `SURF` bridge | Canonical module identifier is **`'spyfy'`** (`CoChem-SPYFY`, incorporating the `GruLabRotSpec/SURF` 2–18 GHz CP-FTMW instrument bridge). Legacy `'spycfit'` is retained strictly as a deprecated alias emitting `DeprecationWarning`. |
-| **CONTRA-05** | Phantom/retired modules (`UNITY`, `MInt`, `CORE`, `SYNAP`, `CROWN`, `DOCK`, `ORB`) listed as active | `core`, `mint`, `unity`, and `synap` consolidate into `'base'`. Phantom **`'dock'`** (`CoChem-DOCK`) is removed (`ValueError`). Empty **`'orb'`** (`CoChem-ORB`, LICENSE-only) has status **`UNIMPLEMENTED`** and dispatching `'orb'` MUST raise `NotImplementedError`. |
+| **CONTRA-05** | Phantom/retired modules (`UNITY`, `MInt`, `CORE`, `SYNAP`, `CROWN`, `DOCK`, `ORB`) listed as active | `core`, `mint`, `unity`, and `synap` consolidate into `'base'`. Phantom **`'dock'`** (`CoChem-DOCK`) is removed (`ValueError`). Empty **`'orb'`** (`CoChem-ORB`, LICENSE-only) has status **`UNIMPLEMENTED`** and dispatching `'orb'` MUST raise `ModuleUnavailableError` (`own-1127-74d5`). |
 | **CONTRA-06** | Legacy queues (`__agentic/Gemini_Web_Tasks/01..06_lane_*`, `SRS_Inbox`, `mcp_mailbox/`, `g01..g22` `jobs/queue/`, `11x10` matrix) | All legacy 4.2.8 / v0 queues are **RETIRED**. Active orchestration uses the 3-Tier Scheduled Waterfall (`cochem-scheduled-prompt/1`), Drive Web-Harness (`cochem-mcp-mailbox-request/2`, `allowance_id: "A-2026-11"`), and the `15x10 v5.0.2` routing matrix. |
 | **CONTRA-07** | Diverged local-only workstation runner SRS and uncoordinated `CoChem-Project-Access` fork | Compute submission follows `cochem-cloud-job-runner-500` (`OWN-117`) and `cochem_workstation_job_runner` for canonical CHEM 490 `CCSD`/`CCSD(T)` handoffs. Student Colab seats remain gated pending `src/cochem_base/interfaces/student_colab.py` / `src/cochem_base/interfaces/course_access.py` parity verification and owner admission sign-off. |
 | **CONTRA-08** | Hardcoded monolithic course profiles embedded inside `CoChem-BASE` | **`CoChem-BASE` ↔ `CoChem-CURE` Split (`own-1127-dc8d`):** `CoChem-BASE` runs standalone with zero `CoChem-CURE` dependency by default; **`ProfJJK-CoChem/CoChem-CURE`** (pinned at `7432611286dc`) is the authoritative course provider loaded dynamically on demand via `cochem.course-provider/1`. |
@@ -64,7 +65,7 @@ Every historical contradiction between legacy v4.x specifications and Pipeline 5
 
 - `canonical_module_id("spyfy")` MUST return `"spyfy"` with zero warnings.
 - `canonical_module_id("spycfit")` MUST return `"spyfy"` while emitting `DeprecationWarning`.
-- `get_module_capability("orb")` MUST return `status == ModuleStatus.UNIMPLEMENTED` (`"UNIMPLEMENTED"`), and dispatching `"orb"` via `assert_module_dispatchable`, `dispatch_module`, `src/cochem_base/interfaces/artifact_handoff.py`, or `src/cochem_base/interfaces/module_execution.py` MUST raise `NotImplementedError`.
+- `get_module_capability("orb")` MUST return `status == ModuleStatus.UNIMPLEMENTED` (`"UNIMPLEMENTED"`), and dispatching `"orb"` via `assert_module_dispatchable`, `dispatch_module`, `src/cochem_base/interfaces/artifact_handoff.py`, or `src/cochem_base/interfaces/module_execution.py` MUST raise `ModuleUnavailableError` (`RuntimeError` domain exception under `own-1127-74d5`).
 - `"dock"` (`CoChem-DOCK`) MUST be absent and raise `ValueError`.
 
 ### Shared Pipeline 5.0.0 DRAFT Canonical Schemas (`src/cochem_base/schemas/v500_canonical.py`)
@@ -87,7 +88,7 @@ All three schemas carry explicit `SCHEMA_STATUS = "DRAFT"` (`status_until_first_
 ## 6. Verified Implementation Gaps, Known Holds & Non-Goals
 
 - **Resolved — PR #38 Anti-Spoof `.patch` False Positives (`own-1127-05da`, `a8479c2`):** Resolved via owner-signed Portal ruling `own-1127-05da`; `fix/zero-mock-authentic-engines` passes release-mode `ci_tools/base_ci.py audit` with `250/250` hashring integrity and `.anti_spoof_amnesty.json == []`.
-- **Pending Owner Governance Ruling — PR #39 Stacked-Branch Hashring Sign-Off (`3f84eb3`):** Commit `3f84eb3` on `feat/ecosystem-v500-consolidation` modified 3 files inside the 250-file `.core_infrastructure_hashring.json` (`pyproject.toml`, `src/cochem_base/interfaces/module_execution.py`, `src/cochem_base/interfaces/module_registry.py`) without mutating the ring. Updating those exact 3 digests requires a dedicated owner-signed `governance_own` Portal dossier before PR #39 promotes to `main` and passes release-mode `ci_tools/base_ci.py audit`.
+- **Resolved — PR #39 Stacked-Branch Hashring Sign-Off & `orb` Domain Exception (`own-1127-74d5`, `dec-own-1127-74d5-688accd9`):** Resolved via owner-signed Portal ruling `own-1127-74d5` (Option `a`, signed `2026-11-27T19:33:16Z`). Replaced `NotImplementedError` in `src/cochem_base/interfaces/module_registry.py` (`assert_module_dispatchable`) with the domain exception `ModuleUnavailableError(RuntimeError)` (re-exported in `src/cochem_base/interfaces/__init__.py`) and re-sealed ONLY the 3 authorized entries (`pyproject.toml`, `src/cochem_base/interfaces/module_execution.py`, `src/cochem_base/interfaces/module_registry.py`) in `.core_infrastructure_hashring.json` (`250/250` intact, 247 entries byte-identical, `.anti_spoof_amnesty.json == []`), passing release-mode `ci_tools/base_ci.py audit`.
 - **Set 3 P10 Colab GPU Gate (`blind-s3-p10`):** Merge to `main` remains machine-blocked until Colab GPU parity job `blind.s3.hof.gpu4pyscf.wb97xv.p1` clears its active `OWNER_HOLD_COLAB_PRECLAIM_DIAGNOSIS` hold and passes without CPU fallback.
 - **Deferred Scope & Non-Goals:** `CoChem-BASE` does not execute student PII grading in cloud context (FERPA processing remains strictly local via Ollama `gemma4`), does not ship desktop Qt/VTK binaries as required headless runtimes, and does not perform direct unverified `orb` execution.
 

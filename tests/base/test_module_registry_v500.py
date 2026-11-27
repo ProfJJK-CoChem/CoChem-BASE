@@ -10,6 +10,7 @@ import cochem_base
 from cochem_base.interfaces.artifact_handoff import prepare_module_handoff
 from cochem_base.interfaces.module_registry import (
     ModuleStatus,
+    ModuleUnavailableError,
     assert_module_dispatchable,
     canonical_module_id,
     dispatch_module,
@@ -61,7 +62,10 @@ def test_legacy_spycfit_alias_emits_deprecation_warning() -> None:
     assert resolved_prefixed == "spyfy"
 
 
-def test_orb_marked_unimplemented_and_dispatch_raises_not_implemented(tmp_path: Path) -> None:
+def test_orb_marked_unimplemented_and_dispatch_raises_module_unavailable(tmp_path: Path) -> None:
+    assert issubclass(ModuleUnavailableError, RuntimeError)
+    assert cochem_base.interfaces.ModuleUnavailableError is ModuleUnavailableError
+
     cap = get_module_capability("orb")
     assert cap.module_id == "orb"
     assert cap.name == "CoChem-ORB"
@@ -69,15 +73,15 @@ def test_orb_marked_unimplemented_and_dispatch_raises_not_implemented(tmp_path: 
     assert cap.status.value == "UNIMPLEMENTED"
     assert cap.execution_verified is False
 
-    with pytest.raises(NotImplementedError, match="UNIMPLEMENTED"):
+    with pytest.raises(ModuleUnavailableError, match="UNIMPLEMENTED"):
         assert_module_dispatchable("orb")
 
-    with pytest.raises(NotImplementedError, match="UNIMPLEMENTED"):
+    with pytest.raises(ModuleUnavailableError, match="UNIMPLEMENTED"):
         dispatch_module("orb", "run_single_point")
 
     geom = tmp_path / "h2.xyz"
     geom.write_text("2\nH2\nH 0.0 0.0 0.0\nH 0.0 0.0 0.74\n", encoding="utf-8")
-    with pytest.raises(NotImplementedError, match="UNIMPLEMENTED"):
+    with pytest.raises(ModuleUnavailableError, match="UNIMPLEMENTED"):
         prepare_module_handoff("orb", geom, tmp_path / "orb_handoff", operation="ingest")
 
 

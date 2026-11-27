@@ -10,6 +10,7 @@ from cochem_base.interfaces.executors import ElectronicStructureExecutor
 from cochem_base.interfaces.module_registry import (
     ModuleCapability,
     ModuleStatus,
+    ModuleUnavailableError,
     assert_module_dispatchable,
     canonical_module_id,
     dispatch_module,
@@ -39,6 +40,7 @@ __all__ = [
     "InterfaceUnavailableError",
     "ModuleCapability",
     "ModuleStatus",
+    "ModuleUnavailableError",
     "assert_module_dispatchable",
     "canonical_module_id",
     "dispatch_module",

@@ -19,6 +19,7 @@ from pathlib import Path
 from threading import Event
 
 from .artifact_handoff import load_module_handoff
+from .module_registry import assert_module_dispatchable
 
 _ADAPTERS = {
     "topos_geometry": "module_adapter_topos.py",
@@ -194,6 +195,7 @@ def execute_module_handoff(handoff_path: str | Path, output: str | Path, *,
 
     path = Path(handoff_path).expanduser().resolve(strict=True)
     handoff = load_module_handoff(path)
+    assert_module_dispatchable(handoff.module_id)
     catalog = load_manifest(manifest or DEFAULT_MANIFEST)
     spec = catalog["modules"].get(handoff.module_id)
     if spec is None or handoff.operation not in spec["operations"]:

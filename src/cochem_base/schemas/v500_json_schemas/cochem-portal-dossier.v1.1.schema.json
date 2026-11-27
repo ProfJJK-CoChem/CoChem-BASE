@@ -1,0 +1,683 @@
+{
+  "$defs": {
+    "CouncilSeatV11": {
+      "additionalProperties": false,
+      "description": "Frontier Council seat record for cochem-portal-dossier/1.1.",
+      "properties": {
+        "degraded_fallback": {
+          "default": false,
+          "title": "Degraded Fallback",
+          "type": "boolean"
+        },
+        "effort": {
+          "minLength": 1,
+          "title": "Effort",
+          "type": "string"
+        },
+        "model_id": {
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "omission_rate_pct": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": null,
+          "title": "Omission Rate Pct"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "seat_id": {
+          "minLength": 1,
+          "title": "Seat Id",
+          "type": "string"
+        },
+        "stage": {
+          "minLength": 1,
+          "title": "Stage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "seat_id",
+        "provider",
+        "model_id",
+        "effort",
+        "stage"
+      ],
+      "title": "CouncilSeatV11",
+      "type": "object"
+    },
+    "DossierOptionV11": {
+      "additionalProperties": false,
+      "description": "Lettered decision option in cochem-portal-dossier/1.1.",
+      "properties": {
+        "compute_cost_summary": {
+          "minLength": 1,
+          "title": "Compute Cost Summary",
+          "type": "string"
+        },
+        "cons": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Cons",
+          "type": "array"
+        },
+        "consequence_class": {
+          "enum": [
+            "REVERSIBLE",
+            "COSTS_MONEY",
+            "IRREVERSIBLE",
+            "TOUCHES_STUDENT_DATA"
+          ],
+          "title": "Consequence Class",
+          "type": "string"
+        },
+        "decision_patch": {
+          "additionalProperties": true,
+          "title": "Decision Patch",
+          "type": "object"
+        },
+        "falsification_trigger": {
+          "minLength": 1,
+          "title": "Falsification Trigger",
+          "type": "string"
+        },
+        "is_recommended": {
+          "title": "Is Recommended",
+          "type": "boolean"
+        },
+        "jev_r1": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": null,
+          "title": "Jev R1"
+        },
+        "jev_r2": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": null,
+          "title": "Jev R2"
+        },
+        "key": {
+          "maxLength": 1,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "net_effect_summary": {
+          "minLength": 1,
+          "title": "Net Effect Summary",
+          "type": "string"
+        },
+        "pros": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Pros",
+          "type": "array"
+        },
+        "response_to_critique": {
+          "minLength": 1,
+          "title": "Response To Critique",
+          "type": "string"
+        },
+        "reviewer_critique": {
+          "minLength": 1,
+          "title": "Reviewer Critique",
+          "type": "string"
+        },
+        "risks": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Risks",
+          "type": "array"
+        },
+        "round2_refinement_changes": {
+          "minLength": 1,
+          "title": "Round2 Refinement Changes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "is_recommended",
+        "consequence_class",
+        "compute_cost_summary",
+        "net_effect_summary",
+        "pros",
+        "cons",
+        "risks",
+        "reviewer_critique",
+        "response_to_critique",
+        "round2_refinement_changes",
+        "falsification_trigger",
+        "decision_patch"
+      ],
+      "title": "DossierOptionV11",
+      "type": "object"
+    },
+    "EvidenceRefV11": {
+      "additionalProperties": false,
+      "description": "Provenance-pinned research or code evidence reference.",
+      "properties": {
+        "entailment_tag": {
+          "enum": [
+            "FULL_TEXT_VERIFIED",
+            "ABSTRACT_ONLY_VERIFIED"
+          ],
+          "title": "Entailment Tag",
+          "type": "string"
+        },
+        "excerpt": {
+          "minLength": 1,
+          "title": "Excerpt",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "source_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "url_or_path": {
+          "minLength": 1,
+          "title": "Url Or Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "url_or_path",
+        "source_sha256",
+        "entailment_tag",
+        "excerpt"
+      ],
+      "title": "EvidenceRefV11",
+      "type": "object"
+    },
+    "ImpactScopeRowV11": {
+      "additionalProperties": false,
+      "description": "Blast-radius and scope impact table row.",
+      "properties": {
+        "after": {
+          "minLength": 1,
+          "title": "After",
+          "type": "string"
+        },
+        "before": {
+          "minLength": 1,
+          "title": "Before",
+          "type": "string"
+        },
+        "blast_radius": {
+          "minLength": 1,
+          "title": "Blast Radius",
+          "type": "string"
+        },
+        "owner_action": {
+          "minLength": 1,
+          "title": "Owner Action",
+          "type": "string"
+        },
+        "scope_item": {
+          "minLength": 1,
+          "title": "Scope Item",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_item",
+        "before",
+        "after",
+        "blast_radius",
+        "owner_action"
+      ],
+      "title": "ImpactScopeRowV11",
+      "type": "object"
+    },
+    "ParameterDiffV11": {
+      "additionalProperties": false,
+      "description": "Round-1 to Round-2 parameter diff entry.",
+      "properties": {
+        "changed": {
+          "title": "Changed",
+          "type": "boolean"
+        },
+        "key": {
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "r1_value": {
+          "title": "R1 Value"
+        },
+        "r2_value": {
+          "title": "R2 Value"
+        }
+      },
+      "required": [
+        "key",
+        "r1_value",
+        "r2_value",
+        "changed"
+      ],
+      "title": "ParameterDiffV11",
+      "type": "object"
+    }
+  },
+  "$id": "urn:cochem:schema:cochem-portal-dossier/1.1",
+  "additionalProperties": false,
+  "description": "Canonical Pipeline 5.0.0 ``cochem-portal-dossier/1.1`` DRAFT validator.",
+  "properties": {
+    "adjudicated_response": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Adjudicated Response"
+    },
+    "attempt": {
+      "minimum": 1,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "bootstrap_tag": {
+      "title": "Bootstrap Tag",
+      "type": "boolean"
+    },
+    "complexity_tier": {
+      "maximum": 10,
+      "minimum": 1,
+      "title": "Complexity Tier",
+      "type": "integer"
+    },
+    "consequence_class": {
+      "enum": [
+        "REVERSIBLE",
+        "COSTS_MONEY",
+        "IRREVERSIBLE",
+        "TOUCHES_STUDENT_DATA"
+      ],
+      "title": "Consequence Class",
+      "type": "string"
+    },
+    "context_summary": {
+      "minLength": 1,
+      "title": "Context Summary",
+      "type": "string"
+    },
+    "council_seats": {
+      "items": {
+        "$ref": "#/$defs/CouncilSeatV11"
+      },
+      "minItems": 1,
+      "title": "Council Seats",
+      "type": "array"
+    },
+    "created_at": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
+    },
+    "deadline_at": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Deadline At"
+    },
+    "decision_category": {
+      "enum": [
+        "compchem_calc_pivot",
+        "workflow_pivot",
+        "governance_own",
+        "system_infra",
+        "routing_matrix",
+        "wiki_knowledge"
+      ],
+      "title": "Decision Category",
+      "type": "string"
+    },
+    "degraded_seat": {
+      "title": "Degraded Seat",
+      "type": "boolean"
+    },
+    "domain_prefix": {
+      "minLength": 1,
+      "title": "Domain Prefix",
+      "type": "string"
+    },
+    "evidence_refs": {
+      "items": {
+        "$ref": "#/$defs/EvidenceRefV11"
+      },
+      "minItems": 1,
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "falsification_trigger": {
+      "minLength": 1,
+      "title": "Falsification Trigger",
+      "type": "string"
+    },
+    "impact_scope_rows": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/ImpactScopeRowV11"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Impact Scope Rows"
+    },
+    "jev_r1": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "default": null,
+      "title": "Jev R1"
+    },
+    "jev_r2": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "default": null,
+      "title": "Jev R2"
+    },
+    "jev_threshold": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "default": null,
+      "title": "Jev Threshold"
+    },
+    "jev_tier": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Jev Tier"
+    },
+    "jev_version": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Jev Version"
+    },
+    "job_id": {
+      "minLength": 1,
+      "title": "Job Id",
+      "type": "string"
+    },
+    "matrix_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Matrix Sha256",
+      "type": "string"
+    },
+    "options": {
+      "items": {
+        "$ref": "#/$defs/DossierOptionV11"
+      },
+      "minItems": 2,
+      "title": "Options",
+      "type": "array"
+    },
+    "prose_only_no_byte_diff": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Prose Only No Byte Diff"
+    },
+    "r1_to_r2_param_diffs": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/ParameterDiffV11"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "R1 To R2 Param Diffs"
+    },
+    "red_team_critique": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Red Team Critique"
+    },
+    "research_degraded": {
+      "title": "Research Degraded",
+      "type": "boolean"
+    },
+    "research_evidence_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Research Evidence Sha256",
+      "type": "string"
+    },
+    "rollback_plan": {
+      "minLength": 1,
+      "title": "Rollback Plan",
+      "type": "string"
+    },
+    "schema_status": {
+      "const": "DRAFT",
+      "default": "DRAFT",
+      "title": "Schema Status",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "cochem-portal-dossier/1.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "stage3_evidence_hash": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Stage3 Evidence Hash",
+      "type": "string"
+    },
+    "stage3_outcome": {
+      "enum": [
+        "MUTATED",
+        "CRITIQUE_OR_AFFIRM",
+        "SKIPPED"
+      ],
+      "title": "Stage3 Outcome",
+      "type": "string"
+    },
+    "summary_one_line": {
+      "minLength": 1,
+      "title": "Summary One Line",
+      "type": "string"
+    },
+    "summit_consensus_vote": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Summit Consensus Vote"
+    },
+    "summit_summary": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Summit Summary"
+    },
+    "symptom": {
+      "minLength": 1,
+      "title": "Symptom",
+      "type": "string"
+    },
+    "task_category_weights": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "minProperties": 1,
+      "title": "Task Category Weights",
+      "type": "object"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "tried_summary": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Tried Summary"
+    }
+  },
+  "required": [
+    "schema_version",
+    "domain_prefix",
+    "job_id",
+    "attempt",
+    "title",
+    "summary_one_line",
+    "symptom",
+    "context_summary",
+    "consequence_class",
+    "decision_category",
+    "complexity_tier",
+    "task_category_weights",
+    "matrix_sha256",
+    "council_seats",
+    "degraded_seat",
+    "stage3_outcome",
+    "stage3_evidence_hash",
+    "research_evidence_sha256",
+    "research_degraded",
+    "bootstrap_tag",
+    "falsification_trigger",
+    "rollback_plan",
+    "evidence_refs",
+    "options"
+  ],
+  "title": "PortalDossierV11",
+  "type": "object",
+  "x-cochem-schema-id": "cochem-portal-dossier/1.1",
+  "x-cochem-status": "DRAFT",
+  "x-status-until-first-producer": "DRAFT"
+}

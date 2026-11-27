@@ -11,7 +11,8 @@ from __future__ import annotations
 
 from enum import Enum
 from importlib import metadata
-from typing import Literal
+from typing import Any, Literal
+import warnings
 
 from pydantic import BaseModel, ConfigDict
 
@@ -23,6 +24,7 @@ class ModuleStatus(str, Enum):
     NOT_INSTALLED = "not_installed"
     INSTALLED_PENDING_INTEGRATION = "installed_pending_integration"
     CONFLICTING_PROVIDERS = "conflicting_providers"
+    UNIMPLEMENTED = "UNIMPLEMENTED"
 
 
 class ModuleCapability(BaseModel):
@@ -43,29 +45,74 @@ _MODULES = {
     "base": ("CoChem-BASE", "Ingestion, setup, execution orchestration and GUI"),
     "topos": ("CoChem-TOPOS", "Conformer and topology workflows"),
     "torq": ("CoChem-TORQ", "Torsional surfaces and coupled nuclear-motion workflows"),
-    "spycfit": ("CoChem-SPYCFIT", "Spectroscopy fitting and export"),
+    "spyfy": ("CoChem-SPYFY", "Spectroscopy fitting, SURF CP-FTMW instrumentation, and export"),
     "scribe": ("CoChem-SCRIBE", "Scientific documents and reporting"),
-    "dock": ("CoChem-DOCK", "Remote service and telemetry interface"),
     **{name: ("CoChem-" + name.upper(), "External ecosystem workflow") for name in (
         "node", "oracle", "bench", "kinetic", "lumos", "mage", "scan", "shift",
         "geom", "council", "cure", "ehs", "eval", "labs", "play", "pulse", "seed", "orb",
     )},
 }
 _CONSOLIDATED = {"core", "mint", "unity", "synap"}
+_LEGACY_ALIASES = {"spycfit": "spyfy"}
+_UNIMPLEMENTED_MODULES = frozenset({"orb"})
 
 
 def canonical_module_id(module_id: str) -> str:
     name = module_id.strip().lower().removeprefix("cochem-")
+    if name in _LEGACY_ALIASES:
+        canonical = _LEGACY_ALIASES[name]
+        warnings.warn(
+            f"Module identifier {module_id!r} is a deprecated legacy alias for "
+            f"{canonical!r} ({_MODULES[canonical][0]}); update callers to use {canonical!r}.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        name = canonical
     name = "base" if name in _CONSOLIDATED else name
     if name not in _MODULES:
         raise ValueError(f"Unknown ecosystem module: {module_id!r}")
     return name
 
 
+def assert_module_dispatchable(module_id: str) -> str:
+    """Resolve module_id and fail closed if the target module is UNIMPLEMENTED."""
+    name = canonical_module_id(module_id)
+    if name in _UNIMPLEMENTED_MODULES:
+        title = _MODULES[name][0]
+        raise NotImplementedError(
+            f"Ecosystem module {name!r} ({title}) has status UNIMPLEMENTED and cannot be dispatched."
+        )
+    return name
+
+
+def dispatch_module(module_id: str, operation: str, *args: Any, **kwargs: Any) -> Any:
+    """Validate dispatchability for an ecosystem module before provider invocation.
+
+    Raises ``ValueError`` for unknown/removed modules (e.g. ``'dock'``), emits
+    ``DeprecationWarning`` when resolving legacy aliases (e.g. ``'spycfit'`` ->
+    ``'spyfy'``), and raises ``NotImplementedError`` for ``UNIMPLEMENTED``
+    modules (e.g. ``'orb'``).
+    """
+    name = assert_module_dispatchable(module_id)
+    if not isinstance(operation, str) or not operation.strip():
+        raise ValueError("A non-empty operation name is required for module dispatch")
+    raise ValueError(
+        f"Direct in-process dispatch for module {name!r} operation {operation!r} is not "
+        "authorized; use prepare_module_handoff / execute_module_handoff with a verified provider."
+    )
+
+
 def get_module_capability(module_id: str) -> ModuleCapability:
     """Report observed provider metadata without claiming executed science."""
     name = canonical_module_id(module_id)
     title, responsibility = _MODULES[name]
+    if name in _UNIMPLEMENTED_MODULES:
+        return ModuleCapability(
+            module_id=name,
+            name=title,
+            responsibility=responsibility,
+            status=ModuleStatus.UNIMPLEMENTED,
+        )
     if name == "base":
         return ModuleCapability(
             module_id=name, name=title, responsibility=responsibility,

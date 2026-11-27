@@ -1,0 +1,200 @@
+{
+  "$defs": {
+    "HandoffQuantityEntry": {
+      "additionalProperties": false,
+      "description": "Single physical quantity with explicit unit and SHA-256 provenance.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "source_file": {
+          "minLength": 1,
+          "title": "Source File",
+          "type": "string"
+        },
+        "source_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "subject": {
+          "minLength": 1,
+          "title": "Subject",
+          "type": "string"
+        },
+        "uncertainty": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": null,
+          "title": "Uncertainty"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Value"
+        },
+        "value_status": {
+          "default": "COMPUTED",
+          "enum": [
+            "MEASURED",
+            "COMPUTED",
+            "PENDING"
+          ],
+          "title": "Value Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "subject",
+        "value",
+        "unit",
+        "source_file",
+        "source_sha256"
+      ],
+      "title": "HandoffQuantityEntry",
+      "type": "object"
+    }
+  },
+  "$id": "urn:cochem:schema:cochem-job-handoff/1",
+  "additionalProperties": false,
+  "description": "Canonical Pipeline 5.0.0 ``cochem-job-handoff/1`` (HANDOFF.json) DRAFT contract.",
+  "properties": {
+    "basis": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Basis"
+    },
+    "created_at_utc": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Created At Utc"
+    },
+    "engine": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Engine"
+    },
+    "job_id": {
+      "minLength": 1,
+      "title": "Job Id",
+      "type": "string"
+    },
+    "method": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Method"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    },
+    "quantities": {
+      "items": {
+        "$ref": "#/$defs/HandoffQuantityEntry"
+      },
+      "minItems": 1,
+      "title": "Quantities",
+      "type": "array"
+    },
+    "registry_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Registry Sha256",
+      "type": "string"
+    },
+    "schema": {
+      "const": "cochem-job-handoff/1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "schema_status": {
+      "const": "DRAFT",
+      "default": "DRAFT",
+      "title": "Schema Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "job_id",
+    "registry_sha256",
+    "quantities"
+  ],
+  "title": "JobHandoffV1",
+  "type": "object",
+  "x-cochem-schema-id": "cochem-job-handoff/1",
+  "x-cochem-status": "DRAFT",
+  "x-status-until-first-producer": "DRAFT"
+}

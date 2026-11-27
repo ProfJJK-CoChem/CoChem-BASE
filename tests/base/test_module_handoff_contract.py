@@ -22,7 +22,12 @@ def test_base_legacy_consolidation_and_future_states_are_explicit():
     for entry in list_module_capabilities():
         assert entry.execution_verified is False
         if entry.module_id != "base":
-            assert entry.status.value in {"not_installed", "installed_pending_integration", "conflicting_providers"}
+            assert entry.status.value in {
+                "not_installed",
+                "installed_pending_integration",
+                "conflicting_providers",
+                "UNIMPLEMENTED",
+            }
             assert entry.operations == ()
     with pytest.raises(ValueError, match="Unknown ecosystem"):
         get_module_capability("../../unknown")

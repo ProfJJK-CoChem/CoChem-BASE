@@ -12,9 +12,35 @@ rotational spectroscopy using authentic quantum chemistry calculations.
 
 ---
 
-## Choose Your Course Track First
+## Is This a Course? (`CoChem-BASE` ↔ `CoChem-CURE`)
 
-| Course Track | Primary Execution Stack | Where to Start |
+`CoChem-BASE` is the core scientific workbench and runs standalone by default.
+When you start setup—either in **`1 · Setup`** of the Voilà dashboard or via the CLI
+(`python -m cochem_base.course_loader`)—`CoChem-BASE` asks **"Is this a course?"**:
+
+- **No (default — standalone research / general calculations):** `CoChem-BASE` runs
+  independently with zero `CoChem-CURE` dependency and makes no network or package install
+  calls on startup.
+- **Yes (course mode — dynamic `CoChem-CURE` loading):** `CoChem-BASE` obtains
+  **[`ProfJJK-CoChem/CoChem-CURE`](https://github.com/ProfJJK-CoChem/CoChem-CURE)** and
+  dynamically loads course selection, course profiles, milestones, and execution pathways
+  from `cochem_cure.provider` (`cochem.course-provider/1`).
+
+```bash
+# Interactive "Is this a course? [y/N]:" prompt
+python -m cochem_base.course_loader
+
+# Non-interactive standalone research mode (never requires CoChem-CURE)
+python -m cochem_base.course_loader --is-course no
+
+# Non-interactive course mode (obtain CoChem-CURE, list courses, and inspect a pathway)
+python -m cochem_base.course_loader --is-course yes --obtain --list-courses
+python -m cochem_base.course_loader --is-course yes --course CHEM311 --show-pathway
+```
+
+### Choose Your Course Track
+
+| Course Track | Primary Execution Stack | Local Guide Mirror (Authoritative Profiles in `CoChem-CURE`) |
 | --- | --- | --- |
 | **CHEM 311 Organic Chemistry I (`CoChem-QUEST`, Cumberland University)** | Local WSL2 (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) — `RDKit`, `GFN2-xTB`, `CREST 3.0.2`, `PySCF`, `IsotopologueSpectroscopyEngine`, `SPCAT` | **[`student/CHEM311_STEP_BY_STEP_GUIDE.md`](student/CHEM311_STEP_BY_STEP_GUIDE.md)** |
 | **CHEM 312L Organic Chemistry II Lab (Cumberland University)** | Local WSL2 (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) — `CREST 3.0.2`, `AIMNet2`, `PySCF`, `CoChem-KINETIC`, KK-ATR, GVPT2, Kraitchman, `FactLedger` | **[`student/CHEM312L_STEP_BY_STEP_GUIDE.md`](student/CHEM312L_STEP_BY_STEP_GUIDE.md)** |
@@ -22,7 +48,7 @@ rotational spectroscopy using authentic quantum chemistry calculations.
 
 > **2026-11-27 Architecture & Course Rules (`CHEM 311`, `CHEM 312L`, `CHEM 490`):**
 > - **Local WSL2 Primary Stack:** Activate `source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`. Legacy **`classroom50`**, **GitHub Codespaces**, and **GitHub Actions compute** are **deprecated / retired**.
-> - **Repository Consolidation:** Legacy **`CoChem-CURE`** is superseded by native **`CoChem-BASE`** course routes (`CHEM311`, `CHEM312`, `CHEM490`). **`CoChem-ORACLE`** is redesigned as the **zero-LLM Student Data Auditing Model**.
+> - **`CoChem-BASE` ↔ `CoChem-CURE` Split:** `CoChem-BASE` provides the standalone scientific engines, UI, and handoff verifier; **`ProfJJK-CoChem/CoChem-CURE`** is the authoritative repository for course profiles, milestones, and pathways, obtained dynamically when you answer **Yes** to *"Is this a course?"*. **`CoChem-ORACLE`** is redesigned as the **zero-LLM Student Data Auditing Model**.
 > - **CREST 3.0.2 Flags:** Always pass `--legacy --xnam "$(which xtb)" --nocross` when invoking CREST 3.0.2 locally.
 > - **Coupled-Cluster & Handoff Policy:** Higher-end canonical `CCSD` / `CCSD(T)` calculations for CHEM 490 are routed via **`cochem_workstation_job_runner`** (`cochem.student-handoff/2`). **`DLPNO-CCSD(T)` is strictly banned under Pipeline 5.0.0.**
 
@@ -68,9 +94,11 @@ Open `http://localhost:8866` to upload `.xyz` files, run local `xTB` / `PySCF` j
 
 **Cumberland University** (`CHEM 311`, `CHEM 312 / 312L`, `CHEM 490`) partnering
 with **Tennessee Tech University** (external CP-FTMW microwave spectroscopy
-collaborator) uses native `CoChem-BASE` course routes (superseding legacy
-`CoChem-CURE`) covering `H, B, C, N, O, F, Si, P, S, Cl, Br`, charges `-2..+2`,
-multiplicities `1..3`, up to 64 atoms, and 256 conformer/trajectory frames.
+collaborator) pairs **`CoChem-BASE`** with dynamically loaded course profiles
+from **`ProfJJK-CoChem/CoChem-CURE`** (obtained when you answer **Yes** to
+*"Is this a course?"*), covering `H, B, C, N, O, F, Si, P, S, Cl, Br`, charges
+`-2..+2`, multiplicities `1..3`, up to 64 atoms, and 256 conformer/trajectory
+frames.
 
 ### How to Submit to Your Professor (Plain-English Handoff)
 

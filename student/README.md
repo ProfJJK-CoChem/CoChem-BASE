@@ -6,9 +6,9 @@ Choose your course at **Cumberland University** (partnering with **Tennessee Tec
 - **[CHEM 312L Organic Chemistry II Lab Step-by-Step Guide (`CHEM312L_STEP_BY_STEP_GUIDE.md`)](CHEM312L_STEP_BY_STEP_GUIDE.md)** — Local WSL2 Milestones 1–4 (`CREST 3.0.2`, `AIMNet2`, `PySCF`, KK-ATR, Fermi deperturbation, 6-shard GVPT2, Kraitchman $|r_s|$, `FactLedger`).
 - **[CHEM 490 Directed Research Step-by-Step Guide (`CHEM490_STEP_BY_STEP_GUIDE.md`)](CHEM490_STEP_BY_STEP_GUIDE.md)** — Local WSL2 ORCA 6.1.1 (`revDSD-PBEP86-D4/2021` + VPT2), `TOPOS`/`BENCH`/`TORQ`/`GEOM`/`SCRIBE`/`SPYFY`, and `cochem_workstation_job_runner` canonical `CCSD`/`CCSD(T)` handoffs.
 
-> **2026-11-27 Architecture Notice:**
+> **2026-11-27 Architecture Notice (`CoChem-BASE` ↔ `CoChem-CURE`):**
 > - **Primary Execution Stack:** Local **WSL2 Ubuntu** (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) is the primary execution stack across `CHEM 311`, `CHEM 312L`, and `CHEM 490`.
-> - **Supersessions & Deprecations:** `CoChem-CURE` is superseded by native `CoChem-BASE` course routes (`CHEM311`, `CHEM312`, `CHEM490`). Legacy `classroom50`, GitHub Codespaces, and GitHub Actions compute are **deprecated**. `CoChem-ORACLE` is redesigned as the **zero-LLM Student Data Auditing Model**.
+> - **"Is This a Course?" Dynamic `CoChem-CURE` Split:** `CoChem-BASE` asks *"Is this a course?"* in **`1 · Setup`** and via `python -m cochem_base.course_loader`. Answer **No** (default) to run `CoChem-BASE` standalone for independent research; answer **Yes** to obtain **`ProfJJK-CoChem/CoChem-CURE`** and dynamically load authoritative course profiles, milestones, and pathways (the `CHEM*_STEP_BY_STEP_GUIDE.md` files below are local mirrors). Legacy `classroom50`, GitHub Codespaces, and GitHub Actions compute are **deprecated**. `CoChem-ORACLE` is redesigned as the **zero-LLM Student Data Auditing Model**.
 > - **CREST 3.0.2 Mandate:** Always pass `--legacy --xnam "$(which xtb)" --nocross` when invoking CREST 3.0.2 locally.
 
 ---

@@ -102,6 +102,19 @@ V2_ALLOWED_SOLVATIONS: tuple[str, ...] = ("gas", "pcm", "ddcosmo")
 V2_ALLOWED_COURSE_IDS: tuple[str, ...] = ("CHEM311", "CHEM312", "CHEM490", "CHEM410", "CHEM411")
 V2_ALLOWED_TARGET_CONTINUATIONS: tuple[str, ...] = ("workstation", "colab_gpu", "gcp_spot")
 
+
+def get_allowed_course_ids() -> tuple[str, ...]:
+    """Return allowed course IDs dynamically from CoChem-CURE when available, else the standalone fallback."""
+    try:
+        from cochem_base.course_loader import get_allowed_course_ids as _loader_allowed_course_ids
+    except ImportError:
+        return V2_ALLOWED_COURSE_IDS
+    try:
+        loaded = tuple(str(cid).strip() for cid in _loader_allowed_course_ids() if str(cid).strip())
+        return loaded if loaded else V2_ALLOWED_COURSE_IDS
+    except Exception:
+        return V2_ALLOWED_COURSE_IDS
+
 DEFAULT_COLLABORATOR_INSTITUTION = "Tennessee Tech University"
 ALLOWED_COLLABORATOR_INSTITUTIONS: tuple[str, ...] = (DEFAULT_COLLABORATOR_INSTITUTION,)
 
@@ -674,10 +687,11 @@ def validate_v2_manifest_fields(receipt: Mapping[str, Any]) -> dict[str, Any]:
                 code="SCHEMA_INVALID",
             )
 
+    allowed_course_ids = get_allowed_course_ids()
     course_id = receipt.get("course_id")
-    if course_id not in V2_ALLOWED_COURSE_IDS:
+    if course_id not in allowed_course_ids:
         raise HandoffValidationError(
-            f"Invalid course_id {course_id!r}; expected one of {V2_ALLOWED_COURSE_IDS}",
+            f"Invalid course_id {course_id!r}; expected one of {allowed_course_ids}",
             code="SCHEMA_INVALID",
         )
 

@@ -147,11 +147,13 @@ def _setup(gui: Any) -> None:
                    gui.advanced_local_setup, Disclosure("Installation log", gui.install_output)),
     )
     gui.btn_continue_inputs = _navigate(gui, "inputs", "Continue to Your files")
+    gui.course_mode_section.add_class("cochem-section")
     gui.view_install.children = (
         _heading("Start here", "Prepare your workspace, then bring in your own structures and research data."),
         _next_instruction("Step 1 · Set up your workspace", "Follow your instructor’s choice of calculation computer below. "
             "Read any setup message. You can add your molecule while setup runs; calculations that need unavailable programs stay disabled."),
         _teach(gui, "workspace", "Help · Where does my calculation run?"),
+        gui.course_mode_section,
         _section("Where will calculations run?", gui.calc_env_dropdown, _help("workspace"),
                  Disclosure("Where this interface runs", gui.interact_env_dropdown)),
         gui.dynamic_setup_container, gui.local_install_options, gui.run_install_btn,

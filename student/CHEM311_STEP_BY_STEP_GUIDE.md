@@ -7,7 +7,7 @@ This guide covers the complete **Modules 0–5 (`M0`–`M5`)** local WSL2 comput
 > **2026-11-27 Course Architecture & Boundaries (Read First):**
 > - **Primary Execution Stack (Local WSL2):** All CHEM 311 calculations run locally in WSL2 Ubuntu via `source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh` using authentic quantum chemistry engines (`RDKit`, `GFN2-xTB`, `CREST 3.0.2`, `PySCF`, `Pickett SPCAT`, `CoChem-BASE`, `CoChem-TOPOS`, `CoChem-TORQ`, `CoChem-SPYFY`).
 > - **Retired / Deprecated Compute Surfaces:** `classroom50`, GitHub Codespaces, and GitHub Actions compute workflows are **retired** and must not be used for CHEM 311 calculations.
-> - **Unified Repository & Auditing Model:** Legacy `CoChem-CURE` is superseded by native `CoChem-BASE` course routes (`CHEM311`, `CHEM312`, `CHEM490`). `CoChem-ORACLE` is redesigned as the **zero-LLM Student Data Auditing Model**.
+> - **Course Profile Authority (`CoChem-CURE`) & Auditing Model:** **`ProfJJK-CoChem/CoChem-CURE`** is the authoritative source of truth for course profiles, milestones, and pathways (loaded dynamically when you answer **Yes** to *"Is this a course?"* in `CoChem-BASE` `1 · Setup` or `python -m cochem_base.course_loader`; this file is a local reference mirror). `CoChem-ORACLE` is redesigned as the **zero-LLM Student Data Auditing Model**.
 > - **Integrity & Provenance:** Every numerical result must come from an authentic local calculation in your scratch directory—never hardcode or fabricate values. Package verified handoff bundles with `student/handoff.py` (`course_id: "CHEM311"`).
 
 ---

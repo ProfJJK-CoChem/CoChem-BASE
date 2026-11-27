@@ -2,73 +2,87 @@
 
 Welcome to **CHEM 490 Directed Research in Computational Chemistry** at **Cumberland University** (Dr. Joshua J. Klaassen), partnering with **Tennessee Tech University** (external CP-FTMW / GruLab SURF microwave spectroscopy collaborator).
 
-This is your **single end-to-end guide** for Weeks 1–16 of CHEM 490. Every repository step, browser button label, workflow name, and terminal command below matches the live `CoChem-BASE` repository and your GitHub Codespace environment verbatim.
+This is your **single end-to-end guide** for Weeks 1–16 of CHEM 490. Every local WSL2 activation step, ORCA 6.1.1 / VPT2 command, CREST flag, workstation runner handoff, and analysis CLI command below matches the live `CoChem-BASE` architecture verbatim.
 
-> **Course Boundaries (Read First):**
-> - **Private Template Repository:** Click **Use this template → Create a new repository** on [`ProfJJK-CoChem/CoChem-BASE`](https://github.com/ProfJJK-CoChem/CoChem-BASE), set visibility to **Private**, and name your project **`CoChem-[target]`** (for example, `CoChem-h2o-hf`).
-> - **Browser-Only GitHub Codespaces:** No local Python installation, root/admin permissions, or Google Drive Desktop client is required. Everything runs in your browser via **GitHub Codespaces** (`~10–15 minutes` on a fresh Codespace, or `~30 seconds` when Prebuilds are enabled).
-> - **Zero Direct Google Colab, Zero Classroom50, Zero ORCA Forum Registration:** CHEM 490 students do **not** use Google Colab directly, do **not** join Classroom50, and do **not** register on the ORCA Forum or install personal ORCA/CFOUR licenses. All open-source engines (`PySCF`, `xTB`, `CREST`, `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, `spfit`/`spcat`, plus the optional `CoChem-SPYFY` add-on installed on demand via `bash scripts/install_optional_spyfy.sh`) run locally in your Codespace; optional high-level `ORCA 6.1.1` / `CCSD(T)/CBS` / `VPT2` jobs are run by Dr. Klaassen on Cumberland University's department research computers.
+> **2026-11-27 Course Architecture & Boundaries (Read First):**
+> - **Primary Execution Stack (Local WSL2):** CHEM 490 runs locally in **WSL2 Ubuntu** via `source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh` using `PySCF`, `xTB`, `CREST 3.0.2`, `ORCA 6.1.1` (local `revDSD-PBEP86-D4/2021` + VPT2), `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, `spfit`/`spcat`, plus the optional `CoChem-SPYFY` add-on (`bash scripts/install_optional_spyfy.sh`).
+> - **Deprecated / Retired Compute Surfaces:** `classroom50`, GitHub Codespaces, and GitHub Actions compute are **deprecated** in favor of local WSL2 workstations. Legacy `CoChem-CURE` is superseded by native `CoChem-BASE` course routes (`CHEM 311`, `CHEM 312L`, `CHEM 490`), and `CoChem-ORACLE` is redesigned as the **zero-LLM Student Data Auditing Model**.
+> - **High-End Coupled-Cluster Handoff (`cochem_workstation_job_runner`):** Higher-end canonical **`CCSD`** and **`CCSD(T)`** calculations (and `CCSD(T)/CBS` extrapolations) are submitted via **`cochem_workstation_job_runner`** using verified `cochem.student-handoff/2` bundles. **`DLPNO-CCSD(T)` is strictly BANNED under Pipeline 5.0.0** — use canonical `CCSD` / `CCSD(T)` or `revDSD-PBEP86-D4/2021` instead.
 
 ---
 
 ## Plain-English CHEM 490 Student ↔ Professor Research Handoff
 
-- **What you submit to Dr. Klaassen:** Commit your verified structures, scripts, and `FactLedger` outputs to your private `CoChem-[target]` repository and download your verified calculation bundle (`.zip`) from the Voilà dashboard (`4 · Read and save results → Download calculation files (.zip)`).
-- **What Dr. Klaassen runs on Cumberland's department research computers:** Using your verified starting geometries and electronic states, Dr. Klaassen executes optional high-level licensed calculations (`ORCA 6.1.1`, `CCSD(T)/CBS` benchmarks, and anharmonic `VPT2` rotational/vibrational corrections) on Cumberland University's department research computers.
-- **What Dr. Klaassen hands back to you:** Converged ORCA `.out`/`.xyz` files (for example, `professor_orca_return_h2o_ccsd.out`) for local parsing and CBS extrapolation with `cochem-bench`, plus experimental rotational spectroscopy data from our **Tennessee Tech University** CP-FTMW collaborators for Kraitchman $r_s$, weighted $r_0$, and Pickett `spfit`/`spcat` analysis.
+- **What you run locally in WSL2:** Conformer searches (`CREST 3.0.2`), `xTB` / `PySCF` screening, local ORCA 6.1.1 **`revDSD-PBEP86-D4/2021`** equilibrium geometries and hybrid-DFT **`! VPT2`** anharmonic rotational/vibrational corrections, plus `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, and `spfit`/`spcat` analysis.
+- **What you hand off to `cochem_workstation_job_runner`:** Seal your verified `cochem.student-handoff/2` `.zip` + `.zip.sha256` bundle (`student/handoff.py seal` with `course_id: "CHEM490"`, `target_continuation: "workstation"`) so Dr. Klaassen can run higher-end canonical **`CCSD` / `CCSD(T)`** calculations on Cumberland University's department research computers (`DLPNO-CCSD(T)` is banned under Pipeline 5.0.0).
+- **What Dr. Klaassen hands back to you:** Converged canonical ORCA `.out`/`.xyz` files (for example, `professor_orca_return_h2o_ccsd.out`) for local parsing and Helgaker CBS extrapolation with `cochem-bench`, plus experimental rotational spectroscopy data from our **Tennessee Tech University** CP-FTMW collaborators for Kraitchman $r_s$, weighted $r_0$, and Pickett `spfit`/`spcat` analysis.
 
 ---
 
-## Stage 1 — Private Template Creation & Codespace Launch
+## Stage 1 — Local WSL2 Workstation Setup & Optional Local Voilà Dashboard
 
-### Step 1: Create Your Private `CoChem-[target]` Repository
-1. Sign in to [GitHub](https://github.com/).
-2. Open [`ProfJJK-CoChem/CoChem-BASE`](https://github.com/ProfJJK-CoChem/CoChem-BASE).
-3. Click the green **Use this template** button → **Create a new repository**.
-4. Set **Owner** to your personal GitHub username, **Repository name** to **`CoChem-[target]`**, and visibility to **Private**.
-5. Click **Create repository**.
+### Step 1: Activate the Pre-Provisioned WSL2 Environment
 
-### Step 2: Optional Actions Self-Check (`student_project_setup.yml`)
-If you open your repository's **Actions** tab and run **`CoChem project setup check`** (`student_project_setup.yml`):
-- Leave `request_id` at its default **`self-check`** and click **Run workflow**.
-- On a personal open-engine template repository without ORCA/CFOUR secrets, the workflow exits **green (`0`)** with:
-  > *Open-source Codespace research setup ready (PySCF, xTB, CREST, TOPOS, BENCH, TORQ, GEOM, SCRIBE, spfit/spcat; optional CoChem-SPYFY add-on via `bash scripts/install_optional_spyfy.sh`). Optional ORCA/CFOUR access is not configured yet — submit your verified bundle to Dr. Klaassen for department-computer ORCA/CCSD(T)/VPT2 calculations.*
+```bash
+source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh
+cd /mnt/d/__CoChem/GitHub-Repo/CoChem-BASE
+```
 
-### Step 3: Launch Your GitHub Codespace
-1. On your private `CoChem-[target]` repository page, click **Code** → **Codespaces** → **Create codespace on main**.
-2. Wait **`~10–15 minutes` on a fresh Codespace (or `~30 seconds` when Prebuilds are enabled)** while automatic setup provisions `PySCF`, `xTB`, `CREST`, `spfit`, `spcat`, `TOPOS`, `BENCH`, `TORQ`, `GEOM`, `SCRIBE`, and the 11-phase Stage 0 verification. (`CoChem-SPYFY` is an optional add-on not installed by default — install it when needed in Week 10 via `bash scripts/install_optional_spyfy.sh`.)
-3. Port **8866 (`CoChem Voilà dashboard`)** displays an auto-refreshing setup progress page and switches automatically to the live CoChem dashboard as soon as setup finishes. (If needed, open VS Code's **Ports** panel and click the globe icon next to **8866**.)
-4. **Always stop your Codespace when finished:** open [github.com/codespaces](https://github.com/codespaces), click **`...`** next to your Codespace, and choose **Stop codespace**.
-
----
-
-## Stage 2 — Live Voilà Browser Dashboard Walkthrough (`port 8866`)
-
-Use the four numbered buttons across the top of the dashboard:
-
-1. **`1 · Setup`**
-   - Confirm **Where will calculations run?** is set to **Local computer (Linux)** (your Codespace, where `PySCF`, `xTB`, `CREST`, `TOPOS`, and `TORQ` run locally).
-   - Expand **Installation details and software versions** to verify **TOPOS**, **TORQ**, **XTB**, **CREST**, and **PySCF** in the `CoChem components` table.
-   - Ignore optional ORCA/CFOUR notices when running open-source engines locally — you will use the Student ↔ Professor Handoff whenever a milestone requires ORCA.
-2. **`2 · Add your molecule`**
-   - Click **Upload scientific inputs** and upload your `.xyz` structure (for example, `h2o_start.xyz`).
-   - Inspect the interactive **3D Structure preview** directly on **2 · Add your molecule** (drag to rotate, scroll to zoom).
-   - Select your file and frame, click **Use selected starting geometry**, then click **Continue to calculation settings**.
-3. **`3 · Run assigned calculation`**
-   - Confirm your molecule summary, **Total charge**, and **Spin multiplicity**.
-   - **To run an `xTB` geometry optimization:** Select **Engine: `xTB`** (sets `GFN2-xTB`, `Screening`), choose **Optimize the geometry**, and click **Optimize geometry**.
-   - **To run a `PySCF` RHF single point:** Select **Engine: `PySCF (RHF single point)`** (automatically sets `Screening`, `Method: HF/STO-3G`, `Basis Set: STO-3G`, `Surroundings: Gas phase`), verify `Current settings` shows `program PYSCF`, and click **Run PySCF single point** (for water, `E ≈ -74.96 Ha`).
-4. **`4 · Read and save results`**
-   - Review the converged energy, units, and provenance details.
-   - Click **Prepare calculation download**, wait for the link, and click **Download calculation files (.zip)** to save your verified bundle locally.
-
----
-
-## Stage 3 — Week-by-Week CHEM 490 Codespace CLI Reference
-
-Your Codespace terminal automatically puts `/home/vscode/CoChem_Artifacts/bin` and `/home/vscode/CoChem_Artifacts/ui-env/bin` first on `PATH`. In the default terminal:
+This puts the managed workstation binaries and scientific Python environment first on `PATH`:
 - **Direct Python imports (`python`):** `cochem_base`, `pyscf`, `cochem_bench`, `cochem_scribe` (plus `cochem_spyfy` after installing the optional `CoChem-SPYFY` add-on)
-- **Direct binaries & module CLIs on `PATH`:** `cochem-cli`, `xtb`, `crest`, `spfit`, `spcat`, `topos` (`cochem-topos`), `cochem-bench`, `cochem-torq`, `cochem-geom`, `cochem-scribe` (plus `cochem-spyfy` after installing the optional `CoChem-SPYFY` add-on)
+- **Direct binaries & module CLIs on `PATH`:** `cochem-cli`, `xtb`, `crest`, `orca`, `spfit`, `spcat`, `topos` (`cochem-topos`), `cochem-bench`, `cochem-torq`, `cochem-geom`, `cochem-scribe` (plus `cochem-spyfy` after installing the optional `CoChem-SPYFY` add-on)
+
+### Step 2: Optional Local Voilà Browser Dashboard (`port 8866`)
+
+To use the four-tab Voilà GUI (`1 · Setup`, `2 · Add your molecule`, `3 · Run assigned calculation`, `4 · Read and save results`) locally on WSL2:
+
+```bash
+python /mnt/d/__CoChem/GitHub-Repo/CoChem-BASE/scripts/student_voila.py \
+  /mnt/d/__CoChem/GitHub-Repo/CoChem-BASE/Start_Here.ipynb \
+  --port=8866 --no-browser
+```
+
+Open `http://localhost:8866` in your browser, confirm **Local computer (Linux)** is selected, upload `.xyz` inputs, run `xTB` or `PySCF` calculations, and download verified `.zip` bundles.
+
+*(Archival Compatibility Note: Legacy GitHub Codespaces took `~10–15 minutes` on a fresh container or `~30 seconds` with Prebuilds and are now deprecated in favor of instant local WSL2 activation above.)*
+
+---
+
+## Stage 2 — Local WSL2 `revDSD-PBEP86-D4/2021` + VPT2 Workflow (ORCA 6.1.1)
+
+Local WSL2 workstations with ORCA 6.1.1 support publication-grade double-hybrid equilibrium geometries and VPT2 anharmonic rotational/vibrational corrections:
+
+1. **Double-Hybrid Equilibrium Geometry (`revDSD-PBEP86-D4/2021`):**
+   - **ORCA 6.1.1 requires the `/2021` suffix** (`revDSD-PBEP86-D4/2021`, never bare `revDSD-PBEP86-D4`).
+   - Typical wall time for a 5-atom molecule (e.g., $\text{HCOOH}$) with `def2-TZVPP` / `AutoAux` is **~54 seconds** locally in WSL2:
+
+```orca
+! revDSD-PBEP86-D4/2021 def2-TZVPP AutoAux TightOpt TightSCF DefGrid3
+%pal nprocs 4 end
+%maxcore 2000
+* xyzfile 0 1 hcooh_start.xyz
+```
+
+2. **Anharmonic VPT2 Vibrational & Rotational Corrections ($\Delta B_{\text{vib}}$):**
+   - **Important ORCA 6.1.1 Limitation:** ORCA 6.1.1 removed analytic MP2 Hessians, so native `! VPT2` cannot run directly on double-hybrid `revDSD-PBEP86-D4/2021`.
+   - Use **one of two verified local WSL2 VPT2 routes**:
+     - **Route A (Composite Hybrid-DFT Native `! VPT2`, ~4.2 min for 5 atoms):** Combine the **`revDSD-PBEP86-D4/2021`** equilibrium geometry (`~54 s`, providing $B_e$) with a native **`! B3LYP-D4 def2-TZVPP VPT2`** calculation (`~4.2 min` for 5 atoms, providing anharmonic $\Delta B_{\text{vib}}$ and VPT2 fundamentals) to form $B_0 = B_e(\text{revDSD}) + \Delta B_{\text{vib}}(\text{B3LYP-D4})$.
+     - **Route B (External Displaced-`NumFreq` VPT2 at `revDSD-PBEP86-D4/2021`, ~16–22 min):** Run displaced numerical Hessians (`NumFreq`) externally around the `revDSD-PBEP86-D4/2021` minimum when pure double-hybrid anharmonic cubic/quartic force constants are required.
+
+```orca
+! B3LYP-D4 def2-TZVPP TightOpt TightSCF DefGrid3 VPT2
+%pal nprocs 4 end
+%maxcore 2000
+* xyzfile 0 1 hcooh_revdsd_opt.xyz
+```
+
+3. **Higher-End Canonical `CCSD` / `CCSD(T)` Handoff via `cochem_workstation_job_runner`:**
+   - Seal your converged geometry (`student/handoff.py seal --source-dir ... --manifest ... --output ...` with `course_id: "CHEM490"`, `target_continuation: "workstation"`) and submit through **`cochem_workstation_job_runner`** for canonical **`CCSD`** / **`CCSD(T)`** (`cc-pVTZ` / `cc-pVQZ` CBS) calculations on the department research workstation.
+   - **Pipeline 5.0.0 Method Rule:** **`DLPNO-CCSD(T)` is banned** under Pipeline 5.0.0. Always request canonical `CCSD` or canonical `CCSD(T)` (or use local `revDSD-PBEP86-D4/2021`).
+
+---
+
+## Stage 3 — Week-by-Week CHEM 490 Local WSL2 CLI Reference
 
 ### Environment Health Check (Week 4 — `CoChem-BASE`)
 ```bash
@@ -79,15 +93,16 @@ python -c "import cochem_base, pyscf, cochem_bench, cochem_scribe; print('PySCF'
 which xtb crest spfit spcat topos cochem-bench cochem-torq cochem-geom cochem-scribe
 ```
 
-### Week 5 — Conformer Discovery (`CoChem-TOPOS`, `xTB`, `CREST`)
+### Week 5 — Conformer Discovery (`CoChem-TOPOS`, `xTB`, `CREST 3.0.2`)
+Always pass **`--legacy --xnam "$(which xtb)" --nocross`** when running CREST 3.0.2:
 ```bash
 topos --help
 xtb h2o_hf_dimer.xyz --opt tight --gfn 2
-crest h2o_hf_dimer.xyz --gfn2 --nci -T 2
+crest h2o_hf_dimer.xyz --gfn2 --nci --legacy --xnam "$(which xtb)" --nocross -T 2
 ```
 
 ### Week 6 — ORCA Output Parsing & CBS Extrapolation (`CoChem-BENCH`)
-Parse returned department-computer ORCA outputs (such as `professor_orca_return_h2o_ccsd.out`) and perform two-point Helgaker CBS extrapolation:
+Parse returned canonical workstation ORCA outputs (such as `professor_orca_return_h2o_ccsd.out`) and perform two-point Helgaker CBS extrapolation:
 ```bash
 cochem-bench --help
 ```
@@ -143,7 +158,8 @@ python scripts/fact_ledger.py --help
 
 | Symptom | Cause & Fix |
 | --- | --- |
-| Codespace still starting on port `8866` | Cold setup takes `~10–15 minutes` (or `~30 seconds` with Prebuilds). Wait for the auto-refreshing progress page to switch to the Voilà dashboard. |
-| ORCA/CFOUR listed as optional/unavailable | Expected in student Codespaces. Use free local engines (`PySCF`, `xTB`, `CREST`) and submit your verified `.zip` bundle to Dr. Klaassen for department-computer ORCA/CCSD(T)/VPT2 runs. |
-| `scripts/spcat_runner.py` reports `"status": "PENDING"` | `spcat` binary is not on `PATH` (for example, outside Codespaces). Inside your Codespace, `/home/vscode/CoChem_Artifacts/bin/spcat` is automatically compiled and placed on `PATH`. |
+| ORCA 6.1.1 rejects `revDSD-PBEP86-D4` | ORCA 6.1.1 requires the explicit `/2021` functional keyword: `revDSD-PBEP86-D4/2021`. |
+| ORCA 6.1.1 fails on `! revDSD-PBEP86-D4/2021 VPT2` | ORCA 6.1.1 removed analytic MP2 Hessians. Use composite `revDSD-PBEP86-D4/2021` geometry (~54 s) + hybrid DFT `B3LYP-D4/def2-TZVPP` `! VPT2` (~4.2 min for 5 atoms), or external displaced-`NumFreq` VPT2 (~16–22 min). |
+| CREST 3.0.2 cannot locate `xtb` or hangs in GC | Pass `--legacy --xnam "$(which xtb)" --nocross` on every CREST 3.0.2 command. |
+| `scripts/spcat_runner.py` reports `"status": "PENDING"` | Activate WSL2 first (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) so compiled `spcat` is on `PATH`. |
 | Imaginary Kraitchman coordinate (`r_s^2 < 0`) | Real physical Costain zero-point vibrational effect near a principal axis or symmetry plane (for example, $c$-axis of planar $\text{H}_2\text{O}$). Report `null` / `IMAGINARY` honestly; never replace with `0.0`. |

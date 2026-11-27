@@ -12,7 +12,7 @@ firewall checks, and `.zip` + `.zip.sha256` packaging:
    - 1..64 atoms/frame, 1..256 frames/trajectory
    - workflow_type in {conformer, rxn_profile, nci_dimer, geom_comparison, vpt2_anharmonic}
    - solvation in {gas, pcm, ddcosmo}
-   - course_id in {CHEM312, CHEM490, CHEM410, CHEM411}
+   - course_id in {CHEM311, CHEM312, CHEM490, CHEM410, CHEM411}
    - collaborator_institution locked strictly to "Tennessee Tech University"
    - target_continuation in {workstation, colab_gpu, gcp_spot}
    - hessian_calculated (bool) & n_imaginary_modes (int >= 0 or null)
@@ -99,7 +99,7 @@ V2_ALLOWED_WORKFLOW_TYPES: tuple[str, ...] = (
 V2_ALLOWED_CHARGES: tuple[int, ...] = (-2, -1, 0, 1, 2)
 V2_ALLOWED_MULTIPLICITIES: tuple[int, ...] = (1, 2, 3)
 V2_ALLOWED_SOLVATIONS: tuple[str, ...] = ("gas", "pcm", "ddcosmo")
-V2_ALLOWED_COURSE_IDS: tuple[str, ...] = ("CHEM312", "CHEM490", "CHEM410", "CHEM411")
+V2_ALLOWED_COURSE_IDS: tuple[str, ...] = ("CHEM311", "CHEM312", "CHEM490", "CHEM410", "CHEM411")
 V2_ALLOWED_TARGET_CONTINUATIONS: tuple[str, ...] = ("workstation", "colab_gpu", "gcp_spot")
 
 DEFAULT_COLLABORATOR_INSTITUTION = "Tennessee Tech University"
@@ -1161,15 +1161,20 @@ def build_student_handoff_v2_zip(
     sha_path = out_dir / f"{zip_name}.sha256"
 
     handoff_bytes = (json.dumps(manifest_dict, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("handoff.json", handoff_bytes)
-        for name in sorted(encoded_files):
-            zf.writestr(name, encoded_files[name])
+    try:
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("handoff.json", handoff_bytes)
+            for name in sorted(encoded_files):
+                zf.writestr(name, encoded_files[name])
 
-    archive_sha = sha256_file(zip_path)
-    sha_path.write_text(f"{archive_sha}  {zip_name}\n", encoding="ascii")
+        archive_sha = sha256_file(zip_path)
+        sha_path.write_text(f"{archive_sha}  {zip_name}\n", encoding="ascii")
 
-    verify(zip_path, sidecar_path=sha_path)
+        verify(zip_path, sidecar_path=sha_path)
+    except Exception:
+        zip_path.unlink(missing_ok=True)
+        sha_path.unlink(missing_ok=True)
+        raise
     return zip_path, sha_path, archive_sha, manifest_dict
 
 

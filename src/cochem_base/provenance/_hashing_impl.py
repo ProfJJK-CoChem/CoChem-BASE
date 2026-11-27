@@ -17,9 +17,6 @@ import tempfile
 import time
 from typing import Any, Iterable, Mapping
 
-from filelock import FileLock
-import psutil
-
 
 class SourceIntegrityError(RuntimeError):
     """The source cannot be verified against the supplied manifest."""
@@ -146,6 +143,12 @@ def hash_environment(tracked_packages: Iterable[str] | None = None,
     cpu_count = os.cpu_count()
     if cpu_count is None or cpu_count < 1:
         raise RuntimeError("CPU topology is unavailable for environment fingerprinting")
+    try:
+        import psutil
+    except ImportError as exc:
+        raise ImportError(
+            "psutil is required for hash_environment() hardware memory fingerprinting"
+        ) from exc
     payload = dict(python_version=platform.python_version(), python_implementation=platform.python_implementation(),
                    os_system=platform.system(), os_release=platform.release(), cpu_count=cpu_count,
                    total_ram_bytes=int(psutil.virtual_memory().total), core_dependencies=dependencies,
@@ -210,6 +213,12 @@ def generate_topological_source_lock(repo_dir: str | Path | None = None,
                                   {"scope": "Python source files", "exclude_dirs": excluded, "newline_normalization": True})
     if output_path is not None:
         from cochem.core.context import assert_writable_path
+        try:
+            from filelock import FileLock
+        except ImportError as exc:
+            raise ImportError(
+                "filelock is required to persist a topological source lock manifest with output_path"
+            ) from exc
 
         target = Path(output_path).expanduser().resolve()
         assert_writable_path(target)

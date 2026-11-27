@@ -21,11 +21,18 @@
     },
     "cure": {
       "repository": "ProfJJK-CoChem/CoChem-CURE",
-      "revision": "8be288c9815c178c4161cc4037cb7b3bd02766e1",
-      "distribution": null,
-      "adapter": null,
+      "revision": "7432611286dc6e5e3e9159e55da5900c1ad36fc1",
+      "distribution": "cochem-cure",
+      "adapter": "cure_provider",
+      "entry_point": "cochem_cure.provider:cure_provider",
       "adapter_requirements": [],
-      "operations": []
+      "operations": [
+        "list_courses",
+        "get_course_profile",
+        "get_course_pathway",
+        "get_course_milestones",
+        "validate_course_id"
+      ]
     },
     "ehs": {
       "repository": "ProfJJK-CoChem/CoChem-EHS",

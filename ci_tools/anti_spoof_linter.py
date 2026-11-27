@@ -68,6 +68,26 @@ BANNED_MOCK_ATTRIBUTES: Set[str] = {
     "MockFixture",
 }
 
+BANNED_PATCH_CHAIN_ATTRIBUTES: Set[str] = {
+    "object",
+    "dict",
+    "multiple",
+    "stopall",
+    "start",
+    "stop",
+}
+
+BANNED_MOCK_PATCH_RECEIVERS: Set[str] = {
+    "unittest",
+    "mock",
+    "monkeypatch",
+    "mocker",
+    "patcher",
+    "mp",
+    *BANNED_MOCK_MODULES,
+    *BANNED_MOCK_FIXTURES,
+}
+
 SCIENTIFIC_ENGINE_MODULE_PREFIXES: Tuple[str, ...] = (
     "cochem_base.",
     "cochem.",
@@ -338,6 +358,25 @@ class SpoofVisitor(ast.NodeVisitor):
     def _is_banned_mock_module(self, module: str) -> bool:
         return any(module == item or module.startswith(item + ".") for item in BANNED_MOCK_MODULES)
 
+    def _is_mock_patch_receiver(self, receiver: str) -> bool:
+        if not receiver:
+            return False
+        if self._is_banned_mock_module(receiver):
+            return True
+        parts = [part for part in receiver.lower().split(".") if part]
+        return any(
+            part in BANNED_MOCK_PATCH_RECEIVERS or "mock" in part or "monkey" in part
+            for part in parts
+        )
+
+    def _is_chained_patch_family(self, node: ast.Attribute) -> bool:
+        if node.attr not in BANNED_PATCH_CHAIN_ATTRIBUTES:
+            return False
+        if isinstance(node.value, ast.Attribute) and node.value.attr == "patch":
+            return True
+        receiver = self._qualified(node.value)
+        return receiver == "patch" or receiver.endswith(".patch")
+
     def _is_scientific_engine_module(self, module: str) -> bool:
         return any(
             module == prefix.rstrip(".") or module.startswith(prefix)
@@ -512,12 +551,51 @@ class SpoofVisitor(ast.NodeVisitor):
             self.values[target.id] = value
             if isinstance(value, (ast.Name, ast.Attribute)):
                 self.aliases[target.id] = self._qualified(value)
-            elif isinstance(value, ast.Call) and self._qualified(value.func) in {
-                "numpy.random.default_rng", "numpy.random.RandomState",
-            }:
-                self.aliases[target.id] = "numpy.random.Generator"
+            elif isinstance(value, ast.Call):
+                callee = self._qualified(value.func)
+                callee_symbol = callee.rsplit(".", 1)[-1]
+                if callee in {"numpy.random.default_rng", "numpy.random.RandomState"}:
+                    self.aliases[target.id] = "numpy.random.Generator"
+                elif callee_symbol in {"import_module", "__import__"} or callee in {
+                    "importlib.import_module", "builtins.__import__",
+                }:
+                    resolved = self._resolve_dynamic_import_target(value)
+                    if resolved:
+                        self.aliases[target.id] = resolved
+                    else:
+                        self.aliases.pop(target.id, None)
+                elif callee in {"getattr", "builtins.getattr"} and len(value.args) >= 2:
+                    attr_str = self._extract_concat_str(value.args[1])
+                    base_name = self._qualified(value.args[0])
+                    if attr_str:
+                        self.aliases[target.id] = f"{base_name}.{attr_str}" if base_name else attr_str
+                    else:
+                        self.aliases.pop(target.id, None)
+                elif (
+                    isinstance(value.func, ast.Attribute)
+                    and self._qualified(value.func.value) == "sys.modules"
+                    and callee_symbol in {"get", "setdefault", "pop"}
+                    and value.args
+                ):
+                    mod_key = self._extract_concat_str(value.args[0])
+                    if mod_key:
+                        self.aliases[target.id] = mod_key
+                    else:
+                        self.aliases.pop(target.id, None)
+                else:
+                    self.aliases.pop(target.id, None)
+            elif isinstance(value, ast.Subscript) and self._qualified(value.value) == "sys.modules":
+                mod_key = self._extract_concat_str(value.slice)
+                if mod_key:
+                    self.aliases[target.id] = mod_key
+                else:
+                    self.aliases.pop(target.id, None)
             else:
                 self.aliases.pop(target.id, None)
+        elif isinstance(target, (ast.Tuple, ast.List)) and isinstance(value, (ast.Tuple, ast.List)):
+            if len(target.elts) == len(value.elts):
+                for sub_target, sub_value in zip(target.elts, value.elts):
+                    self._record_assignment(sub_target, sub_value)
         elif isinstance(target, ast.Subscript):
             if self._qualified(target.value) == "sys.modules":
                 key_str = self._extract_concat_str(target.slice)
@@ -584,7 +662,16 @@ class SpoofVisitor(ast.NodeVisitor):
             target = self._resolve_dynamic_import_target(node)
             if target:
                 self._check_import(target, node)
-        if any(name == mod or name.startswith(mod + ".") for mod in BANNED_MOCK_MODULES) or symbol in BANNED_MOCK_ATTRIBUTES:
+        parent_name, has_dot, _ = name.rpartition(".")
+        if (
+            any(name == mod or name.startswith(mod + ".") for mod in BANNED_MOCK_MODULES)
+            or symbol in BANNED_MOCK_ATTRIBUTES
+            or (
+                has_dot
+                and symbol in BANNED_PATCH_CHAIN_ATTRIBUTES
+                and (parent_name == "patch" or parent_name.endswith(".patch"))
+            )
+        ):
             self._report(node, "MOCK_USAGE", name, "Prohibited mock interface substitution")
         if isinstance(node.func, ast.Attribute) and self._qualified(node.func.value) == "sys.modules":
             if symbol in {"get", "setdefault", "pop"} and node.args:
@@ -646,7 +733,25 @@ class SpoofVisitor(ast.NodeVisitor):
         name = self._qualified(node)
         if node.attr in BANNED_SKIP_SYMBOLS and name.startswith(("pytest.", "unittest.")):
             self._report(node, "PYTEST_SKIP", name, "Prohibited test suppression decorator or reference")
-        if node.attr in BANNED_MOCK_ATTRIBUTES or any(name.startswith(mod + ".") for mod in BANNED_MOCK_MODULES):
+        if any(name == mod or name.startswith(mod + ".") for mod in BANNED_MOCK_MODULES):
+            self._report(node, "MOCK_USAGE", name, "Prohibited mock module/attribute reference")
+        elif self._is_chained_patch_family(node):
+            self._report(
+                node,
+                "MOCK_USAGE",
+                name or f".patch.{node.attr}",
+                "Prohibited mock patch family attribute reference",
+            )
+        elif node.attr == "patch":
+            receiver = self._qualified(node.value)
+            is_direct_call = (
+                len(self.parents) >= 2
+                and isinstance(self.parents[-2], ast.Call)
+                and self.parents[-2].func is node
+            )
+            if is_direct_call or self._is_mock_patch_receiver(receiver):
+                self._report(node, "MOCK_USAGE", name, "Prohibited mock module/attribute reference")
+        elif node.attr in BANNED_MOCK_ATTRIBUTES:
             self._report(node, "MOCK_USAGE", name, "Prohibited mock module/attribute reference")
         self.generic_visit(node)
 

@@ -233,6 +233,11 @@ def _exercise(case: str) -> None:
             assert config['initial_hessian'] == ('BFGS' if optimize else 'XTB2')
         gui.cfour_operation.value = 'single_point'
         gui.multiplicity_input.value = 3
+        open_shell_config = gui._cfour_run_config()
+        assert open_shell_config['engine'] == 'cfour' and open_shell_config['method'] == 'HF'
+        assert open_shell_config['basis_set'] == 'STO-3G' and open_shell_config['multiplicity'] == 3
+        assert open_shell_config['is_opt'] is False and open_shell_config['is_freq'] is False
+        gui.matrix_basis.value = 'MINI'
         with pytest.raises(MethodologyViolationError, match='unavailable'):
             gui._cfour_run_config()
         assert gui.matrix_engine.value is None and gui.cfour_operation.disabled

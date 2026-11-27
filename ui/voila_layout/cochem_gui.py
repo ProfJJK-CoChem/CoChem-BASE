@@ -789,8 +789,9 @@ class CoChemGUI(InputManagementMixin):
             self.local_install_options,
             self.run_install_btn,
         ], layout=widgets.Layout(padding='20px'))
+        self._build_course_mode_panel()
         self._build_student_setup_panel()
-        self.view_install.children = (*self.view_install.children, self.student_setup_panel)
+        self.view_install.children = (*self.view_install.children, self.course_mode_section, self.student_setup_panel)
 
         # 3.2 Step 0: Product Class Gate & No Code Matrix View
         self.product_class_selector = widgets.RadioButtons(
@@ -2518,6 +2519,230 @@ class CoChemGUI(InputManagementMixin):
             "optional add-on (not installed — run: bash scripts/install_optional_spyfy.sh)",
             pinned_rev,
             "Optional rotational spectroscopy & GruLab SURF add-on (not installed by default).",
+        )
+
+    def _resolve_course_mode_artifact_dir(self) -> Path:
+        from cochem_base.config_loader import get_artifact_dir
+
+        return get_artifact_dir()
+
+    def _render_cure_course_pathway(self, course_id: str | None) -> str:
+        from cochem_base.course_loader import (
+            get_cure_course_pathway,
+            get_cure_course_profile,
+            get_cure_milestones,
+        )
+
+        if not course_id:
+            return "<p>Select a course above to load its profile, milestones, and execution pathway from <code>CoChem-CURE</code>.</p>"
+        profile = get_cure_course_profile(course_id)
+        pathway = get_cure_course_pathway(course_id)
+        milestones = get_cure_milestones(course_id)
+        p_prof = pathway.get("profile") if isinstance(pathway.get("profile"), dict) else {}
+        merged = {**profile, **p_prof}
+        title = str(merged.get("title") or course_id)
+        institution = str(merged.get("institution") or "")
+        summary = str(merged.get("summary") or "")
+        execution_stack = str(
+            merged.get("execution_stack")
+            or pathway.get("execution_stack")
+            or "Local WSL2 (source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh) and cochem_workstation_job_runner handoff"
+        )
+        parts = [
+            f"<h4>{html.escape(str(course_id))} — {html.escape(title)}</h4>",
+        ]
+        if institution:
+            parts.append(f"<p><b>Institution:</b> {html.escape(institution)}</p>")
+        if summary:
+            parts.append(f"<p>{html.escape(summary)}</p>")
+        parts.append(
+            "<p><b>Execution pathway (WSL2 / job_runner):</b> "
+            f"{html.escape(execution_stack)}</p>"
+        )
+        if milestones:
+            items = []
+            for item in milestones:
+                mid = str(item.get("id") or item.get("milestone_id") or item.get("code") or "")
+                mtitle = str(item.get("title") or item.get("name") or "")
+                msum = str(item.get("summary") or item.get("description") or "")
+                label = f"{mid}: {mtitle}".strip(": ")
+                if msum:
+                    items.append(f"<li><b>{html.escape(label)}</b> — {html.escape(msum)}</li>")
+                else:
+                    items.append(f"<li><b>{html.escape(label)}</b></li>")
+            parts.append("<p><b>Milestones:</b></p><ul>" + "".join(items) + "</ul>")
+        steps = pathway.get("modules") or pathway.get("steps") or []
+        if isinstance(steps, list) and steps:
+            step_items = []
+            for step in steps:
+                if isinstance(step, dict):
+                    sid = str(step.get("id") or step.get("module_id") or step.get("step") or "")
+                    stitle = str(step.get("title") or step.get("name") or "")
+                    step_label = f"{sid}: {stitle}".strip(": ")
+                    step_items.append(f"<li>{html.escape(step_label)}</li>")
+                else:
+                    step_items.append(f"<li>{html.escape(str(step))}</li>")
+            parts.append("<p><b>Pathway modules / steps:</b></p><ol>" + "".join(step_items) + "</ol>")
+        guide_md = str(pathway.get("guide_markdown") or "").strip()
+        if guide_md:
+            preview = guide_md if len(guide_md) <= 1200 else guide_md[:1200] + "\n…"
+            parts.append(
+                "<details><summary>Course guide notes (from CoChem-CURE)</summary>"
+                f"<pre>{html.escape(preview)}</pre></details>"
+            )
+        return "".join(parts)
+
+    def _refresh_course_mode_ui(self, *, persist: bool = True) -> None:
+        from cochem_base.course_loader import (
+            CURE_REPOSITORY,
+            is_cure_installed,
+            list_cure_courses,
+            load_course_mode_state,
+            save_course_mode_state,
+        )
+
+        if self._course_mode_updating:
+            return
+        self._course_mode_updating = True
+        try:
+            mode = str(self.course_mode_selector.value or "research")
+            is_course = mode == "course"
+            artifact_dir = self._resolve_course_mode_artifact_dir()
+
+            if not is_course:
+                self.btn_obtain_cure.layout.display = "none"
+                self.cure_course_selector.layout.display = "none"
+                self.cure_pathway_status.layout.display = "none"
+                self.cure_pathway_status.value = ""
+                if persist:
+                    save_course_mode_state(False, None, artifact_dir=artifact_dir)
+                return
+
+            if not is_cure_installed():
+                self.btn_obtain_cure.layout.display = ""
+                self.cure_course_selector.layout.display = "none"
+                self.cure_pathway_status.layout.display = ""
+                self.cure_pathway_status.value = (
+                    "<p role='status'><b>CoChem-CURE is not installed yet.</b> "
+                    f"Click <b>Obtain CoChem-CURE course profiles</b> to install <code>{html.escape(CURE_REPOSITORY)}</code>, "
+                    "or run <code>python -m cochem_base.course_loader --is-course yes --obtain</code>.</p>"
+                )
+                if persist:
+                    save_course_mode_state(True, None, artifact_dir=artifact_dir)
+                return
+
+            courses = list_cure_courses()
+            options = [
+                (
+                    f"{entry.get('course_id')} — {entry.get('title', entry.get('course_id'))}",
+                    str(entry.get("course_id")),
+                )
+                for entry in courses
+                if entry.get("course_id")
+            ]
+            self.btn_obtain_cure.layout.display = "none"
+            if not options:
+                self.cure_course_selector.options = [("No courses published in CoChem-CURE", None)]
+                self.cure_course_selector.value = None
+                self.cure_course_selector.layout.display = ""
+                self.cure_pathway_status.layout.display = ""
+                self.cure_pathway_status.value = "<p role='status'>CoChem-CURE is installed, but no course profiles were listed.</p>"
+                if persist:
+                    save_course_mode_state(True, None, artifact_dir=artifact_dir)
+                return
+
+            valid_ids = [cid for _, cid in options]
+            selected = self.cure_course_selector.value
+            if selected not in valid_ids:
+                try:
+                    persisted = load_course_mode_state(artifact_dir=artifact_dir)
+                    saved_id = persisted.get("selected_course_id")
+                except Exception:
+                    saved_id = None
+                selected = saved_id if saved_id in valid_ids else valid_ids[0]
+
+            self.cure_course_selector.options = options
+            self.cure_course_selector.value = selected
+            self.cure_course_selector.layout.display = ""
+            self.cure_pathway_status.layout.display = ""
+            self.cure_pathway_status.value = self._render_cure_course_pathway(selected)
+            if persist:
+                save_course_mode_state(True, selected, artifact_dir=artifact_dir)
+        except Exception as exc:
+            self.cure_pathway_status.layout.display = ""
+            self.cure_pathway_status.value = (
+                f"<p role='status'><b>Course loader error:</b> {html.escape(str(exc))}</p>"
+            )
+        finally:
+            self._course_mode_updating = False
+
+    def _on_course_mode_changed(self, _: Any = None) -> None:
+        self._refresh_course_mode_ui(persist=True)
+
+    def _on_cure_course_changed(self, _: Any = None) -> None:
+        if self._course_mode_updating or self.course_mode_selector.value != "course":
+            return
+        self._refresh_course_mode_ui(persist=True)
+
+    def _on_obtain_cure_clicked(self, _: Any = None) -> None:
+        from cochem_base.course_loader import obtain_cure_repository
+
+        self.btn_obtain_cure.disabled = True
+        self.cure_pathway_status.layout.display = ""
+        self.cure_pathway_status.value = "<p role='status'>Obtaining CoChem-CURE course profiles…</p>"
+        try:
+            obtain_cure_repository()
+        except Exception as exc:
+            self.cure_pathway_status.value = (
+                f"<p role='status'><b>Could not obtain CoChem-CURE:</b> {html.escape(str(exc))}</p>"
+            )
+        else:
+            self._refresh_course_mode_ui(persist=True)
+        finally:
+            self.btn_obtain_cure.disabled = False
+
+    def _build_course_mode_panel(self) -> None:
+        self._course_mode_updating = False
+        self.course_mode_selector = widgets.RadioButtons(
+            options=[
+                ("No — independent research or general calculations", "research"),
+                ("Yes — this is for a course (load pathways from CoChem-CURE)", "course"),
+            ],
+            value="research",
+            description="Is this for a course?",
+            style={"description_width": "initial"},
+            layout=widgets.Layout(width="100%"),
+        )
+        self.btn_obtain_cure = widgets.Button(
+            description="Obtain CoChem-CURE course profiles",
+            button_style="primary",
+            layout=widgets.Layout(width="auto", display="none"),
+        )
+        self.cure_course_selector = widgets.Dropdown(
+            options=[("Select a course…", None)],
+            value=None,
+            description="Course:",
+            style={"description_width": "initial"},
+            layout=widgets.Layout(width="480px", max_width="100%", display="none"),
+        )
+        self.cure_pathway_status = widgets.HTML("", layout=widgets.Layout(display="none"))
+        self.course_mode_selector.observe(self._on_course_mode_changed, names="value")
+        self.cure_course_selector.observe(self._on_cure_course_changed, names="value")
+        self.btn_obtain_cure.on_click(self._on_obtain_cure_clicked)
+        self.course_mode_section = widgets.VBox(
+            [
+                widgets.HTML(
+                    "<h3>Is this for a course?</h3>"
+                    "<p>Leave <b>No</b> selected for standalone independent research or general calculations. "
+                    "Choose <b>Yes</b> to load course profiles, milestones, and local WSL2 / workstation pathways "
+                    "dynamically from <code>ProfJJK-CoChem/CoChem-CURE</code>.</p>"
+                ),
+                self.course_mode_selector,
+                self.btn_obtain_cure,
+                self.cure_course_selector,
+                self.cure_pathway_status,
+            ],
+            layout=widgets.Layout(margin="10px 0"),
         )
 
     def _build_student_setup_panel(self) -> None:

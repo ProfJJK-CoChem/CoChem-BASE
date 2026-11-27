@@ -67,6 +67,69 @@ ROT_CONST_CONVERSION_MHZ_AMU_A2 = PLANCK_H_J_S / (8.0 * (math.pi ** 2) * ATOMIC_
 COSTAIN_CONSTANT_A2 = 0.0015
 SYMMETRIC_TOP_REL_TOL = 1.0e-4
 ZERO_NOISE_TOL_A2 = 1.0e-12
+FALLBACK_COURSE_IDS: tuple[str, ...] = ("CHEM311", "CHEM312", "CHEM490", "CHEM410", "CHEM411")
+
+
+def _get_allowed_course_ids() -> tuple[str, ...]:
+    """Return allowed course IDs from CoChem-CURE via course_loader when available, else fallback."""
+    try:
+        from cochem_base.course_loader import get_allowed_course_ids as _loader_allowed_course_ids
+    except ImportError:
+        _loader_allowed_course_ids = None
+    if _loader_allowed_course_ids is not None:
+        try:
+            loaded = tuple(str(cid).strip() for cid in _loader_allowed_course_ids() if str(cid).strip())
+            if loaded:
+                return loaded
+        except Exception:
+            pass
+    try:
+        from cochem_cure import provider as _cure_provider
+    except ImportError:
+        return FALLBACK_COURSE_IDS
+    if (
+        getattr(_cure_provider, "SCHEMA_VERSION", None) == "cochem.course-provider/1"
+        and callable(getattr(_cure_provider, "get_allowed_course_ids", None))
+    ):
+        try:
+            loaded = tuple(str(cid).strip() for cid in _cure_provider.get_allowed_course_ids() if str(cid).strip())
+            if loaded:
+                return loaded
+        except Exception:
+            pass
+    return FALLBACK_COURSE_IDS
+
+
+def _validate_course_id(value: str) -> str:
+    """Validate and normalize a course identifier (fail-closed ArgumentTypeError on invalid ID)."""
+    raw = str(value or "").strip()
+    if not raw:
+        raise argparse.ArgumentTypeError("course_id must not be empty.")
+    try:
+        from cochem_cure import provider as _cure_provider
+    except ImportError:
+        _cure_provider = None
+    if (
+        _cure_provider is not None
+        and getattr(_cure_provider, "SCHEMA_VERSION", None) == "cochem.course-provider/1"
+        and callable(getattr(_cure_provider, "validate_course_id", None))
+    ):
+        try:
+            return str(_cure_provider.validate_course_id(raw))
+        except (ValueError, KeyError) as exc:
+            raise argparse.ArgumentTypeError(str(exc)) from exc
+
+    allowed = _get_allowed_course_ids()
+    normalized = raw.upper().replace(" ", "").replace("-", "").replace("_", "")
+    if normalized == "CHEM312L" and "CHEM312" in allowed:
+        return "CHEM312"
+    for cid in allowed:
+        cid_norm = cid.upper().replace(" ", "").replace("-", "").replace("_", "")
+        if raw.upper() == cid.upper() or normalized == cid_norm:
+            return cid
+    raise argparse.ArgumentTypeError(
+        f"invalid course_id {value!r} (choose from {', '.join(allowed)})"
+    )
 
 
 def _utc_now() -> str:
@@ -653,9 +716,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--label", default="single_substitution", help="Substitution site label (e.g., HCOOH_H_acid_D or NH3_NH2D).")
     p.add_argument(
         "--course-id",
-        choices=("CHEM312", "CHEM490", "CHEM410", "CHEM411"),
+        type=_validate_course_id,
         default="CHEM312",
-        help="Course provenance identifier (default: CHEM312; use CHEM490 for Directed Research).",
+        help=(
+            "Course provenance identifier resolved dynamically via CoChem-CURE when installed "
+            "(default: CHEM312; fallback: CHEM311, CHEM312, CHEM490, CHEM410, CHEM411)."
+        ),
     )
     p.add_argument("--output-json", type=Path, default=None, help="Optional output JSON path.")
     p.add_argument("--output-md", "--out", dest="output_md", type=Path, default=None, help="Optional output Markdown table path (alias: --out).")

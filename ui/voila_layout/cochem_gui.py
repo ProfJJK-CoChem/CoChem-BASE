@@ -633,10 +633,12 @@ class CoChemGUI(InputManagementMixin):
             button_style="success",
             icon="play", disabled=False,
         )
+        self._explicit_free_engines_mode = False
         self.license_mode = widgets.Dropdown(
             options=[("Free engines", "none"), ("Also check ORCA", "orca"), ("Also check CFOUR", "cfour")],
             description="Optional engine check:", style={'description_width': 'initial'},
         )
+        self.license_mode.observe(self._on_license_mode_changed, names="value")
         self.licensed_engine_status = widgets.HTML()
         self.install_data_path = widgets.Text(
             description="Scientific data:", placeholder="Geometry-bound .npz/.h5 Hessian bundle",
@@ -2543,11 +2545,34 @@ class CoChemGUI(InputManagementMixin):
         title = str(merged.get("title") or course_id)
         institution = str(merged.get("institution") or "")
         summary = str(merged.get("summary") or "")
-        execution_stack = str(
-            merged.get("execution_stack")
-            or pathway.get("execution_stack")
-            or "Local WSL2 (source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh) and cochem_workstation_job_runner handoff"
-        )
+        raw_execution_stack = merged.get("execution_stack") or pathway.get("execution_stack")
+        if isinstance(raw_execution_stack, dict):
+            stack_items: list[str] = []
+            for key, val in raw_execution_stack.items():
+                label = str(key).replace("_", " ").strip().capitalize()
+                if isinstance(val, dict):
+                    sub = ", ".join(
+                        f"{str(sk).replace('_', ' ')}: {sv}" for sk, sv in val.items()
+                    )
+                    stack_items.append(f"<li><b>{html.escape(label)}:</b> {html.escape(sub)}</li>")
+                elif "command" in str(key).lower():
+                    stack_items.append(f"<li><b>{html.escape(label)}:</b> <code>{html.escape(str(val))}</code></li>")
+                else:
+                    stack_items.append(f"<li><b>{html.escape(label)}:</b> {html.escape(str(val))}</li>")
+            execution_stack_html = (
+                "<p><b>Execution pathway (WSL2 / job_runner):</b></p><ul>"
+                + "".join(stack_items)
+                + "</ul>"
+            )
+        else:
+            execution_stack = str(
+                raw_execution_stack
+                or "Local WSL2 (source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh) and cochem_workstation_job_runner handoff"
+            )
+            execution_stack_html = (
+                "<p><b>Execution pathway (WSL2 / job_runner):</b> "
+                f"{html.escape(execution_stack)}</p>"
+            )
         parts = [
             f"<h4>{html.escape(str(course_id))} — {html.escape(title)}</h4>",
         ]
@@ -2555,10 +2580,7 @@ class CoChemGUI(InputManagementMixin):
             parts.append(f"<p><b>Institution:</b> {html.escape(institution)}</p>")
         if summary:
             parts.append(f"<p>{html.escape(summary)}</p>")
-        parts.append(
-            "<p><b>Execution pathway (WSL2 / job_runner):</b> "
-            f"{html.escape(execution_stack)}</p>"
-        )
+        parts.append(execution_stack_html)
         if milestones:
             items = []
             for item in milestones:
@@ -2675,6 +2697,93 @@ class CoChemGUI(InputManagementMixin):
             )
         finally:
             self._course_mode_updating = False
+        if hasattr(self, "matrix_engine"):
+            self._refresh_engine_choices()
+
+    def _on_license_mode_changed(self, change: Any = None) -> None:
+        new_val = change.get("new") if isinstance(change, dict) else getattr(self.license_mode, "value", "none")
+        self._explicit_free_engines_mode = (new_val == "none")
+        if hasattr(self, "matrix_engine"):
+            self._refresh_engine_choices()
+
+    @staticmethod
+    def _authorized_licensed_engines_from_profile(profile: Any) -> frozenset[str]:
+        """Return exact authorized licensed engine IDs ({'orca', 'cfour'} subset) from a CURE course profile.
+
+        Fails closed (returns empty set) for non-dict profiles, explicit False,
+        missing/empty engine lists, or non-matching strings like 'not-orca'.
+        """
+        if not isinstance(profile, dict):
+            return frozenset()
+        explicit = profile.get("licensed_engines_allowed")
+        if explicit is False:
+            return frozenset()
+        if explicit is True:
+            return frozenset({"orca", "cfour"})
+        if isinstance(explicit, (list, tuple, set)):
+            return frozenset(
+                str(entry).strip().lower()
+                for entry in explicit
+                if isinstance(entry, str) and str(entry).strip().lower() in {"orca", "cfour"}
+            )
+        engines = profile.get("engines")
+        if not isinstance(engines, list) or not engines:
+            return frozenset()
+        authorized: set[str] = set()
+        # Require exact leading product identifier (e.g. "ORCA", "ORCA 6.1.1", "ORCA 6.1.1 (...)", "CFOUR 2.1")
+        # so substring tricks like "not-orca" or "no ORCA" are never treated as authorization.
+        exact_engine_re = re.compile(r"^(orca|cfour)(?:\s+\d[\w.-]*)?(?:\s*\([^)]*\))?$", re.IGNORECASE)
+        for entry in engines:
+            if not isinstance(entry, str):
+                continue
+            match = exact_engine_re.match(entry.strip())
+            if match:
+                authorized.add(match.group(1).lower())
+        return frozenset(authorized)
+
+    def _licensed_engines_policy(self) -> tuple[frozenset[str], str]:
+        """Return (authorized_engine_ids, reason) enforcing per-engine course isolation & free-engine locks."""
+        all_licensed = frozenset({"orca", "cfour"})
+        if os.environ.get("COCHEM_NO_LICENSED_ENGINES", "").strip().lower() in {"1", "true", "yes"}:
+            return (
+                frozenset(),
+                "Licensed engines (ORCA, CFOUR) are disabled by COCHEM_NO_LICENSED_ENGINES; use open-source engines (xTB, PySCF, CREST).",
+            )
+        course_mode = getattr(self, "course_mode_selector", None)
+        course_sel = getattr(self, "cure_course_selector", None)
+        if course_mode is not None and course_mode.value == "course" and course_sel is not None and course_sel.value:
+            course_id = str(course_sel.value)
+            try:
+                from cochem_base.course_loader import get_cure_course_profile
+
+                profile = get_cure_course_profile(course_id)
+            except Exception:
+                profile = None
+            authorized = self._authorized_licensed_engines_from_profile(profile)
+            if not authorized:
+                return (
+                    frozenset(),
+                    f"{course_id} uses open-source no-license engines only (xTB, PySCF, CREST); ORCA and CFOUR are disabled for this course.",
+                )
+            if getattr(self, "_explicit_free_engines_mode", False):
+                return (
+                    frozenset(),
+                    "Free engines mode is selected; ORCA and CFOUR are hidden until enabled.",
+                )
+            disallowed = sorted(all_licensed - authorized)
+            reason = (
+                f"{course_id} authorizes {', '.join(e.upper() for e in sorted(authorized))} only; "
+                f"{', '.join(e.upper() for e in disallowed)} is disabled for this course."
+                if disallowed
+                else ""
+            )
+            return (authorized, reason)
+        if getattr(self, "_explicit_free_engines_mode", False):
+            return (
+                frozenset(),
+                "Free engines mode is selected; ORCA and CFOUR are hidden until enabled.",
+            )
+        return (all_licensed, "")
 
     def _on_course_mode_changed(self, _: Any = None) -> None:
         self._refresh_course_mode_ui(persist=True)
@@ -2723,7 +2832,7 @@ class CoChemGUI(InputManagementMixin):
             value=None,
             description="Course:",
             style={"description_width": "initial"},
-            layout=widgets.Layout(width="480px", max_width="100%", display="none"),
+            layout=widgets.Layout(width="100%", max_width="780px", display="none"),
         )
         self.cure_pathway_status = widgets.HTML("", layout=widgets.Layout(display="none"))
         self.course_mode_selector.observe(self._on_course_mode_changed, names="value")
@@ -3957,25 +4066,45 @@ class CoChemGUI(InputManagementMixin):
         return repository
 
     def _local_engine_choices(self) -> list[tuple[str, str | None]]:
-        """Hide unaudited licensed choices while retaining free-engine setup paths."""
-        available = licensed_engine_availability()
+        """Hide unaudited or course-disallowed licensed choices while retaining free-engine setup paths."""
+        authorized_licensed, policy_reason = self._licensed_engines_policy()
+        if not authorized_licensed:
+            available = {
+                "orca": {"available": False, "reason": policy_reason},
+                "cfour": {"available": False, "reason": policy_reason},
+            }
+        else:
+            raw_available = licensed_engine_availability()
+            available = {}
+            for eng in ("orca", "cfour"):
+                if eng in authorized_licensed:
+                    available[eng] = raw_available[eng]
+                else:
+                    available[eng] = {"available": False, "reason": policy_reason}
         self._licensed_engine_availability = available
         if hasattr(self, 'licensed_engine_status'):
-            descriptions = []
-            for engine, observation in available.items():
-                if observation['available']:
-                    detail = "available for audited calculations"
-                else:
-                    detail = (
-                        f"{engine.upper()} is optional — use free local engines (PySCF, xTB, CREST) here "
-                        "or hand off your verified bundle to your professor."
-                    )
-                descriptions.append(f"<li><b>{engine.upper()}:</b> {html.escape(detail)}</li>")
-            self.licensed_engine_status.value = (
-                "<p>Licensed engines (ORCA, CFOUR) are optional and strongly recommended. "
-                "Free local engines (PySCF, xTB, CREST), BASE ingestion, and inspection remain available.</p>"
-                "<ul>" + "".join(descriptions) + "</ul>"
-            )
+            if not authorized_licensed:
+                self.licensed_engine_status.value = (
+                    f"<p role='status'><b>Open-source engines only:</b> {html.escape(policy_reason)}</p>"
+                )
+            else:
+                descriptions = []
+                for engine, observation in available.items():
+                    if engine not in authorized_licensed:
+                        detail = policy_reason or f"{engine.upper()} is not authorized for the active course."
+                    elif observation['available']:
+                        detail = "available for audited calculations"
+                    else:
+                        detail = (
+                            f"{engine.upper()} is optional — use free local engines (PySCF, xTB, CREST) here "
+                            "or hand off your verified bundle to your professor."
+                        )
+                    descriptions.append(f"<li><b>{engine.upper()}:</b> {html.escape(detail)}</li>")
+                self.licensed_engine_status.value = (
+                    "<p>Licensed engines (ORCA, CFOUR) are optional and strongly recommended. "
+                    "Free local engines (PySCF, xTB, CREST), BASE ingestion, and inspection remain available.</p>"
+                    "<ul>" + "".join(descriptions) + "</ul>"
+                )
         choices = [("Choose an available calculation engine", None)]
         if available['orca']['available']:
             choices.append(("ORCA", "ORCA"))
@@ -4578,6 +4707,13 @@ class CoChemGUI(InputManagementMixin):
     def _on_environment_change(self, change: Any) -> None:
         raw_val = str(change['new'])
         host_raw = raw_val.split(' [', 1)[0].strip() or "Workspace"
+        if sys.platform == "linux" and host_raw == "Local-Windows":
+            is_wsl = False
+            try:
+                is_wsl = "microsoft" in Path("/proc/version").read_text(encoding="utf-8", errors="ignore").lower()
+            except OSError:
+                is_wsl = False
+            host_raw = "Local WSL2 (Linux)" if is_wsl else "Local Linux"
         host = html.escape(host_raw)
         if "DEGRADED_OPERATIONAL" in raw_val:
             friendly = f"{host_raw} · Open-source engines ready"
@@ -4852,6 +4988,11 @@ class CoChemGUI(InputManagementMixin):
 
     def _check_local_engine_authority(self, engine: str) -> str:
         """Check audited local engine authority, caching per Golden Registry file revision for responsive UI."""
+        eng_lower = engine.lower()
+        if eng_lower in {"orca", "cfour"}:
+            authorized_licensed, policy_reason = self._licensed_engines_policy()
+            if eng_lower not in authorized_licensed:
+                return policy_reason or f"{engine.upper()} is not authorized for the active course."
         from cochem_base.config_loader import resolve_config_path
         from cochem_base.core_engine.execution_authority import authorize_engine_execution
 

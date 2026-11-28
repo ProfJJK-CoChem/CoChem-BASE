@@ -33,6 +33,7 @@ from typing import Any, Mapping, Sequence
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 FALLBACK_COURSE_IDS: tuple[str, ...] = ("CHEM311", "CHEM312", "CHEM490", "CHEM410", "CHEM411")
 _MILESTONE_NUM_RE = re.compile(r"(?:^|[_\-/])(?:mod|m)(\d+)(?:$|[_\-./])", re.IGNORECASE)
+_MILESTONE_DIR_RE = re.compile(r"^(?:mod|m)(\d+)(?:$|[_\-])", re.IGNORECASE)
 _MILESTONE_PREFIX_RE = re.compile(r"^(M\d+)", re.IGNORECASE)
 
 DEFAULT_MILESTONES: tuple[tuple[str, str], ...] = (
@@ -177,6 +178,16 @@ def get_milestone_catalog_for_course(course_id: str) -> tuple[tuple[tuple[str, s
         if formatted:
             return formatted, "cochem_cure"
 
+    if cid.upper() == "CHEM311":
+        return (
+            ("CHEM311_M0", "CHEM311 Milestone 0: Local Workspace Setup & Verification"),
+            ("CHEM311_M1", "CHEM311 Milestone 1: Constitutional Isomers"),
+            ("CHEM311_M2", "CHEM311 Milestone 2: Stereoisomers & Inertial Defect"),
+            ("CHEM311_M3", "CHEM311 Milestone 3: Conformational Analysis"),
+            ("CHEM311_M4", "CHEM311 Milestone 4: Bonding, Hybridization & Charges"),
+            ("CHEM311_M5", "CHEM311 Milestone 5: Vibrational Frequencies & SPCAT Spectrum"),
+        ), "standalone_fallback"
+
     return (
         (f"{cid}_M1", f"{cid} Milestone 1: Setup & Primary Computations"),
         (f"{cid}_M2", f"{cid} Milestone 2: Analysis & Spectroscopy"),
@@ -185,30 +196,103 @@ def get_milestone_catalog_for_course(course_id: str) -> tuple[tuple[tuple[str, s
     ), "standalone_fallback"
 
 
+def _zip_has_handoff_manifest(path: Path) -> bool:
+    """Return True only when ``path`` is a valid ZIP archive containing ``handoff.json``."""
+    if not path.is_file():
+        return False
+    try:
+        with zipfile.ZipFile(path, "r") as zf:
+            return "handoff.json" in zf.namelist()
+    except (zipfile.BadZipFile, OSError):
+        return False
+
+
 def _map_milestone_for_course(
     path: Path,
     classified_milestone: str,
     course_id: str,
     catalog_keys: Sequence[str],
+    rel_path: str | Path | None = None,
 ) -> str:
     """Map an artifact's classified milestone onto the target course's milestone catalog."""
-    if course_id.upper() == "CHEM312" or classified_milestone in catalog_keys:
+    cid_upper = course_id.upper()
+    if cid_upper == "CHEM312":
+        return classified_milestone
+    name_lower = path.name.lower()
+    is_zip = name_lower.endswith(".zip")
+    has_verified_zip_manifest = is_zip and _zip_has_handoff_manifest(path)
+    # Unmanifested plain ZIP archives never verify a course milestone (even inside mN/modN folders).
+    if is_zip and not has_verified_zip_manifest:
+        return "UNMANIFESTED_ZIP"
+    if classified_milestone in catalog_keys:
         return classified_milestone
     key_lookup = {k.upper(): k for k in catalog_keys}
 
-    # Honor explicit modN / mN filename conventions (e.g., mod1_results.json, mod5_isotopologues.json)
-    m_name = _MILESTONE_NUM_RE.search(path.name)
-    if m_name:
-        num = m_name.group(1)
-        for cand in (f"M{num}", f"{course_id.upper()}_M{num}"):
+    def _lookup_num(num: str) -> str | None:
+        for cand in (f"M{num}", f"{cid_upper}_M{num}"):
             if cand in key_lookup:
                 return key_lookup[cand]
+        return None
 
-    # Map classified M1..M4 prefix onto the course's matching milestone key if present
+    # 1. Honor explicit modN / mN filename conventions (e.g., mod1_results.json, mod5_isotopologues.json)
+    m_name = _MILESTONE_NUM_RE.search(path.name)
+    if m_name:
+        hit = _lookup_num(m_name.group(1))
+        if hit is not None:
+            return hit
+
+    # 2. Honor anchored modN / mN directory prefixes within base_dir (innermost parent outward,
+    #    e.g., m1_labs/titration_diprotic.json -> M1, m3_kinetics/out/dft_stage.json -> M3, mod3/crest.out -> M3;
+    #    never matches arbitrary substrings like archive-m3-backups).
+    if rel_path is not None:
+        parent_parts = tuple(p for p in Path(rel_path).parts[:-1] if p not in ("", "."))
+    else:
+        parent_parts = (path.parent.name,) if path.parent.name else ()
+    for part in reversed(parent_parts):
+        m_dir = _MILESTONE_DIR_RE.match(part)
+        if m_dir:
+            hit = _lookup_num(m_dir.group(1))
+            if hit is not None:
+                return hit
+
+    # 3. Course-semantic fallback for verified handoff/provenance dossiers, CHEM410 kinetics, & CHEM311 M5
+    parent_lower = {p.lower() for p in parent_parts}
+    if is_zip:
+        is_provenance_bundle = has_verified_zip_manifest and (
+            bool(parent_lower & {"handoff_out", "handoff", "received", "dossier", "capstone"})
+            or "factledger" in name_lower
+            or "dossier" in name_lower
+            or "capstone" in name_lower
+        )
+    else:
+        is_provenance_bundle = (
+            name_lower in ("handoff.json", "factledger.json", "factledger.md")
+            or "factledger" in name_lower
+            or "dossier" in name_lower
+            or "capstone" in name_lower
+        )
+    if is_provenance_bundle and cid_upper in ("CHEM410", "CHEM411", "CHEM490"):
+        hit_m4 = _lookup_num("4")
+        if hit_m4 is not None:
+            return hit_m4
+    if cid_upper == "CHEM311" and (
+        classified_milestone == "M4_spcat_8_18ghz"
+        or (is_provenance_bundle and classified_milestone in ("M4_spcat_8_18ghz", "M1_conformers"))
+    ):
+        hit_m5 = _lookup_num("5")
+        if hit_m5 is not None:
+            return hit_m5
+
+    if cid_upper == "CHEM410" and classified_milestone == "M4_rxn_profile":
+        hit_m3 = _lookup_num("3")
+        if hit_m3 is not None:
+            return hit_m3
+
+    # 4. Map classified M1..M4 prefix onto the course's matching milestone key if present
     m_pref = _MILESTONE_PREFIX_RE.match(classified_milestone)
     if m_pref:
         prefix = m_pref.group(1).upper()
-        for cand in (prefix, f"{course_id.upper()}_{prefix}"):
+        for cand in (prefix, f"{cid_upper}_{prefix}"):
             if cand in key_lookup:
                 return key_lookup[cand]
     return classified_milestone
@@ -422,7 +506,14 @@ def build_fact_ledger(
             tier, milestone = explicit_tiers[rel_str]
         else:
             tier, raw_milestone = classify_artifact_tier(resolved)
-            milestone = _map_milestone_for_course(resolved, raw_milestone, course_id, catalog_keys)
+            rel_for_map = rel_str if (root is not None and resolved.is_relative_to(root)) else None
+            milestone = _map_milestone_for_course(
+                resolved,
+                raw_milestone,
+                course_id,
+                catalog_keys,
+                rel_path=rel_for_map,
+            )
 
         handoff_members_verified: list[str] = []
         if resolved.name.lower() == "handoff.json":
@@ -448,7 +539,8 @@ def build_fact_ledger(
             l1_entries.append(entry)
         else:
             l2_entries.append(entry)
-        milestone_evidence.setdefault(milestone, []).append(artifact_id)
+        if milestone != "UNMANIFESTED_ZIP":
+            milestone_evidence.setdefault(milestone, []).append(artifact_id)
 
     # Validate L3 claims: refuse unhashed/fabricated claims
     l3_claims: list[dict[str, Any]] = []

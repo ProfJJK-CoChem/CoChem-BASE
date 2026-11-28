@@ -25,6 +25,7 @@ from pathlib import Path
 import re
 import runpy
 import shutil
+import subprocess
 import sys
 from typing import Any, Sequence
 import urllib.request
@@ -180,7 +181,7 @@ def build_crest_argv(
     multiplicity: int = 1,
     cores: int = 1,
     nci: bool = False,
-    quick: bool = True,
+    quick: bool = False,
 ) -> list[str]:
     """Construct the CREST 3.0.2 command preserving the verified `--legacy --xnam --nocross` fix."""
     if charge not in V2_ALLOWED_CHARGES:
@@ -227,6 +228,188 @@ def input_file(filename: str) -> Path:
     return source
 
 
+def _probe_binary_version(exe_path: str) -> str | None:
+    """Capture the first non-empty version line from an authentic local binary."""
+    try:
+        proc = subprocess.run(
+            [exe_path, "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except OSError:
+        return None
+    combined = "\n".join(part for part in (proc.stdout, proc.stderr) if part)
+    for line in combined.splitlines():
+        cleaned = line.strip()
+        if cleaned:
+            return cleaned[:200]
+    return None
+
+
+def _resolve_free_engines(payload_dir: Path) -> tuple[str, str, dict[str, str]]:
+    """Resolve authentic local xTB and CREST binaries and bind SHA-256 + version provenance."""
+    env = dict(os.environ)
+    free_root_raw = env.get("COCHEM_FREE_ROOT", "").strip()
+    source_kind = "local_workstation_env"
+    xtb_path: str | None = None
+    crest_path: str | None = None
+    upstream_manifest: dict[str, Any] | None = None
+
+    if free_root_raw:
+        engine_root = Path(free_root_raw)
+        xtb_candidate = engine_root / "xtb/xtb-dist/bin/xtb"
+        crest_candidate = engine_root / "crest/crest/crest"
+        if xtb_candidate.is_file() and crest_candidate.is_file():
+            xtb_path = str(xtb_candidate.resolve())
+            crest_path = str(crest_candidate.resolve())
+            source_kind = "cochem_free_root"
+            xtb_share = engine_root / "xtb/xtb-dist/share/xtb"
+            if xtb_share.is_dir():
+                env["XTBPATH"] = str(xtb_share)
+            env["PATH"] = str(xtb_candidate.parent) + os.pathsep + env.get("PATH", "")
+            engines_json = engine_root / "engines.json"
+            if engines_json.is_file():
+                try:
+                    loaded = json.loads(engines_json.read_text(encoding="utf-8"))
+                    if isinstance(loaded, dict):
+                        upstream_manifest = loaded
+                except Exception as exc:
+                    raise RuntimeError(f"Unreadable engines.json in COCHEM_FREE_ROOT: {exc}") from exc
+
+    if not xtb_path:
+        xtb_path = next(
+            (
+                str(Path(candidate).resolve())
+                for candidate in (env.get("COCHEM_XTB_BIN"), env.get("XTB_CMD"), shutil.which("xtb"))
+                if candidate and Path(candidate).is_file()
+            ),
+            None,
+        )
+    if not crest_path:
+        crest_path = next(
+            (
+                str(Path(candidate).resolve())
+                for candidate in (env.get("COCHEM_CREST_BIN"), env.get("CREST_CMD"), shutil.which("crest"))
+                if candidate and Path(candidate).is_file()
+            ),
+            None,
+        )
+    if not xtb_path or not crest_path:
+        raise RuntimeError(
+            "Unable to locate authentic xTB and CREST binaries. "
+            "Activate WSL2 (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) "
+            "or set COCHEM_FREE_ROOT / COCHEM_XTB_BIN / COCHEM_CREST_BIN."
+        )
+
+    def _sha256_path(path_str: str) -> str:
+        with Path(path_str).open("rb") as handle:
+            return hashlib.file_digest(handle, "sha256").hexdigest()
+
+    xtb_sha = _sha256_path(xtb_path)
+    crest_sha = _sha256_path(crest_path)
+
+    # If COCHEM_FREE_ROOT provided a manifest with binary SHA-256 entries, verify them against disk.
+    if isinstance(upstream_manifest, dict):
+        for key, actual_sha in (("xtb", xtb_sha), ("crest", crest_sha)):
+            entry = upstream_manifest.get(key)
+            if isinstance(entry, dict):
+                expected = entry.get("binary_sha256") or entry.get("executable_sha256") or entry.get("sha256")
+                if isinstance(expected, str) and len(expected) == 64 and expected.lower() != actual_sha.lower():
+                    raise RuntimeError(
+                        f"COCHEM_FREE_ROOT manifest SHA-256 mismatch for {key}: "
+                        f"expected {expected}, observed {actual_sha}"
+                    )
+
+    provenance: dict[str, Any] = {
+        "schema": "cochem.local-free-engines/1",
+        "source": source_kind,
+        "xtb": {
+            "path": xtb_path,
+            "sha256": xtb_sha,
+            "observed_version": _probe_binary_version(xtb_path),
+        },
+        "crest": {
+            "path": crest_path,
+            "sha256": crest_sha,
+            "observed_version": _probe_binary_version(crest_path),
+        },
+        "xtbpath": env.get("XTBPATH"),
+    }
+    if upstream_manifest is not None:
+        provenance["upstream_manifest"] = upstream_manifest
+    save_json(payload_dir / "engines.json", provenance)
+    return xtb_path, crest_path, env
+
+
+def _evaluate_aimnet2_via_subprocess(
+    python_exe: str,
+    symbols: Sequence[str],
+    coords: Sequence[Sequence[float]],
+    *,
+    charge: int,
+    multiplicity: int,
+    model_name: str,
+) -> dict[str, Any]:
+    """Run authentic AIMNet2ASE in the host's isolated COCHEM_AIMNET_PYTHON venv."""
+    helper = (
+        "import json, math, sys\n"
+        "import numpy as np\n"
+        "from ase import Atoms\n"
+        "from aimnet.calculators import AIMNet2ASE\n"
+        "req = json.loads(sys.stdin.read())\n"
+        "atoms = Atoms(list(req['symbols']), positions=list(req['coords']))\n"
+        "atoms.info['charge'] = int(req['charge'])\n"
+        "atoms.info['spin'] = int(req['multiplicity'])\n"
+        "atoms.calc = AIMNet2ASE(req['model_name'], charge=int(req['charge']), mult=int(req['multiplicity']))\n"
+        "e_ev = float(atoms.get_potential_energy())\n"
+        "f_ev_ang = np.asarray(atoms.get_forces(), dtype=float)\n"
+        "if not math.isfinite(e_ev) or f_ev_ang.shape != (len(req['symbols']), 3) or not np.isfinite(f_ev_ang).all():\n"
+        "    raise RuntimeError('AIMNet2 returned non-finite energy or forces')\n"
+        "print(json.dumps({'energy_ev': e_ev, 'forces_ev_ang': f_ev_ang.tolist()}))\n"
+    )
+    req_json = json.dumps(
+        {
+            "symbols": list(symbols),
+            "coords": [list(map(float, row)) for row in coords],
+            "charge": int(charge),
+            "multiplicity": int(multiplicity),
+            "model_name": model_name,
+        }
+    )
+    proc = subprocess.run(
+        [python_exe, "-c", helper],
+        input=req_json,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Isolated COCHEM_AIMNET_PYTHON ({python_exe}) failed (exit {proc.returncode}): "
+            f"{proc.stderr.strip() or proc.stdout.strip()}"
+        )
+    import numpy as np
+
+    out = json.loads(proc.stdout.strip().splitlines()[-1])
+    energy_ev = float(out["energy_ev"])
+    forces_ev_ang = np.asarray(out["forces_ev_ang"], dtype=float)
+    energy_hartree = energy_ev / HARTREE_TO_EV
+    gradient_eh_bohr = (-forces_ev_ang * BOHR_TO_ANGSTROM / HARTREE_TO_EV).tolist()
+    return {
+        "status": "SUCCESS",
+        "backend": "aimnet2",
+        "model": model_name,
+        "charge": int(charge),
+        "multiplicity": int(multiplicity),
+        "energy_hartree": energy_hartree,
+        "gradient_hartree_per_bohr": gradient_eh_bohr,
+        "runtime_python": python_exe,
+    }
+
+
 def _evaluate_aimnet2_frame(
     symbols: Sequence[str],
     coords: Sequence[Sequence[float]],
@@ -242,8 +425,19 @@ def _evaluate_aimnet2_frame(
     try:
         from aimnet.calculators import AIMNet2ASE  # type: ignore[import-not-found]
     except ImportError as exc:
+        aimnet_py = os.environ.get("COCHEM_AIMNET_PYTHON", "").strip()
+        if aimnet_py and Path(aimnet_py).is_file():
+            return _evaluate_aimnet2_via_subprocess(
+                aimnet_py,
+                symbols,
+                coords,
+                charge=charge,
+                multiplicity=multiplicity,
+                model_name=model_name,
+            )
         raise RuntimeError(
-            "Charge-aware AIMNet2 package (`aimnet`) is required for this system but is not installed"
+            "Charge-aware AIMNet2 package (`aimnet`) is required for this system but is not installed "
+            "in the current interpreter and COCHEM_AIMNET_PYTHON is not configured."
         ) from exc
 
     atoms = Atoms(list(symbols), positions=list(coords))
@@ -443,6 +637,7 @@ def calculate(
     target_continuation: str = "workstation",
     student_id: str | None = None,
     cores: int = 1,
+    quick: bool = False,
 ) -> tuple[Path, Path, str, dict[str, Any]]:
     """Run XYZ -> CREST 3.0.2 -> AIMNet2/MACE -> CPU PySCF and seal a v2 handoff ZIP."""
     if workflow_type not in V2_ALLOWED_WORKFLOW_TYPES:
@@ -475,12 +670,7 @@ def calculate(
     sys.path.insert(0, str(ROOT / "scripts"))
     from verify_free_engines import execute
 
-    engine_root = Path(os.environ["COCHEM_FREE_ROOT"])
-    shutil.copyfile(engine_root / "engines.json", payload / "engines.json")
-    env = dict(os.environ, XTBPATH=str(engine_root / "xtb/xtb-dist/share/xtb"))
-    env["PATH"] = str(engine_root / "xtb/xtb-dist/bin") + os.pathsep + env["PATH"]
-    xtb = str(engine_root / "xtb/xtb-dist/bin/xtb")
-    crest = str(engine_root / "crest/crest/crest")
+    xtb, crest, env = _resolve_free_engines(payload)
 
     argv = build_crest_argv(
         crest,
@@ -489,7 +679,7 @@ def calculate(
         multiplicity=multiplicity,
         cores=cores,
         nci=(workflow_type == "nci_dimer"),
-        quick=True,
+        quick=quick,
     )
     log = execute(argv, native, "crest.log", env, timeout=900)
     if "CREST terminated normally" not in log or xtb not in log or "Use of GFN2-xTB requested" not in log:
@@ -631,9 +821,12 @@ def calculate(
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("filename", help="XYZ filename inside examples/student_inputs/ or path to .xyz")
-    parser.add_argument("work", type=Path, help="Scratch working directory")
-    parser.add_argument("output", type=Path, help="Output directory for sealed v2 ZIP + .sha256")
+    parser.add_argument("filename", nargs="?", default=None, help="XYZ filename inside examples/student_inputs/ or path to .xyz")
+    parser.add_argument("work", nargs="?", type=Path, default=None, help="Scratch working directory")
+    parser.add_argument("output", nargs="?", type=Path, default=None, help="Output directory for sealed v2 ZIP + .sha256")
+    parser.add_argument("--xyz", dest="xyz_opt", default=None, help="Optional named alias for input .xyz path")
+    parser.add_argument("--work-dir", dest="work_opt", type=Path, default=None, help="Optional named alias for scratch working directory")
+    parser.add_argument("--output-dir", dest="output_opt", type=Path, default=None, help="Optional named alias for output directory")
     parser.add_argument("--charge", type=int, default=0, choices=list(V2_ALLOWED_CHARGES))
     parser.add_argument("--multiplicity", type=int, default=1, choices=list(V2_ALLOWED_MULTIPLICITIES))
     parser.add_argument("--mlff", default="auto", choices=["auto", "aimnet2", "mace"])
@@ -642,6 +835,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--solvation", default="gas", choices=list(V2_ALLOWED_SOLVATIONS))
     parser.add_argument("--solvent-name", default=None, help="Solvent name when solvation is pcm/ddcosmo")
     parser.add_argument("--frequencies", action="store_true", help="Compute harmonic Hessian and imaginary mode count")
+    parser.add_argument("--quick", action="store_true", help="Pass --quick to CREST 3.0.2 (off by default for full conformer search)")
     parser.add_argument("--workflow-type", default="conformer", choices=list(V2_ALLOWED_WORKFLOW_TYPES))
     parser.add_argument("--course-id", default="CHEM312", choices=list(V2_ALLOWED_COURSE_IDS))
     parser.add_argument("--target-continuation", default="workstation", choices=list(V2_ALLOWED_TARGET_CONTINUATIONS))
@@ -650,12 +844,31 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def resolve_cli_paths(args: argparse.Namespace) -> tuple[str, Path, Path]:
+    """Accept either positional `(filename, work, output)` or named `--xyz`/`--output-dir` flags."""
+    filename = args.xyz_opt if args.xyz_opt is not None else args.filename
+    output = args.output_opt if args.output_opt is not None else args.output
+    work = args.work_opt if args.work_opt is not None else args.work
+    if not filename:
+        raise ValueError("Provide an input .xyz file via positional `filename` or `--xyz <path>`.")
+    if output is None:
+        raise ValueError("Provide an output directory via positional `output` or `--output-dir <dir>`.")
+    if work is None:
+        work = output / "_work"
+    return filename, work, output
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_arg_parser().parse_args(list(argv) if argv is not None else None)
+    parser = build_arg_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    try:
+        filename, work, output = resolve_cli_paths(args)
+    except ValueError as exc:
+        parser.error(str(exc))
     zip_path, sha_path, archive_sha, _ = calculate(
-        args.filename,
-        args.work,
-        args.output,
+        filename,
+        work,
+        output,
         charge=args.charge,
         multiplicity=args.multiplicity,
         mlff=args.mlff,
@@ -669,6 +882,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         target_continuation=args.target_continuation,
         student_id=args.student_id,
         cores=args.cores,
+        quick=bool(args.quick),
     )
     print(json.dumps({"zip_path": str(zip_path), "sha256_path": str(sha_path), "archive_sha256": archive_sha}, indent=2))
     return 0

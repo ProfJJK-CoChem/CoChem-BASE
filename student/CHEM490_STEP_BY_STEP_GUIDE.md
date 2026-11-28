@@ -64,16 +64,28 @@ Local WSL2 workstations with ORCA 6.1.1 support publication-grade double-hybrid 
 ```
 
 2. **Anharmonic VPT2 Vibrational & Rotational Corrections ($\Delta B_{\text{vib}}$):**
-   - **Important ORCA 6.1.1 Limitation:** ORCA 6.1.1 removed analytic MP2 Hessians, so native `! VPT2` cannot run directly on double-hybrid `revDSD-PBEP86-D4/2021`.
+   - **Important ORCA 6.1.1 Limitations (Verified on Live WSL2):**
+     1. ORCA 6.1.1 removed analytic MP2 Hessians, so native `! VPT2` cannot run directly on double-hybrid `revDSD-PBEP86-D4/2021`.
+     2. In ORCA 6.1.1 simple input lines, dispersion must be **space-separated (`! B3LYP D4`)** — writing hyphenated `! B3LYP-D4` exits immediately with `INPUT ERROR` (exit `4`).
+     3. Never combine `TightOpt` and `VPT2` on the same simple input line — ORCA 6.1.1 exits `0` after optimization and **silently skips VPT2**. Always run a **two-step workflow** (`TightOpt` first, then standalone `! ... VPT2` on the optimized `.xyz`).
    - Use **one of two verified local WSL2 VPT2 routes**:
-     - **Route A (Composite Hybrid-DFT Native `! VPT2`, ~4.2 min for 5 atoms):** Combine the **`revDSD-PBEP86-D4/2021`** equilibrium geometry (`~54 s`, providing $B_e$) with a native **`! B3LYP-D4 def2-TZVPP VPT2`** calculation (`~4.2 min` for 5 atoms, providing anharmonic $\Delta B_{\text{vib}}$ and VPT2 fundamentals) to form $B_0 = B_e(\text{revDSD}) + \Delta B_{\text{vib}}(\text{B3LYP-D4})$.
+     - **Route A (Composite Hybrid-DFT Native `! VPT2`, ~4.2 min for 5 atoms):** Combine the **`revDSD-PBEP86-D4/2021`** equilibrium geometry (`~54 s`, providing $B_e$) with a two-step **B3LYP-D4** (`! B3LYP D4 def2-TZVPP RIJCOSX def2/J`) `TightOpt` followed by standalone `! VPT2` (`~4.2 min` for 5 atoms, providing anharmonic $\Delta B_{\text{vib}}$ and VPT2 fundamentals) to form $B_0 = B_e(\text{revDSD}) + \Delta B_{\text{vib}}(\text{B3LYP-D4})$.
      - **Route B (External Displaced-`NumFreq` VPT2 at `revDSD-PBEP86-D4/2021`, ~16–22 min):** Run displaced numerical Hessians (`NumFreq`) externally around the `revDSD-PBEP86-D4/2021` minimum when pure double-hybrid anharmonic cubic/quartic force constants are required.
 
 ```orca
-! B3LYP-D4 def2-TZVPP TightOpt TightSCF DefGrid3 VPT2
+# Step 2a — Optimize at B3LYP D4 / def2-TZVPP first (space-separated "B3LYP D4"):
+! B3LYP D4 def2-TZVPP RIJCOSX def2/J TightOpt TightSCF DefGrid3
 %pal nprocs 4 end
 %maxcore 2000
 * xyzfile 0 1 hcooh_revdsd_opt.xyz
+```
+
+```orca
+# Step 2b — Standalone native VPT2 on the Step 2a converged geometry (do NOT combine TightOpt + VPT2):
+! B3LYP D4 def2-TZVPP RIJCOSX def2/J TightSCF DefGrid3 VPT2
+%pal nprocs 4 end
+%maxcore 2000
+* xyzfile 0 1 step2a_b3lyp_opt.xyz
 ```
 
 3. **Higher-End Canonical `CCSD` / `CCSD(T)` Handoff via `cochem_workstation_job_runner`:**
@@ -108,9 +120,16 @@ cochem-bench --help
 ```
 
 ### Week 7 — 1D Torsional PES & Anharmonic Analysis (`CoChem-TORQ`)
-Scan torsional coordinates (such as `h2o2_start.xyz`) and inspect VPT2 outputs:
+Run a genuine relaxed 1D torsional PES scan (`PySCF` + `geomeTRIC`, e.g., `h2o2_start.xyz`) and parse ORCA 6.1.1 VPT2 rotational outputs:
 ```bash
-cochem-torq --help
+cochem-torq doctor --execution local_validation
+cochem-torq torsional-scan \
+  --molecule-id H2O2 \
+  --xyz examples/student_inputs/h2o2_start.xyz \
+  --dihedral 0 1 2 3 \
+  --method b3lyp --basis def2-svp \
+  --output results/h2o2_torsional_scan.json
+cochem-torq parse-vpt2 results/hcooh_h2o_vpt2.out --output results/hcooh_h2o_vpt2_parsed.json
 ```
 
 ### Weeks 9–10 — Weighted $r_0$ & Kraitchman $r_s$ Structure Fitting (`CoChem-GEOM` & `scripts/kraitchman_rs.py`)
@@ -159,7 +178,9 @@ python scripts/fact_ledger.py --help
 | Symptom | Cause & Fix |
 | --- | --- |
 | ORCA 6.1.1 rejects `revDSD-PBEP86-D4` | ORCA 6.1.1 requires the explicit `/2021` functional keyword: `revDSD-PBEP86-D4/2021`. |
-| ORCA 6.1.1 fails on `! revDSD-PBEP86-D4/2021 VPT2` | ORCA 6.1.1 removed analytic MP2 Hessians. Use composite `revDSD-PBEP86-D4/2021` geometry (~54 s) + hybrid DFT `B3LYP-D4/def2-TZVPP` `! VPT2` (~4.2 min for 5 atoms), or external displaced-`NumFreq` VPT2 (~16–22 min). |
+| ORCA 6.1.1 fails on `! revDSD-PBEP86-D4/2021 VPT2` | ORCA 6.1.1 removed analytic MP2 Hessians. Use composite `revDSD-PBEP86-D4/2021` geometry (~54 s) + two-step hybrid DFT **B3LYP-D4** (`! B3LYP D4 def2-TZVPP TightOpt` then standalone `! B3LYP D4 def2-TZVPP VPT2`, ~4.2 min for 5 atoms), or external displaced-`NumFreq` VPT2 (~16–22 min). |
+| ORCA 6.1.1 exits `4` on `! B3LYP-D4` or silently skips `VPT2` with `TightOpt` | Write dispersion space-separated (`! B3LYP D4`, never `! B3LYP-D4`) and run `TightOpt` and `VPT2` as **two separate jobs** (combining `TightOpt` + `VPT2` on one line exits `0` and skips VPT2). |
+| OpenMPI rejects `%pal nprocs 4 end` on WSL2 (`not enough slots available`) | Ensure `activate_cochem_wsl.sh` is sourced (exports `OMPI_MCA_hwloc_base_use_hwthreads_as_cpus=1` so OpenMPI maps logical threads cleanly on WSL2). |
 | CREST 3.0.2 cannot locate `xtb` or hangs in GC | Pass `--legacy --xnam "$(which xtb)" --nocross` on every CREST 3.0.2 command. |
 | `scripts/spcat_runner.py` reports `"status": "PENDING"` | Activate WSL2 first (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) so compiled `spcat` is on `PATH`. |
 | Imaginary Kraitchman coordinate (`r_s^2 < 0`) | Real physical Costain zero-point vibrational effect near a principal axis or symmetry plane (for example, $c$-axis of planar $\text{H}_2\text{O}$). Report `null` / `IMAGINARY` honestly; never replace with `0.0`. |

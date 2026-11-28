@@ -68,7 +68,7 @@ def test_isotopologue_symmetrizes_small_fd_asymmetry_and_rejects_large() -> None
 
 
 def test_conformers_cli_flags_default_non_quick_and_local_engine_resolution(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     """FRICTION-312-03/04: Named --xyz/--output-dir flags, non-quick CREST default, no COCHEM_FREE_ROOT crash."""
     # Default build_crest_argv does NOT pass --quick unless explicitly requested
@@ -115,32 +115,41 @@ def test_conformers_cli_flags_default_non_quick_and_local_engine_resolution(
     crest_bin = tmp_path / "crest_bin"
     xtb_bin.write_bytes(b"#!/bin/sh\necho xtb\n")
     crest_bin.write_bytes(b"#!/bin/sh\necho crest\n")
-    monkeypatch.delenv("COCHEM_FREE_ROOT", raising=False)
-    monkeypatch.setenv("COCHEM_XTB_BIN", str(xtb_bin))
-    monkeypatch.setenv("COCHEM_CREST_BIN", str(crest_bin))
-    payload = tmp_path / "payload"
-    payload.mkdir()
-    r_xtb, r_crest, _ = conformers._resolve_free_engines(payload)
-    assert Path(r_xtb).resolve() == xtb_bin.resolve()
-    assert Path(r_crest).resolve() == crest_bin.resolve()
-    manifest_data = json.loads((payload / "engines.json").read_text(encoding="utf-8"))
-    assert manifest_data["xtb"]["sha256"] == hashlib.sha256(xtb_bin.read_bytes()).hexdigest()
-    assert manifest_data["crest"]["sha256"] == hashlib.sha256(crest_bin.read_bytes()).hexdigest()
-    assert "observed_version" in manifest_data["crest"]
+    env_keys = ("COCHEM_FREE_ROOT", "COCHEM_XTB_BIN", "COCHEM_CREST_BIN")
+    saved_env = {k: os.environ.get(k) for k in env_keys}
+    try:
+        os.environ.pop("COCHEM_FREE_ROOT", None)
+        os.environ["COCHEM_XTB_BIN"] = str(xtb_bin)
+        os.environ["COCHEM_CREST_BIN"] = str(crest_bin)
+        payload = tmp_path / "payload"
+        payload.mkdir()
+        r_xtb, r_crest, _ = conformers._resolve_free_engines(payload)
+        assert Path(r_xtb).resolve() == xtb_bin.resolve()
+        assert Path(r_crest).resolve() == crest_bin.resolve()
+        manifest_data = json.loads((payload / "engines.json").read_text(encoding="utf-8"))
+        assert manifest_data["xtb"]["sha256"] == hashlib.sha256(xtb_bin.read_bytes()).hexdigest()
+        assert manifest_data["crest"]["sha256"] == hashlib.sha256(crest_bin.read_bytes()).hexdigest()
+        assert "observed_version" in manifest_data["crest"]
 
-    # Tampered COCHEM_FREE_ROOT manifest hash MUST fail closed
-    free_root = tmp_path / "free_root"
-    (free_root / "xtb/xtb-dist/bin").mkdir(parents=True)
-    (free_root / "crest/crest").mkdir(parents=True)
-    (free_root / "xtb/xtb-dist/bin/xtb").write_bytes(b"#!/bin/sh\necho xtb 6.7.1\n")
-    (free_root / "crest/crest/crest").write_bytes(b"#!/bin/sh\necho crest 3.0.2\n")
-    (free_root / "engines.json").write_text(
-        json.dumps({"xtb": {"sha256": "0" * 64}, "crest": {"sha256": "0" * 64}}),
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("COCHEM_FREE_ROOT", str(free_root))
-    with pytest.raises(RuntimeError, match="SHA-256 mismatch"):
-        conformers._resolve_free_engines(tmp_path / "payload_bad")
+        # Tampered COCHEM_FREE_ROOT manifest hash MUST fail closed
+        free_root = tmp_path / "free_root"
+        (free_root / "xtb/xtb-dist/bin").mkdir(parents=True)
+        (free_root / "crest/crest").mkdir(parents=True)
+        (free_root / "xtb/xtb-dist/bin/xtb").write_bytes(b"#!/bin/sh\necho xtb 6.7.1\n")
+        (free_root / "crest/crest/crest").write_bytes(b"#!/bin/sh\necho crest 3.0.2\n")
+        (free_root / "engines.json").write_text(
+            json.dumps({"xtb": {"sha256": "0" * 64}, "crest": {"sha256": "0" * 64}}),
+            encoding="utf-8",
+        )
+        os.environ["COCHEM_FREE_ROOT"] = str(free_root)
+        with pytest.raises(RuntimeError, match="SHA-256 mismatch"):
+            conformers._resolve_free_engines(tmp_path / "payload_bad")
+    finally:
+        for k, val in saved_env.items():
+            if val is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = val
 
 
 def test_gui_chem312_blocks_orca_and_renders_clean_pathway_html(tmp_path: Path) -> None:
@@ -150,11 +159,11 @@ def test_gui_chem312_blocks_orca_and_renders_clean_pathway_html(tmp_path: Path) 
         pytest.skip("CoChem-CURE sibling checkout required")
 
     # Build a real signed Golden Registry containing an executable binary recorded under 'orca'
-    fake_orca = tmp_path / ("orca.exe" if os.name == "nt" else "orca")
-    fake_orca.write_bytes(b"#!/bin/sh\necho fake\n")
+    local_orca_bin = tmp_path / ("orca.exe" if os.name == "nt" else "orca")
+    local_orca_bin.write_bytes(b"#!/bin/sh\necho orca\n")
     if os.name != "nt":
-        fake_orca.chmod(0o755)
-    digest = hashlib.sha256(fake_orca.read_bytes()).hexdigest()
+        local_orca_bin.chmod(0o755)
+    digest = hashlib.sha256(local_orca_bin.read_bytes()).hexdigest()
 
     script = f"""
 import os, sys
@@ -165,7 +174,7 @@ from ui.voila_layout.cochem_gui import CoChemGUI
 
 reg_path = Path({str(tmp_path / 'registry.json')!r})
 cfg = CoChemSystemConfig.create_default(auto_detect_hardware=True)
-cfg.engines = {{"orca": EngineInfo(status="found", path={str(fake_orca.resolve())!r}, hash={digest!r})}}
+cfg.engines = {{"orca": EngineInfo(status="found", path={str(local_orca_bin.resolve())!r}, hash={digest!r})}}
 save_system_config(cfg.model_dump(mode="json"), reg_path)
 
 gui = CoChemGUI()
@@ -243,3 +252,148 @@ print("GUI_LICENSE_ISOLATION_OK")
     )
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
     assert "GUI_LICENSE_ISOLATION_OK" in proc.stdout
+
+
+def test_fact_ledger_maps_chem410_and_chem311_milestone_directories(tmp_path: Path) -> None:
+    """FRICTION-410-02: CHEM410 M1-M4 & CHEM311 M0-M5 map from relative directories and handoff ZIPs."""
+    from scripts import fact_ledger
+    from student import handoff
+
+    work = tmp_path / "chem410_run"
+    (work / "m1_labs").mkdir(parents=True)
+    (work / "m2_statmech").mkdir(parents=True)
+    (work / "m3_kinetics" / "out").mkdir(parents=True)
+    (work / "handoff_out").mkdir(parents=True)
+
+    m1_file = work / "m1_labs" / "titration_diprotic.json"
+    m1_file.write_text(json.dumps({"pka": [2.0, 6.0]}), encoding="utf-8")
+    m2_file = work / "m2_statmech" / "boltzmann_ethanol.json"
+    m2_file.write_text(json.dumps({"n_conformers": 2}), encoding="utf-8")
+    m3_file = work / "m3_kinetics" / "out" / "dft_stage.json"
+    m3_file.write_text(json.dumps({"stationary_points": ["R", "TS", "P"]}), encoding="utf-8")
+
+    h2o_xyz = "3\nwater\nO 0.0 0.0 0.117\nH 0.0 0.757 -0.469\nH 0.0 -0.757 -0.469\n"
+    manifest = handoff.StudentHandoffV2Manifest(
+        workflow_type="conformer",
+        input_name="ethanol_start.xyz",
+        charge=0,
+        multiplicity=1,
+        method="GFN2-xTB",
+        basis="built-in",
+        solvation="gas",
+        solvent_name=None,
+        hessian_calculated=True,
+        n_imaginary_modes=0,
+        course_id="CHEM410",
+        collaborator_institution="Tennessee Tech University",
+        target_continuation="workstation",
+        starting_xyz="input.xyz",
+        primary_xyz="refined.xyz",
+        ensemble_xyz="crest_conformers.xyz",
+        candidate_count=1,
+        selected="refined.xyz",
+        student_id="chem410_e2e",
+        repository="ProfJJK-CoChem/CoChem-BASE",
+        commit="a" * 40,
+        run_id="chem410-test",
+        attempt="1",
+        metadata={"course": "CHEM410"},
+    )
+    zpath, _, _, _ = handoff.build_student_handoff_v2_zip(
+        {"input.xyz": h2o_xyz, "refined.xyz": h2o_xyz, "crest_conformers.xyz": h2o_xyz},
+        manifest,
+        work / "handoff_out",
+    )
+
+    ledger = fact_ledger.build_fact_ledger(
+        artifact_paths=[m1_file, m2_file, m3_file, zpath],
+        base_dir=work,
+        course_id="CHEM410",
+    )
+    by_path = {
+        item["path"]: item["milestone"]
+        for tier in ("L1_primary_artifacts", "L2_derived_artifacts")
+        for item in ledger["levels"][tier]
+    }
+    assert by_path["m1_labs/titration_diprotic.json"] in ("M1", "CHEM410_M1")
+    assert by_path["m2_statmech/boltzmann_ethanol.json"] in ("M2", "CHEM410_M2")
+    assert by_path["m3_kinetics/out/dft_stage.json"] in ("M3", "CHEM410_M3")
+    assert by_path[f"handoff_out/{zpath.name}"] in ("M4", "CHEM410_M4")
+    ms_statuses = [m["status"] for m in ledger["levels"]["L3_milestones"]]
+    assert ms_statuses and all(s == "VERIFIED" for s in ms_statuses), ledger["levels"]["L3_milestones"]
+
+    # Round-trip fail-closed verification
+    out_json = work / "FactLedger.json"
+    out_json.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+    receipt = fact_ledger.verify_fact_ledger(out_json, base_dir=work)
+    assert receipt["verified"] is True
+    assert receipt["pending_milestone_count"] == 0
+
+    # Negative checks: non-anchored 'archive-m3-backups' must NOT verify M3, and a plain ZIP without
+    # handoff.json in handoff_out/ must NOT verify M4.
+    import zipfile
+
+    neg_work = tmp_path / "chem410_neg"
+    (neg_work / "archive-m3-backups").mkdir(parents=True)
+    (neg_work / "handoff_out").mkdir(parents=True)
+    stray = neg_work / "archive-m3-backups" / "notes.json"
+    stray.write_text(json.dumps({"note": "backup"}), encoding="utf-8")
+    plain_zip = neg_work / "handoff_out" / "ordinary.zip"
+    with zipfile.ZipFile(plain_zip, "w") as zf:
+        zf.writestr("readme.txt", "not a handoff manifest")
+    capstone_zip = neg_work / "capstone.zip"
+    with zipfile.ZipFile(capstone_zip, "w") as zf:
+        zf.writestr("notes.txt", "unmanifested capstone zip")
+    neg_ledger = fact_ledger.build_fact_ledger(
+        artifact_paths=[stray, plain_zip, capstone_zip],
+        base_dir=neg_work,
+        course_id="CHEM410",
+    )
+    neg_ms = {m["milestone"]: m["status"] for m in neg_ledger["levels"]["L3_milestones"]}
+    assert neg_ms.get("M3", neg_ms.get("CHEM410_M3")) == "PENDING"
+    assert neg_ms.get("M4", neg_ms.get("CHEM410_M4")) == "PENDING"
+    assert "UNMANIFESTED_ZIP" not in neg_ms
+
+    # CHEM311 M0-M5 directory + SPCAT M5 mapping (and plain .cat ZIP without handoff.json stays PENDING)
+    w311 = tmp_path / "chem311_run"
+    for folder, fname, content in (
+        ("mod0", "env.txt", "ok\n"),
+        ("mod1", "acetone.out", "ok\n"),
+        ("mod2", "cis.out", "ok\n"),
+        ("mod3", "crest_butane.out", "ok\n"),
+        ("mod4", "pyscf.json", json.dumps({"ok": True})),
+        ("mod5", "spcat_h2co.cat", " 10000.0\n"),
+    ):
+        (w311 / folder).mkdir(parents=True, exist_ok=True)
+        (w311 / folder / fname).write_text(content, encoding="utf-8")
+    l311 = fact_ledger.build_fact_ledger(
+        artifact_paths=sorted(w311.rglob("*.*")),
+        base_dir=w311,
+        course_id="CHEM311",
+    )
+    p311 = {
+        item["path"]: item["milestone"]
+        for tier in ("L1_primary_artifacts", "L2_derived_artifacts")
+        for item in l311["levels"][tier]
+    }
+    assert p311["mod0/env.txt"] in ("M0", "CHEM311_M0")
+    assert p311["mod1/acetone.out"] in ("M1", "CHEM311_M1")
+    assert p311["mod3/crest_butane.out"] in ("M3", "CHEM311_M3")
+    assert p311["mod5/spcat_h2co.cat"] in ("M5", "CHEM311_M5")
+
+    w311_neg = tmp_path / "chem311_neg"
+    (w311_neg / "mod5").mkdir(parents=True)
+    spcat_plain_zip = w311_neg / "spcat_unmanifested.zip"
+    with zipfile.ZipFile(spcat_plain_zip, "w") as zf:
+        zf.writestr("h2co.cat", " 10000.0\n")
+    mod5_plain_zip = w311_neg / "mod5" / "results.zip"
+    with zipfile.ZipFile(mod5_plain_zip, "w") as zf:
+        zf.writestr("notes.txt", "unmanifested zip inside mod5")
+    l311_neg = fact_ledger.build_fact_ledger(
+        artifact_paths=[spcat_plain_zip, mod5_plain_zip],
+        base_dir=w311_neg,
+        course_id="CHEM311",
+    )
+    ms311_neg = {m["milestone"]: m["status"] for m in l311_neg["levels"]["L3_milestones"]}
+    assert ms311_neg.get("M5", ms311_neg.get("CHEM311_M5")) == "PENDING"
+    assert "UNMANIFESTED_ZIP" not in ms311_neg

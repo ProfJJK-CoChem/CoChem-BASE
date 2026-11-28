@@ -1,5 +1,4 @@
 {
-  "schema_version": 1,
   "algorithm": "sha256",
   "files": {
     ".cochem/student-actions-admission.json": "8b5fb21585563c78e073df98df5b40d69b2f91c88b018612dbb2c69a40d39d91",
@@ -74,7 +73,7 @@
     "scripts/check_student_project_setup.py": "e767c83484e232e10ed1c8375c4c8558a08070ec9112575f80bbd51261c75821",
     "scripts/configure_lab_project.py": "6dd79bd06543301a597af679df5f7e4506dc6f89ee32e1770678d1ede5610387",
     "scripts/export_topos_evidence.py": "dc6ae27649f3ad93e6348565c0e6d296b88babe2e1c3f6adfaca21741f117bbb",
-    "scripts/fact_ledger.py": "c99416af163fb5c4194cbb01b46f00668ba80e66da848a17b45ac824bc05c6d7",
+    "scripts/fact_ledger.py": "2ba9c00a5c931081684055c3959ee60ac6f087ef3c21ed9539540f052955092e",
     "scripts/fermi_deperturb.py": "3e4966889cfa167e0f2c192f9e4c92b8c31f78905e8031d1baf4e187f2670e4c",
     "scripts/free_engine_requirements/openmm.txt": "0247ec4eba16e569d8862166f0f50eb306ca961cc573a0fae01748406725366e",
     "scripts/free_engine_requirements/pyscf.txt": "16026d7a7b42f7a5553b8a7b47a9b225144738a947beaed7c38e1e85a3040614",
@@ -252,5 +251,6 @@
     "src/cochem_base/orchestrator/stage0_authority.py": "67d57fd89cc603d751fb43815ec13833008dc9142d6e8d4c2f69d3e0412b5412",
     "src/cochem_base/spectroscopy/spcat_runner.py": "2d6e6ef38b9218f6000abc32b66ddd5320a7de5c058af7a1f5b89d23ffcc6918",
     "src/cochem_base/topos_runner.py": "6da5b655d8378b9bcd9b908b38e8ee242545383f6d0a7ceb2216255dccd619a5"
-  }
+  },
+  "schema_version": 1
 }

@@ -192,10 +192,19 @@ assert "Local WSL2 Ubuntu" in gui.cure_pathway_status.value
 # FRIC-02: wider non-truncating course dropdown
 assert gui.cure_course_selector.layout.width == "100%"
 
-# Switching to CHEM490 (which lists ORCA 6.1.1) restores audited ORCA
+# Switching to CHEM490 (which lists ORCA 6.1.1, not CFOUR) restores audited ORCA while still blocking CFOUR
 gui.cure_course_selector.value = "CHEM490"
 opts_490 = [v for _, v in gui.matrix_engine.options]
 assert "ORCA" in opts_490, opts_490
+assert "CFOUR" not in opts_490, opts_490
+assert gui._check_local_engine_authority("cfour") != ""
+
+# Exact engine-ID matching MUST reject substring tricks like "not-orca" or "no ORCA"
+assert CoChemGUI._authorized_licensed_engines_from_profile({{"engines": ["not-orca", "xTB (no cfour)"]}}) == frozenset()
+assert CoChemGUI._authorized_licensed_engines_from_profile({{"engines": ["ORCA 6.1.1"]}}) == frozenset({{"orca"}})
+assert CoChemGUI._authorized_licensed_engines_from_profile({{"engines": ["ORCA 6.1.1", "CFOUR 2.1"]}}) == frozenset({{"orca", "cfour"}})
+assert CoChemGUI._authorized_licensed_engines_from_profile({{"licensed_engines_allowed": False, "engines": ["ORCA 6.1.1"]}}) == frozenset()
+assert CoChemGUI._authorized_licensed_engines_from_profile(None) == frozenset()
 
 # Explicit Free engines toggle in Tab 1 hides ORCA again
 gui.license_mode.value = "orca"

@@ -2706,11 +2706,47 @@ class CoChemGUI(InputManagementMixin):
         if hasattr(self, "matrix_engine"):
             self._refresh_engine_choices()
 
-    def _licensed_engines_policy(self) -> tuple[bool, str]:
-        """Return (allowed, reason) enforcing course no-license isolation and explicit free-engine locks."""
+    @staticmethod
+    def _authorized_licensed_engines_from_profile(profile: Any) -> frozenset[str]:
+        """Return exact authorized licensed engine IDs ({'orca', 'cfour'} subset) from a CURE course profile.
+
+        Fails closed (returns empty set) for non-dict profiles, explicit False,
+        missing/empty engine lists, or non-matching strings like 'not-orca'.
+        """
+        if not isinstance(profile, dict):
+            return frozenset()
+        explicit = profile.get("licensed_engines_allowed")
+        if explicit is False:
+            return frozenset()
+        if explicit is True:
+            return frozenset({"orca", "cfour"})
+        if isinstance(explicit, (list, tuple, set)):
+            return frozenset(
+                str(entry).strip().lower()
+                for entry in explicit
+                if isinstance(entry, str) and str(entry).strip().lower() in {"orca", "cfour"}
+            )
+        engines = profile.get("engines")
+        if not isinstance(engines, list) or not engines:
+            return frozenset()
+        authorized: set[str] = set()
+        # Require exact leading product identifier (e.g. "ORCA", "ORCA 6.1.1", "ORCA 6.1.1 (...)", "CFOUR 2.1")
+        # so substring tricks like "not-orca" or "no ORCA" are never treated as authorization.
+        exact_engine_re = re.compile(r"^(orca|cfour)(?:\s+\d[\w.-]*)?(?:\s*\([^)]*\))?$", re.IGNORECASE)
+        for entry in engines:
+            if not isinstance(entry, str):
+                continue
+            match = exact_engine_re.match(entry.strip())
+            if match:
+                authorized.add(match.group(1).lower())
+        return frozenset(authorized)
+
+    def _licensed_engines_policy(self) -> tuple[frozenset[str], str]:
+        """Return (authorized_engine_ids, reason) enforcing per-engine course isolation & free-engine locks."""
+        all_licensed = frozenset({"orca", "cfour"})
         if os.environ.get("COCHEM_NO_LICENSED_ENGINES", "").strip().lower() in {"1", "true", "yes"}:
             return (
-                False,
+                frozenset(),
                 "Licensed engines (ORCA, CFOUR) are disabled by COCHEM_NO_LICENSED_ENGINES; use open-source engines (xTB, PySCF, CREST).",
             )
         course_mode = getattr(self, "course_mode_selector", None)
@@ -2723,39 +2759,31 @@ class CoChemGUI(InputManagementMixin):
                 profile = get_cure_course_profile(course_id)
             except Exception:
                 profile = None
-            if not isinstance(profile, dict):
+            authorized = self._authorized_licensed_engines_from_profile(profile)
+            if not authorized:
                 return (
-                    False,
-                    f"Unable to verify licensed-engine policy for course {course_id}; defaulting to open-source engines only (xTB, PySCF, CREST).",
-                )
-            if profile.get("licensed_engines_allowed") is False:
-                return (
-                    False,
+                    frozenset(),
                     f"{course_id} uses open-source no-license engines only (xTB, PySCF, CREST); ORCA and CFOUR are disabled for this course.",
                 )
-            if profile.get("licensed_engines_allowed") is not True:
-                engines = profile.get("engines")
-                if not isinstance(engines, list) or not engines:
-                    return (
-                        False,
-                        f"{course_id} profile does not authorize licensed engines; defaulting to open-source engines only (xTB, PySCF, CREST).",
-                    )
-                has_licensed = any(
-                    token in str(entry).lower()
-                    for entry in engines
-                    for token in ("orca", "cfour")
+            if getattr(self, "_explicit_free_engines_mode", False):
+                return (
+                    frozenset(),
+                    "Free engines mode is selected; ORCA and CFOUR are hidden until enabled.",
                 )
-                if not has_licensed:
-                    return (
-                        False,
-                        f"{course_id} uses open-source no-license engines only (xTB, PySCF, CREST); ORCA and CFOUR are disabled for this course.",
-                    )
+            disallowed = sorted(all_licensed - authorized)
+            reason = (
+                f"{course_id} authorizes {', '.join(e.upper() for e in sorted(authorized))} only; "
+                f"{', '.join(e.upper() for e in disallowed)} is disabled for this course."
+                if disallowed
+                else ""
+            )
+            return (authorized, reason)
         if getattr(self, "_explicit_free_engines_mode", False):
             return (
-                False,
+                frozenset(),
                 "Free engines mode is selected; ORCA and CFOUR are hidden until enabled.",
             )
-        return (True, "")
+        return (all_licensed, "")
 
     def _on_course_mode_changed(self, _: Any = None) -> None:
         self._refresh_course_mode_ui(persist=True)
@@ -4038,25 +4066,33 @@ class CoChemGUI(InputManagementMixin):
         return repository
 
     def _local_engine_choices(self) -> list[tuple[str, str | None]]:
-        """Hide unaudited licensed choices while retaining free-engine setup paths."""
-        licensed_allowed, policy_reason = self._licensed_engines_policy()
-        if not licensed_allowed:
+        """Hide unaudited or course-disallowed licensed choices while retaining free-engine setup paths."""
+        authorized_licensed, policy_reason = self._licensed_engines_policy()
+        if not authorized_licensed:
             available = {
                 "orca": {"available": False, "reason": policy_reason},
                 "cfour": {"available": False, "reason": policy_reason},
             }
         else:
-            available = licensed_engine_availability()
+            raw_available = licensed_engine_availability()
+            available = {}
+            for eng in ("orca", "cfour"):
+                if eng in authorized_licensed:
+                    available[eng] = raw_available[eng]
+                else:
+                    available[eng] = {"available": False, "reason": policy_reason}
         self._licensed_engine_availability = available
         if hasattr(self, 'licensed_engine_status'):
-            if not licensed_allowed:
+            if not authorized_licensed:
                 self.licensed_engine_status.value = (
                     f"<p role='status'><b>Open-source engines only:</b> {html.escape(policy_reason)}</p>"
                 )
             else:
                 descriptions = []
                 for engine, observation in available.items():
-                    if observation['available']:
+                    if engine not in authorized_licensed:
+                        detail = policy_reason or f"{engine.upper()} is not authorized for the active course."
+                    elif observation['available']:
                         detail = "available for audited calculations"
                     else:
                         detail = (
@@ -4952,10 +4988,11 @@ class CoChemGUI(InputManagementMixin):
 
     def _check_local_engine_authority(self, engine: str) -> str:
         """Check audited local engine authority, caching per Golden Registry file revision for responsive UI."""
-        if engine.lower() in {"orca", "cfour"}:
-            licensed_allowed, policy_reason = self._licensed_engines_policy()
-            if not licensed_allowed:
-                return policy_reason
+        eng_lower = engine.lower()
+        if eng_lower in {"orca", "cfour"}:
+            authorized_licensed, policy_reason = self._licensed_engines_policy()
+            if eng_lower not in authorized_licensed:
+                return policy_reason or f"{engine.upper()} is not authorized for the active course."
         from cochem_base.config_loader import resolve_config_path
         from cochem_base.core_engine.execution_authority import authorize_engine_execution
 

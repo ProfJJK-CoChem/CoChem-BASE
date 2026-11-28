@@ -176,21 +176,21 @@ class IsotopologueSpectroscopyEngine:
                 raise ValueError("Cartesian Hessian must be finite")
             max_asym = float(np.max(np.abs(self.cartesian_hessian - self.cartesian_hessian.T)))
             self.raw_hessian_max_asymmetry = max_asym
+            self.hessian_qualification["raw_hessian_max_asymmetry"] = max_asym
+            if max_asym > FD_HESSIAN_SYMMETRY_ATOL:
+                raise ValueError(
+                    f"Cartesian Hessian must be symmetric (max |H - H^T| = {max_asym:.3e} "
+                    f"exceeds finite-difference tolerance {FD_HESSIAN_SYMMETRY_ATOL:.0e})"
+                )
             if not np.allclose(
                 self.cartesian_hessian,
                 self.cartesian_hessian.T,
                 rtol=1e-10,
                 atol=STRICT_HESSIAN_SYMMETRY_ATOL,
             ):
-                if max_asym > FD_HESSIAN_SYMMETRY_ATOL:
-                    raise ValueError(
-                        f"Cartesian Hessian must be symmetric (max |H - H^T| = {max_asym:.3e} "
-                        f"exceeds finite-difference tolerance {FD_HESSIAN_SYMMETRY_ATOL:.0e})"
-                    )
                 self.cartesian_hessian = 0.5 * (self.cartesian_hessian + self.cartesian_hessian.T)
                 self.hessian_symmetrized = True
                 self.hessian_qualification["hessian_symmetrized"] = True
-                self.hessian_qualification["raw_hessian_max_asymmetry"] = max_asym
                 warnings.warn(
                     f"Symmetrized Cartesian Hessian with small numerical asymmetry "
                     f"(max |H - H^T| = {max_asym:.3e} <= {FD_HESSIAN_SYMMETRY_ATOL:.0e}, "
@@ -198,6 +198,8 @@ class IsotopologueSpectroscopyEngine:
                     RuntimeWarning,
                     stacklevel=2,
                 )
+            else:
+                self.hessian_qualification["hessian_symmetrized"] = False
 
         # Pre-cache Mendeleev nuclide masses to guarantee sub-millisecond re-analysis
         for s in self.symbols:

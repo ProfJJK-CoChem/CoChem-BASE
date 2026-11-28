@@ -2723,24 +2723,33 @@ class CoChemGUI(InputManagementMixin):
                 profile = get_cure_course_profile(course_id)
             except Exception:
                 profile = None
-            if isinstance(profile, dict):
-                if profile.get("licensed_engines_allowed") is False:
+            if not isinstance(profile, dict):
+                return (
+                    False,
+                    f"Unable to verify licensed-engine policy for course {course_id}; defaulting to open-source engines only (xTB, PySCF, CREST).",
+                )
+            if profile.get("licensed_engines_allowed") is False:
+                return (
+                    False,
+                    f"{course_id} uses open-source no-license engines only (xTB, PySCF, CREST); ORCA and CFOUR are disabled for this course.",
+                )
+            if profile.get("licensed_engines_allowed") is not True:
+                engines = profile.get("engines")
+                if not isinstance(engines, list) or not engines:
+                    return (
+                        False,
+                        f"{course_id} profile does not authorize licensed engines; defaulting to open-source engines only (xTB, PySCF, CREST).",
+                    )
+                has_licensed = any(
+                    token in str(entry).lower()
+                    for entry in engines
+                    for token in ("orca", "cfour")
+                )
+                if not has_licensed:
                     return (
                         False,
                         f"{course_id} uses open-source no-license engines only (xTB, PySCF, CREST); ORCA and CFOUR are disabled for this course.",
                     )
-                engines = profile.get("engines")
-                if isinstance(engines, list) and engines:
-                    has_licensed = any(
-                        token in str(entry).lower()
-                        for entry in engines
-                        for token in ("orca", "cfour")
-                    )
-                    if not has_licensed:
-                        return (
-                            False,
-                            f"{course_id} uses open-source no-license engines only (xTB, PySCF, CREST); ORCA and CFOUR are disabled for this course.",
-                        )
         if getattr(self, "_explicit_free_engines_mode", False):
             return (
                 False,

@@ -228,43 +228,77 @@ def input_file(filename: str) -> Path:
     return source
 
 
+def _probe_binary_version(exe_path: str) -> str | None:
+    """Capture the first non-empty version line from an authentic local binary."""
+    try:
+        proc = subprocess.run(
+            [exe_path, "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except OSError:
+        return None
+    combined = "\n".join(part for part in (proc.stdout, proc.stderr) if part)
+    for line in combined.splitlines():
+        cleaned = line.strip()
+        if cleaned:
+            return cleaned[:200]
+    return None
+
+
 def _resolve_free_engines(payload_dir: Path) -> tuple[str, str, dict[str, str]]:
-    """Resolve authentic local xTB and CREST 3.0.2 binaries from COCHEM_FREE_ROOT or local WSL2 PATH."""
+    """Resolve authentic local xTB and CREST binaries and bind SHA-256 + version provenance."""
     env = dict(os.environ)
     free_root_raw = env.get("COCHEM_FREE_ROOT", "").strip()
+    source_kind = "local_workstation_env"
+    xtb_path: str | None = None
+    crest_path: str | None = None
+    upstream_manifest: dict[str, Any] | None = None
+
     if free_root_raw:
         engine_root = Path(free_root_raw)
         xtb_candidate = engine_root / "xtb/xtb-dist/bin/xtb"
         crest_candidate = engine_root / "crest/crest/crest"
         if xtb_candidate.is_file() and crest_candidate.is_file():
-            engines_json = engine_root / "engines.json"
-            if engines_json.is_file():
-                shutil.copyfile(engines_json, payload_dir / "engines.json")
+            xtb_path = str(xtb_candidate.resolve())
+            crest_path = str(crest_candidate.resolve())
+            source_kind = "cochem_free_root"
             xtb_share = engine_root / "xtb/xtb-dist/share/xtb"
             if xtb_share.is_dir():
                 env["XTBPATH"] = str(xtb_share)
             env["PATH"] = str(xtb_candidate.parent) + os.pathsep + env.get("PATH", "")
-            return str(xtb_candidate), str(crest_candidate), env
+            engines_json = engine_root / "engines.json"
+            if engines_json.is_file():
+                try:
+                    loaded = json.loads(engines_json.read_text(encoding="utf-8"))
+                    if isinstance(loaded, dict):
+                        upstream_manifest = loaded
+                except Exception as exc:
+                    raise RuntimeError(f"Unreadable engines.json in COCHEM_FREE_ROOT: {exc}") from exc
 
-    xtb_path = next(
-        (
-            str(Path(candidate).resolve())
-            for candidate in (env.get("COCHEM_XTB_BIN"), env.get("XTB_CMD"), shutil.which("xtb"))
-            if candidate and Path(candidate).is_file()
-        ),
-        None,
-    )
-    crest_path = next(
-        (
-            str(Path(candidate).resolve())
-            for candidate in (env.get("COCHEM_CREST_BIN"), env.get("CREST_CMD"), shutil.which("crest"))
-            if candidate and Path(candidate).is_file()
-        ),
-        None,
-    )
+    if not xtb_path:
+        xtb_path = next(
+            (
+                str(Path(candidate).resolve())
+                for candidate in (env.get("COCHEM_XTB_BIN"), env.get("XTB_CMD"), shutil.which("xtb"))
+                if candidate and Path(candidate).is_file()
+            ),
+            None,
+        )
+    if not crest_path:
+        crest_path = next(
+            (
+                str(Path(candidate).resolve())
+                for candidate in (env.get("COCHEM_CREST_BIN"), env.get("CREST_CMD"), shutil.which("crest"))
+                if candidate and Path(candidate).is_file()
+            ),
+            None,
+        )
     if not xtb_path or not crest_path:
         raise RuntimeError(
-            "Unable to locate authentic xTB and CREST 3.0.2 binaries. "
+            "Unable to locate authentic xTB and CREST binaries. "
             "Activate WSL2 (`source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh`) "
             "or set COCHEM_FREE_ROOT / COCHEM_XTB_BIN / COCHEM_CREST_BIN."
         )
@@ -273,16 +307,39 @@ def _resolve_free_engines(payload_dir: Path) -> tuple[str, str, dict[str, str]]:
         with Path(path_str).open("rb") as handle:
             return hashlib.file_digest(handle, "sha256").hexdigest()
 
-    save_json(
-        payload_dir / "engines.json",
-        {
-            "schema": "cochem.local-free-engines/1",
-            "source": "local_workstation_env",
-            "xtb": {"path": xtb_path, "sha256": _sha256_path(xtb_path)},
-            "crest": {"path": crest_path, "sha256": _sha256_path(crest_path)},
-            "xtbpath": env.get("XTBPATH"),
+    xtb_sha = _sha256_path(xtb_path)
+    crest_sha = _sha256_path(crest_path)
+
+    # If COCHEM_FREE_ROOT provided a manifest with binary SHA-256 entries, verify them against disk.
+    if isinstance(upstream_manifest, dict):
+        for key, actual_sha in (("xtb", xtb_sha), ("crest", crest_sha)):
+            entry = upstream_manifest.get(key)
+            if isinstance(entry, dict):
+                expected = entry.get("binary_sha256") or entry.get("executable_sha256") or entry.get("sha256")
+                if isinstance(expected, str) and len(expected) == 64 and expected.lower() != actual_sha.lower():
+                    raise RuntimeError(
+                        f"COCHEM_FREE_ROOT manifest SHA-256 mismatch for {key}: "
+                        f"expected {expected}, observed {actual_sha}"
+                    )
+
+    provenance: dict[str, Any] = {
+        "schema": "cochem.local-free-engines/1",
+        "source": source_kind,
+        "xtb": {
+            "path": xtb_path,
+            "sha256": xtb_sha,
+            "observed_version": _probe_binary_version(xtb_path),
         },
-    )
+        "crest": {
+            "path": crest_path,
+            "sha256": crest_sha,
+            "observed_version": _probe_binary_version(crest_path),
+        },
+        "xtbpath": env.get("XTBPATH"),
+    }
+    if upstream_manifest is not None:
+        provenance["upstream_manifest"] = upstream_manifest
+    save_json(payload_dir / "engines.json", provenance)
     return xtb_path, crest_path, env
 
 

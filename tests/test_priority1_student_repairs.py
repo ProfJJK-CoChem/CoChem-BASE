@@ -14,6 +14,7 @@ Covers:
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -57,6 +58,13 @@ def test_isotopologue_symmetrizes_small_fd_asymmetry_and_rejects_large() -> None
     bad_h[0, 3] += 5.0 * FD_HESSIAN_SYMMETRY_ATOL
     with pytest.raises(ValueError, match="Cartesian Hessian must be symmetric"):
         IsotopologueSpectroscopyEngine(["O", "H", "H"], coords, bad_h)
+
+    # 3. High-magnitude Hessian entries (~2e6) with asymmetry 1.5e-4 MUST NOT bypass the 1e-4 absolute cap via rtol
+    huge_h = np.eye(9, dtype=np.float64) * 2.0e6
+    huge_h[0, 1] = 2.0e6
+    huge_h[1, 0] = 2.0e6 + 1.5e-4
+    with pytest.raises(ValueError, match="exceeds finite-difference tolerance"):
+        IsotopologueSpectroscopyEngine(["O", "H", "H"], coords, huge_h)
 
 
 def test_conformers_cli_flags_default_non_quick_and_local_engine_resolution(
@@ -115,7 +123,24 @@ def test_conformers_cli_flags_default_non_quick_and_local_engine_resolution(
     r_xtb, r_crest, _ = conformers._resolve_free_engines(payload)
     assert Path(r_xtb).resolve() == xtb_bin.resolve()
     assert Path(r_crest).resolve() == crest_bin.resolve()
-    assert (payload / "engines.json").is_file()
+    manifest_data = json.loads((payload / "engines.json").read_text(encoding="utf-8"))
+    assert manifest_data["xtb"]["sha256"] == hashlib.sha256(xtb_bin.read_bytes()).hexdigest()
+    assert manifest_data["crest"]["sha256"] == hashlib.sha256(crest_bin.read_bytes()).hexdigest()
+    assert "observed_version" in manifest_data["crest"]
+
+    # Tampered COCHEM_FREE_ROOT manifest hash MUST fail closed
+    free_root = tmp_path / "free_root"
+    (free_root / "xtb/xtb-dist/bin").mkdir(parents=True)
+    (free_root / "crest/crest").mkdir(parents=True)
+    (free_root / "xtb/xtb-dist/bin/xtb").write_bytes(b"#!/bin/sh\necho xtb 6.7.1\n")
+    (free_root / "crest/crest/crest").write_bytes(b"#!/bin/sh\necho crest 3.0.2\n")
+    (free_root / "engines.json").write_text(
+        json.dumps({"xtb": {"sha256": "0" * 64}, "crest": {"sha256": "0" * 64}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("COCHEM_FREE_ROOT", str(free_root))
+    with pytest.raises(RuntimeError, match="SHA-256 mismatch"):
+        conformers._resolve_free_engines(tmp_path / "payload_bad")
 
 
 def test_gui_chem312_blocks_orca_and_renders_clean_pathway_html(tmp_path: Path) -> None:
@@ -176,6 +201,18 @@ assert "ORCA" in opts_490, opts_490
 gui.license_mode.value = "orca"
 gui.license_mode.value = "none"
 assert "ORCA" not in [v for _, v in gui.matrix_engine.options]
+
+# Unresolvable/unknown course profile in course mode MUST fail closed (never allow ORCA)
+gui.license_mode.value = "orca"
+gui._course_mode_updating = True
+try:
+    gui.cure_course_selector.options = list(gui.cure_course_selector.options) + [("UNKNOWN_COURSE", "UNKNOWN_COURSE")]
+    gui.cure_course_selector.value = "UNKNOWN_COURSE"
+finally:
+    gui._course_mode_updating = False
+gui._refresh_engine_choices()
+assert "ORCA" not in [v for _, v in gui.matrix_engine.options]
+assert gui._check_local_engine_authority("orca") != ""
 print("GUI_LICENSE_ISOLATION_OK")
 """
     env = dict(

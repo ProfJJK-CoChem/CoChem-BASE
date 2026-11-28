@@ -14,6 +14,7 @@ from __future__ import annotations
 import functools
 import math
 import time
+import warnings
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -25,6 +26,8 @@ from cochem_base.physics.isotopes import get_isotope_mass, parse_nuclide_token
 
 # One conversion factor throughout the CoChem architecture.
 ROTATIONAL_CONSTANT_CONVERSION_MHZ = C_ROT_MHZ_U_ANG2
+STRICT_HESSIAN_SYMMETRY_ATOL = 1e-12
+FD_HESSIAN_SYMMETRY_ATOL = 1e-4
 
 
 @functools.lru_cache(maxsize=4096, typed=True)
@@ -164,13 +167,37 @@ class IsotopologueSpectroscopyEngine:
 
         if not np.all(np.isfinite(self.coordinates)):
             raise ValueError("Coordinates must be finite")
+        self.raw_hessian_max_asymmetry: Optional[float] = None
+        self.hessian_symmetrized: bool = False
         if self.cartesian_hessian is not None:
             if self.cartesian_hessian.shape != (3 * self.num_atoms, 3 * self.num_atoms):
                 raise ValueError("Cartesian Hessian must have shape (3N, 3N)")
             if not np.all(np.isfinite(self.cartesian_hessian)):
                 raise ValueError("Cartesian Hessian must be finite")
-            if not np.allclose(self.cartesian_hessian, self.cartesian_hessian.T, rtol=1e-10, atol=1e-12):
-                raise ValueError("Cartesian Hessian must be symmetric")
+            max_asym = float(np.max(np.abs(self.cartesian_hessian - self.cartesian_hessian.T)))
+            self.raw_hessian_max_asymmetry = max_asym
+            if not np.allclose(
+                self.cartesian_hessian,
+                self.cartesian_hessian.T,
+                rtol=1e-10,
+                atol=STRICT_HESSIAN_SYMMETRY_ATOL,
+            ):
+                if max_asym > FD_HESSIAN_SYMMETRY_ATOL:
+                    raise ValueError(
+                        f"Cartesian Hessian must be symmetric (max |H - H^T| = {max_asym:.3e} "
+                        f"exceeds finite-difference tolerance {FD_HESSIAN_SYMMETRY_ATOL:.0e})"
+                    )
+                self.cartesian_hessian = 0.5 * (self.cartesian_hessian + self.cartesian_hessian.T)
+                self.hessian_symmetrized = True
+                self.hessian_qualification["hessian_symmetrized"] = True
+                self.hessian_qualification["raw_hessian_max_asymmetry"] = max_asym
+                warnings.warn(
+                    f"Symmetrized Cartesian Hessian with small numerical asymmetry "
+                    f"(max |H - H^T| = {max_asym:.3e} <= {FD_HESSIAN_SYMMETRY_ATOL:.0e}, "
+                    "typical of finite-difference dispersion/numerical Hessians).",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
         # Pre-cache Mendeleev nuclide masses to guarantee sub-millisecond re-analysis
         for s in self.symbols:

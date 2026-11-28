@@ -25,6 +25,9 @@ from cochem_base.physics.isotopes import get_isotope_mass, parse_nuclide_token
 
 # One conversion factor throughout the CoChem architecture.
 ROTATIONAL_CONSTANT_CONVERSION_MHZ = C_ROT_MHZ_U_ANG2
+# Maximum finite-difference Cartesian Hessian asymmetry |H - H^T| (Eh/bohr^2)
+# accepted as numerical noise and symmetrized; larger values fail closed.
+MAX_HESSIAN_SYMMETRY_TOLERANCE = 1e-4
 
 
 @functools.lru_cache(maxsize=4096, typed=True)
@@ -126,6 +129,7 @@ class IsotopologueResult:
     harmonic_frequency_scope: str = "No Cartesian tensor supplied."
     ground_state_constant_scope: str = "Missing: harmonic isotope reweighting alone does not establish anharmonic ground-state rotational constants."
     geometry_qualification: Dict = field(default_factory=dict)
+    hessian_max_asymmetry: Optional[float] = None
     execution_walltime_ms: float = 0.0
     provenance_tags: Dict[str, str] = field(default_factory=lambda: {
         "A_e": "[M]", "B_e": "[M]", "C_e": "[M]",
@@ -157,6 +161,8 @@ class IsotopologueSpectroscopyEngine:
         )
         self.num_atoms = len(self.symbols)
         self.hessian_qualification = dict(hessian_qualification or {})
+        self.hessian_max_asymmetry: Optional[float] = None
+        self.hessian_symmetrized: bool = False
         if self.num_atoms == 0:
             raise ValueError("At least one atom is required")
         if self.coordinates.shape != (self.num_atoms, 3):
@@ -169,8 +175,18 @@ class IsotopologueSpectroscopyEngine:
                 raise ValueError("Cartesian Hessian must have shape (3N, 3N)")
             if not np.all(np.isfinite(self.cartesian_hessian)):
                 raise ValueError("Cartesian Hessian must be finite")
+            max_asymmetry = float(np.max(np.abs(self.cartesian_hessian - self.cartesian_hessian.T)))
+            self.hessian_max_asymmetry = max_asymmetry
+            if max_asymmetry > MAX_HESSIAN_SYMMETRY_TOLERANCE:
+                raise ValueError(
+                    f"Cartesian Hessian must be symmetric "
+                    f"(max |H - H^T| = {max_asymmetry:.3e} > {MAX_HESSIAN_SYMMETRY_TOLERANCE:.1e} Eh/bohr^2)"
+                )
             if not np.allclose(self.cartesian_hessian, self.cartesian_hessian.T, rtol=1e-10, atol=1e-12):
-                raise ValueError("Cartesian Hessian must be symmetric")
+                self.cartesian_hessian = 0.5 * (self.cartesian_hessian + self.cartesian_hessian.T)
+                self.hessian_symmetrized = True
+            self.hessian_qualification["hessian_max_asymmetry"] = max_asymmetry
+            self.hessian_qualification["hessian_symmetrized"] = self.hessian_symmetrized
 
         # Pre-cache Mendeleev nuclide masses to guarantee sub-millisecond re-analysis
         for s in self.symbols:
@@ -306,6 +322,7 @@ class IsotopologueSpectroscopyEngine:
             ground_state_constant_scope=("Mathematical sum of rigid-geometry constants and independently supplied MHz corrections; the corrections' physical validity and applicability are not certified by harmonic reanalysis." if vibrational_corrections_mhz is not None else
                                          "Missing: harmonic isotope reweighting alone does not establish anharmonic ground-state rotational constants."),
             geometry_qualification=dict(self.hessian_qualification),
+            hessian_max_asymmetry=self.hessian_max_asymmetry,
             provenance_tags=provenance,
             execution_walltime_ms=wall_ms,
         )

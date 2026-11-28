@@ -25,8 +25,10 @@ from pathlib import Path
 import re
 import runpy
 import shutil
+import subprocess
 import sys
-from typing import Any, Sequence
+import tempfile
+from typing import Any, Mapping, Sequence
 import urllib.request
 
 try:
@@ -41,9 +43,11 @@ try:
         V2_ALLOWED_WORKFLOW_TYPES,
         V2_MAX_FRAMES,
         frames,
+        get_allowed_course_ids,
         read_input,
         seal,
     )
+    from .starter_inputs import is_known_starter_input, resolve_or_materialize_input
 except ImportError:
     from handoff import (  # type: ignore[no-redef]
         DEFAULT_COLLABORATOR_INSTITUTION,
@@ -56,9 +60,11 @@ except ImportError:
         V2_ALLOWED_WORKFLOW_TYPES,
         V2_MAX_FRAMES,
         frames,
+        get_allowed_course_ids,
         read_input,
         seal,
     )
+    from starter_inputs import is_known_starter_input, resolve_or_materialize_input  # type: ignore[no-redef]
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -214,17 +220,268 @@ def build_crest_argv(
     return argv
 
 
-def input_file(filename: str) -> Path:
-    """Resolve an input XYZ file either from `examples/student_inputs/` or a direct regular file path."""
+def input_file(filename: str, *, materialize_dir: Path | None = None) -> Path:
+    """Resolve an input XYZ file from disk, `examples/student_inputs/`, or built-in starter inputs."""
     candidate = Path(filename)
     if candidate.is_file() and not candidate.is_symlink() and candidate.suffix.lower() == ".xyz":
         return candidate.resolve()
+    if is_known_starter_input(filename):
+        return resolve_or_materialize_input(filename, materialize_dir=materialize_dir)
     if not re.fullmatch(r"[a-zA-Z0-9._-]{1,96}\.xyz", filename):
         raise ValueError("Select a valid .xyz filename from examples/student_inputs or an existing .xyz file path")
     source = ROOT / "examples" / "student_inputs" / filename
     if source.is_symlink() or not source.is_file() or source.resolve().parent != (ROOT / "examples" / "student_inputs").resolve():
         raise ValueError("XYZ must be an ordinary file in examples/student_inputs")
     return source
+
+
+def resolve_xtb_crest_binaries(env: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """Resolve `xtb` and `crest` executables without requiring `COCHEM_FREE_ROOT`.
+
+    Priority order:
+      1. Explicit `COCHEM_XTB_BIN` / `COCHEM_CREST_BIN` environment variables.
+      2. `COCHEM_FREE_ROOT` silo binaries (when set).
+      3. `shutil.which("xtb")` / `shutil.which("crest")` on `PATH`.
+    """
+    env_map = dict(os.environ if env is None else env)
+    free_root_raw = str(env_map.get("COCHEM_FREE_ROOT") or "").strip()
+    free_root = Path(free_root_raw) if free_root_raw else None
+
+    def _pick_binary(env_var: str, free_rel: str, cmd_name: str) -> str:
+        explicit = str(env_map.get(env_var) or "").strip()
+        if explicit:
+            explicit_path = Path(explicit)
+            if explicit_path.is_file():
+                return str(explicit_path)
+            raise RuntimeError(f"{env_var} points to missing executable: {explicit}")
+        if free_root is not None:
+            candidate = free_root / free_rel
+            if candidate.is_file():
+                return str(candidate)
+        found = shutil.which(cmd_name, path=env_map.get("PATH"))
+        if found:
+            return found
+        raise RuntimeError(
+            f"Unable to locate `{cmd_name}` executable. Set {env_var}, COCHEM_FREE_ROOT, "
+            f"or activate the WSL2 environment so `{cmd_name}` is on PATH."
+        )
+
+    xtb_bin = _pick_binary("COCHEM_XTB_BIN", "xtb/xtb-dist/bin/xtb", "xtb")
+    crest_bin = _pick_binary("COCHEM_CREST_BIN", "crest/crest/crest", "crest")
+
+    sub_env = dict(env_map)
+    path_entries = [str(Path(xtb_bin).parent), str(Path(crest_bin).parent)]
+    existing_path = sub_env.get("PATH", "")
+    prefix_parts = [p for p in path_entries if p and p not in existing_path.split(os.pathsep)]
+    if prefix_parts:
+        sub_env["PATH"] = os.pathsep.join(prefix_parts + ([existing_path] if existing_path else []))
+
+    if free_root is not None:
+        xtb_share = free_root / "xtb/xtb-dist/share/xtb"
+        if xtb_share.is_dir():
+            sub_env["XTBPATH"] = str(xtb_share)
+
+    engines_json_path: Path | None = None
+    if free_root is not None and (free_root / "engines.json").is_file():
+        engines_json_path = free_root / "engines.json"
+
+    return {
+        "xtb": xtb_bin,
+        "crest": crest_bin,
+        "env": sub_env,
+        "engines_json_path": engines_json_path,
+        "free_root": str(free_root) if free_root is not None else None,
+    }
+
+
+def resolve_aimnet_python(env: Mapping[str, str] | None = None) -> str | None:
+    """Resolve an external Python interpreter hosting `aimnet` via `$COCHEM_AIMNET_PYTHON`."""
+    env_map = os.environ if env is None else env
+    candidates: list[str] = []
+    for var in ("COCHEM_AIMNET_PYTHON", "COCHEM_AIMNET_SILO_PYTHON"):
+        raw = str(env_map.get(var) or "").strip()
+        if raw:
+            candidates.append(raw)
+    for cand in candidates:
+        p = Path(cand)
+        if p.is_file():
+            return str(p)
+    return None
+
+
+_AIMNET2_SUBPROCESS_SCRIPT = r"""
+import json, math, sys
+from pathlib import Path
+import numpy as np
+
+HARTREE_TO_EV = 27.211386245988
+BOHR_TO_ANGSTROM = 0.529177210903
+Z_MAP = {"H": 1, "B": 5, "C": 6, "N": 7, "O": 8, "F": 9, "Si": 14, "P": 15, "S": 16, "Cl": 17, "Br": 35}
+
+req = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+out_path = Path(sys.argv[2])
+charge = int(req["charge"])
+mult = int(req["multiplicity"])
+model_name = str(req.get("model_name", "aimnet2"))
+frames_in = req["frames"]
+
+results = []
+try:
+    from ase import Atoms
+    from aimnet.calculators import AIMNet2ASE
+
+    calc = AIMNet2ASE(model_name, charge=charge, mult=mult)
+    for item in frames_in:
+        symbols = list(item["symbols"])
+        coords = list(item["coords"])
+        atoms = Atoms(symbols, positions=coords)
+        atoms.info["charge"] = charge
+        atoms.info["spin"] = mult
+        atoms.calc = calc
+        e_ev = float(atoms.get_potential_energy())
+        forces_ev_ang = np.asarray(atoms.get_forces(), dtype=float)
+        if not math.isfinite(e_ev) or forces_ev_ang.shape != (len(symbols), 3) or not np.isfinite(forces_ev_ang).all():
+            raise RuntimeError("AIMNet2 returned non-finite energy or forces")
+        results.append({
+            "status": "SUCCESS",
+            "backend": "aimnet2",
+            "model": model_name,
+            "charge": charge,
+            "multiplicity": mult,
+            "energy_hartree": e_ev / HARTREE_TO_EV,
+            "gradient_hartree_per_bohr": (-forces_ev_ang * BOHR_TO_ANGSTROM / HARTREE_TO_EV).tolist(),
+        })
+except ImportError:
+    from aimnet.calculators import AIMNet2Calculator
+
+    calc = AIMNet2Calculator(model_name)
+    for item in frames_in:
+        symbols = list(item["symbols"])
+        coords = np.asarray(item["coords"], dtype=np.float64)
+        numbers = np.asarray([Z_MAP[s] for s in symbols], dtype=np.int64)
+        out = calc({"coord": coords, "numbers": numbers, "charge": float(charge), "mult": float(mult)}, forces=True)
+        e_ev = float(np.asarray(out["energy"]).reshape(-1)[0])
+        forces_ev_ang = np.asarray(out["forces"], dtype=float).reshape(len(symbols), 3)
+        if not math.isfinite(e_ev) or not np.isfinite(forces_ev_ang).all():
+            raise RuntimeError("AIMNet2 returned non-finite energy or forces")
+        results.append({
+            "status": "SUCCESS",
+            "backend": "aimnet2",
+            "model": model_name,
+            "charge": charge,
+            "multiplicity": mult,
+            "energy_hartree": e_ev / HARTREE_TO_EV,
+            "gradient_hartree_per_bohr": (-forces_ev_ang * BOHR_TO_ANGSTROM / HARTREE_TO_EV).tolist(),
+        })
+
+out_path.write_text(json.dumps({"results": results}, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+"""
+
+
+def _evaluate_aimnet2_via_subprocess(
+    frames_in: Sequence[Mapping[str, Any]],
+    *,
+    charge: int,
+    multiplicity: int,
+    model_name: str = "aimnet2",
+    aimnet_python: str,
+    timeout: int = 600,
+) -> list[dict[str, Any]]:
+    """Run AIMNet2 evaluation in an isolated `$COCHEM_AIMNET_PYTHON` interpreter."""
+    with tempfile.TemporaryDirectory(prefix="cochem_aimnet2_") as tmp_dir:
+        tmp = Path(tmp_dir)
+        in_json = tmp / "request.json"
+        out_json = tmp / "response.json"
+        in_json.write_text(
+            json.dumps(
+                {
+                    "charge": int(charge),
+                    "multiplicity": int(multiplicity),
+                    "model_name": model_name,
+                    "frames": [
+                        {"symbols": list(f["symbols"]), "coords": [list(row) for row in f["coords"]]}
+                        for f in frames_in
+                    ],
+                },
+                allow_nan=False,
+            ),
+            encoding="utf-8",
+        )
+        proc = subprocess.run(
+            [aimnet_python, "-B", "-c", _AIMNET2_SUBPROCESS_SCRIPT, str(in_json), str(out_json)],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        if proc.returncode != 0 or not out_json.is_file():
+            detail = (proc.stderr or proc.stdout).strip()
+            raise RuntimeError(
+                f"AIMNet2 subprocess ({aimnet_python}) failed with exit code {proc.returncode}: {detail}"
+            )
+        payload = json.loads(out_json.read_text(encoding="utf-8"))
+        results = payload.get("results")
+        if not isinstance(results, list) or len(results) != len(frames_in):
+            raise RuntimeError("AIMNet2 subprocess returned unexpected result count")
+        for rec in results:
+            rec["interpreter"] = aimnet_python
+        return results
+
+
+def _evaluate_aimnet2_frames(
+    frames_in: Sequence[Mapping[str, Any]],
+    *,
+    charge: int,
+    multiplicity: int,
+    model_name: str = "aimnet2",
+) -> list[dict[str, Any]]:
+    """Evaluate one or more geometries using in-process AIMNet2 or `$COCHEM_AIMNET_PYTHON` fallback."""
+    try:
+        import numpy as np
+        from ase import Atoms
+        from aimnet.calculators import AIMNet2ASE  # type: ignore[import-not-found]
+    except ImportError as exc:
+        aimnet_py = resolve_aimnet_python()
+        if aimnet_py is not None:
+            return _evaluate_aimnet2_via_subprocess(
+                frames_in,
+                charge=charge,
+                multiplicity=multiplicity,
+                model_name=model_name,
+                aimnet_python=aimnet_py,
+            )
+        raise RuntimeError(
+            "Charge-aware AIMNet2 package (`aimnet`) is required for this system but is not installed "
+            "in the current interpreter and COCHEM_AIMNET_PYTHON is not set"
+        ) from exc
+
+    calc = AIMNet2ASE(model_name, charge=int(charge), mult=int(multiplicity))
+    out: list[dict[str, Any]] = []
+    for item in frames_in:
+        symbols = list(item["symbols"])
+        coords = list(item["coords"])
+        atoms = Atoms(symbols, positions=coords)
+        atoms.info["charge"] = int(charge)
+        atoms.info["spin"] = int(multiplicity)
+        atoms.calc = calc
+        energy_ev = float(atoms.get_potential_energy())
+        forces_ev_ang = np.asarray(atoms.get_forces(), dtype=float)
+        if not math.isfinite(energy_ev) or forces_ev_ang.shape != (len(symbols), 3) or not np.isfinite(forces_ev_ang).all():
+            raise RuntimeError("AIMNet2 returned non-finite energy or forces")
+        energy_hartree = energy_ev / HARTREE_TO_EV
+        gradient_eh_bohr = (-forces_ev_ang * BOHR_TO_ANGSTROM / HARTREE_TO_EV).tolist()
+        out.append(
+            {
+                "status": "SUCCESS",
+                "backend": "aimnet2",
+                "model": model_name,
+                "charge": int(charge),
+                "multiplicity": int(multiplicity),
+                "energy_hartree": energy_hartree,
+                "gradient_hartree_per_bohr": gradient_eh_bohr,
+            }
+        )
+    return out
 
 
 def _evaluate_aimnet2_frame(
@@ -236,36 +493,12 @@ def _evaluate_aimnet2_frame(
     model_name: str = "aimnet2",
 ) -> dict[str, Any]:
     """Evaluate single-point energy & gradient using charge-aware AIMNet2 on CPU."""
-    import numpy as np
-    from ase import Atoms
-
-    try:
-        from aimnet.calculators import AIMNet2ASE  # type: ignore[import-not-found]
-    except ImportError as exc:
-        raise RuntimeError(
-            "Charge-aware AIMNet2 package (`aimnet`) is required for this system but is not installed"
-        ) from exc
-
-    atoms = Atoms(list(symbols), positions=list(coords))
-    atoms.info["charge"] = int(charge)
-    atoms.info["spin"] = int(multiplicity)
-    calc = AIMNet2ASE(model_name, charge=int(charge), mult=int(multiplicity))
-    atoms.calc = calc
-    energy_ev = float(atoms.get_potential_energy())
-    forces_ev_ang = np.asarray(atoms.get_forces(), dtype=float)
-    if not math.isfinite(energy_ev) or forces_ev_ang.shape != (len(symbols), 3) or not np.isfinite(forces_ev_ang).all():
-        raise RuntimeError("AIMNet2 returned non-finite energy or forces")
-    energy_hartree = energy_ev / HARTREE_TO_EV
-    gradient_eh_bohr = (-forces_ev_ang * BOHR_TO_ANGSTROM / HARTREE_TO_EV).tolist()
-    return {
-        "status": "SUCCESS",
-        "backend": "aimnet2",
-        "model": model_name,
-        "charge": int(charge),
-        "multiplicity": int(multiplicity),
-        "energy_hartree": energy_hartree,
-        "gradient_hartree_per_bohr": gradient_eh_bohr,
-    }
+    return _evaluate_aimnet2_frames(
+        [{"symbols": list(symbols), "coords": [list(row) for row in coords]}],
+        charge=charge,
+        multiplicity=multiplicity,
+        model_name=model_name,
+    )[0]
 
 
 def _download_verified_mace_model(work: Path) -> Path:
@@ -447,12 +680,16 @@ def calculate(
     """Run XYZ -> CREST 3.0.2 -> AIMNet2/MACE -> CPU PySCF and seal a v2 handoff ZIP."""
     if workflow_type not in V2_ALLOWED_WORKFLOW_TYPES:
         raise ValueError(f"Unsupported workflow_type {workflow_type!r}")
-    if course_id not in V2_ALLOWED_COURSE_IDS:
-        raise ValueError(f"Unsupported course_id {course_id!r}")
+    allowed_courses = get_allowed_course_ids()
+    if course_id not in allowed_courses:
+        raise ValueError(f"Unsupported course_id {course_id!r}; expected one of {allowed_courses}")
     if target_continuation not in V2_ALLOWED_TARGET_CONTINUATIONS:
         raise ValueError(f"Unsupported target_continuation {target_continuation!r}")
 
-    source = input_file(filename)
+    work = Path(work)
+    out = Path(out)
+    starter_stage = work / "_starter_inputs"
+    source = input_file(filename, materialize_dir=starter_stage)
     original = read_input(source, charge=charge, multiplicity=multiplicity)
     chosen_mlff = select_mlff_backend(
         original["symbols"],
@@ -475,12 +712,22 @@ def calculate(
     sys.path.insert(0, str(ROOT / "scripts"))
     from verify_free_engines import execute
 
-    engine_root = Path(os.environ["COCHEM_FREE_ROOT"])
-    shutil.copyfile(engine_root / "engines.json", payload / "engines.json")
-    env = dict(os.environ, XTBPATH=str(engine_root / "xtb/xtb-dist/share/xtb"))
-    env["PATH"] = str(engine_root / "xtb/xtb-dist/bin") + os.pathsep + env["PATH"]
-    xtb = str(engine_root / "xtb/xtb-dist/bin/xtb")
-    crest = str(engine_root / "crest/crest/crest")
+    bins = resolve_xtb_crest_binaries()
+    xtb = bins["xtb"]
+    crest = bins["crest"]
+    env = bins["env"]
+    if bins["engines_json_path"] is not None:
+        shutil.copyfile(bins["engines_json_path"], payload / "engines.json")
+    else:
+        save_json(
+            payload / "engines.json",
+            {
+                "source": "wsl2_or_path_discovery",
+                "xtb_executable": xtb,
+                "crest_executable": crest,
+                "aimnet_python": resolve_aimnet_python(),
+            },
+        )
 
     argv = build_crest_argv(
         crest,
@@ -492,7 +739,11 @@ def calculate(
         quick=True,
     )
     log = execute(argv, native, "crest.log", env, timeout=900)
-    if "CREST terminated normally" not in log or xtb not in log or "Use of GFN2-xTB requested" not in log:
+    if (
+        "CREST terminated normally" not in log
+        or (xtb not in log and Path(xtb).name not in log)
+        or "Use of GFN2-xTB requested" not in log
+    ):
         raise RuntimeError("CREST did not confirm external GFN2-xTB and normal termination")
     for name in ("crest.log", "crest_conformers.xyz"):
         shutil.copyfile(native / name, payload / name)
@@ -541,12 +792,13 @@ def calculate(
                 raise ValueError("CREST changed the atom sequence")
             relative = f"isomers/crest-{index:03}.xyz"
             (payload / relative).write_text(frame["text"], encoding="utf-8")
-            calc = _evaluate_aimnet2_frame(
-                frame["symbols"],
-                frame["coords"],
-                charge=charge,
-                multiplicity=multiplicity,
-            )
+        aimnet_calcs = _evaluate_aimnet2_frames(
+            ensemble,
+            charge=charge,
+            multiplicity=multiplicity,
+        )
+        for index, (frame, calc) in enumerate(zip(ensemble, aimnet_calcs), start=1):
+            relative = f"isomers/crest-{index:03}.xyz"
             results.append(
                 {
                     "xyz": relative,
@@ -631,9 +883,46 @@ def calculate(
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("filename", help="XYZ filename inside examples/student_inputs/ or path to .xyz")
-    parser.add_argument("work", type=Path, help="Scratch working directory")
-    parser.add_argument("output", type=Path, help="Output directory for sealed v2 ZIP + .sha256")
+    parser.add_argument(
+        "filename",
+        nargs="?",
+        default=None,
+        help="XYZ filename inside examples/student_inputs/ or path to .xyz (or use --xyz)",
+    )
+    parser.add_argument(
+        "work",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Scratch working directory (or use --work-dir; defaults to <output-dir>/_work)",
+    )
+    parser.add_argument(
+        "output",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Output directory for sealed v2 ZIP + .sha256 (or use --output-dir)",
+    )
+    parser.add_argument(
+        "--xyz",
+        dest="xyz_flag",
+        default=None,
+        help="Input .xyz path or starter filename (alternative to positional filename)",
+    )
+    parser.add_argument(
+        "--work-dir",
+        dest="work_dir",
+        type=Path,
+        default=None,
+        help="Scratch working directory (alternative to positional work; defaults to <output-dir>/_work)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        dest="output_dir",
+        type=Path,
+        default=None,
+        help="Output directory for sealed v2 ZIP + .sha256 (alternative to positional output)",
+    )
     parser.add_argument("--charge", type=int, default=0, choices=list(V2_ALLOWED_CHARGES))
     parser.add_argument("--multiplicity", type=int, default=1, choices=list(V2_ALLOWED_MULTIPLICITIES))
     parser.add_argument("--mlff", default="auto", choices=["auto", "aimnet2", "mace"])
@@ -643,19 +932,47 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--solvent-name", default=None, help="Solvent name when solvation is pcm/ddcosmo")
     parser.add_argument("--frequencies", action="store_true", help="Compute harmonic Hessian and imaginary mode count")
     parser.add_argument("--workflow-type", default="conformer", choices=list(V2_ALLOWED_WORKFLOW_TYPES))
-    parser.add_argument("--course-id", default="CHEM312", choices=list(V2_ALLOWED_COURSE_IDS))
+    parser.add_argument("--course-id", default="CHEM312", choices=list(get_allowed_course_ids()))
     parser.add_argument("--target-continuation", default="workstation", choices=list(V2_ALLOWED_TARGET_CONTINUATIONS))
     parser.add_argument("--student-id", default=None)
     parser.add_argument("--cores", type=int, default=1)
     return parser
 
 
+def resolve_cli_paths(args: argparse.Namespace) -> tuple[str, Path, Path]:
+    """Resolve dual positional (`filename work output`) and flag (`--xyz --work-dir --output-dir`) paths."""
+    if args.filename is not None and args.xyz_flag is not None and args.filename != args.xyz_flag:
+        raise ValueError("Provide either positional filename or --xyz, not conflicting values")
+    filename = args.xyz_flag if args.xyz_flag is not None else args.filename
+    if not filename:
+        raise ValueError("Missing input XYZ: supply positional `filename` or `--xyz <path>`")
+
+    if args.output is not None and args.output_dir is not None and args.output != args.output_dir:
+        raise ValueError("Provide either positional output or --output-dir, not conflicting values")
+    output = args.output_dir if args.output_dir is not None else args.output
+    if output is None:
+        raise ValueError("Missing output directory: supply positional `output` or `--output-dir <dir>`")
+
+    if args.work is not None and args.work_dir is not None and args.work != args.work_dir:
+        raise ValueError("Provide either positional work or --work-dir, not conflicting values")
+    work = args.work_dir if args.work_dir is not None else args.work
+    if work is None:
+        work = output / "_work"
+
+    return str(filename), Path(work), Path(output)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_arg_parser().parse_args(list(argv) if argv is not None else None)
+    parser = build_arg_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    try:
+        filename, work_dir, output_dir = resolve_cli_paths(args)
+    except ValueError as exc:
+        parser.error(str(exc))
     zip_path, sha_path, archive_sha, _ = calculate(
-        args.filename,
-        args.work,
-        args.output,
+        filename,
+        work_dir,
+        output_dir,
         charge=args.charge,
         multiplicity=args.multiplicity,
         mlff=args.mlff,

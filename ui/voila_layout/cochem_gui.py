@@ -2526,6 +2526,87 @@ class CoChemGUI(InputManagementMixin):
 
         return get_artifact_dir()
 
+    @staticmethod
+    def _format_cure_pathway_html(execution_stack: Any) -> str:
+        default_text = (
+            "Local WSL2 (source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh) "
+            "and cochem_workstation_job_runner handoff"
+        )
+        if execution_stack is None:
+            return (
+                "<p><b>Execution pathway (WSL2 / job_runner):</b> "
+                f"{html.escape(default_text)}</p>"
+            )
+        if isinstance(execution_stack, dict):
+            if not execution_stack:
+                return (
+                    "<p><b>Execution pathway (WSL2 / job_runner):</b> "
+                    f"{html.escape(default_text)}</p>"
+                )
+            label_map = {
+                "primary": "Primary",
+                "activation_command": "Activation command",
+                "submission_surface": "Submission surface",
+                "auditing_model": "Auditing model",
+                "wet_lab_conventions": "Wet-lab conventions",
+                "local_vpt2_routes": "Local VPT2 routes",
+            }
+            preferred_order = (
+                "primary",
+                "activation_command",
+                "submission_surface",
+                "auditing_model",
+            )
+
+            def _render_mapping(mapping: dict[str, Any]) -> str:
+                ordered_keys = [k for k in preferred_order if k in mapping]
+                ordered_keys.extend(k for k in mapping if k not in ordered_keys)
+                items: list[str] = []
+                for key in ordered_keys:
+                    val = mapping[key]
+                    if val is None or val == "" or val == {} or val == []:
+                        continue
+                    label = label_map.get(
+                        str(key),
+                        str(key).replace("_", " ").strip().capitalize(),
+                    )
+                    if isinstance(val, dict):
+                        nested = _render_mapping(val)
+                        if nested:
+                            items.append(f"<li><b>{html.escape(label)}:</b>{nested}</li>")
+                    elif isinstance(val, (list, tuple)):
+                        sub_items = [
+                            f"<li>{html.escape(str(entry))}</li>"
+                            for entry in val
+                            if entry is not None and str(entry).strip()
+                        ]
+                        if sub_items:
+                            items.append(
+                                f"<li><b>{html.escape(label)}:</b><ul>{''.join(sub_items)}</ul></li>"
+                            )
+                    elif str(key).endswith("_command") or str(key) == "command":
+                        items.append(
+                            f"<li><b>{html.escape(label)}:</b> <code>{html.escape(str(val))}</code></li>"
+                        )
+                    else:
+                        items.append(
+                            f"<li><b>{html.escape(label)}:</b> {html.escape(str(val))}</li>"
+                        )
+                return f"<ul>{''.join(items)}</ul>" if items else ""
+
+            rendered_list = _render_mapping(execution_stack)
+            if rendered_list:
+                return f"<p><b>Execution pathway (WSL2 / job_runner):</b></p>{rendered_list}"
+            return (
+                "<p><b>Execution pathway (WSL2 / job_runner):</b> "
+                f"{html.escape(default_text)}</p>"
+            )
+        text = str(execution_stack).strip() or default_text
+        return (
+            "<p><b>Execution pathway (WSL2 / job_runner):</b> "
+            f"{html.escape(text)}</p>"
+        )
+
     def _render_cure_course_pathway(self, course_id: str | None) -> str:
         from cochem_base.course_loader import (
             get_cure_course_pathway,
@@ -2543,10 +2624,11 @@ class CoChemGUI(InputManagementMixin):
         title = str(merged.get("title") or course_id)
         institution = str(merged.get("institution") or "")
         summary = str(merged.get("summary") or "")
-        execution_stack = str(
+        raw_execution_stack = (
             merged.get("execution_stack")
+            or merged.get("execution_pathway")
             or pathway.get("execution_stack")
-            or "Local WSL2 (source ~/CoChem_Workstation_Direct/activate_cochem_wsl.sh) and cochem_workstation_job_runner handoff"
+            or pathway.get("execution_pathway")
         )
         parts = [
             f"<h4>{html.escape(str(course_id))} — {html.escape(title)}</h4>",
@@ -2555,10 +2637,7 @@ class CoChemGUI(InputManagementMixin):
             parts.append(f"<p><b>Institution:</b> {html.escape(institution)}</p>")
         if summary:
             parts.append(f"<p>{html.escape(summary)}</p>")
-        parts.append(
-            "<p><b>Execution pathway (WSL2 / job_runner):</b> "
-            f"{html.escape(execution_stack)}</p>"
-        )
+        parts.append(self._format_cure_pathway_html(raw_execution_stack))
         if milestones:
             items = []
             for item in milestones:
@@ -2723,7 +2802,7 @@ class CoChemGUI(InputManagementMixin):
             value=None,
             description="Course:",
             style={"description_width": "initial"},
-            layout=widgets.Layout(width="480px", max_width="100%", display="none"),
+            layout=widgets.Layout(width="640px", max_width="100%", display="none"),
         )
         self.cure_pathway_status = widgets.HTML("", layout=widgets.Layout(display="none"))
         self.course_mode_selector.observe(self._on_course_mode_changed, names="value")

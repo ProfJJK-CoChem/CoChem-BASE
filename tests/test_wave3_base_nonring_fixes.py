@@ -10,6 +10,8 @@ Covers:
      fragment partitioning, and DLPNO rejection
   5. src/cochem_base/spectroscopy/isotopologue.py: <=1e-4 finite-difference Hessian
      symmetrization with metadata recording + >1e-4 fail-closed rejection
+  6. src/cochem/core/mendeleev_invariants.py: thread-safe cold and warm concurrent
+     Mendeleev element/isotope/vdW resolution across shared SQLAlchemy sessions
 """
 from __future__ import annotations
 
@@ -592,3 +594,100 @@ def test_isotopologue_symmetrizes_tiny_fd_noise_and_rejects_large_asymmetry() ->
     bad_hess[0, 3] += MAX_HESSIAN_SYMMETRY_TOLERANCE * 2.5
     with pytest.raises(ValueError, match="Cartesian Hessian must be symmetric"):
         IsotopologueSpectroscopyEngine(symbols, coords, bad_hess)
+
+
+# ---------------------------------------------------------------------------
+# 6. src/cochem/core/mendeleev_invariants.py: concurrent cold/warm thread safety
+# ---------------------------------------------------------------------------
+
+
+def test_mendeleev_concurrent_cold_and_warm_thread_safety(tmp_path: Path) -> None:
+    src_dir_repr = repr(str(SRC_ROOT))
+    probe = f"""
+from pathlib import Path
+import sys
+import threading
+import numpy as np
+
+sys.path.insert(0, {src_dir_repr})
+
+import cochem.core.mendeleev_invariants as mi
+from cochem.core.mendeleev_invariants import get_element, mendeleev_resolver
+from cochem.gui.widgets.touch_3d_viewer import calculate_bounding_radius
+
+assert Path(mi.__file__).resolve().parts[-4:] == ("src", "cochem", "core", "mendeleev_invariants.py"), mi.__file__
+
+BENZENE_SYMBOLS = ["C", "C", "C", "C", "C", "C", "H", "H", "H", "H", "H", "H"]
+BENZENE_COORDS = np.array([
+    [1.3970, 0.0000, 0.0000],
+    [0.6985, 1.2098, 0.0000],
+    [-0.6985, 1.2098, 0.0000],
+    [-1.3970, 0.0000, 0.0000],
+    [-0.6985, -1.2098, 0.0000],
+    [0.6985, -1.2098, 0.0000],
+    [2.4790, 0.0000, 0.0000],
+    [1.2395, 2.1469, 0.0000],
+    [-1.2395, 2.1469, 0.0000],
+    [-2.4790, 0.0000, 0.0000],
+    [-1.2395, -2.1469, 0.0000],
+    [1.2395, -2.1469, 0.0000],
+], dtype=np.float64)
+
+NUM_THREADS = 32
+ITERATIONS = 3
+barrier = threading.Barrier(NUM_THREADS)
+lock = threading.Lock()
+radii = []
+errors = []
+
+
+def worker(tid: int) -> None:
+    try:
+        barrier.wait(timeout=30.0)
+        for _ in range(ITERATIONS):
+            radius = calculate_bounding_radius(BENZENE_SYMBOLS, BENZENE_COORDS)
+            c_elem = get_element("C")
+            c13_elem = get_element("13C")
+            carbon_elem = get_element("Carbon")
+            o_raw = mendeleev_resolver.get_element("O")
+            assert radius > 3.0, f"unexpected benzene radius {{radius}}"
+            assert c_elem.atomic_number == 6 and c_elem.symbol == "C"
+            assert c13_elem.is_isotope is True and c13_elem.mass_number == 13
+            assert c13_elem.mass is not None and abs(c13_elem.mass - 13.00335) < 1e-3
+            assert carbon_elem.atomic_number == 6 and carbon_elem.symbol == "C"
+            assert int(o_raw.atomic_number) == 8 and str(o_raw.symbol) == "O"
+            with lock:
+                radii.append(float(radius))
+    except BaseException as exc:
+        with lock:
+            errors.append(f"thread-{{tid}}: {{type(exc).__name__}}: {{exc}}")
+
+
+threads = [threading.Thread(target=worker, args=(i,)) for i in range(NUM_THREADS)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join(timeout=120.0)
+    assert not t.is_alive(), "worker thread hung"
+
+assert errors == [], f"concurrent errors: {{errors}}"
+assert len(radii) == NUM_THREADS * ITERATIONS, f"expected {{NUM_THREADS * ITERATIONS}}, got {{len(radii)}}"
+assert all(abs(r - radii[0]) < 1e-12 for r in radii)
+print("MENDELEEV_CONCURRENT_COLD_WARM_OK")
+"""
+    env = dict(
+        os.environ,
+        PYTHONPATH=os.pathsep.join(source_paths(REPO_ROOT)),
+        PYTHONDONTWRITEBYTECODE="1",
+    )
+    proc = subprocess.run(
+        [sys.executable, "-B", "-c", probe],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=180,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "MENDELEEV_CONCURRENT_COLD_WARM_OK" in proc.stdout

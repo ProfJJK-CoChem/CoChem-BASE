@@ -51,71 +51,92 @@ class ElementData:
     is_isotope: bool = False
 
 
-_CACHE_LOCK = threading.Lock()
+_CACHE_LOCK = threading.RLock()
+_MENDELEEV_DB_LOCK = threading.RLock()
 _ELEMENTS_BY_SYMBOL: Dict[str, ElementData] = {}
 _ELEMENTS_BY_Z: Dict[int, ElementData] = {}
+_ELEMENTS_BY_NAME_LOWER: Dict[str, ElementData] = {}
+
+
+def _lookup_cached_element(z_or_sym: Union[int, str]) -> Optional[ElementData]:
+    """Check thread-safe in-memory element caches by Z, canonical symbol, or lowercase name."""
+    with _CACHE_LOCK:
+        if isinstance(z_or_sym, int):
+            return _ELEMENTS_BY_Z.get(z_or_sym)
+        key = str(z_or_sym)
+        return _ELEMENTS_BY_SYMBOL.get(key) or _ELEMENTS_BY_NAME_LOWER.get(key.lower())
 
 
 def _load_element_data(z_or_sym: Union[int, str]) -> ElementData:
     """Dynamically fetch and cache ElementData for Z=1..118 via mendeleev."""
-    try:
-        elem = _mendeleev_element(z_or_sym)
-    except Exception as exc:
-        raise MendeleevInvariantError(
-            f"Dynamic element resolution failed for query '{z_or_sym}': {exc}",
-            symbol_or_query=z_or_sym,
-        ) from exc
+    cached = _lookup_cached_element(z_or_sym)
+    if cached is not None:
+        return cached
 
-    z = int(elem.atomic_number)
-    symbol = str(elem.symbol)
-    name = str(elem.name)
+    with _MENDELEEV_DB_LOCK:
+        cached = _lookup_cached_element(z_or_sym)
+        if cached is not None:
+            return cached
 
-    # CIAAW average/nominal weights are descriptive elemental metadata only.
-    # Physical default masses select a measured, naturally abundant isotope.
-    if elem.atomic_weight is None or float(elem.atomic_weight) <= 0:
-        raise MendeleevInvariantError("Mendeleev has no descriptive atomic weight", symbol_or_query=z_or_sym)
-    weight = float(elem.atomic_weight)
-    isotope_list: List[Tuple[int, float, float]] = []
-    for iso in elem.isotopes:
-        if iso.mass_number is not None and iso.mass is not None and float(iso.mass) > 0:
-            isotope_list.append((int(iso.mass_number), float(iso.mass),
-                                 float(iso.abundance) if iso.abundance is not None else 0.0))
-    isotopes_tuple = tuple(sorted(isotope_list, key=lambda item: item[0]))
-    natural = [isotope for isotope in isotope_list if isotope[2] > 0]
-    principal_mass = max(natural, key=lambda item: (item[2], -item[0]))[1] if natural else None
+        try:
+            elem = _mendeleev_element(z_or_sym)
+        except Exception as exc:
+            raise MendeleevInvariantError(
+                f"Dynamic element resolution failed for query '{z_or_sym}': {exc}",
+                symbol_or_query=z_or_sym,
+            ) from exc
 
-    cov_r = elem.covalent_radius_pyykko or elem.covalent_radius
-    cov_radius_pm = float(cov_r) if cov_r is not None else None
+        z = int(elem.atomic_number)
+        symbol = str(elem.symbol)
+        name = str(elem.name)
 
-    vdw_r = elem.vdw_radius or elem.vdw_radius_alvarez or elem.vdw_radius_bondi or elem.vdw_radius_batsanov
-    vdw_radius_pm = float(vdw_r) if vdw_r is not None else None
+        # CIAAW average/nominal weights are descriptive elemental metadata only.
+        # Physical default masses select a measured, naturally abundant isotope.
+        if elem.atomic_weight is None or float(elem.atomic_weight) <= 0:
+            raise MendeleevInvariantError("Mendeleev has no descriptive atomic weight", symbol_or_query=z_or_sym)
+        weight = float(elem.atomic_weight)
+        isotope_list: List[Tuple[int, float, float]] = []
+        for iso in elem.isotopes:
+            if iso.mass_number is not None and iso.mass is not None and float(iso.mass) > 0:
+                isotope_list.append((int(iso.mass_number), float(iso.mass),
+                                     float(iso.abundance) if iso.abundance is not None else 0.0))
+        isotopes_tuple = tuple(sorted(isotope_list, key=lambda item: item[0]))
+        natural = [isotope for isotope in isotope_list if isotope[2] > 0]
+        principal_mass = max(natural, key=lambda item: (item[2], -item[0]))[1] if natural else None
 
-    # Valence electrons
-    if hasattr(elem, "nvalence") and callable(elem.nvalence):
-        val_e = int(elem.nvalence())
-    elif elem.electrons is not None:
-        val_e = int(elem.electrons)
-    else:
-        val_e = 0
+        cov_r = elem.covalent_radius_pyykko or elem.covalent_radius
+        cov_radius_pm = float(cov_r) if cov_r is not None else None
 
-    data = ElementData(
-        atomic_number=z,
-        symbol=symbol,
-        name=name,
-        atomic_weight=weight,
-        isotopes=isotopes_tuple,
-        covalent_radius_pm=cov_radius_pm,
-        vdw_radius_pm=vdw_radius_pm,
-        valence_electrons=val_e,
-        mass=principal_mass,
-        mass_number=None,
-        formal_charge=0,
-        is_isotope=False,
-    )
+        vdw_r = elem.vdw_radius or elem.vdw_radius_alvarez or elem.vdw_radius_bondi or elem.vdw_radius_batsanov
+        vdw_radius_pm = float(vdw_r) if vdw_r is not None else None
 
-    with _CACHE_LOCK:
-        _ELEMENTS_BY_SYMBOL[symbol] = data
-        _ELEMENTS_BY_Z[z] = data
+        # Valence electrons
+        if hasattr(elem, "nvalence") and callable(elem.nvalence):
+            val_e = int(elem.nvalence())
+        elif elem.electrons is not None:
+            val_e = int(elem.electrons)
+        else:
+            val_e = 0
+
+        data = ElementData(
+            atomic_number=z,
+            symbol=symbol,
+            name=name,
+            atomic_weight=weight,
+            isotopes=isotopes_tuple,
+            covalent_radius_pm=cov_radius_pm,
+            vdw_radius_pm=vdw_radius_pm,
+            valence_electrons=val_e,
+            mass=principal_mass,
+            mass_number=None,
+            formal_charge=0,
+            is_isotope=False,
+        )
+
+        with _CACHE_LOCK:
+            _ELEMENTS_BY_SYMBOL[symbol] = data
+            _ELEMENTS_BY_Z[z] = data
+            _ELEMENTS_BY_NAME_LOWER[name.lower()] = data
 
     return data
 
@@ -240,32 +261,37 @@ def get_element(symbol_or_z: Union[str, int]) -> ElementData:
             val = charge_str[1:]
             formal_charge = -int(val) if val else -1
 
-    # Dynamic lookup via mendeleev
-    try:
-        elem = _mendeleev_element(norm_sym)
-        base_data = _load_element_data(norm_sym)
-    except Exception as exc:
-        # Fallback to query by full element name (e.g. 'Carbon')
+    # Thread-safe cache check before touching mendeleev's shared SQLAlchemy session
+    with _CACHE_LOCK:
+        base_data = _ELEMENTS_BY_SYMBOL.get(norm_sym) or _ELEMENTS_BY_NAME_LOWER.get(norm_sym.lower())
+
+    if base_data is None:
         try:
-            elem = _mendeleev_element(sym_raw)
-            base_data = _load_element_data(sym_raw)
-            norm_sym = str(elem.symbol)
-        except Exception:
-            raise MendeleevInvariantError(
-                f"Dynamic element resolution failed for query '{symbol_or_z}': element '{norm_sym}' not found.",
-                symbol_or_query=symbol_or_z,
-            ) from exc
+            base_data = _load_element_data(norm_sym)
+        except Exception as exc:
+            # Fallback to query by full element name (e.g. 'Carbon')
+            try:
+                base_data = _load_element_data(sym_raw)
+            except Exception:
+                raise MendeleevInvariantError(
+                    f"Dynamic element resolution failed for query '{symbol_or_z}': element '{norm_sym}' not found.",
+                    symbol_or_query=symbol_or_z,
+                ) from exc
+
+    norm_sym = base_data.symbol
 
     if mass_number is not None:
         is_isotope = True
-        iso = next((i for i in elem.isotopes if i.mass_number == mass_number), None)
-        if iso is None or iso.mass is None or float(iso.mass) <= 0.0:
+        iso_match = next((item for item in base_data.isotopes if item[0] == mass_number), None)
+        if iso_match is None or iso_match[1] <= 0.0:
             raise MendeleevInvariantError(
                 f"No isotope with mass number A={mass_number} found for element '{norm_sym}'.",
                 symbol_or_query=symbol_or_z,
             )
-        mass = float(iso.mass)
+        mass: Optional[float] = float(iso_match[1])
     else:
+        if formal_charge == 0:
+            return base_data
         is_isotope = False
         mass = base_data.mass
 
@@ -318,7 +344,8 @@ class MendeleevResolver:
 
     def get_element(self, symbol_or_z: Union[str, int]) -> Any:
         elem_data = get_element(symbol_or_z)
-        return _mendeleev_element(elem_data.atomic_number)
+        with _MENDELEEV_DB_LOCK:
+            return _mendeleev_element(elem_data.atomic_number)
 
     def get_atomic_number(self, symbol_or_z: Union[str, int]) -> int:
         return get_element(symbol_or_z).atomic_number
@@ -341,7 +368,10 @@ class MendeleevResolver:
     def get_vdw_radius(self, symbol_or_z: Union[str, int]) -> float:
         r = get_element(symbol_or_z).vdw_radius_pm
         if r is None:
-            raise MissingDataError(f"Van der Waals radius is not available for element '{symbol_or_z}'.")
+            raise MendeleevInvariantError(
+                f"Van der Waals radius is not available for element '{symbol_or_z}'.",
+                symbol_or_query=symbol_or_z,
+            )
         return r
 
     def get_vdw_radius_angstrom(self, symbol_or_z: Union[str, int]) -> float:
@@ -361,7 +391,7 @@ class MendeleevResolver:
         return [m_num for m_num, _, _ in get_element(symbol_or_z).isotopes]
 
     def clear_cache(self) -> None:
-        raise MissingDataError("Mendeleev element cache is immutable and cannot be cleared.")
+        raise MendeleevInvariantError("Mendeleev element cache is immutable and cannot be cleared.")
 
 
 # Default global resolver instance for backwards compatibility
